@@ -89,12 +89,12 @@ end
 module HashconsContextLifter (S:Spec)
   : Spec with module D = S.D
           and module G = S.G
-          and module C = Printable.HConsed (S.C)
+          and module C = Lattice.HConsed (S.C)
 =
 struct
   module D = S.D
   module G = S.G
-  module C = Printable.HConsed (S.C)
+  module C = Lattice.HConsed (S.C)
 
   let name () = S.name () ^" context hashconsed"
 
@@ -320,7 +320,7 @@ struct
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
   end
   module G = S.G
-  module C = Printable.Prod (S.C) (M)
+  module C = Lattice.Prod (S.C) (M)
 
   let name () = S.name ()^" with widened contexts"
 

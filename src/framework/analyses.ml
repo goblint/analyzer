@@ -317,7 +317,7 @@ module type Spec =
 sig
   module D : Lattice.S
   module G : Lattice.S
-  module C : Printable.S
+  module C : Lattice.S
 
   val name : unit -> string
 
