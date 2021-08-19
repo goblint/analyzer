@@ -520,8 +520,9 @@ struct
       VD.join (CPA.find x st.cpa) (G.protected (getg x))
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    sideg x (if !GU.earlyglobs then G.create_init v else G.create_unprotected v); (* earlyglobs workaround for 13/60 *)
-    if is_unprotected ask x then
+    let unprotected = is_unprotected ask x in
+    sideg x (if !GU.earlyglobs || unprotected then G.create_init v else G.create_unprotected v); (* earlyglobs workaround for 13/60 *)
+    if unprotected then
       st
     else
       {st with cpa = CPA.add x v st.cpa; priv = P.add x st.priv}
