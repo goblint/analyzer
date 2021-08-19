@@ -23,6 +23,7 @@ module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
 module Dep    = BaseDomain.PartDeps
 module BaseComponents = BaseDomain.BaseComponents
+module LvalMap = BaseDomain.LvalMap
 
 let is_heap_var (a: Q.ask) (v: varinfo): bool = a.f (Q.IsHeapVar v)
 
@@ -2289,7 +2290,7 @@ struct
     | `Int _ | `Bot | `Top -> true
     | _ -> false
 
-  let combine_get_return ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) :(D.t * VD.t option) =
+  let combine_get_return ctx (writtenMap: LvalMap.t option) (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) :(D.t * VD.t option) =
     let combine_one (st: D.t) (fun_st: D.t) :(D.t * VD.t option) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
@@ -2348,7 +2349,7 @@ struct
     Stats.time "Base.combine" (combine_one ctx.local) after
 
   let combine ctx lval fexp f args fc after =
-    fst (combine_get_return ctx lval fexp f args fc after)
+    fst (combine_get_return ctx None lval fexp f args fc after)
 
   let special_unknown_invalidate ctx ask gs st f args =
     (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));

@@ -21,7 +21,7 @@ struct
   let name () = "writtenLvals"
   module D = B.D
   module LS = Q.LS
-  module Map = MapDomain.MapBot (Lval.CilLval) (VD)
+  module Map = BaseDomain.LvalMap
   module G = Lattice.Prod (B.G) (Map)
   module C = B.C
 
@@ -114,7 +114,8 @@ struct
     B.enter (project_ctx ctx) lval f args
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    let result_state, return_val = B.combine_get_return (project_ctx ctx) lval fexp f args fc au in
+    let map = snd @@ ctx.global f.svar in
+    let result_state, return_val = B.combine_get_return (project_ctx ctx) (Some map) lval fexp f args fc au in
     (* We have a call: [lval =] f(e1,...,ek) *)
     (* Set the lval to written, if any. *)
     (match lval, return_val with
