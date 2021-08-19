@@ -20,7 +20,6 @@ struct
 
   let should_join = Priv.should_join
 
-  let val_of x = x
   let context x = if GobConfig.get_bool "ana.octapron.no-context" then D.bot () else x
 
 

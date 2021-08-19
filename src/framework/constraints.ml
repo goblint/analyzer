@@ -30,7 +30,6 @@ struct
   let exitstate  v = D.lift (S.exitstate  v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
-  let val_of = D.lift % S.val_of
   let context = S.context % D.unlift
   let call_descr = S.call_descr
 
@@ -107,7 +106,6 @@ struct
   let exitstate  = S.exitstate
   let morphstate = S.morphstate
 
-  let val_of = S.val_of % C.unlift
   let context = C.lift % S.context
   let call_descr f = S.call_descr f % C.unlift
 
@@ -201,7 +199,6 @@ struct
   let exitstate  v = (S.exitstate  v, !start_level)
   let morphstate v (d,l) = (S.morphstate v d, l)
 
-  let val_of d = (S.val_of d, !error_level)
   let context (d,_) = S.context d
   let call_descr f = S.call_descr f
 
@@ -337,7 +334,6 @@ struct
   let exitstate  = inj S.exitstate
   let morphstate v (d,m) = S.morphstate v d, m
 
-  let val_of = inj S.val_of (* empty map when generating value from context *)
   let context (d,m) = S.context d (* just the child analysis' context *)
   let call_descr = S.call_descr
 
@@ -402,7 +398,6 @@ struct
   let exitstate  v = `Lifted (S.exitstate  v)
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
-  let val_of = D.lift % S.val_of
   let context = S.context % D.unlift
   let call_descr f = S.call_descr f
 
@@ -921,7 +916,6 @@ struct
 
   let call_descr = Spec.call_descr
 
-  let val_of = D.singleton % Spec.val_of
   let context l =
     if D.cardinal l <> 1 then
       failwith "PathSensitive2.context must be called with a singleton set."

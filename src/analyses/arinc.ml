@@ -95,7 +95,6 @@ struct
   let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
 
   let context d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
-  (* let val_of d = d *)
 
   (* function for creating a new intermediate node (will generate a new sid every time!) *)
   let mkDummyNode ?loc line =

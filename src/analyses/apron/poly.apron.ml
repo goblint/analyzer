@@ -16,7 +16,6 @@ struct
   module G = Lattice.Unit
   module C = D
 
-  let val_of x = x
   let context x = if GobConfig.get_bool "ana.octapron.no-context" then D.bot () else x
 
   let threadenter ctx lval f args = [D.top ()]
