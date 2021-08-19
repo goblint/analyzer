@@ -152,7 +152,7 @@ struct
 
   let query ctx (type a) (q: a Q.t): a Q.result = match q with
     | Q.WrittenLvals f ->
-      let lvals = List.fold (fun acc (lv,_) -> LS.add lv acc) (LS.empty ()) (Map.bindings (snd (ctx.global f))) in
+      let lvals = Q.LS.of_list (List.map fst (Map.bindings (snd (ctx.global f)))) in
       lvals
     | _ -> B.query (project_ctx ctx) q
 
