@@ -22,7 +22,7 @@ void write_all(int count, ...){
     if(top){
         for(int i=0; i<count; i++){
             int* ptr = va_arg(arg, int*);
-            *ptr = 1;
+            *ptr = 2;
         }
     }
     return;

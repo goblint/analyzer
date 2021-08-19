@@ -3,8 +3,11 @@
 
 #include <assert.h>
 int foo(int *p, long *l){
-    *l = 4;
-    *p = 3;
+    int top;
+    if(top){
+        *l = 4;
+        *p = 37;
+    }
     return *p;
 }
 
