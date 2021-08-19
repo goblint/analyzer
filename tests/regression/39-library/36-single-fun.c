@@ -1,4 +1,4 @@
-// NOMARSHAL PARAM: --enable ana.library.enabled  --sets ana.activated[-] threadid  --sets ana.activated[+] mallocWrapperTypeBased  --sets ana.activated[+] typecasts --sets ana.activated[-] mallocWrapper --sets ana.activated[+] writtenLvals --sets ana.activated[+] varArgs --disable ana.library.all --set mainfun "['bar']"
+// NOMARSHAL PARAM: --enable ana.library.enabled  --sets ana.activated[-] threadid  --sets ana.activated[+] mallocWrapperTypeBased  --sets ana.activated[+] typecasts --sets ana.activated[-] mallocWrapper --sets ana.activated[+] writtenLvals --sets ana.activated[+] varArgs --disable ana.library.all --set mainfun "['bar']" --sets ana.activated[-] base
 
 
 // This
