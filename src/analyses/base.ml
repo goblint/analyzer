@@ -2290,18 +2290,23 @@ struct
     | `Int _ | `Bot | `Top -> true
     | _ -> false
 
+  (* The writtenMap is provided when this analysis is wrapped by writtenLvals *)
   let combine_get_return ctx (writtenMap: LvalMap.t option) (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) :(D.t * VD.t option) =
     let combine_one (st: D.t) (fun_st: D.t) :(D.t * VD.t option) =
       if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
       let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
-        let writtenLvals = ask.f (Q.WrittenLvals f.svar) in
-        if Q.LS.is_bot writtenLvals
-          then
-            (* No need to update if the called function did not write anything *)
-            st
-          else
-            let addresses = Stats.time "collect_funargs" (collect_funargs ask globs st) exps in
-            Stats.time "update_reachable_written_vars" (update_reachable_written_vars ask addresses globs st fun_st) writtenLvals
+        (match writtenMap with
+        | Some writtenMap ->
+          let writtenLvals = Q.LS.of_list (List.map fst (LvalMap.bindings writtenMap)) in
+          if Q.LS.is_bot writtenLvals
+            then (
+              (* No need to update if the called function did not write anything *)
+              st
+            ) else
+              let addresses = Stats.time "collect_funargs" (collect_funargs ask globs st) exps in
+              Stats.time "update_reachable_written_vars" (update_reachable_written_vars ask addresses globs st fun_st) writtenLvals
+        | None ->
+          st)
       in
       let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.AddrOf (Cil.var k))::acc else acc) st.cpa [] in
       (* This function does miscellaneous things, but the main task was to give the
