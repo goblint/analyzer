@@ -20,7 +20,7 @@ struct
 
   let should_join = Priv.should_join
 
-  let context x = if GobConfig.get_bool "ana.octapron.no-context" then D.bot () else x
+  let context x = if GobConfig.get_bool "ana.octapron.no-context" then D.bot () else x (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
 
 
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
