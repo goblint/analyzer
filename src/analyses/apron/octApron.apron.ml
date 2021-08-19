@@ -145,7 +145,11 @@ struct
 
   let branch ctx e b =
     let st = ctx.local in
-    let res = AD.assert_inv st.oct e (not b) in
+    let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
+        (* not an assign, but must remove g#in-s still *)
+        AD.assert_inv oct' e' (not b)
+      )
+    in
     if AD.is_bot_env res then raise Deadcode;
     {st with oct = res}
 
@@ -164,7 +168,15 @@ struct
     in
     let arg_vars = List.map fst arg_assigns in
     let new_oct = AD.add_vars st.oct arg_vars in
-    AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *)
+    (* AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
+    (* TODO: parallel version of assign_from_globals_wrapper? *)
+    let ask = Analyses.ask_of_ctx ctx in
+    let new_oct = List.fold_left (fun new_oct (var, e) ->
+        assign_from_globals_wrapper ask ctx.global {st with oct = new_oct} e (fun oct' e' ->
+            AD.assign_exp oct' var e'
+          )
+      ) new_oct arg_assigns
+    in
     AD.remove_filter_with new_oct (fun var ->
         match V.find_metadata var with
         | Some Local -> true (* remove caller locals *)
@@ -223,7 +235,16 @@ struct
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
-    AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *)
+    (* AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
+    (* TODO: parallel version of assign_from_globals_wrapper? *)
+    let ask = Analyses.ask_of_ctx ctx in
+    let new_fun_oct = List.fold_left (fun new_fun_oct (var, e) ->
+        assign_from_globals_wrapper ask ctx.global {st with oct = new_fun_oct} e (fun oct' e' ->
+            (* not an assign, but still works? *)
+            AD.substitute_exp oct' var e'
+          )
+      ) new_fun_oct arg_substitutes
+    in
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_oct arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_oct adds them back with proper constraints *)
@@ -310,13 +331,26 @@ struct
 
   let threadenter ctx lval f args =
     let st = ctx.local in
-    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-       EnterMultithreaded events only execute after threadenter and threadspawn. *)
-    if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
-      ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
-    [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
+    match Cilfacade.find_varinfo_fundec f with
+    | fd ->
+      (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+        Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+        sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+        EnterMultithreaded events only execute after threadenter and threadspawn. *)
+      if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+        ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
+      let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
+      let arg_vars =
+        fd.sformals
+        |> List.filter AD.varinfo_tracked
+        |> List.map V.arg
+      in
+      let new_oct = AD.add_vars st'.oct arg_vars in
+      [{st' with oct = new_oct}]
+    | exception Not_found ->
+      (* Unknown functions *)
+      (* TODO: do something like base? *)
+      failwith "octApron.threadenter: unknown function"
 
   let threadspawn ctx lval f args fctx =
     ctx.local
