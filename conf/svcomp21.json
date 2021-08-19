@@ -52,7 +52,7 @@
   "solver": "td3",
   "sem": {
     "unknown_function": {
-      "spawn": true
+      "spawn": false
     }
   }
 }
