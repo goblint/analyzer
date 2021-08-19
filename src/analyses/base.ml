@@ -465,7 +465,7 @@ struct
     let new_addrs = List.filter_map Tuple2.second concrete_and_new_addresses in
     (concrete_addrs, new_addrs)
 
-  let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (reachable_vars: AD.t list) =
+  let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (reachable_vars: AD.t list) (writtenMap: LvalMap.t) =
     let rec get_concrete_value_and_new_blocks_from_value symb_value = match symb_value with
       | `Address addr ->
         let (concrete_addrs, new_addrs) = Stats.time "symb_address_set_to_concretes" (symb_address_set_to_concretes a g symb st fun_st addr) reachable_vars in
@@ -484,7 +484,14 @@ struct
       | `Bot ->
         symb_value, []
     in
-    let symb_value = get a g fun_st symb None in
+    let writtenVal = (match AD.to_var_may symb with
+    | [x] ->
+      let lval = x, `NoOffset in
+      LvalMap.find_opt lval writtenMap
+    | _ -> None)
+    in
+    let symb_value = match writtenVal with Some x -> x | _ -> get a g fun_st symb None in
+    if M.tracing then M.tracel "concretes2" "Got symbolic value %a for address %a with writtenMap %a\n" VD.pretty symb_value AD.pretty symb LvalMap.pretty writtenMap;
     let (r, n) = get_concrete_value_and_new_blocks_from_value symb_value in
     (* Going from bot to top is here for the case that we did not create an symbolic abstraction, and therefore did not gather potential writes. If we always generate such a symbolic representation, in particular for the cases of casts, this should not be a problem. *)
     (* let r = if VD.is_bot r then `Top else r in *)
@@ -1325,7 +1332,7 @@ struct
 
   (* Given a state st of the current function and the return state fun_st of another function, the reachable vars of this function for the called function,
      and a list of new addresses that the called function generated, compute a closure that integrates new addresses into the state st *)
-  let integrate_new_addresses ask gs st fun_st reachable_vars new_addresses =
+  let integrate_new_addresses ask gs st fun_st reachable_vars new_addresses writtenMap =
     let empty = AD.empty () in
     let visited = ref empty in
     let workset = ref (AD.of_list (List.flatten new_addresses)) in
@@ -1335,7 +1342,7 @@ struct
       (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
       let visit_and_collect var (acc, st) =
         let sa = AD.singleton var in
-        let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st reachable_vars in
+        let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st reachable_vars writtenMap in
         if M.tracing then M.tracel "library" "Updating new address %a to value %a\n" AD.pretty sa VD.pretty concrete_value;
         let st = set ask gs st sa (AD.get_type sa) concrete_value in
         let addrs = AD.union (AD.of_list new_addresses) acc in
@@ -1349,7 +1356,8 @@ struct
     !st
 
   (* Update the state st by adding the state fun_st  *)
-  let update_reachable_written_vars (ask: Q.ask) (reachable_vars: address list) (gs:glob_fun) (st: store) (fun_st: store) (written_lvals: Q.LS.t): store =
+  let update_reachable_written_vars (ask: Q.ask) (reachable_vars: address list) (gs:glob_fun) (st: store) (fun_st: store) (writtenMap: LvalMap.t): store =
+    let written_lvals = Q.LS.of_list (List.map fst (LvalMap.bindings writtenMap)) in
     let reachable_written_vars = (match written_lvals with
       | `Top -> reachable_vars
       | `Lifted s ->
@@ -1372,14 +1380,14 @@ struct
     let update_written_address (st, addr_list) (addr: Addr.t) =
       let sa = Stats.time "get_symbolic_address" (get_symbolic_address ask gs addr) fun_st in
       let typ = Addr.get_type addr in
-      let (concrete_value, new_addresses) = Stats.time "get_concrete_value_and_new_blocks" (get_concrete_value_and_new_blocks ask gs sa st fun_st) reachable_vars in
+      let (concrete_value, new_addresses) = Stats.time "get_concrete_value_and_new_blocks" (get_concrete_value_and_new_blocks ask gs sa st fun_st reachable_vars) writtenMap in
       (* For the existing memory blocks, we have to join the old and the new value *)
       let old_value = get ask gs st (AD.singleton addr) None in
       let value = VD.join old_value concrete_value in
       set ask gs st (AD.singleton addr) typ value, new_addresses::addr_list
     in
     let (st, new_addresses) = Stats.time "update_written_address" (List.fold update_written_address (st, [])) reachable_written_vars in
-    Stats.time "integrate_new_addresses" (integrate_new_addresses  ask gs st fun_st reachable_vars) new_addresses
+    Stats.time "integrate_new_addresses" (integrate_new_addresses  ask gs st fun_st reachable_vars new_addresses) writtenMap
 
   let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
@@ -2297,14 +2305,13 @@ struct
       let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
         (match writtenMap with
         | Some writtenMap ->
-          let writtenLvals = Q.LS.of_list (List.map fst (LvalMap.bindings writtenMap)) in
-          if Q.LS.is_bot writtenLvals
+          if LvalMap.is_bot writtenMap
             then (
               (* No need to update if the called function did not write anything *)
               st
             ) else
               let addresses = Stats.time "collect_funargs" (collect_funargs ask globs st) exps in
-              Stats.time "update_reachable_written_vars" (update_reachable_written_vars ask addresses globs st fun_st) writtenLvals
+              Stats.time "update_reachable_written_vars" (update_reachable_written_vars ask addresses globs st fun_st) writtenMap
         | None ->
           st)
       in
@@ -2343,9 +2350,10 @@ struct
                 let ask = Analyses.ask_of_ctx ctx in
                 let reachable_addresses = collect_funargs ask ctx.global st args in
                 let reachable_addresses = (collect_funargs ask ctx.global st globals)@reachable_addresses in
-                let (value, new_addresses) = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses in
+                let writtenMap = match writtenMap with Some w -> w | _ -> LvalMap.bot () in
+                let (value, new_addresses) = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses writtenMap in
                 let st, _ = add_return_val value st in
-                integrate_new_addresses ask ctx.global st fun_st reachable_addresses [new_addresses], Some value
+                integrate_new_addresses ask ctx.global st fun_st reachable_addresses [new_addresses] writtenMap, Some value
             else
               add_return_val return_val st
           else add_return_val (VD.top ()) st
