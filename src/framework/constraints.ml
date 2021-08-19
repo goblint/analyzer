@@ -368,7 +368,6 @@ struct
       let v_old = M.find f.svar m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
       Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
-      let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
       v_new, M.add f.svar v_new m
     in
     S.enter (conv ctx) r f args
