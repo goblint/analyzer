@@ -1537,11 +1537,11 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "exp.privatization" with
         | "none" -> (module NonePriv: S)
-        | "protection-old" -> ConfCheck.check_mutex_enabled (); (module ProtectionBasedOldPriv)
+        | "protection-old" -> if get_string "ana.osek.oil" = "" then ConfCheck.check_mutex_enabled (); (module ProtectionBasedOldPriv)
         | "mutex-oplus" -> ConfCheck.check_mutex_enabled (); (module PerMutexOplusPriv)
         | "mutex-meet" -> ConfCheck.check_mutex_enabled (); (module PerMutexMeetPriv)
         | "protection" -> ConfCheck.check_mutex_enabled (); (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
-        | "protection-read" -> if get_string "ana.osek.oil" = "" then ConfCheck.check_mutex_enabled (); (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
+        | "protection-read" -> ConfCheck.check_mutex_enabled (); (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
         | "protection-vesal" -> if get_string "ana.osek.oil" = "" then ConfCheck.check_mutex_enabled (); (module ProtectionBasedVesalPriv)
         | "mine" -> ConfCheck.check_mutex_path_sensitive (); (module MinePriv)
         | "mine-nothread" -> ConfCheck.check_mutex_path_sensitive (); (module MineNoThreadPriv)
