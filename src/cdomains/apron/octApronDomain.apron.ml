@@ -59,14 +59,12 @@ let int_of_scalar ?round (scalar: Scalar.t) =
       let z_opt =
         if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
           Some n
-        else (
-          (* ignore (Pretty.printf "  apron n d: %s %s\n" (Mpzf.to_string n) (Mpzf.to_string d)); *)
+        else
           begin match round with
             | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
             | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
             | None -> None
           end
-        )
       in
       Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
     | _ ->
@@ -74,14 +72,8 @@ let int_of_scalar ?round (scalar: Scalar.t) =
 
 let bound_texpr d texpr1 =
   let bounds = A.bound_texpr Man.mgr d texpr1 in
-  (* let z_opt_pretty () = function
-    | None -> text "None"
-    | Some z -> text (BI.to_string z)
-  in *)
   let min = int_of_scalar ~round:`Ceil bounds.inf in
-  (* ignore (Pretty.printf "apron min %a: %a\n" dn_exp e z_opt_pretty min); *)
   let max = int_of_scalar ~round:`Floor bounds.sup in
-  (* ignore (Pretty.printf "apron max %a: %a\n" dn_exp e z_opt_pretty max); *)
   (min, max)
 
 (** Conversion from CIL expressions to Apron. *)
