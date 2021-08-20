@@ -14,8 +14,14 @@ sig
   val is_main: t -> bool
 end
 
+module type Stateless =
+sig
+  include S
+  val spawn_thread': location -> varinfo -> t
+end
+
 (** Type to represent an abstract thread ID. *)
-module FunLoc: S with type t = varinfo * location option =
+module FunLoc: Stateless =
 struct
   module M = Printable.Prod (CilType.Varinfo) (Printable.Option (CilType.Location) (struct let name = "no location" end))
   include M
@@ -34,7 +40,8 @@ struct
   )
 
   let start_thread v: t = (v, None)
-  let spawn_thread _ l v: t = (v, Some l)
+  let spawn_thread' l v: t = (v, Some l)
+  let spawn_thread _ l v: t = spawn_thread' l v
 
   let spawned_thread () _ _ = ()
 
@@ -47,16 +54,16 @@ struct
     | _ -> false
 end
 
-module FunLocHistory: S =
+module History (Base: Stateless): S =
 struct
   module P =
   struct
-    include Printable.Liszt (FunLoc)
+    include Printable.Liszt (Base)
     let name () = "prefix"
   end
   module S =
   struct
-    include SetDomain.Make (FunLoc)
+    include SetDomain.Make (Base)
     let name () = "set"
   end
   module M = Printable.Prod (P) (S)
@@ -71,9 +78,9 @@ struct
   let compose ((p, s) as current) n =
     if S.mem n s then
       current
-    else if BatList.mem_cmp FunLoc.compare n p then (
-      let new_loop = n :: BatList.take_while (fun m -> not (FunLoc.equal n m)) p in
-      let new_pref = List.tl (BatList.drop_while (fun m -> not (FunLoc.equal n m)) p) in
+    else if BatList.mem_cmp Base.compare n p then (
+      let new_loop = n :: BatList.take_while (fun m -> not (Base.equal n m)) p in
+      let new_pref = List.tl (BatList.drop_while (fun m -> not (Base.equal n m)) p) in
       (new_pref, S.of_list new_loop)
     )
     else if S.is_empty s then
@@ -81,9 +88,9 @@ struct
     else
       failwith "what now"
 
-  let start_thread v = ([(v, None)], S.empty ())
+  let start_thread v = ([Base.start_thread v], S.empty ())
   let spawn_thread ((p, _ ) as current, cs) l v =
-    let n = (v, Some l) in
+    let n = Base.spawn_thread' l v in
     let ((p', s') as composed) = compose current n in
     if S.is_empty s' && S.mem n cs then
       (p, S.singleton n)
@@ -91,14 +98,14 @@ struct
       composed
 
   let spawned_thread cs l v =
-    S.add (v, Some l) cs
+    S.add (Base.spawn_thread' l v) cs
 
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in
     RichVarinfoM.map ~name:show ~size:113
 
   let is_main = function
-    | ([fl], s) when S.is_empty s && FunLoc.is_main fl -> true
+    | ([fl], s) when S.is_empty s && Base.is_main fl -> true
     | _ -> false
 end
 
@@ -112,5 +119,5 @@ struct
   let name () = "Thread"
 end
 
-module Thread = FunLocHistory (* TODO: make dynamically switchable? *)
+module Thread = History (FunLoc) (* TODO: make dynamically switchable? *)
 module ThreadLifted = Lift (Thread)
