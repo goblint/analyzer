@@ -816,7 +816,7 @@ struct
         end
       | `Blob (x,s,orig), `Field(f, _) ->
         begin
-          (* We only have `Blob for dynamically allocated memort. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
+          (* We only have `Blob for dynamically allocated memory. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
           (* will be int. Here, we need a zero_init of the entire contents of the blob though, which we get by taking the associated f.fcomp. Putting [] for attributes is ok, as we don't *)
           (* consider them in VD *)
           let l', o' = shift_one_over l o in
