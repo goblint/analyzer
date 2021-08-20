@@ -12,8 +12,7 @@ int main(){
     assert(a);
 
     unsigned long long y = x + 4;
-    // Unsigned overflow -- The following assertion should succeed, but is unknown for now
-    assert(y == 3); // UNKNOWN
+    assert(y == 3);
 
     // maximum value for long long
     signed long long s = 9223372036854775807;

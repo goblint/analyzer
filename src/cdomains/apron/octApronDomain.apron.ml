@@ -72,6 +72,18 @@ let int_of_scalar ?round (scalar: Scalar.t) =
     | _ ->
       failwith ("int_of_scalar: not rational: " ^ Scalar.to_string scalar)
 
+let bound_texpr d texpr1 =
+  let bounds = A.bound_texpr Man.mgr d texpr1 in
+  (* let z_opt_pretty () = function
+    | None -> text "None"
+    | Some z -> text (BI.to_string z)
+  in *)
+  let min = int_of_scalar ~round:`Ceil bounds.inf in
+  (* ignore (Pretty.printf "apron min %a: %a\n" dn_exp e z_opt_pretty min); *)
+  let max = int_of_scalar ~round:`Floor bounds.sup in
+  (* ignore (Pretty.printf "apron max %a: %a\n" dn_exp e z_opt_pretty max); *)
+  (min, max)
+
 (** Conversion from CIL expressions to Apron. *)
 module Convert (Tracked: Tracked) =
 struct
@@ -125,12 +137,10 @@ struct
             raise Unsupported_CilExp
         in
         let ik = Cilfacade.get_ikind_exp exp in
-        if not (Cil.isSigned ik && GobConfig.get_bool "ana.octapron.no_signed_overflow") then (
+        if not (IntDomain.should_ignore_overflow ik) then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
-          let bounds = A.bound_texpr Man.mgr d (Texpr1.of_expr env expr) in
-          let min = int_of_scalar bounds.inf in
-          let max = int_of_scalar bounds.sup in
-          match min, max with
+          let texpr1 = Texpr1.of_expr env expr in
+          match bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
           | _ ->
             (* ignore (Pretty.printf "octapron may overflow %a\n" dn_exp exp); *)
@@ -541,16 +551,7 @@ struct
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (A.env d) e with
     | texpr1 ->
-      let bounds = A.bound_texpr Man.mgr d texpr1 in
-      (* let z_opt_pretty () = function
-        | None -> text "None"
-        | Some z -> text (BI.to_string z)
-      in *)
-      let min = int_of_scalar ~round:`Ceil bounds.inf in
-      (* ignore (Pretty.printf "apron min %a: %a\n" dn_exp e z_opt_pretty min); *)
-      let max = int_of_scalar ~round:`Floor bounds.sup in
-      (* ignore (Pretty.printf "apron max %a: %a\n" dn_exp e z_opt_pretty max); *)
-      (min, max)
+      bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp ->
       (None, None)
 
