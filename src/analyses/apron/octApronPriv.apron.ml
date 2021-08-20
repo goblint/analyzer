@@ -675,7 +675,7 @@ end
 let priv_module: (module S) Lazy.t =
   lazy (
     let check_mutex_enabled () =
-      let octapron_active = List.exists (fun x -> Json.string x="octapron") (GobConfig.get_list "ana.activated") in
+      let octapron_active = List.exists (fun x -> Json.string x="octApron") (GobConfig.get_list "ana.activated") in
       if octapron_active then ConfCheck.check_mutex_enabled () else ()
     in
     let module Priv: S =
