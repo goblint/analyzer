@@ -89,18 +89,16 @@ struct
     let name () = "created"
   end
 
-  let compose ((p, s) as current) n =
-    if S.mem n s then
-      current
-    else if BatList.mem_cmp Base.compare n p then (
-      let new_loop = n :: BatList.take_while (fun m -> not (Base.equal n m)) p in
-      let new_pref = List.tl (BatList.drop_while (fun m -> not (Base.equal n m)) p) in
-      (new_pref, S.of_list new_loop)
+  let compose (p, s) n =
+    if BatList.mem_cmp Base.compare n p then (
+      let s' = S.of_list (BatList.take_while (fun m -> not (Base.equal n m)) p) in
+      let p' = List.tl (BatList.drop_while (fun m -> not (Base.equal n m)) p) in
+      (p', S.add n (S.union s s'))
     )
     else if S.is_empty s then
       (n :: p, s) (* reversed storage is more efficient *)
     else
-      failwith "what now"
+      (p, S.add n s)
 
   let start_thread v = ([Base.start_thread v], S.empty ())
   let spawn_thread ((p, _ ) as current, cs) l v =
