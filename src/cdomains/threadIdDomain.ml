@@ -5,7 +5,7 @@ sig
   include Printable.S
   include MapDomain.Groupable with type t := t
 
-  val start_thread: varinfo -> t
+  val threadinit: varinfo -> t
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
   val is_unique: t -> bool
@@ -15,7 +15,7 @@ module type Stateless =
 sig
   include S
 
-  val spawn_thread': location -> varinfo -> t
+  val threadenter: location -> varinfo -> t
 end
 
 module type Stateful =
@@ -24,8 +24,8 @@ sig
 
   module D: Lattice.S
 
-  val spawn_thread: t * D.t -> location -> varinfo -> t
-  val spawned_thread: D.t -> location -> varinfo -> D.t
+  val threadenter: t * D.t -> location -> varinfo -> t
+  val threadspawn: D.t -> location -> varinfo -> D.t
 end
 
 
@@ -46,8 +46,8 @@ struct
     end
   )
 
-  let start_thread v: t = (v, None)
-  let spawn_thread' l v: t = (v, Some l)
+  let threadinit v: t = (v, None)
+  let threadenter l v: t = (v, Some l)
 
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in
@@ -67,8 +67,8 @@ struct
 
   module D = Lattice.Unit
 
-  let spawn_thread _ = spawn_thread'
-  let spawned_thread () _ _ = ()
+  let threadenter _ = threadenter
+  let threadspawn () _ _ = ()
 end
 
 module History (Base: Stateless): Stateful =
@@ -106,17 +106,17 @@ struct
     else
       (p, S.add n s)
 
-  let start_thread v = ([Base.start_thread v], S.empty ())
-  let spawn_thread ((p, _ ) as current, cs) l v =
-    let n = Base.spawn_thread' l v in
+  let threadinit v = ([Base.threadinit v], S.empty ())
+  let threadenter ((p, _ ) as current, cs) l v =
+    let n = Base.threadenter l v in
     let ((p', s') as composed) = compose current n in
     if is_unique composed && S.mem n cs then
       (p, S.singleton n)
     else
       composed
 
-  let spawned_thread cs l v =
-    S.add (Base.spawn_thread' l v) cs
+  let threadspawn cs l v =
+    S.add (Base.threadenter l v) cs
 
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in
