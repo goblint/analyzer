@@ -8,10 +8,12 @@ pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   int x; // rand
-  pthread_mutex_lock(&A);
-  g = x;
-  h = x - 12;
-  pthread_mutex_unlock(&A);
+  if (x > -1000) { // avoid underflow
+    pthread_mutex_lock(&A);
+    g = x;
+    h = x - 12;
+    pthread_mutex_unlock(&A);
+  }
   return NULL;
 }
 

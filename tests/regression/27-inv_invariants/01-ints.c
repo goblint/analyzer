@@ -1,5 +1,5 @@
-// PARAM: --enable ana.int.interval --enable ana.int.wrap_on_signed_overflow
-// With enabled wrap_on_signed_overflow to assume two's complement representation for signed ints and don't go to top on every signed overflow.
+// PARAM: --enable ana.int.interval --sets sem.int.signed_overflow assume_wraparound
+// With sem.int.signed_overflow set to assume_wraparound to assume two's complement representation for signed ints and don't go to top on every signed overflow.
 #include <assert.h>
 
 #define RANGE(x, l, u) x >= l && x <= u
