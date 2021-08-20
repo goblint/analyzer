@@ -8,6 +8,7 @@ sig
   val start_thread: varinfo -> t
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
+  val is_unique: t -> bool
 end
 
 module type Stateless =
@@ -55,6 +56,8 @@ struct
   let is_main = function
     | ({vname = "main"; _}, None) -> true
     | _ -> false
+
+  let is_unique _ = false (* TODO: should this consider main unique? *)
 end
 
 
@@ -89,13 +92,16 @@ struct
     let name () = "created"
   end
 
-  let compose (p, s) n =
+  let is_unique (_, s) =
+    S.is_empty s
+
+  let compose ((p, s) as current) n =
     if BatList.mem_cmp Base.compare n p then (
       let s' = S.of_list (BatList.take_while (fun m -> not (Base.equal n m)) p) in
       let p' = List.tl (BatList.drop_while (fun m -> not (Base.equal n m)) p) in
       (p', S.add n (S.union s s'))
     )
-    else if S.is_empty s then
+    else if is_unique current then
       (n :: p, s) (* reversed storage is more efficient *)
     else
       (p, S.add n s)
@@ -104,7 +110,7 @@ struct
   let spawn_thread ((p, _ ) as current, cs) l v =
     let n = Base.spawn_thread' l v in
     let ((p', s') as composed) = compose current n in
-    if S.is_empty s' && S.mem n cs then
+    if is_unique composed && S.mem n cs then
       (p, S.singleton n)
     else
       composed

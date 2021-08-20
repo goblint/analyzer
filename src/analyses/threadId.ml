@@ -83,6 +83,11 @@ struct
     | Queries.CurrentThreadId -> fst ctx.local
     | Queries.PartAccess {exp; var_opt; write} ->
       part_access ctx exp var_opt write
+    | Queries.MustBeUniqueThread ->
+      begin match fst ctx.local with
+        | `Lifted tid -> Thread.is_unique tid
+        | _ -> Queries.MustBool.top ()
+      end
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
