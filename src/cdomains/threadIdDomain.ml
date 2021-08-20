@@ -5,11 +5,7 @@ sig
   include Printable.S
   include MapDomain.Groupable with type t := t
 
-  module D: Lattice.S
-
   val start_thread: varinfo -> t
-  val spawn_thread: t * D.t -> location -> varinfo -> t
-  val spawned_thread: D.t -> location -> varinfo -> D.t
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
 end
@@ -17,16 +13,26 @@ end
 module type Stateless =
 sig
   include S
+
   val spawn_thread': location -> varinfo -> t
 end
+
+module type Stateful =
+sig
+  include S
+
+  module D: Lattice.S
+
+  val spawn_thread: t * D.t -> location -> varinfo -> t
+  val spawned_thread: D.t -> location -> varinfo -> D.t
+end
+
 
 (** Type to represent an abstract thread ID. *)
 module FunLoc: Stateless =
 struct
   module M = Printable.Prod (CilType.Varinfo) (Printable.Option (CilType.Location) (struct let name = "no location" end))
   include M
-
-  module D = Lattice.Unit
 
   let show = function
     | (f, Some l) -> f.vname ^ "@" ^ CilType.Location.show l
@@ -41,9 +47,6 @@ struct
 
   let start_thread v: t = (v, None)
   let spawn_thread' l v: t = (v, Some l)
-  let spawn_thread _ l v: t = spawn_thread' l v
-
-  let spawned_thread () _ _ = ()
 
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in
@@ -54,7 +57,18 @@ struct
     | _ -> false
 end
 
-module History (Base: Stateless): S =
+
+module Unit (Base: Stateless): Stateful =
+struct
+  include Base
+
+  module D = Lattice.Unit
+
+  let spawn_thread _ = spawn_thread'
+  let spawned_thread () _ _ = ()
+end
+
+module History (Base: Stateless): Stateful =
 struct
   module P =
   struct
