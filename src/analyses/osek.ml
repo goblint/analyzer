@@ -58,7 +58,7 @@ struct
 end
 
 let get_flag (state: (string * Obj.t) list) : Flag.t =
-  (Obj.obj (List.assoc "threadflag" state), Obj.obj (List.assoc "threadid" state))
+  (Obj.obj (List.assoc "threadflag" state), fst (Obj.obj (List.assoc "threadid" state)))
 
 
 module Spec =
