@@ -68,10 +68,7 @@ struct
     let name () = "created"
   end
 
-  let start_thread v = ([(v, None)], S.empty ())
-  let spawn_thread (current, cs) l v =
-    let n = (v, Some l) in
-    let (p, s) = current in
+  let compose ((p, s) as current) n =
     if S.mem n s then
       current
     else if BatList.mem_cmp FunLoc.compare n p then (
@@ -84,8 +81,17 @@ struct
     else
       failwith "what now"
 
+  let start_thread v = ([(v, None)], S.empty ())
+  let spawn_thread ((p, _ ) as current, cs) l v =
+    let n = (v, Some l) in
+    let ((p', s') as composed) = compose current n in
+    if S.is_empty s' && S.mem n cs then
+      (p, S.singleton n)
+    else
+      composed
+
   let spawned_thread cs l v =
-    cs (* TODO *)
+    S.add (v, Some l) cs
 
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in
