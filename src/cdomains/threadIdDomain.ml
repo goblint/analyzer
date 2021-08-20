@@ -9,6 +9,7 @@ sig
 
   val start_thread: varinfo -> t
   val spawn_thread: t * D.t -> location -> varinfo -> t
+  val spawned_thread: D.t -> location -> varinfo -> D.t
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
 end
@@ -35,6 +36,8 @@ struct
   let start_thread v: t = (v, None)
   let spawn_thread _ l v: t = (v, Some l)
 
+  let spawned_thread () _ _ = ()
+
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in
     RichVarinfoM.map ~name:show ~size:113
@@ -46,12 +49,24 @@ end
 
 module FunLocHistory: S =
 struct
-  module P = Printable.Liszt (FunLoc)
-  module S = SetDomain.Make (FunLoc)
+  module P =
+  struct
+    include Printable.Liszt (FunLoc)
+    let name () = "prefix"
+  end
+  module S =
+  struct
+    include SetDomain.Make (FunLoc)
+    let name () = "set"
+  end
   module M = Printable.Prod (P) (S)
   include M
 
-  module D = S
+  module D =
+  struct
+    include S
+    let name () = "created"
+  end
 
   let start_thread v = ([(v, None)], S.empty ())
   let spawn_thread (current, cs) l v =
@@ -68,6 +83,9 @@ struct
       (n :: p, s) (* reversed storage is more efficient *)
     else
       failwith "what now"
+
+  let spawned_thread cs l v =
+    cs (* TODO *)
 
   let to_varinfo: t -> varinfo =
     let module RichVarinfoM = RichVarinfo.Make (M) in

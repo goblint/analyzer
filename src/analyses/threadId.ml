@@ -89,7 +89,8 @@ struct
     [(create_tid ctx.local f, TD.bot ())]
 
   let threadspawn ctx lval f args fctx =
-    ctx.local
+    let (current, td) = ctx.local in
+    (current, Thread.spawned_thread td !Tracing.current_loc f)
 end
 
 let _ =
