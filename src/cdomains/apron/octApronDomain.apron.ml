@@ -125,7 +125,7 @@ struct
             raise Unsupported_CilExp
         in
         let ik = Cilfacade.get_ikind_exp exp in
-        if not (Cil.isSigned ik && GobConfig.get_bool "ana.octapron.no_signed_overflow") then (
+        if not (IntDomain.should_ignore_overflow ik) then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
           let bounds = A.bound_texpr Man.mgr d (Texpr1.of_expr env expr) in
           let min = int_of_scalar bounds.inf in
