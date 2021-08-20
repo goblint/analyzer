@@ -5,8 +5,10 @@ sig
   include Printable.S
   include MapDomain.Groupable with type t := t
 
+  module D: Lattice.S
+
   val start_thread: varinfo -> t
-  val spawn_thread: t -> location -> varinfo -> t
+  val spawn_thread: t * D.t -> location -> varinfo -> t
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
 end
@@ -16,6 +18,8 @@ module FunLoc: S with type t = varinfo * location option =
 struct
   module M = Printable.Prod (CilType.Varinfo) (Printable.Option (CilType.Location) (struct let name = "no location" end))
   include M
+
+  module D = Lattice.Unit
 
   let show = function
     | (f, Some l) -> f.vname ^ "@" ^ CilType.Location.show l
@@ -47,8 +51,10 @@ struct
   module M = Printable.Prod (P) (S)
   include M
 
+  module D = S
+
   let start_thread v = ([(v, None)], S.empty ())
-  let spawn_thread current l v =
+  let spawn_thread (current, cs) l v =
     let n = (v, Some l) in
     let (p, s) = current in
     if S.mem n s then

@@ -22,22 +22,24 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module D = ThreadLifted
-  module C = ThreadLifted
+  module TD = Thread.D
+
+  module D = Lattice.Prod (ThreadLifted) (TD)
+  module C = D
   module G = Lattice.Unit
 
   let name () = "threadid"
 
-  let startstate v = ThreadLifted.bot ()
-  let exitstate  v = `Lifted (Thread.start_thread v)
+  let startstate v = (ThreadLifted.bot (), TD.bot ())
+  let exitstate  v = (`Lifted (Thread.start_thread v), TD.bot ())
 
-  let morphstate v _ = `Lifted (Thread.start_thread v)
+  let morphstate v _ = (`Lifted (Thread.start_thread v), TD.bot ())
 
-  let create_tid current v =
+  let create_tid (current, td) v =
     match current with
     | `Lifted current ->
       let loc = !Tracing.current_loc in
-      `Lifted (Thread.spawn_thread current loc v)
+      `Lifted (Thread.spawn_thread (current, td) loc v)
     | _ ->
       `Lifted (Thread.start_thread v)
 
@@ -49,7 +51,7 @@ struct
     match fundec.svar.vname with
     | "StartupHook" ->
       (* TODO: is this necessary? *)
-      ThreadLifted.top ()
+      (ThreadLifted.top (), TD.bot ()) (* TODO: what should TD be? *)
     | _ ->
       ctx.local
 
@@ -70,7 +72,7 @@ struct
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
     if is_unique ctx then
-      let tid = ctx.local in
+      let tid = fst ctx.local in
       let tid = ThreadLifted.show tid in
       (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
     else
@@ -78,13 +80,13 @@ struct
 
   let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.CurrentThreadId -> ctx.local
+    | Queries.CurrentThreadId -> fst ctx.local
     | Queries.PartAccess {exp; var_opt; write} ->
       part_access ctx exp var_opt write
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
-    [create_tid ctx.local f]
+    [(create_tid ctx.local f, TD.bot ())]
 
   let threadspawn ctx lval f args fctx =
     ctx.local
