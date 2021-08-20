@@ -117,11 +117,15 @@ struct
   let assert_type_bounds oct x =
     assert (AD.varinfo_tracked x);
     let ik = Cilfacade.get_ikind x.vtype in
-    let (type_min, type_max) = IntDomain.Size.range_big_int ik in
-    (* TODO: don't go through CIL exp? *)
-    let oct = AD.assert_inv oct (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) false in
-    let oct = AD.assert_inv oct (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) false in
-    oct
+    if not (IntDomain.should_ignore_overflow ik) then ( (* don't add type bounds for signed when assume_none *)
+      let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+      (* TODO: don't go through CIL exp? *)
+      let oct = AD.assert_inv oct (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) false in
+      let oct = AD.assert_inv oct (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) false in
+      oct
+    )
+    else
+      oct
 
 
   (* Basic transfer functions. *)
