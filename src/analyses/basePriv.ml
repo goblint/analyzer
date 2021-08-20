@@ -670,7 +670,7 @@ struct
   let global_init_thread = RichVarinfo.single ~name:"global_init"
   let current_thread (ask: Q.ask): Thread.t =
     if !GU.global_initialization then
-      ThreadIdDomain.Thread.threadinit (global_init_thread ())
+      ThreadIdDomain.Thread.threadinit (global_init_thread ()) ~multiple:false
     else
       ThreadId.get_current_unlift ask
 

@@ -5,7 +5,7 @@ sig
   include Printable.S
   include MapDomain.Groupable with type t := t
 
-  val threadinit: varinfo -> t
+  val threadinit: varinfo -> multiple:bool -> t
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
   val is_unique: t -> bool
@@ -46,7 +46,7 @@ struct
     end
   )
 
-  let threadinit v: t = (v, None)
+  let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t = (v, Some l)
 
   let to_varinfo: t -> varinfo =
@@ -106,7 +106,12 @@ struct
     else
       (p, S.add n s)
 
-  let threadinit v = ([Base.threadinit v], S.empty ())
+  let threadinit v ~multiple =
+    let base_tid = Base.threadinit v ~multiple in
+    if multiple then
+      ([], S.singleton base_tid)
+    else
+      ([base_tid], S.empty ())
   let threadenter ((p, _ ) as current, cs) l v =
     let n = Base.threadenter l v in
     let ((p', s') as composed) = compose current n in

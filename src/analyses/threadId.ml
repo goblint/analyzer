@@ -31,9 +31,9 @@ struct
   let name () = "threadid"
 
   let startstate v = (ThreadLifted.bot (), TD.bot ())
-  let exitstate  v = (`Lifted (Thread.threadinit v), TD.bot ())
+  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
 
-  let morphstate v _ = (`Lifted (Thread.threadinit v), TD.bot ())
+  let morphstate v _ = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 
   let create_tid (current, td) v =
     match current with
@@ -41,7 +41,7 @@ struct
       let loc = !Tracing.current_loc in
       `Lifted (Thread.threadenter (current, td) loc v)
     | _ ->
-      `Lifted (Thread.threadinit v)
+      `Lifted (Thread.threadinit v ~multiple:true)
 
   let body ctx f = ctx.local
 
