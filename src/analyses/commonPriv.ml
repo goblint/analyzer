@@ -124,7 +124,8 @@ end
 module ConfCheck =
 struct
   let check_mutex_enabled () =
-    let mutex_active = List.exists (fun x -> Json.string x="mutex") (GobConfig.get_list "ana.activated") in
+    let analyses = GobConfig.get_list "ana.activated" in
+    let mutex_active = List.exists (fun x -> Json.string x="mutex") analyses || List.for_all (fun x -> Json.string x<>"base") analyses in
     if not mutex_active then failwith "Privatization (to be useful) requires the 'mutex' analysis to be enabled (it is currently disabled)";
     ()
 
