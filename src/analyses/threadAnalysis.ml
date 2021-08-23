@@ -45,11 +45,6 @@ struct
     match LibraryFunctions.classify f.vname arglist with
     | `ThreadJoin (id, ret_var) ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
-      (* let ids = eval_exp_addr (Analyses.ask_of_ctx ctx) id in
-      let threads = List.concat (List.map ValueDomain.Addr.to_var_may ids) in *)
-      if TS.is_top (ctx.ask (Queries.EvalThread id)) then
-        ctx.local (* TODO: remove *)
-      else
       let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in
       let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global (T.to_varinfo tid))) in
       let join_thread s tid =
