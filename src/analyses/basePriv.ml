@@ -39,9 +39,8 @@ sig
   val finalize: unit -> unit
 end
 
-module NoInitFinalize =
+module NoFinalize =
 struct
-  let init () = ()
   let finalize () = ()
 end
 
@@ -57,7 +56,7 @@ let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomai
 
 module OldPrivBase =
 struct
-  include NoInitFinalize
+  include NoFinalize
   module D = Lattice.Unit
 
   let startstate () = ()
@@ -82,8 +81,9 @@ end
 module NonePriv: S =
 struct
   include OldPrivBase
-
   module G = BaseDomain.VD
+
+  let init () = ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     getg x
@@ -134,6 +134,9 @@ struct
 
   module G = BaseDomain.VD
 
+  let init () =
+    if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
+
   let read_global ask getg (st: BaseComponents (D).t) x =
     match CPA.find x st.cpa with
     | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
@@ -182,7 +185,8 @@ end
 
 module PerMutexPrivBase =
 struct
-  include NoInitFinalize
+  include NoFinalize
+  include ConfCheck.RequireMutexActivatedInit
   include ExplicitMutexGlobals
   include Protection
 
@@ -406,6 +410,9 @@ struct
   module D = MustVars
   module G = BaseDomain.VD
 
+  let init () =
+    if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
+
   let startstate () = D.top ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
@@ -477,7 +484,8 @@ end
 (** Protection-Based Reading. *)
 module ProtectionBasedPriv (Param: PerGlobalPrivParam): S =
 struct
-  include NoInitFinalize
+  include NoFinalize
+  include ConfCheck.RequireMutexActivatedInit
   open Protection
 
   module P =
@@ -636,7 +644,8 @@ end
 
 module MinePrivBase =
 struct
-  include NoInitFinalize
+  include NoFinalize
+  include ConfCheck.RequireMutexPathSensInit
   include ImplicitMutexGlobals (* explicit not needed here because G is Prod anyway? *)
 end
 

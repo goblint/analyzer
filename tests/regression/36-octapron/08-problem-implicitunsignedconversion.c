@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','octApron']"
+// SKIP PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','octApron']" --sets exp.privatization none --sets exp.octapron.privatization dummy
 // Example from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/implicitunsignedconversion-1.c
 
 #include <assert.h>

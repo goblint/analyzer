@@ -72,6 +72,7 @@ end
 (** Protection-Based Reading. *)
 module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
 struct
+  include ConfCheck.RequireMutexActivatedInit
   open Protection
 
   (** Locally must-written protected globals that have been continuously protected since writing. *)
@@ -297,7 +298,6 @@ struct
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     {oct = getg (global_varinfo ()); priv = startstate ()}
 
-  let init () = ()
   let finalize () = ()
 end
 
