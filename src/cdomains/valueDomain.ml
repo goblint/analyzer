@@ -855,8 +855,12 @@ struct
       | `Thread _, _ ->
         (* hack for pthread_t variables *)
         begin match value with
-          | `Thread t -> value (* if actually assigning, use value *)
-          | _ -> `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+          | `Thread t -> value (* if actually assigning thread, use value *)
+          | _ ->
+            if !GU.global_initialization then
+              `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+            else
+              `Top
         end
       | _ ->
       let result =
