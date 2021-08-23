@@ -72,6 +72,7 @@ end
 (** Protection-Based Reading. *)
 module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
 struct
+  include ConfCheck.RequireMutexActivatedInit
   open Protection
 
   (** Locally must-written protected globals that have been continuously protected since writing. *)
@@ -297,7 +298,6 @@ struct
   let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
     {oct = getg (global_varinfo ()); priv = startstate ()}
 
-  let init () = ()
   let finalize () = ()
 end
 
@@ -674,16 +674,12 @@ end
 
 let priv_module: (module S) Lazy.t =
   lazy (
-    let check_mutex_enabled () =
-      let octapron_active = List.exists (fun x -> Json.string x="octApron") (GobConfig.get_list "ana.activated") in
-      if octapron_active then ConfCheck.check_mutex_enabled () else ()
-    in
     let module Priv: S =
       (val match get_string "exp.octapron.privatization" with
          | "dummy" -> (module Dummy: S)
-         | "protection" -> check_mutex_enabled (); (module ProtectionBasedPriv (struct let path_sensitive = false end))
-         | "protection-path" -> check_mutex_enabled (); (module ProtectionBasedPriv (struct let path_sensitive = true end))
-         | "mutex-meet" -> check_mutex_enabled (); (module PerMutexMeetPriv)
+         | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
+         | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
+         | "mutex-meet" -> (module PerMutexMeetPriv)
          (* | "write" -> (module WriteCenteredPriv) *)
          | _ -> failwith "exp.octapron.privatization: illegal value"
       )
