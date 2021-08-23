@@ -103,6 +103,10 @@ struct
 
   let is_immediate_type t = is_mutex_type t || isFunctionType t
 
+  let is_thread_type = function
+    | TNamed ({tname = "pthread_t"; _}, _) -> true
+    | _ -> false
+
   let rec bot_value (t: typ): t =
     let bot_comp compinfo: Structs.t =
       let nstruct = Structs.top () in
@@ -119,6 +123,7 @@ struct
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
+    | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
     | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
 
@@ -139,6 +144,7 @@ struct
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+    (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
 
@@ -187,6 +193,7 @@ struct
       | TArray (ai, Some exp, _) ->
         let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
         `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
+      (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
       | TNamed ({ttype=t; _}, _) -> zero_init_value t
       | _ -> `Top
 
@@ -844,6 +851,12 @@ struct
           let l', o' = shift_one_over l o in
           let x = zero_init_calloced_memory orig x t in
           mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
+        end
+      | `Thread _, _ ->
+        (* hack for pthread_t variables *)
+        begin match value with
+          | `Thread t -> value (* if actually assigning, use value *)
+          | _ -> `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
         end
       | _ ->
       let result =

@@ -1685,6 +1685,7 @@ struct
           | [(x,offs)] ->
             let t = v.vtype in
             let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+            if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
             let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
             set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
           | _ ->
