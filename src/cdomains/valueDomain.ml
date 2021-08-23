@@ -443,7 +443,6 @@ struct
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
     | (`Thread x, `Thread y) -> Threads.leq x y
-    | (`Int x, `Thread y) -> true
     | _ -> warn_type "leq" x y; false
 
   let rec join x y =
@@ -469,9 +468,6 @@ struct
     | `Blob (x,s,o), y
     | y, `Blob (x,s,o) -> `Blob (join (x:t) y, s, o)
     | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -501,9 +497,6 @@ struct
     | y, `Blob (x,s,o) ->
       `Blob (join (x:t) y, s, o)
     | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -530,9 +523,6 @@ struct
     | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
     | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -558,7 +548,6 @@ struct
     | (`List x, `List y) -> Lists.leq x y (* `List can not contain array -> normal leq  *)
     | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
     | (`Thread x, `Thread y) -> Threads.leq x y
-    | (`Int x, `Thread y) -> true
     | _ -> warn_type "leq" x y; false
 
   let rec meet x y =
@@ -577,9 +566,6 @@ struct
     | (`List x, `List y) -> `List (Lists.meet x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Int x (* TODO: ignores thread! *)
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -605,9 +591,6 @@ struct
     | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Thread y (* TODO: ignores int! *)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -624,9 +607,6 @@ struct
     | (`List x, `List y) -> `List (Lists.narrow x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.narrow x y)
-    | (`Int x, `Thread y)
-    | (`Thread y, `Int x) ->
-      `Int x (* TODO: ignores thread! *)
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | _ ->
