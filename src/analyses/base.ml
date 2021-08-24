@@ -692,7 +692,7 @@ struct
             VD.top () (* upcasts not! *)
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
-        M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
+        if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
         let v' = VD.eval_offset a (fun x -> get a gs st x (Some exp)) v' (convert_offset a gs st ofs) (Some exp) None t in (* handle offset *)
         let v' = do_offs v' ofs in (* handle blessed fields? *)
         v'
@@ -801,7 +801,12 @@ struct
      * and then add the subfield to it: { (x,field.subfield) }. *)
     | Mem n, ofs -> begin
         match (eval_rv a gs st n) with
-        | `Address adr -> do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
+        | `Address adr ->
+          (if AD.is_null adr
+           then M.warn_each ~must:true ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ()
+           else if AD.may_be_null adr
+           then M.warn_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ());
+          do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
           M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
