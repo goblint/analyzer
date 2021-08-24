@@ -130,7 +130,7 @@ struct
   let exitstate  v = D.top ()
 
   let threadenter ctx lval f args =
-    let location x = let l = !Tracing.current_loc in l.file ^ ":" ^ string_of_int l.line ^ ":" ^ x.vname in
+    let location x = let l = !Tracing.current_loc in CilType.Location.show l ^ ":" ^ x.vname in
     [D.singleton (location f)]
 
   let threadspawn ctx lval f args fctx = ctx.local

@@ -27,7 +27,6 @@
     qcheck-core
     ; z3
     (ppx_distr_guards (>= 0.2))
-    ppx_import
     ppx_deriving
     ppx_deriving_yojson
     ocaml-monadic

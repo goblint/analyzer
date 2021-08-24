@@ -6,17 +6,12 @@ open Analyses
 module Node: Printable.S with type t = MyCFG.node =
 struct
   include Var
-  let to_yojson = MyCFG.node_to_yojson
+  let to_yojson = Node.to_yojson
 
-  let pretty_diff () (x,y) = dprintf "Unsupported"
   (* let short n x = Pretty.sprint n (pretty () x) *)
   (* let short _ x = var_id x *)
-  let show x =
-    let open MyCFG in
-    match x with
-    | Statement stmt  -> string_of_int stmt.sid
-    | Function f      -> "return of " ^ f.svar.vname ^ "()"
-    | FunctionEntry f -> f.svar.vname ^ "()"
+  let show = Node.show_cfg
+  let pretty = Node.pretty_trace
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
   let invariant _ _ = Invariant.none
@@ -37,9 +32,8 @@ struct
 
   include Printable.PrintSimple (
     struct
-      type t' = t
+      type nonrec t = t
       let show = show
-      let name = name
     end
     )
 
@@ -93,6 +87,8 @@ struct
     let is_top _ = failwith "VIE is_top"
     let bot () = failwith "VIE bot"
     let is_bot _ = failwith "VIE is_bot"
+
+    let pretty_diff () _ = failwith "VIE pretty_diff"
   end
   (* Bot is needed for Hoare widen *)
   (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
@@ -166,7 +162,7 @@ struct
 
   let exitstate  v = (Dom.singleton (Spec.exitstate  v) (R.bot ()), Sync.bot ())
   let startstate v = (Dom.singleton (Spec.startstate v) (R.bot ()), Sync.bot ())
-  let morphstate v (d, _) = (Dom.map_noreduce (Spec.morphstate v) d, Sync.bot ())
+  let morphstate v (d, _) = (Dom.map (Spec.morphstate v) d, Sync.bot ())
 
   let call_descr = Spec.call_descr
 

@@ -1,0 +1,4 @@
+(executable
+ (name benchEq)
+ (libraries benchmark batteries.unthreaded)
+ (preprocess (staged_pps ppx_deriving.std)))

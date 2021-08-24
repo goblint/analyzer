@@ -292,7 +292,7 @@ let do_stats () =
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
-  let module L = Printable.Liszt (Basetype.CilFundec) in
+  let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST
@@ -443,6 +443,8 @@ let main () =
     parse_arguments ();
     check_arguments ();
     AfterConfig.run ();
+
+    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
 
     (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
       for overflows, as this will replace potential overflows with constants after wrap-around *)

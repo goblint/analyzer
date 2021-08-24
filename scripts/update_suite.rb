@@ -117,6 +117,7 @@ end
 
 #processing the file information
 projects = []
+project_ids = Set.new
 regs = Dir.open(testfiles)
 regs.sort.each do |d|
   next if File.basename(d)[0] == ?.
@@ -132,6 +133,10 @@ regs.sort.each do |d|
     next if f =~ /goblin_temp/
     next unless f =~ /^[0-9]+-.*\.c$/
     id = gid + "/" + f[0..1]
+    if project_ids.member?(id) then
+      puts "Duplicate test ID #{id}"
+      exit 1
+    end
     testname = f[3..-3]
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
@@ -166,8 +171,6 @@ regs.sort.each do |d|
         debug = true
         if obj =~ /FAIL/ then
           tests[i] = "fail"
-        elsif obj =~ /UNKNOWN!/ then
-          tests[i] = "unknown!"
         elsif obj =~ /UNKNOWN/ then
           tests[i] = "unknown"
         else
@@ -189,6 +192,7 @@ regs.sort.each do |d|
     params << " --set dbg.debug true" if debug
     p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true)
     projects << p
+    project_ids << id
   end
 end
 
@@ -383,7 +387,7 @@ File.open(theresultfile, "w") do |f|
     lines = IO.readlines(File.join(testresults, warnfile))
     lines.each do |l|
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
-      next unless l =~ /(.*)\(.*\:(.*)\)/
+      next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?\)/
       obj,i = $1,$2.to_i
 
       ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
@@ -403,6 +407,7 @@ File.open(theresultfile, "w") do |f|
                     when /changed pointer .*/        then "warn"
                     when /Array out of bound/        then "warn"
                     when /^\[Warning\]/              then "warn"
+                    when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     else "other"
                   end
       oldwarn = warnings[i]
@@ -430,10 +435,8 @@ File.open(theresultfile, "w") do |f|
         end
       }
       case type
-      when "unknown"
-        check.call ["deadlock", "race", "fail", "unknown", "noterm", "term", "warn", "success"].include? warnings[idx] 
-      when "deadlock", "race", "fail", "noterm", "unknown!", "term", "warn"
-        check.call warnings[idx] == type.tr('!', '')
+      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
+        check.call warnings[idx] == type
       when "nowarn"
         check.call warnings[idx].nil?
       when "assert"

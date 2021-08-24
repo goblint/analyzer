@@ -1,5 +1,5 @@
 <src> or <src/**>: include
-true: package(findlib), package(ppx_import), package(goblint-cil.all-features), package(batteries.unthreaded), package(ppx_deriving.std), package(ppx_deriving_yojson), package(ppx_distr_guards), package(qcheck-core.runner)
+true: package(findlib), package(goblint-cil.all-features), package(batteries.unthreaded), package(ppx_deriving.std), package(ppx_deriving_yojson), package(ppx_distr_guards), package(qcheck-core.runner)
 <unittest/**>: include, package(oUnit)
 <src/extract/*.*>: package(ocaml-monadic)
 true: bin_annot, debug, optimize(3), thread

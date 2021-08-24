@@ -159,8 +159,6 @@ end
 module type SetS =
 sig
   include SetDomain.S
-  val map_noreduce: (elt -> elt) -> t -> t (** HACK: for PathSensitive morphstate *)
-
   val apply_list: (elt list -> elt list) -> t -> t
 end
 
@@ -172,7 +170,7 @@ struct
   let mem x s = exists (B.leq x) s
   let leq a b = for_all (fun x -> mem x b) a (* mem uses B.leq! *)
   let le x y = B.leq x y && not (B.equal x y) && not (B.leq y x)
-  let reduce s = filter (fun x -> not (exists (le x) s) && not (B.is_bot x)) s
+  let reduce s = filter (fun x -> not (exists (le x) s)) s
   let product_bot op a b =
     let a,b = elements a, elements b in
     List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (of_list x)
@@ -189,7 +187,6 @@ struct
   let inter _ _ = unsupported "Set.inter"
   let meet = product_bot B.meet
   let subset _ _ = unsupported "Set.subset"
-  let map_noreduce = map
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
   let split x a = unsupported "Set.split"
@@ -207,9 +204,12 @@ struct
         let evil = choose (filter p s1) in
         dprintf "%a:\n" B.pretty evil
         ++
-        fold (fun other acc ->
-            (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
-          ) s2 nil
+        if is_empty s2 then
+          text "empty set s2"
+        else
+          fold (fun other acc ->
+              (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
+            ) s2 nil
       with _ ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
@@ -223,10 +223,6 @@ struct
   module S = Set (B)
   include SetDomain.LiftTop (S) (N)
 
-  let map_noreduce f x =
-    match x with
-    | `Top -> `Top
-    | `Lifted t -> `Lifted (S.map_noreduce f t)
   let min_elt a = B.bot ()
   let apply_list f = function
     | `Top -> `Top
@@ -259,7 +255,6 @@ struct
   let fold (f: key -> 'a -> 'a) (s: t) (acc: 'a): 'a = fold (fun x _ acc -> f x acc) s acc
   let add (x: key) (r: R.t) (s: t): t = add x (R.join r (find x s)) s
   let map (f: key -> key) (s: t): t = fold' (fun x v acc -> add (f x) v acc) s (empty ())
-  let map_noreduce = map (* HACK: for PathSensitive morphstate *)
   (* TODO: reducing map, like HoareSet *)
 
   let elements (s: t): (key * R.t) list = bindings s
@@ -274,7 +269,7 @@ struct
   let le x y = SpecD.leq x y && not (SpecD.equal x y) && not (SpecD.leq y x)
   let reduce (s: t): t =
     (* get map with just maximal keys and their ranges *)
-    let maximals = filter (fun x -> not (exists (le x) s) && not (SpecD.is_bot x)) s in
+    let maximals = filter (fun x -> not (exists (le x) s)) s in
     (* join le ranges also *)
     let maximals =
       mapi (fun x xr ->
@@ -315,9 +310,12 @@ struct
         let evilr' = R.choose evilr in
         dprintf "%a -> %a:\n" SpecD.pretty evil R.pretty (R.singleton evilr')
         ++
-        fold' (fun other otherr acc ->
-            (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pretty other SpecD.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
-          ) s2 nil
+        if is_empty s2 then
+          text "empty set s2"
+        else
+          fold' (fun other otherr acc ->
+              (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pretty other SpecD.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
+            ) s2 nil
       with _ ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
