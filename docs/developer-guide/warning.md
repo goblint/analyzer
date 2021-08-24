@@ -67,12 +67,12 @@ There's now no `Messages.report` function. It was replaced by `Messages.warn_eac
 Examples of calls to `warn` and `warn_each`:
 
 ```ocaml
-Messages.warn (Messages.Warning.Integer.overflow ())
-Messages.warn_each ~must:true (Messages.Warning.Behavior.Undefined.nullpointer_dereference ())
+Messages.warn ~warning:(Messages.Warning.Integer.overflow ()) ()
+Messages.warn_each ~must:true ~warning:(Messages.Warning.Behavior.Undefined.nullpointer_dereference ()) ()
 Messages.warn ~msg:"I don't know what type of warning this is" ()
 Messages.warn ~must:true ~msg:"I don't know what type of warning this is" ()
-Messages.warn ~msg:"my message" (Messages.Warning.Behavior.Undefined.nullpointer_dereference ())
-Messages.warn_each ~loc:location ~msg:"my message" (Messages.Race)
+Messages.warn ~msg:"my message" ~warning:(Messages.Warning.Behavior.Undefined.nullpointer_dereference ()) ()
+Messages.warn_each ~loc:location ~msg:"my message" ~warning:Messages.Race ()
 ```
 
 ## Spec files
