@@ -59,10 +59,7 @@ The warning type is given by an optional parameter `warning` (By default
 `Unknown`). Both functions also have an optional parameter `must` (by default
 `false` -> `May`) to determine certainty, a parameter `ctx` to give context and
 `msg` to pass an optional string message to print at the end of the warning.
-Moreover, the `warn_each` function also has a parameter `loc` to supply location
-to retain compatibility with former `report` function.
-
-There's now no `Messages.report` function. It was replaced by `Messages.warn_each`.
+Moreover, the `warn_each` function also has a parameter `loc` to supply location.
 
 Examples of calls to `warn` and `warn_each`:
 
@@ -94,9 +91,3 @@ w4 "integer.overflow some text describing the warning"
 The categories are given as dot delimited strings. For the possible values, see
 the tree of categories at the top of the page - the strings in parentheses are
 used in spec files.
-
-Currently this spec file parsing doesn't support adding values of other types
-the string message at the end. It probably doesn't even make sense in the spec
-file as there's no way to pass runtime information into the warnings but a
-possible extension would be to also parse parameters such as
-`behavior.undefined.array_out_of_bounds(idx=3,len=2)`.
