@@ -1,4 +1,4 @@
-# Warnings
+# Warning
 
 ## Types of warnings
 
