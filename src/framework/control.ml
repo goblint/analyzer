@@ -167,7 +167,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint Node.pretty_plain n)
+          Messages.warn ~msg:("Calculated state for undefined function: unexpected node "^Ana.sprint Node.pretty_plain n) ()
     in
     LHT.iter add_local_var h;
     res
@@ -414,7 +414,7 @@ struct
         ) else (
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
-          Goblintutil.should_warn := get_string "warn" = "early" || gobview;
+          Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
             let solver = Filename.concat save_run solver_file in
@@ -462,9 +462,9 @@ struct
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
       );
 
-      if (get_bool "verify" || get_string "warn" <> "never") && compare_runs = [] then (
+      if (get_bool "verify" || get_string "warn_at" <> "never") && compare_runs = [] then (
         if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
-        Goblintutil.should_warn := get_string "warn" <> "never";
+        Goblintutil.should_warn := get_string "warn_at" <> "never";
         Stats.time "verify" (Vrfyr.verify lh) gh;
       );
 

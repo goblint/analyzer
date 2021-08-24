@@ -1296,7 +1296,7 @@ struct
           v
         )
         else if should_ignore_overflow ik then (
-          M.warn "DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot";
+          M.warn ~warning:(M.Warning.Integer.overflow ()) ~msg:"DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot" ();
           `Bot
         )
         else (

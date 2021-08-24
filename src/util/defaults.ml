@@ -13,6 +13,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
+              | Warnings        (** Filtering warnings                            *)
               [@@deriving enum]
 
 let all_categories = min_category -- max_category |> of_enum |> map (Option.get % category_of_enum)
@@ -25,6 +26,7 @@ let catDescription = function
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
+  | Warnings        -> "Filtering of warnings"
 
 (** A place to store registered variables *)
 let registrar = ref []
@@ -90,7 +92,7 @@ let _ = ()
       ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
-      ; reg Std "warn"            "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
+      ; reg Std "warn_at"         "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Std "gobview"         "false"        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'."
 
 (* {4 category [Analyses]} *)
@@ -234,6 +236,18 @@ let _ = ()
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
       ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
 
+(* {4 category [Warnings]} *)
+let _ = ()
+      ; reg Warnings "warn.behavior"        "true"  "undefined behavior warnings"
+      ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
+      ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
+      ; reg Warnings "warn.race"            "true"  "Race warnings"
+      ; reg Warnings "warn.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
+      ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
+      ; reg Warnings "warn.debug"           "true"  "Debug (of string) warnings"
+      ; reg Warnings "warn.may"             "true"  "Enable or disable may warnings"
+      ; reg Warnings "warn.must"            "true"  "Enable or disable must warnings"
+
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
@@ -300,8 +314,13 @@ let default_schema = "\
   , 'save_run'        : {}
   , 'load_run'        : {}
   , 'compare_runs'    : {}
+  , 'warn_at'         : {}
+  , 'warn'              :
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
   , 'gobview'         : {}
-  , 'warn'            : {}
   }
 }"
 
