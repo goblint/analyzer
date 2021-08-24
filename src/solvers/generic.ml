@@ -2,6 +2,9 @@ open Prelude
 open GobConfig
 open Analyses
 
+let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
+
+
 (** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
 module SimpleSysConverter (S:IneqConstrSys)
   : sig include EqConstrSys val conv : S.v -> S.v end
@@ -39,15 +42,12 @@ struct
     | 0 -> B.compare u1 v1
     | n -> n
   let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1 (* cannot derive, compares snd first for efficiency *)
-  let category (u,_) = B.category u
   let hash (u,v) = B.hash u + 131233 * v
   let pretty_trace () (u,v:t) =
     Pretty.dprintf "(%a,%d)" B.pretty_trace u v
 
   let var_id (c,_) = B.var_id c
   let printXml f (c,_) = B.printXml f c
-  let file_name (c,_) = B.file_name c
-  let line_nr (c,_) = B.line_nr c
   let node (c,_) = B.node c
 end
 
@@ -141,7 +141,7 @@ struct
   let warning_id = ref 1
   let writeXmlWarnings () =
     let one_text f (m,l) =
-      fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+      fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
     in
     let one_w f = function
       | `text (m,l)  -> one_text f (m,l)
@@ -159,7 +159,7 @@ struct
 
   module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end)
   let funs = SSH.create 100
-  module NH = Hashtbl.Make (MyCFG.Node)
+  module NH = Hashtbl.Make (Node)
   let liveness = NH.create 100
   let updated_l = NH.create 100
   let updated_g = GH.create 100
@@ -228,14 +228,14 @@ struct
     if !stopped then
       write_updates ();
     writeXmlWarnings (); (* must be after write_update! *)
-    !MyCFG.write_cfgs (NH.mem liveness);
+    !write_cfgs (NH.mem liveness);
     NH.clear updated_l;
     GH.clear updated_g
 
   let update_var_event_local hl hg x o n =
     if !enabled && not (D.is_bot n) then begin
       let node = LVar.node x in
-      let file = (MyCFG.getFun node).svar in
+      let file = (Node.find_fundec node).svar in
       NH.replace updated_l node ();
       NH.replace liveness node ();
       SSH.replace funs file.vdecl.file (Set.add file.vname (SSH.find_default funs file.vdecl.file Set.empty));
@@ -341,7 +341,7 @@ struct
     (* print_endline "# Generic solver stats"; *)
     Printf.printf "runtime: %s\n" (string_of_time ());
     Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
-    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
+    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
     print_newline ();
     (* print_endline "# Solver specific stats"; *)
     !print_solver_stats ();

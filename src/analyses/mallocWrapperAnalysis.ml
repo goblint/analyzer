@@ -8,7 +8,7 @@ module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = Lattice.Flat (Basetype.ProgLines) (struct
+  module PL = Lattice.Flat (CilType.Location) (struct
     let top_name = "Unknown line"
     let bot_name = "Unreachable line"
   end)
@@ -39,7 +39,7 @@ struct
     let calleeofinterest = Hashtbl.mem wrappers f.svar.vname in
     let calleectx = if calleeofinterest then
        if ctx.local = `Top then
-        `Lifted (MyCFG.getLoc ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        `Lifted (Node.location ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
         else ctx.local (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
       else D.top () in  (* if an uninteresting callee is called, then we forget what was called before *)
     [(ctx.local, calleectx)]
@@ -61,7 +61,7 @@ struct
   let get_heap_var loc =
     try Hashtbl.find heap_hash loc
     with Not_found ->
-      let name = "(alloc@" ^ loc.file ^ ":" ^ string_of_int loc.line ^ ")" in
+      let name = "(alloc@" ^ CilType.Location.show loc ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       Hashtbl.add heap_hash loc newvar;
       Hashtbl.add heap_vars newvar.vid ();
@@ -72,7 +72,7 @@ struct
     | Q.HeapVar ->
       let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
-      | _ -> MyCFG.getLoc ctx.node in
+      | _ -> Node.location ctx.node in
       `Lifted (get_heap_var loc)
     | Q.IsHeapVar v ->
       Hashtbl.mem heap_vars v.vid

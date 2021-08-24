@@ -247,7 +247,7 @@ struct
                 let n = ask.f (Q.EvalInt e') in
                 match Q.ID.to_int n with
                 | Some i ->
-                  (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
+                  (`Lifted (Cil.kinteger64 IInt (IntOps.BigIntOps.to_int64 i)), (xl, xm, xr))
                 | _ -> default
               end
             | _ -> default
@@ -305,7 +305,7 @@ struct
         match e with
         | `Lifted e' ->
           let n = ask.f (Q.EvalInt e') in
-          Option.map BI.of_int64 (Q.ID.to_int n)
+          Option.map BI.of_bigint (Q.ID.to_int n)
         |_ -> None
       in
       let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
@@ -377,8 +377,9 @@ struct
               | false -> Val.bot()
               | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
               (
-                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
+                let t = Cilfacade.typeOf e' in
+                let ik = Cilfacade.get_ikind t in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, t),i')) with
                 | true -> xm
                 | _ ->
                   begin
@@ -394,8 +395,9 @@ struct
               | _ -> xm)
 
               (
-                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
+                let t = Cilfacade.typeOf e' in
+                let ik = Cilfacade.get_ikind t in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), t),i')) with
                 | true -> xm
                 | _ ->
                   begin

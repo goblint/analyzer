@@ -29,13 +29,13 @@ let is_atomic_type (t: typ): bool =
 
 let is_atomic lval =
   let (lval, _) = removeOffsetLval lval in
-  let typ = typeOfLval lval in
+  let typ = Cilfacade.typeOfLval lval in
   is_atomic_type typ
 
 let is_ignorable lval =
   (*  ignore (printf "Var %a\n" d_lval lval);*)
   try ValueDomain.Compound.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
-  with Not_found -> false
+  with Cilfacade.TypeOfError _ -> false
 
 
 module Flag =
@@ -242,7 +242,7 @@ struct
   module Flags = FlagModes.Spec.D
   module Acc = Hashtbl.Make (Basetype.Variables)
   module AccKeySet = Set.Make (Basetype.Variables)
-  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Flag) (IntDomain.Booleans)) (Lockset) (Offs)
+  module AccLoc = Printable.Prod3 (Printable.Prod3 (CilType.Location) (Flag) (IntDomain.Booleans)) (Lockset) (Offs)
   module AccValSet = Set.Make (Printable.Prod (AccLoc) (Flags))
   let acc     : AccValSet.t Acc.t = Acc.create 100
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty
@@ -471,7 +471,7 @@ struct
       match fs with
       | LockingPattern.EField f :: _ -> (e,f.fcomp,fs) :: xs
       | _ -> xs
-      (*      match unrollType (typeOf (LockingPattern.fromEl e dummy)) with
+      (*      match unrollType (Cilfacade.typeOf (LockingPattern.fromEl e dummy)) with
               | TComp (c,_) -> (e,c,fs) :: xs
               | _ -> xs*)
     in
@@ -569,8 +569,8 @@ struct
     match q with
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-      Queries.ID.of_int @@ Int64.of_int pry
-    | Queries.Priority vname -> begin try Queries.ID.of_int @@ Int64.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end
+      Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int pry (* TODO: what ikind to use for priorities? *)
+    | Queries.Priority vname -> begin try Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end (* TODO: what ikind to use for priorities? *)
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
@@ -714,7 +714,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
 
   let activate_task ctx (task_name : string) : unit =
-    let task = Cilfacade.getFun task_name in
+    let task = Cilfacade.find_name_fundec task_name in
     ctx.spawn None task.svar []
 
   (* transfer functions *)

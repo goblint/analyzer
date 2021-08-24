@@ -416,7 +416,7 @@ struct
 
   let warn_type op x y =
     if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
+      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
 
   let leq x y =
     match (x,y) with
@@ -699,11 +699,11 @@ struct
           | Some (v') ->
             begin
               (* This should mean the entire expression we have here is a pointer into the array *)
-              if Cil.isArrayType (Cil.typeOf (Lval v')) then
+              if Cil.isArrayType (Cilfacade.typeOfLval v') then
                 let expr = ptr in
                 let start_of_array = StartOf v' in
-                let start_type = typeSigWithoutArraylen (Cil.typeOf start_of_array) in
-                let expr_type = typeSigWithoutArraylen (Cil.typeOf ptr) in
+                let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
+                let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
                 (* Comparing types for structural equality is incorrect here, use typeSig *)
                 (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
                 if start_type = expr_type then
@@ -816,7 +816,7 @@ struct
         end
       | `Blob (x,s,orig), `Field(f, _) ->
         begin
-          (* We only have `Blob for dynamically allocated memort. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
+          (* We only have `Blob for dynamically allocated memory. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
           (* will be int. Here, we need a zero_init of the entire contents of the blob though, which we get by taking the associated f.fcomp. Putting [] for attributes is ok, as we don't *)
           (* consider them in VD *)
           let l', o' = shift_one_over l o in

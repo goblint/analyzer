@@ -11,13 +11,17 @@ module TermDomain = struct
   include SetDomain.ToppedSet (Basetype.Variables) (struct let topname = "All Variables" end)
 end
 
+(* some kind of location string suitable for variable names? *)
+let show_location_id l =
+  string_of_int l.line ^ "_" ^ string_of_int l.column
+
 class loopCounterVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
   method! vstmt s =
     let action s = match s.skind with
       | Loop (b, loc, _, _) ->
         (* insert loop counter variable *)
-        let name = "term"^string_of_int loc.line in
+        let name = "term"^show_location_id loc in
         let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
         let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
         (* make an init stmt since the init above is apparently ignored *)
@@ -63,7 +67,7 @@ class loopVarsVisitor (fd : fundec) = object
   method! vstmt s =
     let add_exit_cond e loc =
       match lvals_of_expr e with
-      | [lval] when typeOf e |> isArithmeticType -> Hashtbl.add loopVars loc lval
+      | [lval] when Cilfacade.typeOf e |> isArithmeticType -> Hashtbl.add loopVars loc lval
       | _ -> ()
     in
     (match s.skind with
@@ -83,7 +87,7 @@ let stripCastsDeep e =
 let cur_loop = ref None (* current loop *)
 let cur_loop' = ref None (* for nested loops *)
 let makeVar fd loc name =
-  let id = name ^ "__" ^ string_of_int loc.line in
+  let id = name ^ "__" ^ show_location_id loc in
   try List.find (fun v -> v.vname = id) fd.slocals
   with Not_found ->
     let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
@@ -135,7 +139,7 @@ class loopInstrVisitor (fd : fundec) = object(self)
          | _ -> ());
         s
       | Loop (b, loc, Some continue, Some break) ->
-        print_endline @@ "WARN: Could not determine loop variable for loop on line " ^ string_of_int loc.line;
+        print_endline @@ "WARN: Could not determine loop variable for loop at " ^ CilType.Location.show loc;
         s
       | _ when Hashtbl.mem loopBreaks s.sid -> (* after a loop, we check that t is bounded/positive (no overflow happened) *)
         let loc = Hashtbl.find loopBreaks s.sid in
@@ -165,8 +169,9 @@ class loopInstrVisitor (fd : fundec) = object(self)
            | _ ->
              (* otherwise diff is e - counter *)
              let t = makeVar fd cur_loop "t" in
-             let dt1 = mkStmtOneInstr @@ Set (var d1, BinOp (MinusA, Lval x, Lval (var t), typeOf e), loc) in
-             let dt2 = mkStmtOneInstr @@ Set (var d2, BinOp (MinusA, Lval x, Lval (var t), typeOf e), loc) in
+             let te = Cilfacade.typeOf e in
+             let dt1 = mkStmtOneInstr @@ Set (var d1, BinOp (MinusA, Lval x, Lval (var t), te), loc) in
+             let dt2 = mkStmtOneInstr @@ Set (var d2, BinOp (MinusA, Lval x, Lval (var t), te), loc) in
              let nb = mkBlock [mkStmt s.skind; dt1; dt2] in
              s.skind <- Block nb;
              s

@@ -23,11 +23,11 @@ struct
   module Ctx = IntDomain.Flattened
   (* set of predecessor nodes *)
   module Pred = struct
-    include SetDomain.Make (Basetype.ProgLocation)
+    include SetDomain.Make (Basetype.ExtractLocation)
     let of_loc = singleton
-    let of_node = of_loc % MyCFG.getLoc
+    let of_node = of_loc % Node.location
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.show
+    let string_of_elt = Basetype.ExtractLocation.show
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D
@@ -251,7 +251,7 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | `Lifted x -> [Int64.to_string x]
+          | x when Queries.ID.is_int x -> [IntOps.BigIntOps.to_string (Option.get @@ Queries.ID.to_int x)]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
@@ -291,18 +291,18 @@ struct
             Some [string_of_int i]
         in
         let node = Option.get !MyCFG.current_node in
-        let fundec = MyCFG.getFun node in
+        let fundec = Node.find_fundec node in
         let id = pname, fundec.svar.vname in
         let extract_fun ?(info_args=[]) args =
           let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
           let action = fname^"("^String.concat ", " args^");"^comment in
           print_endline @@ "EXTRACT in "^pname^": "^action;
-          Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
+          Pred.iter (fun pred -> add_edge id (pred, Sys action, Node.location node)) pred;
           pid, ctx_hash, Pred.of_node node
         in
         match fname, arglist with (* first some special cases *)
         | "CreateProcess", [AddrOf attr; pid'; r] ->
-          let cm = match unrollType (typeOfLval attr) with
+          let cm = match unrollType (Cilfacade.typeOfLval attr) with
             | TComp (c,_) -> c
             | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
           in
@@ -324,9 +324,10 @@ struct
           let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
           let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
           begin match name, entry_point, pri, per, cap with
-            | `Lifted name, ls, `Lifted pri, `Lifted per, `Lifted cap when not (Queries.LS.is_top ls)
-                                                                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-              let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
+            | `Lifted name, ls, pri, per, cap when not (Queries.LS.is_top ls)
+                                                                     && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) && Queries.ID.is_int pri && Queries.ID.is_int per && Queries.ID.is_int cap ->
+              let pri = (IntOps.BigIntOps.to_int64 (Option.get @@ Queries.ID.to_int pri)) in
+              let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
               if M.tracing then M.tracel "extract_arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
               let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
               let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_loc f.vdecl in

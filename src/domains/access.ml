@@ -29,8 +29,6 @@ struct
   let show x = x
   let pretty () x = text (show x)
   let name () = "strings"
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
       (XmlUtil.escape (show x))
@@ -118,10 +116,13 @@ let d_acct () = function
 
 let file_re = Str.regexp "\\(.*/\\|\\)\\([^/]*\\)"
 let d_loc () loc =
-  if Str.string_match file_re loc.file 0 then
-    dprintf "%s:%d" (Str.matched_group 2 loc.file) loc.line
-  else
-    dprintf "%s:%d" loc.file loc.line
+  let loc =
+    if Str.string_match file_re loc.file 0 then
+      {loc with file = Str.matched_group 2 loc.file}
+    else
+      loc
+  in
+  CilType.Location.pretty () loc
 
 let d_memo () (t, lv) =
   match lv with
@@ -218,7 +219,7 @@ module Acc_typHashable
 struct
   type t = acc_typ [@@deriving eq]
   let hash = function
-    | `Type t -> Basetype.CilType.hash t
+    | `Type t -> CilType.Typ.hash t
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 end
 module TypeHash = HtF (Acc_typHashable)
@@ -251,11 +252,12 @@ type off_o = offset  option
 type part  = LSSSet.t * LSSet.t
 
 let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
-  try (* FIXME: Cil's typeOf fails on our fake variables: (struct s).data *)
+  try (* FIXME: Cilfacade.typeOf fails on our fake variables: (struct s).data *)
+    let t = Cilfacade.typeOf e in
     match vo, oo with
-    | Some v, Some o -> get_type (typeOf e) (AddrOf (Var v, o))
-    | Some v, None -> get_type (typeOf e) (AddrOf (Var v, NoOffset))
-    | _ -> get_type (typeOf e) e
+    | Some v, Some o -> get_type t (AddrOf (Var v, o))
+    | Some v, None -> get_type t (AddrOf (Var v, NoOffset))
+    | _ -> get_type t e
   with _ -> get_type voidType e
 
 let some_accesses = ref false
@@ -569,13 +571,14 @@ let print_accesses () =
   in
   TypeHash.iter f accs
 
+(* TODO: this races xml output is unused, remove? *)
 let print_accesses_xml () =
   let allglobs = get_bool "allglobs" in
   let g ls (acs,_) =
     let h (conf,w,loc,e,lp) =
       let atyp = if w then "write" else "read" in
       BatPrintf.printf "  <access type=\"%s\" loc=\"%s\" conf=\"%d\">\n"
-        atyp (Basetype.ProgLines.show loc) conf;
+        atyp (CilType.Location.show loc) conf;
 
       let d_lp f (t,id) = BatPrintf.fprintf f "type=\"%s\" id=\"%s\"" t id in
 

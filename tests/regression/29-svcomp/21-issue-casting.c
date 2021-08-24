@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated ["'base'","'mallocWrapper'"]
+// PARAM: --set ana.activated ["'base'","'mallocWrapper'"] --sets exp.privatization none
 static long main(void)
 {
   unsigned int cmd;
