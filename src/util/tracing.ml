@@ -4,13 +4,9 @@
 
 open Pretty
 open Cil
-open Node
 
 module Strs = Set.Make (String)
-module NodeMap = Hashtbl.Make(Node)
 
-let location_map = ref (NodeMap.create 103: location NodeMap.t)
-let current_node = ref (None: node option)
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
@@ -19,15 +15,6 @@ let active_dep = Hashtbl.create 9
 let tracevars = ref ([]: string list)
 let tracelocs = ref ([]: int list)
 
-let getLoc (node: node) =
-  (* In case this belongs to a changed function, we will find the true location in the map*)
-  try
-    NodeMap.find !location_map node
-  with e ->
-    match node with
-    | Statement stmt -> get_stmtLoc stmt.skind
-    | Function fv -> fv.svar.vdecl
-    | FunctionEntry fv -> fv.svar.vdecl
 
 let addsystem sys = trace_sys := Strs.add sys !trace_sys
 let activate (sys:string) (subsys: string list): unit =
@@ -102,11 +89,12 @@ let printtrace sys d: unit =
 let gtrace always f sys var ?loc do_subsys fmt =
   let cond =
     (Strs.mem sys !activated || always && Strs.mem sys !trace_sys) &&
+    (* TODO: allow file, column in tracelocs? *)
     match var,loc with
     | Some s, Some l -> (!tracevars = [] || List.mem s !tracevars) &&
-                        (!tracelocs = [] || List.mem l !tracelocs)
+                        (!tracelocs = [] || List.mem l.line !tracelocs)
     | Some s, None   -> (!tracevars = [] || List.mem s !tracevars)
-    | None  , Some l -> (!tracelocs = [] || List.mem l !tracelocs)
+    | None  , Some l -> (!tracelocs = [] || List.mem l.line !tracelocs)
     | _ -> true
   in
   if cond then begin
@@ -127,9 +115,9 @@ let trace sys ?var fmt = gtrace true printtrace sys var ignore fmt
 let tracel sys ?var fmt =
   let loc = !current_loc in
   let docloc sys doc =
-    printtrace sys (dprintf "(%s:%d)@?" loc.file loc.line ++ indent 2 doc);
+    printtrace sys (dprintf "(%a)@?" CilType.Location.pretty loc ++ indent 2 doc);
   in
-  gtrace true docloc sys var ~loc:loc.line ignore fmt
+  gtrace true docloc sys var ~loc ignore fmt
 
 let tracei (sys:string) ?var ?(subsys=[]) fmt =
   let f sys d = printtrace sys d; traceIndent () in
@@ -148,7 +136,7 @@ let traceli sys ?var ?(subsys=[]) fmt =
   let loc = !current_loc in
   let g () = activate sys subsys in
   let docloc sys doc: unit =
-    printtrace sys (dprintf "(%s:%d)" loc.file loc.line ++ indent 2 doc);
+    printtrace sys (dprintf "(%a)" CilType.Location.pretty loc ++ indent 2 doc);
     traceIndent ()
   in
-  gtrace true docloc sys var ~loc:loc.line g fmt
+  gtrace true docloc sys var ~loc g fmt

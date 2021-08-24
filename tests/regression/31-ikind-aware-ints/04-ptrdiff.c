@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable exp.partition-arrays.enabled --set ana.activated "['base', 'mallocWrapper', 'escape', 'expRelation', 'var_eq']"
+// PARAM: --enable ana.int.interval --enable exp.partition-arrays.enabled --set ana.activated "['base', 'mallocWrapper', 'escape', 'expRelation', 'var_eq']" --sets exp.privatization none
 int *tmp;
 
 int main ()

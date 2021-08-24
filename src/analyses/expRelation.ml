@@ -47,7 +47,7 @@ struct
       | x -> x
 
   let isFloat e =
-    match Cil.unrollTypeDeep (Cil.typeOf e) with
+    match Cil.unrollTypeDeep (Cilfacade.typeOf e) with
     | TFloat _ -> true
     | _ -> false
 

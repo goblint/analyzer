@@ -23,10 +23,10 @@ struct
   module Ctx = IntDomain.Flattened
   (* set of predecessor nodes *)
   module Pred = struct
-    include SetDomain.Make (Basetype.ProgLocation)
-    let of_node = singleton % MyCFG.getLoc
+    include SetDomain.Make (Basetype.ExtractLocation)
+    let of_node = singleton % Node.location
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.show
+    let string_of_elt = Basetype.ExtractLocation.show
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D
@@ -106,7 +106,7 @@ struct
         "Fun_"^fname^":"
     in
     (* build adjacency matrix for all nodes of this process *)
-    let module HashtblN = Hashtbl.Make (Basetype.ProgLocation) in
+    let module HashtblN = Hashtbl.Make (Basetype.ExtractLocation) in
     let a2bs = HashtblN.create 97 in
     Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
     let nodes = HashtblN.keys a2bs |> List.of_enum in
@@ -244,7 +244,7 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | `Lifted x -> [Int64.to_string x]
+          | x when Queries.ID.is_int x -> [IntOps.BigIntOps.to_string (Option.get @@ Queries.ID.to_int x)]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
@@ -284,13 +284,13 @@ struct
             Some [string_of_int i]
         in
         let node = Option.get !MyCFG.current_node in
-        let fundec = MyCFG.getFun node in
+        let fundec = Node.find_fundec node in
         let id = pname, fundec.svar.vname in
         let extract_fun ?(info_args=[]) args =
           let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
           let action = fname^"("^String.concat ", " args^");"^comment in
           print_endline @@ "EXTRACT in "^pname^": "^action;
-          Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
+          Pred.iter (fun pred -> add_edge id (pred, Sys action, Node.location node)) pred;
           pid, ctx_hash, Pred.of_node node
         in
         match Pml.special_fun fname with

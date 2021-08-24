@@ -27,8 +27,7 @@ struct
 
   module P =
   struct
-    type t' = t
-    let name = name
+    type nonrec t = t
     let show = show
   end
   include Printable.StdPolyCompare
@@ -70,6 +69,7 @@ let nonAssocDomains: (module Lattice.S) list = []
 let intDomains: (module IntDomainProperties.S) list = [
   (module IntDomain.Interval);
   (module IntDomain.Enums);
+  (module IntDomain.Congruence);
   (* (module IntDomain.Flattened); *)
   (* (module IntDomain.Interval32); *)
   (* (module IntDomain.Booleans); *)

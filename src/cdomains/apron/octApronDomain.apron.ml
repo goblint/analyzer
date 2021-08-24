@@ -4,49 +4,445 @@ open Pretty
 (* For Apron implementation of octagons *)
 open Apron
 
-exception Invalid_CilExpToLhost
-exception Invalid_CilExpToLexp
+module BI = IntOps.BigIntOps
+
+module M = Messages
+
+(** Resources for working with Apron:
+    - OCaml API docs: https://antoinemine.github.io/Apron/doc/api/ocaml/index.html
+    - C API docs (better function descriptions): https://antoinemine.github.io/Apron/doc/api/c/index.html
+    - CEA 2007 slides (overview, mathematical descriptions): https://antoinemine.github.io/Apron/doc/papers/expose_CEA_2007.pdf
+    - C API docs PDF (alternative mathematical descriptions): https://antoinemine.github.io/Apron/doc/api/c/apron.pdf
+    - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
+
+
+module Var =
+struct
+  include Var
+
+  let equal x y = Var.compare x y = 0
+end
+
 
 module Man =
 struct
   (* Manager type, parameter for the command below *)
   type mt = Oct.t
+  (* type mt = Polka.equalities Polka.t *)
+  (* type mt = Polka.loose Polka.t *)
   (* A type of manager allocated by the underlying octagon domain *)
   type t = mt Manager.t
 
   (* Allocate a new manager to manipulate octagons *)
   let mgr = Oct.manager_alloc ()
-  (* Making an environment from a set of integer and real variables.
-  Raise Failure in case of name conflict.
-  In this case the environment is empty to begin with. *)
-  let eenv = Environment.make [||] [||]
+  (* let mgr = Polka.manager_alloc_equalities () *)
+  (* let mgr = Polka.manager_alloc_loose () *)
+end
+
+module type Tracked =
+sig
+  val type_tracked: typ -> bool
+  val varinfo_tracked: varinfo -> bool
 end
 
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
-module D =
+let int_of_scalar ?round (scalar: Scalar.t) =
+  if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
+    None
+  else
+    match scalar with
+    | Mpqf scalar ->
+      let n = Mpqf.get_num scalar in
+      let d = Mpqf.get_den scalar in
+      let z_opt =
+        if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
+          Some n
+        else
+          begin match round with
+            | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
+            | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
+            | None -> None
+          end
+      in
+      Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
+    | _ ->
+      failwith ("int_of_scalar: not rational: " ^ Scalar.to_string scalar)
+
+let bound_texpr d texpr1 =
+  let bounds = A.bound_texpr Man.mgr d texpr1 in
+  let min = int_of_scalar ~round:`Ceil bounds.inf in
+  let max = int_of_scalar ~round:`Floor bounds.sup in
+  (min, max)
+
+(** Conversion from CIL expressions to Apron. *)
+module Convert (Tracked: Tracked) =
+struct
+  open Texpr1
+  open Tcons1
+
+  exception Unsupported_CilExp
+
+  (* TODO: move this into some general place *)
+  let is_cast_injective from_type to_type =
+    let (from_min, from_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind from_type) in
+    let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
+    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+
+  let texpr1_expr_of_cil_exp d env =
+    (* recurse without env argument *)
+    let rec texpr1_expr_of_cil_exp = function
+      | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
+        if not v.vglob then
+          let var = Var.of_string v.vname in
+          if Environment.mem_var env var then
+            Var var
+          else
+            raise Unsupported_CilExp
+        else
+          failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
+      | Const (CInt64 (i, _, s)) ->
+        let str = match s with
+          | Some s -> s
+          | None -> Int64.to_string i
+        in
+        Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
+      | exp ->
+        let expr =
+          match exp with
+          | UnOp (Neg, e, _) ->
+            Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
+          | BinOp (PlusA, e1, e2, _) ->
+            Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+          | BinOp (MinusA, e1, e2, _) ->
+            Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+          | BinOp (Mult, e1, e2, _) ->
+            Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+          | BinOp (Div, e1, e2, _) ->
+            Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
+          | BinOp (Mod, e1, e2, _) ->
+            Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+          | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+            Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
+          | _ ->
+            raise Unsupported_CilExp
+        in
+        let ik = Cilfacade.get_ikind_exp exp in
+        if not (IntDomain.should_ignore_overflow ik) then (
+          let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+          let texpr1 = Texpr1.of_expr env expr in
+          match bound_texpr d texpr1 with
+          | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
+          | _ ->
+            (* ignore (Pretty.printf "octapron may overflow %a\n" dn_exp exp); *)
+            raise Unsupported_CilExp
+        );
+        expr
+    in
+    texpr1_expr_of_cil_exp
+
+  let texpr1_of_cil_exp d env e =
+    let e = Cil.constFold false e in
+    Texpr1.of_expr env (texpr1_expr_of_cil_exp d env e)
+
+  let tcons1_of_cil_exp d env e negate =
+    let e = Cil.constFold false e in
+    let (texpr1_plus, texpr1_minus, typ) =
+      match e with
+      | BinOp (r, e1, e2, _) ->
+        let texpr1_1 = texpr1_expr_of_cil_exp d env e1 in
+        let texpr1_2 = texpr1_expr_of_cil_exp d env e2 in
+        (* Apron constraints always compare with 0 and only have comparisons one way *)
+        begin match r with
+          | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)
+          | Gt -> (texpr1_1, texpr1_2, SUP)   (* e1 > e2   ==>  e1 - e2 > 0  *)
+          | Le -> (texpr1_2, texpr1_1, SUPEQ) (* e1 <= e2  ==>  e2 - e1 >= 0 *)
+          | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
+          | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
+          | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
+          | _ -> raise Unsupported_CilExp
+        end
+      | _ -> raise Unsupported_CilExp
+    in
+    let inverse_typ = function
+      | EQ -> DISEQ
+      | DISEQ -> EQ
+      | SUPEQ -> SUP
+      | SUP -> SUPEQ
+      | EQMOD _ -> failwith "tcons1_of_cil_exp: cannot invert EQMOD"
+    in
+    let (texpr1_plus, texpr1_minus, typ) =
+      if negate then
+        (texpr1_minus, texpr1_plus, inverse_typ typ)
+      else
+        (texpr1_plus, texpr1_minus, typ)
+    in
+    let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
+    Tcons1.make (Texpr1.of_expr env texpr1') typ
+end
+
+
+(** Convenience operations on A. *)
+module AOps (Tracked: Tracked) =
+struct
+  module Convert = Convert (Tracked)
+
+  type t = Man.mt A.t
+
+  let copy = A.copy Man.mgr
+
+  let vars d =
+    let ivs, fvs = Environment.vars (A.env d) in
+    assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    List.of_enum (Array.enum ivs)
+
+  let mem_var d v = Environment.mem_var (A.env d) v
+
+  let add_vars_with nd vs =
+    let env = A.env nd in
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> not (Environment.mem_var env v))
+      |> Array.of_enum
+    in
+    let env' = Environment.add env vs' [||] in
+    A.change_environment_with Man.mgr nd env' false
+
+  let add_vars d vs =
+    let nd = copy d in
+    add_vars_with nd vs;
+    nd
+
+  let remove_vars_with nd vs =
+    let env = A.env nd in
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    let env' = Environment.remove env vs' in
+    A.change_environment_with Man.mgr nd env' false
+
+  let remove_vars d vs =
+    let nd = copy d in
+    remove_vars_with nd vs;
+    nd
+
+  let remove_filter_with nd f =
+    let env = A.env nd in
+    let vs' =
+      vars nd
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+    in
+    let env' = Environment.remove env vs' in
+    A.change_environment_with Man.mgr nd env' false
+
+  let remove_filter d f =
+    let nd = copy d in
+    remove_filter_with nd f;
+    nd
+
+  let keep_vars_with nd vs =
+    let env = A.env nd in
+    (* Instead of iterating over all vars in env and doing a linear lookup in vs just to remove them,
+       make a new env with just the desired vs. *)
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    let env' = Environment.make vs' [||] in
+    A.change_environment_with Man.mgr nd env' false
+
+  let keep_vars d vs =
+    let nd = copy d in
+    keep_vars_with nd vs;
+    nd
+
+  let keep_filter_with nd f =
+    (* Instead of removing undesired vars,
+       make a new env with just the desired vars. *)
+    let vs' =
+      vars nd
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+    in
+    let env' = Environment.make vs' [||] in
+    A.change_environment_with Man.mgr nd env' false
+
+  let keep_filter d f =
+    let nd = copy d in
+    keep_filter_with nd f;
+    nd
+
+  let forget_vars_with nd vs =
+    (* Unlike keep_vars_with, this doesn't check mem_var, but assumes valid vars, like assigns *)
+    let vs' = Array.of_list vs in
+    A.forget_array_with Man.mgr nd vs' false
+
+  let forget_vars d vs =
+    let nd = copy d in
+    forget_vars_with nd vs;
+    nd
+
+  let assign_exp_with nd v e =
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e with
+    | texpr1 ->
+      A.assign_texpr_with Man.mgr nd v texpr1 None
+    | exception Convert.Unsupported_CilExp ->
+      forget_vars_with nd [v]
+
+  let assign_exp d v e =
+    let nd = copy d in
+    assign_exp_with nd v e;
+    nd
+
+  let assign_exp_parallel_with nd ves =
+    (* TODO: non-_with version? *)
+    let env = A.env nd in
+    (* partition assigns with supported and unsupported exps *)
+    let (supported, unsupported) =
+      ves
+      |> List.enum
+      |> Enum.map (Tuple2.map2 (fun e ->
+          match Convert.texpr1_of_cil_exp nd env e with
+          | texpr1 -> Some texpr1
+          | exception Convert.Unsupported_CilExp -> None
+        ))
+      |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
+    in
+    (* parallel assign supported *)
+    let (supported_vs, texpr1s) =
+      supported
+      |> Enum.map (Tuple2.map2 Option.get)
+      |> Enum.uncombine
+      |> Tuple2.map Array.of_enum Array.of_enum
+    in
+    A.assign_texpr_array_with Man.mgr nd supported_vs texpr1s None;
+    (* forget unsupported *)
+    let unsupported_vs =
+      unsupported
+      |> Enum.map fst
+      |> Array.of_enum
+    in
+    A.forget_array_with Man.mgr nd unsupported_vs false
+
+  let assign_var_with nd v v' =
+    let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
+    A.assign_texpr_with Man.mgr nd v texpr1 None
+
+  let assign_var d v v' =
+    let nd = copy d in
+    assign_var_with nd v v';
+    nd
+
+  let assign_var_parallel_with nd vv's =
+    (* TODO: non-_with version? *)
+    let env = A.env nd in
+    let (vs, texpr1s) =
+      vv's
+      |> List.enum
+      |> Enum.map (Tuple2.map2 (Texpr1.var env))
+      |> Enum.uncombine
+      |> Tuple2.map Array.of_enum Array.of_enum
+    in
+    A.assign_texpr_array_with Man.mgr nd vs texpr1s None
+
+  let assign_var_parallel' d vs v's = (* unpaired parallel assigns *)
+    (* TODO: _with version? *)
+    let env = A.env d in
+    let vs = Array.of_list vs in
+    let texpr1s =
+      v's
+      |> List.enum
+      |> Enum.map (Texpr1.var env)
+      |> Array.of_enum
+    in
+    A.assign_texpr_array Man.mgr d vs texpr1s None
+
+  let substitute_exp_with nd v e =
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e with
+    | texpr1 ->
+      A.substitute_texpr_with Man.mgr nd v texpr1 None
+    | exception Convert.Unsupported_CilExp ->
+      forget_vars_with nd [v]
+
+  let substitute_exp d v e =
+    let nd = copy d in
+    substitute_exp_with nd v e;
+    nd
+
+  let substitute_exp_parallel_with nd ves =
+    (* TODO: non-_with version? *)
+    let env = A.env nd in
+    (* partition substitutes with supported and unsupported exps *)
+    let (supported, unsupported) =
+      ves
+      |> List.enum
+      |> Enum.map (Tuple2.map2 (fun e ->
+          match Convert.texpr1_of_cil_exp nd env e with
+          | texpr1 -> Some texpr1
+          | exception Convert.Unsupported_CilExp -> None
+        ))
+      |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
+    in
+    (* parallel substitute supported *)
+    let (supported_vs, texpr1s) =
+      supported
+      |> Enum.map (Tuple2.map2 Option.get)
+      |> Enum.uncombine
+      |> Tuple2.map Array.of_enum Array.of_enum
+    in
+    A.substitute_texpr_array_with Man.mgr nd supported_vs texpr1s None;
+    (* forget unsupported *)
+    let unsupported_vs =
+      unsupported
+      |> Enum.map fst
+      |> Array.of_enum
+    in
+    A.forget_array_with Man.mgr nd unsupported_vs false
+
+  let substitute_var_with nd v v' =
+    (* TODO: non-_with version? *)
+    let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
+    A.substitute_texpr_with Man.mgr nd v texpr1 None
+
+  let meet_tcons d tcons1 =
+    let earray = Tcons1.array_make (A.env d) 1 in
+    Tcons1.array_set earray 0 tcons1;
+    A.meet_tcons_array Man.mgr d earray
+end
+
+
+module type SPrintable =
+sig
+  include Printable.S with type t = Man.mt A.t
+
+  (* Functions for bot and top for particular environment. *)
+  val top_env: Environment.t -> t
+  val bot_env: Environment.t -> t
+  val is_top_env: t -> bool
+  val is_bot_env: t -> bool
+end
+
+module DBase: SPrintable =
 struct
   type t = Man.mt A.t
 
-  let name () = "APRON octagon numerical abstract domain"
-
-  let lift_var = Var.of_string "##LIFT##"
-
-  (** Environment (containing a unique variable [lift_var]) only used for lifted bot and top. *)
-  let lift_env = Environment.make [|lift_var|] [||]
+  let name () = "OctApron"
 
   (* Functions for bot and top for particular environment. *)
   let top_env = A.top    Man.mgr
   let bot_env = A.bottom Man.mgr
   let is_top_env = A.is_top Man.mgr
   let is_bot_env = A.is_bottom Man.mgr
-
-  (* Functions for lifted bot and top to implement [Lattice.S]. *)
-  let top () = top_env lift_env
-  let bot () = bot_env lift_env
-  let is_top x = Environment.equal (A.env x) lift_env && is_top_env x
-  let is_bot x = Environment.equal (A.env x) lift_env && is_bot_env x
 
   let to_yojson x = failwith "TODO implement to_yojson"
   let invariant _ _ = Invariant.none
@@ -56,61 +452,10 @@ struct
 
   let show (x:t) =
     Format.asprintf "%a (env: %a)" A.print x (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)
-
   let pretty () (x:t) = text (show x)
-
-  let print_lincons l = Lincons0.print string_of_int Format.std_formatter l
-  let print_expression x = print_endline (Pretty.sprint 20 (Cil.d_exp () x))
-  let print_octagon o = print_endline (show o)
-
-  (* Apron can not join two abstract values have different environments.
-  That hapens when we do a join with dead code and for that reason we need
-  to handle joining with bottom manually.
-  A similar if-based structure with is_top and is_bottom is also there for:
-  meet, widen, narrow, equal, leq.*)
-
-  let join x y =
-    let ret = if is_bot x then
-      y
-    else if is_bot y then
-      x
-    else (
-      if Messages.tracing then Messages.tracel "apron" "join %a %a\n" pretty x pretty y;
-      A.join (Man.mgr) x y
-      (* TODO: return lifted top if different environments? and warn? *)
-    )
-    in
-    ret
-
-  let meet x y =
-    let ret = if is_top x then y else
-    if is_top y then x else
-      A.meet Man.mgr x y in
-    (* TODO: return lifted bot if different environments? and warn? *)
-    ret
-
-  let widen x y =
-    let ret = if is_bot x then
-      y
-    else if is_bot y then
-      x (* TODO: is this right? *)
-    else
-      A.widening (Man.mgr) x y in
-    (* TODO: return lifted top if different environments? and warn? *)
-    ret
-
-  let narrow = meet
 
   let equal x y =
     Environment.equal (A.env x) (A.env y) && A.is_eq Man.mgr x y
-
-  let leq x y =
-    if is_bot x || is_top y then true else
-    if is_bot y || is_top x then false else (
-      if Messages.tracing then Messages.tracel "apron" "leq %a %a\n" pretty x pretty y;
-      Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
-      (* TODO: warn if different environments? *)
-    )
 
   let hash (x:t) =
     A.hash Man.mgr x
@@ -118,473 +463,427 @@ struct
   let compare (x:t) y: int =
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
+
   let pretty_diff () (x,y) = text "pretty_diff"
-
-  (* Apron expressions of level 1 *)
-  open Texpr1
-  (* Apron linear constraints of level 1 *)
-  open Lincons1
-
-  let typesort =
-    let f is v =
-      if isIntegralType v.vtype then
-        if GobConfig.get_bool "ana.octapron.no_uints" then
-          if Cil.isSigned (Cilfacade.get_ikind v.vtype) then
-            v.vname::is
-          else
-            is
-        else
-          v.vname::is
-      else
-        is
-    in
-    List.fold_left f []
-
-  let rec cil_exp_to_cil_lhost =
-    function
-    | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-      Var (Var.of_string v.vname)
-    | Const (CInt64 (i,_,_)) ->
-      Cst (Coeff.s_of_int (Int64.to_int i))
-    | UnOp  (Neg ,e,_) ->
-      Unop (Neg,cil_exp_to_cil_lhost e,Int,Near)
-    | BinOp (PlusA,e1,e2,_) ->
-      Binop (Add,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | BinOp (MinusA,e1,e2,_) ->
-      Binop (Sub,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | BinOp (Mult,e1,e2,_) ->
-      Binop (Mul,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | BinOp (Div,e1,e2,_) ->
-      Binop (Div,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Zero)
-    | BinOp (Mod,e1,e2,_) ->
-      Binop (Mod,cil_exp_to_cil_lhost e1,cil_exp_to_cil_lhost e2,Int,Near)
-    | CastE (TInt _,e) -> Unop(Cast,cil_exp_to_cil_lhost e,Int,Zero)
-    | _ -> raise Invalid_CilExpToLhost
+end
 
 
-  let add_t' x y =
-    match x, y with
-    | None, x | x, None -> x
-    | Some x, Some y -> Some (x+y)
+module type SLattice =
+sig
+  include SPrintable
+  include Lattice.S with type t := t
+end
 
-  let neg_t' = function Some x -> Some (-x) | None -> None
+module DWithOps (D: SLattice) =
+struct
+  include D
 
-  let negate (xs,x,r) =
-    let xs' = List.map (fun (x,y) -> (x, -y)) xs in
-    xs', neg_t' x, r
+  module Tracked =
+  struct
+    let type_tracked typ =
+      isIntegralType typ
 
-  type lexpr = (string * int) list
+    let varinfo_tracked vi =
+      (* no vglob check here, because globals are allowed in octApron, but just have to be handled separately *)
+      type_tracked vi.vtype && not vi.vaddrof
+  end
 
-  let rec cil_exp_to_lexp: exp -> lexpr * int option * Lincons0.typ =
-    let add ((xs:lexpr),x,r) ((ys:lexpr),y,r') =
-      let add_one xs (var_name, var_coefficient) =
-        let found_var_in_list var_name var_coeff_list =
-          let find found_already (var_name_in_list, _)  =
-            found_already || (String.compare var_name var_name_in_list) == 0 in
-          List.fold_left find false var_coeff_list in
-        if (found_var_in_list var_name xs) then
-          List.modify var_name (fun x -> x + var_coefficient) xs
-        else (var_name, var_coefficient)::xs in
-      match r, r' with
-      | EQ, EQ -> List.fold_left add_one xs ys, add_t' x y, EQ
-      | _ -> raise Invalid_CilExpToLexp
-    in
-    function
-    | Lval (Var v,NoOffset) when isIntegralType v.vtype && (not v.vglob) ->
-      [v.vname, 1], None, EQ
-    | Const (CInt64 (i,_,_)) ->
-      [], Some (Int64.to_int i), EQ
-    | UnOp  (Neg ,e,_) ->
-      negate (cil_exp_to_lexp e)
-    | BinOp (PlusA,e1,e2,_) ->
-      add (cil_exp_to_lexp e1) (cil_exp_to_lexp e2)
-    | BinOp (MinusA,e1,e2,_) ->
-      add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2))
-    | BinOp (Mult,e1,e2,_) ->
-      begin match cil_exp_to_lexp e1, cil_exp_to_lexp e2 with
-        | ([], Some x, EQ), ([], Some y, EQ) -> ([], Some (x*y), EQ)
-        | (xs, None, EQ), ([], Some y, EQ) | ([], Some y, EQ), (xs, None, EQ) ->
-          (List.map (function (n, x) -> n, x*y) xs, None, EQ)
-        | _ -> raise Invalid_CilExpToLexp
-      end
-    | BinOp (r,e1,e2,_) ->
-      let comb r = function
-        | (xs,y,EQ) -> (xs,y,r)
-        | _ -> raise Invalid_CilExpToLexp
-      in
-      begin match r with
-        | Lt -> comb SUP   (add (cil_exp_to_lexp e2) (negate (cil_exp_to_lexp e1)))
-        | Gt -> comb SUP   (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | Le -> comb SUPEQ (add (cil_exp_to_lexp e2) (negate (cil_exp_to_lexp e1)))
-        | Ge -> comb SUPEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | Eq -> comb EQ    (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | Ne -> comb DISEQ (add (cil_exp_to_lexp e1) (negate (cil_exp_to_lexp e2)))
-        | _ -> raise Invalid_CilExpToLexp
-      end
-    | CastE (TInt(new_ikind, _), e) ->
-      let new_exp = (match e with
-      (* Do a cast of int constants *)
-      | Const (CInt64 (value, old_ikind, _)) -> Cil.kinteger64 new_ikind (IntDomain.Integers.cast_to new_ikind value)
-      (* Ignore other casts *)
-      | Lval (Var varinfo, _) -> e (* TODO: handle variable casts *)
-      |_ -> e)
-      in
-      cil_exp_to_lexp new_exp
-    | _ ->
-      raise Invalid_CilExpToLexp
+  include AOps (Tracked)
 
-  let cil_exp_to_apron_linexpr1 environment cil_exp should_negate =
-    let inverse_comparator comparator =
-      match comparator with
-      | EQ -> DISEQ
-      | DISEQ -> EQ
-      | SUPEQ -> SUP
-      | SUP -> SUPEQ
-      | EQMOD x -> EQMOD x in
-    let var_name_coeff_pairs, constant, comparator = cil_exp_to_lexp (Cil.constFold false cil_exp) in
-    let var_name_coeff_pairs, constant, comparator = if should_negate then negate (var_name_coeff_pairs, constant, (inverse_comparator comparator)) else var_name_coeff_pairs, constant, comparator in
-    let apron_var_coeff_pairs = List.map (function (x, y) -> Coeff.s_of_int y, Var.of_string x) var_name_coeff_pairs in
-    let apron_constant = match constant with Some x -> Some (Coeff.s_of_int x) | None -> None in
-    let all_variables_known_to_environment = List.fold_left (fun known (_,var) -> known && (Environment.mem_var environment var)) true apron_var_coeff_pairs in
-    if not(all_variables_known_to_environment) then None, None
-    else
-      begin
-        let linexpr1 = Linexpr1.make environment in
-        Linexpr1.set_list linexpr1 apron_var_coeff_pairs apron_constant;
-        Some linexpr1, Some comparator
-      end
+  include Tracked
 
-  let cil_exp_to_apron_linecons environment cil_exp should_negate =
-    (* ignore (Pretty.printf "cil_exp_to_apron_linecons exptolinecons '%a'\n" d_plainexp cil_exp); *)
-    let linexpr1, comparator = cil_exp_to_apron_linexpr1 environment cil_exp should_negate in
-    match linexpr1, comparator with
-    | Some linexpr1, Some comparator ->
-      Some (Lincons1.make linexpr1 comparator)
-    | _ -> None
+  let exp_is_cons = function
+    (* constraint *)
+    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+    (* expression *)
+    | _ -> false
 
-  (* Assert an invariant *)
-  (* Gives the result of the meet operation of the given octagon
-  with the linear constraints coming from the given expression *)
-  let rec assert_inv d x b =
-    try
-      let x = match x with
-        | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> x
-        (* For expressions x that aren't a BinOp with a comparison operator,
-         assert(x) will be converted it to assert(x != 0) *)
-        | _ -> BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
-        in
-      match x with
-      | BinOp (Ne, lhd, rhs, intType) ->
-        let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
-        let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-        if not (is_bot_env assert_gt) then
-          assert_gt
-        else
-          assert_lt
-      | _ ->
-        (* Linear constraints from an expression x in an environment of octagon d *)
-        let linecons = cil_exp_to_apron_linecons (A.env d) x b in
-        (* Linear constraints are optional, so we check if there are any. *)
-        match linecons with
-        | Some linecons ->
-          (* Get the underlying linear constraint of level 0.
-          Modifying the constraint of level 0 (not advisable)
-          modifies correspondingly the linear constraint and conversely,
-          except for changes of environments *)
-          let ea = { lincons0_array = [|Lincons1.get_lincons0 linecons |]
-                  ; array_env = A.env d
-                  }
-          in
-          (* We perform a meet of the current octagon with the linear constraints
-          that come from the expression we wish to assert. *)
-          A.meet_lincons_array Man.mgr d ea
-        | None -> d
-    with Invalid_CilExpToLexp -> d
-
-  (* Creates the opposite invariant and assters it *)
-  let assert_op_inv d x b =
-    (* if assert(x) then convert it to assert(x != 0) *)
-    let x = match x with
-    | Lval (Var v,NoOffset) when isIntegralType v.vtype ->
-      BinOp (Ne, x, (Const (CInt64(Int64.of_int 0, IInt, None))), intType)
-    | _ -> x in
-    try
-      match x with
-        | BinOp (Ne, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Eq, lhd, rhs, intType)) b
-
-        | BinOp (Eq, lhd, rhs, intType) ->
-          let assert_gt = assert_inv d (BinOp (Gt, lhd, rhs, intType)) b in
-          let assert_lt = assert_inv d (BinOp (Lt, lhd, rhs, intType)) b in
-          if not (is_bot_env assert_gt) then
-            assert_gt
-          else
-            assert_lt
-
-        | BinOp (Lt, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Ge, lhd, rhs, intType)) b
-
-        | BinOp (Gt, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Le, lhd, rhs, intType)) b
-
-        | BinOp (Le, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Gt, lhd, rhs, intType)) b
-
-        | BinOp (Ge, lhd, rhs, intType) ->
-          assert_inv d (BinOp (Lt, lhd, rhs, intType)) b
-
-        | UnOp(LNot, e, t) ->
-          assert_inv d e b
-
-        | _ ->  assert_inv d x b
-    with Invalid_CilExpToLexp -> d
-
-  let check_assert (e:exp) state =
+  (** Assert a constraint expression. *)
+  let rec assert_cons d e negate =
     match e with
-    | Const (CInt64(i, kind, str)) -> `Top (* Octagon doesn't handle constant integers as assertions *)
-    | CastE(t, e) -> `Top (* Octagon doesn't handle casts as assertions *)
-    | Const(CChr c) -> `Top (*  Octagon doesn't handle character constants as assertions *)
+    (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
+       Join Gt and Lt versions instead. *)
+    | BinOp (Ne, lhs, rhs, intType) when not negate ->
+      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) negate in
+      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) negate in
+      join assert_gt assert_lt
+    | BinOp (Eq, lhs, rhs, intType) when negate ->
+      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) in
+      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) in
+      join assert_gt assert_lt
     | _ ->
-      let result_state = (assert_inv state e false) in
-      let result_state_op = (assert_op_inv state e false) in
-      if is_bot_env result_state then
-        `False
-      else if is_bot_env result_state_op then
-        `True
+      begin match Convert.tcons1_of_cil_exp d (A.env d) e negate with
+        | tcons1 ->
+          meet_tcons d tcons1
+        | exception Convert.Unsupported_CilExp ->
+          d
+      end
+
+  (** Assert any expression. *)
+  let assert_inv d e negate =
+    let e' =
+      if exp_is_cons e then
+        e
       else
-        `Top
+        (* convert non-constraint expression, such that we assert(e != 0) *)
+        BinOp (Ne, e, zero, intType)
+    in
+    assert_cons d e' negate
 
-  let rec get_vars_from_expr exp l =
-    match exp with
-    | Cst _-> l
-    | Var v -> l @ [v]
-    | Unop (_, e, _, _) -> l @ (get_vars_from_expr e [])
-    | Binop (_, e, _, _, _) -> l @ (get_vars_from_expr e [])
-
-  let vars_from_expr_in_env env exp =
-    let l = List.map (fun v -> Environment.mem_var env v) (get_vars_from_expr exp []) in
-    not (List.mem false l)
-
-  (* Converts CIL expressions to Apron expressions of level 1 *)
-  let cil_exp_to_apron_texpr1 env lhost =
-    (* ignore (Pretty.printf "exptotexpr1 '%a'\n" d_plainexp x); *)
-      Texpr1.of_expr env lhost
-
-  let is_chosen (v:string) =
-    let oct_vars =  List.map Json.jsonString (GobConfig.get_list "ana.octapron.vars") in
-    if List.length oct_vars == 0 then
-      true
+  let check_assert d e =
+    if is_bot_env (assert_inv d e false) then
+      `False
+    else if is_bot_env (assert_inv d e true) then
+      `True
     else
-      (* let () = print_endline (String.concat ", " oct_vars) in *)
-      List.mem ("\""^v^"\"") oct_vars
+      `Top
 
-  let get_vars d =
-    let xs, ys = Environment.vars (A.env d) in
-    assert (Array.length ys = 0); (* shouldn't ever contain floats *)
-    List.of_enum (Array.enum xs)
+  (** Evaluate non-constraint expression as interval. *)
+  let eval_interval_expr d e =
+    match Convert.texpr1_of_cil_exp d (A.env d) e with
+    | texpr1 ->
+      bound_texpr d texpr1
+    | exception Convert.Unsupported_CilExp ->
+      (None, None)
 
-  let var_in_env (v:string) d =
-    if (is_chosen v) then
-      let existing_vars_int = get_vars d in
-      let existing_var_names_int = List.map (fun v -> Var.to_string v) existing_vars_int in
-      List.mem v existing_var_names_int
+  (** Evaluate constraint or non-constraint expression as integer. *)
+  let eval_int d e =
+    let module ID = Queries.ID in
+    let ik = Cilfacade.get_ikind_exp e in
+    if exp_is_cons e then
+      match check_assert d e with
+      | `True -> ID.of_bool ik true
+      | `False -> ID.of_bool ik false
+      | `Top -> ID.top ()
+    else
+      match eval_interval_expr d e with
+      | (Some min, Some max) -> ID.of_interval ik (min, max)
+      | (Some min, None) -> ID.starting ik min
+      | (None, Some max) -> ID.ending ik max
+      | (None, None) -> ID.top ()
+end
+
+
+module DLift: SLattice =
+struct
+  include DBase
+
+  let lift_var = Var.of_string "##LIFT##"
+
+  (** Environment (containing a unique variable [lift_var]) only used for lifted bot and top. *)
+  let lift_env = Environment.make [|lift_var|] [||]
+
+  (* Functions for lifted bot and top to implement [Lattice.S]. *)
+  let top () = top_env lift_env
+  let bot () = bot_env lift_env
+  let is_top x = Environment.equal (A.env x) lift_env && is_top_env x
+  let is_bot x = Environment.equal (A.env x) lift_env && is_bot_env x
+
+  (* Apron can not join two abstract values have different environments.
+     That hapens when we do a join with dead code and for that reason we need
+     to handle joining with bottom manually.
+     A similar if-based structure with is_top and is_bottom is also there for:
+     meet, widen, narrow, equal, leq.*)
+
+  let join x y =
+    if is_bot x then
+      y
+    else if is_bot y then
+      x
+    else (
+      if M.tracing then M.tracel "apron" "join %a %a\n" pretty x pretty y;
+      A.join (Man.mgr) x y
+      (* TODO: return lifted top if different environments? and warn? *)
+    )
+
+  let meet x y =
+    if is_top x then y else
+    if is_top y then x else
+      A.meet Man.mgr x y
+      (* TODO: return lifted bot if different environments? and warn? *)
+
+  let widen x y =
+    if is_bot x then
+      y
+    else if is_bot y then
+      x (* TODO: is this right? *)
+    else
+      A.widening (Man.mgr) x y
+      (* TODO: return lifted top if different environments? and warn? *)
+
+  let narrow = meet
+
+  let leq x y =
+    if is_bot x || is_top y then true else
+    if is_bot y || is_top x then false else (
+      if M.tracing then M.tracel "apron" "leq %a %a\n" pretty x pretty y;
+      Environment.equal (A.env x) (A.env y) && A.is_leq (Man.mgr) x y
+      (* TODO: warn if different environments? *)
+    )
+
+  let pretty_diff () (x, y) =
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
+
+module D = DWithOps (DLift)
+
+
+(** With heterogeneous environments. *)
+module DHetero: SLattice =
+struct
+  include DBase
+
+  let gce (x: Environment.t) (y: Environment.t): Environment.t =
+    let (xi, xf) = Environment.vars x in
+    (* TODO: check type compatibility *)
+    let i = Array.filter (Environment.mem_var y) xi in
+    let f = Array.filter (Environment.mem_var y) xf in
+    Environment.make i f
+
+  let join x y =
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let c_env = gce x_env y_env in
+    let x_c = A.change_environment Man.mgr x c_env false in
+    let y_c = A.change_environment Man.mgr y c_env false in
+    let join_c = A.join Man.mgr x_c y_c in
+    let j_env = Environment.lce x_env y_env in
+    A.change_environment Man.mgr join_c j_env false
+
+  (* TODO: move to AOps *)
+  let meet_lincons d lincons1 =
+    let earray = Lincons1.array_make (A.env d) 1 in
+    Lincons1.array_set earray 0 lincons1;
+    A.meet_lincons_array Man.mgr d earray
+
+  let strengthening j x y =
+    if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let j_env = A.env j in
+    let x_j = A.change_environment Man.mgr x j_env false in
+    let y_j = A.change_environment Man.mgr y j_env false in
+    let x_cons = A.to_lincons_array Man.mgr x_j in
+    let y_cons = A.to_lincons_array Man.mgr y_j in
+    let try_add_con j con1 =
+      if M.tracing then M.tracei "apron" "try_add_con %s\n" (Format.asprintf "%a" (Lincons1.print: Format.formatter -> Lincons1.t -> unit) con1);
+      let t = meet_lincons j con1 in
+      let t_x = A.change_environment Man.mgr t x_env false in
+      let t_y = A.change_environment Man.mgr t y_env false in
+      let leq_x = A.is_leq Man.mgr x t_x in
+      let leq_y = A.is_leq Man.mgr y t_y in
+      if M.tracing then M.trace "apron" "t: %a\n" pretty t;
+      if M.tracing then M.trace "apron" "t_x (leq x %B): %a\n" leq_x pretty t_x;
+      if M.tracing then M.trace "apron" "t_y (leq y %B): %a\n" leq_y pretty t_y;
+      if leq_x && leq_y then (
+        if M.tracing then M.traceu "apron" "added\n";
+        t
+      )
+      else (
+        if M.tracing then M.traceu "apron" "not added\n";
+        j
+      )
+    in
+    let lincons1_array_of_earray (earray: Lincons1.earray) =
+      Array.init (Lincons1.array_length earray) (Lincons1.array_get earray)
+    in
+    let x_cons1 = lincons1_array_of_earray x_cons in
+    let y_cons1 = lincons1_array_of_earray y_cons in
+    let cons1 =
+      (* Whether [con1] contains a var in [env]. *)
+      let env_exists_mem_con1 env con1 =
+        try
+          Lincons1.iter (fun _ var ->
+              if Environment.mem_var env var then
+                raise Not_found
+            ) con1;
+          false
+        with Not_found ->
+          true
+      in
+      (* Heuristically reorder constraints to pass 36/12 with singlethreaded->multithreaded mode switching. *)
+      (* Put those constraints which strictly are in one argument's env first, to (hopefully) ensure they remain. *)
+      let (x_cons1_some_y, x_cons1_only_x) = Array.partition (env_exists_mem_con1 y_env) x_cons1 in
+      let (y_cons1_some_x, y_cons1_only_y) = Array.partition (env_exists_mem_con1 x_env) y_cons1 in
+      Array.concat [x_cons1_only_x; y_cons1_only_y; x_cons1_some_y; y_cons1_some_x]
+    in
+    let j = Array.fold_left try_add_con j cons1 in
+    if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+    j
+
+  let empty_env = Environment.make [||] [||]
+
+  let bot () =
+    top_env empty_env
+
+  let top () =
+    failwith "D2.top"
+
+  let is_bot = equal (bot ())
+  let is_top _ = false
+
+  let join x y =
+    (* just to optimize joining folds, which start with bot *)
+    if is_bot x then
+      y
+    else if is_bot y then
+      x
+    else (
+      if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
+      let j = join x y in
+      if M.tracing then M.trace "apron" "j = %a\n" pretty j;
+      let j = strengthening j x y in
+      if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
+      j
+    )
+
+  let meet x y =
+    A.unify Man.mgr x y
+
+  let leq x y =
+    (* TODO: float *)
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let (x_vars, _) = Environment.vars x_env in
+    if Array.for_all (Environment.mem_var y_env) x_vars then (
+      let y' = A.change_environment Man.mgr y x_env false in
+      A.is_leq Man.mgr x y'
+    )
     else
       false
 
-  let assign_var_eq_with d v v' =
-    if var_in_env v d then
-      A.assign_texpr_with Man.mgr d (Var.of_string v)
-        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
-
-  let substitute_var_eq_with d v v' =
-    if var_in_env v d then
-      A.substitute_texpr_with Man.mgr d (Var.of_string v)
-        (Texpr1.of_expr (A.env d) (Var (Var.of_string v'))) None
-
-  let assign_var_with d v e =
-    (* ignore (Pretty.printf "assign_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    if var_in_env v d then
-      begin try
-          let exp = Cil.constFold false e in
-          let env = A.env d in
-          let conversion_res = cil_exp_to_cil_lhost exp in
-          let can_do = vars_from_expr_in_env env conversion_res in
-          if can_do then
-            A.assign_texpr_with Man.mgr d (Var.of_string v)
-              (cil_exp_to_apron_texpr1 env conversion_res) None
-        with Invalid_CilExpToLhost ->
-          A.forget_array_with Man.mgr d [|Var.of_string v|] false
-          (* | Manager.Error q -> *)
-          (* ignore (Pretty.printf "Manager.Error: %s\n" q.msg); *)
-          (* ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e); *)
-          (* raise (Manager.Error q) *)
-      end
-
-  let assign_var d v e =
-    if is_chosen v then
-      let newd = A.copy Man.mgr d in
-      assign_var_with newd v e;
-      newd
+  let widen x y =
+    let x_env = A.env x in
+    let y_env = A.env y in
+    if Environment.equal x_env y_env then
+      A.widening Man.mgr x y (* widen if env didn't increase *)
     else
-      d
+      y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 
-  let forget_all_with d xs =
-    let xs = List.filter (fun elem -> var_in_env elem d) xs in
-    A.forget_array_with Man.mgr d (Array.of_enum (List.enum (List.map Var.of_string xs))) false
+  (* TODO: better narrow *)
+  let narrow x y = x
 
-  let forget_all d xs =
-    let newd = A.copy Man.mgr d in
-    forget_all_with newd xs;
-    newd
+  let pretty_diff () (x, y) =
+    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+end
 
-  let substitute_var_with d v e =
-    (* ignore (Pretty.printf "substitute_var_with %a %s %a\n" pretty d v d_plainexp e); *)
-    begin try
-        let exp = Cil.constFold false e in
-        let env = A.env d in
-        let conversion_res = cil_exp_to_cil_lhost exp in
-        let can_do = vars_from_expr_in_env env conversion_res in
-        if can_do then
-          A.substitute_texpr_with Man.mgr d (Var.of_string v)
-            (cil_exp_to_apron_texpr1 env conversion_res) None
-      with Invalid_CilExpToLhost ->
-        A.forget_array_with Man.mgr d [|Var.of_string v|] false
-        (* | Manager.Error q ->
-           ignore (Pretty.printf "Manager.Error: %s\n" q.msg);
-           ignore (Pretty.printf "Manager.Error: assign_var_with _ %s %a\n" v d_plainexp e);
-           raise (Manager.Error q) *)
-    end
+module D2 = DWithOps (DHetero)
 
-  let add_vars_with newd newis =
-    (* TODO: why is this necessary? *)
-    let rec remove_duplicates list =
-      match list with
-      | [] -> []
-      | head::tail -> head::(remove_duplicates (List.filter (fun x -> x <> head) tail)) in
-    let oldis = get_vars newd in
-    let environment = (A.env newd) in
-    let newis = remove_duplicates newis in
-    (* why is this not done by remove_duplicates already? *)
-    let cis = List.filter (fun x -> not (List.mem x oldis) && (not (Environment.mem_var environment x))) (List.map Var.of_string newis) in (* TODO: why is the mem_var check necessary? *)
-    let cis = Array.of_enum (List.enum cis) in
-    let newenv = Environment.add environment cis [||] in
-    A.change_environment_with Man.mgr newd newenv false
 
-  let add_vars d vars =
-    let newd = A.copy Man.mgr d in
-    add_vars_with newd vars;
-    newd
+(* Copy-paste from BaseDomain... *)
+type 'a octaproncomponents_t = {
+  oct: D2.t;
+  priv: 'a;
+} [@@deriving eq, ord, to_yojson]
 
-  let rec print_list_string l = match l with
-    | [] -> print_endline "This is the end of the string list!"
-    | head::body ->
-    begin
-    print_endline head;
-    print_list_string body
-    end
+module OctApronComponents (PrivD: Lattice.S):
+sig
+  include Lattice.S with type t = PrivD.t octaproncomponents_t
+  val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+end =
+struct
+  type t = PrivD.t octaproncomponents_t [@@deriving eq, ord, to_yojson]
 
-  let rec list_length l = match l with
-    | [] -> 0
-    | head::body -> (list_length body) + 1
+  include Printable.Std
+  open Pretty
+  let hash r  = D2.hash r.oct + PrivD.hash r.priv * 33
 
-  let remove_all_but_with d xs =
-      let is' = get_vars d in
-      let vs = List.filter (fun x -> not (List.mem (Var.to_string x) xs)) is' in
-      let env = Environment.remove (A.env d) (Array.of_enum (List.enum vs)) in
-      A.change_environment_with Man.mgr d env false
 
-  let remove_all_with d xs =
-    if list_length xs > 0 then
-      (* let vars = List.filter (fun v -> isIntegralType v.vtype) xs in *)
-      let vars = Array.of_enum (List.enum (List.map (fun v -> Var.of_string v) xs)) in
-      let existing_vars_int = get_vars d in
-      let vars_filtered = List.filter (fun elem -> List.mem_cmp Var.compare elem existing_vars_int) (Array.to_list vars) in
-      let env = Environment.remove (A.env d) (Array.of_list vars_filtered) in
-      A.change_environment_with Man.mgr d env false
+  let show r =
+    let first  = D2.show r.oct in
+    let third  = PrivD.show r.priv in
+    "(" ^ first ^ ", " ^ third  ^ ")"
 
-  let remove_all d vars =
-    let newd = A.copy Man.mgr d in
-    forget_all_with newd vars;
-    newd
+  let pretty () r =
+    text "(" ++
+    D2.pretty () r.oct
+    ++ text ", " ++
+    PrivD.pretty () r.priv
+    ++ text ")"
 
-  let copy = A.copy Man.mgr
+  let printXml f r =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.oct (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-  let get_int_interval_for_cil_exp d cil_exp =
-    let get_int_for_apron_scalar (scalar: Scalar.t) =
-      match scalar with
-      | Float scalar -> Some (Stdlib.int_of_float scalar)
-      | Mpqf scalar ->
-        begin
-          match Mpqf.to_string scalar with
-          (* apron has an internal representation of -1/0 as -infinity and 1/0 as infinity.*)
-          | "-1/0" | "1/0" -> None
-          | _ -> Some (Stdlib.int_of_float (Mpqf.to_float scalar))
-        end
-      | Mpfrf scalar -> Some (Stdlib.int_of_float (Mpfrf.to_float scalar)) in
-    try
-      let linexpr1, _  = cil_exp_to_apron_linexpr1 (A.env d) cil_exp false in
-      match linexpr1 with
-      | Some linexpr1 -> (
-          let interval_of_variable = A.bound_linexpr Man.mgr d linexpr1 in
-          let infimum = get_int_for_apron_scalar interval_of_variable.inf in
-          let supremum = get_int_for_apron_scalar interval_of_variable.sup in
-          match infimum, supremum with
-          | Some infimum, Some supremum -> Some (Int64.of_int (infimum)),  Some (Int64.of_int (supremum))
-          | Some infimum, None -> Some (Int64.of_int (-infimum)), None
-          | None, Some supremum ->  None, Some (Int64.of_int (-supremum))
-          | _, _ -> None, None)
-      | _ -> None, None
-    with Invalid_CilExpToLexp -> None, None
+  let name () = D2.name () ^ " * " ^ PrivD.name ()
 
-  let get_int_val_for_cil_exp d cil_exp =
-    match get_int_interval_for_cil_exp d cil_exp with
-    | Some infimum, Some supremum ->
-      begin
-        if (supremum = infimum) then
-          (Some infimum)
-        else None
-      end
-    | _ -> None
+  let invariant c {oct; priv} =
+    Invariant.(D2.invariant c oct && PrivD.invariant c priv)
 
-  let cil_exp_equals d exp1 exp2 =
-    if (is_bot_env d) then false
+  let of_tuple(oct, priv):t = {oct; priv}
+  let to_tuple r = (r.oct, r.priv)
+
+  let arbitrary () =
+    let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
+    QCheck.map ~rev:to_tuple of_tuple tr
+
+  let bot () = { oct = D2.bot (); priv = PrivD.bot ()}
+  let is_bot {oct; priv} = D2.is_bot oct && PrivD.is_bot priv
+  let top () = {oct = D2.top (); priv = PrivD.bot ()}
+  let is_top {oct; priv} = D2.is_top oct && PrivD.is_top priv
+
+  let leq {oct=x1; priv=x3 } {oct=y1; priv=y3} =
+    D2.leq x1 y1 && PrivD.leq x3 y3
+
+  let pretty_diff () (({oct=x1; priv=x3}:t),({oct=y1; priv=y3}:t)): Pretty.doc =
+    if not (D2.leq x1 y1) then
+      D2.pretty_diff () (x1,y1)
     else
-      begin
-        let compare_expression = BinOp (Eq, exp1, exp2, TInt (IInt, [])) in
-        (* We compare the octagon with the octagon we get by performing meet of it with the linear constraints coming from the expression *)
-        let resulting_oct = (assert_inv d compare_expression false) in
-        let comp_result = equal d resulting_oct in
-        comp_result
-      end
+      PrivD.pretty_diff () (x3,y3)
+
+  let op_scheme op1 op3 {oct=x1; priv=x3} {oct=y1; priv=y3}: t =
+    {oct = op1 x1 y1; priv = op3 x3 y3 }
+  let join = op_scheme D2.join PrivD.join
+  let meet = op_scheme D2.meet PrivD.meet
+  let widen = op_scheme D2.widen PrivD.widen
+  let narrow = op_scheme D2.narrow PrivD.narrow
+end
 
 
-    let assign_var_handling_underflow_overflow oct v e =
-      (match v.vtype with
-        | TInt (ikind, _)->
-          let signed = Cil.isSigned ikind in
-          let new_oct = assign_var oct v.vname e in
-          let lower_limit, upper_limit = IntDomain.Size.range_big_int ikind in
-          let check_max =
-            check_assert (BinOp (Le, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int upper_limit)), intType)) new_oct in
-          let check_min =
-            check_assert (BinOp (Ge, Lval (Cil.var @@ v), (Cil.kintegerCilint ikind (Cilint.cilint_of_big_int lower_limit)), intType)) new_oct in
-          if signed then
-            if check_max <> `True || check_min <> `True then
-              if GobConfig.get_bool "ana.octapron.no_signed_overflow" then
-                new_oct
-              else
-                (* Signed overflows are undefined behavior, so octagon goes to top if it might have happened. *)
-                top_env (A.env oct)
-            else
-              new_oct
-          else
-            if check_max <> `True || check_min <> `True then
-              (* Unsigned overflows are defined, but for now
-              the variable in question goes to top if there is a possibility of overflow. *)
-              forget_all oct [v.vname]
-            else
-              new_oct
-        | _ -> oct)
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
 
+module VarMetadataTbl (VM: VarMetadata) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var ?name metadata =
+    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+    let var = Var.of_string name in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata var =
+    VH.find_option vh var
+end
+
+module VM =
+struct
+  type t =
+    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
+    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Return (** Var for function return value. *)
+    | Global of varinfo
+
+  let var_name = function
+    | Local -> failwith "var_name of Local"
+    | Arg -> failwith "var_name of Arg"
+    | Return -> "#ret"
+    | Global g -> g.vname
+end
+
+module V =
+struct
+  include VarMetadataTbl (VM)
+  open VM
+
+  let local x = make_var ~name:x.vname Local
+  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let return = make_var Return
+  let global g = make_var (Global g)
 end
