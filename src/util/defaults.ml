@@ -139,6 +139,7 @@ let _ = ()
       ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
+      ; reg Analyses "ana.arrayoob"        "false"        "Array out of bounds check"
 
 (* {4 category [Semantics]} *)
 let _ = ()
