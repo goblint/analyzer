@@ -30,8 +30,7 @@ All warnings (except for `Debug`) are prepended with a tag `[Warning]`. This
 enables easier detection in the test suite.
 
 Next follows the tag determining certainty of the warning - either `[May]` or
-`[Must]`.  After that, the category is printed - for example `[Behavior >
-Undefined > NullPointerDereference]`. For some types there can be a custom
+`[Must]`.  After that, the category is printed - for example `[Behavior > Undefined > NullPointerDereference]`. For some types there can be a custom
 message after the category too (for example formatting some values passed to the
 leaf variant or just printing out the warning more verbosely - see
 ArrayOutOfBounds).
@@ -40,7 +39,7 @@ The optional message parameter of the functions is printed at the very end.
 
 ## OCaml
 
-`Messages.warn` and `Messages.warn_each` can be used to print warnings from goblint.
+`Messages.warn` and `Messages.warn_each` can be used to print warnings from Goblint.
 
 To construct a nested variant, use one of the provided functions. Example for
 `NullPointerDereference`:
@@ -49,7 +48,7 @@ names correspond to the tree at the top of the page.
 
 Other examples:
 
-```
+```ocaml
 Messages.Unknown
 Messages.Cast.type_mismatch ()
 Messages.Integer.overlow ()
@@ -58,7 +57,7 @@ Messages.Behavior.Undefined.ArrayOutOfBounds.past_end ()
 
 The warning type is given by an optional parameter `warning` (By default
 `Unknown`). Both functions also have an optional parameter `must` (by default
-`false` -> `May`) to determine certainty, a parameter `ctx` to gve context and
+`false` -> `May`) to determine certainty, a parameter `ctx` to give context and
 `msg` to pass an optional string message to print at the end of the warning.
 Moreover, the `warn_each` function also has a parameter `loc` to supply location
 to retain compatibility with former `report` function.
@@ -67,7 +66,7 @@ There's now no `Messages.report` function. It was replaced by `Messages.warn_eac
 
 Examples of calls to `warn` and `warn_each`:
 
-```
+```ocaml
 Messages.warn (Messages.Warning.Integer.overflow ())
 Messages.warn_each ~must:true (Messages.Warning.Behavior.Undefined.nullpointer_dereference ())
 Messages.warn ~msg:"I don't know what type of warning this is" ()
@@ -78,7 +77,7 @@ Messages.warn_each ~loc:location ~msg:"my message" (Messages.Race)
 
 ## Spec files
 
-Warnings inside spec files are also cocnverted to the warning types. Currently
+Warnings inside spec files are also converted to the warning types. Currently
 the warnings are parsed from the string warnings. The first space delimited
 group of characters is consumed and converted to a warning. The rest is passed
 as an optional message.
