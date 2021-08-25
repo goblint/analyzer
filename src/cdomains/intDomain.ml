@@ -1799,12 +1799,15 @@ module Enums : S with type int_t = BigInt.t = struct
     in
     match a, b with
     | Inc xs, Exc (ys, r) ->
-      let min_b, max_b = min_of_range r, max_of_range r in
-      let min_a, max_a = ISet.min_elt xs, ISet.max_elt xs in
-      (* Check that the xs fit into the range r  *)
-      I.compare min_b min_a <= 0 && I.compare max_a max_b <= 0 &&
-      (* && check that none of the values contained in xs is excluded, i.e. contained in ys. *)
-      ISet.for_all (fun x -> not (ISet.mem x ys)) xs
+      if ISet.is_empty xs
+      then true
+      else (
+        let min_b, max_b = min_of_range r, max_of_range r in
+        let min_a, max_a = ISet.min_elt xs, ISet.max_elt xs in
+        (* Check that the xs fit into the range r  *)
+        I.compare min_b min_a <= 0 && I.compare max_a max_b <= 0 &&
+        (* && check that none of the values contained in xs is excluded, i.e. contained in ys. *)
+        ISet.for_all (fun x -> not (ISet.mem x ys)) xs)
     | Inc xs, Inc ys ->
       ISet.subset xs ys
     | Exc (xs, r), Exc (ys, s) ->
