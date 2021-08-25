@@ -7,20 +7,23 @@ type array_oob =
   | PastEnd
   | BeforeStart
   | Unknown
+  [@@deriving eq]
 
 type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
   | UseAfterFree
+  [@@deriving eq]
 
 type behavior =
   | Undefined of undefined_behavior
   | Implementation
   | Machine
+  [@@deriving eq]
 
-type integer = Overflow | DivByZero
+type integer = Overflow | DivByZero [@@deriving eq]
 
-type cast = TypeMismatch
+type cast = TypeMismatch [@@deriving eq]
 
 type warning =
   | Behavior of behavior
@@ -30,10 +33,13 @@ type warning =
   | Unknown
   | Debug
   | Analyzer
+  [@@deriving eq]
 
 module Warning =
 struct
-  type t = warning
+  type t = warning [@@deriving eq]
+
+  let hash x = Hashtbl.hash x (* nested variants, so this is fine *)
 
   module Behavior =
   struct
@@ -187,7 +193,9 @@ struct
 end
 
 module Certainty = struct
-  type t = May | Must
+  type t = May | Must [@@deriving eq]
+
+  let hash x = Hashtbl.hash x (* variants, so this is fine *)
 
   let should_warn e =
     let to_string e =
@@ -223,6 +231,24 @@ struct
       | _ -> "[Warning]"
     in warning_tag^certainty_str^(Warning.show warn_type)
 end
+
+module Message =
+struct
+  type t = {
+    warn_type: Warning.t; (* TODO: make list of tags *)
+    certainty: Certainty.t option; (* TODO: change to severity levels, make non-option *)
+    loc: CilType.Location.t option;
+    text: string;
+    (* TODO: context somehow? *)
+  } [@@deriving eq]
+
+  let hash {warn_type; certainty; loc; text} =
+    3 * Warning.hash warn_type + 5 * BatOption.map_default Certainty.hash 1 certainty + 7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text
+end
+
+module MH = Hashtbl.Make (Message)
+let messages_table = MH.create 113
+
 
 exception Bailure of string
 let bailwith s = raise (Bailure s)
@@ -315,17 +341,17 @@ let with_context msg = function
   | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx)
   | _ -> msg
 
-let warn_str_hashtbl = Hashtbl.create 10
-let warn_lin_hashtbl = Hashtbl.create 10
 
 let warn_internal ?ctx ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
     let msg = (WarningWithCertainty.show warning)^(if msg != "" then " "^msg else "") in
     let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_str_hashtbl msg == false) then
+    (* TODO: warn_all still adds loc below? *)
+    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = None; text = msg} in
+    if not (MH.mem messages_table m) then
       begin
         warn_all msg;
-        Hashtbl.add warn_str_hashtbl msg true
+        MH.replace messages_table m ()
       end
   end
 
@@ -333,10 +359,11 @@ let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
     let msg = (WarningWithCertainty.show warning)^(if msg != "" then " "^msg else "") in
     let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
+    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = Some loc; text = msg} in
+    if not (MH.mem messages_table m) then
       begin
         warn_all ~loc:loc msg;
-        Hashtbl.add warn_lin_hashtbl (msg,loc) true
+        MH.replace messages_table m ()
       end
   end
 
