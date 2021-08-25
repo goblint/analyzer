@@ -244,6 +244,11 @@ struct
 
   let hash {warn_type; certainty; loc; text} =
     3 * Warning.hash warn_type + 5 * BatOption.map_default Certainty.hash 1 certainty + 7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text
+
+  let show {warn_type; certainty; loc; text} =
+    let msg = (WarningWithCertainty.(show {warn_type; certainty}))^(if text != "" then " "^text else "") in
+    (* let msg = with_context msg ctx in *)
+    msg
 end
 
 module MH = Hashtbl.Make (Message)
@@ -344,25 +349,21 @@ let with_context msg = function
 
 let warn_internal ?ctx ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let msg = (WarningWithCertainty.show warning)^(if msg != "" then " "^msg else "") in
-    let msg = with_context msg ctx in
-    (* TODO: warn_all still adds loc below? *)
     let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = None; text = msg} in
+    (* TODO: warn_all still adds loc below? *)
     if not (MH.mem messages_table m) then
       begin
-        warn_all msg;
+        warn_all (Message.show m);
         MH.replace messages_table m ()
       end
   end
 
 let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let msg = (WarningWithCertainty.show warning)^(if msg != "" then " "^msg else "") in
-    let msg = with_context msg ctx in
     let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = Some loc; text = msg} in
     if not (MH.mem messages_table m) then
       begin
-        warn_all ~loc:loc msg;
+        warn_all ~loc:loc (Message.show m);
         MH.replace messages_table m ()
       end
   end
