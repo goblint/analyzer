@@ -94,7 +94,7 @@ struct
 
   module G = AD
 
-  let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
+  let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
   module VM =
   struct
@@ -310,7 +310,7 @@ struct
   module D = Lattice.Unit
   module G = AD
 
-  let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
+  let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
   module V = ApronDomain.V
 
@@ -473,7 +473,7 @@ struct
 
   module G = AD
 
-  let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
+  let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
   let startstate () = (W.bot (), P.top ())
 

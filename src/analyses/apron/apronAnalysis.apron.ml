@@ -320,12 +320,12 @@ struct
     let st = ctx.local in
     match q with
     | EvalInt e ->
-      if M.tracing then M.traceli "evalint" "octapron query %a\n" d_exp e;
+      if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
       let r = read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
           AD.eval_int oct' e'
         )
       in
-      if M.tracing then M.traceu "evalint" "octapron query %a -> %a\n" d_exp e ID.pretty r;
+      if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
     | _ -> Result.top q
 
@@ -353,7 +353,7 @@ struct
     | exception Not_found ->
       (* Unknown functions *)
       (* TODO: do something like base? *)
-      failwith "octApron.threadenter: unknown function"
+      failwith "apron.threadenter: unknown function"
 
   let threadspawn ctx lval f args fctx =
     ctx.local

@@ -135,7 +135,7 @@ struct
           match bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
           | _ ->
-            (* ignore (Pretty.printf "octapron may overflow %a\n" dn_exp exp); *)
+            (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
             raise Unsupported_CilExp
         );
         expr
@@ -485,7 +485,7 @@ struct
       isIntegralType typ
 
     let varinfo_tracked vi =
-      (* no vglob check here, because globals are allowed in octApron, but just have to be handled separately *)
+      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
       type_tracked vi.vtype && not vi.vaddrof
   end
 
