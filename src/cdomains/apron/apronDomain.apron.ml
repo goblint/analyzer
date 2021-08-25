@@ -772,18 +772,18 @@ module D2 = DWithOps (DHetero)
 
 
 (* Copy-paste from BaseDomain... *)
-type 'a octaproncomponents_t = {
-  oct: D2.t;
+type 'a aproncomponents_t = {
+  oct: D2.t; (* TODO: rename not to be just "oct" *)
   priv: 'a;
 } [@@deriving eq, ord, to_yojson]
 
-module OctApronComponents (PrivD: Lattice.S):
+module ApronComponents (PrivD: Lattice.S):
 sig
-  include Lattice.S with type t = PrivD.t octaproncomponents_t
+  include Lattice.S with type t = PrivD.t aproncomponents_t
   val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t octaproncomponents_t [@@deriving eq, ord, to_yojson]
+  type t = PrivD.t aproncomponents_t [@@deriving eq, ord, to_yojson]
 
   include Printable.Std
   open Pretty

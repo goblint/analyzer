@@ -12,7 +12,7 @@ struct
 
   let name () = "apron"
 
-  module D = OctApronComponents (Priv.D)
+  module D = ApronComponents (Priv.D)
   module G = Priv.G
   module C = D
 

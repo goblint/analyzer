@@ -4,7 +4,7 @@ open GobConfig
 (* open BaseUtil *)
 module Q = Queries
 
-module OctApronComponents = ApronDomain.OctApronComponents
+module ApronComponents = ApronDomain.ApronComponents
 module AD = ApronDomain.D2
 module A = ApronDomain.A
 module Man = ApronDomain.Man
@@ -19,21 +19,21 @@ sig
   module G: Lattice.S
 
   val startstate: unit -> D.t
-  val should_join: OctApronComponents (D).t -> OctApronComponents (D).t -> bool
+  val should_join: ApronComponents (D).t -> ApronComponents (D).t -> bool
 
-  val read_global: Q.ask -> (varinfo -> G.t) -> OctApronComponents (D).t -> varinfo -> varinfo -> AD.t
+  val read_global: Q.ask -> (varinfo -> G.t) -> ApronComponents (D).t -> varinfo -> varinfo -> AD.t
 
   (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
    * the state when following conditional guards. *)
-  val write_global: ?invariant:bool -> Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> varinfo -> varinfo -> OctApronComponents (D).t
+  val write_global: ?invariant:bool -> Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> varinfo -> varinfo -> ApronComponents (D).t
 
-  val lock: Q.ask -> (varinfo -> G.t) -> OctApronComponents (D).t -> LockDomain.Addr.t -> OctApronComponents (D).t
-  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> LockDomain.Addr.t -> OctApronComponents (D).t
+  val lock: Q.ask -> (varinfo -> G.t) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
+  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
 
-  val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> OctApronComponents (D).t
+  val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> ApronComponents (D).t
 
-  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> OctApronComponents (D).t -> OctApronComponents (D).t
-  val threadenter: Q.ask -> (varinfo -> G.t) -> OctApronComponents (D).t -> OctApronComponents (D).t
+  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> ApronComponents (D).t
+  val threadenter: Q.ask -> (varinfo -> G.t) -> ApronComponents (D).t -> ApronComponents (D).t
 
   val init: unit -> unit
   val finalize: unit -> unit
@@ -139,7 +139,7 @@ struct
 
   let startstate () = (P.empty (), W.empty ())
 
-  let should_join (st1: OctApronComponents (D).t) (st2: OctApronComponents (D).t) =
+  let should_join (st1: ApronComponents (D).t) (st2: ApronComponents (D).t) =
     if Param.path_sensitive then (
       let (p1, _) = st1.priv in
       let (p2, _) = st2.priv in
@@ -148,7 +148,7 @@ struct
     else
       true
 
-  let read_global ask getg (st: OctApronComponents (D).t) g x =
+  let read_global ask getg (st: ApronComponents (D).t) g x =
     let oct = st.oct in
     let (p, w) = st.priv in
     let g_local_var = V.local g in
@@ -185,7 +185,7 @@ struct
     let oct_local' = AD.meet oct_local' (getg (global_varinfo ())) in
     oct_local'
 
-  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x =
+  let write_global ?(invariant=false) ask getg sideg (st: ApronComponents (D).t) g x =
     let oct = st.oct in
     let (p, w) = st.priv in
     let g_local_var = V.local g in
@@ -215,9 +215,9 @@ struct
     let oct_local' = AD.meet st'.oct (getg (global_varinfo ())) in
     {st' with oct = oct_local'}
 
-  let lock ask getg (st: OctApronComponents (D).t) m = st
+  let lock ask getg (st: ApronComponents (D).t) m = st
 
-  let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
+  let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
     let oct = st.oct in
     let (p, w) = st.priv in
     let (p_remove, p') = P.partition (fun g -> is_unprotected_without ask g m) p in
@@ -255,7 +255,7 @@ struct
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
     {oct = oct_local'; priv = (p', w')}
 
-  let sync ask getg sideg (st: OctApronComponents (D).t) reason =
+  let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
     | `Return -> (* required for thread return *)
       (* TODO: implement? *)
@@ -271,7 +271,7 @@ struct
     | `Thread ->
       st
 
-  let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
+  let enter_multithreaded ask getg sideg (st: ApronComponents (D).t): ApronComponents (D).t =
     let oct = st.oct in
     let (g_vars, gs) =
       AD.vars oct
@@ -295,7 +295,7 @@ struct
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
     {oct = oct_local'; priv = startstate ()}
 
-  let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
+  let threadenter ask getg (st: ApronComponents (D).t): ApronComponents (D).t =
     {oct = getg (global_varinfo ()); priv = startstate ()}
 
   let finalize () = ()
@@ -338,7 +338,7 @@ struct
     let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
     AD.join get_mutex_global_g get_mutex_inits'
 
-  let read_global ask getg (st: OctApronComponents (D).t) g x: AD.t =
+  let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
     let oct = st.oct in
     (* lock *)
     let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
@@ -356,7 +356,7 @@ struct
     in
     oct_local'
 
-  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
+  let write_global ?(invariant=false) ask getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
     let oct = st.oct in
     (* lock *)
     let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
@@ -376,7 +376,7 @@ struct
     in
     {st with oct = oct_local'}
 
-  let lock ask getg (st: OctApronComponents (D).t) m =
+  let lock ask getg (st: ApronComponents (D).t) m =
     let oct = st.oct in
     let get_m = get_m_with_mutex_inits ask getg m in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
@@ -389,7 +389,7 @@ struct
     let oct' = AD.meet oct get_m in
     {st with oct = oct'}
 
-  let unlock ask getg sideg (st: OctApronComponents (D).t) m: OctApronComponents (D).t =
+  let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
     let oct = st.oct in
     let oct_side = AD.keep_filter oct (fun var ->
         match V.find_metadata var with
@@ -406,7 +406,7 @@ struct
     in
     {st with oct = oct_local}
 
-  let sync ask getg sideg (st: OctApronComponents (D).t) reason =
+  let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
     | `Return -> (* required for thread return *)
       (* TODO: implement? *)
@@ -441,7 +441,7 @@ struct
     | `Thread ->
       st
 
-  let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t): OctApronComponents (D).t =
+  let enter_multithreaded ask getg sideg (st: ApronComponents (D).t): ApronComponents (D).t =
     let oct = st.oct in
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
@@ -455,7 +455,7 @@ struct
     let oct_local = AD.remove_vars oct g_vars in (* TODO: side effect initial values to mutex_globals? *)
     {st with oct = oct_local}
 
-  let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
+  let threadenter ask getg (st: ApronComponents (D).t): ApronComponents (D).t =
     {oct = AD.bot (); priv = startstate ()}
 
   let init () = ()
@@ -505,7 +505,7 @@ struct
       if M.tracing then M.trace "apronpriv" "restrict_globals -\n";
       AD.bot ()
 
-  let read_global ask getg (st: OctApronComponents (D).t) g x =
+  let read_global ask getg (st: ApronComponents (D).t) g x =
     (* let s = current_lockset ask in *)
     (* let (w, p) = st.priv in *)
     (* let p_g = P.find g p in *)
@@ -514,7 +514,7 @@ struct
     let oct' = A.assign_texpr Man.mgr oct' (Var.of_string x.vname) (Texpr1.var (A.env oct') (Var.of_string g.vname)) None in (* TODO: unsound *)
     oct'
 
-  let write_global ?(invariant=false) ask getg sideg (st: OctApronComponents (D).t) g x: OctApronComponents (D).t =
+  let write_global ?(invariant=false) ask getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
     let s = current_lockset ask in
     let (w, p) = st.priv in
     let w' = W.add g (MinLocksets.singleton s) w in
@@ -526,9 +526,9 @@ struct
     sideg (global_varinfo ()) (restrict_globals oct');
     {oct = oct'; priv = (w', p')}
 
-  let lock ask getg (st: OctApronComponents (D).t) m = st
+  let lock ask getg (st: ApronComponents (D).t) m = st
 
-  let unlock ask getg sideg (st: OctApronComponents (D).t) m =
+  let unlock ask getg sideg (st: ApronComponents (D).t) m =
     let s = Lockset.remove m (current_lockset ask) in
     let (w, p) = st.priv in
     let p' = P.map (fun s' -> MinLocksets.add s s') p in
@@ -536,7 +536,7 @@ struct
     sideg (global_varinfo ()) (restrict_globals st.oct);
     {st with priv = (w, p')}
 
-  let sync ask getg sideg (st: OctApronComponents (D).t) reason =
+  let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
     | `Return -> (* required for thread return *)
       (* TODO: implement? *)
@@ -552,11 +552,11 @@ struct
     | `Thread ->
       st
 
-  let enter_multithreaded ask getg sideg (st: OctApronComponents (D).t) =
+  let enter_multithreaded ask getg sideg (st: ApronComponents (D).t) =
     (* TODO: implement *)
     {st with oct = AD.meet st.oct (getg (global_varinfo ()))}
 
-  let threadenter ask getg (st: OctApronComponents (D).t): OctApronComponents (D).t =
+  let threadenter ask getg (st: ApronComponents (D).t): ApronComponents (D).t =
     {oct = getg (global_varinfo ()); priv = startstate ()}
 
   let init () = ()
@@ -568,11 +568,11 @@ module TracingPriv (Priv: S): S with module D = Priv.D =
 struct
   include Priv
 
-  module OctApronComponents = OctApronComponents (D)
+  module ApronComponents = ApronComponents (D)
 
   let read_global ask getg st g x =
     if M.tracing then M.traceli "apronpriv" "read_global %a %a\n" d_varinfo g d_varinfo x;
-    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
@@ -584,7 +584,7 @@ struct
 
   let write_global ?invariant ask getg sideg st g x =
     if M.tracing then M.traceli "apronpriv" "write_global %a %a\n" d_varinfo g d_varinfo x;
-    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
@@ -595,24 +595,24 @@ struct
       sideg x v
     in
     let r = write_global ?invariant ask getg sideg st g x in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
 
   let lock ask getg st m =
     if M.tracing then M.traceli "apronpriv" "lock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
       r
     in
     let r = lock ask getg st m in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
 
   let unlock ask getg sideg st m =
     if M.tracing then M.traceli "apronpriv" "unlock %a\n" LockDomain.Addr.pretty m;
-    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
@@ -623,12 +623,12 @@ struct
       sideg x v
     in
     let r = unlock ask getg sideg st m in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
 
   let enter_multithreaded ask getg sideg st =
     if M.tracing then M.traceli "apronpriv" "enter_multithreaded\n";
-    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
@@ -639,24 +639,24 @@ struct
       sideg x v
     in
     let r = enter_multithreaded ask getg sideg st in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
 
   let threadenter ask getg st =
     if M.tracing then M.traceli "apronpriv" "threadenter\n";
-    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
       r
     in
     let r = threadenter ask getg st in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
 
   let sync ask getg sideg st reason =
     if M.tracing then M.traceli "apronpriv" "sync\n";
-    if M.tracing then M.trace "apronpriv" "st: %a\n" OctApronComponents.pretty st;
+    if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
     let getg x =
       let r = getg x in
       if M.tracing then M.trace "apronpriv" "getg %a -> %a\n" d_varinfo x G.pretty r;
@@ -667,7 +667,7 @@ struct
       sideg x v
     in
     let r = sync ask getg sideg st reason in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" OctApronComponents.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
 end
 
