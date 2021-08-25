@@ -239,15 +239,19 @@ struct
     certainty: Certainty.t option; (* TODO: change to severity levels, make non-option *)
     loc: CilType.Location.t option;
     text: string;
-    (* TODO: context somehow? *)
+    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)]) option; (* TODO: this equality is terrible... *)
   } [@@deriving eq]
 
-  let hash {warn_type; certainty; loc; text} =
-    3 * Warning.hash warn_type + 5 * BatOption.map_default Certainty.hash 1 certainty + 7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text
+  let hash {warn_type; certainty; loc; text; context} =
+    3 * Warning.hash warn_type + 5 * BatOption.map_default Certainty.hash 1 certainty + 7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
 
-  let show {warn_type; certainty; loc; text} =
+  let with_context msg = function
+    | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx) (* TODO: this is kind of useless *)
+    | _ -> msg
+
+  let show {warn_type; certainty; loc; text; context} =
     let msg = (WarningWithCertainty.(show {warn_type; certainty}))^(if text != "" then " "^text else "") in
-    (* let msg = with_context msg ctx in *)
+    let msg = with_context msg context in
     msg
 end
 
@@ -342,14 +346,12 @@ let report_error msg =
     print_err msg loc
   end
 
-let with_context msg = function
-  | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx)
-  | _ -> msg
 
+(* TODO: don't take context as argument, but add global Tracing.current_context *)
 
 let warn_internal ?ctx ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = None; text = msg} in
+    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = None; text = msg; context = Option.map Obj.repr ctx} in
     (* TODO: warn_all still adds loc below? *)
     if not (MH.mem messages_table m) then
       begin
@@ -360,7 +362,7 @@ let warn_internal ?ctx ?msg:(msg="") (warning: WarningWithCertainty.t) =
 
 let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = Some loc; text = msg} in
+    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = Some loc; text = msg; context = Option.map Obj.repr ctx} in
     if not (MH.mem messages_table m) then
       begin
         warn_all ~loc:loc (Message.show m);
