@@ -315,10 +315,6 @@ let warn_all ?loc:(loc= !Tracing.current_loc) msg =
     soundness := false
   end
 
-exception StopTheWorld
-let waitWhat s =
-  print_msg s (!Tracing.current_loc);
-  raise StopTheWorld
 
 let report_error msg =
   if !GU.should_warn then begin
