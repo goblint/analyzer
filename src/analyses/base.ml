@@ -375,7 +375,7 @@ struct
     | `List e -> reachable_from_value ask gs st (`Address (ValueDomain.Lists.entry_rand e)) t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
-    | `Thread _ -> empty (* TODO: is this right? *)
+    | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
