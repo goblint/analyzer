@@ -228,7 +228,6 @@ exception Bailure of string
 let bailwith s = raise (Bailure s)
 
 let warning_table : [`text of string * location | `group of string * ((string * location) list)] list ref = ref []
-let warnings = ref false
 let warn_out = ref stdout
 let tracing = Config.tracing
 let xml_file_name = ref ""
@@ -303,10 +302,8 @@ let print_group group_name errors =
 
 
 let warn_all ?loc:(loc= !Tracing.current_loc) msg =
-  if !GU.should_warn then begin
-    if !warnings then
-      print_msg msg loc
-  end
+  if !GU.should_warn then
+    print_msg msg loc
 
 
 let report_error msg =

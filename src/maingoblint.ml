@@ -132,7 +132,6 @@ let handle_flags () =
   let has_oil = get_string "ana.osek.oil" <> "" in
   if has_oil then Osek.Spec.parse_oil ();
 
-  if get_bool "dbg.debug" then Messages.warnings := true;
   if get_bool "dbg.verbose" then (
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;
