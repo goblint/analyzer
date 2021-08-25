@@ -314,10 +314,6 @@ let print_msg msg loc =
   let s = Printf.sprintf "%s %s(%s)" msgc color (CilType.Location.show loc) in
   Printf.fprintf !warn_out "%s\n%!" (colorize s)
 
-let print_err msg loc =
-  push_warning (`text (msg, loc));
-  Printf.fprintf !warn_out "%s (%s)\n%!" msg (CilType.Location.show loc)
-
 
 let print_group group_name errors =
   (* Add warnings to global warning list *)
@@ -342,14 +338,6 @@ let warn_all ?loc:(loc= !Tracing.current_loc) m =
     MH.replace messages_table m ();
     messages_list := m :: !messages_list
   )
-
-
-let report_error msg =
-  if !GU.should_warn then begin
-    let loc = !Tracing.current_loc in
-    print_err msg loc
-  end
-
 
 (* TODO: don't take context as argument, but add global Tracing.current_context *)
 
