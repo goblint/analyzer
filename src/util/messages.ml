@@ -302,11 +302,6 @@ let print_group group_name errors =
   end;
   ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
-let warn_urgent msg =
-  if !GU.should_warn then begin
-    soundness := false;
-    print_msg msg (!Tracing.current_loc)
-  end
 
 let warn_all ?loc:(loc= !Tracing.current_loc) msg =
   if !GU.should_warn then begin
