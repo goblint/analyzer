@@ -296,7 +296,6 @@ struct
 
   let eval_rhs_event x =
     if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
-    if Config.tracking then M.track "eval";
     Goblintutil.evals := !Goblintutil.evals + 1;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 

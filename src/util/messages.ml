@@ -238,9 +238,6 @@ let push_warning w =
   if get_string "result" = "fast_xml" || get_bool "gobview" then
     warning_table := w :: !warning_table
 
-let track m =
-  let loc = !Tracing.current_loc in
-  Printf.fprintf !warn_out "Track (%s); %s\n" (CilType.Location.show loc) m
 
 (*Warning files*)
 let warn_race = ref stdout

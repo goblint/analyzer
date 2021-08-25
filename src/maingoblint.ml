@@ -15,7 +15,7 @@ let print_version ch =
   let f ch b = if b then fprintf ch "enabled" else fprintf ch "disabled" in
   printf "Goblint version: %s\n" goblint;
   printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
-  printf "Configuration:   tracing %a, tracking %a\n" f tracing f tracking ;
+  printf "Configuration:   tracing %a\n" f tracing;
   exit 0
 
 (** Print helpful messages. *)
