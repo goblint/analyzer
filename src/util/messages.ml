@@ -256,7 +256,8 @@ struct
 end
 
 module MH = Hashtbl.Make (Message)
-let messages_table = MH.create 113
+let messages_table = MH.create 113 (* messages without order for quick mem lookup *)
+let messages_list = ref [] (* messages with reverse order (for cons efficiency) *)
 
 
 exception Bailure of string
@@ -356,7 +357,8 @@ let warn_internal ?ctx ?msg:(msg="") (warning: WarningWithCertainty.t) =
     if not (MH.mem messages_table m) then
       begin
         warn_all (Message.show m);
-        MH.replace messages_table m ()
+        MH.replace messages_table m ();
+        messages_list := m :: !messages_list
       end
   end
 
@@ -366,7 +368,8 @@ let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (
     if not (MH.mem messages_table m) then
       begin
         warn_all ~loc:loc (Message.show m);
-        MH.replace messages_table m ()
+        MH.replace messages_table m ();
+        messages_list := m :: !messages_list
       end
   end
 
