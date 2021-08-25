@@ -250,6 +250,10 @@ struct
     | _ -> msg
 
   let show {warn_type; certainty; loc; text; context} =
+    let text = match warn_type with
+      | Debug -> "{BLUE}"^text (* TODO: don't do it like this *)
+      | _ -> text
+    in
     let msg = (WarningWithCertainty.(show {warn_type; certainty}))^(if text != "" then " "^text else "") in
     let msg = with_context msg context in
     msg
@@ -363,9 +367,9 @@ let warn_each ?must:(must=false) ?ctx ?loc ?msg:(msg="") ?warning:(warning=Unkno
   | None -> warn_internal_with_loc ~ctx:ctx ~msg:msg (WarningWithCertainty.create ~must:must warning)
 
 let debug msg =
-  if (get_bool "dbg.debug") then warn_internal ~msg:("{BLUE}"^msg) @@ WarningWithCertainty.debug ()
+  warn_internal ~msg @@ WarningWithCertainty.debug ()
 
 let debug_each msg =
-  if (get_bool "dbg.debug") then warn_internal_with_loc ~msg:("{blue}"^msg) @@ WarningWithCertainty.debug ()
+  warn_internal_with_loc ~msg @@ WarningWithCertainty.debug ()
 
 include Tracing
