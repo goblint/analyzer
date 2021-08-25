@@ -485,7 +485,7 @@ struct
 
   let unknown_access () =
     (*M.warn_each ~msg:"unknown access 'with lockset:'" ();*)
-    Messages.warn_all "Access to unknown address could be global"
+    Messages.warn_each ~msg:"Access to unknown address could be global" ()
 
   (* All else must have failed --- making a last ditch effort to generate type
       invariant if that fails then give up and become unsound. *)
