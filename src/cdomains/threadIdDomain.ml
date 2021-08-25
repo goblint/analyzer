@@ -76,6 +76,7 @@ struct
   module P =
   struct
     include Printable.Liszt (Base)
+    (* Prefix is stored in reversed order (main is last) since prepending is more efficient. *)
     let name () = "prefix"
   end
   module S =
@@ -97,12 +98,13 @@ struct
 
   let compose ((p, s) as current) n =
     if BatList.mem_cmp Base.compare n p then (
+      (* TODO: can be optimized by implementing some kind of partition_while function *)
       let s' = S.of_list (BatList.take_while (fun m -> not (Base.equal n m)) p) in
       let p' = List.tl (BatList.drop_while (fun m -> not (Base.equal n m)) p) in
       (p', S.add n (S.union s s'))
     )
     else if is_unique current then
-      (n :: p, s) (* reversed storage is more efficient *)
+      (n :: p, s)
     else
       (p, S.add n s)
 
