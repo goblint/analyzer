@@ -23,7 +23,8 @@ void *t2_fun(void *arg) {
   int t;
   pthread_mutex_lock(&B);
   t = h;
-  t--;
+  if (t > -1000) // avoid underflow
+    t--;
   h = t;
   pthread_mutex_unlock(&B);
   return NULL;

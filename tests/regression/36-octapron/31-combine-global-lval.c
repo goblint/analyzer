@@ -10,11 +10,12 @@ int f(int x) {
 
 int main(void) {
   int r;
+  if (r > -1000) { // avoid underflow
+    g = f(r);
+    h = r;
 
-  g = f(r);
-  h = r;
-
-  assert(g < h);
-  assert(h - g == 2);
+    assert(g < h);
+    assert(h - g == 2);
+  }
   return 0;
 }

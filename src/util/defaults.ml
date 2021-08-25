@@ -13,6 +13,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
+              | Warnings        (** Filtering warnings                            *)
               [@@deriving enum]
 
 let all_categories = min_category -- max_category |> of_enum |> map (Option.get % category_of_enum)
@@ -25,6 +26,7 @@ let catDescription = function
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
+  | Warnings        -> "Filtering of warnings"
 
 (** A place to store registered variables *)
 let registrar = ref []
@@ -90,7 +92,7 @@ let _ = ()
       ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
-      ; reg Std "warn"            "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
+      ; reg Std "warn_at"         "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Std "gobview"         "false"        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'."
 
 (* {4 category [Analyses]} *)
@@ -117,12 +119,10 @@ let _ = ()
       ; reg Analyses "ana.osek.safe_isr"   "[]"    "Ignore accesses in these isr"
       ; reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags."
       ; reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure"
-      ; reg Analyses "ana.int.wrap_on_signed_overflow" "false" "Whether to assume wrap-around behavior on signed overflow. If set to true, assumes two's complement representation of signed integers. If set to false, goes to top on signed overflow."
       ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: (int64 * int64) option."
       ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
       ; reg Analyses "ana.int.congruence"  "false" "Use IntDomain.Congruence: (c, m) option, meaning congruent to c modulo m"
-      ; reg Analyses "ana.int.congruence_no_overflow" "false" "Assume that no overflows occur in congruence operations"
       ; reg Analyses "ana.int.refinement"   "'never'" "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'"
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
@@ -139,8 +139,7 @@ let _ = ()
       ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
-      ; reg Analyses "ana.octapron.no_uints"    "false"  "Use OctApron without tracking unsigned integers."
-      ; reg Analyses "ana.octapron.no_signed_overflow" "true" "Assume there will be no signed overflow for OctApron."
+      ; reg Analyses "ana.arrayoob"        "false"        "Array out of bounds check"
       ; reg Analyses "ana.octapron.no-context" "false" "Ignore entire relation in function contexts."
 
 (* {4 category [Semantics]} *)
@@ -149,6 +148,8 @@ let _ = ()
       ; reg Semantics "sem.unknown_function.spawn" "true"  "Unknown function call spawns reachable functions"
       ; reg Semantics "sem.unknown_function.invalidate.globals" "true"  "Unknown function call invalidates all globals"
       ; reg Semantics "sem.builtin_unreachable.dead_code" "false"  "__builtin_unreachable is assumed to be dead code"
+      ; reg Semantics "sem.int.signed_overflow" "'assume_top'" "How to handle overflows of signed types. Values: 'assume_top' (default): Assume signed overflow results in a top value; 'assume_none': Assume program is free of signed overflows;  'assume_wraparound': Assume signed types wrap-around and two's complement representation of signed integers"
+
 
 (* {4 category [Transformations]} *)
 let _ = ()
@@ -233,6 +234,19 @@ let _ = ()
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
       ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
+      ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
+
+(* {4 category [Warnings]} *)
+let _ = ()
+      ; reg Warnings "warn.behavior"        "true"  "undefined behavior warnings"
+      ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
+      ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
+      ; reg Warnings "warn.race"            "true"  "Race warnings"
+      ; reg Warnings "warn.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
+      ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
+      ; reg Warnings "warn.debug"           "true"  "Debug (of string) warnings"
+      ; reg Warnings "warn.may"             "true"  "Enable or disable may warnings"
+      ; reg Warnings "warn.must"            "true"  "Enable or disable must warnings"
 
 let default_schema = "\
 { 'id'              : 'root'
@@ -300,8 +314,13 @@ let default_schema = "\
   , 'save_run'        : {}
   , 'load_run'        : {}
   , 'compare_runs'    : {}
+  , 'warn_at'         : {}
+  , 'warn'              :
+    { 'type'            : 'object'
+    , 'additionalProps' : true
+    , 'required'        : []
+    }
   , 'gobview'         : {}
-  , 'warn'            : {}
   }
 }"
 

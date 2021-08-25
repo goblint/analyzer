@@ -8,13 +8,14 @@ int h;
 
 void main() {
   int r, x;
+  if (r < 1000) { // avoid overflow
+    x = r;
+    g = r;
+    h = r + 1;
 
-  x = r;
-  g = r;
-  h = r + 1;
-
-  assert(g < h);
-  magic(); // invalidates (forgets) globals
-  assert(g < h); // UNKNOWN!
-  assert(x == r); // shouldn't forget locals
+    assert(g < h);
+    magic(); // invalidates (forgets) globals
+    assert(g < h); // UNKNOWN!
+    assert(x == r); // shouldn't forget locals
+  }
 }

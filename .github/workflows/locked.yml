@@ -1,0 +1,50 @@
+name: locked
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        ocaml-compiler:
+          - 4.12.0 # matches opam lock file
+          # don't add any other because they won't be used
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          # otherwise setup-ocaml pins non-locked dependencies
+          # https://github.com/ocaml/setup-ocaml/issues/166
+          OPAMLOCKED: locked
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install dependencies
+        run: opam install . --deps-only --locked
+
+      - name: Build
+        run: ./make.sh nat
+
+      - name: Test regression
+        run: ./make.sh headers testci
+
+      - name: Test octApron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group octapron -s
+
+      - name: Build domaintest
+        run: ./make.sh domaintest
+
+      - name: Test domains
+        run: ./goblint.domaintest

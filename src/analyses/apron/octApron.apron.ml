@@ -113,6 +113,19 @@ struct
     | _ ->
       st
 
+  let assert_type_bounds oct x =
+    assert (AD.varinfo_tracked x);
+    let ik = Cilfacade.get_ikind x.vtype in
+    if not (IntDomain.should_ignore_overflow ik) then ( (* don't add type bounds for signed when assume_none *)
+      let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+      (* TODO: don't go through CIL exp? *)
+      let oct = AD.assert_inv oct (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) false in
+      let oct = AD.assert_inv oct (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) false in
+      oct
+    )
+    else
+      oct
+
 
   (* Basic transfer functions. *)
 
@@ -125,7 +138,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st e (fun oct' e' ->
-              AD.assign_var_handling_underflow_overflow oct' v e'
+              AD.assign_exp oct' (V.local v) e'
             )
         )
       in
@@ -135,7 +148,11 @@ struct
 
   let branch ctx e b =
     let st = ctx.local in
-    let res = AD.assert_inv st.oct e (not b) in
+    let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun oct' e' ->
+        (* not an assign, but must remove g#in-s still *)
+        AD.assert_inv oct' e' (not b)
+      )
+    in
     if AD.is_bot_env res then raise Deadcode;
     {st with oct = res}
 
@@ -154,7 +171,15 @@ struct
     in
     let arg_vars = List.map fst arg_assigns in
     let new_oct = AD.add_vars st.oct arg_vars in
-    AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *)
+    (* AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
+    (* TODO: parallel version of assign_from_globals_wrapper? *)
+    let ask = Analyses.ask_of_ctx ctx in
+    let new_oct = List.fold_left (fun new_oct (var, e) ->
+        assign_from_globals_wrapper ask ctx.global {st with oct = new_oct} e (fun oct' e' ->
+            AD.assign_exp oct' var e'
+          )
+      ) new_oct arg_assigns
+    in
     AD.remove_filter_with new_oct (fun var ->
         match V.find_metadata var with
         | Some Local -> true (* remove caller locals *)
@@ -169,6 +194,11 @@ struct
     let formals = List.filter AD.varinfo_tracked f.sformals in
     let locals = List.filter AD.varinfo_tracked f.slocals in
     let new_oct = AD.add_vars st.oct (List.map V.local (formals @ locals)) in
+    (* TODO: do this after local_assigns? *)
+    let new_oct = List.fold_left (fun new_oct x ->
+        assert_type_bounds new_oct x
+      ) new_oct (formals @ locals)
+    in
     let local_assigns = List.map (fun x -> (V.local x, V.arg x)) formals in
     AD.assign_var_parallel_with new_oct local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
     {st with oct = new_oct}
@@ -208,7 +238,16 @@ struct
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
-    AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *)
+    (* AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
+    (* TODO: parallel version of assign_from_globals_wrapper? *)
+    let ask = Analyses.ask_of_ctx ctx in
+    let new_fun_oct = List.fold_left (fun new_fun_oct (var, e) ->
+        assign_from_globals_wrapper ask ctx.global {st with oct = new_fun_oct} e (fun oct' e' ->
+            (* not an assign, but still works? *)
+            AD.substitute_exp oct' var e'
+          )
+      ) new_fun_oct arg_substitutes
+    in
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_oct arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_oct adds them back with proper constraints *)
@@ -249,7 +288,8 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let invalidate_one st lv =
         assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-            AD.forget_vars st.oct [V.local v]
+            let oct' = AD.forget_vars st.oct [V.local v] in
+            assert_type_bounds oct' v (* re-establish type bounds after forget *)
           )
       in
       let st' = match LibraryFunctions.get_invalidate_action f.vname with
@@ -294,13 +334,26 @@ struct
 
   let threadenter ctx lval f args =
     let st = ctx.local in
-    (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-       Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-       sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-       EnterMultithreaded events only execute after threadenter and threadspawn. *)
-    if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
-      ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
-    [Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st]
+    match Cilfacade.find_varinfo_fundec f with
+    | fd ->
+      (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
+        Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+        sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+        EnterMultithreaded events only execute after threadenter and threadspawn. *)
+      if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
+        ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
+      let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
+      let arg_vars =
+        fd.sformals
+        |> List.filter AD.varinfo_tracked
+        |> List.map V.arg
+      in
+      let new_oct = AD.add_vars st'.oct arg_vars in
+      [{st' with oct = new_oct}]
+    | exception Not_found ->
+      (* Unknown functions *)
+      (* TODO: do something like base? *)
+      failwith "octApron.threadenter: unknown function"
 
   let threadspawn ctx lval f args fctx =
     ctx.local
