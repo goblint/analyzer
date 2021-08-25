@@ -140,6 +140,7 @@ let _ = ()
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
       ; reg Analyses "ana.arrayoob"        "false"        "Array out of bounds check"
+      ; reg Analyses "ana.octapron.no-context" "false" "Ignore entire relation in function contexts."
 
 (* {4 category [Semantics]} *)
 let _ = ()
@@ -170,7 +171,6 @@ let _ = ()
       ; reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses."
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
-      ; reg Experimental "exp.full-context"      "false" "Do not side-effect function entries. If partial contexts (or ana.ctx_insens) are used, this will fail!"
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
       ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
       ; reg Experimental "exp.no-interval-context" "false" "Ignore integer values of the Interval domain in function contexts."
@@ -185,10 +185,9 @@ let _ = ()
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
-      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls. Method depends on exp.full-context - true: unfeasible because then it has to store calls in the context; false: only store calls in local state."
-      ; reg Experimental "exp.widen-context-partial" "false" "After widening also apply the context function to get a partial context (options no-*-context, earlyglobs)."
+      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
-      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilzed, unstable_self: widen if side-effected var gets destabilized."
+      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"

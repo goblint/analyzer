@@ -30,7 +30,6 @@ struct
   let exitstate  v = D.lift (S.exitstate  v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
-  let val_of = D.lift % S.val_of
   let context = S.context % D.unlift
   let call_descr = S.call_descr
 
@@ -107,7 +106,6 @@ struct
   let exitstate  = S.exitstate
   let morphstate = S.morphstate
 
-  let val_of = S.val_of % C.unlift
   let context = C.lift % S.context
   let call_descr f = S.call_descr f % C.unlift
 
@@ -201,7 +199,6 @@ struct
   let exitstate  v = (S.exitstate  v, !start_level)
   let morphstate v (d,l) = (S.morphstate v d, l)
 
-  let val_of d = (S.val_of d, !error_level)
   let context (d,_) = S.context d
   let call_descr f = S.call_descr f
 
@@ -305,8 +302,8 @@ struct
 end
 
 
-(* widening on contexts, keeps contexts for calls in context *)
-module WidenContextLifter (S:Spec)
+(* widening on contexts, keeps contexts for calls only in D *)
+module WidenContextLifterSide (S:Spec)
 =
 struct
   module DD =
@@ -315,12 +312,14 @@ struct
     let printXml f d = BatPrintf.fprintf f "<value>%a</value>" printXml d
   end
   module M = MapDomain.MapBot (Basetype.Variables) (DD) (* should be CilFun -> S.C, but CilFun is not Groupable, and S.C is no Lattice *)
+
   module D = struct
     include Lattice.Prod (S.D) (M)
     let printXml f (d,m) = BatPrintf.fprintf f "\n%a<analysis name=\"widen-context\">\n%a\n</analysis>" S.D.printXml d M.printXml m
   end
   module G = S.G
-  module C = Printable.Prod (S.C) (M)
+  module C = S.C
+
 
   let name () = S.name ()^" with widened contexts"
 
@@ -335,67 +334,9 @@ struct
   let exitstate  = inj S.exitstate
   let morphstate v (d,m) = S.morphstate v d, m
 
-  let val_of (c,m) =
-    Messages.(if tracing then tracel "widen-context" "val_of with context %a\n" S.C.pretty c);
-    S.val_of c, m
-  let context (d,m) =
-    Messages.(if tracing then tracel "widen-context" "context with child domain %a\nand map %a\n" S.D.pretty d M.pretty m);
-    S.context d, m
-  let call_descr f (c,m) = S.call_descr f c
-
-  let conv ctx =
-    { ctx with context = (fun () -> fst (ctx.context ()))
-             ; local = fst ctx.local
-             ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
-    }
-  let lift_fun ctx f g = g (f (conv ctx)), snd ctx.local
-
-  let sync ctx reason = lift_fun ctx S.sync   ((|>) reason)
-  let query ctx       = S.query (conv ctx)
-  let assign ctx lv e = lift_fun ctx S.assign ((|>) e % (|>) lv)
-  let vdecl ctx v     = lift_fun ctx S.vdecl  ((|>) v)
-  let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
-  let body ctx f      = lift_fun ctx S.body   ((|>) f)
-  let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
-  let intrpt ctx      = lift_fun ctx S.intrpt identity
-  let asm ctx         = lift_fun ctx S.asm    identity
-  let skip ctx        = lift_fun ctx S.skip   identity
-  let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
-
-  let threadenter ctx lval f args = S.threadenter (conv ctx) lval f args |> List.map (fun d -> (d, snd ctx.local))
-  let threadspawn ctx lval f args fctx = lift_fun ctx S.threadspawn ((|>) (conv fctx) % (|>) args % (|>) f % (|>) lval)
-
-  let enter ctx r f args =
-    let m = snd ctx.local in
-    let d' v_cur =
-      let v_old = M.find f.svar m in (* S.D.bot () if not found *)
-      let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
-      let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
-      v_new, M.add f.svar v_new m
-    in
-    S.enter (conv ctx) r f args
-    |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
-
-  let combine ctx r fe f args fc es = lift_fun ctx S.combine (fun p -> p r fe f args (fst fc) (fst es))
-end
-
-
-(* widening on contexts, keeps contexts for calls only in D (needs exp.full-context to be false to work) *)
-module WidenContextLifterSide (S:Spec)
-=
-struct
-  module B = WidenContextLifter (S) (* can't just include this since type of ctx and some tf functions are different; TODO some generic functor to lift functions with conv, inj, proj? *)
-  (* include (B : module type of B with module C := B.C) *)
-  include B
-  (* same as WidenContextLifter, but with a different C *)
-  module C = S.C
-
-  let val_of = inj S.val_of (* empty map when generating value from context *)
   let context (d,m) = S.context d (* just the child analysis' context *)
   let call_descr = S.call_descr
 
-  (* copied from WidenContextLifter... *)
   let conv ctx =
     { ctx with local = fst ctx.local
              ; split = (fun d es -> ctx.split (d, snd ctx.local) es )
@@ -423,7 +364,6 @@ struct
       let v_old = M.find f.svar m in (* S.D.bot () if not found *)
       let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
       Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
-      let v_new = if GobConfig.get_bool "exp.widen-context-partial" then S.val_of (S.context v_new) else v_new in
       v_new, M.add f.svar v_new m
     in
     S.enter (conv ctx) r f args
@@ -458,7 +398,6 @@ struct
   let exitstate  v = `Lifted (S.exitstate  v)
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
-  let val_of = D.lift % S.val_of
   let context = S.context % D.unlift
   let call_descr f = S.call_descr f
 
@@ -519,7 +458,6 @@ struct
   module D = S.D
   module G = S.G
 
-  let full_context = get_bool "exp.full-context"
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
 
@@ -558,7 +496,7 @@ struct
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
             let c = S.context d in
-            if not full_context then sidel (FunctionEntry fd, c) d;
+            sidel (FunctionEntry fd, c) d;
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
@@ -668,7 +606,7 @@ struct
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
-    let _     = if not full_context then List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths in
+    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     if M.tracing then M.traceli "combine" "combining\n";
@@ -753,10 +691,7 @@ struct
     d
 
   let system (v,c) =
-    match v with
-    | FunctionEntry _ when full_context ->
-      [fun _ _ _ _ -> S.val_of c]
-    | _ -> List.map (tf (v,c)) (Cfg.prev v)
+    List.map (tf (v,c)) (Cfg.prev v)
 end
 
 (** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
@@ -981,7 +916,6 @@ struct
 
   let call_descr = Spec.call_descr
 
-  let val_of = D.singleton % Spec.val_of
   let context l =
     if D.cardinal l <> 1 then
       failwith "PathSensitive2.context must be called with a singleton set."
