@@ -4,10 +4,10 @@ open GobConfig
 (* open BaseUtil *)
 module Q = Queries
 
-module OctApronComponents = OctApronDomain.OctApronComponents
-module AD = OctApronDomain.D2
-module A = OctApronDomain.A
-module Man = OctApronDomain.Man
+module OctApronComponents = ApronDomain.OctApronComponents
+module AD = ApronDomain.D2
+module A = ApronDomain.A
+module Man = ApronDomain.Man
 open Apron
 
 open CommonPriv
@@ -48,7 +48,7 @@ struct
   let startstate () = ()
   let should_join _ _ = true
 
-  let read_global ask getg st g x = st.OctApronDomain.oct
+  let read_global ask getg st g x = st.ApronDomain.oct
   let write_global ?(invariant=false) ask getg sideg st g x = st
 
   let lock ask getg st m = st
@@ -110,7 +110,7 @@ struct
   end
   module V =
   struct
-    include OctApronDomain.VarMetadataTbl (VM)
+    include ApronDomain.VarMetadataTbl (VM)
     open VM
 
     let local g = make_var (Local g)
@@ -277,7 +277,7 @@ struct
       AD.vars oct
       |> List.enum
       |> Enum.filter_map (fun var ->
-          match OctApronDomain.V.find_metadata var with
+          match ApronDomain.V.find_metadata var with
           | Some (Global g) -> Some (var, g)
           | _ -> None
         )
@@ -312,7 +312,7 @@ struct
 
   let global_varinfo = RichVarinfo.single ~name:"OCTAPRON_GLOBAL"
 
-  module V = OctApronDomain.V
+  module V = ApronDomain.V
 
   let startstate () = ()
 
@@ -675,13 +675,13 @@ end
 let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
-      (val match get_string "exp.octapron.privatization" with
+      (val match get_string "exp.apron.privatization" with
          | "dummy" -> (module Dummy: S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)
          (* | "write" -> (module WriteCenteredPriv) *)
-         | _ -> failwith "exp.octapron.privatization: illegal value"
+         | _ -> failwith "exp.apron.privatization: illegal value"
       )
     in
     let module Priv = TracingPriv (Priv) in

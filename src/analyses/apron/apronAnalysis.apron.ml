@@ -2,25 +2,25 @@
 
 open Prelude.Ana
 open Analyses
-open OctApronDomain
+open ApronDomain
 
 module M = Messages
 
-module SpecFunctor (Priv: OctApronPriv.S) : Analyses.MCPSpec =
+module SpecFunctor (Priv: ApronPriv.S) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "octApron"
+  let name () = "apron"
 
   module D = OctApronComponents (Priv.D)
   module G = Priv.G
   module C = D
 
-  module AD = OctApronDomain.D2
+  module AD = ApronDomain.D2
 
   let should_join = Priv.should_join
 
-  let context x = if GobConfig.get_bool "ana.octapron.no-context" then D.bot () else x (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
+  let context x = if GobConfig.get_bool "ana.apron.no-context" then D.bot () else x (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
 
 
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
@@ -384,7 +384,7 @@ end
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let module Priv = (val OctApronPriv.get_priv ()) in
+    let module Priv = (val ApronPriv.get_priv ()) in
     let module Spec = SpecFunctor (Priv) in
     (module Spec)
   )
