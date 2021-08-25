@@ -443,3 +443,9 @@ let self_signal signal = Unix.kill (Unix.getpid ()) signal
 let rec zip x y = match x,y with
   | (x::xs), (y::ys) -> (x,y) :: zip xs ys
   | _ -> []
+
+let rec for_all_in_range (a, b) f =
+  let module BI = IntOps.BigIntOps in
+  if BI.compare a b > 0
+  then true
+  else f a && (for_all_in_range (BI.add a (BI.one), b) f)

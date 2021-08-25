@@ -455,16 +455,10 @@ module Size = struct (* size in bits as int, range as int64 *)
         a, b
 
   (* From the number of bits used to represent a positive value, determines the maximal representable value *)
-  let max_from_bit_range pos_bits =
-    match pos_bits with
-    | Some i when i < 64L -> Some(BI.(pred @@ shift_left BI.one (to_int (BI.of_int64 i)))) (* things that are bigger than (2^63)-1 can not be represented as int64 *)
-    | _ -> None
+  let max_from_bit_range pos_bits = BI.(pred @@ shift_left BI.one (to_int (BI.of_int64 pos_bits)))
 
   (* From the number of bits used to represent a non-positive value, determines the minimal representable value *)
-  let min_from_bit_range neg_bits =
-    match neg_bits with
-    | Some i when i > -64L -> Some(BI.(if i = 0L then BI.zero else neg @@ shift_left BI.one (to_int (neg (BI.of_int64 i))))) (* things that are smaller than (-2^63)can not be represented as int64 *)
-    | _ -> None
+  let min_from_bit_range neg_bits = BI.(if neg_bits = 0L then BI.zero else neg @@ shift_left BI.one (to_int (neg (BI.of_int64 neg_bits))))
 
 end
 
@@ -1209,27 +1203,26 @@ struct
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* FIXME: poly compare? *)
 
-  let max_of_range r = Size.max_from_bit_range (R.maximal r)
-  let min_of_range r = Size.min_from_bit_range (R.minimal r)
+  let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
+  let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
 
   let maximal = function
     | `Definite x -> Some x
-    | `Excluded (s,r) -> max_of_range r
+    | `Excluded (s,r) -> Some (max_of_range r)
     | `Bot -> None
 
   let minimal = function
     | `Definite x -> Some x
-    | `Excluded (s,r) -> min_of_range r
+    | `Excluded (s,r) -> Some (min_of_range r)
     | `Bot -> None
 
   let in_range r i =
-    match min_of_range r with
-    | None when BI.compare i BI.zero < 0 -> true
-    | Some l when BI.compare i BI.zero < 0  -> BI.compare l i <= 0
-    | _ ->
-      match max_of_range r with
-      | None -> true
-      | Some u -> i <= u
+    let lowerb = min_of_range r in
+    if BI.compare i BI.zero < 0  then BI.compare lowerb i <= 0
+    else (
+      let upperb = max_of_range r in
+      BI.compare i upperb <= 0
+    )
 
   let is_top x = x = top ()
 
@@ -1314,9 +1307,9 @@ struct
     (* A definite value is leq all exclusion sets that don't contain it *)
     | `Definite x, `Excluded (s,r) -> in_range r x && not (S.mem x s)
     (* No finite exclusion set can be leq than a definite value *)
-    | `Excluded _, `Definite _ -> false
+    | `Excluded _, `Definite _ -> false (* wrong *)
     (* Excluding X <= Excluding Y whenever Y <= X *)
-    | `Excluded (x,xw), `Excluded (y,yw) -> S.subset y x && R.leq xw yw
+    | `Excluded (x,xw), `Excluded (y,yw) -> S.subset y x && R.leq xw yw (* wrong *)
 
   let join ik x y =
     match (x,y) with
@@ -1414,10 +1407,9 @@ struct
     (* If the Int64 might overflow on us during computation, we instead go to top_range *)
     match R.minimal r, R.maximal r with
     | _ ->
-      let rf m = BatOption.map (size % Size.min_for % f) (m r) in
-      match rf min_of_range, rf max_of_range with
-        | Some r1, Some r2 -> R.join r1 r2
-        | _ , _ -> top_range
+      let rf m = (size % Size.min_for % f) (m r) in
+      let r1, r2 = rf min_of_range, rf max_of_range in
+      R.join r1 r2
 
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
@@ -1707,6 +1699,10 @@ module Enums : S with type int_t = BigInt.t = struct
   let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
 
+  let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
+  let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
+  let cardinality_of_range r = I.add (I.neg (min_of_range r)) (max_of_range r)
+
   let show = function
     | Inc xs when ISet.is_empty xs -> "bot"
     | Inc xs -> "{" ^ (String.concat ", " (List.map I.show (ISet.elements  xs))) ^ "}"
@@ -1797,8 +1793,60 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let widen = join
   let narrow = meet
+  let leq a b =
+    let cardinality_iset s =
+      BI.of_int (ISet.cardinal s)
+    in
+    match a, b with
+    | Inc xs, Exc (ys, r) ->
+      let min_b, max_b = min_of_range r, max_of_range r in
+      let min_a, max_a = ISet.min_elt xs, ISet.max_elt xs in
+      (* Check that the xs fit into the range r  *)
+      I.compare min_b min_a <= 0 && I.compare max_a max_b <= 0 &&
+      (* && check that none of the values contained in xs is excluded, i.e. contained in ys. *)
+      ISet.for_all (fun x -> not (ISet.mem x ys)) xs
+    | Inc xs, Inc ys ->
+      ISet.subset xs ys
+    | Exc (xs, r), Exc (ys, s) ->
+      let min_a, max_a = min_of_range r, max_of_range r in
+      let exluded_check = ISet.for_all (fun y -> ISet.mem y xs || I.compare y min_a < 0 || I.compare y max_a > 0) ys in (* if true, then the values ys, that are not in b, also do not occur in a *)
+      (if not exluded_check
+       then false
+       else ( (* Check whether all elements that are in the range r, but not in s, are in xs, i.e. excluded. *)
+         if R.leq r s then true
+         else (if I.compare (cardinality_iset xs) (I.sub (cardinality_of_range r) (cardinality_of_range s)) >= 0 (* Check whether the number of excluded elements in a is as least as big as |min_r, max_r| - |min_s, max_s| *)
+               then
+                 let min_b, max_b = min_of_range s, max_of_range s in
+                 let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
+                   if I.compare min_a min_b < 0 then
+                     GU.for_all_in_range (min_a, BI.sub min_b BI.one) (fun x -> ISet.mem x xs)
+                   else
+                     true
+                 in
+                 let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
+                   if I.compare max_b max_a < 0 then
+                     GU.for_all_in_range (BI.add max_b BI.one, max_a) (fun x -> ISet.mem x xs)
+                   else
+                     true
+                 in
+                 leq1 && (leq2 ())
+               else
+                 false
+              )
+       )
+      )
+    | Exc (xs, r), Inc ys ->
+      (* For a <= b to hold, the the cardinalities must fit, i.e. |a| <= |b|, which implies |min_r, max_r| - |xs| <= |ys|. We check this first. *)
+      let card_a = BI.sub (cardinality_of_range r) (cardinality_iset xs) in
+      let card_b = cardinality_iset ys in
+      if I.compare card_a card_b > 0 then
+        false
+      else ( (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
+        let min_a = min_of_range r in
+        let max_a = max_of_range r in
+        GU.for_all_in_range (min_a, max_a) (fun el -> ISet.mem el xs || ISet.mem el ys)
+      )
 
-  let leq x y = equal (join_ignore_ikind x y) y
   let handle_bot x y f = match is_bot x, is_bot y with
     | false, false -> f ()
     | true, false
@@ -1900,29 +1948,25 @@ module Enums : S with type int_t = BigInt.t = struct
   let maximal = function
     | Inc xs when not (ISet.is_empty xs) -> Some (ISet.max_elt xs)
     | Exc (excl,r) ->
-      (match Size.max_from_bit_range (R.maximal r) with
-       | None -> None
-       | Some range_max ->
-         let rec decrement_while_contained v s =
-           if ISet.mem range_max s
-           then decrement_while_contained (BI.sub v (BI.one)) s
-           else v
-         in
-         Some (decrement_while_contained range_max excl))
+      let range_max = max_of_range r in
+      let rec decrement_while_contained v s =
+        if ISet.mem range_max s
+        then decrement_while_contained (BI.sub v (BI.one)) s
+        else v
+      in
+      Some (decrement_while_contained range_max excl)
     | _ (* bottom case *) -> None
 
   let minimal = function
     | Inc xs when not (ISet.is_empty xs) -> Some (ISet.min_elt xs)
     | Exc (excl,r) ->
-      (match Size.min_from_bit_range (R.minimal r) with
-       | None -> None
-       | Some range_min ->
-         let rec increment_while_contained v s =
-           if ISet.mem range_min s
-           then increment_while_contained (BI.add v (BI.one)) s
-           else v
-         in
-         Some (increment_while_contained range_min excl))
+      let range_min = min_of_range r in
+      let rec increment_while_contained v s =
+        if ISet.mem range_min s
+        then increment_while_contained (BI.add v (BI.one)) s
+        else v
+      in
+      Some (increment_while_contained range_min excl)
     | _ (* bottom case *) -> None
 
   let lt ik x y =
