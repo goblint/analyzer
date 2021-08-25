@@ -65,7 +65,6 @@ let _ = ()
       ; reg Std "justcil"         "false"        "Just parse and output the CIL."
       ; reg Std "justcfg"         "false"        "Only output the CFG in cfg.dot ."
       ; reg Std "printstats"      "false"        "Outputs timing information."
-      ; reg Std "gccwarn"         "false"        "Output warnings in GCC format."
       ; reg Std "verify"          "true"         "Verify that the solver reached a post-fixpoint. Beware that disabling this also disables output of warnings since post-processing of the results is done in the verification phase!"
       ; reg Std "mainfun"         "['main']"     "Sets the name of the main functions."
       ; reg Std "exitfun"         "[]"           "Sets the name of the cleanup functions."
@@ -252,7 +251,7 @@ let _ = ()
 let default_schema = "\
 { 'id'              : 'root'
 , 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'printstats', 'gccwarn', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
+, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'printstats', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
 , 'additionalProps' : false
 , 'properties' :
   { 'ana' :
@@ -285,7 +284,6 @@ let default_schema = "\
   , 'justcil'         : {}
   , 'justcfg'         : {}
   , 'printstats'      : {}
-  , 'gccwarn'         : {}
   , 'verify'        : {}
   , 'mainfun'         : {}
   , 'exitfun'         : {}

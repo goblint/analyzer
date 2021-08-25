@@ -27,7 +27,6 @@ struct
 
   (* Output *)
   let show x =
-    (* Also used for gccwarn, so should be the GCC format *)
     (* TODO: add special output for locUnknown *)
     x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column
 

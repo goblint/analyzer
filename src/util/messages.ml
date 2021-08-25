@@ -277,19 +277,13 @@ let print_msg msg loc =
   let msgc = colorize msg in
   let msg  = colorize ~on:false msg in
   push_warning (`text (msg, loc));
-  if get_bool "gccwarn" then
-    Printf.printf "%s: warning: %s\n" (CilType.Location.show loc) msg
-  else
-    let color = if colors_on () then "{violet}" else "" in
-    let s = Printf.sprintf "%s %s(%s)" msgc color (CilType.Location.show loc) in
-    Printf.fprintf !warn_out "%s\n%!" (colorize s)
+  let color = if colors_on () then "{violet}" else "" in
+  let s = Printf.sprintf "%s %s(%s)" msgc color (CilType.Location.show loc) in
+  Printf.fprintf !warn_out "%s\n%!" (colorize s)
 
 let print_err msg loc =
   push_warning (`text (msg, loc));
-  if get_bool "gccwarn" then
-    Printf.printf "%s: error: %s\n" (CilType.Location.show loc) msg
-  else
-    Printf.fprintf !warn_out "%s (%s)\n%!" msg (CilType.Location.show loc)
+  Printf.fprintf !warn_out "%s (%s)\n%!" msg (CilType.Location.show loc)
 
 
 let print_group group_name errors =
