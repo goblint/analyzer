@@ -1715,6 +1715,8 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc x -> ISet.hash x
     | Exc (x, r) -> 31 * R.hash r + 37  * ISet.hash x
 
+  (* Normalization function for enums.
+     Performs a wrap around if appropriate for the value and ikind. *)
   let norm ikind v =
     let min, max = min_int ikind, max_int ikind in
     (* Whether the value v lies within the values of the specified ikind. *)
@@ -1770,21 +1772,19 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let of_interval ik (x,y) = if x = y then of_int ik x else top_of ik
 
-  let join_ignore_ikind = curry @@ function
-  | Inc x, Inc y -> Inc (ISet.union x y)
-  | Exc (x,r1), Exc (y,r2) -> Exc (ISet.inter x y, R.join r1 r2)
-  | Exc (x,r), Inc y
-  | Inc y, Exc (x,r) ->
-    let r = if ISet.is_empty y
-      then r
-      else
-        let (min_el_range, max_el_range) = Tuple2.mapn  (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (ISet.min_elt y, ISet.max_elt y) in
-        let range = R.join min_el_range max_el_range in
-        R.join r range
-    in
-    Exc (ISet.diff x y, r)
-
-  let join ikind = join_ignore_ikind
+  let join ik = curry @@ function
+    | Inc x, Inc y -> Inc (ISet.union x y)
+    | Exc (x,r1), Exc (y,r2) -> Exc (ISet.inter x y, R.join r1 r2)
+    | Exc (x,r), Inc y
+    | Inc y, Exc (x,r) ->
+      let r = if ISet.is_empty y
+        then r
+        else
+          let (min_el_range, max_el_range) = Tuple2.mapn (fun x -> R.of_interval range_ikind (Size.min_range_sign_agnostic x)) (ISet.min_elt y, ISet.max_elt y) in
+          let range = R.join min_el_range max_el_range in
+          R.join r range
+      in
+      Exc (ISet.diff x y, r)
 
   let meet ikind = curry @@ function
     | Inc x, Inc y -> Inc (ISet.inter x y)
@@ -1845,7 +1845,7 @@ module Enums : S with type int_t = BigInt.t = struct
         end
       end
     | Exc (xs, r), Inc ys ->
-      (* For a <= b to hold, the the cardinalities must fit, i.e. |a| <= |b|, which implies |min_r, max_r| - |xs| <= |ys|. We check this first. *)
+      (* For a <= b to hold, the cardinalities must fit, i.e. |a| <= |b|, which implies |min_r, max_r| - |xs| <= |ys|. We check this first. *)
       let card_a = BI.sub (cardinality_of_range r) (cardinality_iset xs) in
       let card_b = cardinality_iset ys in
       if I.compare card_a card_b > 0 then
