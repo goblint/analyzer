@@ -1715,17 +1715,13 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc x -> ISet.hash x
     | Exc (x, r) -> 31 * R.hash r + 37  * ISet.hash x
 
-  (* Normalization function for enums.
-     Performs a wrap around if appropriate for the value and ikind. *)
+  (* Normalization function for enums, that handles overflows for Inc.
+     As we do not compute on Excl, we do not have to perform any overflow handling for it. *)
   let norm ikind v =
     let min, max = min_int ikind, max_int ikind in
     (* Whether the value v lies within the values of the specified ikind. *)
     let value_in_ikind v =
       I.compare min v <= 0 && I.compare v max <= 0
-    in
-    (* Whether the range r lies within the range of the ikind. *)
-    let range_in_ikind r =
-      R.leq r (size ikind)
     in
     match v with
     | Inc xs when ISet.for_all value_in_ikind xs -> v
@@ -1736,14 +1732,13 @@ module Enums : S with type int_t = BigInt.t = struct
         Inc (ISet.filter value_in_ikind xs)
       else
         top_of ikind
-    | Exc (xs, r) when ISet.for_all value_in_ikind xs && range_in_ikind r -> v
-    | Exc (xs, r) ->
-      if should_wrap ikind then
-        Exc (ISet.map (BigInt.cast_to ikind) xs, size ikind)
-      else if should_ignore_overflow ikind then
-        Exc (ISet.filter value_in_ikind xs, size ikind)
-      else
-        top_of ikind
+    | Exc (xs, r) -> v
+  (* The following assert should hold for Exc, therefore we do not have to overflow handling / normalization for it:
+     let range_in_ikind r =
+      R.leq r (size ikind)
+     in
+     let r_min, r_max = min_of_range r, max_of_range r in
+     assert (range_in_ikind r && ISet.for_all (value_in_range (r_min, r_max)) xs); *)
 
   let equal_to i = function
     | Inc x ->
