@@ -1801,54 +1801,52 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc xs, Exc (ys, r) ->
       if ISet.is_empty xs
       then true
-      else (
+      else
         let min_b, max_b = min_of_range r, max_of_range r in
         let min_a, max_a = ISet.min_elt xs, ISet.max_elt xs in
         (* Check that the xs fit into the range r  *)
         I.compare min_b min_a <= 0 && I.compare max_a max_b <= 0 &&
         (* && check that none of the values contained in xs is excluded, i.e. contained in ys. *)
-        ISet.for_all (fun x -> not (ISet.mem x ys)) xs)
+        ISet.for_all (fun x -> not (ISet.mem x ys)) xs
     | Inc xs, Inc ys ->
       ISet.subset xs ys
     | Exc (xs, r), Exc (ys, s) ->
       let min_a, max_a = min_of_range r, max_of_range r in
       let exluded_check = ISet.for_all (fun y -> ISet.mem y xs || I.compare y min_a < 0 || I.compare y max_a > 0) ys in (* if true, then the values ys, that are not in b, also do not occur in a *)
-      (if not exluded_check
-       then false
-       else ( (* Check whether all elements that are in the range r, but not in s, are in xs, i.e. excluded. *)
-         if R.leq r s then true
-         else (if I.compare (cardinality_iset xs) (I.sub (cardinality_of_range r) (cardinality_of_range s)) >= 0 (* Check whether the number of excluded elements in a is as least as big as |min_r, max_r| - |min_s, max_s| *)
-               then
-                 let min_b, max_b = min_of_range s, max_of_range s in
-                 let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
-                   if I.compare min_a min_b < 0 then
-                     GU.for_all_in_range (min_a, BI.sub min_b BI.one) (fun x -> ISet.mem x xs)
-                   else
-                     true
-                 in
-                 let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
-                   if I.compare max_b max_a < 0 then
-                     GU.for_all_in_range (BI.add max_b BI.one, max_a) (fun x -> ISet.mem x xs)
-                   else
-                     true
-                 in
-                 leq1 && (leq2 ())
-               else
-                 false
-              )
-       )
-      )
+      if not exluded_check
+      then false
+      else begin (* Check whether all elements that are in the range r, but not in s, are in xs, i.e. excluded. *)
+        if R.leq r s then true
+        else begin if I.compare (cardinality_iset xs) (I.sub (cardinality_of_range r) (cardinality_of_range s)) >= 0 (* Check whether the number of excluded elements in a is as least as big as |min_r, max_r| - |min_s, max_s| *)
+          then
+            let min_b, max_b = min_of_range s, max_of_range s in
+            let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
+              if I.compare min_a min_b < 0 then
+                GU.for_all_in_range (min_a, BI.sub min_b BI.one) (fun x -> ISet.mem x xs)
+              else
+                true
+            in
+            let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
+              if I.compare max_b max_a < 0 then
+                GU.for_all_in_range (BI.add max_b BI.one, max_a) (fun x -> ISet.mem x xs)
+              else
+                true
+            in
+            leq1 && (leq2 ())
+          else
+            false
+        end
+      end
     | Exc (xs, r), Inc ys ->
       (* For a <= b to hold, the the cardinalities must fit, i.e. |a| <= |b|, which implies |min_r, max_r| - |xs| <= |ys|. We check this first. *)
       let card_a = BI.sub (cardinality_of_range r) (cardinality_iset xs) in
       let card_b = cardinality_iset ys in
       if I.compare card_a card_b > 0 then
         false
-      else ( (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
+      else (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
         let min_a = min_of_range r in
         let max_a = max_of_range r in
         GU.for_all_in_range (min_a, max_a) (fun el -> ISet.mem el xs || ISet.mem el ys)
-      )
 
   let handle_bot x y f = match is_bot x, is_bot y with
     | false, false -> f ()
