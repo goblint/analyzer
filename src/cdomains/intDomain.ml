@@ -1702,6 +1702,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
   let cardinality_of_range r = I.add (I.neg (min_of_range r)) (max_of_range r)
+  let value_in_range (min, max) v = I.compare min v <= 0 && I.compare v max <= 0
 
   let show = function
     | Inc xs when ISet.is_empty xs -> "bot"
@@ -1787,7 +1788,13 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let meet ikind = curry @@ function
     | Inc x, Inc y -> Inc (ISet.inter x y)
-    | Exc (x,r1), Exc (y,r2) -> Exc (ISet.union x y, R.meet r1 r2)
+    | Exc (x,r1), Exc (y,r2) ->
+      let r = R.meet r1 r2 in
+      let r_min, r_max = min_of_range r, max_of_range r in
+      let filter_by_range = ISet.filter (value_in_range (r_min, r_max)) in
+      (* We remove those elements from the exclusion set that do not fit in the range anyway *)
+      let excl = ISet.union (filter_by_range x) (filter_by_range y) in
+      Exc (excl, r)
     | Inc x, Exc (y,r)
     | Exc (y,r), Inc x -> Inc (ISet.diff x y)
 
@@ -1929,7 +1936,10 @@ module Enums : S with type int_t = BigInt.t = struct
   let is_int = BatOption.is_some % to_int
 
   let to_excl_list = function Exc (x,r) when not (ISet.is_empty x) -> Some (ISet.elements x) | _ -> None
-  let of_excl_list t x = Exc (ISet.of_list x, size t)
+  let of_excl_list ik xs =
+    let min_ik, max_ik = Size.range_big_int ik in
+    let exc = ISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
+    Exc (exc, size ik)
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (ISet.is_empty s) -> Some (ISet.elements s) | _ -> None
 
