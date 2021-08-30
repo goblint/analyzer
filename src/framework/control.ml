@@ -554,7 +554,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
-      M.print_msg "Timeout reached!" (!Tracing.current_loc);
+      M.error_each ~loc:!Tracing.current_loc "Timeout reached!";
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.

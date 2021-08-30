@@ -1,5 +1,3 @@
-open Cil
-open Pretty
 open GobConfig
 module GU = Goblintutil
 
@@ -272,14 +270,10 @@ let messages_table = MH.create 113 (* messages without order for quick mem looku
 let messages_list = ref [] (* messages with reverse order (for cons efficiency) *)
 
 
-
-let warning_table : [`text of string * location | `group of string * ((string * location) list)] list ref = ref []
 let warn_out = ref stdout
 let tracing = Config.tracing
 let xml_file_name = ref ""
 
-let push_warning w =
-  warning_table := w :: !warning_table
 
 
 (*Warning files*)
@@ -315,31 +309,6 @@ let colorize ?on:(on=colors_on ()) msg =
   in
   let msg = List.fold_right replace colors msg in
   msg^(if on then "\027[0;0;00m" else "") (* reset at end *)
-
-let print_msg msg loc =
-  let msgc = colorize msg in
-  let msg  = colorize ~on:false msg in
-  push_warning (`text (msg, loc));
-  let color = if colors_on () then "{violet}" else "" in
-  let s = Printf.sprintf "%s %s(%s)" msgc color (CilType.Location.show loc) in
-  Printf.fprintf !warn_out "%s\n%!" (colorize s)
-
-
-let print_group group_name errors =
-  (* Add warnings to global warning list *)
-  push_warning (`group (group_name, errors));
-  let f (msg,loc): doc = Pretty.dprintf "%s (%a)" msg CilType.Location.pretty loc in
-  if (get_bool "ana.osek.warnfiles") then begin
-    match (String.sub group_name 0 6) with
-    | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | _ -> ()
-  end;
-  ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 
 let print ?(out= !warn_out) (m: Message.t) =
