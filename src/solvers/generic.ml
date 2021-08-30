@@ -140,12 +140,12 @@ struct
 
   let warning_id = ref 1
   let writeXmlWarnings () =
-    let one_text f (m,l) =
+    let one_text f Messages.Piece.{print_loc = l; text = m; _} =
       fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
     in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
+    let one_w f (m: Messages.Message.t) = match m.multipiece with
+      | Single piece  -> one_text f piece
+      | Group {group_text = n; pieces = e} ->
         fprintf f "<group name=\"%s\">%a</group>\n" n (List.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w x f = fprintf f "\n<warning>%a</warning>" one_w x in
@@ -155,7 +155,7 @@ struct
       incr warning_id;
       File.with_file_out ~mode:[`create;`excl;`text] full_name (one_w x)
     in
-    List.iter write_warning !Messages.warning_table
+    List.iter write_warning !Messages.messages_list
 
   module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end)
   let funs = SSH.create 100
@@ -197,8 +197,8 @@ struct
       NH.iter (fun v () -> fprintf f "%a</call>\n" Var.printXml v) updated_l;
       GH.iter (fun v () -> fprintf f "<global>\n%a</global>\n" GVar.printXml v) updated_g;
       let g n _ = fprintf f "<warning warn=\"warn%d\" />\n" (n + !warning_id) in
-      List.iteri g !Messages.warning_table;
-      (* List.iter write_warning !Messages.warning_table *)
+      List.iteri g !Messages.messages_list;
+      (* List.iter write_warning !Messages.messages_list *)
       fprintf f "</updates>\n";
     in
     File.with_file_out ~mode:[`excl;`create;`text] full_name write_updates

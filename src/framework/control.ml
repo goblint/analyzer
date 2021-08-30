@@ -444,7 +444,7 @@ struct
               );
               Serialize.marshal !MCP.analyses_table analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
-              Serialize.marshal !Messages.warning_table warnings;
+              Serialize.marshal !Messages.messages_list warnings;
               Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)

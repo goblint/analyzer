@@ -144,16 +144,16 @@ struct
     iter print_one xs
 
   let printXmlWarning f () =
-    let one_text f (m,l) =
+    let one_text f Messages.Piece.{print_loc = l; text = m; _} =
       BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
     in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
+    let one_w f (m: Messages.Message.t) = match m.multipiece with
+      | Single piece  -> one_text f piece
+      | Group {group_text = n; pieces = e} ->
         BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
-    List.iter (one_w f) !Messages.warning_table
+    List.iter (one_w f) !Messages.messages_list
 
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
