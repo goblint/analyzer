@@ -325,18 +325,12 @@ let warn_all m =
 
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
-let msg_internal severity ~msg (warning: Warning.t) =
-  warn_all {warn_type = warning; severity; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc}
 
-let msg_internal_with_loc severity ?loc:(loc= !Tracing.current_loc) ~msg (warning: Warning.t) =
-  warn_all {warn_type = warning; severity; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
+let msg severity ?warning:(warning=Unknown) text =
+  warn_all {warn_type = warning; severity; loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}
 
-
-let msg severity ?warning:(warning=Unknown) msg =
-  msg_internal severity ~msg warning
-
-let msg_each severity ?loc ?warning:(warning=Unknown) msg =
-  msg_internal_with_loc severity ?loc ~msg warning
+let msg_each severity ?loc:(loc= !Tracing.current_loc) ?warning:(warning=Unknown) text =
+  warn_all {warn_type = warning; severity; loc = Some loc; text; context = !current_context; print_loc = loc}
 
 let warn = msg Warning
 let warn_each = msg_each Warning
