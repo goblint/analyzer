@@ -232,22 +232,40 @@ struct
     msg
 end
 
+module MultiPiece =
+struct
+  type t =
+    | Single of Piece.t
+    | Group of {group_text: string; pieces: Piece.t list}
+    [@@ deriving eq]
+
+  let hash = function
+    | Single piece -> Piece.hash piece
+    | Group {group_text; pieces} ->
+      Hashtbl.hash group_text + 3 * (List.fold_left (fun xs x -> xs + Piece.hash x) 996699 pieces) (* copied from Printable.Liszt *)
+
+  let show = function
+    | Single piece -> Piece.show piece
+    | Group {group_text; pieces} ->
+      List.fold_left (fun acc piece -> acc ^ "\n  " ^ Piece.show piece) group_text pieces
+end
+
 module Message =
 struct
   type t = {
     warn_type: Warning.t; (* TODO: make list of tags *)
     severity: Severity.t;
-    piece: Piece.t;
+    multipiece: MultiPiece.t;
   } [@@deriving eq]
 
   let should_warn {warn_type; severity; _} =
     Warning.should_warn warn_type && Severity.should_warn severity
 
-  let hash {warn_type; severity; piece} =
-    3 * Warning.hash warn_type + 7 * Piece.hash piece + 13 * Severity.hash severity
+  let hash {warn_type; severity; multipiece} =
+    3 * Warning.hash warn_type + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
 
-  let show {warn_type; severity; piece} =
-    let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^" "^ Piece.show piece in
+  let show {warn_type; severity; multipiece} =
+    let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^" "^ MultiPiece.show multipiece in
     msg
 end
 
@@ -329,7 +347,7 @@ let print_group group_name errors =
 let add m =
   if !GU.should_warn then (
     if Message.should_warn m && not (MH.mem messages_table m) then (
-      print_msg (Message.show m) m.piece.print_loc;
+      print_msg (Message.show m) (match m.multipiece with Single piece -> piece.print_loc | Group _ -> locUnknown); (* TODO: don't use locUnknown *)
       MH.replace messages_table m ();
       messages_list := m :: !messages_list
     )
@@ -339,10 +357,10 @@ let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) conte
 
 
 let msg severity ?warning:(warning=Unknown) text =
-  add {warn_type = warning; severity; piece = {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
+  add {warn_type = warning; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
 
 let msg_each severity ?loc:(loc= !Tracing.current_loc) ?warning:(warning=Unknown) text =
-  add {warn_type = warning; severity; piece = {loc = Some loc; text; context = !current_context; print_loc = loc}}
+  add {warn_type = warning; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
 
 let warn = msg Warning
 let warn_each = msg_each Warning
