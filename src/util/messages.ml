@@ -227,9 +227,7 @@ struct
     | _ -> msg
 
   let show {loc; text; context; print_loc} =
-    let msg = " "^text in
-    let msg = with_context msg context in
-    msg
+    with_context text context
 end
 
 module MultiPiece =
@@ -344,14 +342,39 @@ let print_group group_name errors =
   ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 
+let print ?(out= !warn_out) (m: Message.t) =
+  let show_piece piece =
+    colorize @@ Piece.show piece ^ " {violet}(" ^ CilType.Location.show piece.print_loc ^ ")"
+  in
+  let prefix = "[" ^ Severity.show m.severity ^ "]" ^ Warning.show m.warn_type in
+  match m.multipiece with
+  | Single piece ->
+    Printf.fprintf out "%s %s\n%!" prefix (show_piece piece)
+  | Group {group_text; pieces} ->
+    Printf.fprintf out "%s %s\n%!" prefix (List.fold_left (fun acc piece -> acc ^ "\n  " ^ show_piece piece) (group_text ^ ":") pieces)
+
 let add m =
   if !GU.should_warn then (
     if Message.should_warn m && not (MH.mem messages_table m) then (
-      print_msg (Message.show m) (match m.multipiece with Single piece -> piece.print_loc | Group _ -> locUnknown); (* TODO: don't use locUnknown *)
+      print m;
       MH.replace messages_table m ();
       messages_list := m :: !messages_list
     )
   )
+
+let print_group group_name errors =
+  let m = Message.{warn_type = Unknown; severity = Warning; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None; print_loc = loc}) errors}} in
+  add m;
+
+  if (get_bool "ana.osek.warnfiles") then
+    match (String.sub group_name 0 6) with
+    | "Safely" -> print ~out:!warn_safe m
+    | "Datara" -> print ~out:!warn_race m
+    | "High r" -> print ~out:!warn_higr m
+    | "High w" -> print ~out:!warn_higw m
+    | "Low re" -> print ~out:!warn_lowr m
+    | "Low wr" -> print ~out:!warn_loww m
+    | _ -> ()
 
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
