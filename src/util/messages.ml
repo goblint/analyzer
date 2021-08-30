@@ -313,14 +313,20 @@ let colorize ?on:(on=colors_on ()) msg =
 
 let print ?(out= !warn_out) (m: Message.t) =
   let show_piece piece =
-    colorize @@ Piece.show piece ^ " {violet}(" ^ CilType.Location.show piece.print_loc ^ ")"
+    Piece.show piece ^ " {violet}(" ^ CilType.Location.show piece.print_loc ^ ")"
   in
-  let prefix = "[" ^ Severity.show m.severity ^ "]" ^ Warning.show m.warn_type in
+  let severity_color = match m.severity with
+    | Error -> "{red}"
+    | Warning -> "{yellow}"
+    | Info -> "{blue}"
+    | Debug -> "{white}" (* non-bright white is actually some gray *)
+  in
+  let prefix = severity_color ^ "[" ^ Severity.show m.severity ^ "]" ^ Warning.show m.warn_type in
   match m.multipiece with
   | Single piece ->
-    Printf.fprintf out "%s %s\n%!" prefix (show_piece piece)
+    Printf.fprintf out "%s\n%!" (colorize @@ prefix ^ " " ^ show_piece piece)
   | Group {group_text; pieces} ->
-    Printf.fprintf out "%s %s\n%!" prefix (List.fold_left (fun acc piece -> acc ^ "\n  " ^ show_piece piece) (group_text ^ ":") pieces)
+    Printf.fprintf out "%s\n%!" (colorize @@ prefix ^ " " ^ List.fold_left (fun acc piece -> acc ^ "\n  " ^ severity_color ^ show_piece piece) (group_text ^ ":") pieces)
 
 let add m =
   if !GU.should_warn then (
