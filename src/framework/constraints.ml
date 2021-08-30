@@ -746,10 +746,13 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_context = !M.current_context in
     let _       = current_node := Some u in
+    M.current_context := Some (Obj.repr c);
     let d       = try tf (v,c) (e,u) getl sidel getg sideg
       with M.Bailure s -> Messages.warn_each ~msg:s (); (getl (u,c))  in
     let _       = current_node := old_node in
+    M.current_context := old_context;
     d
 
   let system (v,c) =

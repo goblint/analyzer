@@ -1958,10 +1958,10 @@ struct
             (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
-            M.warn_each ~ctx:ctx.control_context ~msg:(msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result) ()
+            M.warn_each ~msg:(msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result) ()
           )
         ) else
-          M.warn_each ~ctx:ctx.control_context ~msg:msg ()
+          M.warn_each ~msg:msg ()
     in
     match check_assert e ctx.local with
     | `Lifted false ->
@@ -1971,7 +1971,7 @@ struct
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.warn_each ~ctx:ctx.control_context ~msg:("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)") ();
+      M.warn_each ~msg:("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)") ();
       ctx.local
     | `Top ->
       warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");

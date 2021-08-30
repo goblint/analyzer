@@ -344,25 +344,25 @@ let warn_all m =
     messages_list := m :: !messages_list
   )
 
-(* TODO: don't take context as argument, but add global Tracing.current_context *)
+let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
-let warn_internal ?ctx ?msg:(msg="") (warning: WarningWithCertainty.t) =
+let warn_internal ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = None; text = msg; context = Option.map Obj.repr ctx; print_loc = !Tracing.current_loc} in
+    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc} in
     warn_all m
   end
 
-let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
+let warn_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
   if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = Some loc; text = msg; context = Option.map Obj.repr ctx; print_loc = loc} in
+    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = Some loc; text = msg; context = !current_context; print_loc = loc} in
     warn_all m
   end
 
-let warn ?must:(must=false) ?ctx ?msg:(msg="") ?warning:(warning=Unknown) () =
-  warn_internal ~ctx:ctx ~msg:msg (WarningWithCertainty.create ~must:must warning)
+let warn ?must:(must=false) ?msg:(msg="") ?warning:(warning=Unknown) () =
+  warn_internal ~msg:msg (WarningWithCertainty.create ~must:must warning)
 
-let warn_each ?must:(must=false) ?ctx ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
-  warn_internal_with_loc ~ctx:ctx ?loc ~msg:msg (WarningWithCertainty.create ~must:must warning)
+let warn_each ?must:(must=false) ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
+  warn_internal_with_loc ?loc ~msg:msg (WarningWithCertainty.create ~must:must warning)
 
 let debug msg =
   warn_internal ~msg @@ WarningWithCertainty.debug ()
