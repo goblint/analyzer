@@ -397,6 +397,7 @@ File.open(theresultfile, "w") do |f|
                     when /Assertion .* will succeed/ then "success"
                     when /Assertion .* is unknown/   then "unknown"
                     when /^\[Warning\]/              then "warn"
+                    when /^\[Error\]/                then "warn"
                     when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     else "other"
                   end
