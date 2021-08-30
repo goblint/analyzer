@@ -194,6 +194,7 @@ struct
     | Warning
     | Info
     | Debug
+    | Success
     [@@deriving eq, show { with_path = false }]
 
   let hash x = Hashtbl.hash x (* variants, so this is fine *)
@@ -204,6 +205,7 @@ struct
       | Warning -> "warning"
       | Info -> "info"
       | Debug -> "debug"
+      | Success -> "success"
     in
     get_bool ("warn." ^ (to_string e))
 end
@@ -320,6 +322,7 @@ let print ?(out= !warn_out) (m: Message.t) =
     | Warning -> "{yellow}"
     | Info -> "{blue}"
     | Debug -> "{white}" (* non-bright white is actually some gray *)
+    | Success -> "{green}"
   in
   let prefix = severity_color ^ "[" ^ Severity.show m.severity ^ "]" ^ Warning.show m.warn_type in
   match m.multipiece with
@@ -369,5 +372,7 @@ let error_each = msg_each Error
 (* TODO: info *)
 let debug = msg Debug
 let debug_each = msg_each Debug
+(* TODO: success? *)
+let success_each = msg_each Success
 
 include Tracing

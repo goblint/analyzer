@@ -1947,7 +1947,7 @@ struct
       | _ -> `Top
     in
     let expr = sprint d_exp e in
-    let warn ?annot msg = if should_warn then
+    let warn warn_fn ?annot msg = if should_warn then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
           let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
@@ -1958,23 +1958,23 @@ struct
             (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
-            M.warn_each (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
+            warn_fn (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
           )
         ) else
-          M.warn_each msg
+          warn_fn msg
     in
     match check_assert e ctx.local with
     | `Lifted false ->
-      warn ~annot:"FAIL" ("{red}Assertion \"" ^ expr ^ "\" will fail.");
+      warn M.error_each ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `Lifted true ->
-      warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
+      warn M.success_each ("Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.warn_each ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.error_each ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
-      warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
+      warn M.warn_each ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
