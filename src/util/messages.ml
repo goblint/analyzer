@@ -325,11 +325,14 @@ let warn_all m =
 
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
-let warn_internal ?msg:(msg="") (warning: Warning.t) =
-  warn_all {warn_type = warning; severity = Warning; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc}
+let msg_internal severity ?msg:(msg="") (warning: Warning.t) =
+  warn_all {warn_type = warning; severity; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc}
 
-let warn_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: Warning.t) =
-  warn_all {warn_type = warning; severity = Warning; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
+let msg_internal_with_loc severity ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: Warning.t) =
+  warn_all {warn_type = warning; severity; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
+
+let warn_internal = msg_internal Warning
+let warn_internal_with_loc = msg_internal_with_loc Warning
 
 let warn ?msg:(msg="") ?warning:(warning=Unknown) () =
   warn_internal ~msg:msg warning
@@ -337,17 +340,13 @@ let warn ?msg:(msg="") ?warning:(warning=Unknown) () =
 let warn_each ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
   warn_internal_with_loc ?loc ~msg:msg warning
 
-let error_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: Warning.t) =
-  warn_all {warn_type = warning; severity = Error; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
+let error_internal_with_loc = msg_internal_with_loc Error
 
 let error_each ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
   error_internal_with_loc ?loc ~msg:msg warning
 
-let debug_internal ?msg:(msg="") (warning: Warning.t) =
-  warn_all {warn_type = warning; severity = Debug; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc}
-
-let debug_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: Warning.t) =
-  warn_all {warn_type = warning; severity = Debug; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
+let debug_internal = msg_internal Debug
+let debug_internal_with_loc = msg_internal_with_loc Debug
 
 let debug msg =
   debug_internal ~msg @@ Unknown
