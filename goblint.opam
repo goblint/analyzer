@@ -16,7 +16,7 @@ authors: [
 ]
 license: "MIT"
 homepage: "https://goblint.in.tum.de"
-doc: "https://goblint.github.io/analyzer"
+doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "ocaml" {>= "4.09"}

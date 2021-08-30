@@ -10,7 +10,7 @@
 
 (source (github goblint/analyzer))
 (homepage "https://goblint.in.tum.de")
-(documentation "https://goblint.github.io/analyzer")
+(documentation "https://goblint.readthedocs.io/en/latest/")
 (authors "Vesal Vojdani" "Kalmer Apinis" "Ralf Vogler" "Michael Schwarz" "Julian Erhard" "Simmo Saan")
 (maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Simmo Saan <simmo.saan@gmail.com>" "Ralf Vogler <ralf.vogler@gmail.com>")
 (license MIT)
