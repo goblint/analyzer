@@ -221,7 +221,8 @@ struct
     print_loc: CilType.Location.t [@equal fun _ _ -> true]; (* all warnings have this, not used for deduplication *)
   } [@@deriving eq]
 
-  (* TODO: add should_warn that considers warn_type and severity *)
+  let should_warn {warn_type; severity; _} =
+    Warning.should_warn warn_type && Severity.should_warn severity
 
   let hash {warn_type; severity; loc; text; context; print_loc} =
     3 * Warning.hash warn_type + 7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context + 13 * Severity.hash severity
@@ -315,7 +316,7 @@ let print_group group_name errors =
 
 let warn_all m =
   if !GU.should_warn then (
-    if Warning.should_warn m.Message.warn_type && not (MH.mem messages_table m) then (
+    if Message.should_warn m && not (MH.mem messages_table m) then (
       print_msg (Message.show m) m.print_loc;
       MH.replace messages_table m ();
       messages_list := m :: !messages_list
