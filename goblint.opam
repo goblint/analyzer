@@ -7,7 +7,12 @@ maintainer: [
   "Ralf Vogler <ralf.vogler@gmail.com>"
 ]
 authors: [
-  "Vesal Vojdani, Kalmer Apinis, Ralf Vogler, Michael Schwarz, Julian Erhard, Simmo Saan"
+  "Vesal Vojdani"
+  "Kalmer Apinis"
+  "Ralf Vogler"
+  "Michael Schwarz"
+  "Julian Erhard"
+  "Simmo Saan"
 ]
 license: "MIT"
 homepage: "https://goblint.in.tum.de"
