@@ -252,10 +252,10 @@ struct
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
     match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
-    | [] -> Messages.warn_each ~must:(not may) ~loc:(List.last loc) ~msg:msg ()
+    | [] -> (if may then Messages.warn_each else Messages.error_each) ~loc:(List.last loc) ~msg:msg ()
     | h :: t ->
       let warn_type = Messages.Warning.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in Messages.warn_each ~must:(not may) ~loc:(List.last loc) ~msg:(String.concat " " t) ~warning:warn_type ()
+      in (if may then Messages.warn_each else Messages.error_each) ~loc:(List.last loc) ~msg:(String.concat " " t) ~warning:warn_type ()
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)

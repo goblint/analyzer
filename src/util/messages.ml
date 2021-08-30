@@ -368,11 +368,17 @@ let warn_internal ?msg:(msg="") (warning: WarningWithCertainty.t) =
 let warn_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
   warn_all {warn_type = warning.warn_type; certainty = warning.certainty; severity = Warning; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
 
-let warn ?must:(must=false) ?msg:(msg="") ?warning:(warning=Unknown) () =
-  warn_internal ~msg:msg (WarningWithCertainty.create ~must:must warning)
+let warn ?msg:(msg="") ?warning:(warning=Unknown) () =
+  warn_internal ~msg:msg (WarningWithCertainty.create warning)
 
-let warn_each ?must:(must=false) ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
-  warn_internal_with_loc ?loc ~msg:msg (WarningWithCertainty.create ~must:must warning)
+let warn_each ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
+  warn_internal_with_loc ?loc ~msg:msg (WarningWithCertainty.create warning)
+
+let error_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
+  warn_all {warn_type = warning.warn_type; certainty = warning.certainty; severity = Error; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
+
+let error_each ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
+  error_internal_with_loc ?loc ~msg:msg (WarningWithCertainty.create ~must:true warning)
 
 let debug msg =
   warn_internal ~msg @@ WarningWithCertainty.debug () (* TODO: debug severity *)

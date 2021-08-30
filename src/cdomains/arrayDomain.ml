@@ -575,11 +575,11 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
       ()
     | Some true, Some false -> (* The following matching differentiates the must and may cases*)
-      M.warn_each ~must:true ~warning:(M.Warning.Behavior.Undefined.ArrayOutOfBounds.past_end ()) ()
+      M.error_each ~warning:(M.Warning.Behavior.Undefined.ArrayOutOfBounds.past_end ()) ()
     | Some true, None ->
       M.warn_each ~warning:(M.Warning.Behavior.Undefined.ArrayOutOfBounds.past_end ()) ()
     | Some false, Some true ->
-      M.warn_each ~must:true ~warning:(M.Warning.Behavior.Undefined.ArrayOutOfBounds.before_start ()) ()
+      M.error_each ~warning:(M.Warning.Behavior.Undefined.ArrayOutOfBounds.before_start ()) ()
     | None, Some true ->
       M.warn_each ~warning:(M.Warning.Behavior.Undefined.ArrayOutOfBounds.before_start ()) ()
     | _ ->

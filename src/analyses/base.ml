@@ -803,7 +803,7 @@ struct
         match (eval_rv a gs st n) with
         | `Address adr ->
           (if AD.is_null adr
-           then M.warn_each ~must:true ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ()
+           then M.error_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ()
            else if AD.may_be_null adr
            then M.warn_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ());
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
