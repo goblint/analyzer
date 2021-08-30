@@ -31,7 +31,6 @@ type warning =
   | Race
   | Cast of cast
   | Unknown
-  | Debug
   | Analyzer
   [@@deriving eq]
 
@@ -165,7 +164,6 @@ struct
       | Race -> "race"
       | Cast _ -> "cast"
       | Unknown -> "unknown"
-      | Debug -> "debug"
       | Analyzer -> "analyzer"
     in get_bool ("warn." ^ (to_string e))
 
@@ -176,7 +174,6 @@ struct
     | Race -> "[Race]"
     | Cast x -> "[Cast > " ^ (Cast.show x)
     | Unknown -> "[Unknown]"
-    | Debug -> "[Debug]"
     | Analyzer -> "[Analyzer]"
 
   let from_string_list (s: string list) =
@@ -187,7 +184,6 @@ struct
       | "integer" -> Integer.from_string_list t
       | "race" -> Race
       | "cast" -> Cast.from_string_list t
-      | "debug" -> Debug
       | "analyzer" -> Analyzer
       | _ -> Unknown
 end
@@ -235,10 +231,6 @@ struct
     | _ -> msg
 
   let show {warn_type; severity; loc; text; context; print_loc} =
-    let text = match warn_type with
-      | Debug -> "{BLUE}"^text (* TODO: don't do it like this *)
-      | _ -> text
-    in
     let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^(if text != "" then " "^text else "") in
     let msg = with_context msg context in
     msg
@@ -351,9 +343,9 @@ let error_each ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
   error_internal_with_loc ?loc ~msg:msg warning
 
 let debug msg =
-  warn_internal ~msg @@ Debug (* TODO: debug severity *)
+  warn_internal ~msg @@ Unknown (* TODO: debug severity *)
 
 let debug_each msg =
-  warn_internal_with_loc ~msg @@ Debug (* TODO: debug severity *)
+  warn_internal_with_loc ~msg @@ Unknown (* TODO: debug severity *)
 
 include Tracing
