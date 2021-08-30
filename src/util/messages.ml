@@ -314,7 +314,7 @@ let print_group group_name errors =
   ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
 
-let warn_all m =
+let add m =
   if !GU.should_warn then (
     if Message.should_warn m && not (MH.mem messages_table m) then (
       print_msg (Message.show m) m.print_loc;
@@ -327,10 +327,10 @@ let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) conte
 
 
 let msg severity ?warning:(warning=Unknown) text =
-  warn_all {warn_type = warning; severity; loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}
+  add {warn_type = warning; severity; loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}
 
 let msg_each severity ?loc:(loc= !Tracing.current_loc) ?warning:(warning=Unknown) text =
-  warn_all {warn_type = warning; severity; loc = Some loc; text; context = !current_context; print_loc = loc}
+  add {warn_type = warning; severity; loc = Some loc; text; context = !current_context; print_loc = loc}
 
 let warn = msg Warning
 let warn_each = msg_each Warning
