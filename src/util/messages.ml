@@ -192,45 +192,6 @@ struct
       | _ -> Unknown
 end
 
-module Certainty = struct
-  type t = May | Must [@@deriving eq]
-
-  let hash x = Hashtbl.hash x (* variants, so this is fine *)
-
-  let should_warn e =
-    let to_string e =
-      match e with
-      | May -> "may"
-      | Must -> "must"
-    in get_bool ("warn." ^ (to_string e))
-
-  let show c =
-    match c with
-    | May -> "[May]"
-    | Must -> "[Must]"
-end
-
-module WarningWithCertainty =
-struct
-  type t = {
-    warn_type : Warning.t;
-    certainty: Certainty.t option
-  }
-
-  let should_warn (e:t) = Warning.should_warn e.warn_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
-
-  let debug () = {warn_type = Debug; certainty = None}
-
-  let create ?must:(must=false) w = {warn_type = w; certainty = Some (if must then Certainty.Must else Certainty.May)}
-  let show {warn_type; certainty} =
-    let certainty_str = match certainty with
-      | Some c -> (Certainty.show c)
-      | None -> ""
-    and warning_tag = match warn_type with
-      | Debug -> ""
-      | _ -> "[Warning]"
-    in warning_tag^certainty_str^(Warning.show warn_type)
-end
 
 module Severity =
 struct
@@ -242,13 +203,21 @@ struct
     [@@deriving eq, show { with_path = false }]
 
   let hash x = Hashtbl.hash x (* variants, so this is fine *)
+
+  let should_warn e =
+    let to_string = function
+      | Error -> "error"
+      | Warning -> "warning"
+      | Info -> "info"
+      | Debug -> "debug"
+    in
+    get_bool ("warn." ^ (to_string e))
 end
 
 module Message =
 struct
   type t = {
     warn_type: Warning.t; (* TODO: make list of tags *)
-    certainty: Certainty.t option; (* TODO: change to severity levels, make non-option *)
     severity: Severity.t;
     loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
@@ -256,19 +225,21 @@ struct
     print_loc: CilType.Location.t [@equal fun _ _ -> true]; (* all warnings have this, not used for deduplication *)
   } [@@deriving eq]
 
-  let hash {warn_type; certainty; severity; loc; text; context; print_loc} =
-    3 * Warning.hash warn_type + 5 * BatOption.map_default Certainty.hash 1 certainty + 7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context + 13 * Severity.hash severity
+  (* TODO: add should_warn that considers warn_type and severity *)
+
+  let hash {warn_type; severity; loc; text; context; print_loc} =
+    3 * Warning.hash warn_type + 7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context + 13 * Severity.hash severity
 
   let with_context msg = function
     | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx) (* TODO: this is kind of useless *)
     | _ -> msg
 
-  let show {warn_type; certainty; severity; loc; text; context; print_loc} =
+  let show {warn_type; severity; loc; text; context; print_loc} =
     let text = match warn_type with
       | Debug -> "{BLUE}"^text (* TODO: don't do it like this *)
       | _ -> text
     in
-    let msg = "[" ^ Severity.show severity ^ "]" ^ (WarningWithCertainty.(show {warn_type; certainty}))^(if text != "" then " "^text else "") in
+    let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^(if text != "" then " "^text else "") in
     let msg = with_context msg context in
     msg
 end
@@ -352,8 +323,7 @@ let print_group group_name errors =
 
 let warn_all m =
   if !GU.should_warn then (
-    let wc = WarningWithCertainty.{warn_type = m.Message.warn_type; certainty = m.Message.certainty} in (* TODO: don't reconstruct this *)
-    if WarningWithCertainty.should_warn wc && not (MH.mem messages_table m) then (
+    if Warning.should_warn m.Message.warn_type && not (MH.mem messages_table m) then (
       print_msg (Message.show m) m.print_loc;
       MH.replace messages_table m ();
       messages_list := m :: !messages_list
@@ -362,28 +332,28 @@ let warn_all m =
 
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
-let warn_internal ?msg:(msg="") (warning: WarningWithCertainty.t) =
-  warn_all {warn_type = warning.warn_type; certainty = warning.certainty; severity = Warning; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc}
+let warn_internal ?msg:(msg="") (warning: Warning.t) =
+  warn_all {warn_type = warning; severity = Warning; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc}
 
-let warn_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
-  warn_all {warn_type = warning.warn_type; certainty = warning.certainty; severity = Warning; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
+let warn_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: Warning.t) =
+  warn_all {warn_type = warning; severity = Warning; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
 
 let warn ?msg:(msg="") ?warning:(warning=Unknown) () =
-  warn_internal ~msg:msg (WarningWithCertainty.create warning)
+  warn_internal ~msg:msg warning
 
 let warn_each ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
-  warn_internal_with_loc ?loc ~msg:msg (WarningWithCertainty.create warning)
+  warn_internal_with_loc ?loc ~msg:msg warning
 
-let error_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
-  warn_all {warn_type = warning.warn_type; certainty = warning.certainty; severity = Error; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
+let error_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: Warning.t) =
+  warn_all {warn_type = warning; severity = Error; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
 
 let error_each ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
-  error_internal_with_loc ?loc ~msg:msg (WarningWithCertainty.create ~must:true warning)
+  error_internal_with_loc ?loc ~msg:msg warning
 
 let debug msg =
-  warn_internal ~msg @@ WarningWithCertainty.debug () (* TODO: debug severity *)
+  warn_internal ~msg @@ Debug (* TODO: debug severity *)
 
 let debug_each msg =
-  warn_internal_with_loc ~msg @@ WarningWithCertainty.debug () (* TODO: debug severity *)
+  warn_internal_with_loc ~msg @@ Debug (* TODO: debug severity *)
 
 include Tracing
