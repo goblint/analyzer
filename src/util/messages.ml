@@ -331,27 +331,20 @@ let msg_internal severity ~msg (warning: Warning.t) =
 let msg_internal_with_loc severity ?loc:(loc= !Tracing.current_loc) ~msg (warning: Warning.t) =
   warn_all {warn_type = warning; severity; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
 
-let warn_internal = msg_internal Warning
-let warn_internal_with_loc = msg_internal_with_loc Warning
 
 let warn ?warning:(warning=Unknown) msg =
-  warn_internal ~msg warning
+  msg_internal Warning ~msg warning
 
 let warn_each ?loc ?warning:(warning=Unknown) msg =
-  warn_internal_with_loc ?loc ~msg warning
-
-let error_internal_with_loc = msg_internal_with_loc Error
+  msg_internal_with_loc Warning ?loc ~msg warning
 
 let error_each ?loc ?warning:(warning=Unknown) msg =
-  error_internal_with_loc ?loc ~msg warning
-
-let debug_internal = msg_internal Debug
-let debug_internal_with_loc = msg_internal_with_loc Debug
+  msg_internal_with_loc Error ?loc ~msg warning
 
 let debug msg =
-  debug_internal ~msg @@ Unknown
+  msg_internal Debug ~msg @@ Unknown
 
 let debug_each msg =
-  debug_internal_with_loc ~msg @@ Unknown
+  msg_internal_with_loc Debug ~msg @@ Unknown
 
 include Tracing
