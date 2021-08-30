@@ -155,17 +155,6 @@ struct
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
     List.iter (one_w f) !Messages.warning_table
 
-  let printXmlGlobals f () =
-    let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
-    in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
-        BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
-    in
-    List.iter (one_w f) !Messages.warning_table
-
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
