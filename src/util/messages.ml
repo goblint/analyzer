@@ -331,7 +331,9 @@ let add m =
     )
   )
 
-let print_group group_name errors =
+(** Adapts old [print_group] to new message structure.
+    Don't use for new (group) warnings. *)
+let warn_group_old group_name errors =
   let m = Message.{warn_type = Unknown; severity = Warning; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None; print_loc = loc}) errors}} in
   add m;
 

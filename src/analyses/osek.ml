@@ -1130,7 +1130,7 @@ struct
           if (List.mem gl.vname  (List.map Json.string @@ get_list "ana.osek.safe_vars")) then begin
             suppressed := !suppressed+1;
             if (get_bool "allglobs") then
-              print_group (safe_str "safe variable") warnings
+              warn_group_old (safe_str "safe variable") warnings
             else
               ignore (printf "Suppressed warning: %s is not guarded\n" var_str)
           end else begin
@@ -1141,7 +1141,7 @@ struct
             if safe_funs = [] then begin
               race_free := false;
               let warn = def_warn ^ " at " ^ var_str in
-              print_group warn warnings
+              warn_group_old warn warnings
             end else begin
               filtered := !filtered +1;
               (*((_, dom_elem,_),_) -> let lock_names_list = names (Lockset.ReverseAddrSet.elements dom_elem) in
@@ -1154,43 +1154,43 @@ struct
               | Race -> begin
                   race_free := false;
                   let warn = "Datarace at " ^ var_str in
-                  print_group warn warnings
+                  warn_group_old warn warnings
                 end
               | Guarded locks ->
                 let lock_str = Mutex.Lockset.show locks in
                 if (get_bool "allglobs") then
-                  print_group (safe_str "common mutex after filtering") warnings
+                  warn_group_old (safe_str "common mutex after filtering") warnings
                 else
                   ignore (printf "Found correlation: %s is guarded by lockset %s after filtering\n" var_str lock_str)
               | Priority pry ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str "same priority after filtering") warnings
+                  warn_group_old (safe_str "same priority after filtering") warnings
                 else
                   ignore (printf "Found correlation: %s is guarded by priority %s after filtering\n" var_str (string_of_int pry))
               | Defence (defpry,offpry) ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str "defensive priority exceeds offensive priority after filtering") warnings
+                  warn_group_old (safe_str "defensive priority exceeds offensive priority after filtering") warnings
                 else
                   ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s after filtering\n" var_str (string_of_int defpry) (string_of_int offpry))
               | Flag (flagvar) ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses after filtering") ) warnings
+                  warn_group_old (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses after filtering") ) warnings
                 else
                   ignore (printf "Found correlation: %s is guarded by flag %s after filtering\n" var_str flagvar)
               | ReadOnly ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str "only read after filtering") warnings
+                  warn_group_old (safe_str "only read after filtering") warnings
               | ThreadLocal ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str "thread local after filtering") warnings
+                  warn_group_old (safe_str "thread local after filtering") warnings
               | BadFlag -> begin
                   race_free := false;
                   let warn = "Writerace at 'flag' " ^ var_str in
-                  print_group warn warnings
+                  warn_group_old warn warnings
                 end
               | GoodFlag -> begin
                   if (get_bool "allglobs") then begin
-                    print_group (safe_str "is a flag after filtering") warnings
+                    warn_group_old (safe_str "is a flag after filtering") warnings
                   end else  begin
                     ignore (printf "Found flag behaviour after filtering: %s\n" var_str)
                   end
@@ -1208,38 +1208,38 @@ struct
           | Guarded locks ->
             let lock_str = Mutex.Lockset.show locks in
             if (get_bool "allglobs") then
-              print_group (safe_str "common mutex") warnings
+              warn_group_old (safe_str "common mutex") warnings
             else
               ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
           | Priority pry ->
             if (get_bool "allglobs") then
-              print_group (safe_str "same priority") warnings
+              warn_group_old (safe_str "same priority") warnings
             else
               ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
           | Defence (defpry,offpry) ->
             if (get_bool "allglobs") then
-              print_group (safe_str "defensive priority exceeds offensive priority") warnings
+              warn_group_old (safe_str "defensive priority exceeds offensive priority") warnings
             else
               ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s\n" var_str (string_of_int defpry) (string_of_int offpry))
           | Flag (flagvar) ->
             if (get_bool "allglobs") then
-              print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses") ) warnings
+              warn_group_old (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses") ) warnings
             else
               ignore (printf "Found correlation: %s is guarded by flag %s\n" var_str flagvar)
           | ReadOnly ->
             if (get_bool "allglobs") then
-              print_group (safe_str "only read") warnings
+              warn_group_old (safe_str "only read") warnings
           | ThreadLocal ->
             if (get_bool "allglobs") then
-              print_group (safe_str "thread local") warnings
+              warn_group_old (safe_str "thread local") warnings
           | BadFlag -> begin
               race_free := false;
               let warn = "Writerace at 'flag' " ^ var_str in
-              print_group warn warnings
+              warn_group_old warn warnings
             end
           | GoodFlag -> begin
               if (get_bool "allglobs") then begin
-                print_group (safe_str "is a flag") warnings
+                warn_group_old (safe_str "is a flag") warnings
               end else  begin
                 ignore (printf "Found flag behaviour: %s\n" var_str)
               end
