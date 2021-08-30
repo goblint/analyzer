@@ -23,37 +23,37 @@ let classify' fn exps =
   | "pthread_create" ->
     begin match exps with
       | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
-      | _ -> failwith "pthread_create arguments are strange."
+      | _ -> M.warn_each "pthread_create arguments are strange."; `Unknown fn
     end
   | "pthread_join" ->
     begin match exps with
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
-      | _ -> failwith "pthread_join arguments are strange!"
+      | _ -> M.warn_each "pthread_join arguments are strange!"; `Unknown fn
     end
   | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
-      | _ -> failwith (fn^" arguments are strange!")
+      | _ -> M.warn_each (fn^" arguments are strange!"); `Unknown fn
     end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
-      | _ -> failwith (fn^" arguments are strange!")
+      | _ -> M.warn_each (fn^" arguments are strange!"); `Unknown fn
     end
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
-      | _ -> failwith (fn^" arguments are strange!")
+      | _ -> M.warn_each (fn^" arguments are strange!"); `Unknown fn
     end
   | "realloc" ->
     begin match exps with
       | p::size::_ -> `Realloc (p, size)
-      | _ -> failwith (fn^" arguments are strange!")
+      | _ -> M.warn_each (fn^" arguments are strange!"); `Unknown fn
     end
   | "assert" ->
     begin match exps with
       | [e] -> `Assert e
-      | _ -> failwith "Assert argument mismatch!"
+      | _ -> M.warn_each "Assert argument mismatch!"; `Unknown fn
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
     -> `Lock(true, true, true)
