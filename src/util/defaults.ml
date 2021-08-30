@@ -238,6 +238,7 @@ let _ = ()
 
 (* {4 category [Warnings]} *)
 let _ = ()
+      ; reg Warnings "warn.assert"          "true"  "Assert messages"
       ; reg Warnings "warn.behavior"        "true"  "undefined behavior warnings"
       ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
       ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"

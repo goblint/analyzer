@@ -24,6 +24,7 @@ type integer = Overflow | DivByZero [@@deriving eq]
 type cast = TypeMismatch [@@deriving eq]
 
 type warning =
+  | Assert
   | Behavior of behavior
   | Integer of integer
   | Race
@@ -157,6 +158,7 @@ struct
   let should_warn e =
     let to_string e =
       match e with
+      | Assert -> "assert"
       | Behavior _ -> "behavior"
       | Integer _ -> "integer"
       | Race -> "race"
@@ -167,6 +169,7 @@ struct
 
   let show e =
     match e with
+    | Assert -> "[Assert]"
     | Behavior x -> "[Behavior > " ^ (Behavior.show x)
     | Integer x -> "[Integer > " ^ (Integer.show x)
     | Race -> "[Race]"
@@ -178,6 +181,7 @@ struct
     match s with
     | [] -> Unknown
     | h :: t -> match h with
+      | "assert" -> Assert
       | "behavior" -> Behavior.from_string_list t
       | "integer" -> Integer.from_string_list t
       | "race" -> Race
