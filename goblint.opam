@@ -13,7 +13,7 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.github.io/analyzer"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
-  "ocaml" {>= "4.04.1"}
+  "ocaml" {>= "4.09"}
   "dune"
   "zarith_stubs_js"
   "goblint-cil"
