@@ -1296,7 +1296,7 @@ struct
           v
         )
         else if should_ignore_overflow ik then (
-          M.warn ~warning:(M.Warning.Integer.overflow ()) ~msg:"DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot" ();
+          M.warn ~warning:(M.Warning.Integer.overflow ()) "DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot";
           `Bot
         )
         else (
@@ -2718,7 +2718,7 @@ module IntDomTupleImpl = struct
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
-      if n>1 then Messages.warn_each ~msg:("Inconsistent state! "^String.concat "," @@ List.map show us) (); (* do not want to abort, but we need some unsound category *)
+      if n>1 then Messages.warn_each ("Inconsistent state! "^String.concat "," @@ List.map show us); (* do not want to abort, but we need some unsound category *)
       None
     )
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_int }

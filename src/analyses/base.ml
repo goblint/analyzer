@@ -343,12 +343,12 @@ struct
   let get_ptrs (vals: value list): address list =
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs ->
-        M.warn_each ~msg:"Unknown address given as function argument" (); acc
+        M.warn_each "Unknown address given as function argument"; acc
       | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs ->
         let typ = AD.get_type adrs in
         if isFunctionType typ then acc else adrs :: acc
-      | `Top -> M.warn_each ~msg:"Unknown value type given as function argument" (); acc
+      | `Top -> M.warn_each "Unknown value type given as function argument"; acc
       | _ -> acc
     in
     List.fold_right f vals []
@@ -359,11 +359,11 @@ struct
     match value with
     | `Top ->
       let warning = "Unknown value in " ^ description ^ " could be an escaped pointer address!" in
-      if VD.is_immediate_type t then () else M.warn_each ~msg:warning (); empty
+      if VD.is_immediate_type t then () else M.warn_each warning; empty
     | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
     | `Address adrs when AD.is_top adrs ->
       let warning = "Unknown address in " ^ description ^ " has escaped." in
-      M.warn_each ~msg:warning (); AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+      M.warn_each warning; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
     | `Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
@@ -678,7 +678,7 @@ struct
                   if contains_vla t || contains_vla (get_type_addr a) then
                     begin
                       (* TODO: Is this ok? *)
-                      M.warn ~msg:"Casting involving a VLA is assumed to work" ();
+                      M.warn "Casting involving a VLA is assumed to work";
                       true
                     end
                   else
@@ -803,9 +803,9 @@ struct
         match (eval_rv a gs st n) with
         | `Address adr ->
           (if AD.is_null adr
-           then M.error_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ~msg:"Must dereference NULL pointer" ()
+           then M.error_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) "Must dereference NULL pointer"
            else if AD.may_be_null adr
-           then M.warn_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) ~msg:"May dereference NULL pointer" ());
+           then M.warn_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) "May dereference NULL pointer");
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
@@ -856,12 +856,12 @@ struct
     try
       let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
       if AD.mem Addr.UnknownPtr fp then begin
-        M.warn_each ~msg:("Function pointer " ^ sprint d_exp fval ^ " may contain unknown functions.") ();
+        M.warn_each ("Function pointer " ^ sprint d_exp fval ^ " may contain unknown functions.");
         dummyFunDec.svar :: AD.to_var_may fp
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ ->
-      M.warn_each ~msg:("Unknown call to function " ^ sprint d_exp fval ^ ".") ();
+      M.warn_each ("Unknown call to function " ^ sprint d_exp fval ^ ".");
       [dummyFunDec.svar]
 
   (* interpreter end *)
@@ -1069,7 +1069,7 @@ struct
             with Cilfacade.TypeOfError _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-              M.warn ~msg:("Cilfacade.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset)) ();
+              M.warn ("Cilfacade.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset));
               lval_type
       in
       let update_offset old_value =
@@ -1184,7 +1184,7 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
-      M.warn_each ~msg:"Assignment to unknown address" (); st
+      M.warn_each "Assignment to unknown address"; st
 
   let set_many ?ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -1382,7 +1382,7 @@ struct
         else set a gs st addr t_lval new_val ~invariant:true ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.warn_each ~msg:("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.") ();
+      M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
       st
 
   let invariant ctx a gs st exp tv: store =
@@ -1395,7 +1395,7 @@ struct
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if GU.opt_predicate (BI.equal BI.zero) (ID.to_int x) then
-          (M.warn ~msg:"Must Undefined Behavior: Second argument of div or mod is 0, continuing with top" ();
+          (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
           ID.top_of ikind)
         else
           x
@@ -1777,7 +1777,7 @@ struct
       | None -> nst
       | Some exp ->
         let t_override = match Cilfacade.fundec_return_type fundec with
-          | TVoid _ -> M.warn ~msg:"Returning a value from a void function" (); assert false
+          | TVoid _ -> M.warn "Returning a value from a void function"; assert false
           | ret -> ret
         in
         (* Evaluate exp and cast the resulting value to the void-pointer-type.
@@ -1814,7 +1814,7 @@ struct
 
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    if exps <> [] then M.warn_each ~msg:("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps) ();
+    if exps <> [] then M.warn_each ("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps);
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
@@ -1899,7 +1899,7 @@ struct
           in
           Some (lval, v, args)
         else (
-          M.warn_each ~msg:("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype) ();
+          M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
           None
         )
     in
@@ -1928,7 +1928,7 @@ struct
         in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        if addrs <> [] then M.warn_each ~msg:("Spawning functions from unknown function: " ^ sprint (d_list ", " d_varinfo) addrs) ();
+        if addrs <> [] then M.warn_each ("Spawning functions from unknown function: " ^ sprint (d_list ", " d_varinfo) addrs);
         List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
@@ -1958,10 +1958,10 @@ struct
             (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
             let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
-            M.warn_each ~msg:(msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result) ()
+            M.warn_each (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
           )
         ) else
-          M.warn_each ~msg:msg ()
+          M.warn_each msg
     in
     match check_assert e ctx.local with
     | `Lifted false ->
@@ -1971,7 +1971,7 @@ struct
       warn ("{green}Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.warn_each ~msg:("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)") ();
+      M.warn_each ("{red}Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
       warn ~annot:"UNKNOWN" ("{yellow}Assertion \"" ^ expr ^ "\" is unknown.");
@@ -1984,11 +1984,11 @@ struct
       end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ~msg:("Function definition missing for " ^ f.vname) ());
-    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each ~msg:"Unknown function ptr called" ());
+    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each "Unknown function ptr called");
     let addrs =
       if get_bool "sem.unknown_function.invalidate.globals" then (
-        M.warn_each ~msg:"INVALIDATING ALL GLOBALS!" ();
+        M.warn_each "INVALIDATING ALL GLOBALS!";
         foldGlobals !Cilfacade.current_file (fun acc global ->
             match global with
             | GVar (vi, _, _) when not (is_static vi) ->

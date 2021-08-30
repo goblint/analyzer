@@ -100,7 +100,7 @@ struct
     | [] -> ()
     | f :: _ ->
       try
-        Messages.warn_each ~msg:"Problems for safe objects from SAFE.json are suppressed!" ();
+        Messages.warn_each "Problems for safe objects from SAFE.json are suppressed!";
         let safe_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
         Object.iter (add_htbl_re D.safe_vars) !(objekt !(field safe_tbl "variables"));
         Object.iter (add_htbl_re D.safe_methods) !(objekt !(field safe_tbl "methods"));
@@ -521,7 +521,7 @@ struct
                 let fns = D.get_fptr_items ctx.global in
                 let add_svar x y =
                   match ContainDomain.FuncName.from_fun_name x with
-                  | Some x -> Messages.warn_each ~msg:("fptr check: "^x.vname ) ();(x)::y
+                  | Some x -> Messages.warn_each ("fptr check: "^x.vname );(x)::y
                   | _ -> y
                 in
                 ContainDomain.VarNameSet.fold (fun x y ->  add_svar x y) fns []

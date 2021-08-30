@@ -41,7 +41,7 @@ let report x =
   let loc = !Tracing.current_loc in
   if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) &&
      !Goblintutil.in_verifying_stage then (*filter noise*)
-    Messages.warn_each ~msg:("CW: "^x) ()
+    Messages.warn_each ("CW: "^x)
 
 module FieldVars =
 struct
@@ -173,7 +173,7 @@ struct
     let loc = !Tracing.current_loc in
     if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) &&
        (!Goblintutil.in_verifying_stage|| !final) then (*filter noise*)
-      Messages.warn_each ~msg:("CW: "^x) ()
+      Messages.warn_each ("CW: "^x)
 
   module Danger =
   struct
@@ -256,13 +256,13 @@ struct
     if enable_dbg && loc.line>=dbg_line_start && loc.line<=dbg_line_end then
       (*counter := !counter + 1;*)
       if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
-        Messages.warn_each ~msg:((*(string_of_int !counter)^*)"CW: "^x) ()
+        Messages.warn_each ((*(string_of_int !counter)^*)"CW: "^x)
 
 
   let error x =
     let loc = !Tracing.current_loc in
     if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1))&& !Goblintutil.in_verifying_stage  then (*filter noise*)
-      Messages.warn_each ~warning:Messages.Analyzer ~msg:("CW: "^x) () (* TODO: used to call report_error, add error severity *)
+      Messages.warn_each ~warning:Messages.Analyzer ("CW: "^x) (* TODO: used to call report_error, add error severity *)
 
   let taintedFunDec = (emptyFunction "@tainted_fields").svar
 
@@ -1332,7 +1332,7 @@ struct
   let assign_argmap fs lval exp (fd, st, df) must_assign glob = (*keep track of used fun args*)
     match used_args st exp with
     | s when ArgSet.is_top s ->
-      Messages.warn ~msg:("Expression "^(sprint 160 (d_exp () exp))^" too complicated.") ();
+      Messages.warn ("Expression "^(sprint 160 (d_exp () exp))^" too complicated.");
       fd, st, df
     | s when ArgSet.is_bot s -> let vars= get_vars exp in
       let s = List.fold_left (fun y x->if not (is_safe_name x.vname) then begin ArgSet.add (FieldVars.gen x) y end else y) (ArgSet.empty()) vars in
