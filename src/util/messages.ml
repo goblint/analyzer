@@ -338,25 +338,22 @@ let print_group group_name errors =
 
 
 let warn_all m =
-  if not (MH.mem messages_table m) then (
-    print_msg (Message.show m) m.print_loc;
-    MH.replace messages_table m ();
-    messages_list := m :: !messages_list
+  if !GU.should_warn then (
+    let wc = WarningWithCertainty.{warn_type = m.Message.warn_type; certainty = m.Message.certainty} in (* TODO: don't reconstruct this *)
+    if WarningWithCertainty.should_warn wc && not (MH.mem messages_table m) then (
+      print_msg (Message.show m) m.print_loc;
+      MH.replace messages_table m ();
+      messages_list := m :: !messages_list
+    )
   )
 
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
 let warn_internal ?msg:(msg="") (warning: WarningWithCertainty.t) =
-  if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc} in
-    warn_all m
-  end
+  warn_all {warn_type = warning.warn_type; certainty = warning.certainty; loc = None; text = msg; context = !current_context; print_loc = !Tracing.current_loc}
 
 let warn_internal_with_loc ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
-  if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let m = Message.{warn_type = warning.warn_type; certainty = warning.certainty; loc = Some loc; text = msg; context = !current_context; print_loc = loc} in
-    warn_all m
-  end
+  warn_all {warn_type = warning.warn_type; certainty = warning.certainty; loc = Some loc; text = msg; context = !current_context; print_loc = loc}
 
 let warn ?must:(must=false) ?msg:(msg="") ?warning:(warning=Unknown) () =
   warn_internal ~msg:msg (WarningWithCertainty.create ~must:must warning)
