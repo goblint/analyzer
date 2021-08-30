@@ -755,7 +755,7 @@ struct
   and eval_tv a (gs:glob_fun) st (exp:exp): AD.t =
     match (eval_rv a gs st exp) with
     | `Address x -> x
-    | _          -> M.bailwith "Problems evaluating expression to function calls!"
+    | _          -> failwith "Problems evaluating expression to function calls!"
   and eval_int a gs st exp =
     match eval_rv a gs st exp with
     | `Int x -> x
@@ -772,7 +772,7 @@ struct
       | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
       | `Top   -> `Index (IdxDom.top (), convert_offset a gs st ofs)
       | `Bot -> `Index (IdxDom.bot (), convert_offset a gs st ofs)
-      | _ -> M.bailwith "Index not an integer value"
+      | _ -> failwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
   and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t =
     let rec do_offs def = function
@@ -2035,14 +2035,14 @@ struct
               failwith "strcpy: expecting first argument to be a pointer!"
           in
           assign ctx (get_lval dst) src
-        | _ -> M.bailwith "strcpy arguments are strange/complicated."
+        | _ -> failwith "strcpy arguments are strange/complicated."
       end
     | `Unknown "F1" ->
       begin match args with
         | [dst; data; len] -> (* memset: write char to dst len times *)
           let dst_lval = mkMem ~addr:dst ~off:NoOffset in
           assign ctx dst_lval data (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
-        | _ -> M.bailwith "memset arguments are strange/complicated."
+        | _ -> failwith "memset arguments are strange/complicated."
       end
     | `Unknown "list_add" when (get_bool "exp.list-type") ->
       begin match args with
@@ -2059,7 +2059,7 @@ struct
               s2
             | _ -> set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local ladr lst.vtype `Top
           end
-        | _ -> M.bailwith "List function arguments are strange/complicated."
+        | _ -> failwith "List function arguments are strange/complicated."
       end
     | `Unknown "list_del" when (get_bool "exp.list-type") ->
       begin match args with
@@ -2081,7 +2081,7 @@ struct
               end
             | _ -> s1
           end
-        | _ -> M.bailwith "List function arguments are strange/complicated."
+        | _ -> failwith "List function arguments are strange/complicated."
       end
     | `Unknown "__builtin" ->
       begin match args with
@@ -2164,7 +2164,7 @@ struct
           let st = set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv)  `Top in
           st
         | _ ->
-          M.bailwith "Function __goblint_unknown expected one address-of argument."
+          failwith "Function __goblint_unknown expected one address-of argument."
       end
     (* Handling the assertions *)
     | `Unknown "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)

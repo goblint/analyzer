@@ -76,7 +76,7 @@ struct
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
     let json=
       match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
-      | [] -> Messages.bailwith "Containment analysis needs a CXX.json file."
+      | [] -> failwith "Containment analysis needs a CXX.json file."
       | f :: _ ->
         begin
           try

@@ -338,7 +338,7 @@ let add_propagate e w conf ty ls p =
     let fi =
       match f with
       | `Field (fi,_) -> fi
-      | _ -> Messages.bailwith "add_propagate: no field found"
+      | _ -> failwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in

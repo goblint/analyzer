@@ -23,37 +23,37 @@ let classify' fn exps =
   | "pthread_create" ->
     begin match exps with
       | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
-      | _ -> M.bailwith "pthread_create arguments are strange."
+      | _ -> failwith "pthread_create arguments are strange."
     end
   | "pthread_join" ->
     begin match exps with
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
-      | _ -> M.bailwith "pthread_join arguments are strange!"
+      | _ -> failwith "pthread_join arguments are strange!"
     end
   | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> failwith (fn^" arguments are strange!")
     end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> failwith (fn^" arguments are strange!")
     end
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> failwith (fn^" arguments are strange!")
     end
   | "realloc" ->
     begin match exps with
       | p::size::_ -> `Realloc (p, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> failwith (fn^" arguments are strange!")
     end
   | "assert" ->
     begin match exps with
       | [e] -> `Assert e
-      | _ -> M.bailwith "Assert argument mismatch!"
+      | _ -> failwith "Assert argument mismatch!"
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
     -> `Lock(true, true, true)

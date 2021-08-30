@@ -290,7 +290,7 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (sm:SHMap.t) : bool =
     let app_edge' f s = function
       | `Lifted1 s -> f s
       | `Lifted2 s -> f s
-      | `Bot ->  Messages.bailwith "not implemented1"
+      | `Bot ->  failwith "not implemented1"
       | `Top ->  s ()
     in
     let point_to_me lp =
@@ -300,7 +300,7 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (sm:SHMap.t) : bool =
     if Edges.is_top n
     || app_edge' (fun x -> ListPtrSet.is_empty x) (fun () -> true) n
     then None else
-      let lp' = app_edge' ListPtrSet.choose (fun () -> Messages.bailwith "not implemented2") n in
+      let lp' = app_edge' ListPtrSet.choose (fun () -> failwith "not implemented2") n in
       if app_edge (ListPtrSet.for_all point_to_me) n
       then Some lp' else None
   in
@@ -326,7 +326,7 @@ let proper_list_segment' ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : b
       let app_edge' f s = function
         | `Lifted1 s -> f s
         | `Lifted2 s -> f s
-        | `Bot ->  Messages.bailwith "not implemented1"
+        | `Bot ->  failwith "not implemented1"
         | `Top ->  s ()
       in
       let point_to_me lp =
@@ -335,7 +335,7 @@ let proper_list_segment' ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : b
       in
       app_edge' (fun x -> not (ListPtrSet.is_top x)) (fun () -> false) n &&
       app_edge' (fun x -> not (ListPtrSet.is_top x)) (fun () -> false) p &&
-      let lp' = app_edge' ListPtrSet.choose (fun () -> Messages.bailwith "not implemented2") n in
+      let lp' = app_edge' ListPtrSet.choose (fun () -> failwith "not implemented2") n in
       app_edge (ListPtrSet.for_all point_to_me) n &&
       (*     app_edge (ListPtrSet.mem lp1) p && *)
       if ListPtr.equal lp1 lp2 then true else

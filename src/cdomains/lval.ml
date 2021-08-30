@@ -21,7 +21,7 @@ let rec listify ofs =
   match ofs with
   | `NoOffset -> []
   | `Field (x,ofs) -> x :: listify ofs
-  | _ -> Messages.bailwith "Indexing not supported here!"
+  | _ -> failwith "Indexing not supported here!"
 
 module Offset (Idx: IntDomain.Z) =
 struct

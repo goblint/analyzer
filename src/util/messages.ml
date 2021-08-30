@@ -242,8 +242,6 @@ let messages_table = MH.create 113 (* messages without order for quick mem looku
 let messages_list = ref [] (* messages with reverse order (for cons efficiency) *)
 
 
-exception Bailure of string
-let bailwith s = raise (Bailure s)
 
 let warning_table : [`text of string * location | `group of string * ((string * location) list)] list ref = ref []
 let warn_out = ref stdout
