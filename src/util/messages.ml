@@ -210,30 +210,44 @@ struct
     get_bool ("warn." ^ (to_string e))
 end
 
-module Message =
+module Piece =
 struct
   type t = {
-    warn_type: Warning.t; (* TODO: make list of tags *)
-    severity: Severity.t;
     loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
     context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)]) option; (* TODO: this equality is terrible... *)
     print_loc: CilType.Location.t [@equal fun _ _ -> true]; (* all warnings have this, not used for deduplication *)
   } [@@deriving eq]
 
-  let should_warn {warn_type; severity; _} =
-    Warning.should_warn warn_type && Severity.should_warn severity
-
-  let hash {warn_type; severity; loc; text; context; print_loc} =
-    3 * Warning.hash warn_type + 7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context + 13 * Severity.hash severity
+  let hash {loc; text; context; print_loc} =
+    7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
 
   let with_context msg = function
     | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx) (* TODO: this is kind of useless *)
     | _ -> msg
 
-  let show {warn_type; severity; loc; text; context; print_loc} =
-    let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^" "^text in
+  let show {loc; text; context; print_loc} =
+    let msg = " "^text in
     let msg = with_context msg context in
+    msg
+end
+
+module Message =
+struct
+  type t = {
+    warn_type: Warning.t; (* TODO: make list of tags *)
+    severity: Severity.t;
+    piece: Piece.t;
+  } [@@deriving eq]
+
+  let should_warn {warn_type; severity; _} =
+    Warning.should_warn warn_type && Severity.should_warn severity
+
+  let hash {warn_type; severity; piece} =
+    3 * Warning.hash warn_type + 7 * Piece.hash piece + 13 * Severity.hash severity
+
+  let show {warn_type; severity; piece} =
+    let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^" "^ Piece.show piece in
     msg
 end
 
@@ -315,7 +329,7 @@ let print_group group_name errors =
 let add m =
   if !GU.should_warn then (
     if Message.should_warn m && not (MH.mem messages_table m) then (
-      print_msg (Message.show m) m.print_loc;
+      print_msg (Message.show m) m.piece.print_loc;
       MH.replace messages_table m ();
       messages_list := m :: !messages_list
     )
@@ -325,10 +339,10 @@ let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) conte
 
 
 let msg severity ?warning:(warning=Unknown) text =
-  add {warn_type = warning; severity; loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}
+  add {warn_type = warning; severity; piece = {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
 
 let msg_each severity ?loc:(loc= !Tracing.current_loc) ?warning:(warning=Unknown) text =
-  add {warn_type = warning; severity; loc = Some loc; text; context = !current_context; print_loc = loc}
+  add {warn_type = warning; severity; piece = {loc = Some loc; text; context = !current_context; print_loc = loc}}
 
 let warn = msg Warning
 let warn_each = msg_each Warning
