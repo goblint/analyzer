@@ -232,7 +232,7 @@ struct
     | _ -> msg
 
   let show {warn_type; severity; loc; text; context; print_loc} =
-    let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^(if text != "" then " "^text else "") in
+    let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^" "^text in
     let msg = with_context msg context in
     msg
 end
