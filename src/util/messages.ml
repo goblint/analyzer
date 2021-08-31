@@ -65,22 +65,49 @@ struct
       List.fold_left (fun acc piece -> acc ^ "\n  " ^ Piece.show piece) group_text pieces
 end
 
+module Tag =
+struct
+  type t =
+    | Category of Category.t
+    [@@deriving eq]
+
+  let hash = function
+    | Category category -> Category.hash category
+
+  let show = function
+    | Category category -> Category.show category
+
+  let should_warn = function
+    | Category category -> Category.should_warn category
+end
+
+module Tags =
+struct
+  type t = Tag.t list [@@deriving eq]
+
+  let hash tags = List.fold_left (fun xs x -> xs + Tag.hash x) 996699 tags (* copied from Printable.Liszt *)
+
+  let show tags = List.fold_left (fun acc tag -> acc ^ Tag.show tag) "" tags
+
+  let should_warn tags = List.exists Tag.should_warn tags
+end
+
 module Message =
 struct
   type t = {
-    category: Category.t; (* TODO: make list of tags *)
+    tags: Tags.t;
     severity: Severity.t;
     multipiece: MultiPiece.t;
   } [@@deriving eq]
 
-  let should_warn {category; severity; _} =
-    Category.should_warn category && Severity.should_warn severity
+  let should_warn {tags; severity; _} =
+    Tags.should_warn tags && Severity.should_warn severity
 
-  let hash {category; severity; multipiece} =
-    3 * Category.hash category + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
+  let hash {tags; severity; multipiece} =
+    3 * Tags.hash tags + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
 
-  let show {category; severity; multipiece} =
-    let msg = "[" ^ Severity.show severity ^ "]" ^ (Category.show category)^" "^ MultiPiece.show multipiece in
+  let show {tags; severity; multipiece} =
+    let msg = "[" ^ Severity.show severity ^ "]" ^ (Tags.show tags)^" "^ MultiPiece.show multipiece in
     msg
 end
 
@@ -141,7 +168,7 @@ let print ?(out= !warn_out) (m: Message.t) =
     | Debug -> "{white}" (* non-bright white is actually some gray *)
     | Success -> "{green}"
   in
-  let prefix = severity_color ^ "[" ^ Severity.show m.severity ^ "]" ^ Category.show m.category in
+  let prefix = severity_color ^ "[" ^ Severity.show m.severity ^ "]" ^ Tags.show m.tags in
   match m.multipiece with
   | Single piece ->
     Printf.fprintf out "%s\n%!" (colorize @@ prefix ^ " " ^ show_piece piece)
@@ -160,7 +187,7 @@ let add m =
 (** Adapts old [print_group] to new message structure.
     Don't use for new (group) warnings. *)
 let warn_group_old group_name errors =
-  let m = Message.{category = Unknown; severity = Warning; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None; print_loc = loc}) errors}} in
+  let m = Message.{tags = [Category Unknown]; severity = Warning; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None; print_loc = loc}) errors}} in
   add m;
 
   if (get_bool "ana.osek.warnfiles") then
@@ -177,10 +204,10 @@ let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) conte
 
 
 let msg severity ?(category=Category.Unknown) text =
-  add {category; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
+  add {tags = [Category category]; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
 
 let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(category=Category.Unknown) text =
-  add {category; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
+  add {tags = [Category category]; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
 
 let warn = msg Warning
 let warn_each = msg_each Warning
