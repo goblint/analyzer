@@ -162,23 +162,41 @@ let colorize ?on:(on=colors_on ()) msg =
 
 
 let print ?(out= !warn_out) (m: Message.t) =
-  let severity_color = match m.severity with
-    | Error -> "{red}"
-    | Warning -> "{yellow}"
-    | Info -> "{blue}"
-    | Debug -> "{white}" (* non-bright white is actually some gray *)
-    | Success -> "{green}"
+  let severity_stag = match m.severity with
+    | Error -> "red"
+    | Warning -> "yellow"
+    | Info -> "blue"
+    | Debug -> "white" (* non-bright white is actually some gray *)
+    | Success -> "green"
   in
   let ppf = Format.formatter_of_out_channel out in
-  let prefix = Format.dprintf "%s[%s]%s" severity_color (Severity.show m.severity) (Tags.show m.tags) in
+  let stag_functions = Format.pp_get_formatter_stag_functions ppf () in
+  let stag_functions' = {stag_functions with
+      mark_open_stag = (function
+        | Format.String_tag "red" -> Format.sprintf "\027[%sm" "0;31"
+        | Format.String_tag "yellow" -> Format.sprintf "\027[%sm" "0;33"
+        | Format.String_tag "blue" -> Format.sprintf "\027[%sm" "0;34"
+        | Format.String_tag "white" -> Format.sprintf "\027[%sm" "0;37"
+        | Format.String_tag "green" -> Format.sprintf "\027[%sm" "0;32"
+        | Format.String_tag "violet" -> Format.sprintf "\027[%sm" "0;35"
+        | Format.String_tag s -> Format.sprintf "{%s}" s
+        | _ -> "");
+      mark_close_stag = (function
+        | Format.String_tag _ -> "\027[0m"
+        | _ -> "");
+    }
+  in
+  Format.pp_set_formatter_stag_functions ppf stag_functions';
+  Format.pp_set_mark_tags ppf true;
+  let prefix = Format.dprintf "@{<%s>[%s]%s@}" severity_stag (Severity.show m.severity) (Tags.show m.tags) in
   let show_piece ppf piece =
-    Format.fprintf ppf "%s {violet}(%s)" (Piece.show piece) (CilType.Location.show piece.print_loc)
+    Format.fprintf ppf "@{<%s>%s@} @{<violet>(%s)@}" severity_stag (Piece.show piece) (CilType.Location.show piece.print_loc)
   in
   match m.multipiece with
   | Single piece ->
     Format.fprintf ppf "%t %a\n%!" prefix show_piece piece
   | Group {group_text; pieces} ->
-    Format.fprintf ppf "@[<v 2>%t %s:@,@[<v>%a@]@]\n%!" prefix group_text (Format.pp_print_list show_piece) pieces
+    Format.fprintf ppf "@[<v 2>%t @{<%s>%s@}:@,@[<v>%a@]@]\n%!" prefix severity_stag group_text (Format.pp_print_list show_piece) pieces
 
 let add m =
   if !GU.should_warn then (
