@@ -164,7 +164,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
   in
   let pp_prefix = Format.dprintf "@{<%s>[%s]%s@}" severity_stag (Severity.show m.severity) (Tags.show m.tags) in
   let pp_piece ppf piece =
-    Format.fprintf ppf "@{<%s>%s@} @{<violet>(%s)@}" severity_stag (Piece.show piece) (CilType.Location.show piece.print_loc)
+    Format.fprintf ppf "@{<%s>%s@} @{<violet>(%a)@}" severity_stag (Piece.show piece) CilType.Location.pp piece.print_loc
   in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
