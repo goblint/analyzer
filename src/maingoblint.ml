@@ -358,7 +358,7 @@ let do_html_output () =
   )
 
 let check_arguments () =
-  let eprint_color m = eprintf "%s\n" (Messages.colorize m) in
+  let eprint_color m = eprintf "%s\n" (MessageUtil.colorize m) in
   let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval-context" in
@@ -469,10 +469,10 @@ let main () =
       exit 1
     | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
       (* Printexc.print_backtrace BatInnerIO.stderr *)
-      eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+      eprintf "%s\n" (MessageUtil.colorize ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
       exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
     | Timeout ->
-      eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+      eprintf "%s\n" (MessageUtil.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
       exit 124
 
 (* The actual entry point is in the auto-generated goblint.ml module, and is defined as: *)

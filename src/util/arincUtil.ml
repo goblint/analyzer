@@ -1,7 +1,7 @@
 open Prelude
 open Cil
 (* we don't want to use M.debug_each because everything here should be done after the analysis, so the location would be some old value for all invocations *)
-let debug_each msg = print_endline @@ Messages.colorize @@ "{blue}"^msg
+let debug_each msg = print_endline @@ MessageUtil.colorize @@ "{blue}"^msg
 
 (* ARINC types and Hashtables for collecting CFG *)
 type resource = Process | Function | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard [@@deriving show { with_path = false }]
