@@ -69,16 +69,20 @@ module Tag =
 struct
   type t =
     | Category of Category.t
+    | CWE of int
     [@@deriving eq]
 
   let hash = function
     | Category category -> Category.hash category
+    | CWE n -> n
 
   let show = function
     | Category category -> Category.show category
+    | CWE n -> "CWE-" ^ string_of_int n
 
   let should_warn = function
     | Category category -> Category.should_warn category
+    | CWE _ -> false (* TODO: options for CWEs? *)
 end
 
 module Tags =
