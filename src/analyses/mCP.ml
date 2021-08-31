@@ -253,7 +253,7 @@ struct
       if not (exists (fun (y',_) -> y=y') xs) then begin
         let xn = assoc x !analyses_table in
         let yn = assoc y !analyses_table in
-        Legacy.Printf.fprintf !Messages.warn_out "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
+        Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
         raise Exit
       end
     in

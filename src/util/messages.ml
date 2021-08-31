@@ -120,7 +120,12 @@ let messages_table = MH.create 113 (* messages without order for quick mem looku
 let messages_list = ref [] (* messages with reverse order (for cons efficiency) *)
 
 
-let warn_out = ref stdout
+let formatter = ref Format.std_formatter
+let () = AfterConfig.register (fun () ->
+    if !formatter == Format.std_formatter && MessageUtil.colors_on () then
+      GobFormat.pp_set_ansi_color_tags !formatter
+  )
+
 let tracing = Config.tracing
 let xml_file_name = ref ""
 
@@ -149,7 +154,7 @@ let get_out name alternative = match get_string "dbg.dump" with
 
 
 
-let print ?(out= !warn_out) (m: Message.t) =
+let print ?(ppf= !formatter) (m: Message.t) =
   let severity_stag = match m.severity with
     | Error -> "red"
     | Warning -> "yellow"
@@ -157,8 +162,6 @@ let print ?(out= !warn_out) (m: Message.t) =
     | Debug -> "white" (* non-bright white is actually some gray *)
     | Success -> "green"
   in
-  let ppf = Format.formatter_of_out_channel out in
-  GobFormat.pp_set_ansi_color_tags ppf;
   let pp_prefix = Format.dprintf "@{<%s>[%s]%s@}" severity_stag (Severity.show m.severity) (Tags.show m.tags) in
   let pp_piece ppf piece =
     Format.fprintf ppf "@{<%s>%s@} @{<violet>(%s)@}" severity_stag (Piece.show piece) (CilType.Location.show piece.print_loc)
@@ -188,6 +191,7 @@ let warn_group_old group_name errors =
   add m;
 
   if (get_bool "ana.osek.warnfiles") then
+    let print ~out = print ~ppf:(Format.formatter_of_out_channel out) in
     match (String.sub group_name 0 6) with
     | "Safely" -> print ~out:!warn_safe m
     | "Datara" -> print ~out:!warn_race m
