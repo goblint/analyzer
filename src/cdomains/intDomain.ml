@@ -2027,12 +2027,15 @@ struct
   let ( |: ) a b =
     if a =: Ints_t.zero then false else (b %: a) =: Ints_t.zero
 
-  let normalize x =
+  let normalize ik x =
     match x with
     | None -> None
     | Some (c, m) ->
       if m =: Ints_t.zero then
-        Some (c, m)
+        if should_wrap ik then
+          Some (BigInt.cast_to ik c, m)
+        else
+          Some (c, m)
       else
         let m' = Ints_t.abs m in
         let c' = c %: m' in
@@ -2060,7 +2063,7 @@ struct
       let c = if a = "" || b = "" then "" else "+" in
       a^c^b
 
-  let equal a b = match (normalize a), (normalize b) with
+  let equal a b = match a, b with
     | None, None -> true
     | Some (a, b), Some (c, d) -> a =: c && b =: d
     | _, _ -> false
@@ -2092,7 +2095,7 @@ struct
     | None, z | z, None -> z
     | Some (c1,m1), Some (c2,m2) ->
       let m3 = Ints_t.gcd m1 (Ints_t.gcd m2 (c1 -: c2)) in
-      normalize (Some (c1, m3))
+      normalize ik (Some (c1, m3))
 
   let join ik (x:t) y =
     let res = join ik x y in
@@ -2118,7 +2121,7 @@ struct
     | Some (c1, m1), Some (c2, m2) when m2 =: Ints_t.zero -> simple_case c2 c1 m1
     | Some (c1, m1), Some (c2, m2) when (Ints_t.gcd m1 m2) |: (c1 -: c2) ->
       let (c, m) = congruence_series m1 (c2 -: c1 ) m2 in
-      normalize (Some(c1 +: (m1 *: (m /: c)), m1 *: (m2 /: c)))
+      normalize ik (Some(c1 +: (m1 *: (m /: c)), m1 *: (m2 /: c)))
     | _  -> None
 
   let meet ik x y =
@@ -2146,7 +2149,7 @@ struct
 
   let ending = starting
 
-  let of_congruence ik (c,m) = normalize @@ Some(c,m)
+  let of_congruence ik (c,m) = normalize ik @@ Some(c,m)
 
   let maximal t = match t with
     | Some (x, y) when y =: Ints_t.zero -> Some x
@@ -2285,7 +2288,7 @@ struct
     | None, None -> bot ()
     | None, _ | _, None ->
        raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize (Some (c1 +: c2, Ints_t.gcd m1 m2))
+    | Some (c1, m1), Some (c2, m2) when no_ov -> normalize ik (Some (c1 +: c2, Ints_t.gcd m1 m2))
     | Some (c1, m1), Some (c2, m2)
          when m1 =: Ints_t.zero && m2 =: Ints_t.zero && not (Cil.isSigned ik) ->
        Some((c1 +: c2) %: ((max_int ik) +: Ints_t.one), Ints_t.zero)
@@ -2338,9 +2341,9 @@ struct
         if (c2 |: m1) then
           Some(c1 %: c2,Ints_t.zero)
         else
-          normalize (Some(c1, (Ints_t.gcd m1 c2)))
+          normalize ik (Some(c1, (Ints_t.gcd m1 c2)))
       else
-        normalize (Some(c1, Ints_t.gcd m1 (Ints_t.gcd c2 m2)))
+        normalize ik (Some(c1, Ints_t.gcd m1 (Ints_t.gcd c2 m2)))
 
   let rem ik x y = let res = rem ik x y in
     if M.tracing then  M.trace "congruence" "rem : %a %a -> %a \n" pretty x pretty y pretty res;
@@ -2430,7 +2433,7 @@ struct
     let bot_arb = make ~print:show (Gen.return (bot ())) in
     let int_cong_arb = pair int_arb (make (Gen.return Ints_t.zero)) in
     let cong_arb = pair int_arb int_arb in
-    let of_pair ik p = normalize (Some p) in
+    let of_pair ik p = normalize ik (Some p) in
     oneof
       ((set_print show @@ map (of_pair ik) cong_arb)::
          (set_print show @@ map (of_pair ik) int_cong_arb)::
