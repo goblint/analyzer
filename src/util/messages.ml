@@ -58,11 +58,6 @@ struct
     | Single piece -> Piece.hash piece
     | Group {group_text; pieces} ->
       Hashtbl.hash group_text + 3 * (List.fold_left (fun xs x -> xs + Piece.hash x) 996699 pieces) (* copied from Printable.Liszt *)
-
-  let show = function
-    | Single piece -> Piece.show piece
-    | Group {group_text; pieces} ->
-      List.fold_left (fun acc piece -> acc ^ "\n  " ^ Piece.show piece) group_text pieces
 end
 
 module Tag =
@@ -109,10 +104,6 @@ struct
 
   let hash {tags; severity; multipiece} =
     3 * Tags.hash tags + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
-
-  let show {tags; severity; multipiece} =
-    let msg = "[" ^ Severity.show severity ^ "]" ^ (Tags.show tags)^" "^ MultiPiece.show multipiece in
-    msg
 end
 
 module MH = Hashtbl.Make (Message)
