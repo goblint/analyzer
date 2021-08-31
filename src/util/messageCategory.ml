@@ -72,11 +72,11 @@ struct
           | "unknown" -> unknown ()
           | _ -> Unknown
 
-      let show (e: t): string =
+      let path_show (e: t) =
         match e with
-        | PastEnd -> "PastEnd]" ^ " Index is past the end of the array."
-        | BeforeStart -> "BeforeStart]" ^ " Index is before start of the array."
-        | Unknown -> "Unknown]" ^ " Not enough information about index."
+        | PastEnd -> ["PastEnd"]
+        | BeforeStart -> ["BeforeStart"]
+        | Unknown -> ["Unknown"]
     end
 
     let from_string_list (s: string list): category =
@@ -88,11 +88,11 @@ struct
         | "use_after_free" -> use_after_free ()
         | _ -> Unknown
 
-    let show (e: t): string =
+    let path_show (e: t) =
       match e with
-      | ArrayOutOfBounds e -> "ArrayOutOfBounds > "^(ArrayOutOfBounds.show e)
-      | NullPointerDereference -> "NullPointerDereference]"
-      | UseAfterFree -> "UseAfterFree]"
+      | ArrayOutOfBounds e -> "ArrayOutOfBounds" :: ArrayOutOfBounds.path_show e
+      | NullPointerDereference -> ["NullPointerDereference"]
+      | UseAfterFree -> ["UseAfterFree"]
   end
 
   let from_string_list (s: string list): category =
@@ -104,11 +104,11 @@ struct
       | "machine" -> machine ()
       | _ -> Unknown
 
-  let show (e: t): string =
+  let path_show (e: t) =
     match e with
-    | Undefined u -> "Undefined > "^(Undefined.show u)
-    | Implementation -> "Implementation > "
-    | Machine -> "Machine > "
+    | Undefined u -> "Undefined" :: Undefined.path_show u
+    | Implementation -> ["Implementation"]
+    | Machine -> ["Machine"]
 end
 
 module Integer =
@@ -127,10 +127,10 @@ struct
       | "div_by_zero" -> div_by_zero ()
       | _ -> Unknown
 
-  let show (e: t): string =
+  let path_show (e: t) =
     match e with
-    | Overflow -> "Overflow]"
-    | DivByZero -> "DivByZero]"
+    | Overflow -> ["Overflow"]
+    | DivByZero -> ["DivByZero"]
 end
 
 module Cast =
@@ -147,9 +147,9 @@ struct
       | "type_mismatch" -> type_mismatch ()
       | _ -> Unknown
 
-  let show (e: t): string =
+  let path_show (e: t) =
     match e with
-    | TypeMismatch -> "TypeMismatch]"
+    | TypeMismatch -> ["TypeMismatch"]
 end
 
 let should_warn e =
@@ -164,15 +164,17 @@ let should_warn e =
     | Analyzer -> "analyzer"
   in get_bool ("warn." ^ (to_string e))
 
-let show e =
+let path_show e =
   match e with
-  | Assert -> "[Assert]"
-  | Behavior x -> "[Behavior > " ^ (Behavior.show x)
-  | Integer x -> "[Integer > " ^ (Integer.show x)
-  | Race -> "[Race]"
-  | Cast x -> "[Cast > " ^ (Cast.show x)
-  | Unknown -> "[Unknown]"
-  | Analyzer -> "[Analyzer]"
+  | Assert -> ["Assert"]
+  | Behavior x -> "Behavior" :: Behavior.path_show x
+  | Integer x -> "Integer" :: Integer.path_show x
+  | Race -> ["Race"]
+  | Cast x -> "Cast" :: Cast.path_show x
+  | Unknown -> ["Unknown"]
+  | Analyzer -> ["Analyzer"]
+
+let show x = String.concat " > " (path_show x)
 
 let from_string_list (s: string list) =
   match s with
@@ -186,4 +188,4 @@ let from_string_list (s: string list) =
     | "analyzer" -> Analyzer
     | _ -> Unknown
 
-let to_yojson x = `String (show x) (* TODO: no brackets *)
+let to_yojson x = `List (List.map (fun x -> `String x) (path_show x))

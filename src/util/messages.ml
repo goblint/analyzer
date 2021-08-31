@@ -80,7 +80,7 @@ struct
 
   let show = function
     | Category category -> Category.show category
-    | CWE n -> "[CWE-" ^ string_of_int n ^ "]"
+    | CWE n -> "CWE-" ^ string_of_int n
 
   let should_warn = function
     | Category category -> Category.should_warn category
@@ -97,7 +97,7 @@ struct
 
   let hash tags = List.fold_left (fun xs x -> xs + Tag.hash x) 996699 tags (* copied from Printable.Liszt *)
 
-  let show tags = List.fold_left (fun acc tag -> acc ^ Tag.show tag) "" tags
+  let show tags = List.fold_left (fun acc tag -> acc ^ "[" ^ Tag.show tag ^ "]") "" tags
 
   let should_warn tags = List.exists Tag.should_warn tags
 end
