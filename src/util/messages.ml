@@ -117,9 +117,19 @@ struct
     3 * Tags.hash tags + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
 end
 
-module MH = Hashtbl.Make (Message)
-let messages_table = MH.create 113 (* messages without order for quick mem lookup *)
-let messages_list = ref [] (* messages with reverse order (for cons efficiency) *)
+module Table =
+struct
+  module MH = Hashtbl.Make (Message)
+
+  let messages_table = MH.create 113 (* messages without order for quick mem lookup *)
+  let messages_list = ref [] (* messages with reverse order (for cons efficiency) *)
+
+  let mem = MH.mem messages_table
+
+  let add m =
+    MH.replace messages_table m ();
+    messages_list := m :: !messages_list
+end
 
 
 let formatter = ref Format.std_formatter
@@ -179,10 +189,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
 
 let add m =
   if !GU.should_warn then (
-    if Message.should_warn m && not (MH.mem messages_table m) then (
+    if Message.should_warn m && not (Table.mem m) then (
       print m;
-      MH.replace messages_table m ();
-      messages_list := m :: !messages_list
+      Table.add m
     )
   )
 

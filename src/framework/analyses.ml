@@ -153,7 +153,7 @@ struct
         BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
-    List.iter (one_w f) !Messages.messages_list
+    List.iter (one_w f) !Messages.Table.messages_list
 
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
@@ -254,7 +254,7 @@ struct
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
     | "json-messages" ->
-      Yojson.Safe.to_channel ~std:true out ([%to_yojson: Messages.Message.t list] !Messages.messages_list)
+      Yojson.Safe.to_channel ~std:true out ([%to_yojson: Messages.Message.t list] !Messages.Table.messages_list)
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
