@@ -162,9 +162,6 @@ let colorize ?on:(on=colors_on ()) msg =
 
 
 let print ?(out= !warn_out) (m: Message.t) =
-  let show_piece piece =
-    Piece.show piece ^ " {violet}(" ^ CilType.Location.show piece.print_loc ^ ")"
-  in
   let severity_color = match m.severity with
     | Error -> "{red}"
     | Warning -> "{yellow}"
@@ -172,12 +169,16 @@ let print ?(out= !warn_out) (m: Message.t) =
     | Debug -> "{white}" (* non-bright white is actually some gray *)
     | Success -> "{green}"
   in
-  let prefix = severity_color ^ "[" ^ Severity.show m.severity ^ "]" ^ Tags.show m.tags in
+  let ppf = Format.formatter_of_out_channel out in
+  let prefix = Format.dprintf "%s[%s]%s" severity_color (Severity.show m.severity) (Tags.show m.tags) in
+  let show_piece ppf piece =
+    Format.fprintf ppf "%s {violet}(%s)" (Piece.show piece) (CilType.Location.show piece.print_loc)
+  in
   match m.multipiece with
   | Single piece ->
-    Printf.fprintf out "%s\n%!" (colorize @@ prefix ^ " " ^ show_piece piece)
+    Format.fprintf ppf "%t %a\n%!" prefix show_piece piece
   | Group {group_text; pieces} ->
-    Printf.fprintf out "%s\n%!" (colorize @@ prefix ^ " " ^ List.fold_left (fun acc piece -> acc ^ "\n  " ^ severity_color ^ show_piece piece) (group_text ^ ":") pieces)
+    Format.fprintf ppf "@[<v 2>%t %s:@,@[<v>%a@]@]\n%!" prefix group_text (Format.pp_print_list show_piece) pieces
 
 let add m =
   if !GU.should_warn then (
