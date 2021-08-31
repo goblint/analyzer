@@ -262,7 +262,7 @@ struct
   let error x =
     let loc = !Tracing.current_loc in
     if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1))&& !Goblintutil.in_verifying_stage  then (*filter noise*)
-      Messages.warn_each ~warning:Messages.Analyzer ("CW: "^x) (* TODO: used to call report_error, add error severity *)
+      Messages.warn_each ~category:Messages.Analyzer ("CW: "^x) (* TODO: used to call report_error, add error severity *)
 
   let taintedFunDec = (emptyFunction "@tainted_fields").svar
 

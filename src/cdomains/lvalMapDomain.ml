@@ -254,8 +254,8 @@ struct
     match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
     | [] -> (if may then Messages.warn_each else Messages.error_each) ~loc:(List.last loc) msg
     | h :: t ->
-      let warn_type = Messages.Warning.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in (if may then Messages.warn_each else Messages.error_each) ~loc:(List.last loc) ~warning:warn_type (String.concat " " t)
+      let warn_type = Messages.Category.from_string_list (h |> Str.split (Str.regexp "[.]"))
+      in (if may then Messages.warn_each else Messages.error_each) ~loc:(List.last loc) ~category:warn_type (String.concat " " t)
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)

@@ -23,7 +23,7 @@ type integer = Overflow | DivByZero [@@deriving eq]
 
 type cast = TypeMismatch [@@deriving eq]
 
-type warning =
+type category =
   | Assert
   | Behavior of behavior
   | Integer of integer
@@ -33,9 +33,9 @@ type warning =
   | Analyzer
   [@@deriving eq]
 
-module Warning =
+module Category =
 struct
-  type t = warning [@@deriving eq]
+  type t = category [@@deriving eq]
 
   let hash x = Hashtbl.hash x (* nested variants, so this is fine *)
 
@@ -43,30 +43,30 @@ struct
   struct
     type t = behavior
 
-    let create (e: t): warning = Behavior e
-    let undefined e: warning = create @@ Undefined e
-    let implementation (): warning = create @@ Implementation
-    let machine (): warning = create @@ Machine
+    let create (e: t): category = Behavior e
+    let undefined e: category = create @@ Undefined e
+    let implementation (): category = create @@ Implementation
+    let machine (): category = create @@ Machine
 
     module Undefined =
     struct
       type t = undefined_behavior
 
-      let create (e: t): warning = undefined e
-      let array_out_of_bounds e: warning = create @@ ArrayOutOfBounds e
-      let nullpointer_dereference (): warning = create @@ NullPointerDereference
-      let use_after_free (): warning = create @@ UseAfterFree
+      let create (e: t): category = undefined e
+      let array_out_of_bounds e: category = create @@ ArrayOutOfBounds e
+      let nullpointer_dereference (): category = create @@ NullPointerDereference
+      let use_after_free (): category = create @@ UseAfterFree
 
       module ArrayOutOfBounds =
       struct
         type t = array_oob
 
-        let create (e: t): warning = array_out_of_bounds e
-        let past_end (): warning = create PastEnd
-        let before_start (): warning = create BeforeStart
-        let unknown (): warning = create Unknown
+        let create (e: t): category = array_out_of_bounds e
+        let past_end (): category = create PastEnd
+        let before_start (): category = create BeforeStart
+        let unknown (): category = create Unknown
 
-        let from_string_list (s: string list): warning =
+        let from_string_list (s: string list): category =
           match s with
           | [] -> Unknown
           | h :: t -> match h with
@@ -82,7 +82,7 @@ struct
           | Unknown -> "Unknown]" ^ " Not enough information about index."
       end
 
-      let from_string_list (s: string list): warning =
+      let from_string_list (s: string list): category =
         match s with
         | [] -> Unknown
         | h :: t -> match h with
@@ -98,7 +98,7 @@ struct
         | UseAfterFree -> "UseAfterFree]"
     end
 
-    let from_string_list (s: string list): warning =
+    let from_string_list (s: string list): category =
       match s with
       | [] -> Unknown
       | h :: t -> ();match h with
@@ -118,11 +118,11 @@ struct
   struct
     type t = integer
 
-    let create (e: t): warning = Integer e
-    let overflow (): warning = create Overflow
-    let div_by_zero (): warning = create DivByZero
+    let create (e: t): category = Integer e
+    let overflow (): category = create Overflow
+    let div_by_zero (): category = create DivByZero
 
-    let from_string_list (s: string list): warning =
+    let from_string_list (s: string list): category =
       match s with
       | [] -> Unknown
       | h :: t -> ();match h with
@@ -140,10 +140,10 @@ struct
   struct
     type t = cast
 
-    let create (e: t): warning = Cast e
-    let type_mismatch (): warning = create TypeMismatch
+    let create (e: t): category = Cast e
+    let type_mismatch (): category = create TypeMismatch
 
-    let from_string_list (s: string list): warning =
+    let from_string_list (s: string list): category =
       match s with
       | [] -> Unknown
       | h :: t -> ();match h with
@@ -255,19 +255,19 @@ end
 module Message =
 struct
   type t = {
-    warn_type: Warning.t; (* TODO: make list of tags *)
+    category: Category.t; (* TODO: make list of tags *)
     severity: Severity.t;
     multipiece: MultiPiece.t;
   } [@@deriving eq]
 
-  let should_warn {warn_type; severity; _} =
-    Warning.should_warn warn_type && Severity.should_warn severity
+  let should_warn {category; severity; _} =
+    Category.should_warn category && Severity.should_warn severity
 
-  let hash {warn_type; severity; multipiece} =
-    3 * Warning.hash warn_type + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
+  let hash {category; severity; multipiece} =
+    3 * Category.hash category + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
 
-  let show {warn_type; severity; multipiece} =
-    let msg = "[" ^ Severity.show severity ^ "]" ^ (Warning.show warn_type)^" "^ MultiPiece.show multipiece in
+  let show {category; severity; multipiece} =
+    let msg = "[" ^ Severity.show severity ^ "]" ^ (Category.show category)^" "^ MultiPiece.show multipiece in
     msg
 end
 
@@ -328,7 +328,7 @@ let print ?(out= !warn_out) (m: Message.t) =
     | Debug -> "{white}" (* non-bright white is actually some gray *)
     | Success -> "{green}"
   in
-  let prefix = severity_color ^ "[" ^ Severity.show m.severity ^ "]" ^ Warning.show m.warn_type in
+  let prefix = severity_color ^ "[" ^ Severity.show m.severity ^ "]" ^ Category.show m.category in
   match m.multipiece with
   | Single piece ->
     Printf.fprintf out "%s\n%!" (colorize @@ prefix ^ " " ^ show_piece piece)
@@ -347,7 +347,7 @@ let add m =
 (** Adapts old [print_group] to new message structure.
     Don't use for new (group) warnings. *)
 let warn_group_old group_name errors =
-  let m = Message.{warn_type = Unknown; severity = Warning; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None; print_loc = loc}) errors}} in
+  let m = Message.{category = Unknown; severity = Warning; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None; print_loc = loc}) errors}} in
   add m;
 
   if (get_bool "ana.osek.warnfiles") then
@@ -363,11 +363,11 @@ let warn_group_old group_name errors =
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
 
-let msg severity ?warning:(warning=Unknown) text =
-  add {warn_type = warning; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
+let msg severity ?(category=Unknown) text =
+  add {category; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
 
-let msg_each severity ?loc:(loc= !Tracing.current_loc) ?warning:(warning=Unknown) text =
-  add {warn_type = warning; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
+let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(category=Unknown) text =
+  add {category; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
 
 let warn = msg Warning
 let warn_each = msg_each Warning

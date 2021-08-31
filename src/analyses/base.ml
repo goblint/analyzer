@@ -803,9 +803,9 @@ struct
         match (eval_rv a gs st n) with
         | `Address adr ->
           (if AD.is_null adr
-           then M.error_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) "Must dereference NULL pointer"
+           then M.error_each ~category:(M.Category.Behavior.Undefined.nullpointer_dereference ()) "Must dereference NULL pointer"
            else if AD.may_be_null adr
-           then M.warn_each ~warning:(M.Warning.Behavior.Undefined.nullpointer_dereference ()) "May dereference NULL pointer");
+           then M.warn_each ~category:(M.Category.Behavior.Undefined.nullpointer_dereference ()) "May dereference NULL pointer");
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
@@ -1965,16 +1965,16 @@ struct
     in
     match check_assert e ctx.local with
     | `Lifted false ->
-      warn (M.error_each ~warning:M.Assert) ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
+      warn (M.error_each ~category:M.Assert) ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `Lifted true ->
-      warn (M.success_each ~warning:M.Assert) ("Assertion \"" ^ expr ^ "\" will succeed");
+      warn (M.success_each ~category:M.Assert) ("Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.error_each ~warning:M.Assert ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.error_each ~category:M.Assert ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
-      warn (M.warn_each ~warning:M.Assert) ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
+      warn (M.warn_each ~category:M.Assert) ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
