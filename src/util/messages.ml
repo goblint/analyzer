@@ -12,7 +12,7 @@ struct
     | Info
     | Debug
     | Success
-    [@@deriving eq, show { with_path = false }, to_yojson]
+    [@@deriving eq, show { with_path = false }]
 
   let hash x = Hashtbl.hash x (* variants, so this is fine *)
 
@@ -25,6 +25,8 @@ struct
       | Success -> "success"
     in
     get_bool ("warn." ^ (to_string e))
+
+  let to_yojson x = `String (show x)
 end
 
 module Piece =
@@ -49,15 +51,20 @@ end
 
 module MultiPiece =
 struct
+  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, to_yojson]
   type t =
     | Single of Piece.t
-    | Group of {group_text: string; pieces: Piece.t list}
+    | Group of group
     [@@deriving eq, to_yojson]
 
   let hash = function
     | Single piece -> Piece.hash piece
     | Group {group_text; pieces} ->
       Hashtbl.hash group_text + 3 * (List.fold_left (fun xs x -> xs + Piece.hash x) 996699 pieces) (* copied from Printable.Liszt *)
+
+  let to_yojson = function
+    | Single piece -> Piece.to_yojson piece
+    | Group group -> group_to_yojson group
 end
 
 module Tag =
@@ -65,7 +72,7 @@ struct
   type t =
     | Category of Category.t
     | CWE of int
-    [@@deriving eq, to_yojson]
+    [@@deriving eq]
 
   let hash = function
     | Category category -> Category.hash category
@@ -78,6 +85,10 @@ struct
   let should_warn = function
     | Category category -> Category.should_warn category
     | CWE _ -> false (* TODO: options for CWEs? *)
+
+  let to_yojson = function
+    | Category category -> `Assoc [("Category", Category.to_yojson category)]
+    | CWE n -> `Assoc [("CWE", `Int n)]
 end
 
 module Tags =

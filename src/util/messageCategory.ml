@@ -4,23 +4,23 @@ type array_oob =
   | PastEnd
   | BeforeStart
   | Unknown
-  [@@deriving eq, to_yojson]
+  [@@deriving eq]
 
 type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
   | UseAfterFree
-  [@@deriving eq, to_yojson]
+  [@@deriving eq]
 
 type behavior =
   | Undefined of undefined_behavior
   | Implementation
   | Machine
-  [@@deriving eq, to_yojson]
+  [@@deriving eq]
 
-type integer = Overflow | DivByZero [@@deriving eq, to_yojson]
+type integer = Overflow | DivByZero [@@deriving eq]
 
-type cast = TypeMismatch [@@deriving eq, to_yojson]
+type cast = TypeMismatch [@@deriving eq]
 
 type category =
   | Assert
@@ -30,9 +30,9 @@ type category =
   | Cast of cast
   | Unknown
   | Analyzer
-  [@@deriving eq, to_yojson]
+  [@@deriving eq]
 
-type t = category [@@deriving eq, to_yojson]
+type t = category [@@deriving eq]
 
 let hash x = Hashtbl.hash x (* nested variants, so this is fine *)
 
@@ -185,3 +185,5 @@ let from_string_list (s: string list) =
     | "cast" -> Cast.from_string_list t
     | "analyzer" -> Analyzer
     | _ -> Unknown
+
+let to_yojson x = `String (show x) (* TODO: no brackets *)
