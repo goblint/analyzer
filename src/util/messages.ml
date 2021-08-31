@@ -129,6 +129,9 @@ struct
   let add m =
     MH.replace messages_table m ();
     messages_list := m :: !messages_list
+
+  let to_yojson () =
+    [%to_yojson: Message.t list] !messages_list
 end
 
 
