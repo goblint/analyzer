@@ -253,6 +253,8 @@ struct
        iter insert (Lazy.force table);
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
+    | "json-messages" ->
+      Yojson.Safe.to_channel ~std:true out ([%to_yojson: Messages.Message.t list] !Messages.messages_list)
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
