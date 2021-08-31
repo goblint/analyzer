@@ -170,9 +170,11 @@ let print ?(out= !warn_out) (m: Message.t) =
     | Success -> "green"
   in
   let ppf = Format.formatter_of_out_channel out in
+  (* TODO: extract this elsewhere *)
   let stag_functions = Format.pp_get_formatter_stag_functions ppf () in
   let stag_functions' = {stag_functions with
       mark_open_stag = (function
+        (* TODO: support all colors like colorize *)
         | Format.String_tag "red" -> Format.sprintf "\027[%sm" "0;31"
         | Format.String_tag "yellow" -> Format.sprintf "\027[%sm" "0;33"
         | Format.String_tag "blue" -> Format.sprintf "\027[%sm" "0;34"
@@ -188,15 +190,18 @@ let print ?(out= !warn_out) (m: Message.t) =
   in
   Format.pp_set_formatter_stag_functions ppf stag_functions';
   Format.pp_set_mark_tags ppf true;
-  let prefix = Format.dprintf "@{<%s>[%s]%s@}" severity_stag (Severity.show m.severity) (Tags.show m.tags) in
-  let show_piece ppf piece =
+  let pp_prefix = Format.dprintf "@{<%s>[%s]%s@}" severity_stag (Severity.show m.severity) (Tags.show m.tags) in
+  let pp_piece ppf piece =
     Format.fprintf ppf "@{<%s>%s@} @{<violet>(%s)@}" severity_stag (Piece.show piece) (CilType.Location.show piece.print_loc)
   in
-  match m.multipiece with
-  | Single piece ->
-    Format.fprintf ppf "%t %a\n%!" prefix show_piece piece
-  | Group {group_text; pieces} ->
-    Format.fprintf ppf "@[<v 2>%t @{<%s>%s@}:@,@[<v>%a@]@]\n%!" prefix severity_stag group_text (Format.pp_print_list show_piece) pieces
+  let pp_multipiece ppf = match m.multipiece with
+    | Single piece ->
+      pp_piece ppf piece
+    | Group {group_text; pieces} ->
+      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece) pieces
+  in
+  Format.fprintf ppf "@[<v 2>%t %t@]\n%!" pp_prefix pp_multipiece
+
 
 let add m =
   if !GU.should_warn then (
