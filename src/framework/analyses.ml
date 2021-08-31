@@ -254,7 +254,7 @@ struct
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
     | "json-messages" ->
-      Yojson.Safe.to_channel ~std:true out ([%to_yojson: Messages.Message.t list] !Messages.Table.messages_list)
+      Yojson.Safe.pretty_to_channel ~std:true out ([%to_yojson: Messages.Message.t list] !Messages.Table.messages_list)
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
