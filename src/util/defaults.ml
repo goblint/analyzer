@@ -98,7 +98,7 @@ let _ = ()
 let _ = ()
       ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','threadreturn','escape','mutex','mallocWrapper']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
-      (* octApron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
+      (* apron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
       ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
@@ -139,6 +139,7 @@ let _ = ()
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
       ; reg Analyses "ana.arrayoob"        "false"        "Array out of bounds check"
+      ; reg Analyses "ana.apron.no-context" "false" "Ignore entire relation in function contexts."
 
 (* {4 category [Semantics]} *)
 let _ = ()
@@ -161,7 +162,7 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.octapron.privatization" "'mutex-meet'" "Which octApron privatization to use? dummy/protection/protection-path/mutex-meet"
+      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
@@ -169,7 +170,6 @@ let _ = ()
       ; reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses."
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
-      ; reg Experimental "exp.full-context"      "false" "Do not side-effect function entries. If partial contexts (or ana.ctx_insens) are used, this will fail!"
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
       ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
       ; reg Experimental "exp.no-interval-context" "false" "Ignore integer values of the Interval domain in function contexts."
@@ -184,10 +184,9 @@ let _ = ()
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
-      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls. Method depends on exp.full-context - true: unfeasible because then it has to store calls in the context; false: only store calls in local state."
-      ; reg Experimental "exp.widen-context-partial" "false" "After widening also apply the context function to get a partial context (options no-*-context, earlyglobs)."
+      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
-      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilzed, unstable_self: widen if side-effected var gets destabilized."
+      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"

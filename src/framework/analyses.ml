@@ -321,7 +321,6 @@ sig
   val exitstate  : varinfo -> D.t
 
   val should_join : D.t -> D.t -> bool
-  val val_of  : C.t -> D.t
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
@@ -490,7 +489,4 @@ struct
 
   let context x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
-
-  let val_of x = x
-  (* Assume that context is same as local domain. *)
 end

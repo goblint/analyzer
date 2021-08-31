@@ -20,7 +20,6 @@ struct
   (* No contexts*)
   module C = Lattice.Unit
 
-  let val_of () = D.bot ()
   let context _ = ()
 
   let is_integer_var (v: varinfo) =

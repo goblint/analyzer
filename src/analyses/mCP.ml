@@ -296,7 +296,6 @@ struct
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let val_of = identity
   let context x =
     let x = spec_list x in
     map (fun (n,(module S:MCPSpec),d) ->

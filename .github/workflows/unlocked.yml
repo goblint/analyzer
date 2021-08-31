@@ -55,9 +55,9 @@ jobs:
       - name: Test regression
         run: ./make.sh headers testci
 
-      - name: Test octApron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         if: ${{ matrix.apron }}
-        run: ruby scripts/update_suite.rb group octapron -s
+        run: ruby scripts/update_suite.rb group apron -s
 
       - name: Build domaintest
         run: ./make.sh domaintest
