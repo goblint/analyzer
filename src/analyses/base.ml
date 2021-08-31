@@ -1965,16 +1965,16 @@ struct
     in
     match check_assert e ctx.local with
     | `Lifted false ->
-      warn (M.error_each ~category:M.Assert) ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
+      warn (M.error_each ~category:M.Category.Assert) ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `Lifted true ->
-      warn (M.success_each ~category:M.Assert) ("Assertion \"" ^ expr ^ "\" will succeed");
+      warn (M.success_each ~category:M.Category.Assert) ("Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.error_each ~category:M.Assert ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.error_each ~category:M.Category.Assert ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
-      warn (M.warn_each ~category:M.Assert) ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
+      warn (M.warn_each ~category:M.Category.Assert) ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in

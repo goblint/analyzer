@@ -1,7 +1,7 @@
 open GobConfig
 module GU = Goblintutil
 
-include MessageCategory
+module Category = MessageCategory
 
 
 module Severity =
@@ -176,10 +176,10 @@ let warn_group_old group_name errors =
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
 
-let msg severity ?(category=Unknown) text =
+let msg severity ?(category=Category.Unknown) text =
   add {category; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
 
-let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(category=Unknown) text =
+let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(category=Category.Unknown) text =
   add {category; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
 
 let warn = msg Warning
