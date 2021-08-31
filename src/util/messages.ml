@@ -41,12 +41,10 @@ struct
   let hash {loc; text; context; print_loc} =
     7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
 
-  let with_context msg = function
-    | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx) (* TODO: this is kind of useless *)
-    | _ -> msg
-
-  let show {loc; text; context; print_loc} =
-    with_context text context
+  let text_with_context {text; context; _} =
+    match context with
+    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (Hashtbl.hash context) (* TODO: this is kind of useless *)
+    | _ -> text
 end
 
 module MultiPiece =
@@ -78,9 +76,9 @@ struct
     | Category category -> Category.hash category
     | CWE n -> n
 
-  let show = function
-    | Category category -> Category.show category
-    | CWE n -> "CWE-" ^ string_of_int n
+  let pp ppf = function
+    | Category category -> Format.pp_print_string ppf (Category.show category)
+    | CWE n -> Format.fprintf ppf "CWE-%d" n
 
   let should_warn = function
     | Category category -> Category.should_warn category
@@ -97,7 +95,9 @@ struct
 
   let hash tags = List.fold_left (fun xs x -> xs + Tag.hash x) 996699 tags (* copied from Printable.Liszt *)
 
-  let show tags = List.fold_left (fun acc tag -> acc ^ "[" ^ Tag.show tag ^ "]") "" tags
+  let pp =
+    let pp_tag_brackets ppf tag = Format.fprintf ppf "[%a]" Tag.pp tag in
+    Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_tag_brackets
 
   let should_warn tags = List.exists Tag.should_warn tags
 end
@@ -164,9 +164,9 @@ let print ?(ppf= !formatter) (m: Message.t) =
     | Debug -> "white" (* non-bright white is actually some gray *)
     | Success -> "green"
   in
-  let pp_prefix = Format.dprintf "@{<%s>[%s]%s@}" severity_stag (Severity.show m.severity) (Tags.show m.tags) in
+  let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
   let pp_piece ppf piece =
-    Format.fprintf ppf "@{<%s>%s@} @{<violet>(%a)@}" severity_stag (Piece.show piece) CilType.Location.pp piece.print_loc
+    Format.fprintf ppf "@{<%s>%s@} @{<violet>(%a)@}" severity_stag (Piece.text_with_context piece) CilType.Location.pp piece.print_loc
   in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->

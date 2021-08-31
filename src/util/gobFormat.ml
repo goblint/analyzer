@@ -17,3 +17,5 @@ let pp_set_ansi_color_tags ppf =
   let stag_functions' = {stag_functions with mark_open_stag; mark_close_stag} in
   Format.pp_set_formatter_stag_functions ppf stag_functions';
   Format.pp_set_mark_tags ppf true
+
+let pp_print_nothing ppf () = ()
