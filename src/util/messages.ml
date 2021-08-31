@@ -78,7 +78,7 @@ struct
 
   let show = function
     | Category category -> Category.show category
-    | CWE n -> "CWE-" ^ string_of_int n
+    | CWE n -> "[CWE-" ^ string_of_int n ^ "]"
 
   let should_warn = function
     | Category category -> Category.should_warn category
@@ -207,11 +207,11 @@ let warn_group_old group_name errors =
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
 
-let msg severity ?(category=Category.Unknown) text =
-  add {tags = [Category category]; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
+let msg severity ?(tags=[]) ?(category=Category.Unknown) text =
+  add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
 
-let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(category=Category.Unknown) text =
-  add {tags = [Category category]; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
+let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) text =
+  add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
 
 let warn = msg Warning
 let warn_each = msg_each Warning
