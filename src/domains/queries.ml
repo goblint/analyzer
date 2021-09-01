@@ -74,7 +74,7 @@ type _ t =
   | CurrentLockset: LS.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
-  | MustBeUniqueThread: MustBool.t t
+  | IsMultipleThread: MustBool.t t
   | CurrentThreadId: VI.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
@@ -92,7 +92,7 @@ type _ t =
   | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
-  | MustBeUnique: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
+  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
 
 type 'a result = 'a
 
@@ -127,7 +127,7 @@ struct
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
     | MustBeSingleThreaded -> (module MustBool)
-    | MustBeUniqueThread -> (module MustBool)
+    | IsMultipleThread -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | MustBeEqual _ -> (module MustBool)
     | Priority _ -> (module ID)
     | EvalInt _ -> (module ID)
@@ -140,7 +140,7 @@ struct
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
-    | MustBeUnique _ -> (module MustBool)
+    | IsMultiple _ -> (module MustBool)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -174,7 +174,7 @@ struct
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
     | MustBeSingleThreaded -> MustBool.top ()
-    | MustBeUniqueThread -> MustBool.top ()
+    | IsMultipleThread -> MustBool.top ()
     | MustBeEqual _ -> MustBool.top ()
     | Priority _ -> ID.top ()
     | EvalInt _ -> ID.top ()
@@ -187,7 +187,7 @@ struct
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> PartAccessResult.top ()
-    | MustBeUnique _ -> MustBool.top ()
+    | IsMultiple _ -> MustBool.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -214,7 +214,7 @@ struct
       | Any CurrentLockset -> 10
       | Any MustBeAtomic -> 11
       | Any MustBeSingleThreaded -> 12
-      | Any MustBeUniqueThread -> 13
+      | Any IsMultipleThread -> 13
       | Any CurrentThreadId -> 14
       | Any MayBeThreadReturn -> 15
       | Any (EvalFunvar _) -> 16
@@ -232,7 +232,7 @@ struct
       | Any (MayBeLess _) -> 28
       | Any HeapVar -> 29
       | Any (IsHeapVar _) -> 30
-      | Any (MustBeUnique _) -> 31
+      | Any (IsMultiple _) -> 31
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -265,7 +265,7 @@ struct
       | Any (MayBeLess (e1, e2)), Any (MayBeEqual (e3, e4)) ->
         [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
-      | Any (MustBeUnique v1), Any (MustBeUnique v2) -> CilType.Varinfo.compare v1 v2
+      | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end

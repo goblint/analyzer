@@ -1033,7 +1033,7 @@ struct
           end
         | _ -> true
       end
-    | Q.MustBeUnique v -> not (WeakUpdates.mem v ctx.local.weak)
+    | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
