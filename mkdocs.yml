@@ -21,9 +21,9 @@ nav:
     - user-guide/inspecting.md
   - 'Developer guide':
     - developer-guide/developing.md
+    - developer-guide/messaging.md
     - developer-guide/testing.md
     - developer-guide/debugging.md
-    - developer-guide/messaging.md
     - developer-guide/profiling.md
     - developer-guide/documenting.md
   - 'Artifact descriptions':
