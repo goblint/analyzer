@@ -320,7 +320,9 @@ struct
   let set_bool   st i = set_path_string_trace st (Build.bool i)
   let set_string st i = set_path_string_trace st (Build.string i)
   let set_null   st   = set_path_string_trace st Build.null
-  let set_list   st l = set_value (Build.array l) json_conf (parse_path st)
+  let set_list   st l =
+    if not !build_config then drop_memo ();
+    set_value (Build.array l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =
