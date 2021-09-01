@@ -98,7 +98,7 @@ struct
   let from_string_list (s: string list): category =
     match s with
     | [] -> Unknown
-    | h :: t -> ();match h with
+    | h :: t -> match h with
       | "undefined" -> Undefined.from_string_list t
       | "implementation" -> implementation
       | "machine" -> machine
@@ -122,7 +122,7 @@ struct
   let from_string_list (s: string list): category =
     match s with
     | [] -> Unknown
-    | h :: t -> ();match h with
+    | h :: t -> match h with
       | "overflow" -> overflow
       | "div_by_zero" -> div_by_zero
       | _ -> Unknown
@@ -143,7 +143,7 @@ struct
   let from_string_list (s: string list): category =
     match s with
     | [] -> Unknown
-    | h :: t -> ();match h with
+    | h :: t -> match h with
       | "type_mismatch" -> type_mismatch
       | _ -> Unknown
 
