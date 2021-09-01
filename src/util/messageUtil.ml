@@ -12,11 +12,12 @@ let ansi_color_table =
     )
   |> List.concat
 
-let colors_on () = (* use colors? *)
+let colors_on fd = (* use colors? *)
   let c = get_string "colors" in
-  c = "always" || c = "auto" && Unix.(isatty stdout)
+  c = "always" || c = "auto" && Unix.(isatty fd)
 
-let colorize ?on:(on=colors_on ()) msg =
+let colorize ~fd msg =
+  let on = colors_on fd in
   let replace (color,code) =
     Str.global_replace (Str.regexp ("{"^color^"}")) (if on then code else "")
   in

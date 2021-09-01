@@ -137,7 +137,7 @@ end
 
 let formatter = ref Format.std_formatter
 let () = AfterConfig.register (fun () ->
-    if !formatter == Format.std_formatter && MessageUtil.colors_on () then
+    if !formatter == Format.std_formatter && MessageUtil.colors_on Unix.stdout then
       GobFormat.pp_set_ansi_color_tags !formatter
   )
 
