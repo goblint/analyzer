@@ -1,8 +1,9 @@
-(** Protection using 'private' field modifier in C++.  *)
-(* see doi.org/10.1007/978-3-642-28891-3_11 *)
-(* A. Herz, and K. Apinis "Class-Modular, class-escape and points-to analysis for object-oriented languages" *)
-(* Builds on the ability of LLVM < 3.1 to emit semantically equivalent C code as a target *)
-(* Requires a CXX.json file to work *)
+(** Protection using 'private' field modifier in C++.
+    see doi.org/10.1007/978-3-642-28891-3_11
+    A. Herz, and K. Apinis "Class-Modular, class-escape and points-to analysis for object-oriented languages"
+    Builds on the ability of LLVM < 3.1 to emit semantically equivalent C code as a target
+    Requires a CXX.json file to work *)
+
 open Prelude.Ana
 let sprint = Pretty.sprint
 open Analyses
