@@ -120,8 +120,6 @@ struct
     let defline () = dprintf "OTHERS -> Not available\n" in
     dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
 
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%a</key>\n%a" Domain.printXml k Range.printXml v

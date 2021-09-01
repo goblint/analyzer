@@ -104,7 +104,7 @@ struct
 
   (* Printing *)
   let string_of_key k = Lval.CilLval.show k
-  let string_of_loc xs = String.concat ", " (List.map (fun x -> string_of_int x.line) xs)
+  let string_of_loc xs = String.concat ", " (List.map CilType.Location.show xs)
   let string_of_record r = Impl.string_of_state r.state^" ("^string_of_loc r.loc^")"
   let string_of (x,y) =
     if is_alias (x,y) then
@@ -116,8 +116,7 @@ struct
       "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
   let show x = string_of x
   include Printable.PrintSimple (struct
-      type t' = t
-      let name () = Impl.name
+      type nonrec t = t
       let show = show
     end)
   (* constructing & manipulation *)
@@ -223,7 +222,7 @@ struct
   (* callstack for locations *)
   let callstack_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
   let callstack m = get_record callstack_var m |> Option.map_default V.loc []
-  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (fun x -> string_of_int x.line) (callstack m))^"]"
+  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map CilType.Location.show (callstack m))^"]"
   let edit_callstack f m = edit_record callstack_var (V.edit_loc f) m
 
 
@@ -252,7 +251,11 @@ struct
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
-    Messages.report ~loc:(List.last loc) (if may then "{yellow}MAYBE "^msg else "{YELLOW}"^msg)
+    match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
+    | [] -> Messages.warn_each ~must:(not may) ~loc:(List.last loc) ~msg:msg ()
+    | h :: t ->
+      let warn_type = Messages.Warning.from_string_list (h |> Str.split (Str.regexp "[.]"))
+      in Messages.warn_each ~must:(not may) ~loc:(List.last loc) ~msg:(String.concat " " t) ~warning:warn_type ()
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -272,6 +275,6 @@ struct
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     Messages.debug @@ "MayPointTo "^sprint d_exp exp^" = ["
-               ^String.concat ", " (List.map string_of_key xs)^"]";
+                      ^String.concat ", " (List.map string_of_key xs)^"]";
     xs
 end

@@ -6,7 +6,7 @@ let this_name = "llvm_cbe_this"
 
 module GU = Goblintutil
 module Var = Basetype.Variables
-module Field = Basetype.CilField
+module Field = CilType.Fieldinfo
 
 let fields : (string, string list) Hashtbl.t = Hashtbl.create 111
 
@@ -41,7 +41,7 @@ let report x =
   let loc = !Tracing.current_loc in
   if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) &&
      !Goblintutil.in_verifying_stage then (*filter noise*)
-    Messages.report ("CW: "^x)
+    Messages.warn_each ~msg:("CW: "^x) ()
 
 module FieldVars =
 struct
@@ -99,7 +99,7 @@ module FieldSet = SetDomain.ToppedSet (PrettyField) (struct let topname = "all f
 
 module FuncName =
 struct
-  include Lattice.Flat (Basetype.CilFundec) (struct let bot_name = "Error"
+  include Lattice.Flat (CilType.Fundec) (struct let bot_name = "Error"
       let top_name = "Any function" end)
 
   let to_fun_name (x:fundec) = `Lifted x
@@ -173,7 +173,7 @@ struct
     let loc = !Tracing.current_loc in
     if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) &&
        (!Goblintutil.in_verifying_stage|| !final) then (*filter noise*)
-      Messages.report ("CW: "^x)
+      Messages.warn_each ~msg:("CW: "^x) ()
 
   module Danger =
   struct
@@ -187,7 +187,7 @@ struct
             if loc.line>=dbg_line_start && loc.line<=dbg_line_end then
                 (*counter := !counter + 1;*)
           if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
-        Messages.report ((*(string_of_int !counter)^*)"CW: "^x)
+        Messages.warn_each ~msg:((*(string_of_int !counter)^*)"CW: "^x) ()
 
 		let add k v mp = dbg_report("Danger.add "^k.vname^" -> "^sprint 160 (ArgSet.pretty () v)^" was "^sprint 160 (ArgSet.pretty () (find k mp)));
 		                 add k v mp
@@ -256,7 +256,7 @@ struct
     if enable_dbg && loc.line>=dbg_line_start && loc.line<=dbg_line_end then
       (*counter := !counter + 1;*)
       if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
-        Messages.report ((*(string_of_int !counter)^*)"CW: "^x)
+        Messages.warn_each ~msg:((*(string_of_int !counter)^*)"CW: "^x) ()
 
 
   let error x =
@@ -432,7 +432,7 @@ struct
                  (ArgSet.for_all
                     (fun v -> (FieldVars.get_var v).vname = this_name
                               || Str.string_match (Str.regexp "_ZTV.*") ((FieldVars.get_var v).vname) 0
-                              (*|| try Cilfacade.getFun ((FieldVars.get_var v).vname);true with _ -> false*)
+                              (*|| try Cilfacade.find_name_fundec ((FieldVars.get_var v).vname);true with _ -> false*)
                     )
                     x)
         in (*ignore(if res1||res2 then ignore(printf "--- exp:%a - %s(%b,%b)\n" d_exp e (sprint 160 (ArgSet.pretty () x)) res1 res2));*)
@@ -758,7 +758,7 @@ struct
           not (ArgSet.is_bot (Danger.find v st))
         end
     in
-    if isPointerType (typeOf (stripCasts e)) then
+    if isPointerType (Cilfacade.typeOf (stripCasts e)) then
       begin
         (*dbg_report ("mbg_start: " ^(sprint 160 (d_exp () e)));*)
         (*let is_local = (constructed_from_this st e)
@@ -838,13 +838,13 @@ struct
                 if (not cft || it) && (is_ext (FieldVars.get_var x).vname) glob && not (is_safe_name (FieldVars.get_var x).vname)
                 then
                   begin
-                    (*Messages.report((string_of_int (!uid) )^":"^(sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft);*)
+                    (*Messages.warn_each ~msg:((string_of_int (!uid) )^":"^(sprint 160 (FieldVars.pretty () x))^" it "^string_of_bool it^" cft "^string_of_bool cft) ();*)
                     false
                   end
                 else y)
                 args true
             in
-            (*Messages.report((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft);*)
+            (*Messages.warn_each ~msg:((string_of_int (!uid) )^":"^"danger.UPDATE_THIS_2 "^v.vname^" -> "^(sprint 160 (FieldVars.pretty () fv))^" = "^sprint 160 (ArgSet.pretty () args)^" rhs_ctf : "^string_of_bool rhs_cft) ();*)
             if not rhs_cft&& not (FieldVars.get_var fv).vglob then
               begin
                 let flds = get_field_from_this (Lval (Var (FieldVars.get_var fv),NoOffset)) st in
@@ -923,7 +923,7 @@ struct
     let (fd,st,gd) =
       if (*not must_assign && MUST PROPAGATE HERE!!!*)not (ArgSet.is_bot ds) then
         begin
-          (*Messages.report((string_of_int (!uid) )^":"^"danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args));*)
+          (*Messages.warn_each ~msg:((string_of_int (!uid) )^":"^"danger.prop_ds_1 "^v.vname^" -> "^sprint 160 (ArgSet.pretty () ds)^" = "^sprint 160 (ArgSet.pretty () args)) ();*)
           ArgSet.fold (fun x y -> update_this x y args) ds (fd,st,gd) (*args???*)
         end
       else
@@ -981,7 +981,7 @@ struct
                 false
               end
         in
-        if (*isPointerType (typeOf (stripCasts e))*)true then
+        if (*isPointerType (Cilfacade.typeOf (stripCasts e))*)true then
           begin
             let res =
               (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_ptrs st e) false)  (*avoid multiple warnings*)
@@ -1028,7 +1028,7 @@ struct
               false
             end
       in
-      if isPointerType (typeOf (stripCasts e)) then
+      if isPointerType (Cilfacade.typeOf (stripCasts e)) then
         begin
           (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_args st e) false)
           ||(ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_ptrs st e) false)  (*avoid multiple warnings*)
@@ -1093,7 +1093,7 @@ struct
               false
             end
       in
-      if isPointerType (typeOf (stripCasts e)) then begin
+      if isPointerType (Cilfacade.typeOf (stripCasts e)) then begin
         if not (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_args st e) false) then (*avoid multiple warnings*)
           begin
             if not (ArgSet.fold (fun x a -> warn_one_lv (FieldVars.get_var x) ||a) (used_ptrs st e) false) then (*avoid multiple warnings*)
@@ -1332,7 +1332,7 @@ struct
   let assign_argmap fs lval exp (fd, st, df) must_assign glob = (*keep track of used fun args*)
     match used_args st exp with
     | s when ArgSet.is_top s ->
-      Messages.warn ("Expression "^(sprint 160 (d_exp () exp))^" too complicated.");
+      Messages.warn ~msg:("Expression "^(sprint 160 (d_exp () exp))^" too complicated.") ();
       fd, st, df
     | s when ArgSet.is_bot s -> let vars= get_vars exp in
       let s = List.fold_left (fun y x->if not (is_safe_name x.vname) then begin ArgSet.add (FieldVars.gen x) y end else y) (ArgSet.empty()) vars in
@@ -1361,7 +1361,7 @@ struct
                   (*report("DIRECT_VTBL_ACCESS : "^vi.vname^"["^string_of_int64 offs^"]");*)
                   let ((fd, st, df),vfs) = get_vfunc_set vi.vname ((Int64.to_int offs)+2) (fd, st, df) in
                   (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
-                  let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs  in
+                  let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.find_name_fundec x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs  in
                   let set = ArgSet.join fun_set s in
                   assign_to_lval fs lval (fd, st, df) set must_assign glob "L1353"
                 | _ -> no_vtbl
@@ -1374,7 +1374,7 @@ struct
                     let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) glob in
                     let ((fd, st, df),vfs) = get_vfunc_set vtn ((Int64.to_int offs)+1) (fd, st, df) in
                     (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
-                    let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
+                    let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.find_name_fundec x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
                     let set = ArgSet.join fun_set s in
                     assign_to_lval fs lval (fd, st, df) set must_assign glob "1366"
                     (*no_vtbl*)
@@ -1396,7 +1396,7 @@ struct
                   in
                   begin
                     (*muid := !muid +1;
-                      Messages.report ((string_of_int !muid)^":no_vtbl2t : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () ns));*)
+                      Messages.warn_each ~msg:((string_of_int !muid)^":no_vtbl2t : "^(sprint 160 (d_lval () lval))^ " = "^sprint 160 (ArgSet.pretty () ns)) ();*)
                     assign_to_lval fs lval (fd, st, df) ns must_assign glob "L1388:"
                   end
                 end
@@ -1410,7 +1410,7 @@ struct
                   let vtn = gen_vtbl_name (sprint 160 (d_type () tp)) glob in
                   let ((fd, st, df),vfs) = get_vfunc_set vtn ((Int64.to_int offs)+1) (fd, st, df) in
                   (*List.iter (fun x -> report("VFUNC : "^x)) vfs;*)
-                  let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.getFun x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
+                  let fun_set = List.fold_left (fun y x -> (*report("REQUIRED : "^x);*)add_required_fun_priv x;try let fd=Cilfacade.find_name_fundec x in ArgSet.add (FieldVars.gen fd.svar) y with _ -> (*report("UNDEF : "^x);*)y ) (ArgSet.bot ()) vfs in
                   (*let set = ArgSet.join fun_set s in*)
                   assign_to_lval_no_prop fs lval (fd, st, df) fun_set must_assign glob
                   (*no_vtbl*)
@@ -1434,7 +1434,7 @@ struct
 
     let p = function
       | Some e ->
-        isPointerType (typeOf (stripCasts e)) &&
+        isPointerType (Cilfacade.typeOf (stripCasts e)) &&
         (may_be_a_perfectly_normal_global e false (fd,st,df) fs)
       (*&& not (is_method e)*)
       | None -> true
@@ -1473,7 +1473,7 @@ struct
             )
           in
           report ("INFO : Write to local state : this->"^sprint 160 (FieldSet.pretty () flds)^" via "^str^ (sprint 160 (ArgSet.pretty () ars)));
-          (*report ("isPtr "^string_of_bool (isPointerType (typeOf (Lval lval)))^" mayderef "^string_of_bool (maybe_deref (Lval lval))^" direct_this "^ string_of_bool (may_be_constructed_from_this_direct st (Lval lval)));*)
+          (*report ("isPtr "^string_of_bool (isPointerType (Cilfacade.typeOfLval lval))^" mayderef "^string_of_bool (maybe_deref (Lval lval))^" direct_this "^ string_of_bool (may_be_constructed_from_this_direct st (Lval lval)));*)
           (fd,st, Diff.add (taintedFunDec, (flds,VarNameSet.bot (),ClassNameSet.bot ()))  df)
         end
       else

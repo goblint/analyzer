@@ -90,7 +90,7 @@ struct
     | `Blob of Blobs.t
     | `List of Lists.t
     | `Bot
-  ] [@@deriving eq, ord, to_yojson]
+  ] [@@deriving eq, ord]
 
   let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -324,7 +324,7 @@ struct
               a (* probably garbage, but this is deref's problem *)
               (*raise (CastError s)*)
             | SizeOfError (s,t) ->
-              M.warn_each("size of error: " ^  s ^ "\n");
+              M.warn_each ~msg:("size of error: " ^  s) ();
               a
           end
         | x -> x (* TODO we should also keep track of the type here *)
@@ -416,7 +416,7 @@ struct
 
   let warn_type op x y =
     if GobConfig.get_bool "dbg.verbose" then
-      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at line %i: %a and %a\n" op (tag_name x) (tag_name y) !Tracing.current_loc.line pretty x pretty y
+      ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
 
   let leq x y =
     match (x,y) with
@@ -699,11 +699,11 @@ struct
           | Some (v') ->
             begin
               (* This should mean the entire expression we have here is a pointer into the array *)
-              if Cil.isArrayType (Cil.typeOf (Lval v')) then
+              if Cil.isArrayType (Cilfacade.typeOfLval v') then
                 let expr = ptr in
                 let start_of_array = StartOf v' in
-                let start_type = typeSigWithoutArraylen (Cil.typeOf start_of_array) in
-                let expr_type = typeSigWithoutArraylen (Cil.typeOf ptr) in
+                let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
+                let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
                 (* Comparing types for structural equality is incorrect here, use typeSig *)
                 (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
                 if start_type = expr_type then
@@ -764,14 +764,14 @@ struct
               (*hack for lists*)
               begin match f ad with
                 | `List l -> `Address (Lists.entry_rand l)
-                | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
+                | _ -> M.warn ~msg:"Trying to read a field, but was not given a struct" (); top ()
               end
             | `Struct str ->
               let x = Structs.get str fld in
               let l', o' = shift_one_over l o in
               do_eval_offset ask f x offs exp l' o' v t
             | `Top -> M.debug "Trying to read a field, but the struct is unknown"; top ()
-            | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
+            | _ -> M.warn ~msg:"Trying to read a field, but was not given a struct" (); top ()
           end
         | `Field (fld, offs) -> begin
             match x with
@@ -781,7 +781,7 @@ struct
               do_eval_offset ask f x offs exp l' o' v t
             | `Union (_, valu) -> top ()
             | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
-            | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
+            | _ -> M.warn ~msg:"Trying to read a field, but was not given a union" (); top ()
           end
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
@@ -795,7 +795,7 @@ struct
               end
             | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ("Trying to read an index, but was not given an array ("^show x^")"); top ()
+            | _ -> M.warn ~msg:("Trying to read an index, but was not given an array ("^show x^")") (); top ()
           end
     in
     let l, o = match exp with
@@ -816,7 +816,7 @@ struct
         end
       | `Blob (x,s,orig), `Field(f, _) ->
         begin
-          (* We only have `Blob for dynamically allocated memort. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
+          (* We only have `Blob for dynamically allocated memory. In these cases t is the type of the lval used to access it, i.e. for a struct s {int x; int y;} a; accessed via a->x     *)
           (* will be int. Here, we need a zero_init of the entire contents of the blob though, which we get by taking the associated f.fcomp. Putting [] for attributes is ok, as we don't *)
           (* consider them in VD *)
           let l', o' = shift_one_over l o in
@@ -856,8 +856,8 @@ struct
               let strc = init_comp fld.fcomp in
               let l', o' = shift_one_over l o in
               `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v t))
-            | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
-            | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
+            | `Top -> M.warn ~msg:"Trying to update a field, but the struct is unknown" (); top ()
+            | _ -> M.warn ~msg:"Trying to update a field, but was not given a struct" (); top ()
           end
         | `Field (fld, offs) -> begin
             let t = fld.ftype in
@@ -885,14 +885,14 @@ struct
                   | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
                     (* Why does cil index unions? We'll just pick the first field. *)
                     top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
-                  | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name.";
+                  | _ -> M.warn_each ~msg:"Why are you indexing on a union? Normal people give a field name." ();
                     top (), offs
                 end
               in
               `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
             | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v t)
-            | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
-            | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
+            | `Top -> M.warn ~msg:"Trying to update a field, but the union is unknown" (); top ()
+            | _ -> M.warn_each ~msg:"Trying to update a field, but was not given a union" (); top ()
           end
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
@@ -914,9 +914,9 @@ struct
               let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
-            | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
+            | `Top -> M.warn ~msg:"Trying to update an index, but the array is unknown" (); top ()
             | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^show x^")"); top ()
+            | _ -> M.warn_each ~msg:("Trying to update an index, but was not given an array("^show x^")") (); top ()
           end
       in mu result
     in
@@ -991,6 +991,17 @@ struct
     | `List n ->  Lists.printXml f n
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
+
+  let to_yojson = function
+    | `Int n -> ID.to_yojson n
+    | `Address n -> AD.to_yojson n
+    | `Struct n -> Structs.to_yojson n
+    | `Union n -> Unions.to_yojson n
+    | `Array n -> CArrays.to_yojson n
+    | `Blob n -> Blobs.to_yojson n
+    | `List n -> Lists.to_yojson n
+    | `Bot -> `String "⊥"
+    | `Top -> `String "⊤"
 
   let invariant c = function
     | `Int n -> ID.invariant c n

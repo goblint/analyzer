@@ -1,5 +1,8 @@
 (** Protection using 'private' field modifier in C++.  *)
-
+(** see doi.org/10.1007/978-3-642-28891-3_11 *)
+(** A. Herz, and K. Apinis "Class-Modular, class-escape and points-to analysis for object-oriented languages" *)
+(** Builds on the ability of LLVM < 3.1 to emit semantically equivalent C code as a target *)
+(** Requires a CXX.json file to work *)
 open Prelude.Ana
 let sprint = Pretty.sprint
 open Analyses
@@ -100,7 +103,7 @@ struct
     | [] -> ()
     | f :: _ ->
       try
-        Messages.report "Problems for safe objects from SAFE.json are suppressed!";
+        Messages.warn_each ~msg:"Problems for safe objects from SAFE.json are suppressed!" ();
         let safe_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
         Object.iter (add_htbl_re D.safe_vars) !(objekt !(field safe_tbl "variables"));
         Object.iter (add_htbl_re D.safe_methods) !(objekt !(field safe_tbl "methods"));
@@ -286,12 +289,12 @@ struct
       end
     else
       begin
-        (*Messages.report("CHECK METHOD : "^f.svar.vname);*)
+        (*Messages.warn_each ~msg:("CHECK METHOD : "^f.svar.vname) ();*)
         (*if D.is_top st then failwith "ARGH!";*)
         if (D.is_public_method_name f.svar.vname) (*|| is_fptr f.svar ctx*) then
           begin
             (*printf ("P");*)
-            (*Messages.report("PUBLIC METHOD : "^f.svar.vname);*)
+            (*Messages.warn_each ~msg:("PUBLIC METHOD : "^f.svar.vname) ();*)
             add_analyzed_fun f D.analyzed_funs; (*keep track of analyzed funs*)
             if D.is_bot ctx.local && not (islocal_notmain f.svar.vname ctx.global)
             then
@@ -302,7 +305,7 @@ struct
         else
           begin
             (*rintf ("p");*)
-            (*Messages.report("PRIVATE METHOD : "^f.svar.vname);*)
+            (*Messages.warn_each ~msg:("PRIVATE METHOD : "^f.svar.vname) ();*)
             (*D.report("Dom : "^sprint 80 (D.pretty () ctx.local)^"\n");*)
             if not (danger_bot ctx) then
               begin
@@ -396,7 +399,7 @@ struct
       (*D.report ("before assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
       let nctx = D.assign_to_local (Analyses.ask_of_ctx ctx) lval (Some rval) ctx.local fs ctx.global in
       let nctx,uses_fp = handle_func_ptr rval nctx fs ctx.global in (*warn/error on ret of fptr to priv fun, fptrs don't have ptr type :(; *)
-      if uses_fp||isPointerType (typeOf (stripCasts rval)) then
+      if uses_fp||isPointerType (Cilfacade.typeOf (stripCasts rval)) then
         begin
           (*D.report ("assign: " ^(sprint 160 (d_lval () lval))^ " = "^(sprint 160 (d_exp () rval))^"\n");*)
           (*let a,b,c=nctx in D.dangerDump "BF ASS:" b;*)
@@ -496,7 +499,7 @@ struct
     end
 
   let eval_funvar ctx fval: varinfo list = (*also called for ignore funs*)
-    (*Messages.report (sprint 160 (d_exp () fval) );*)
+    (*Messages.warn_each ~msg:(sprint 160 (d_exp () fval) ) ();*)
     if danger_bot ctx then [] else
       let fd,st,gd = ctx.local in
       match fval with
@@ -504,11 +507,11 @@ struct
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
         if not ((get_bool "ana.cont.localclass")) then [D.unresFunDec.svar]
         else
-          (*Messages.report("fcheck vtbl : "^sprint 160 (d_exp () e));*)
+          (*Messages.warn_each ~msg:("fcheck vtbl : "^sprint 160 (d_exp () e)) ();*)
           let vtbl_lst = get_vtbl e (fd,st,gd) ctx.global in
           if not (vtbl_lst=[]) then
             begin
-              (*List.iter (fun x -> Messages.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;*)
+              (*List.iter (fun x -> Messages.warn_each ~msg:("VFUNC_CALL_RESOLVED : "^x.vname) ()) vtbl_lst;*)
               vtbl_lst
             end
           else
@@ -517,18 +520,18 @@ struct
             let flds_bot = ContainDomain.FieldSet.is_bot flds in
             if cft && flds_bot then
               begin
-                (*Messages.report("fptr cft : "^string_of_bool cft);*)
+                (*Messages.warn_each ~msg:("fptr cft : "^string_of_bool cft) ();*)
                 let fns = D.get_fptr_items ctx.global in
                 let add_svar x y =
                   match ContainDomain.FuncName.from_fun_name x with
-                  | Some x -> Messages.report ("fptr check: "^x.vname );(x)::y
+                  | Some x -> Messages.warn_each ~msg:("fptr check: "^x.vname ) ();(x)::y
                   | _ -> y
                 in
                 ContainDomain.VarNameSet.fold (fun x y ->  add_svar x y) fns []
               end
             else
               begin
-                (*Messages.report("VARS:");*)
+                (*Messages.warn_each ~msg:("VARS:") ();*)
                 let vars = D.get_vars e in
                 let rvs =
                   List.fold_left (fun y x -> ContainDomain.ArgSet.join (D.Danger.find x st) y)  (ContainDomain.ArgSet.bot ()) vars
@@ -536,7 +539,7 @@ struct
                 if not (ignore_this ctx.local ctx.global) then
                   begin
 
-                    let res = List.fold_left (fun y x -> try ignore(Cilfacade.getdec x);x::y with _ -> y) [] vars in
+                    let res = List.fold_left (fun y x -> try ignore(Cilfacade.find_varinfo_fundec x);x::y with _ -> y) [] vars in
                     begin
                       if List.length res = 0 then
                         begin
@@ -639,7 +642,7 @@ struct
               let (fn,st,gd),uses_fp = List.fold_left (fun (lctx,y) globa -> let (mlctx,my)=handle_func_ptr globa lctx fs ctx.global in (mlctx,y||my) ) ((fn,st,gd),false) arglist  in
               let (fn,st,gd),_ =  List.fold_left
                   (fun (lctx,arg_num) globa -> (*D.report ("check arg: "^(sprint 160 (d_exp () globa))) ;*)
-                     if uses_fp||isPointerType (typeOf (stripCasts globa))  then
+                     if uses_fp||isPointerType (Cilfacade.typeOf (stripCasts globa))  then
                        begin
                          (assign_lvals globa lctx arg_num,arg_num+1)
                        end
@@ -648,7 +651,7 @@ struct
               in
               let (fn,st,gd),_ =
                 List.fold_right
-                  (fun globa (lctx,arg_num) -> if (*uses_fp||isPointerType (typeOf (stripCasts globa))*) true  then
+                  (fun globa (lctx,arg_num) -> if (*uses_fp||isPointerType (Cilfacade.typeOf (stripCasts globa))*) true  then
                       begin (assign_lvals globa lctx arg_num,arg_num+1) end
                     else (lctx,arg_num+1)
                   )
@@ -658,12 +661,12 @@ struct
             end
           else ctx.local
         in
-        (*List.iter (fun x->if isPointerType (typeOf (stripCasts rval))&&(D.is_tainted fs )then ) arglist*)
+        (*List.iter (fun x->if isPointerType (Cilfacade.typeOf (stripCasts rval))&&(D.is_tainted fs )then ) arglist*)
         (*let fn,st,gd = nctx in*)
         begin match lval with (*handle retval*)
           | Some v ->
             let fn,st,gd =
-              if isPointerType (typeOfLval v)
+              if isPointerType (Cilfacade.typeOfLval v)
               then begin
                 if not (D.is_safe_name f.vname) then
                   let fn,st,gd = D.assign_to_local (Analyses.ask_of_ctx ctx) v from nctx fs ctx.global in
@@ -684,11 +687,12 @@ struct
     time_transfer "special" time_wrapper
 
   (*let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : (D.t * exp * bool) list*)
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fd:fundec) (args:exp list) : (D.t * D.t) list =
+    let f = fd.svar in
     (*D.report("ENTER ZERO : "^f.vname);*)
     (*D.report("ENTER_FN : "^f.vname);*)
     (*if D.is_top ctx.local then failwith "ARGH!";*)
-    (*print_progress (Cilfacade.getdec f);*)
+    (*print_progress (Cilfacade.find_varinfo_fundec f);*)
     if danger_bot ctx then [ctx.local, ctx.local] else
     if not ((get_bool "ana.cont.localclass")) && is_ext f.vname ctx.global then
       begin
@@ -708,7 +712,6 @@ struct
         (*       printf ":: no_mainclass:%b public:%b \n" no_mainclass (D.is_public_method_name f.vname); *)
         (*D.report("ENTER_FUN : "^f.vname);*)
         let fs = D.get_tainted_fields ctx.global in
-        let fd = Cilfacade.getdec f in
         let t (v, e) = true
    (*
         let _, ds, _ = ctx.local in
@@ -741,7 +744,8 @@ struct
       end else [ctx.local, ctx.local]
 
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
+    let f = fd.svar in
     (*eval_funvar ctx fexp;*)
     if danger_bot ctx then ctx.local else
       let a, b, c = ctx.local in
@@ -756,7 +760,7 @@ struct
         | Some v ->
           D.warn_glob (Lval v) ("return val of "^GU.demangle f.vname);
           D.warn_tainted fs (*ctx.local*) au (Lval v) ("return val of "^(GU.demangle f.vname));
-          if isPointerType (typeOfLval v)
+          if isPointerType (Cilfacade.typeOfLval v)
           then
             if is_ext f.vname ctx.global then
               begin
@@ -780,7 +784,6 @@ struct
                   in
                   let (a,b,c)=ContainDomain.ArgSet.fold (fun x y ->apply_var x y v rvs) rvs (a,b,c) in
 
-                  let fd = Cilfacade.getdec f in
                   let ll = match (zip fd.sformals args) with (*remove this*)
                     | [] -> []
                     | [x] -> []

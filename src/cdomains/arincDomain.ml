@@ -19,11 +19,12 @@ module PrE = IntDomain.Flattened
 module Ctx = IntDomain.Flattened
 (* predecessor nodes *)
 module Pred = struct
-  module Base = Basetype.ProgLocation
+  module Base = Basetype.ExtractLocation
   include SetDomain.Make (Base)
-  let of_node = singleton % MyCFG.getLoc
+  let of_loc = singleton
+  let of_node = of_loc % Node.location
   let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-  let string_of_elt = Basetype.ProgLocation.show
+  let string_of_elt = Basetype.ExtractLocation.show
 end
 
 (* define record type here so that fields are accessable outside of D *)
@@ -33,11 +34,12 @@ struct
   type t = process [@@deriving eq, ord, to_yojson]
   include Printable.Std
 
+  let name () = "ARINC state"
+
   (* printing *)
   let show x = Printf.sprintf "{ pid=%s; pri=%s; per=%s; cap=%s; pmo=%s; pre=%s; pred=%s; ctx=%s }" (Pid.show x.pid) (Pri.show x.pri) (Per.show x.per) (Cap.show x.cap) (Pmo.show x.pmo) (PrE.show x.pre) (Pretty.sprint 200 (Pred.pretty () x.pred)) (Ctx.show x.ctx)
   include Printable.PrintSimple (struct
-      type t' = t
-      let name () = "ARINC state"
+      type nonrec t = t
       let show = show
     end)
   (* Printable.S *)
@@ -68,4 +70,7 @@ struct
   let widen = join
   let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Pred.meet Ctx.meet
   let narrow = meet
+
+  let pretty_diff () (x,y) =
+    Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

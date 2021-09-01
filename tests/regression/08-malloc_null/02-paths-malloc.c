@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']"
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']" --sets exp.privatization none
 #include <stdlib.h>
 #include <stdio.h>
 

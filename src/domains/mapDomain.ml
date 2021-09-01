@@ -68,12 +68,12 @@ module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = Deriving.Map.Make (Domain)
+  module M = Map.Make (Domain)
 
   include Printable.Std
   type key = Domain.t
   type value = Range.t
-  type t = Range.t M.t [@@deriving to_yojson] (* key -> value  mapping *)
+  type t = Range.t M.t (* key -> value  mapping *)
 
   let trace_enabled = Domain.trace_enabled
 
@@ -165,8 +165,6 @@ struct
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (Domain.show k)) Range.printXml v
@@ -174,6 +172,10 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     iter print_one xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let to_yojson xs =
+    let f (k, v) = (Domain.show k, Range.to_yojson v) in
+    `Assoc (xs |> M.bindings |> List.map f)
 
   let arbitrary () = QCheck.always M.empty (* S TODO: non-empty map *)
 end

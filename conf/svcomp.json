@@ -1,0 +1,61 @@
+{
+  "ana": {
+    "sv-comp": {
+      "enabled": true,
+      "functions": true
+    },
+    "int": {
+      "def_exc": true,
+      "enums": false,
+      "interval": true
+    },
+    "activated": [
+      "base",
+      "threadid",
+      "threadflag",
+      "mallocWrapper",
+      "mutex",
+      "escape",
+      "expRelation",
+      "var_eq",
+      "symb_locks",
+      "region",
+      "thread"
+    ]
+  },
+  "exp": {
+    "witness": {
+      "id": "enumerate"
+    },
+    "widen-context": false,
+    "partition-arrays": {
+      "enabled": true
+    },
+    "region-offsets": true,
+    "malloc": {
+      "wrappers": [
+        "kmalloc",
+        "__kmalloc",
+        "usb_alloc_urb",
+        "__builtin_alloca",
+        "kzalloc",
+
+        "ldv_malloc",
+
+        "kzalloc_node",
+        "ldv_zalloc",
+        "kmalloc_array",
+        "kcalloc"
+      ]
+    }
+  },
+  "solver": "td3",
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    },
+    "int": {
+      "signed_overflow": "assume_none"
+    }
+  }
+}

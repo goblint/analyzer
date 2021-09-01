@@ -4,6 +4,8 @@ open Prelude.Ana
 open GobConfig
 open Analyses
 
+module QuerySet = Set.Make (Queries.Any)
+
 type spec_modules = { spec : (module MCPSpec)
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
@@ -95,9 +97,11 @@ struct
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
-  let to_yojson x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
-    [%to_yojson: Printable.json list] xs
+  let to_yojson xs =
+    let f a n (module S : Printable.S) x =
+      let name = BatList.assoc n !analyses_table in
+      (name, S.to_yojson (obj x)) :: a
+    in `Assoc (unop_fold f [] xs)
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
@@ -124,8 +128,6 @@ struct
       analysis_name ^ ":(" ^ D.name () ^ ")"
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
-
-  let pretty_diff () (x,y) = text "Please override me!"
 
   let printXml f xs =
     let print_one a n (module S : Printable.S) x : unit =
@@ -294,7 +296,6 @@ struct
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let val_of = identity
   let context x =
     let x = spec_list x in
     map (fun (n,(module S:MCPSpec),d) ->
@@ -520,38 +521,49 @@ struct
     if q then raise Deadcode else d
 
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
-  and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+  and query': type a. QuerySet.t -> (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun asked ctx q ->
     let module Result = (val Queries.Result.lattice q) in
-    let f a (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; prev_node = ctx.prev_node
-        ; control_context = ctx.control_context
-        ; context = (fun () -> ctx.context () |> assoc n |> obj)
-        ; edge   = ctx.edge
-        ; ask    = (fun (type b) (q: b Queries.t) -> query ctx q)
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-        ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
-        (* sideg is forbidden in query, because they would bypass sides grouping in other transfer functions.
-           See https://github.com/goblint/analyzer/pull/214. *)
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
-        }
+    if QuerySet.mem (Any q) asked then
+      Result.top () (* query cycle *)
+    else
+      let asked' = QuerySet.add (Any q) asked in
+      let f a (n,(module S:MCPSpec),d) =
+        let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+          { local  = obj d
+          ; node   = ctx.node
+          ; prev_node = ctx.prev_node
+          ; control_context = ctx.control_context
+          ; context = (fun () -> ctx.context () |> assoc n |> obj)
+          ; edge   = ctx.edge
+          ; ask    = (fun (type b) (q: b Queries.t) -> query' asked' ctx q)
+          ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+          ; presub = filter_presubs n ctx.local
+          ; postsub= []
+          ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+          ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+          ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+          ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
+          (* sideg is forbidden in query, because they would bypass sides grouping in other transfer functions.
+             See https://github.com/goblint/analyzer/pull/214. *)
+          ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
+          }
+        in
+        (* meet results so that precision from all analyses is combined *)
+        Result.meet a @@ S.query ctx' q
       in
-      (* meet results so that precision from all analyses is combined *)
-      Result.meet a @@ S.query ctx' q
-    in
-    match q with
-    | Queries.PrintFullState ->
-      ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-      ()
-    | _ ->
-      fold_left f (Result.top ()) @@ spec_list ctx.local
+      match q with
+      | Queries.PrintFullState ->
+        ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
+        ()
+      (* | EvalInt e ->
+        (* TODO: only query others that actually respond to EvalInt *)
+        (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
+        f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+      | _ ->
+        fold_left f (Result.top ()) @@ spec_list ctx.local
+
+  and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+    query' QuerySet.empty ctx q
 
   let assign (ctx:(D.t, G.t, C.t) ctx) l e =
     let spawns = ref [] in

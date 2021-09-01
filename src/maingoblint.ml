@@ -292,7 +292,7 @@ let do_stats () =
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
-  let module L = Printable.Liszt (Basetype.CilFundec) in
+  let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
     Cilfacade.print merged_AST
@@ -316,14 +316,15 @@ let do_analyze change_info merged_AST =
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
         try Control.analyze change_info ast funs
-        with x ->
+        with e ->
+          let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
           let loc = !Tracing.current_loc in
           Messages.print_msg "{RED}About to crash!" loc;
           (* trigger Generic.SolverStats...print_stats *)
           Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
           do_stats ();
           print_newline ();
-          raise x
+          Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
           (* Cilfacade.current_file := ast'; *)
       in
       (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
@@ -359,12 +360,8 @@ let do_html_output () =
 
 let check_arguments () =
   let eprint_color m = eprintf "%s\n" (Messages.colorize m) in
-  let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in
+  (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
-  let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval-context" in
-  if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval-context)";
-  let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
-  if ctx_insens && get_bool "exp.full-context" then warn "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization")
@@ -442,6 +439,8 @@ let main () =
     parse_arguments ();
     check_arguments ();
     AfterConfig.run ();
+
+    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
 
     (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
       for overflows, as this will replace potential overflows with constants after wrap-around *)

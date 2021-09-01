@@ -127,7 +127,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_metadata g "sourcecodelang" "C";
   GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
-  let programfile = (getLoc (N.cfgnode main_entry)).file in
+  let programfile = (Node.location (N.cfgnode main_entry)).file in
   GML.write_metadata g "programfile" programfile;
   let programhash =
     (* TODO: calculate SHA-256 hash without external process *)
@@ -154,7 +154,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             | Statement _, Some i ->
               let i = InvariantCil.exp_replace_original_name i in
               [("invariant", Pretty.sprint 800 (Cil.dn_exp () i));
-              ("invariant.scope", (getFun cfgnode).svar.vname)]
+              ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
             | _ ->
               (* ignore entry and return invariants, variables of wrong scopes *)
               (* TODO: don't? fix scopes? *)
@@ -198,7 +198,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
              else
                []
            end; *)
-        begin let loc = getLoc from_cfgnode in
+        begin let loc = Node.location from_cfgnode in
           (* exclude line numbers from sv-comp.c and unknown line numbers *)
           if loc.file = programfile && loc.line <> -1 then
             (* TODO: startline disabled because Ultimate doesn't like our line numbers for some reason *)
@@ -214,9 +214,9 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         end;
         begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f ->
-            [("enterFunction", f.vname)]
+            [("enterFunction", f.svar.vname)]
           | Function f, _ ->
-            [("returnFromFunction", f.vname)]
+            [("returnFromFunction", f.svar.vname)]
           | _, _ -> []
         end;
         begin match edge with
@@ -336,6 +336,8 @@ struct
       !indices
     in
 
+    let module CfgNode = Node in
+
     let module Node =
     struct
       type t = MyCFG.node * Spec.C.t * int
@@ -353,8 +355,8 @@ struct
         let i_str = string_of_int i in
         match n with
         | Statement stmt  -> Printf.sprintf "s%d(%d)[%s]" stmt.sid c_tag i_str
-        | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.vid f.vname c_tag i_str
-        | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.vid f.vname c_tag i_str
+        | Function f      -> Printf.sprintf "ret%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
+        | FunctionEntry f -> Printf.sprintf "fun%d%s(%d)[%s]" f.svar.vid f.svar.vname c_tag i_str
 
       (* TODO: less hacky way (without ask_indices) to move node *)
       let is_live (n, c, i) = not (Spec.D.is_bot (get (n, c)))
@@ -418,7 +420,7 @@ struct
 
     let find_invariant (n, c, i) =
       let context: Invariant.context = {
-          scope=getFun n;
+          scope=CfgNode.find_fundec n;
           i;
           lval=None;
           offset=Cil.NoOffset;
@@ -435,7 +437,7 @@ struct
         LHT.fold (fun (n, c) v acc ->
             match n with
             (* FunctionEntry isn't used for extern __VERIFIER_error... *)
-            | FunctionEntry f when Svcomp.is_error_function f ->
+            | FunctionEntry f when Svcomp.is_error_function f.svar ->
               let is_dead = Spec.D.is_bot v in
               acc && is_dead
             | _ -> acc
@@ -455,7 +457,7 @@ struct
         (module TaskResult:WitnessTaskResult)
       ) else (
         let is_violation = function
-          | FunctionEntry f, _, _ when Svcomp.is_error_function f -> true
+          | FunctionEntry f, _, _ when Svcomp.is_error_function f.svar -> true
           | _, _, _ -> false
         in
         (* redefine is_violation to shift violations back by one, so enterFunction __VERIFIER_error is never used *)
