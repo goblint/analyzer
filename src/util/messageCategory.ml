@@ -42,8 +42,8 @@ struct
 
   let create (e: t): category = Behavior e
   let undefined e: category = create @@ Undefined e
-  let implementation (): category = create @@ Implementation
-  let machine (): category = create @@ Machine
+  let implementation: category = create @@ Implementation
+  let machine: category = create @@ Machine
 
   module Undefined =
   struct
@@ -51,25 +51,25 @@ struct
 
     let create (e: t): category = undefined e
     let array_out_of_bounds e: category = create @@ ArrayOutOfBounds e
-    let nullpointer_dereference (): category = create @@ NullPointerDereference
-    let use_after_free (): category = create @@ UseAfterFree
+    let nullpointer_dereference: category = create @@ NullPointerDereference
+    let use_after_free: category = create @@ UseAfterFree
 
     module ArrayOutOfBounds =
     struct
       type t = array_oob
 
       let create (e: t): category = array_out_of_bounds e
-      let past_end (): category = create PastEnd
-      let before_start (): category = create BeforeStart
-      let unknown (): category = create Unknown
+      let past_end: category = create PastEnd
+      let before_start: category = create BeforeStart
+      let unknown: category = create Unknown
 
       let from_string_list (s: string list): category =
         match s with
         | [] -> Unknown
         | h :: t -> match h with
-          | "past_end" -> past_end ()
-          | "before_start" -> before_start ()
-          | "unknown" -> unknown ()
+          | "past_end" -> past_end
+          | "before_start" -> before_start
+          | "unknown" -> unknown
           | _ -> Unknown
 
       let path_show (e: t) =
@@ -84,8 +84,8 @@ struct
       | [] -> Unknown
       | h :: t -> match h with
         | "array_out_of_bounds" -> ArrayOutOfBounds.from_string_list t
-        | "nullpointer_dereference" -> nullpointer_dereference ()
-        | "use_after_free" -> use_after_free ()
+        | "nullpointer_dereference" -> nullpointer_dereference
+        | "use_after_free" -> use_after_free
         | _ -> Unknown
 
     let path_show (e: t) =
@@ -100,8 +100,8 @@ struct
     | [] -> Unknown
     | h :: t -> ();match h with
       | "undefined" -> Undefined.from_string_list t
-      | "implementation" -> implementation ()
-      | "machine" -> machine ()
+      | "implementation" -> implementation
+      | "machine" -> machine
       | _ -> Unknown
 
   let path_show (e: t) =
@@ -116,15 +116,15 @@ struct
   type t = integer
 
   let create (e: t): category = Integer e
-  let overflow (): category = create Overflow
-  let div_by_zero (): category = create DivByZero
+  let overflow: category = create Overflow
+  let div_by_zero: category = create DivByZero
 
   let from_string_list (s: string list): category =
     match s with
     | [] -> Unknown
     | h :: t -> ();match h with
-      | "overflow" -> overflow ()
-      | "div_by_zero" -> div_by_zero ()
+      | "overflow" -> overflow
+      | "div_by_zero" -> div_by_zero
       | _ -> Unknown
 
   let path_show (e: t) =
@@ -138,13 +138,13 @@ struct
   type t = cast
 
   let create (e: t): category = Cast e
-  let type_mismatch (): category = create TypeMismatch
+  let type_mismatch: category = create TypeMismatch
 
   let from_string_list (s: string list): category =
     match s with
     | [] -> Unknown
     | h :: t -> ();match h with
-      | "type_mismatch" -> type_mismatch ()
+      | "type_mismatch" -> type_mismatch
       | _ -> Unknown
 
   let path_show (e: t) =

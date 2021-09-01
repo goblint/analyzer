@@ -801,9 +801,9 @@ struct
         match (eval_rv a gs st n) with
         | `Address adr ->
           (if AD.is_null adr
-           then M.error_each ~category:(M.Category.Behavior.Undefined.nullpointer_dereference ()) ~tags:[M.Tag.CWE 476] "Must dereference NULL pointer"
+           then M.error_each ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[M.Tag.CWE 476] "Must dereference NULL pointer"
            else if AD.may_be_null adr
-           then M.warn_each ~category:(M.Category.Behavior.Undefined.nullpointer_dereference ()) ~tags:[M.Tag.CWE 476] "May dereference NULL pointer");
+           then M.warn_each ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[M.Tag.CWE 476] "May dereference NULL pointer");
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
