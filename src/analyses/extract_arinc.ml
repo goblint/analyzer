@@ -338,10 +338,10 @@ struct
               let v,i = Res.get ("process", name) in
               assign_id pid' v;
               List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
-            | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local (* TODO: f *)
+            | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail (M.debug_each "%s") (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local (* TODO: f *)
           end
         | _ -> match Pml.special_fun fname with
-          | None -> M.debug_each ("extract_arinc: unhandled function "^fname); ctx.local
+          | None -> M.debug_each "extract_arinc: unhandled function %s" fname; ctx.local
           | Some eval_args ->
             if M.tracing then M.trace "extract_arinc" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
             let rec combine_opt f a b = match a, b with

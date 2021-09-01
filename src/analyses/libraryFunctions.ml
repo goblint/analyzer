@@ -19,36 +19,40 @@ type categories = [
 let osek_renames = ref false
 
 let classify' fn exps =
+  let strange_arguments () =
+    M.warn_each "%s arguments are strange!" fn;
+    `Unknown fn
+  in
   match fn with
   | "pthread_create" ->
     begin match exps with
       | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
-      | _ -> M.warn_each "pthread_create arguments are strange."; `Unknown fn
+      | _ -> strange_arguments ()
     end
   | "pthread_join" ->
     begin match exps with
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
-      | _ -> M.warn_each "pthread_join arguments are strange!"; `Unknown fn
+      | _ -> strange_arguments ()
     end
   | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
-      | _ -> M.warn_each (fn^" arguments are strange!"); `Unknown fn
+      | _ -> strange_arguments ()
     end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
-      | _ -> M.warn_each (fn^" arguments are strange!"); `Unknown fn
+      | _ -> strange_arguments ()
     end
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
-      | _ -> M.warn_each (fn^" arguments are strange!"); `Unknown fn
+      | _ -> strange_arguments ()
     end
   | "realloc" ->
     begin match exps with
       | p::size::_ -> `Realloc (p, size)
-      | _ -> M.warn_each (fn^" arguments are strange!"); `Unknown fn
+      | _ -> strange_arguments ()
     end
   | "assert" ->
     begin match exps with

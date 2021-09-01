@@ -225,19 +225,22 @@ let msg severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   in
   Pretty.gprintf finish fmt
 
-let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) text =
-  (* TODO: generalize to Pretty format *)
-  add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
+let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc =
+    let text = Pretty.sprint ~width:max_int doc in
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
+  in
+  Pretty.gprintf finish fmt
 
-(* must eta-expand ?tags to get proper (non-weak) polymorphism for format *)
+(* must eta-expand to get proper (non-weak) polymorphism for format *)
 let warn ?tags = msg Warning ?tags
-let warn_each = msg_each Warning
+let warn_each ?loc = msg_each Warning ?loc
 (* TODO: error? *)
-let error_each = msg_each Error
+let error_each ?loc = msg_each Error ?loc
 (* TODO: info *)
 let debug ?tags = msg Debug ?tags
-let debug_each = msg_each Debug
+let debug_each ?loc = msg_each Debug ?loc
 (* TODO: success? *)
-let success_each = msg_each Success
+let success_each ?loc = msg_each Success ?loc
 
 include Tracing

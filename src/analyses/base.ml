@@ -358,12 +358,10 @@ struct
     if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
     match value with
     | `Top ->
-      let warning = "Unknown value in " ^ description ^ " could be an escaped pointer address!" in
-      if VD.is_immediate_type t then () else M.warn_each warning; empty
+      if VD.is_immediate_type t then () else M.warn_each "Unknown value in %s could be an escaped pointer address!" description; empty
     | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
     | `Address adrs when AD.is_top adrs ->
-      let warning = "Unknown address in " ^ description ^ " has escaped." in
-      M.warn_each warning; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+      M.warn_each "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
     | `Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
@@ -856,12 +854,12 @@ struct
     try
       let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
       if AD.mem Addr.UnknownPtr fp then begin
-        M.warn_each ("Function pointer " ^ sprint d_exp fval ^ " may contain unknown functions.");
+        M.warn_each "Function pointer %a may contain unknown functions." d_exp fval;
         dummyFunDec.svar :: AD.to_var_may fp
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ ->
-      M.warn_each ("Unknown call to function " ^ sprint d_exp fval ^ ".");
+      M.warn_each "Unknown call to function %a." d_exp fval;
       [dummyFunDec.svar]
 
   (* interpreter end *)
@@ -943,7 +941,7 @@ struct
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
-          M.debug_each @@ "EvalStr (" ^ sprint d_exp e ^ ") returned " ^ AD.show a;
+          M.debug_each "EvalStr (%a) returned %a" d_exp e AD.pretty a;
           Queries.Result.top q
         | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
@@ -1382,7 +1380,7 @@ struct
         else set a gs st addr t_lval new_val ~invariant:true ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.warn_each ("Invariant failed: expression \"" ^ sprint d_plainexp exp ^ "\" not understood.");
+      M.warn_each "Invariant failed: expression \"%a\" not understood." d_plainexp exp;
       st
 
   let invariant ctx a gs st exp tv: store =
@@ -1714,7 +1712,7 @@ struct
       match ctx.ask (Queries.CondVars exp) with
       | s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
-        M.debug_each @@ "CondVars result for expression " ^ sprint d_exp exp ^ " is " ^ sprint d_exp e;
+        M.debug_each "CondVars result for expression %a is %a" d_exp exp d_exp e;
         invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
       | _ -> res
     in
@@ -1814,7 +1812,7 @@ struct
 
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    if exps <> [] then M.warn_each ("Invalidating expressions: " ^ sprint (d_list ", " d_plainexp) exps);
+    if exps <> [] then M.warn_each "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
@@ -1899,7 +1897,7 @@ struct
           in
           Some (lval, v, args)
         else (
-          M.warn_each ("Not creating a thread from " ^ v.vname ^ " because its type is " ^ sprint d_type v.vtype);
+          M.warn_each "Not creating a thread from %s because its type is %a" v.vname d_type v.vtype;
           None
         )
     in
@@ -1928,7 +1926,7 @@ struct
         in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        if addrs <> [] then M.warn_each ("Spawning functions from unknown function: " ^ sprint (d_list ", " d_varinfo) addrs);
+        if addrs <> [] then M.warn_each "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
         List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
@@ -1963,18 +1961,19 @@ struct
         ) else
           warn_fn msg
     in
+    (* TODO: use format instead of %s for the following messages *)
     match check_assert e ctx.local with
     | `Lifted false ->
-      warn (M.error_each ~category:M.Category.Assert) ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
+      warn (M.error_each ~category:M.Category.Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `Lifted true ->
-      warn (M.success_each ~category:M.Category.Assert) ("Assertion \"" ^ expr ^ "\" will succeed");
+      warn (M.success_each ~category:M.Category.Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.error_each ~category:M.Category.Assert ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.error_each ~category:M.Category.Assert "%s" ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
-      warn (M.warn_each ~category:M.Category.Assert) ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
+      warn (M.warn_each ~category:M.Category.Assert "%s") ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
@@ -1984,7 +1983,7 @@ struct
       end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each ("Function definition missing for " ^ f.vname));
+    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn_each "Function definition missing for %s" f.vname);
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn_each "Unknown function ptr called");
     let addrs =
       if get_bool "sem.unknown_function.invalidate.globals" then (

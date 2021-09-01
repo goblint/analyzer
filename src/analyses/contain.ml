@@ -521,7 +521,7 @@ struct
                 let fns = D.get_fptr_items ctx.global in
                 let add_svar x y =
                   match ContainDomain.FuncName.from_fun_name x with
-                  | Some x -> Messages.warn_each ("fptr check: "^x.vname );(x)::y
+                  | Some x -> Messages.warn_each "fptr check: %s" x.vname;(x)::y
                   | _ -> y
                 in
                 ContainDomain.VarNameSet.fold (fun x y ->  add_svar x y) fns []

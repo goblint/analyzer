@@ -41,7 +41,7 @@ let report x =
   let loc = !Tracing.current_loc in
   if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) &&
      !Goblintutil.in_verifying_stage then (*filter noise*)
-    Messages.warn_each ("CW: "^x)
+    Messages.warn_each "CW: %s" x
 
 module FieldVars =
 struct
@@ -173,7 +173,7 @@ struct
     let loc = !Tracing.current_loc in
     if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) &&
        (!Goblintutil.in_verifying_stage|| !final) then (*filter noise*)
-      Messages.warn_each ("CW: "^x)
+      Messages.warn_each "CW: %s" x
 
   module Danger =
   struct
@@ -256,13 +256,14 @@ struct
     if enable_dbg && loc.line>=dbg_line_start && loc.line<=dbg_line_end then
       (*counter := !counter + 1;*)
       if not (loc.file ="LLVM INTERNAL") || not (loc.line=1)  then (*filter noise*)
-        Messages.warn_each ((*(string_of_int !counter)^*)"CW: "^x)
+        Messages.warn_each "CW: %s" x
+        (* Messages.warn_each "%dCW: %s" !counter x *)
 
 
   let error x =
     let loc = !Tracing.current_loc in
     if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1))&& !Goblintutil.in_verifying_stage  then (*filter noise*)
-      Messages.warn_each ~category:Messages.Category.Analyzer ("CW: "^x) (* TODO: used to call report_error, add error severity *)
+      Messages.warn_each ~category:Messages.Category.Analyzer "CW: %s" x (* TODO: used to call report_error, add error severity *)
 
   let taintedFunDec = (emptyFunction "@tainted_fields").svar
 

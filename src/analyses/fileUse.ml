@@ -22,7 +22,7 @@ struct
   (* queries *)
   let query ctx (type a) (q: a Queries.t) =
     match q with
-    | Queries.MayPointTo exp -> M.debug_each @@ "query MayPointTo: "^sprint d_plainexp exp; Queries.Result.top q
+    | Queries.MayPointTo exp -> M.debug_each "query MayPointTo: %a" d_plainexp exp; Queries.Result.top q
     | _ -> Queries.Result.top q
 
   let query_lv (ask: Queries.ask) exp =

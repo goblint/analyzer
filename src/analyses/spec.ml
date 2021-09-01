@@ -57,22 +57,22 @@ struct
         warn key m msg;
         m (* no goto == implicit back edge *)
       | None ->
-        M.debug_each @@ "GOTO "^D.string_of_key key^": "^D.string_of_state key m^" -> "^state;
+        M.debug_each "GOTO %s: %s -> %s" (D.string_of_key key) (D.string_of_state key m) state;
         if not change_state then m
         else if may then D.may_goto key loc state m else D.goto key loc state m
 
     (* match spec_exp, cil_exp *)
     let equal_exp ctx = function
       (* TODO match constants right away to avoid queries? *)
-      | `String a, Const(CStr b) -> M.debug_each @@ "EQUAL String Const: "^a^" = "^b; a=b
+      | `String a, Const(CStr b) -> M.debug_each "EQUAL String Const: %s = %s" a b; a=b
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
       (* CWStr is done in base.ml, query only returns `Str if it's safe *)
       | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | `Lifted b -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
+          | `Lifted b -> M.debug_each "EQUAL String Query: %s = %s" a b; a=b
           | _      -> M.debug_each "EQUAL String Query: no result!"; false
         )
       | `Regex a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | `Lifted b -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
+          | `Lifted b -> M.debug_each "EQUAL Regex String Query: %s = %s" a b; Str.string_match (Str.regexp a) b 0
           | _      -> M.debug_each "EQUAL Regex String Query: no result!"; false
         )
       | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
@@ -153,7 +153,7 @@ struct
         let rec check_fwd_loop m new_a old_key = (* TODO cycle detection? *)
           let new_m,fwd,new_a,key = List.find_map (check_constraint ctx get_key matches m new_a old_key) !edges in
           (* List.iter (fun x -> M.debug_each (x^"\n")) (D.string_of_map new_m); *)
-          if fwd then M.debug_each @@ "FWD: "^string_of_bool fwd^", new_a: "^dump new_a^", old_key: "^dump old_key;
+          if fwd then M.debug_each "FWD: %B, new_a: %s, old_key: %s" fwd (dump new_a) (dump old_key);
           if fwd then check_fwd_loop new_m new_a key else new_m,key
         in
         (* now we get the new domain and the latest key that was used *)
@@ -217,7 +217,7 @@ struct
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let get_key c = match SC.get_key_variant c with
       | `Lval s ->
-        M.debug_each @@ "Key variant assign `Lval "^s^"; "^SC.stmt_to_string c;
+        M.debug_each "Key variant assign `Lval %s; %s" s (SC.stmt_to_string c);
         (match SC.get_lval c, lval with
          | Some `Var, _ -> Some lval
          | Some `Ptr, (Mem Lval x, o) -> Some x (* TODO offset? *)
@@ -334,11 +334,11 @@ struct
           (* there should be only one such edge or none *)
           if List.length branch_edges <> 1 then ( (* call of branch for an actual branch *)
             M.debug_each "branch: branch_edges length is not 1! -> actual branch";
-            M.debug_each ((D.string_of_entry key m)^" -> branch_edges1: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
+            M.debug_each "%s -> branch_edges1: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun () x -> Pretty.text (SC.def_to_string (SC.Edge x)))) branch_edges;
             (* filter those edges that are branches, end with a state from states have the same branch expression and the same tv *)
             (* TODO they should end with any predecessor of the current state, not only the direct predecessor *)
             let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem b states && branch_exp_eq c exp tv) !edges in
-            M.debug_each ((D.string_of_entry key m)^" -> branch_edges2: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
+            M.debug_each "%s -> branch_edges2: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun () x -> Pretty.text (SC.def_to_string (SC.Edge x)))) branch_edges;
             if List.length branch_edges <> 1 then m else
               (* meet current value with the target state. this is tricky: we can not simply take the target state, since there might have been more than one element already before the branching.
                  -> find out what the alternative branch target was and remove it *)
@@ -453,10 +453,10 @@ struct
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let get_key c = match SC.get_key_variant c with
       | `Lval s ->
-        M.debug_each @@ "Key variant special `Lval "^s^"; "^SC.stmt_to_string c;
+        M.debug_each "Key variant special `Lval %s; %s" s (SC.stmt_to_string c);
         lval
       | `Arg(s, i) ->
-        M.debug_each @@ "Key variant special `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c;
+        M.debug_each "Key variant special `Arg(%s, %d). %s" s i (SC.stmt_to_string c);
         (try
            let arg = List.at arglist i in
            match arg with
@@ -464,7 +464,7 @@ struct
            | AddrOf x -> Some x
            | _      -> None
          with Invalid_argument s ->
-           M.debug_each @@ "Key out of bounds! Msg: "^s; (* TODO what to do if spec says that there should be more args... *)
+           M.debug_each "Key out of bounds! Msg: %s" s; (* TODO what to do if spec says that there should be more args... *)
            None
         )
       | _ -> None (* `Rval or `None *)

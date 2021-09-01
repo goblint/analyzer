@@ -5,7 +5,7 @@ open Analyses
 
 module BI = IntOps.BigIntOps
 
-let debug_doc doc = M.debug_each (Pretty.sprint 99 doc)
+let debug_doc doc = M.debug_each "%a" Pretty.insert doc
 
 module Functions = struct
   let prefix = "LAP_Se_"
@@ -146,7 +146,7 @@ struct
   let dummy_global_dlval = { dummyFunDec.svar with vname = "Gret" }, `NoOffset
   let global_dlval dlval fname =
     if Lval.CilLval.class_tag dlval = `Global then (
-      M.debug_each @@ "WARN: " ^ fname ^ ": use of global lval: " ^ str_return_dlval dlval;
+      M.debug_each "WARN: %s: use of global lval: %s" fname (str_return_dlval dlval);
       if GobConfig.get_bool "ana.arinc.merge_globals" then dummy_global_dlval else dlval
     ) else dlval
   let mayPointTo ctx exp =
@@ -154,18 +154,18 @@ struct
     | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
-          M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
+          M.debug_each "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
           Queries.LS.remove top_elt a
         ) else a
       in
       Queries.LS.elements a'
     | v ->
-      M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.LS.pretty v;
+      M.debug_each "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
   let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
-  let debugMayPointTo ctx exp = M.debug_each @@ sprint d_exp exp ^ " mayPointTo " ^ (String.concat ", " (List.map (sprint Lval.CilLval.pretty) (mayPointTo ctx exp)))
+  let debugMayPointTo ctx exp = M.debug_each "%a mayPointTo %a" d_exp exp (Pretty.d_list ", " Lval.CilLval.pretty) (mayPointTo ctx exp)
 
 
   (* transfer functions *)
@@ -187,7 +187,7 @@ struct
           let edges_added = ref false in
           let f dlval =
             (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
-            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with Cilfacade.TypeOfError Index_NonArray -> M.debug_each @@ "assign: Cilfacade.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
+            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with Cilfacade.TypeOfError Index_NonArray -> M.debug_each "assign: Cilfacade.typeOf %a threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound." d_exp (Lval.CilLval.to_exp dlval); true in
             if (not is_ret_type) || Lval.CilLval.has_index dlval then () else
               let dlval = global_dlval dlval "assign" in
               edges_added := true;
@@ -225,7 +225,7 @@ struct
                let else_node = NodeTbl.get @@ Branch (List.hd else_stmts) in
                let dst_node = if tv then then_node else else_node in
                let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
-                   M.debug_each @@ "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
+                   M.debug_each "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
                    add_edges env ArincUtil.Nop;
                    { ctx.local with pred = Pred.of_node env.node }
                  ) else ctx.local
@@ -253,7 +253,7 @@ struct
         | _ -> ctx.local
 
   let checkPredBot d tf f xs =
-    if d.pred = Pred.bot () then M.debug_each @@ tf^": mapping is BOT!!! function: "^f.vname^". "^(String.concat "\n" @@ List.map (fun (n,d) -> n ^ " = " ^ Pretty.sprint 200 (Pred.pretty () d.pred)) xs);
+    if d.pred = Pred.bot () then M.debug_each "%s: mapping is BOT!!! function: %s. %a" tf f.vname (Pretty.d_list "\n" (fun () (n, d) -> Pretty.dprintf "%s = %a" n Pred.pretty d.pred)) xs;
     d
 
   let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes -> initialize them here *)
@@ -327,9 +327,8 @@ struct
       let is_arinc_fun = startsWith Functions.prefix f.vname in
       let is_creating_fun = startsWith (Functions.prefix^"Create") f.vname in
       if M.tracing && is_arinc_fun then (
-        let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
         (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
-        M.debug_each @@ "found "^f.vname^"("^args_str^") in "^env.fundec.svar.vname
+        M.debug_each "found %s(%a) in %s" f.vname (Pretty.d_list ", " d_exp) arglist env.fundec.svar.vname
       );
       let is_error_handler = env.pname = pname_ErrorHandler in
       let eval_int exp =
@@ -367,7 +366,7 @@ struct
             let f dlval =
               let dlval = global_dlval dlval "special" in
               if not @@ is_return_code_type @@ Lval.CilLval.to_exp dlval
-              then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code: " ^ str_return_dlval dlval; None)
+              then (M.debug_each "WARN: last argument in arinc function may point to something other than a return code: %s" (str_return_dlval dlval); None)
               else (add_return_dlval env `Write dlval; Some (str_return_dlval dlval))
             in
             (* add actions for all lvals r may point to *)
@@ -513,7 +512,7 @@ struct
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
-          | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d (* TODO: f*)
+          | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail (M.debug_each "%s") (`Result (f name, f entry_point, f pri, f per, f cap)); d (* TODO: f*)
         end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
         assign_id_by_name Process name pid; d

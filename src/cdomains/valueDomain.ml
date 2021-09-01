@@ -324,7 +324,7 @@ struct
               a (* probably garbage, but this is deref's problem *)
               (*raise (CastError s)*)
             | SizeOfError (s,t) ->
-              M.warn_each ("size of error: " ^  s);
+              M.warn_each "size of error: %s" s;
               a
           end
         | x -> x (* TODO we should also keep track of the type here *)
@@ -442,7 +442,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_each m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_each "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
@@ -469,7 +469,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_each m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_each "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal BI.zero x -> AD.join AD.null_ptr y
@@ -497,7 +497,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_each m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_each "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr y
@@ -562,7 +562,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_each m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_each "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr y
@@ -916,7 +916,7 @@ struct
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^show x^")"); top ()
+            | _ -> M.warn_each "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
       in mu result
     in

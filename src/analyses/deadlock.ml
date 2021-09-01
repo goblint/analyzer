@@ -3,7 +3,6 @@
 open Prelude.Ana
 open Analyses
 open DeadlockDomain
-open Printf
 
 let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 
@@ -28,10 +27,9 @@ struct
     if !Goblintutil.in_verifying_stage then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s at %s, %s violates order at %s, %s." (ValueDomain.Addr.show e.addr) (ValueDomain.Addr.show newLock.addr) (CilType.Location.show e.loc) (CilType.Location.show newLock.loc) (CilType.Location.show b.loc) (CilType.Location.show a.loc)) in
-            Messages.warn_each msg;
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s at %s, %s violates order at %s, %s." (ValueDomain.Addr.show newLock.addr) (ValueDomain.Addr.show e.addr) (CilType.Location.show b.loc) (CilType.Location.show a.loc) (CilType.Location.show e.loc) (CilType.Location.show newLock.loc)) in
-            Messages.warn_each ~loc:a.loc msg;
+            (* TODO: use pretty instead of show *)
+            Messages.warn_each "Deadlock warning: Locking order %s, %s at %s, %s violates order at %s, %s." (ValueDomain.Addr.show e.addr) (ValueDomain.Addr.show newLock.addr) (CilType.Location.show e.loc) (CilType.Location.show newLock.loc) (CilType.Location.show b.loc) (CilType.Location.show a.loc);
+            Messages.warn_each ~loc:a.loc "Deadlock warning: Locking order %s, %s at %s, %s violates order at %s, %s." (ValueDomain.Addr.show newLock.addr) (ValueDomain.Addr.show e.addr) (CilType.Location.show b.loc) (CilType.Location.show a.loc) (CilType.Location.show e.loc) (CilType.Location.show newLock.loc);
           )
           else () ) !forbiddenList ) lockList;
 

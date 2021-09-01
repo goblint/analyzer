@@ -123,7 +123,7 @@ struct
         List.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
-        Messages.warn_each ("Uninitialized variable " ^ (Addr.show (Addr.from_var_offset a)) ^ " accessed.");
+        Messages.warn_each "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
         false
       end else
         t in
