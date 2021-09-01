@@ -26,3 +26,4 @@ rule token = parse
     }
   | ['0'-'9']+'.'?['0'-'9']*(('e'|'E')('+'|'-')?['0'-'9']+)?
                 { NUMBER (Num.num_of_string (Lexing.lexeme lexbuf)) }
+  | eof { EOF }

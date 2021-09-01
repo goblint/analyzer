@@ -2,12 +2,13 @@
   open Json
 %}
 
-%token RBRACK LBRACK RCURL LCURL COLON COMMA TRUE FALSE NULL
+%token RBRACK LBRACK RCURL LCURL COLON COMMA TRUE FALSE NULL EOF
 %token <string> STRING
 %token <Num.num> NUMBER
 
-%start value
+%start value value_eof
 %type <Json.jvalue> value
+%type <Json.jvalue> value_eof
 
 %%
 
@@ -39,4 +40,8 @@ value:
   | TRUE    { True      }
   | FALSE   { False     }
   | NULL    { Null      }
+;
+
+value_eof:
+  | value EOF { $1 }
 ;
