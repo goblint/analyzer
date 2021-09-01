@@ -4,6 +4,7 @@
 
 Types of warnings form the following tree structure:
 
+- Assert
 - Behavior (`behavior`)
     - Undefined (`undefined`)
         - ArrayOutOfBounds (`array_out_of_bounds`)
@@ -22,7 +23,6 @@ Types of warnings form the following tree structure:
 - Race (`race`)
 - Analyzer (`analyzer`)
 - Unknown (`unknown`)
-- Debug (`debug`)
 
 ## Output
 
