@@ -82,7 +82,7 @@ struct
     | `Unlock ->
       D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
     | `Unknown fn when VarEq.safe_fn fn ->
-      Messages.warn ("Assume that "^fn^" does not change lockset.");
+      Messages.warn "Assume that %s does not change lockset." fn;
       ctx.local
     | `Unknown x -> begin
         let st =

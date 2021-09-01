@@ -809,7 +809,7 @@ struct
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-          M.debug ("Failed evaluating "^str^" to lvalue"); do_offs AD.unknown_ptr ofs
+          M.debug "Failed evaluating %s to lvalue" str; do_offs AD.unknown_ptr ofs
       end
 
   (* run eval_rv from above and keep a result that is bottom *)
@@ -832,7 +832,7 @@ struct
     | `Int i -> i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
     | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
     (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
-    | v      -> M.debug ("Query function answered " ^ (VD.show v)); Queries.ID.bot ()
+    | v      -> M.debug "Query function answered %a" VD.pretty v; Queries.ID.bot ()
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
     r
@@ -1069,7 +1069,7 @@ struct
             with Cilfacade.TypeOfError _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-              M.warn ("Cilfacade.typeOfLval failed Could not obtain the type of "^ sprint d_lval (Var x, cil_offset));
+              M.warn "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
               lval_type
       in
       let update_offset old_value =

@@ -218,18 +218,24 @@ let warn_group_old group_name errors =
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
 
-let msg severity ?(tags=[]) ?(category=Category.Unknown) text =
-  add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
+let msg severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc =
+    let text = Pretty.sprint ~width:max_int doc in
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = !current_context; print_loc = !Tracing.current_loc}}
+  in
+  Pretty.gprintf finish fmt
 
 let msg_each severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) text =
+  (* TODO: generalize to Pretty format *)
   add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = !current_context; print_loc = loc}}
 
-let warn = msg Warning
+(* must eta-expand ?tags to get proper (non-weak) polymorphism for format *)
+let warn ?tags = msg Warning ?tags
 let warn_each = msg_each Warning
 (* TODO: error? *)
 let error_each = msg_each Error
 (* TODO: info *)
-let debug = msg Debug
+let debug ?tags = msg Debug ?tags
 let debug_each = msg_each Debug
 (* TODO: success? *)
 let success_each = msg_each Success

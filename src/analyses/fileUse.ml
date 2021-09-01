@@ -32,8 +32,8 @@ struct
     | _ -> []
   let print_query_lv ?msg:(msg="") ask exp =
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    M.debug @@ msg^" MayPointTo "^sprint d_exp exp^" = ["
-               ^String.concat ", " (List.map D.string_of_key xs)^"]"
+    let pretty_key k = Pretty.text (D.string_of_key k) in
+    Messages.debug "%s MayPointTo %a = [%a]" msg d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs
 
   let eval_fv ask exp: varinfo option =
     match query_lv ask exp with
@@ -47,8 +47,7 @@ struct
     | _ -> []
   let print_query_eq ?msg:(msg="") ask exp =
     let xs = query_eq ask exp in (* EqualSet -> ExpSet *)
-    M.debug @@ msg^" EqualSet "^sprint d_exp exp^" = ["
-               ^String.concat ", " (List.map (sprint d_exp) xs)^"]"
+    Messages.debug "%s EqualSet %a = [%a]" msg d_exp exp (Pretty.d_list ", " d_exp) xs
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -68,20 +67,20 @@ struct
     match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* we just care about Lval assignments *)
     | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
     | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
-      M.debug @@ "assign (both in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      M.debug "assign (both in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       saveOpened k1 m |> D.remove' k1 |> D.alias k1 k2
     | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
-      M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      M.debug "assign (only k1 in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       saveOpened k1 m |> D.remove' k1
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
-      M.debug @@ "assign (only k2 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      M.debug "assign (only k2 in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       D.alias k1 k2 m
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-      M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ sprint d_exp rval;
+      M.debug "assign (only k1 in D): %s = %a" (D.string_of_key k1) d_exp rval;
       D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";
       saveOpened ~unknown:true k1 m |> D.unknown k1
     | _ -> (* no change in D for other things *)
-      M.debug @@ "assign (none in D): " ^ sprint d_lval lval ^ " = " ^ sprint d_exp rval ^ " [" ^ sprint d_plainexp rval ^ "]";
+      M.debug "assign (none in D): %a = %a [%a]" d_lval lval d_exp rval d_plainexp rval;
       m
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -99,7 +98,7 @@ struct
           D.error k m
         )else
           D.success k m
-      | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
+      | _ -> M.debug "nothing matched the given BinOp: %a = %a" d_plainexp a d_plainexp b; m
     in
     match stripCasts (constFold true exp) with
     (* somehow there are a lot of casts inside the BinOp which stripCasts only removes when called on the subparts
@@ -109,7 +108,7 @@ struct
             ignore(printf "%s %i\n" v.vname (Int64.to_int i)); m *)
     | BinOp (Eq, a, b, _) -> check (stripCasts a) (stripCasts b) tv
     | BinOp (Ne, a, b, _) -> check (stripCasts a) (stripCasts b) (not tv)
-    | e -> M.debug @@ "branch: nothing matched the given exp: "^sprint d_plainexp e; m
+    | e -> M.debug "branch: nothing matched the given exp: %a" d_plainexp e; m
 
   let body ctx (f:fundec) : D.t =
     (* M.debug_each @@ "body of function "^f.svar.vname; *)
@@ -260,7 +259,7 @@ struct
            )
          | xs ->
            let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
-           M.debug @@ "fopen args: "^args;
+           M.debug "fopen args: %s" args;
            (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
            D.warn @@ "fopen needs two strings as arguments, given: "^args; m
         )

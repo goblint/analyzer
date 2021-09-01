@@ -795,7 +795,7 @@ struct
               end
             | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ("Trying to read an index, but was not given an array ("^show x^")"); top ()
+            | _ -> M.warn "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
     in
     let l, o = match exp with

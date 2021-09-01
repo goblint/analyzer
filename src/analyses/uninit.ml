@@ -162,7 +162,7 @@ struct
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.warn ("Failed to analyze union at point " ^ (Addr.show (Addr.from_var_offset (v,rev cx))) ^ " -- did not find " ^ tf.fname);
+        M.warn "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -190,7 +190,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.warn ("Failed to analyze union at point " ^ (Addr.show (Addr.from_var_offset (v,rev cx))));
+      M.warn "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
       []
 
 
