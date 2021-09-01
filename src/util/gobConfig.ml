@@ -337,9 +337,12 @@ struct
     if s="null" then set_null st else
     if s="" then set_string st "" else
       try
-        let s' = Str.global_replace one_quote "\"" s in
-        let v = JsonParser.value JsonLexer.token (Lexing.from_string s') in
-        set_path_string_trace st v
+        try
+          let s' = Str.global_replace one_quote "\"" s in
+          let v = JsonParser.value JsonLexer.token (Lexing.from_string s') in
+          set_path_string_trace st v
+        with Failure f when f = "lexing: empty token" -> (* Hardcoded message in ocamllex, use when to bypass warning *)
+          set_string st s
       with e ->
         eprintf "Cannot set %s to '%s'.\n" st s;
         raise e
