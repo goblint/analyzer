@@ -4,11 +4,13 @@ let ansi_color_table =
   let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
                 ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
   let modes = [(Fun.id, "0" (* normal *)); (String.uppercase_ascii, "1" (* bold *))] in
-  BatList.concat_map (fun (color, color_code) ->
+  colors
+  |> List.map (fun (color, color_code) ->
       List.map (fun (mode_fn, mode_code) ->
           (mode_fn color, Format.sprintf "\027[%s;%sm" mode_code color_code)
         ) modes
-    ) colors
+    )
+  |> List.concat
 
 let colors_on () = (* use colors? *)
   let c = get_string "colors" in
