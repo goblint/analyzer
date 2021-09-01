@@ -27,9 +27,8 @@ struct
     if !Goblintutil.in_verifying_stage then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            (* TODO: use pretty instead of show *)
-            Messages.warn_each "Deadlock warning: Locking order %s, %s at %s, %s violates order at %s, %s." (ValueDomain.Addr.show e.addr) (ValueDomain.Addr.show newLock.addr) (CilType.Location.show e.loc) (CilType.Location.show newLock.loc) (CilType.Location.show b.loc) (CilType.Location.show a.loc);
-            Messages.warn_each ~loc:a.loc "Deadlock warning: Locking order %s, %s at %s, %s violates order at %s, %s." (ValueDomain.Addr.show newLock.addr) (ValueDomain.Addr.show e.addr) (CilType.Location.show b.loc) (CilType.Location.show a.loc) (CilType.Location.show e.loc) (CilType.Location.show newLock.loc);
+            Messages.warn_each "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc CilType.Location.pretty b.loc CilType.Location.pretty a.loc;
+            Messages.warn_each ~loc:a.loc "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr CilType.Location.pretty b.loc CilType.Location.pretty a.loc CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc;
           )
           else () ) !forbiddenList ) lockList;
 
