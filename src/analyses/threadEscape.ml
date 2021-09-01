@@ -25,6 +25,30 @@ struct
   module C = EscapeDomain.EscapedVars
   module G = Lattice.Unit
 
+  let rec cut_offset x =
+    match x with
+    | `NoOffset    -> `NoOffset
+    | `Index (_,o) -> `NoOffset
+    | `Field (f,o) -> `Field (f, cut_offset o)
+
+  let reachable (ask: Queries.ask) e: D.t =
+    match ask.f (Queries.ReachableFrom e) with
+    | a when not (Queries.LS.is_top a) ->
+      (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
+      let to_extra (v,o) set = D.add v set in
+      Queries.LS.fold to_extra a (D.empty ())
+    (* Ignore soundness warnings, as invalidation proper will raise them. *)
+    | _ -> D.empty ()
+
+  let mpt (ask: Queries.ask) e: D.t =
+    match ask.f (Queries.MayPointTo e) with
+    | a when not (Queries.LS.is_top a) ->
+      (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
+      let to_extra (v,o) set = D.add v set in
+      Queries.LS.fold to_extra a (D.empty ())
+    (* Ignore soundness warnings, as invalidation proper will raise them. *)
+    | _ -> D.empty ()
+
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -33,7 +57,18 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
+    let ask = Analyses.ask_of_ctx ctx in
+    let lvs = mpt ask (AddrOf lval) in
+    ignore (Pretty.printf "assign lvs %a: %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs);
+    if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
+      let escaped = reachable ask rval in
+      ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
+      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+        ctx.emit (Events.Escape escaped);
+      D.join ctx.local escaped
+    )
+    else
+      ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -49,21 +84,6 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
-
-  let rec cut_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (_,o) -> `NoOffset
-    | `Field (f,o) -> `Field (f, cut_offset o)
-
-  let reachable (ask: Queries.ask) e: D.t =
-    match ask.f (Queries.ReachableFrom e) with
-    | a when not (Queries.LS.is_top a) ->
-      (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
-      let to_extra (v,o) set = D.add v set in
-      Queries.LS.fold to_extra a (D.empty ())
-    (* Ignore soundness warnings, as invalidation proper will raise them. *)
-    | _ -> D.empty ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
