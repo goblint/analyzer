@@ -34,7 +34,7 @@ struct
   let mutex_addr_to_varinfo = function
     | LockDomain.Addr.Addr (v, `NoOffset) -> v
     | LockDomain.Addr.Addr (v, offs) ->
-      M.warn_each (Pretty.sprint ~width:800 @@ Pretty.dprintf "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs);
+      M.warn_each ~msg:(Pretty.sprint ~width:800 @@ Pretty.dprintf "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs) ();
       v
     | _ -> failwith "MutexGlobalsBase.mutex_addr_to_varinfo"
 end
@@ -119,4 +119,25 @@ struct
     (* TODO: change MinLocksets.exists/top instead? *)
     let find x p = find_opt x p |? MinLocksets.singleton (Lockset.empty ()) (* ensure exists has something to check for thread returns *)
   end
+end
+
+module ConfCheck =
+struct
+  module RequireMutexActivatedInit =
+  struct
+    let init () =
+      let analyses = GobConfig.get_list "ana.activated" in
+      let mutex_active = List.exists (fun x -> Json.string x="mutex") analyses || List.for_all (fun x -> Json.string x<>"base") analyses in
+      if not mutex_active then failwith "Privatization (to be useful) requires the 'mutex' analysis to be enabled (it is currently disabled)"
+  end
+
+  module RequireMutexPathSensInit =
+  struct
+    let init () =
+      RequireMutexActivatedInit.init ();
+      let mutex_path_sens = List.exists (fun x -> Json.string x="mutex") (GobConfig.get_list "ana.path_sens") in
+      if not mutex_path_sens then failwith "The activated privatization requires the 'mutex' analysis to be enabled & path sensitive (it is currently enabled, but not path sensitive)";
+      ()
+  end
+
 end

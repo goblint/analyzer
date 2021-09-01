@@ -330,7 +330,6 @@ sig
   val exitstate  : varinfo -> D.t
 
   val should_join : D.t -> D.t -> bool
-  val val_of  : C.t -> D.t
   val context : D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
@@ -481,7 +480,7 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    ignore (M.warn "ASM statement ignored.");
+    ignore (M.warn ~msg:"ASM statement ignored." ());
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)
@@ -499,7 +498,4 @@ struct
 
   let context x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
-
-  let val_of x = x
-  (* Assume that context is same as local domain. *)
 end

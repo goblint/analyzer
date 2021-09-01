@@ -360,12 +360,8 @@ let do_html_output () =
 
 let check_arguments () =
   let eprint_color m = eprintf "%s\n" (Messages.colorize m) in
-  let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in
+  (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
-  let partial_context = get_bool "exp.addr-context" || get_bool "exp.no-int-context" || get_bool "exp.no-interval-context" in
-  if partial_context && get_bool "exp.full-context" then fail "exp.full-context can't be used with partial contexts (exp.addr-context, exp.no-int.context, exp.no-interval-context)";
-  let ctx_insens = Set.(cardinal (intersect (of_list (get_list "ana.ctx_insens")) (of_list (get_list "ana.activated")))) > 0 in
-  if ctx_insens && get_bool "exp.full-context" then warn "exp.full-context might lead to exceptions (undef. operations on top) with context-insensitive analyses enabled (ana.ctx_insens)";
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
   if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization")

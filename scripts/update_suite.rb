@@ -117,6 +117,7 @@ end
 
 #processing the file information
 projects = []
+project_ids = Set.new
 regs = Dir.open(testfiles)
 regs.sort.each do |d|
   next if File.basename(d)[0] == ?.
@@ -132,6 +133,10 @@ regs.sort.each do |d|
     next if f =~ /goblin_temp/
     next unless f =~ /^[0-9]+-.*\.c$/
     id = gid + "/" + f[0..1]
+    if project_ids.member?(id) then
+      puts "Duplicate test ID #{id}"
+      exit 1
+    end
     testname = f[3..-3]
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
@@ -140,7 +145,6 @@ regs.sort.each do |d|
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
-    debug = false unless lines[0] =~ /DEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 
@@ -181,9 +185,13 @@ regs.sort.each do |d|
       tests[-1] = "term"
       debug = true
     end
+    # always enable debugging so that the warnings would work
+    debug = true
+
     params << " --set dbg.debug true" if debug
     p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true)
     projects << p
+    project_ids << id
   end
 end
 
@@ -388,14 +396,8 @@ File.open(theresultfile, "w") do |f|
                     when /Assertion .* will fail/    then "fail"
                     when /Assertion .* will succeed/ then "success"
                     when /Assertion .* is unknown/   then "unknown"
-                    when /Uninitialized/             then "warn"
-                    when /dereferencing of null/     then "warn"
-                    when /CW:/                       then "warn"
-                    when /Fixpoint not reached/      then "warn"
-                    when /.*file handle.*/           then "warn"
-                    when /.*file is never closed/    then "warn"
-                    when /.*unclosed files: .*/      then "warn"
-                    when /changed pointer .*/        then "warn"
+                    when /^\[Warning\]/              then "warn"
+                    when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     else "other"
                   end
       oldwarn = warnings[i]

@@ -1,3 +1,5 @@
 pin-depends: [
   [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#208d2a2f9e51a42ee0a036f4587624ac7ac23ccb" ]
+  [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
+  [ "zarith.1.12-gob0" "git+https://github.com/goblint/Zarith.git#goblint-release-1.12" ]
 ]
