@@ -37,32 +37,6 @@ exception JsonSchemaMalformed of string
 (** An exception that indicates that some [jvalue] was not valid according to some [jschema]. *)
 exception JsonMalformed       of string
 
-(** Translate a [jschema] to a [jvalue]. *)
-let rec toJson (s:jschema) : jvalue =
-  let typeToJson fields = function
-    | JBool    -> fields := ("type",Build.string "boolean") :: !fields
-    | JInt     -> fields := ("type",Build.string "integer") :: !fields
-    | JNum     -> fields := ("type",Build.string "number" ) :: !fields
-    | JNull    -> fields := ("type",Build.string "null"   ) :: !fields
-    | JString  -> fields := ("type",Build.string "string" ) :: !fields
-    | JArray x ->
-      fields := ("type",Build.string "string") :: !fields;
-      fields := ("item",toJson x.sitem) :: !fields
-    | JObj   x ->
-      let prop  = List.map (fun (x,y) -> (x,toJson y)) x.sprops in
-      let pprop = List.map (fun (x,y) -> (x,toJson y)) x.spatternprops in
-      fields := ("type"             , Build.string "object"                           ) :: !fields;
-      fields := ("properties"       , Build.objekt prop                               ) :: !fields;
-      fields := ("patternproperties", Build.objekt pprop                              ) :: !fields;
-      fields := ("patternProperties", Build.bool x.sadditionalprops                   ) :: !fields;
-      fields := ("required"         , Build.array @@ List.map Build.string x.srequired) :: !fields
-  in
-  let fields = ref [] in
-  Option.may (fun id -> fields := ("id"         ,Build.string id) :: !fields) s.sid;
-  Option.may (fun ds -> fields := ("description",Build.string ds) :: !fields) s.sdescr;
-  Option.may (fun de -> fields := ("default"    ,de             ) :: !fields) (Option.map Json.of_yojson s.sdefault);
-  Option.may (fun t  -> typeToJson fields t                                 ) s.stype;
-  Build.objekt !fields
 
 (** Collect all ids from the [jschema]. *)
 let collectIds (s:jschema) : string list =
