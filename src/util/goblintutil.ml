@@ -122,8 +122,6 @@ let rec name_to_string_hlp = function
   | PtrTo x -> name_to_string_hlp x ^ "*"
   | TypeFun (f,x) -> f ^ "(" ^ name_to_string_hlp x ^ ")"
 
-let prefix = Str.regexp "^::.*"
-
 let name_to_string x =
   name_to_string_hlp x
 
