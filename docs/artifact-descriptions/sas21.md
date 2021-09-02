@@ -3,6 +3,10 @@ This is the artifact description for our SAS '21 paper "Improving Thread-Modular
 The artifact is available from Zenodo [here](https://doi.org/10.5281/zenodo.5148607).
 
 The artifact is a VirtualBox Image based on Ubuntu 20.04.1. The login is `goblint:goblint`.
+
+These instructions might have been updated to match the current version of Goblint.
+When using the artifact, follow the similar instructions it includes.
+
 ## Validation
 
 ### Step by Step Instructions
