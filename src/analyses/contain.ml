@@ -84,7 +84,7 @@ struct
       | f :: _ ->
         begin
           try
-            let inhr_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
+            let inhr_tbl = objekt (Json.of_yojson (Yojson.Safe.from_channel (Stdlib.open_in f))) in
             Object.iter add_inh_entry !(objekt !(field inhr_tbl "inheritance"));
             Object.iter (add_htbl D.public_vars) !(objekt !(field inhr_tbl "public_vars"));
             Object.iter (add_htbl D.private_vars) !(objekt !(field inhr_tbl "private_vars"));
@@ -105,7 +105,7 @@ struct
     | f :: _ ->
       try
         Messages.warn_each ~msg:"Problems for safe objects from SAFE.json are suppressed!" ();
-        let safe_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
+        let safe_tbl = objekt (Json.of_yojson (Yojson.Safe.from_channel (Stdlib.open_in f))) in
         Object.iter (add_htbl_re D.safe_vars) !(objekt !(field safe_tbl "variables"));
         Object.iter (add_htbl_re D.safe_methods) !(objekt !(field safe_tbl "methods"));
       with JsonE x ->
