@@ -14,7 +14,7 @@ and jschema =
   {         sid      : string option (** identificator *)
   ;         sdescr   : string option (** description  *)
   ;         stype    : jtype  option (** a type with possibly extra information *)
-  ;         sdefault : jvalue option (** the default value *)
+  ;         sdefault : Yojson.Safe.t option (** the default value *)
   ; mutable saddenum : jschema list  (** additional schemata that were loaded separately *)
   }
 
@@ -60,7 +60,7 @@ let rec toJson (s:jschema) : jvalue =
   let fields = ref [] in
   Option.may (fun id -> fields := ("id"         ,Build.string id) :: !fields) s.sid;
   Option.may (fun ds -> fields := ("description",Build.string ds) :: !fields) s.sdescr;
-  Option.may (fun de -> fields := ("default"    ,de             ) :: !fields) s.sdefault;
+  Option.may (fun de -> fields := ("default"    ,de             ) :: !fields) (Option.map Json.of_yojson s.sdefault);
   Option.may (fun t  -> typeToJson fields t                                 ) s.stype;
   Build.objekt !fields
 
@@ -86,7 +86,7 @@ let collectIds (s:jschema) : string list =
 
 (** Call to [validate s v] validates the [jvalue] [v] in the [jschema] [s].
     Invalidness is communicated using the exception [JsonMalformed]. *)
-let validate (s:jschema) (v:jvalue) : unit =
+let validate (s:jschema) (v:Yojson.Safe.t) : unit =
   let matches x y = Str.string_match (Str.regexp x) y 0 in
   let rec assoc_regex k = function
     | [] -> raise Not_found
@@ -97,32 +97,34 @@ let validate (s:jschema) (v:jvalue) : unit =
   let rec f_sc n v s =
     Option.may (f_ty n v) s.stype;
     List.iter  (f_sc n v) s.saddenum
-  and f_ty (n:string) (v:jvalue) (t:jtype) =
+  and f_ty (n:string) (v:Yojson.Safe.t) (t:jtype) =
     match (t,v) with
-    | JBool, True
-    | JBool, False -> ()
+    | JBool, `Bool _ -> ()
     | JBool,_      -> err n "of type boolean."
-    | JInt, Number n when Num.is_integer_num n -> ()
+    | JInt, `Int _
+    | JInt, `Intlit _ -> ()
     | JInt, _      -> err n "of type integer."
-    | JNum, Number _ -> ()
+    | JNum, `Int _
+    | JNum, `Intlit _
+    | JNum, `Float _ -> ()
     | JNum, _      -> err n "of type number."
-    | JNull, Null  -> ()
+    | JNull, `Null  -> ()
     | JNull, _     -> err n "of type null."
-    | JString, String _ -> ()
+    | JString, `String _ -> ()
     | JString, _   -> err n "of type string."
-    | JArray a, Array b -> List.iter (fun x -> f_sc ("element of "^n) !x a.sitem) !b
+    | JArray a, `List b -> List.iter (fun x -> f_sc ("element of "^n) x a.sitem) b
     | JArray _, _  -> err n "of type array."
-    | JObj o, Object i ->
-      Object.iter (one_map o) !i;
-      let r = List.filter (not % flip Object.mem !i) o.srequired in
+    | JObj o, `Assoc i ->
+      List.iter (one_map o) i;
+      let r = List.filter (not % flip List.mem_assoc i) o.srequired in
       if r<>[] then err (List.hd r) "present."
     | JObj o, _    -> err n "of type object."
-  and one_map o k v =
+  and one_map o (k, v) =
     try
-      f_sc k !v (List.assoc k o.sprops)
+      f_sc k v (List.assoc k o.sprops)
     with Not_found ->
     try
-      f_sc k !v (assoc_regex k o.spatternprops)
+      f_sc k v (assoc_regex k o.spatternprops)
     with Not_found ->
       if not o.sadditionalprops then err k "in the mapping."
   in
@@ -173,7 +175,7 @@ let rec fromJson (jv: Yojson.Safe.t) : jschema =
   in
   let id     = try Some (jv |> member "id" |> to_string) with Yojson.Safe.Util.Type_error _ -> None in
   let descr  = try Some (jv |> member "description" |> to_string) with Yojson.Safe.Util.Type_error _ -> None in
-  let def    = jv |> member "default" |> to_option Json.of_yojson in
+  let def    = jv |> member "default" |> to_option Fun.id in
   let typ    = typeFromJson jv in
   let r =
     { sid      = id
