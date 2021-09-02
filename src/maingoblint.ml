@@ -4,7 +4,6 @@ open Prelude
 open GobConfig
 open Defaults
 open Printf
-open Json
 open Goblintutil
 
 let writeconffile = ref ""

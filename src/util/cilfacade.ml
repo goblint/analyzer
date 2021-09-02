@@ -1,7 +1,6 @@
 (** Helpful functions for dealing with [Cil]. *)
 
 open GobConfig
-open Json
 open Cil
 module E = Errormsg
 module GU = Goblintutil

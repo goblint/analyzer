@@ -23,7 +23,6 @@ open Tracing
 open Config
 open Printf
 open JsonSchema
-open Json
 
 exception ConfigError of string
 

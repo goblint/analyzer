@@ -1,6 +1,6 @@
 (** Call to [merge x y] returns json where [x] is updated with values in [y] *)
 let rec merge x y =
-  let module Object = Json.Object in
+  let module Object = BatMap.Make (String) in
   match x, y with
   | `Assoc m1, `Assoc m2 ->
     let merger k v1 v2 =

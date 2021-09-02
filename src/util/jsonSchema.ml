@@ -1,7 +1,6 @@
 (** A simpler schema than http://json-schema.org *)
 
 open Prelude
-open Json
 
 (** type of a [jvalue] *)
 type jtype =

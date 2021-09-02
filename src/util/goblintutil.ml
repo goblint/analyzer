@@ -3,7 +3,6 @@
 open Cil
 open GobConfig
 
-open Json
 
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)

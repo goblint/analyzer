@@ -8,7 +8,6 @@ open Prelude.Ana
 let sprint = Pretty.sprint
 open Analyses
 open GobConfig
-open Json
 
 module GU = Goblintutil
 module FieldVars = Basetype.FieldVariables
