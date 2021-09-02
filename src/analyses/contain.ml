@@ -47,6 +47,7 @@ struct
     Hashtbl.replace ht (get_pure_name f.svar.vname) ()
 
   let init_inh_rel () =
+    let open Yojson.Safe.Util in
     let module StringH =
     struct
       type t = string [@@deriving eq]
@@ -58,24 +59,24 @@ struct
       let inhy = try InhMap.find inh y with _ -> [] in
       List.fold_right (closure_add x) inhy (D.InhRel.add (x,y) acc)
     in
-    let add_inh_entry cn xs  =
-      let xs = List.map (fun x -> string !x) !(array !xs) in
+    let add_inh_entry (cn, xs) =
+      let xs = List.map to_string (xs |> to_list) in
       InhMap.add inh cn xs
     in
-    let add_htbl htbl cn xs =
-      let xs = List.map (fun x -> string !x) !(array !xs) in
+    let add_htbl htbl (cn, xs) =
+      let xs = List.map to_string (xs |> to_list) in
       Hashtbl.replace htbl cn xs
     in
-    let add_htbl_demangle htbl cn xs =
-      let xs = List.map (fun x -> string !x) !(array !xs) in
+    let add_htbl_demangle htbl (cn, xs) =
+      let xs = List.map to_string (xs |> to_list) in
       match (GU.get_class cn) with
       | Some c ->
         (*printf "ADD_VTBL %s\n" c;*)
         Hashtbl.replace htbl c xs
       | _ -> ()
     in
-    let add_htbl_re htbl cn xs  =
-      let xs = List.map (fun x -> Str.regexp (string !x)) !(array !xs) in
+    let add_htbl_re htbl (cn, xs)  =
+      let xs = List.map (fun x -> Str.regexp (x |> to_string)) (xs |> to_list) in
       Hashtbl.replace htbl cn xs
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
     let json=
@@ -84,16 +85,16 @@ struct
       | f :: _ ->
         begin
           try
-            let inhr_tbl = objekt (Json.of_yojson (Yojson.Safe.from_channel (Stdlib.open_in f))) in
-            Object.iter add_inh_entry !(objekt !(field inhr_tbl "inheritance"));
-            Object.iter (add_htbl D.public_vars) !(objekt !(field inhr_tbl "public_vars"));
-            Object.iter (add_htbl D.private_vars) !(objekt !(field inhr_tbl "private_vars"));
-            Object.iter (add_htbl D.public_methods) !(objekt !(field inhr_tbl "public_methods"));
-            Object.iter (add_htbl D.private_methods) !(objekt !(field inhr_tbl "private_methods"));
-            Object.iter (add_htbl D.friends) !(objekt !(field inhr_tbl "friends"));
-            Object.iter (add_htbl_demangle D.vtbls) !(objekt !(field inhr_tbl "vtbls"));
-            Object.iter (add_htbl D.derived) !(objekt !(field inhr_tbl "derived"));
-            Object.iter (add_htbl ContainDomain.fields) !(objekt !(field inhr_tbl "fields"));
+            let inhr_json = Yojson.Safe.from_channel (Stdlib.open_in f) in
+            List.iter add_inh_entry (inhr_json |> member "inheritance" |> to_assoc);
+            List.iter (add_htbl D.public_vars) (inhr_json |> member "public_vars" |> to_assoc);
+            List.iter (add_htbl D.private_vars) (inhr_json |> member "private_vars" |> to_assoc);
+            List.iter (add_htbl D.public_methods) (inhr_json |> member "public_methods" |> to_assoc);
+            List.iter (add_htbl D.private_methods) (inhr_json |> member "private_methods" |> to_assoc);
+            List.iter (add_htbl D.friends) (inhr_json |> member "friends" |> to_assoc);
+            List.iter (add_htbl_demangle D.vtbls) (inhr_json |> member "vtbls" |> to_assoc);
+            List.iter (add_htbl D.derived) (inhr_json |> member "derived" |> to_assoc);
+            List.iter (add_htbl ContainDomain.fields) (inhr_json |> member "fields" |> to_assoc);
             D.inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !D.inc;
           with JsonE x ->
             failwith ("Containment analysis failed to read CXX.json: " ^ x)
@@ -105,9 +106,9 @@ struct
     | f :: _ ->
       try
         Messages.warn_each ~msg:"Problems for safe objects from SAFE.json are suppressed!" ();
-        let safe_tbl = objekt (Json.of_yojson (Yojson.Safe.from_channel (Stdlib.open_in f))) in
-        Object.iter (add_htbl_re D.safe_vars) !(objekt !(field safe_tbl "variables"));
-        Object.iter (add_htbl_re D.safe_methods) !(objekt !(field safe_tbl "methods"));
+        let safe_json = Yojson.Safe.from_channel (Stdlib.open_in f) in
+        List.iter (add_htbl_re D.safe_vars) (safe_json |> member "variables" |> to_assoc);
+        List.iter (add_htbl_re D.safe_methods) (safe_json |> member "methods" |> to_assoc);
       with JsonE x ->
         failwith ("Containment analysis failed to read SAFE.json: " ^ x)
 
