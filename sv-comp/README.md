@@ -4,12 +4,12 @@ All the SV-COMP configuration is in `conf/svcomp21.json`.
 ## Run Goblint in SV-COMP mode
 ### ReachSafety
 ```
-./goblint --conf conf/svcomp21.json --sets ana.specification ../sv-benchmarks/c/properties/unreach-call.prp ../sv-benchmarks/c/DIR/FILE.i
+./goblint --conf conf/svcomp21.json --set ana.specification ../sv-benchmarks/c/properties/unreach-call.prp ../sv-benchmarks/c/DIR/FILE.i
 ```
 
 ### NoDataRace
 ```
-./goblint --conf conf/svcomp21.json --sets ana.specification ../sv-benchmarks/c/properties/no-data-race.prp ../sv-benchmarks/c/DIR/FILE.i
+./goblint --conf conf/svcomp21.json --set ana.specification ../sv-benchmarks/c/properties/no-data-race.prp ../sv-benchmarks/c/DIR/FILE.i
 ```
 
 ## Run Goblint under BenchExec

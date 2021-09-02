@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] apron --disable ana.int.interval
+// SKIP PARAM: --set ana.activated[+] apron --disable ana.int.interval
 #include <assert.h>
 
 int g = 0;

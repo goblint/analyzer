@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron
 // Copied from 01/45 for apron.
 #include <assert.h>
 

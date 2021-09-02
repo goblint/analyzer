@@ -86,7 +86,7 @@ let option_spec_list =
   ; "-I"                   , Arg.String (set_string "includes[+]"), ""
   ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
-  ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_string !tmp_arg x)], ""
+  ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
   ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
   ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
   ; "--conf"               , Arg.String merge_file, ""

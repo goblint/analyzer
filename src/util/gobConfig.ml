@@ -316,7 +316,9 @@ struct
   let set_bool   st i = set_path_string_trace st (`Bool i)
   let set_string st i = set_path_string_trace st (`String i)
   let set_null   st   = set_path_string_trace st `Null
-  let set_list   st l = set_value (`List l) json_conf (parse_path st)
+  let set_list   st l =
+    if not !build_config then drop_memo ();
+    set_value (`List l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =
@@ -330,15 +332,16 @@ struct
   (** The ultimate convenience function for writing values. *)
   let one_quote = Str.regexp "\'"
   let set_auto st s =
-    if s="null" then set_null st else
-    if s="" then set_string st "" else
+    try
       try
         let s' = Str.global_replace one_quote "\"" s in
         let v = Yojson.Safe.from_string s' in
         set_path_string_trace st v
-      with e ->
-        eprintf "Cannot set %s to '%s'.\n" st s;
-        raise e
+      with Yojson.Json_error _ ->
+        set_string st s
+    with e ->
+      eprintf "Cannot set %s to '%s'.\n" st s;
+      raise e
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =

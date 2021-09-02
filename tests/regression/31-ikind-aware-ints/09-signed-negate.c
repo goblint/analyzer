@@ -1,4 +1,4 @@
-//PARAM: --disable ana.int.interval --sets sem.int.signed_overflow assume_wraparound
+//PARAM: --disable ana.int.interval --set sem.int.signed_overflow assume_wraparound
 #include <assert.h>
 
 int main(){

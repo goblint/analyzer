@@ -20,7 +20,7 @@ Regression tests can be run with various granularity:
 
 To pass additional options to Goblint with `update_suite.rb`, use the `gobopt` environment variable, e.g.:
 ```
-gobopt='--sets exp.privatization write+lock' ./scripts/update_suite.rb
+gobopt='--set exp.privatization write+lock' ./scripts/update_suite.rb
 ```
 
 ### Writing
