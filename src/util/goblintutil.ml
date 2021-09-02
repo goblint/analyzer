@@ -53,9 +53,6 @@ let is_blessed (t:typ): varinfo option =
   | _ -> (None : varinfo option)
 
 
-(** Length of summary description in XML output *)
-let summary_length = 80
-
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false
 
