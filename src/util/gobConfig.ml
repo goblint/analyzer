@@ -70,9 +70,6 @@ sig
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
 
-  (** Functions to modify conf array variables to drop one index. *)
-  val drop_index : string -> int    -> unit
-
   (** Print the current configuration *)
   val print : 'a BatInnerIO.output -> unit
 
@@ -350,17 +347,6 @@ struct
     json_conf := merge !json_conf v;
     drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
-
-  (** Function to drop one element of an 'array' *)
-  let drop_index st i =
-    let old = get_path_string array st in
-    if tracing then
-      trace "conf" "Removing index %d from '%s' to %a." i st prettyJson (Array old);
-    match List.split_at i !old with
-    | pre, _::post -> set_path_string st (Array (ref (pre@post)))
-    | _ ->
-      eprintf "Cannot drop index %d in array %s:\n%t\n\n" i st print;
-      failwith "drop_index"
 end
 
 include Impl
