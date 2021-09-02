@@ -270,7 +270,7 @@ struct
       in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
-      with JsonE s ->
+      with Yojson.Safe.Util.Type_error (s, _) ->
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
         failwith "get_path_string"
     with ConfTypeError ->

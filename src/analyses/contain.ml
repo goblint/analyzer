@@ -96,7 +96,7 @@ struct
             List.iter (add_htbl D.derived) (inhr_json |> member "derived" |> to_assoc);
             List.iter (add_htbl ContainDomain.fields) (inhr_json |> member "fields" |> to_assoc);
             D.inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !D.inc;
-          with JsonE x ->
+          with Yojson.Safe.Util.Type_error (x, _) ->
             failwith ("Containment analysis failed to read CXX.json: " ^ x)
         end
     in (*read in SAFE.json, suppress warnings for safe funs/vars*)
@@ -109,7 +109,7 @@ struct
         let safe_json = Yojson.Safe.from_channel (Stdlib.open_in f) in
         List.iter (add_htbl_re D.safe_vars) (safe_json |> member "variables" |> to_assoc);
         List.iter (add_htbl_re D.safe_methods) (safe_json |> member "methods" |> to_assoc);
-      with JsonE x ->
+      with Yojson.Safe.Util.Type_error (x, _) ->
         failwith ("Containment analysis failed to read SAFE.json: " ^ x)
 
   let funcount = ref 0
