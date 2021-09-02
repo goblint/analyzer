@@ -182,7 +182,7 @@ struct
 
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
-    printYojson ch !json_conf
+    GobYojson.print ch !json_conf
   let write_file filename = File.with_file_out filename print
 
   (** Main function to receive values from the conf. *)
@@ -250,7 +250,7 @@ struct
         let new_v = create_new v pth in
         if not (json_type_equals o new_v) then
           printf "Warning, changing '%a' from '%a' to '%a'.\n"
-            print_path orig_pth printYojson o printYojson new_v;
+            print_path orig_pth GobYojson.print o GobYojson.print new_v;
         new_v
     in
     o := set_value v !o orig_pth;
@@ -268,7 +268,7 @@ struct
         else
           g st (* just use the old format *)
       in
-      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyYojson x;
+      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
       with JsonE s ->
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
@@ -309,7 +309,7 @@ struct
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
     if not !build_config then drop_memo ();
-    if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyYojson v;
+    if tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
     set_path_string st v
 
   (** Convenience functions for writing values. *)
@@ -341,33 +341,12 @@ struct
         eprintf "Cannot set %s to '%s'.\n" st s;
         raise e
 
-  let rec merge x y =
-    match x, y with
-    | `Assoc m1, `Assoc m2 ->
-      let merger k v1 v2 =
-        match v1, v2 with
-        | Some v1, Some v2 -> Some (merge v1 v2)
-        | None   , Some v
-        | Some v , None    -> Some v
-        | None   , None    -> None
-      in
-      let nm = Object.bindings @@ Object.merge merger (m1 |> List.enum |> Object.of_enum) (m2 |> List.enum |> Object.of_enum) in
-      `Assoc nm
-    | `List l1, `List l2 ->
-      let rec zipWith' x y =
-        match x, y with
-        | x::xs, y::ys    -> merge x y :: zipWith' xs ys
-        | [], xs | xs, [] -> y
-      in
-      `List (zipWith' l1 l2)
-    | _ -> y
-
   (** Merge configurations form a file with current. *)
   let merge_file fn =
     let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
-    json_conf := merge !json_conf v;
+    json_conf := GobYojson.merge !json_conf v;
     drop_memo ();
-    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyYojson !json_conf
+    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
 end
 
 include Impl
