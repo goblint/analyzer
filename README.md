@@ -9,6 +9,8 @@ Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/e
 ## Installing
 Both for using an up-to-date version of Goblint or developing it, the best way is to install from source by cloning this repository.
 
+_The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very outdated and should currently not be used._
+
 ### Linux
 1. Install [opam](https://opam.ocaml.org/doc/Install.html).
 2. Run `make setup` to install OCaml and dependencies via opam.
