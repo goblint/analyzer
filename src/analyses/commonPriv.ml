@@ -127,7 +127,7 @@ struct
   struct
     let init () =
       let analyses = GobConfig.get_string_list "ana.activated" in
-      let mutex_active = List.exists (fun x -> x="mutex") analyses || List.for_all (fun x -> x<>"base") analyses in (* TODO: mem? *)
+      let mutex_active = List.mem "mutex" analyses || not (List.mem "base" analyses) in
       if not mutex_active then failwith "Privatization (to be useful) requires the 'mutex' analysis to be enabled (it is currently disabled)"
   end
 
@@ -135,7 +135,7 @@ struct
   struct
     let init () =
       RequireMutexActivatedInit.init ();
-      let mutex_path_sens = List.exists (fun x -> x="mutex") (GobConfig.get_string_list "ana.path_sens") in (* TODO: mem? *)
+      let mutex_path_sens = List.mem "mutex" (GobConfig.get_string_list "ana.path_sens") in
       if not mutex_path_sens then failwith "The activated privatization requires the 'mutex' analysis to be enabled & path sensitive (it is currently enabled, but not path sensitive)";
       ()
   end

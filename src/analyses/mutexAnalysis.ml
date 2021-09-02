@@ -412,7 +412,7 @@ struct
 
   let init () =
     init ();
-    arinc_analysis_activated := List.exists (fun x -> x="arinc") (get_string_list "ana.activated") (* TODO: mem? *)
+    arinc_analysis_activated := List.mem "arinc" (get_string_list "ana.activated")
 
 end
 
