@@ -346,7 +346,7 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = JsonParser.value JsonLexer.token % Lexing.from_channel |> File.with_file_in fn in
+    let v = Json.of_yojson % Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
     json_conf := merge !json_conf v;
     drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
