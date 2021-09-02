@@ -8,9 +8,6 @@ open Json
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
-(** prints the CFG on [getCFG] *)
-let cfg_print = ref false
-
 (** Json files that are given as arguments *)
 let jsonFiles : string list ref = ref []
 
