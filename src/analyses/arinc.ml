@@ -110,7 +110,7 @@ struct
   let is_single ctx =
     not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx))
   let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
-  let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
+  let is_mainfun name = List.mem name (GobConfig.get_string_list "mainfun")
 
   type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }
   let get_env ctx =

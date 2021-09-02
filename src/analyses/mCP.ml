@@ -268,12 +268,12 @@ struct
       in
       List.map f
     in
-    let xs = map Json.string @@ get_list "ana.activated" in
+    let xs = get_string_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in
     base_id := assoc_inv "base" !analyses_table;
     analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
-    path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
-    cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
+    path_sens := map' (flip assoc_inv !analyses_table) @@ get_string_list "ana.path_sens";
+    cont_inse := map' (flip assoc_inv !analyses_table) @@ get_string_list "ana.ctx_insens";
     dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
     check_deps !analyses_list;
     analyses_list := topo_sort_an !analyses_list;
