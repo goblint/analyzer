@@ -67,10 +67,6 @@ let verified : bool option ref = ref None
 
 let escape = XmlUtil.escape (* TODO: inline everywhere *)
 
-let trim (x:string): string =
-  let len = String.length x in
-  if x.[len-1] = ' ' then String.sub x 0 (len-1) else x
-
 
 (** Creates a directory and returns the absolute path **)
 let create_dir name =
