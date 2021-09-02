@@ -59,7 +59,7 @@ sig
   val set_auto   : string -> string -> unit
 
   (** Get a list of values *)
-  val get_list : string -> jvalue list
+  val get_list : string -> Yojson.Safe.t list
 
   (** Get a list of strings *)
   val get_string_list : string -> string list
@@ -189,10 +189,10 @@ struct
   let rec get_value o pth =
     match o, pth with
     | o, Here -> o
-    | Object m, Select (key,pth) -> begin
-        try get_value !(Object.find key !m) pth
+    | `Assoc m, Select (key,pth) -> begin
+        try get_value (List.assoc key m) pth
         with Not_found -> raise ConfTypeError end
-    | Array a, Index (Int i, pth) -> get_value !(List.at !a i) pth
+    | `List a, Index (Int i, pth) -> get_value (List.at a i) pth
     | _ -> raise ConfTypeError
 
   (** Recursively create the value for some new path. *)
@@ -261,14 +261,14 @@ struct
     try
       let st = String.trim st in
       let st, x =
-        let g st = st, get_value (Json.of_yojson !json_conf) (parse_path st) in
+        let g st = st, get_value !json_conf (parse_path st) in
         if !phase_config then
           try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
           with _ -> g st (* do global lookup if undefined *)
         else
           g st (* just use the old format *)
       in
-      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson x;
+      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson (Json.of_yojson x);
       try f x
       with JsonE s ->
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
@@ -283,10 +283,10 @@ struct
   let memo gen = BatCache.make_ht ~gen ~init_size:5 (* uses hashtable; fine since our options are bounded *)
   let memog f = memo @@ get_path_string f
 
-  let memo_int    = memog number
-  let memo_bool   = memog bool
-  let memo_string = memog string
-  let memo_list   = memo @@ List.map (!) % (!) % get_path_string array
+  let memo_int    = memog Yojson.Safe.Util.to_int
+  let memo_bool   = memog Yojson.Safe.Util.to_bool
+  let memo_string = memog Yojson.Safe.Util.to_string
+  let memo_list   = memog Yojson.Safe.Util.to_list
 
   let drop_memo ()  =
     (* The explicit polymorphism is needed to make it compile *)
@@ -300,7 +300,7 @@ struct
   let get_bool   = memo_bool.get
   let get_string = memo_string.get
   let get_list   = memo_list.get
-  let get_string_list = List.map string % get_list
+  let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
   (** Helper functions for writing values. *)
   let set_path_string st v =
