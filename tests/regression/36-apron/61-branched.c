@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] apron --enable ana.int.interval
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 #include<pthread.h>
 int global = 0;
 

@@ -336,15 +336,16 @@ struct
   (** The ultimate convenience function for writing values. *)
   let one_quote = Str.regexp "\'"
   let set_auto st s =
-    if s="null" then set_null st else
-    if s="" then set_string st "" else
+    try
       try
         let s' = Str.global_replace one_quote "\"" s in
-        let v = JsonParser.value JsonLexer.token (Lexing.from_string s') in
+        let v = JsonParser.value_eof JsonLexer.token (Lexing.from_string s') in
         set_path_string_trace st v
-      with e ->
-        eprintf "Cannot set %s to '%s'.\n" st s;
-        raise e
+      with (Failure "lexing: empty token" [@warning "-52"]) | Parsing.Parse_error -> (* Hardcoded message in ocamllex *)
+        set_string st s
+    with e ->
+      eprintf "Cannot set %s to '%s'.\n" st s;
+      raise e
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =

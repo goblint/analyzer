@@ -1,4 +1,4 @@
-// PARAM: --sets otherfun[+] f
+// PARAM: --set otherfun[+] f
 // no earlyglobs!
 #include <pthread.h>
 #include <assert.h>

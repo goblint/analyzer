@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] apron --enable ana.int.interval
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 #include <assert.h>
 
 void foo(int *pb) {
