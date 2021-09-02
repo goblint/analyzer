@@ -165,3 +165,16 @@ end
 (** Write a json value to a file. *)
 let save_json fn j =
   BatFile.with_file_out fn (fun c -> printJson c j)
+
+let rec of_yojson: Yojson.Safe.t -> jvalue = function
+  | `Null -> Null
+  | `Bool b -> Build.bool b
+  | `String s -> String s
+  | `Int i -> Number (Num.num_of_int i)
+  | `Intlit s -> Number (Num.num_of_string s)
+  | `List xs -> Build.array (List.map of_yojson xs)
+  | `Assoc ps -> Build.objekt (List.map (BatTuple.Tuple2.map2 of_yojson) ps)
+  | `Tuple _
+  | `Variant _
+  | `Float _->
+    failwith "Json.of_yojson"

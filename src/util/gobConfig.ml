@@ -338,7 +338,7 @@ struct
     if s="" then set_string st "" else
       try
         let s' = Str.global_replace one_quote "\"" s in
-        let v = JsonParser.value JsonLexer.token (Lexing.from_string s') in
+        let v = Json.of_yojson (Yojson.Safe.from_string s') in
         set_path_string_trace st v
       with e ->
         eprintf "Cannot set %s to '%s'.\n" st s;
