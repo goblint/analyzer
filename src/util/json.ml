@@ -185,3 +185,6 @@ let printYojson (ch: 'a BatIO.output) json =
     end
   in
   Yojson.Safe.to_output oo json
+
+let prettyYojson () json =
+  Pretty.text (Yojson.Safe.to_string json)

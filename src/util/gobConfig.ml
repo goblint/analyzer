@@ -268,7 +268,7 @@ struct
         else
           g st (* just use the old format *)
       in
-      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson (Json.of_yojson x);
+      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyYojson x;
       try f x
       with JsonE s ->
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
@@ -309,7 +309,7 @@ struct
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
     if not !build_config then drop_memo ();
-    if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson (Json.of_yojson v);
+    if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyYojson v;
     set_path_string st v
 
   (** Convenience functions for writing values. *)
@@ -367,7 +367,7 @@ struct
     let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
     json_conf := merge !json_conf v;
     drop_memo ();
-    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson (Json.of_yojson !json_conf)
+    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyYojson !json_conf
 end
 
 include Impl
