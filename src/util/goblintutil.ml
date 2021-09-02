@@ -29,9 +29,6 @@ let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
 (** number of times that globals change !CAUTION: This is only set in contain.ml and is not what one would think it is! *)
 let globals_changed = ref 0
 
-(** use the old accesses vs. the new pairwise accesses *)
-let old_accesses = ref true
-
 (** The file where everything is output *)
 let out = ref stdout
 
