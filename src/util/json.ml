@@ -178,3 +178,10 @@ let rec of_yojson: Yojson.Safe.t -> jvalue = function
   | `Variant _
   | `Float _->
     failwith "Json.of_yojson"
+
+let printYojson (ch: 'a BatIO.output) json =
+  let oo = object
+      method output = BatIO.output_substring ch
+    end
+  in
+  Yojson.Safe.to_output oo json

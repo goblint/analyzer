@@ -182,7 +182,7 @@ struct
 
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
-    printJson ch (Json.of_yojson !json_conf)
+    printYojson ch !json_conf
   let write_file filename = File.with_file_out filename print
 
   (** Main function to receive values from the conf. *)
@@ -250,7 +250,7 @@ struct
         let new_v = create_new v pth in
         if not (json_type_equals o new_v) then
           printf "Warning, changing '%a' from '%a' to '%a'.\n"
-            print_path orig_pth printJson (Json.of_yojson o) printJson (Json.of_yojson new_v);
+            print_path orig_pth printYojson o printYojson new_v;
         new_v
     in
     o := set_value v !o orig_pth;
