@@ -65,7 +65,7 @@ sig
   val get_string_list : string -> string list
 
   (** Set a list of values *)
-  val set_list : string -> jvalue list -> unit
+  val set_list : string -> Yojson.Safe.t list -> unit
 
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
@@ -166,7 +166,7 @@ struct
       failwith "parsing"
 
   (** Here we store the actual configuration. *)
-  let json_conf : jvalue ref = ref Null
+  let json_conf : Yojson.Safe.t ref = ref `Null
 
   (** The schema for the conf [json_conf] *)
   let conf_schema : jschema =
@@ -182,7 +182,7 @@ struct
 
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
-    printJson ch !json_conf
+    printJson ch (Json.of_yojson !json_conf)
   let write_file filename = File.with_file_out filename print
 
   (** Main function to receive values from the conf. *)
@@ -198,70 +198,70 @@ struct
   (** Recursively create the value for some new path. *)
   let rec create_new v = function
     | Here -> v
-    | Select (key,pth) -> Build.objekt [key,create_new v pth]
-    | Index (_, pth) -> Build.array [create_new v pth]
+    | Select (key,pth) -> `Assoc [(key,create_new v pth)]
+    | Index (_, pth) -> `List [create_new v pth]
 
   (** Helper function to decide if types in the json conf have changed. *)
   let json_type_equals x y =
     match x, y with
-    | String _, String _
-    | Number _, Number _
-    | Object _, Object _
-    | Array  _, Array  _
-    | True    , True
-    | False   , False
-    | False   , True
-    | True    , False
-    | Null    , Null     -> true
+    | `String _, `String _
+    | `Int _, `Int _
+    | `Int _, `Intlit _
+    | `Intlit _, `Int _
+    | `Intlit _, `Intlit _
+    | `Assoc _, `Assoc _
+    | `List  _, `List  _
+    | `Bool _ , `Bool _
+    | `Null    , `Null     -> true
+    (* TODO: other Yojson cases *)
     | _                  -> false
 
   (** The main function to write new values into the conf. *)
   let set_value v o orig_pth =
     let rec set_value v o pth =
-      match !o, pth with
-      | Object m, Select (key,pth) ->
-        begin try set_value v (Object.find key !m) pth
+      match o, pth with
+      | `Assoc m, Select (key,pth) ->
+        begin try `Assoc ((key, set_value v (List.assoc key m) pth) :: List.remove_assoc key m)
           with Not_found ->
             if !build_config then
-              m := Object.add key (ref (create_new v pth)) !m
+              `Assoc ((key, create_new v pth) :: m)
             else
               raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
         end
-      | Array a, Index (Int i, pth) ->
-        set_value v (List.at !a i) pth
-      | Array a, Index (App, pth) ->
-        o := Array (ref (!a @ [ref (create_new v pth)]))
-      | Array a, Index (Rem, pth) ->
-        let original_list = !a in
+      | `List a, Index (Int i, pth) ->
+        `List (List.modify_at i (fun o -> set_value v o pth) a)
+      | `List a, Index (App, pth) ->
+        `List (a @ [create_new v pth])
+      | `List a, Index (Rem, pth) ->
+        let original_list = a in
         let excluded_elem = create_new v pth in
         let filtered_list =
-          List.filter (fun ref_elem ->
-            let elem = !ref_elem in
+          List.filter (fun elem ->
             match (elem, excluded_elem) with
-            | (String s1, String s2) -> not (String.equal s1 s2)
+            | (`String s1, `String s2) -> not (String.equal s1 s2)
             | (_, _) -> failwith "At the moment it's only possible to remove a string from an array."
             ) original_list in
-        o := Array (ref filtered_list)
-      | Array _, Index (New, pth) ->
-        o := Array (ref [ref (create_new v pth)])
-      | Null, _ ->
-        o := create_new v pth
+        `List filtered_list
+      | `List _, Index (New, pth) ->
+        `List [create_new v pth]
+      | `Null, _ ->
+        create_new v pth
       | _ ->
         let new_v = create_new v pth in
-        if not (json_type_equals !o new_v) then
+        if not (json_type_equals o new_v) then
           printf "Warning, changing '%a' from '%a' to '%a'.\n"
-            print_path orig_pth printJson !o printJson new_v;
-        o := new_v
+            print_path orig_pth printJson (Json.of_yojson o) printJson (Json.of_yojson new_v);
+        new_v
     in
-    set_value v o orig_pth;
-    validate conf_schema !json_conf
+    o := set_value v !o orig_pth;
+    validate conf_schema (Json.of_yojson !json_conf)
 
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f st =
     try
       let st = String.trim st in
       let st, x =
-        let g st = st, get_value !json_conf (parse_path st) in
+        let g st = st, get_value (Json.of_yojson !json_conf) (parse_path st) in
         if !phase_config then
           try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
           with _ -> g st (* do global lookup if undefined *)
@@ -309,15 +309,15 @@ struct
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
     if not !build_config then drop_memo ();
-    if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson v;
+    if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson (Json.of_yojson v);
     set_path_string st v
 
   (** Convenience functions for writing values. *)
-  let set_int    st i = set_path_string_trace st (Build.number i)
-  let set_bool   st i = set_path_string_trace st (Build.bool i)
-  let set_string st i = set_path_string_trace st (Build.string i)
-  let set_null   st   = set_path_string_trace st Build.null
-  let set_list   st l = set_value (Build.array l) json_conf (parse_path st)
+  let set_int    st i = set_path_string_trace st (`Int i)
+  let set_bool   st i = set_path_string_trace st (`Bool i)
+  let set_string st i = set_path_string_trace st (`String i)
+  let set_null   st   = set_path_string_trace st `Null
+  let set_list   st l = set_value (`List l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =
@@ -335,18 +335,39 @@ struct
     if s="" then set_string st "" else
       try
         let s' = Str.global_replace one_quote "\"" s in
-        let v = Json.of_yojson (Yojson.Safe.from_string s') in
+        let v = Yojson.Safe.from_string s' in
         set_path_string_trace st v
       with e ->
         eprintf "Cannot set %s to '%s'.\n" st s;
         raise e
 
+  let rec merge x y =
+    match x, y with
+    | `Assoc m1, `Assoc m2 ->
+      let merger k v1 v2 =
+        match v1, v2 with
+        | Some v1, Some v2 -> Some (merge v1 v2)
+        | None   , Some v
+        | Some v , None    -> Some v
+        | None   , None    -> None
+      in
+      let nm = Object.bindings @@ Object.merge merger (m1 |> List.enum |> Object.of_enum) (m2 |> List.enum |> Object.of_enum) in
+      `Assoc nm
+    | `List l1, `List l2 ->
+      let rec zipWith' x y =
+        match x, y with
+        | x::xs, y::ys    -> merge x y :: zipWith' xs ys
+        | [], xs | xs, [] -> y
+      in
+      `List (zipWith' l1 l2)
+    | _ -> y
+
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = Json.of_yojson % Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
+    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
     json_conf := merge !json_conf v;
     drop_memo ();
-    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
+    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson (Json.of_yojson !json_conf)
 end
 
 include Impl
