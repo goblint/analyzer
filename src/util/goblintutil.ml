@@ -125,17 +125,6 @@ let rec name_to_string_hlp = function
 let name_to_string x =
   name_to_string_hlp x
 
-let rec show = function
-  | Cons -> "Cons"
-  | Dest -> "Dest"
-  | Name x -> "Name \""^x^"\""
-  | Unknown x -> "Unknown \""^x^"\""
-  | Template (a) -> "Template ("^show a^")"
-  | Nested (x,y) -> "Nested ("^show x^","^show y^")"
-  | PtrTo x -> "PtrTo ("^show x^")"
-  | TypeFun (f,x) -> "TypeFun ("^f^","^ name_to_string x ^ ")"
-
-
 let special    = Str.regexp "nw\\|na\\|dl\\|da\\|ps\\|ng\\|ad\\|de\\|co\\|pl\\|mi\\|ml\\|dv\\|rm\\|an\\|or\\|eo\\|aS\\|pL\\|mI\\|mL\\|dV\\|rM\\|aN \\|oR\\|eO\\|ls\\|rs\\|lS\\|rS\\|eq\\|ne\\|lt\\|gt\\|le\\|ge\\|nt\\|aa\\|oo\\|pp\\|mm\\|cm\\|pm\\|pt\\|cl\\|ix\\|qu\\|st\\|sz"
 let dem_prefix = Str.regexp "^_Z\\(.+\\)"
 let num_prefix = Str.regexp "^\\([0-9]+\\)\\(.+\\)"
