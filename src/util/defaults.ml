@@ -325,5 +325,5 @@ let default_schema = {schema|
 }|schema}
 
 let _ =
-  let v = Json.of_yojson (Yojson.Safe.from_string default_schema) in
+  let v = Yojson.Safe.from_string default_schema in
   GobConfig.addenum_sch v

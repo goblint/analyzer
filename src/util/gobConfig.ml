@@ -80,7 +80,7 @@ sig
   val merge_file : string -> unit
 
   (** Add a schema to the conf*)
-  val addenum_sch: jvalue -> unit
+  val addenum_sch: Yojson.Safe.t -> unit
 end
 
 (** The implementation of the [gobConfig] module. *)

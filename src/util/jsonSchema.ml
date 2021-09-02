@@ -129,27 +129,28 @@ let validate (s:jschema) (v:jvalue) : unit =
   f_sc "root" v s
 
 (** Convert a [jvalue] to a [jschema] if possible. Raise [JsonSchemaMalformed] otherwise. *)
-let rec fromJson (jv:jvalue) : jschema =
+let rec fromJson (jv: Yojson.Safe.t) : jschema =
+  let open Yojson.Safe.Util in
   let jarrayFromJson jv =
-    let item = try (!) @@ field (objekt jv) "item" with JsonE _ -> raise (JsonSchemaMalformed "jarrayFromJson") in
+    let item = try jv |> member "item" with Yojson.Safe.Util.Type_error _ -> raise (JsonSchemaMalformed "jarrayFromJson") in
     { sitem = fromJson item }
   in
   let jobjFromJson jv =
     let addit =
-      try bool @@ (!) @@ field (objekt jv) "additionalProps"
-      with JsonE _ -> raise (JsonSchemaMalformed "jobjFromJson.addit")
+      try jv |> member "additionalProps" |> to_bool
+      with Yojson.Safe.Util.Type_error _ -> raise (JsonSchemaMalformed "jobjFromJson.addit")
     in
     let req   =
-      try List.map (string % (!)) @@ (!) @@ array @@ (!) @@ field (objekt jv) "required"
-      with JsonE _ -> []
+      try jv |> member "required" |> to_list |> List.map to_string
+      with Yojson.Safe.Util.Type_error _ -> []
     in
     let props =
-      try Object.bindings @@ Object.map (fromJson % (!)) @@ (!) @@ objekt @@ (!) @@ field (objekt jv) "properties"
-      with JsonE _ -> []
+      try jv |> member "properties" |> to_assoc |> List.map (Tuple2.map2 fromJson)
+      with Yojson.Safe.Util.Type_error _ -> []
     in
     let pprops =
-      try Object.bindings @@ Object.map (fromJson % (!)) @@ (!) @@ objekt @@ (!) @@ field (objekt jv) "patternProperties"
-      with JsonE _ -> []
+      try jv |> member "patternProperties" |> to_assoc |> List.map (Tuple2.map2 fromJson)
+      with Yojson.Safe.Util.Type_error _ -> []
     in
     { sprops           = props
     ; spatternprops    = pprops
@@ -158,7 +159,7 @@ let rec fromJson (jv:jvalue) : jschema =
     }
   in
   let typeFromJson jv =
-    let typ = try Some (string @@ (!) @@ field (objekt jv) "type") with JsonE _ -> None in
+    let typ = try Some (jv |> member "type" |> to_string) with Yojson.Safe.Util.Type_error _ -> None in
     Option.bind typ @@ fun typ ->
     match typ with
     | "string"  -> Some JString
@@ -170,9 +171,9 @@ let rec fromJson (jv:jvalue) : jschema =
     | "object"  -> Some (JObj   (jobjFromJson   jv))
     | _ -> raise (JsonSchemaMalformed "typeFromJson")
   in
-  let id     = try Some (string @@ (!) @@ field (objekt jv) "id"         ) with JsonE _ -> None in
-  let descr  = try Some (string @@ (!) @@ field (objekt jv) "description") with JsonE _ -> None in
-  let def    = try Some (          (!) @@ field (objekt jv) "default"    ) with JsonE _ -> None in
+  let id     = try Some (jv |> member "id" |> to_string) with Yojson.Safe.Util.Type_error _ -> None in
+  let descr  = try Some (jv |> member "description" |> to_string) with Yojson.Safe.Util.Type_error _ -> None in
+  let def    = jv |> member "default" |> to_option Json.of_yojson in
   let typ    = typeFromJson jv in
   let r =
     { sid      = id
