@@ -4,7 +4,6 @@ open Prelude
 open GobConfig
 open Defaults
 open Printf
-open Json
 open Goblintutil
 
 let writeconffile = ref ""
@@ -189,11 +188,11 @@ let preprocess_files () =
   let includes = ref "" in
 
   (* fill include flags *)
-  let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
+  let one_include_f f x = includes := "-I " ^ f x ^ " " ^ !includes in
   if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (Filename.concat !Goblintutil.tempDirName OilUtil.header) ^" "^ !includes;
   (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
-  get_list "includes" |> List.iter (one_include_f identity);
-  get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
+  get_string_list "includes" |> List.iter (one_include_f identity);
+  get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
   if Sys.file_exists include_dir
   then includes := "-I" ^ include_dir ^ " " ^ !includes
@@ -309,8 +308,8 @@ let do_analyze change_info merged_AST =
       let do_one_phase ast p =
         phase := p;
         if get_bool "dbg.verbose" then (
-          let aa = String.concat ", " @@ List.map Json.jsonString (get_list "ana.activated") in
-          let at = String.concat ", " @@ List.map Json.jsonString (get_list "trans.activated") in
+          let aa = String.concat ", " @@ get_string_list "ana.activated" in
+          let at = String.concat ", " @@ get_string_list "trans.activated" in
           print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
@@ -366,11 +365,7 @@ let check_arguments () =
   if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization")
 
 let handle_extraspecials () =
-  let f xs = function
-    | String x -> x::xs
-    | _ -> xs
-  in
-  let funs = List.fold_left f [] (get_list "exp.extraspecials") in
+  let funs = get_string_list "exp.extraspecials" in
   LibraryFunctions.add_lib_funs funs
 
 let src_path () = Git.git_directory (List.first !cFileNames)

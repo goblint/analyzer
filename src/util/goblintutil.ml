@@ -3,7 +3,6 @@
 open Cil
 open GobConfig
 
-open Json
 
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
@@ -47,7 +46,7 @@ let type_inv (c:compinfo) : varinfo =
     i
 
 let is_blessed (t:typ): varinfo option =
-  let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in
+  let me_gusta x = List.mem x (get_string_list "exp.unique") in
   match unrollType t with
   | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
   | _ -> (None : varinfo option)

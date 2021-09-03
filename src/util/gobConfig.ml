@@ -23,7 +23,6 @@ open Tracing
 open Config
 open Printf
 open JsonSchema
-open Json
 
 exception ConfigError of string
 
@@ -59,19 +58,16 @@ sig
   val set_auto   : string -> string -> unit
 
   (** Get a list of values *)
-  val get_list : string -> jvalue list
+  val get_list : string -> Yojson.Safe.t list
 
   (** Get a list of strings *)
   val get_string_list : string -> string list
 
   (** Set a list of values *)
-  val set_list : string -> jvalue list -> unit
+  val set_list : string -> Yojson.Safe.t list -> unit
 
   (** Functions to set a conf variables to null. *)
   val set_null   : string -> unit
-
-  (** Functions to modify conf array variables to drop one index. *)
-  val drop_index : string -> int    -> unit
 
   (** Print the current configuration *)
   val print : 'a BatInnerIO.output -> unit
@@ -83,7 +79,7 @@ sig
   val merge_file : string -> unit
 
   (** Add a schema to the conf*)
-  val addenum_sch: jvalue -> unit
+  val addenum_sch: Yojson.Safe.t -> unit
 end
 
 (** The implementation of the [gobConfig] module. *)
@@ -169,7 +165,7 @@ struct
       failwith "parsing"
 
   (** Here we store the actual configuration. *)
-  let json_conf : jvalue ref = ref Null
+  let json_conf : Yojson.Safe.t ref = ref `Null
 
   (** The schema for the conf [json_conf] *)
   let conf_schema : jschema =
@@ -185,78 +181,78 @@ struct
 
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
-    printJson ch !json_conf
+    GobYojson.print ch !json_conf
   let write_file filename = File.with_file_out filename print
 
   (** Main function to receive values from the conf. *)
   let rec get_value o pth =
     match o, pth with
     | o, Here -> o
-    | Object m, Select (key,pth) -> begin
-        try get_value !(Object.find key !m) pth
+    | `Assoc m, Select (key,pth) -> begin
+        try get_value (List.assoc key m) pth
         with Not_found -> raise ConfTypeError end
-    | Array a, Index (Int i, pth) -> get_value !(List.at !a i) pth
+    | `List a, Index (Int i, pth) -> get_value (List.at a i) pth
     | _ -> raise ConfTypeError
 
   (** Recursively create the value for some new path. *)
   let rec create_new v = function
     | Here -> v
-    | Select (key,pth) -> Build.objekt [key,create_new v pth]
-    | Index (_, pth) -> Build.array [create_new v pth]
+    | Select (key,pth) -> `Assoc [(key,create_new v pth)]
+    | Index (_, pth) -> `List [create_new v pth]
 
   (** Helper function to decide if types in the json conf have changed. *)
   let json_type_equals x y =
     match x, y with
-    | String _, String _
-    | Number _, Number _
-    | Object _, Object _
-    | Array  _, Array  _
-    | True    , True
-    | False   , False
-    | False   , True
-    | True    , False
-    | Null    , Null     -> true
+    | `String _, `String _
+    | `Int _, `Int _
+    | `Int _, `Intlit _
+    | `Intlit _, `Int _
+    | `Intlit _, `Intlit _
+    | `Assoc _, `Assoc _
+    | `List  _, `List  _
+    | `Bool _ , `Bool _
+    | `Null    , `Null     -> true
+    (* TODO: other Yojson cases *)
     | _                  -> false
 
   (** The main function to write new values into the conf. *)
   let set_value v o orig_pth =
     let rec set_value v o pth =
-      match !o, pth with
-      | Object m, Select (key,pth) ->
-        begin try set_value v (Object.find key !m) pth
+      match o, pth with
+      | `Assoc m, Select (key,pth) ->
+        begin try `Assoc ((key, set_value v (List.assoc key m) pth) :: List.remove_assoc key m)
           with Not_found ->
             if !build_config then
-              m := Object.add key (ref (create_new v pth)) !m
+              `Assoc ((key, create_new v pth) :: m)
             else
               raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
         end
-      | Array a, Index (Int i, pth) ->
-        set_value v (List.at !a i) pth
-      | Array a, Index (App, pth) ->
-        o := Array (ref (!a @ [ref (create_new v pth)]))
-      | Array a, Index (Rem, pth) ->
-        let original_list = !a in
+      | `List a, Index (Int i, pth) ->
+        `List (List.modify_at i (fun o -> set_value v o pth) a)
+      | `List a, Index (App, pth) ->
+        `List (a @ [create_new v pth])
+      | `List a, Index (Rem, pth) ->
+        let original_list = a in
         let excluded_elem = create_new v pth in
         let filtered_list =
-          List.filter (fun ref_elem ->
-            let elem = !ref_elem in
+          List.filter (fun elem ->
             match (elem, excluded_elem) with
-            | (String s1, String s2) -> not (String.equal s1 s2)
+            | (`String s1, `String s2) -> not (String.equal s1 s2)
             | (_, _) -> failwith "At the moment it's only possible to remove a string from an array."
             ) original_list in
-        o := Array (ref filtered_list)
-      | Array _, Index (New, pth) ->
-        o := Array (ref [ref (create_new v pth)])
-      | Null, _ ->
-        o := create_new v pth
+        `List filtered_list
+      | `List _, Index (New, pth) ->
+        `List [create_new v pth]
+      | `Null, _ ->
+        create_new v pth
       | _ ->
         let new_v = create_new v pth in
-        if not (json_type_equals !o new_v) then
+        if not (json_type_equals o new_v) then
           printf "Warning, changing '%a' from '%a' to '%a'.\n"
-            print_path orig_pth printJson !o printJson new_v;
-        o := new_v
+            print_path orig_pth GobYojson.print o GobYojson.print new_v;
+        new_v
     in
-    set_value v o orig_pth;
+    o := set_value v !o orig_pth;
     validate conf_schema !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
@@ -271,9 +267,9 @@ struct
         else
           g st (* just use the old format *)
       in
-      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st prettyJson x;
+      if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
-      with JsonE s ->
+      with Yojson.Safe.Util.Type_error (s, _) ->
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
         failwith "get_path_string"
     with ConfTypeError ->
@@ -286,10 +282,10 @@ struct
   let memo gen = BatCache.make_ht ~gen ~init_size:5 (* uses hashtable; fine since our options are bounded *)
   let memog f = memo @@ get_path_string f
 
-  let memo_int    = memog number
-  let memo_bool   = memog bool
-  let memo_string = memog string
-  let memo_list   = memo @@ List.map (!) % (!) % get_path_string array
+  let memo_int    = memog Yojson.Safe.Util.to_int
+  let memo_bool   = memog Yojson.Safe.Util.to_bool
+  let memo_string = memog Yojson.Safe.Util.to_string
+  let memo_list   = memog Yojson.Safe.Util.to_list
 
   let drop_memo ()  =
     (* The explicit polymorphism is needed to make it compile *)
@@ -303,7 +299,7 @@ struct
   let get_bool   = memo_bool.get
   let get_string = memo_string.get
   let get_list   = memo_list.get
-  let get_string_list = List.map string % get_list
+  let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
   (** Helper functions for writing values. *)
   let set_path_string st v =
@@ -312,17 +308,17 @@ struct
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
     if not !build_config then drop_memo ();
-    if tracing then trace "conf" "Setting '%s' to %a.\n" st prettyJson v;
+    if tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
     set_path_string st v
 
   (** Convenience functions for writing values. *)
-  let set_int    st i = set_path_string_trace st (Build.number i)
-  let set_bool   st i = set_path_string_trace st (Build.bool i)
-  let set_string st i = set_path_string_trace st (Build.string i)
-  let set_null   st   = set_path_string_trace st Build.null
+  let set_int    st i = set_path_string_trace st (`Int i)
+  let set_bool   st i = set_path_string_trace st (`Bool i)
+  let set_string st i = set_path_string_trace st (`String i)
+  let set_null   st   = set_path_string_trace st `Null
   let set_list   st l =
     if not !build_config then drop_memo ();
-    set_value (Build.array l) json_conf (parse_path st)
+    set_value (`List l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
   let set_auto' st v =
@@ -339,9 +335,9 @@ struct
     try
       try
         let s' = Str.global_replace one_quote "\"" s in
-        let v = JsonParser.value_eof JsonLexer.token (Lexing.from_string s') in
+        let v = Yojson.Safe.from_string s' in
         set_path_string_trace st v
-      with (Failure "lexing: empty token" [@warning "-52"]) | Parsing.Parse_error -> (* Hardcoded message in ocamllex *)
+      with Yojson.Json_error _ ->
         set_string st s
     with e ->
       eprintf "Cannot set %s to '%s'.\n" st s;
@@ -349,21 +345,10 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = JsonParser.value JsonLexer.token % Lexing.from_channel |> File.with_file_in fn in
-    json_conf := merge !json_conf v;
+    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
+    json_conf := GobYojson.merge !json_conf v;
     drop_memo ();
-    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn prettyJson !json_conf
-
-  (** Function to drop one element of an 'array' *)
-  let drop_index st i =
-    let old = get_path_string array st in
-    if tracing then
-      trace "conf" "Removing index %d from '%s' to %a." i st prettyJson (Array old);
-    match List.split_at i !old with
-    | pre, _::post -> set_path_string st (Array (ref (pre@post)))
-    | _ ->
-      eprintf "Cannot drop index %d in array %s:\n%t\n\n" i st print;
-      failwith "drop_index"
+    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
 end
 
 include Impl

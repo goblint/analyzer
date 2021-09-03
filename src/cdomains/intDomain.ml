@@ -2,7 +2,6 @@ open GobConfig
 open Pretty
 
 module GU = Goblintutil
-module JB = Json
 module M = Messages
 module BI = IntOps.BigIntOps
 

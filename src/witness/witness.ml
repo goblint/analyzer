@@ -526,8 +526,8 @@ struct
             (* GobConfig.set_list "ana.activated" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.activated");
             GobConfig.set_list "ana.path_sens" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.path_sens"); *)
             (* TODO: don't append to end; currently done to get observer order to be nice *)
-            GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [Json.Build.string (Spec.name ())]);
-            GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [Json.Build.string (Spec.name ())]);
+            GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String (Spec.name ())]);
+            GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [`String (Spec.name ())]);
 
             raise Refinement.RestartAnalysis
           | Unknown ->
