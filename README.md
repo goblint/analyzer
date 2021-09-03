@@ -25,8 +25,9 @@ _The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very
 2. Continue using Linux instructions in WSL.
 
 ### Other
-* **[Vagrant](https://www.vagrantup.com/).** Run `vagrant up && vagrant ssh`.
-* **[Docker](https://hub.docker.com/r/voglerr/goblint)** (outdated). Run `docker run -it voglerr/goblint bash`.
+* **Docker.** Clone and run `make docker`.
+* **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
+* **[Docker Hub](https://hub.docker.com/r/voglerr/goblint)** (outdated). Run `docker run -it voglerr/goblint bash`.
 * **[opam](https://opam.ocaml.org/packages/goblint/)** (very outdated). Run `opam install goblint`.
 
 
