@@ -236,7 +236,8 @@ let warn ?loc = msg Warning ?loc
 let warn_noloc ?tags = msg_noloc Warning ?tags
 let error ?loc = msg Error ?loc
 let error_noloc ?tags = msg_noloc Error ?tags
-(* TODO: info *)
+let info ?loc = msg Info ?loc
+let info_noloc ?tags = msg_noloc Info ?tags
 let debug ?loc = msg Debug ?loc
 let debug_noloc ?tags = msg_noloc Debug ?tags
 let success ?loc = msg Success ?loc
