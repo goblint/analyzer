@@ -140,8 +140,12 @@ struct
 
   let warning_id = ref 1
   let writeXmlWarnings () =
-    let one_text f Messages.Piece.{print_loc = l; text = m; _} =
-      fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
+    let one_text f Messages.Piece.{loc; text = m; _} =
+      match loc with
+      | Some l ->
+        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+      | None ->
+        () (* TODO: not outputting warning without location *)
     in
     let one_w f (m: Messages.Message.t) = match m.multipiece with
       | Single piece  -> one_text f piece
