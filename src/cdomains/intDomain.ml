@@ -539,7 +539,7 @@ struct
   let set_overflow_flag ik =
     if Cil.isSigned ik && !GU.in_verifying_stage then (
       Goblintutil.did_overflow := true;
-      M.warn ~category:M.Category.Integer.overflow ~tags:[M.Tag.CWE 190] "Integer overflow"
+      M.warn_each ~category:M.Category.Integer.overflow ~tags:[M.Tag.CWE 190] "Integer overflow"
     )
 
   let norm ik = function None -> None | Some (x,y) ->
@@ -1298,7 +1298,7 @@ struct
           v
         )
         else if should_ignore_overflow ik then (
-          M.warn ~category:M.Category.Integer.overflow "DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot";
+          M.warn_each ~category:M.Category.Integer.overflow "DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot";
           `Bot
         )
         else (

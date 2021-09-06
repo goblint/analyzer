@@ -1333,7 +1333,7 @@ struct
   let assign_argmap fs lval exp (fd, st, df) must_assign glob = (*keep track of used fun args*)
     match used_args st exp with
     | s when ArgSet.is_top s ->
-      Messages.warn "Expression %a too complicated." d_exp exp;
+      Messages.warn_each "Expression %a too complicated." d_exp exp;
       fd, st, df
     | s when ArgSet.is_bot s -> let vars= get_vars exp in
       let s = List.fold_left (fun y x->if not (is_safe_name x.vname) then begin ArgSet.add (FieldVars.gen x) y end else y) (ArgSet.empty()) vars in

@@ -82,7 +82,7 @@ struct
     | `Unlock ->
       D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
     | `Unknown fn when VarEq.safe_fn fn ->
-      Messages.warn "Assume that %s does not change lockset." fn;
+      Messages.warn_each "Assume that %s does not change lockset." fn;
       ctx.local
     | `Unknown x -> begin
         let st =
@@ -175,7 +175,7 @@ struct
         let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
         LSSet.add ("i-lock",ValueDomain.Addr.show lock) xs
       | _ ->
-        Messages.warn "Internal error: found a strange lockstep pattern.";
+        Messages.warn_each "Internal error: found a strange lockstep pattern.";
         xs
     in
     let do_perel e xs =

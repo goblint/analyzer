@@ -471,7 +471,7 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    ignore (M.warn "ASM statement ignored.");
+    ignore (M.warn_each "ASM statement ignored.");
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)

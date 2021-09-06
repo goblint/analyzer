@@ -359,7 +359,7 @@ struct
     match value with
     | `Top ->
       if VD.is_immediate_type t then () else M.warn_each "Unknown value in %s could be an escaped pointer address!" description; empty
-    | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
+    | `Bot -> (*M.debug_each "A bottom value when computing reachable addresses!";*) empty
     | `Address adrs when AD.is_top adrs ->
       M.warn_each "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
@@ -676,7 +676,7 @@ struct
                   if contains_vla t || contains_vla (get_type_addr a) then
                     begin
                       (* TODO: Is this ok? *)
-                      M.warn "Casting involving a VLA is assumed to work";
+                      M.warn_each "Casting involving a VLA is assumed to work";
                       true
                     end
                   else
@@ -807,7 +807,7 @@ struct
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-          M.debug "Failed evaluating %s to lvalue" str; do_offs AD.unknown_ptr ofs
+          M.debug_each "Failed evaluating %s to lvalue" str; do_offs AD.unknown_ptr ofs
       end
 
   (* run eval_rv from above and keep a result that is bottom *)
@@ -829,8 +829,8 @@ struct
     let r = match eval_rv_no_ask_evalint ask gs st e with
     | `Int i -> i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
     | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
-    (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
-    | v      -> M.debug "Query function answered %a" VD.pretty v; Queries.ID.bot ()
+    (* | v      -> M.warn_each ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
+    | v      -> M.debug_each "Query function answered %a" VD.pretty v; Queries.ID.bot ()
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
     r
@@ -1067,7 +1067,7 @@ struct
             with Cilfacade.TypeOfError _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-              M.warn "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
+              M.warn_each "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
               lval_type
       in
       let update_offset old_value =
@@ -1393,7 +1393,7 @@ struct
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if GU.opt_predicate (BI.equal BI.zero) (ID.to_int x) then
-          (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
+          (M.warn_each "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
           ID.top_of ikind)
         else
           x
@@ -1652,7 +1652,7 @@ struct
       let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
       let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
       (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
-      (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
+      (* M.debug_each @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
       let not_local xs =
         let not_local x =
           match Addr.to_var_may x with
@@ -1775,7 +1775,7 @@ struct
       | None -> nst
       | Some exp ->
         let t_override = match Cilfacade.fundec_return_type fundec with
-          | TVoid _ -> M.warn "Returning a value from a void function"; assert false
+          | TVoid _ -> M.warn_each "Returning a value from a void function"; assert false
           | ret -> ret
         in
         (* Evaluate exp and cast the resulting value to the void-pointer-type.
