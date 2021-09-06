@@ -215,6 +215,14 @@ struct
     (* TODO: other Yojson cases *)
     | _                  -> false
 
+  exception TypeError of Yojson.Safe.t * Yojson.Safe.t
+
+  let () = Printexc.register_printer (function
+      | TypeError (o, new_v) ->
+        Some (sprintf2 "GobConfig.Impl.TypeError (%a, %a)" GobYojson.print o GobYojson.print new_v)
+      | _ -> None (* for other exceptions *)
+    )
+
   (** The main function to write new values into the conf. *)
   let set_value v o orig_pth =
     let rec set_value v o pth =
@@ -248,8 +256,7 @@ struct
       | _ ->
         let new_v = create_new v pth in
         if not (json_type_equals o new_v) then
-          printf "Warning, changing '%a' from '%a' to '%a'.\n"
-            print_path orig_pth GobYojson.print o GobYojson.print new_v;
+          raise (TypeError (o, new_v));
         new_v
     in
     o := set_value v !o orig_pth;
@@ -337,7 +344,7 @@ struct
         let s' = Str.global_replace one_quote "\"" s in
         let v = Yojson.Safe.from_string s' in
         set_path_string_trace st v
-      with Yojson.Json_error _ ->
+      with Yojson.Json_error _ | TypeError _ ->
         set_string st s
     with e ->
       eprintf "Cannot set %s to '%s'.\n" st s;
