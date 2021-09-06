@@ -338,7 +338,7 @@ let add_propagate e w conf ty ls p =
     let fi =
       match f with
       | `Field (fi,_) -> fi
-      | _ -> Messages.bailwith "add_propagate: no field found"
+      | _ -> failwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
@@ -508,7 +508,7 @@ let print_races_oldscool () =
         sprint 80 (dprintf "Datarace at %a" d_memo (ty,lv))
     in
     if not safe || allglobs then
-      Messages.print_group groupname xs
+      Messages.warn_group_old groupname xs
   in
   let f ty = LvalOptHash.iter (h ty) in
   TypeHash.iter f accs

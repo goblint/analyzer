@@ -166,7 +166,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.warn ~msg:("Calculated state for undefined function: unexpected node "^Ana.sprint Node.pretty_plain n) ()
+          Messages.warn "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
     in
     LHT.iter add_local_var h;
     res
@@ -443,7 +443,7 @@ struct
               );
               Serialize.marshal !MCP.analyses_table analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
-              Serialize.marshal !Messages.warning_table warnings;
+              Serialize.marshal !Messages.Table.messages_list warnings;
               Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
@@ -553,7 +553,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
-      M.print_msg "Timeout reached!" (!Tracing.current_loc);
+      M.error ~loc:!Tracing.current_loc "Timeout reached!";
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.

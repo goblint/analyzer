@@ -144,27 +144,20 @@ struct
     iter print_one xs
 
   let printXmlWarning f () =
-    let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+    let one_text f Messages.Piece.{loc; text = m; _} =
+      match loc with
+      | Some l ->
+        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+      | None ->
+        () (* TODO: not outputting warning without location *)
     in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
+    let one_w f (m: Messages.Message.t) = match m.multipiece with
+      | Single piece  -> one_text f piece
+      | Group {group_text = n; pieces = e} ->
         BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
-    List.iter (one_w f) !Messages.warning_table
-
-  let printXmlGlobals f () =
-    let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
-    in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
-        BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
-    in
-    List.iter (one_w f) !Messages.warning_table
+    List.iter (one_w f) !Messages.Table.messages_list
 
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
@@ -264,6 +257,8 @@ struct
        iter insert (Lazy.force table);
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
+    | "json-messages" ->
+      Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -480,7 +475,7 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    ignore (M.warn ~msg:"ASM statement ignored." ());
+    ignore (M.warn "ASM statement ignored.");
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)

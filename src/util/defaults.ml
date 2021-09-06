@@ -65,7 +65,6 @@ let _ = ()
       ; reg Std "justcil"         "false"        "Just parse and output the CIL."
       ; reg Std "justcfg"         "false"        "Only output the CFG in cfg.dot ."
       ; reg Std "printstats"      "false"        "Outputs timing information."
-      ; reg Std "gccwarn"         "false"        "Output warnings in GCC format."
       ; reg Std "verify"          "true"         "Verify that the solver reached a post-fixpoint. Beware that disabling this also disables output of warnings since post-processing of the results is done in the verification phase!"
       ; reg Std "mainfun"         "['main']"     "Sets the name of the main functions."
       ; reg Std "exitfun"         "[]"           "Sets the name of the cleanup functions."
@@ -76,7 +75,7 @@ let _ = ()
       ; reg Std "cppflags"        "''"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
-      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, or pretty."
+      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, pretty, json-messages."
       ; reg Std "warnstyle"       "'pretty'"     "Result style: legacy, pretty, or xml."
       ; reg Std "solver"          "'td3'"         "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
@@ -238,20 +237,23 @@ let _ = ()
 
 (* {4 category [Warnings]} *)
 let _ = ()
+      ; reg Warnings "warn.assert"          "true"  "Assert messages"
       ; reg Warnings "warn.behavior"        "true"  "undefined behavior warnings"
       ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
       ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
       ; reg Warnings "warn.race"            "true"  "Race warnings"
       ; reg Warnings "warn.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
       ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
-      ; reg Warnings "warn.debug"           "true"  "Debug (of string) warnings"
-      ; reg Warnings "warn.may"             "true"  "Enable or disable may warnings"
-      ; reg Warnings "warn.must"            "true"  "Enable or disable must warnings"
+      ; reg Warnings "warn.error"           "true"  "Error severity messages"
+      ; reg Warnings "warn.warning"         "true"  "Warning severity messages"
+      ; reg Warnings "warn.info"            "true"  "Info severity messages"
+      ; reg Warnings "warn.debug"           "true"  "Debug severity messages"
+      ; reg Warnings "warn.success"         "true"  "Success severity messages"
 
 let default_schema = {schema|
 { "id"              : "root"
 , "type"            : "object"
-, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "gccwarn", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "warnstyle", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "warnstyle", "solver", "allfuns", "nonstatic", "colors", "g2html"]
 , "additionalProps" : false
 , "properties" :
   { "ana" :
@@ -284,7 +286,6 @@ let default_schema = {schema|
   , "justcil"         : {}
   , "justcfg"         : {}
   , "printstats"      : {}
-  , "gccwarn"         : {}
   , "verify"        : {}
   , "mainfun"         : {}
   , "exitfun"         : {}

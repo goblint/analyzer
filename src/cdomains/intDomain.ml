@@ -536,8 +536,10 @@ struct
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
   let set_overflow_flag ik =
-    if Cil.isSigned ik && !GU.in_verifying_stage then
-      Goblintutil.did_overflow := true
+    if Cil.isSigned ik && !GU.in_verifying_stage then (
+      Goblintutil.did_overflow := true;
+      M.warn ~category:M.Category.Integer.overflow ~tags:[M.Tag.CWE 190] "Integer overflow"
+    )
 
   let norm ik = function None -> None | Some (x,y) ->
     if Ints_t.compare x y > 0 then None
@@ -1295,7 +1297,7 @@ struct
           v
         )
         else if should_ignore_overflow ik then (
-          M.warn ~warning:(M.Warning.Integer.overflow ()) ~msg:"DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot" ();
+          M.warn ~category:M.Category.Integer.overflow "DefExc: Value was outside of range, indicating overflow, but 'sem.int.signed_overflow' is 'assume_none' -> Returned Bot";
           `Bot
         )
         else (
@@ -2720,7 +2722,7 @@ module IntDomTupleImpl = struct
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
-      if n>1 then Messages.warn_all @@ "Inconsistent state! "^String.concat "," @@ List.map show us; (* do not want to abort, but we need some unsound category *)
+      if n>1 then Messages.warn "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort, but we need some unsound category *)
       None
     )
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_int }

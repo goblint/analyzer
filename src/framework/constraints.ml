@@ -500,7 +500,7 @@ struct
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            M.warn_each ~msg:("Created a thread from unknown function " ^ f.vname) ()
+            M.warn "Created a thread from unknown function %s" f.vname
             (* actual implementation (e.g. invalidation) is done by threadenter *)
         ) ds
     in
@@ -633,7 +633,7 @@ struct
     let one_function f =
       match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
-        M.warn_each ~msg:("Using special for defined function " ^ f.vname) ();
+        M.warn "Using special for defined function %s" f.vname;
         tf_special_call ctx lv f args
       | fd ->
         tf_normal_call ctx lv e fd args getl sidel getg sideg
@@ -684,10 +684,12 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_context = !M.current_context in
     let _       = current_node := Some u in
-    let d       = try tf (v,c) (e,u) getl sidel getg sideg
-      with M.Bailure s -> Messages.warn_each ~msg:s (); (getl (u,c))  in
+    M.current_context := Some (Obj.repr c);
+    let d       = tf (v,c) (e,u) getl sidel getg sideg in
     let _       = current_node := old_node in
+    M.current_context := old_context;
     d
 
   let system (v,c) =

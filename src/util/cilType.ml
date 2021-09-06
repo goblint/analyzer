@@ -12,7 +12,11 @@ struct
   include Printable.Std
 end
 
-module Location: S with type t = location =
+module Location:
+sig
+  include S with type t = location
+  val pp: Format.formatter -> t -> unit (* for Messages *)
+end =
 struct
   include Std
 
@@ -27,13 +31,17 @@ struct
 
   (* Output *)
   let show x =
-    (* Also used for gccwarn, so should be the GCC format *)
     (* TODO: add special output for locUnknown *)
     x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column
 
   let pretty () x = Pretty.text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  let to_yojson x = `Assoc [
+      ("file", `String x.file);
+      ("line", `Int x.line);
+      ("column", `Int x.column);
+    ]
+  let pp fmt x = Format.fprintf fmt "%s" (show x) (* for Messages *)
 end
 
 module Varinfo:

@@ -14,7 +14,7 @@ let print_version ch =
   let f ch b = if b then fprintf ch "enabled" else fprintf ch "disabled" in
   printf "Goblint version: %s\n" goblint;
   printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
-  printf "Configuration:   tracing %a, tracking %a\n" f tracing f tracking ;
+  printf "Configuration:   tracing %a\n" f tracing;
   exit 0
 
 (** Print helpful messages. *)
@@ -131,7 +131,6 @@ let handle_flags () =
   let has_oil = get_string "ana.osek.oil" <> "" in
   if has_oil then Osek.Spec.parse_oil ();
 
-  if get_bool "dbg.debug" then Messages.warnings := true;
   if get_bool "dbg.verbose" then (
     Printexc.record_backtrace true;
     Errormsg.debugFlag := true;
@@ -141,7 +140,7 @@ let handle_flags () =
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
-      Messages.warn_out := Legacy.open_out (Legacy.Filename.concat path "warnings.out");
+      Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
       set_string "outfile" ""
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
@@ -317,7 +316,7 @@ let do_analyze change_info merged_AST =
         with e ->
           let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
           let loc = !Tracing.current_loc in
-          Messages.print_msg "{RED}About to crash!" loc;
+          Messages.error ~loc "About to crash!"; (* TODO: move severity coloring to Messages *)
           (* trigger Generic.SolverStats...print_stats *)
           Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
           do_stats ();
@@ -357,7 +356,7 @@ let do_html_output () =
   )
 
 let check_arguments () =
-  let eprint_color m = eprintf "%s\n" (Messages.colorize m) in
+  let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m) in
   (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
@@ -460,10 +459,10 @@ let main () =
       exit 1
     | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
       (* Printexc.print_backtrace BatInnerIO.stderr *)
-      eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+      eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
       exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
     | Timeout ->
-      eprintf "%s\n" (Messages.colorize ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+      eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
       exit 124
 
 (* The actual entry point is in the auto-generated goblint.ml module, and is defined as: *)

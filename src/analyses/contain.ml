@@ -80,7 +80,7 @@ struct
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
     let json=
       match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
-      | [] -> Messages.bailwith "Containment analysis needs a CXX.json file."
+      | [] -> failwith "Containment analysis needs a CXX.json file."
       | f :: _ ->
         begin
           try
@@ -104,7 +104,7 @@ struct
     | [] -> ()
     | f :: _ ->
       try
-        Messages.warn_each ~msg:"Problems for safe objects from SAFE.json are suppressed!" ();
+        Messages.warn "Problems for safe objects from SAFE.json are suppressed!";
         let safe_json = Yojson.Safe.from_channel (Stdlib.open_in f) in
         List.iter (add_htbl_re D.safe_vars) (safe_json |> member "variables" |> to_assoc);
         List.iter (add_htbl_re D.safe_methods) (safe_json |> member "methods" |> to_assoc);
@@ -290,12 +290,12 @@ struct
       end
     else
       begin
-        (*Messages.warn_each ~msg:("CHECK METHOD : "^f.svar.vname) ();*)
+        (*Messages.warn ~msg:("CHECK METHOD : "^f.svar.vname) ();*)
         (*if D.is_top st then failwith "ARGH!";*)
         if (D.is_public_method_name f.svar.vname) (*|| is_fptr f.svar ctx*) then
           begin
             (*printf ("P");*)
-            (*Messages.warn_each ~msg:("PUBLIC METHOD : "^f.svar.vname) ();*)
+            (*Messages.warn ~msg:("PUBLIC METHOD : "^f.svar.vname) ();*)
             add_analyzed_fun f D.analyzed_funs; (*keep track of analyzed funs*)
             if D.is_bot ctx.local && not (islocal_notmain f.svar.vname ctx.global)
             then
@@ -306,7 +306,7 @@ struct
         else
           begin
             (*rintf ("p");*)
-            (*Messages.warn_each ~msg:("PRIVATE METHOD : "^f.svar.vname) ();*)
+            (*Messages.warn ~msg:("PRIVATE METHOD : "^f.svar.vname) ();*)
             (*D.report("Dom : "^sprint 80 (D.pretty () ctx.local)^"\n");*)
             if not (danger_bot ctx) then
               begin
@@ -500,7 +500,7 @@ struct
     end
 
   let eval_funvar ctx fval: varinfo list = (*also called for ignore funs*)
-    (*Messages.warn_each ~msg:(sprint 160 (d_exp () fval) ) ();*)
+    (*Messages.warn ~msg:(sprint 160 (d_exp () fval) ) ();*)
     if danger_bot ctx then [] else
       let fd,st,gd = ctx.local in
       match fval with
@@ -508,11 +508,11 @@ struct
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
         if not ((get_bool "ana.cont.localclass")) then [D.unresFunDec.svar]
         else
-          (*Messages.warn_each ~msg:("fcheck vtbl : "^sprint 160 (d_exp () e)) ();*)
+          (*Messages.warn ~msg:("fcheck vtbl : "^sprint 160 (d_exp () e)) ();*)
           let vtbl_lst = get_vtbl e (fd,st,gd) ctx.global in
           if not (vtbl_lst=[]) then
             begin
-              (*List.iter (fun x -> Messages.warn_each ~msg:("VFUNC_CALL_RESOLVED : "^x.vname) ()) vtbl_lst;*)
+              (*List.iter (fun x -> Messages.warn ~msg:("VFUNC_CALL_RESOLVED : "^x.vname) ()) vtbl_lst;*)
               vtbl_lst
             end
           else
@@ -521,18 +521,18 @@ struct
             let flds_bot = ContainDomain.FieldSet.is_bot flds in
             if cft && flds_bot then
               begin
-                (*Messages.warn_each ~msg:("fptr cft : "^string_of_bool cft) ();*)
+                (*Messages.warn ~msg:("fptr cft : "^string_of_bool cft) ();*)
                 let fns = D.get_fptr_items ctx.global in
                 let add_svar x y =
                   match ContainDomain.FuncName.from_fun_name x with
-                  | Some x -> Messages.warn_each ~msg:("fptr check: "^x.vname ) ();(x)::y
+                  | Some x -> Messages.warn "fptr check: %s" x.vname;(x)::y
                   | _ -> y
                 in
                 ContainDomain.VarNameSet.fold (fun x y ->  add_svar x y) fns []
               end
             else
               begin
-                (*Messages.warn_each ~msg:("VARS:") ();*)
+                (*Messages.warn ~msg:("VARS:") ();*)
                 let vars = D.get_vars e in
                 let rvs =
                   List.fold_left (fun y x -> ContainDomain.ArgSet.join (D.Danger.find x st) y)  (ContainDomain.ArgSet.bot ()) vars

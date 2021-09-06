@@ -12,8 +12,6 @@ fi
 if [ ! -f src/config.ml ]; then
   {
     echo "let tracing = false"
-    echo "let tracking = false"
-    echo "let experimental = false"
     echo "let cpp = \"cpp\""
   } >> src/config.ml
 fi
