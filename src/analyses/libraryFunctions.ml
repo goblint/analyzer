@@ -20,7 +20,7 @@ let osek_renames = ref false
 
 let classify' fn exps =
   let strange_arguments () =
-    M.warn_each "%s arguments are strange!" fn;
+    M.warn "%s arguments are strange!" fn;
     `Unknown fn
   in
   match fn with
@@ -57,7 +57,7 @@ let classify' fn exps =
   | "assert" ->
     begin match exps with
       | [e] -> `Assert e
-      | _ -> M.warn_each "Assert argument mismatch!"; `Unknown fn
+      | _ -> M.warn "Assert argument mismatch!"; `Unknown fn
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
     -> `Lock(true, true, true)

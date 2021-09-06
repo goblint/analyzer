@@ -34,7 +34,7 @@ struct
   let mutex_addr_to_varinfo = function
     | LockDomain.Addr.Addr (v, `NoOffset) -> v
     | LockDomain.Addr.Addr (v, offs) ->
-      M.warn_each "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs;
+      M.warn "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs;
       v
     | _ -> failwith "MutexGlobalsBase.mutex_addr_to_varinfo"
 end

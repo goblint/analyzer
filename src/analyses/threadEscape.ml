@@ -12,7 +12,7 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
   else
     ask.f (Queries.MayEscape v)
     (* | Top ->
-      M.warn_each @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
+      M.warn @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
       true *)
 
 

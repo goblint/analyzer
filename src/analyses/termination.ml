@@ -207,7 +207,7 @@ struct
   (* match !MyCFG.current_node with *)
   (* | Some (MyCFG.Statement({ skind = If (e, tb, fb, loc) })) -> *)
   (*       let str_exit b = match exits b with Some loc -> string_of_int loc.line | None -> "None" in *)
-  (*       M.debug_each @@ *)
+  (*       M.debug @@ *)
   (*         "\nCil-exp: " ^ sprint d_exp e *)
   (*         (*^ "; Goblint-exp: " ^ sprint d_exp exp*) *)
   (*         ^ "; Goblint: " ^ sprint Queries.Result.pretty (ctx.ask (Queries.EvalInt exp)) *)

@@ -1,6 +1,6 @@
 open Prelude
 open Cil
-(* we don't want to use M.debug_each because everything here should be done after the analysis, so the location would be some old value for all invocations *)
+(* we don't want to use M.debug because everything here should be done after the analysis, so the location would be some old value for all invocations *)
 let debug_each msg = print_endline @@ MessageUtil.colorize ~fd:Unix.stdout @@ "{blue}"^msg
 
 (* ARINC types and Hashtables for collecting CFG *)

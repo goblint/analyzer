@@ -252,10 +252,10 @@ struct
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
     match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
-    | [] -> (if may then Messages.warn_each else Messages.error_each) ~loc:(List.last loc) "%s" msg
+    | [] -> (if may then Messages.warn else Messages.error) ~loc:(List.last loc) "%s" msg
     | h :: t ->
       let warn_type = Messages.Category.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in (if may then Messages.warn_each else Messages.error_each) ~loc:(List.last loc) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
+      in (if may then Messages.warn else Messages.error) ~loc:(List.last loc) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)
@@ -275,6 +275,6 @@ struct
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
     let pretty_key k = Pretty.text (string_of_key k) in
-    Messages.debug_each "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs;
+    Messages.debug "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs;
     xs
 end

@@ -500,7 +500,7 @@ struct
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            M.warn_each "Created a thread from unknown function %s" f.vname
+            M.warn "Created a thread from unknown function %s" f.vname
             (* actual implementation (e.g. invalidation) is done by threadenter *)
         ) ds
     in
@@ -633,7 +633,7 @@ struct
     let one_function f =
       match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
-        M.warn_each "Using special for defined function %s" f.vname;
+        M.warn "Using special for defined function %s" f.vname;
         tf_special_call ctx lv f args
       | fd ->
         tf_normal_call ctx lv e fd args getl sidel getg sideg

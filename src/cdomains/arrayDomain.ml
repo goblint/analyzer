@@ -575,15 +575,15 @@ let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) 
     | Some true, Some true -> (* Certainly in bounds on both sides.*)
       ()
     | Some true, Some false -> (* The following matching differentiates the must and may cases*)
-      M.error_each ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
     | Some true, None ->
-      M.warn_each ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
     | Some false, Some true ->
-      M.error_each ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
     | None, Some true ->
-      M.warn_each ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
     | _ ->
-      M.warn_each ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
   else ()
 
 

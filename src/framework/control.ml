@@ -166,7 +166,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.warn_each "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
+          Messages.warn "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
     in
     LHT.iter add_local_var h;
     res
@@ -553,7 +553,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
-      M.error_each ~loc:!Tracing.current_loc "Timeout reached!";
+      M.error ~loc:!Tracing.current_loc "Timeout reached!";
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.
