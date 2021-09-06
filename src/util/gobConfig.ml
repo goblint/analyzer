@@ -244,10 +244,11 @@ struct
         let excluded_elem = create_new v pth in
         let filtered_list =
           List.filter (fun elem ->
-            match (elem, excluded_elem) with
-            | (`String s1, `String s2) -> not (String.equal s1 s2)
-            | (_, _) -> failwith "At the moment it's only possible to remove a string from an array."
-            ) original_list in
+              match (elem, excluded_elem) with
+              | (`String s1, `String s2) -> not (String.equal s1 s2)
+              | (_, _) -> failwith "At the moment it's only possible to remove a string from an array."
+            ) original_list
+        in
         `List filtered_list
       | `List _, Index (New, pth) ->
         `List [create_new v pth]

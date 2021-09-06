@@ -4,19 +4,19 @@ type array_oob =
   | PastEnd
   | BeforeStart
   | Unknown
-  [@@deriving eq]
+[@@deriving eq]
 
 type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
   | UseAfterFree
-  [@@deriving eq]
+[@@deriving eq]
 
 type behavior =
   | Undefined of undefined_behavior
   | Implementation
   | Machine
-  [@@deriving eq]
+[@@deriving eq]
 
 type integer = Overflow | DivByZero [@@deriving eq]
 
@@ -30,7 +30,7 @@ type category =
   | Cast of cast
   | Unknown
   | Analyzer
-  [@@deriving eq]
+[@@deriving eq]
 
 type t = category [@@deriving eq]
 

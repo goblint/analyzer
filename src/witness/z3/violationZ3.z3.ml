@@ -11,8 +11,8 @@ struct
     ("model", "true");
     ("unsat_core", "true");
     (* TODO: do these do anything? are these necessary? *)
-    (* ("smt.core.minimize", "true");
-    ("sat.core.minimize", "true"); *)
+    (* ("smt.core.minimize", "true"); *)
+    (* ("sat.core.minimize", "true"); *)
   ]
   let ctx = mk_context cfg
 

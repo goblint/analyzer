@@ -23,8 +23,8 @@ let rec merge x y =
 
 let print (ch: 'a BatIO.output) json =
   let oo = object
-      method output = BatIO.output_substring ch
-    end
+    method output = BatIO.output_substring ch
+  end
   in
   Yojson.Safe.to_output oo json
 

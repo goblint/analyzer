@@ -12,7 +12,7 @@ struct
     | Info
     | Debug
     | Success
-    [@@deriving eq, show { with_path = false }]
+  [@@deriving eq, show { with_path = false }]
 
   let hash x = Hashtbl.hash x (* variants, so this is fine *)
 
@@ -52,7 +52,7 @@ struct
   type t =
     | Single of Piece.t
     | Group of group
-    [@@deriving eq, to_yojson]
+  [@@deriving eq, to_yojson]
 
   let hash = function
     | Single piece -> Piece.hash piece
@@ -69,7 +69,7 @@ struct
   type t =
     | Category of Category.t
     | CWE of int
-    [@@deriving eq]
+  [@@deriving eq]
 
   let hash = function
     | Category category -> Category.hash category

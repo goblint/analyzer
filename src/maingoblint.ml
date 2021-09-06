@@ -140,8 +140,8 @@ let handle_flags () =
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
-      Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
-      set_string "outfile" ""
+    Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
+    set_string "outfile" ""
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let preprocess_one_file cppflags includes fname =
