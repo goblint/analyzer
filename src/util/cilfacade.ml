@@ -496,6 +496,7 @@ let find_varinfo_role vi = VarinfoH.find (Lazy.force varinfo_roles) vi (* vi arg
 let is_varinfo_formal vi =
   match find_varinfo_role vi with
   | Formal _ -> true
+  | exception Not_found
   | _ -> false
 
 
@@ -508,7 +509,8 @@ let find_scope_fundec vi =
   | Local fd ->
     Some fd
   | Function
-  | Global ->
+  | Global
+  | exception Not_found ->
     None
 
 

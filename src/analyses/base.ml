@@ -21,6 +21,7 @@ module BI = IntOps.BigIntOps
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
 module Dep    = BaseDomain.PartDeps
+module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
 
 
@@ -47,9 +48,9 @@ struct
   type glob_diff = (V.t * G.t) list
 
   let name () = "base"
-  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
-  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
-  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); priv = Priv.startstate ()}
+  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
+  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
+  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
 
   (**************************************************************************
    * Helpers
@@ -126,7 +127,7 @@ struct
     | b -> (fun x y -> (ID.top_of result_ik))
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -207,7 +208,28 @@ struct
      * bother to find the result in most cases, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
         let ik = Cilfacade.get_ikind t in
-        let eq x y = if AD.is_definite x && AD.is_definite y then Some (AD.Addr.equal (AD.choose x) (AD.choose y)) else None in
+        let eq x y =
+          if AD.is_definite x && AD.is_definite y then
+            let ax = AD.choose x in
+            let ay = AD.choose y in
+            if AD.Addr.equal ax ay then
+              let v = AD.Addr.to_var ax in
+              if v = [] then
+                Some true
+              else (
+                (* If the address id definite, it should be one or no variables *)
+                assert (List.length v = 1);
+                if WeakUpdates.mem (List.hd v) st.weak then
+                  None
+                else
+                  Some true
+              )
+            else
+              (* If they are unequal, it does not matter if the underlying var represents multiple concrete vars or not *)
+              Some false
+          else
+            None
+        in
         match op with
         (* TODO use ID.of_incl_list [0; 1] for all comparisons *)
         | MinusPP ->
@@ -712,13 +734,13 @@ struct
         else
           let a1 = eval_rv a gs st c1 in
           let a2 = eval_rv a gs st c2 in
-          evalbinop op t1 a1 t2 a2 typ
+          evalbinop st op t1 a1 t2 a2 typ
       | BinOp (op,arg1,arg2,typ) ->
         let a1 = eval_rv a gs st arg1 in
         let a2 = eval_rv a gs st arg2 in
         let t1 = Cilfacade.typeOf arg1 in
         let t2 = Cilfacade.typeOf arg2 in
-        evalbinop op t1 a1 t2 a2 typ
+        evalbinop st op t1 a1 t2 a2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
@@ -1009,6 +1031,7 @@ struct
           end
         | _ -> true
       end
+    | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
@@ -1072,7 +1095,9 @@ struct
       in
       let update_offset old_value =
         let new_value = VD.update_offset a old_value offs value lval_raw ((Var x), cil_offset) t in
-        if invariant then
+        if WeakUpdates.mem x st.weak then
+          VD.join old_value new_value
+        else if invariant then
           (* without this, invariant for ambiguous pointer might worsen precision for each individual address to their join *)
           VD.meet old_value new_value
         else
@@ -1768,7 +1793,7 @@ struct
       (* TODO: move into sync `Init *)
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | _ ->
-      let locals = (fundec.sformals @ fundec.slocals) in
+      let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_paritioning (Analyses.ask_of_ctx ctx) ctx.local locals in
       let nst: store = rem_many (Analyses.ask_of_ctx ctx) nst_part locals in
       match exp with
@@ -1869,7 +1894,11 @@ struct
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
-    {st' with cpa = new_cpa}
+    (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
+    let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
+    (* Add to the set of weakly updated variables *)
+    let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
+    {st' with cpa = new_cpa; weak = new_weak}
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -2224,7 +2253,8 @@ struct
         then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
         else VD.top ()
       in
-      let st = add_globals st fun_st in
+      let nst = add_globals st fun_st in
+      let st = { nst with weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
