@@ -74,7 +74,7 @@ type _ t =
   | CurrentLockset: LS.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
-  | IsMultipleThread: MustBool.t t
+  | MustBeUniqueThread: MustBool.t t
   | CurrentThreadId: VI.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
@@ -127,7 +127,7 @@ struct
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
     | MustBeSingleThreaded -> (module MustBool)
-    | IsMultipleThread -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
+    | MustBeUniqueThread -> (module MustBool)
     | MustBeEqual _ -> (module MustBool)
     | Priority _ -> (module ID)
     | EvalInt _ -> (module ID)
@@ -140,7 +140,7 @@ struct
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
-    | IsMultiple _ -> (module MustBool)
+    | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -174,7 +174,7 @@ struct
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
     | MustBeSingleThreaded -> MustBool.top ()
-    | IsMultipleThread -> MustBool.top ()
+    | MustBeUniqueThread -> MustBool.top ()
     | MustBeEqual _ -> MustBool.top ()
     | Priority _ -> ID.top ()
     | EvalInt _ -> ID.top ()
@@ -214,7 +214,7 @@ struct
       | Any CurrentLockset -> 10
       | Any MustBeAtomic -> 11
       | Any MustBeSingleThreaded -> 12
-      | Any IsMultipleThread -> 13
+      | Any MustBeUniqueThread -> 13
       | Any CurrentThreadId -> 14
       | Any MayBeThreadReturn -> 15
       | Any (EvalFunvar _) -> 16

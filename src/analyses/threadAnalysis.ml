@@ -75,7 +75,7 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.IsMultipleThread -> begin
+    | Queries.MustBeUniqueThread -> begin
         let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
         match tid with
         | `Lifted tid -> not (is_not_unique ctx tid)

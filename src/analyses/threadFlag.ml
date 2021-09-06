@@ -69,7 +69,7 @@ struct
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.MustBeSingleThreaded -> not (Flag.is_multi ctx.local)
-    | Queries.IsMultipleThread -> not (Flag.is_bad ctx.local)
+    | Queries.MustBeUniqueThread -> not (Flag.is_bad ctx.local)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
     | Queries.PartAccess {exp; var_opt; write} ->
