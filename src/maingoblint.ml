@@ -4,7 +4,6 @@ open Prelude
 open GobConfig
 open Defaults
 open Printf
-open Json
 open Goblintutil
 
 let writeconffile = ref ""
@@ -87,7 +86,7 @@ let option_spec_list =
   ; "-I"                   , Arg.String (set_string "includes[+]"), ""
   ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
-  ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_string !tmp_arg x)], ""
+  ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
   ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
   ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
   ; "--conf"               , Arg.String merge_file, ""
@@ -188,11 +187,11 @@ let preprocess_files () =
   let includes = ref "" in
 
   (* fill include flags *)
-  let one_include_f f x = includes := "-I " ^ f (string x) ^ " " ^ !includes in
+  let one_include_f f x = includes := "-I " ^ f x ^ " " ^ !includes in
   if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (Filename.concat !Goblintutil.tempDirName OilUtil.header) ^" "^ !includes;
   (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
-  get_list "includes" |> List.iter (one_include_f identity);
-  get_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
+  get_string_list "includes" |> List.iter (one_include_f identity);
+  get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
   if Sys.file_exists include_dir
   then includes := "-I" ^ include_dir ^ " " ^ !includes
@@ -302,15 +301,14 @@ let do_analyze change_info merged_AST =
     if stf@exf@otf = [] then failwith "No suitable function to start from.";
     if get_bool "dbg.verbose" then ignore (Pretty.printf "Startfuns: %a\nExitfuns: %a\nOtherfuns: %a\n"
                                              L.pretty stf L.pretty exf L.pretty otf);
-    Goblintutil.has_otherfuns := otf <> [];
     (* and here we run the analysis! *)
 
     let do_all_phases ast funs =
       let do_one_phase ast p =
         phase := p;
         if get_bool "dbg.verbose" then (
-          let aa = String.concat ", " @@ List.map Json.jsonString (get_list "ana.activated") in
-          let at = String.concat ", " @@ List.map Json.jsonString (get_list "trans.activated") in
+          let aa = String.concat ", " @@ get_string_list "ana.activated" in
+          let at = String.concat ", " @@ get_string_list "trans.activated" in
           print_endline @@ "Activated analyses for phase " ^ string_of_int p ^ ": " ^ aa;
           print_endline @@ "Activated transformations for phase " ^ string_of_int p ^ ": " ^ at
         );
@@ -366,11 +364,7 @@ let check_arguments () =
   if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization")
 
 let handle_extraspecials () =
-  let f xs = function
-    | String x -> x::xs
-    | _ -> xs
-  in
-  let funs = List.fold_left f [] (get_list "exp.extraspecials") in
+  let funs = get_string_list "exp.extraspecials" in
   LibraryFunctions.add_lib_funs funs
 
 let src_path () = Git.git_directory (List.first !cFileNames)

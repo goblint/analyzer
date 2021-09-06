@@ -114,7 +114,7 @@ let str_resource id =
   let str_funs fs = "["^(List.map CilType.Varinfo.show fs |> String.concat ", ")^"]" in
   match id with
   | Process, "mainfun" ->
-    "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
+    "mainfun/["^String.concat ", " (GobConfig.get_string_list "mainfun")^"]"
   | Process, name ->
     name^"/"^str_funs @@ funs_for_process id
   | resource_type, name ->

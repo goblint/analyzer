@@ -495,10 +495,8 @@ struct
           in
           (module TaskResult:WitnessTaskResult)
         in
-        (* TODO: fix ana.wp if Z3 not compiled *)
         if get_bool "ana.wp" then (
-          (* match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with *)
-          match Violation.find_path (module ViolationArg) (module Violation.UnknownFeasibility (ViolationArg.Node)) with
+          match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with
           | Feasible (module PathArg) ->
             (* TODO: add assumptions *)
             let module TaskResult =
@@ -528,8 +526,8 @@ struct
             (* GobConfig.set_list "ana.activated" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.activated");
             GobConfig.set_list "ana.path_sens" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.path_sens"); *)
             (* TODO: don't append to end; currently done to get observer order to be nice *)
-            GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [Json.Build.string (Spec.name ())]);
-            GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [Json.Build.string (Spec.name ())]);
+            GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String (Spec.name ())]);
+            GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [`String (Spec.name ())]);
 
             raise Refinement.RestartAnalysis
           | Unknown ->

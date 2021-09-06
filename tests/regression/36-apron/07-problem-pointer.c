@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron']" --sets exp.privatization none --sets exp.apron.privatization dummy
+// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron']" --set exp.privatization none --set exp.apron.privatization dummy
 void change(int *p) {
     (*p)++;
 }

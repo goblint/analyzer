@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated '["base", "mallocWrapper"]'  --sets exp.privatization none
+//PARAM: --set ana.activated '["base", "mallocWrapper"]'  --set exp.privatization none
 // Copied & modified from 33/04.
 #include <assert.h>
 

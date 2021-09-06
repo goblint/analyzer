@@ -507,7 +507,7 @@ struct
         print_globals gh;
 
       (* run activated transformations with the analysis result *)
-      let active_transformations = get_list "trans.activated" |> List.map Json.string in
+      let active_transformations = get_string_list "trans.activated" in
       (if List.length active_transformations > 0 then
         (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =

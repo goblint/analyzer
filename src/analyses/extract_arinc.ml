@@ -376,7 +376,7 @@ struct
   let exitstate  v = D.bot ()
 
   let init () = (* registers which functions to extract and writes out their definitions *)
-    let mainfuns = List.map Json.string (GobConfig.get_list "mainfun") in
+    let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.length mainfuns = 1); (* TODO? *)

@@ -412,7 +412,7 @@ struct
 
   let init () =
     init ();
-    arinc_analysis_activated := List.exists (fun x -> Json.string x="arinc") (get_list "ana.activated")
+    arinc_analysis_activated := List.mem "arinc" (get_string_list "ana.activated")
 
 end
 

@@ -250,81 +250,81 @@ let _ = ()
       ; reg Warnings "warn.debug"           "true"  "Debug severity messages"
       ; reg Warnings "warn.success"         "true"  "Success severity messages"
 
-let default_schema = "\
-{ 'id'              : 'root'
-, 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'printstats', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
-, 'additionalProps' : false
-, 'properties' :
-  { 'ana' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+let default_schema = {schema|
+{ "id"              : "root"
+, "type"            : "object"
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "warnstyle", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "additionalProps" : false
+, "properties" :
+  { "ana" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'sem'               : {}
-  , 'trans'             : {}
-  , 'phases'            : {}
-  , 'exp' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+  , "sem"               : {}
+  , "trans"             : {}
+  , "phases"            : {}
+  , "exp" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'dbg' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+  , "dbg" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'questions' :
-    { 'file'            : ''
+  , "questions" :
+    { "file"            : ""
     }
-  , 'outfile'         : {}
-  , 'includes'        : {}
-  , 'kernel_includes' : {}
-  , 'custom_includes' : {}
-  , 'custom_incl'     : {}
-  , 'custom_libc'     : {}
-  , 'justcil'         : {}
-  , 'justcfg'         : {}
-  , 'printstats'      : {}
-  , 'verify'        : {}
-  , 'mainfun'         : {}
-  , 'exitfun'         : {}
-  , 'otherfun'        : {}
-  , 'allglobs'        : {}
-  , 'keepcpp'         : {}
-  , 'tempDir'         :
-    { 'type'            : 'string'
+  , "outfile"         : {}
+  , "includes"        : {}
+  , "kernel_includes" : {}
+  , "custom_includes" : {}
+  , "custom_incl"     : {}
+  , "custom_libc"     : {}
+  , "justcil"         : {}
+  , "justcfg"         : {}
+  , "printstats"      : {}
+  , "verify"        : {}
+  , "mainfun"         : {}
+  , "exitfun"         : {}
+  , "otherfun"        : {}
+  , "allglobs"        : {}
+  , "keepcpp"         : {}
+  , "tempDir"         :
+    { "type"            : "string"
     }
-  , 'cppflags'        : {}
-  , 'kernel'          : {}
-  , 'dump_globs'      : {}
-  , 'result'          :
-    { 'type'            : 'string'
+  , "cppflags"        : {}
+  , "kernel"          : {}
+  , "dump_globs"      : {}
+  , "result"          :
+    { "type"            : "string"
     }
-  , 'warnstyle'          :
-    { 'type'            : 'string'
+  , "warnstyle"          :
+    { "type"            : "string"
     }
-  , 'solver'          : {}
-  , 'comparesolver'   : {}
-  , 'solverdiffs'     : {}
-  , 'allfuns'         : {}
-  , 'nonstatic'       : {}
-  , 'colors'          : {}
-  , 'g2html'          : {}
-  , 'interact'        : {}
-  , 'save_run'        : {}
-  , 'load_run'        : {}
-  , 'compare_runs'    : {}
-  , 'warn_at'         : {}
-  , 'warn'              :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+  , "solver"          : {}
+  , "comparesolver"   : {}
+  , "solverdiffs"     : {}
+  , "allfuns"         : {}
+  , "nonstatic"       : {}
+  , "colors"          : {}
+  , "g2html"          : {}
+  , "interact"        : {}
+  , "save_run"        : {}
+  , "load_run"        : {}
+  , "compare_runs"    : {}
+  , "warn_at"         : {}
+  , "warn"              :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'gobview'         : {}
+  , "gobview"         : {}
   }
-}"
+}|schema}
 
 let _ =
-  let v = JsonParser.value JsonLexer.token @@ Lexing.from_string default_schema in
+  let v = Yojson.Safe.from_string default_schema in
   GobConfig.addenum_sch v

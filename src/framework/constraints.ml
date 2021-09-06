@@ -567,7 +567,7 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d =
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
-          List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
+          List.mem fd.svar.vname (get_string_list "mainfun")) &&
          (get_bool "kernel" || get_string "ana.osek.oil" <> "")
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg

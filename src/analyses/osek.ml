@@ -1127,7 +1127,7 @@ struct
         let var_str = gl.vname ^ ValueDomain.Offs.show offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
         let handle_race def_warn = begin
-          if (List.mem gl.vname  (List.map Json.string @@ get_list "ana.osek.safe_vars")) then begin
+          if (List.mem gl.vname  (get_string_list "ana.osek.safe_vars")) then begin
             suppressed := !suppressed+1;
             if (get_bool "allglobs") then
               warn_group_old (safe_str "safe variable") warnings
@@ -1135,8 +1135,8 @@ struct
               ignore (printf "Suppressed warning: %s is not guarded\n" var_str)
           end else begin
             (*filter out safe task access. redo is_race report accordingly List.not List.mem gl.vname  *)
-            let safe_tasks = List.map make_task (List.map Json.string @@ get_list "ana.osek.safe_task") in
-            let safe_irpts = List.map make_isr (List.map Json.string @@ get_list "ana.osek.safe_isr") in
+            let safe_tasks = List.map make_task (get_string_list "ana.osek.safe_task") in
+            let safe_irpts = List.map make_isr (get_string_list "ana.osek.safe_isr") in
             let safe_funs = safe_irpts @ safe_tasks in
             if safe_funs = [] then begin
               race_free := false;

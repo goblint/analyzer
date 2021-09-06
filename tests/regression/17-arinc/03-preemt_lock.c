@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] extract_arinc --sets ana.activated[+] thread --disable ana.arinc.export
+// SKIP PARAM: --set ana.activated[+] extract_arinc --set ana.activated[+] thread --disable ana.arinc.export
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef int    SEMAPHORE_ID_TYPE;
