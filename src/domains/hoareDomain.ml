@@ -289,15 +289,21 @@ struct
     let a,b = elements a, elements b in
     List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
   (* why are type annotations needed for product_widen? *)
+  (* TODO: unused now *)
   let product_widen op op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
     List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
+  let product_widen2 op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
+    let xs,ys = elements a, elements b in
+    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) ys) xs |> List.flatten |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
   (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
   (* TODO: move PathSensitive3-specific narrow out of HoareMap *)
   let narrow = product_bot2 (fun (x, xr) (y, yr) -> if SpecD.leq y x then (SpecD.narrow x y, yr) else (x, xr))
-  let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
+  (* let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen *)
+  (* TODO: move PathSensitive3-specific widen out of HoareMap *)
+  let widen = product_widen2 (fun (x, xr) (y, yr) -> if SpecD.leq x y then (SpecD.widen x y, yr) else (y, yr)) (* TODO: is this right now? *)
 
   (* TODO: shouldn't this also reduce? *)
   let apply_list f s = elements s |> f |> of_list

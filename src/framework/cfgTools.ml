@@ -161,7 +161,7 @@ let createCFG (file: file) =
     NH.replace fd_nodes toNode ();
     H.add cfgB toNode (edges,fromNode);
     H.add cfgF fromNode (edges,toNode);
-    Messages.trace "cfg" "done\n\n"
+    if Messages.tracing then Messages.trace "cfg" "done\n\n"
   in
   let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
   let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in

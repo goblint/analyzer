@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['containment']" --sets ana.cont.class small --set allfuns true CXX.json SAFE.json
+// PARAM: --set ana.activated "['containment']" --set ana.cont.class small --set allfuns true CXX.json SAFE.json --set exp.privatization none
 /* I2 Goblint Version with debug info*/
 #line 0 "LLVM INTERNAL"
 /* Provide Declarations */
@@ -77,7 +77,7 @@ extern void *__builtin_alloca(unsigned int);
 #define LLVM_ASM(X)
 #endif
 
-#if __GNUC__ < 4 /* Old GCC's, or compilers not GCC */ 
+#if __GNUC__ < 4 /* Old GCC's, or compilers not GCC */
 #define __builtin_stack_save() 0   /* not implemented */
 #define __builtin_stack_restore(X) /* noop */
 #endif
@@ -4771,4 +4771,3 @@ void _ZN8CBaseFSMC2Ev(struct l_class_OC_CBaseFSM *llvm_cbe_this) {
 #line 156 "small.cpp"
   return;
 }
-
