@@ -127,7 +127,7 @@ struct
     | b -> (fun x y -> (ID.top_of result_ik))
 
   (* Evaluate binop for two abstract values: *)
-  let evalbinop (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
+  let evalbinop (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
     if M.tracing then M.tracel "eval" "evalbinop %a %a %a\n" d_binop op VD.pretty a1 VD.pretty a2;
     (* We define a conversion function for the easy cases when we can just use
      * the integer domain operations. *)
@@ -219,7 +219,7 @@ struct
               else (
                 (* If the address id definite, it should be one or no variables *)
                 assert (List.length v = 1);
-                if WeakUpdates.mem (List.hd v) st.weak then
+                if a.f (Q.IsMultiple (List.hd v)) then
                   None
                 else
                   Some true
@@ -734,13 +734,13 @@ struct
         else
           let a1 = eval_rv a gs st c1 in
           let a2 = eval_rv a gs st c2 in
-          evalbinop st op t1 a1 t2 a2 typ
+          evalbinop a st op t1 a1 t2 a2 typ
       | BinOp (op,arg1,arg2,typ) ->
         let a1 = eval_rv a gs st arg1 in
         let a2 = eval_rv a gs st arg2 in
         let t1 = Cilfacade.typeOf arg1 in
         let t2 = Cilfacade.typeOf arg2 in
-        evalbinop st op t1 a1 t2 a2 typ
+        evalbinop a st op t1 a1 t2 a2 typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
