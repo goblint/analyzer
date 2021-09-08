@@ -815,9 +815,9 @@ struct
     | `G a -> GV.node a
 end
 
-(** Translate a [GlobConstrSys] into a [IneqConstrSys] *)
-module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
-  : IneqConstrSys with type v = Var2(S.LVar)(S.GVar).t
+(** Translate a [GlobConstrSys] into a [EqConstrSys] *)
+module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
+  : EqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
                    and type d = Lattice.Either(S.G)(S.D).t
                    and module Var = Var2(S.LVar)(S.GVar)
                    and module Dom = Lattice.Either(S.G)(S.D)
@@ -840,12 +840,12 @@ struct
   let getR = function
     | `Left x -> x
     | `Right _ -> S.G.bot ()
-    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Right!"
+    | _ -> failwith "EqConstrSysFromGlobConstrSys broken: Right!"
 
   let getL = function
     | `Right x -> x
     | `Left _ -> S.D.top ()
-    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Left!"
+    | _ -> failwith "EqConstrSysFromGlobConstrSys broken: Left!"
 
   let l, g = (fun x -> `L x), (fun x -> `G x)
   let le, ri = (fun x -> `Right x), (fun x -> `Left x)
@@ -861,17 +861,17 @@ struct
 end
 
 
-(** Transforms a [GenericIneqBoxSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
+(** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
+module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
     struct
-      module IneqSys = IneqConstrSysFromGlobConstrSys (S)
+      module EqSys = EqConstrSysFromGlobConstrSys (S)
 
-      module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
-      module Sol' = Sol (IneqSys) (VH)
+      module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
+      module Sol' = Sol (EqSys) (VH)
 
       let getG v = function
         | `Left x -> x
@@ -890,7 +890,7 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
         let vs = List.map (fun (x,v) -> `L x, `Right v) ls
                  @ List.map (fun (x,v) -> `G x, `Left v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm = Sol'.solve IneqSys.box vs sv in
+        let hm = Sol'.solve EqSys.box vs sv in
         let l' = LH.create 113 in
         let g' = GH.create 113 in
         let split_vars = function

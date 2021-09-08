@@ -239,5 +239,5 @@ module SLR3term =
   end
 
 let _ =
-  let module S3t = GlobSolverFromIneqSolver (SLR3term) in
+  let module S3t = GlobSolverFromEqSolver (SLR3term) in
   Selector.add_solver ("slr3t", (module S3t : GenericGlobSolver)); (* same as S2 but number of W-points may also shrink + terminating? *)

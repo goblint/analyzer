@@ -101,5 +101,5 @@ module Make =
   end
 
 let _ =
-  let module S3 = Constraints.GlobSolverFromIneqSolver (Make) in
+  let module S3 = Constraints.GlobSolverFromEqSolver (Make) in
   Selector.add_solver ("effectWConEq", (module S3 : GenericGlobSolver));

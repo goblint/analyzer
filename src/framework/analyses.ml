@@ -398,11 +398,8 @@ sig
   val increment : increment_data
 end
 
-(** Any system of side-effecting inequations over lattices. *)
-module type IneqConstrSys = MonSystem with type 'a m := 'a option
-
 (** Any system of side-effecting equations over lattices. *)
-module type EqConstrSys = MonSystem with type 'a m := 'a option (* TODO: how is this supposed to be different from IneqConstrSys *)
+module type EqConstrSys = MonSystem with type 'a m := 'a option
 
 (** A side-effecting system with globals. *)
 module type GlobConstrSys =
@@ -419,16 +416,6 @@ end
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key=S.v) ->
-  sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
-  end
-
-(** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericIneqBoxSolver =
-  functor (S: IneqConstrSys) ->
   functor (H:Hash.H with type key=S.v) ->
   sig
     (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],

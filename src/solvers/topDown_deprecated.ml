@@ -8,7 +8,7 @@ module GU = Goblintutil
 exception SolverCannotDoGlobals
 
 module TD2 =
-  functor (S:IneqConstrSys) ->
+  functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
   struct
     open S
@@ -381,6 +381,6 @@ module TD3 =
 
   end
 
-module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromIneqSolver (TD2)
+module Make2GGS : Analyses.GenericGlobSolver = GlobSolverFromEqSolver (TD2)
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromIneqSolver (TD3) : Analyses.GenericGlobSolver));
+  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromEqSolver (TD3) : Analyses.GenericGlobSolver));

@@ -214,5 +214,5 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromIneqSolver (WP) in
+  let module WP = GlobSolverFromEqSolver (WP) in
   Selector.add_solver ("topdown_space_cache_term", (module WP : GenericGlobSolver));
