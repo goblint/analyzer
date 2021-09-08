@@ -782,8 +782,8 @@ struct
       Some tf
 end
 
-(** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
-    that use only one kind of a variable. *)
+(** Combined variables so that we can also use the more common [EqConstrSys]
+    that uses only one kind of a variable. *)
 module Var2 (LV:VarType) (GV:VarType)
   : VarType
     with type t = [ `L of LV.t  | `G of GV.t ]
