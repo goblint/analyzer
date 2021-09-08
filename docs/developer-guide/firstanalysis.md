@@ -61,8 +61,7 @@ struct
   (* We need the following to generate output... *)
   include Printable.Std
   include Printable.PrintSimple (struct
-    type t' = t
-    let name = name
+    type nonrec t = t
     let show = show
   end)
   let hash = Hashtbl.hash
@@ -135,7 +134,9 @@ let assert_holds (d: D.t) (e:exp) = match e with
 
 let query ctx (type a) (q: a Queries.t): a Queries.result =
   let open Queries in match q with
-  | Assert e when assert_holds ctx.local e -> `Lifted true
+  | EvalInt e when assert_holds ctx.local e ->
+    let ik = Cilfacade.get_ikind_exp e in
+    Queries.ID.of_bool ik true
   | _ -> Result.top q
 ```
 
