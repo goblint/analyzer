@@ -556,6 +556,7 @@ struct
     | _ -> Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
+(* Order matters! *)
 module Either (B1: S) (B2: S) =
 struct
   include Printable.Either (B1) (B2)
@@ -604,8 +605,6 @@ struct
     | `Right x, `Right y ->  B2.pretty_diff () (x,y)
     | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
-
-module Option (Base: S) (N: Printable.Name) = Either (Base) (UnitConf (N))
 
 module Liszt (Base: S) =
 struct

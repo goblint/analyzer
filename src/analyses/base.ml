@@ -395,6 +395,7 @@ struct
     | `List e -> reachable_from_value ask gs st (`Address (ValueDomain.Lists.entry_rand e)) t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
+    | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
@@ -539,6 +540,7 @@ struct
           in
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
         | `Int _ -> (empty, TS.bot (), false)
+        | `Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
       reachable_from_value (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)
     in
@@ -933,6 +935,12 @@ struct
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
+    | Q.EvalThread e -> begin
+      match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | `Thread a -> a
+        | `Bot -> Queries.Result.bot q (* TODO: remove *)
+        | _ -> Queries.Result.top q
+      end
     | Q.ReachableFrom e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Queries.Result.top q
@@ -1253,6 +1261,7 @@ struct
     | `Array n ->  ValueDomain.CArrays.is_bot n
     | `Blob n ->  ValueDomain.Blobs.is_bot n
     | `List n ->  ValueDomain.Lists.is_bot n
+    | `Thread n -> ValueDomain.Threads.is_bot n
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
     | `Top -> false
 
@@ -1704,6 +1713,7 @@ struct
           | [(x,offs)] ->
             let t = v.vtype in
             let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+            if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
             let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
             set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
           | _ ->
@@ -1808,7 +1818,7 @@ struct
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp |> VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType in
         let nst: store =
           match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add tid rv nst.cpa}
+          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv nst.cpa}
           | _ -> nst
         in
         set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
@@ -2126,7 +2136,7 @@ struct
           begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
             | `Lifted tid ->
               let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-              let nst = {st with cpa=CPA.add tid rv st.cpa} in
+              let nst = {st with cpa=CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv st.cpa} in
               (* TODO: emit thread return event so other analyses are aware? *)
               publish_all {ctx with local=nst} `Return (* like normal return *)
             | _ -> ()
@@ -2153,7 +2163,8 @@ struct
         | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
-            | `Address a ->
+            | `Thread a ->
+              let a = List.fold AD.join (AD.bot ()) (List.map (fun x -> AD.from_var (ThreadIdDomain.Thread.to_varinfo x)) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) (get (Analyses.ask_of_ctx ctx) gs st a None)
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
@@ -2314,7 +2325,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx octx) octx.global octx.sideg st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
-      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Address (AD.from_var tid))
+      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
     | _ ->
       ctx.local
 end
