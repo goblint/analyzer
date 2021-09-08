@@ -76,6 +76,8 @@ struct
       `Lifted (get_heap_var loc)
     | Q.IsHeapVar v ->
       Hashtbl.mem heap_vars v.vid
+    | Q.IsMultiple v ->
+      Hashtbl.mem heap_vars v.vid
     | _ -> Queries.Result.top q
 
     let init () =
