@@ -38,14 +38,27 @@ let is_ignorable lval =
   with Cilfacade.TypeOfError _ -> false
 
 
+(** The basic thread domain that distinguishes singlethreaded mode, a single
+  * thread ID, and otherwise goes to top. *)
 module Flag =
 struct
-  include ConcDomain.SimpleThreadDomain
+  module Simple = ThreadFlagDomain.Simple
+  module ThreadLifted = ThreadIdDomain.ThreadLifted
+
+  include Lattice.ProdSimple (Simple) (ThreadLifted)
   let name () = "flag domain"
+
+  let is_multi (x,_) = Simple.is_multi x
+  let is_not_main   (x,_) = Simple.is_not_main x
+
+  let show (x,y) =
+    let tid = ThreadLifted.show y in
+    if Simple.is_not_main x then tid else tid ^ "!" (* ! means unique *)
+  let pretty () x = Pretty.text (show x)
 end
 
 let get_flag (state: (string * Obj.t) list) : Flag.t =
-  (Obj.obj (List.assoc "threadflag" state), Obj.obj (List.assoc "threadid" state))
+  (Obj.obj (List.assoc "threadflag" state), fst (Obj.obj (List.assoc "threadid" state)))
 
 
 module Spec =
@@ -952,7 +965,7 @@ struct
         List.fold_left f (Lockset.bot ()) acc_list
       in
       let rw ((_,_,x),_,_) = x in
-      let non_main ((_,x,_),_,_) = Flag.is_bad x in
+      let non_main ((_,x,_),_,_) = Flag.is_not_main x in
       let is_race_no_flags acc_list =
         let offpry = offpry acc_list in
         let minpry = minpry acc_list in

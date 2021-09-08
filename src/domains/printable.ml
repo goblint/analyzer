@@ -265,7 +265,35 @@ struct
     | `Right x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
 end
 
-module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
+module Option (Base: S) (N: Name) =
+struct
+  type t = Base.t option [@@deriving eq, ord]
+  include Std
+
+  let hash state =
+    match state with
+    | None -> 7134679
+    | Some n -> 133 * Base.hash n
+
+  let pretty () (state:t) =
+    match state with
+    | None -> text N.name
+    | Some n -> Base.pretty () n
+
+  let show state =
+    match state with
+    | None -> N.name
+    | Some n -> Base.show n
+
+  let name () = Base.name () ^ " option"
+  let printXml f = function
+    | None -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
+    | Some x -> Base.printXml f x
+
+  let to_yojson = function
+    | None -> `String N.name
+    | Some x -> Base.to_yojson x
+end
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct

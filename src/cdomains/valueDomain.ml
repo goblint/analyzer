@@ -68,6 +68,8 @@ struct
   let invariant c (v, _, _) = Value.invariant c v
 end
 
+module Threads = ConcDomain.ThreadSet
+
 module rec Compound: S with type t = [
     | `Top
     | `Int of ID.t
@@ -77,6 +79,7 @@ module rec Compound: S with type t = [
     | `Array of CArrays.t
     | `Blob of Blobs.t
     | `List of Lists.t
+    | `Thread of Threads.t
     | `Bot
   ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
 struct
@@ -89,6 +92,7 @@ struct
     | `Array of CArrays.t
     | `Blob of Blobs.t
     | `List of Lists.t
+    | `Thread of Threads.t
     | `Bot
   ] [@@deriving eq, ord]
 
@@ -98,6 +102,10 @@ struct
   | _ -> false
 
   let is_immediate_type t = is_mutex_type t || isFunctionType t
+
+  let is_thread_type = function
+    | TNamed ({tname = "pthread_t"; _}, _) -> true
+    | _ -> false
 
   let rec bot_value (t: typ): t =
     let bot_comp compinfo: Structs.t =
@@ -115,6 +123,7 @@ struct
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
+    | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
     | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
 
@@ -135,6 +144,7 @@ struct
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
       `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+    (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
 
@@ -183,11 +193,12 @@ struct
       | TArray (ai, Some exp, _) ->
         let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
         `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
+      (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
       | TNamed ({ttype=t; _}, _) -> zero_init_value t
       | _ -> `Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Bot -> "Bot"
+    | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Thread _ -> "Thread" | `Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
@@ -210,6 +221,7 @@ struct
     | `Union n -> 29 * Unions.hash n
     | `Array n -> 31 * CArrays.hash n
     | `Blob n -> 37 * Blobs.hash n
+    | `Thread n -> 41 * Threads.hash n
     | _ -> Hashtbl.hash x
 
   let pretty () state =
@@ -221,6 +233,7 @@ struct
     | `Array n ->  CArrays.pretty () n
     | `Blob n ->  Blobs.pretty () n
     | `List n ->  Lists.pretty () n
+    | `Thread n -> Threads.pretty () n
     | `Bot -> text bot_name
     | `Top -> text top_name
 
@@ -233,6 +246,7 @@ struct
     | `Array n ->  CArrays.show n
     | `Blob n ->  Blobs.show n
     | `List n ->  Lists.show n
+    | `Thread n -> Threads.show n
     | `Bot -> bot_name
     | `Top -> top_name
 
@@ -245,6 +259,7 @@ struct
     | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
     | (`List x, `List y) -> Lists.pretty_diff () (x,y)
     | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
+    | (`Thread x, `Thread y) -> Threads.pretty_diff () (x, y)
     | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
 
   (************************************************************
@@ -434,6 +449,7 @@ struct
     | (`Array x, `Array y) -> CArrays.leq x y
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
+    | (`Thread x, `Thread y) -> Threads.leq x y
     | _ -> warn_type "leq" x y; false
 
   let rec join x y =
@@ -458,6 +474,7 @@ struct
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | `Blob (x,s,o), y
     | y, `Blob (x,s,o) -> `Blob (join (x:t) y, s, o)
+    | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -486,6 +503,7 @@ struct
     | `Blob (x,s,o), y
     | y, `Blob (x,s,o) ->
       `Blob (join (x:t) y, s, o)
+    | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -511,6 +529,7 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
     | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
+    | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -535,6 +554,7 @@ struct
     | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
     | (`List x, `List y) -> Lists.leq x y (* `List can not contain array -> normal leq  *)
     | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
+    | (`Thread x, `Thread y) -> Threads.leq x y
     | _ -> warn_type "leq" x y; false
 
   let rec meet x y =
@@ -552,6 +572,7 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.meet x y)
     | (`List x, `List y) -> `List (Lists.meet x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
+    | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -576,6 +597,7 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.widen x y)
     | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
+    | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -591,6 +613,7 @@ struct
     | (`Array x, `Array y) -> `Array (CArrays.narrow x y)
     | (`List x, `List y) -> `List (Lists.narrow x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
+    | (`Thread x, `Thread y) -> `Thread (Threads.narrow x y)
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | _ ->
@@ -829,6 +852,16 @@ struct
           let x = zero_init_calloced_memory orig x t in
           mu (`Blob (join x (do_update_offset ask x offs value exp l' o' v t), s, orig))
         end
+      | `Thread _, _ ->
+        (* hack for pthread_t variables *)
+        begin match value with
+          | `Thread t -> value (* if actually assigning thread, use value *)
+          | _ ->
+            if !GU.global_initialization then
+              `Thread (ConcDomain.ThreadSet.empty ()) (* if assigning global init (int on linux, ptr to struct on mac), use empty set instead *)
+            else
+              `Top
+        end
       | _ ->
       let result =
         match offs with
@@ -989,6 +1022,7 @@ struct
     | `Array n ->  CArrays.printXml f n
     | `Blob n ->  Blobs.printXml f n
     | `List n ->  Lists.printXml f n
+    | `Thread n -> Threads.printXml f n
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
 
@@ -1000,6 +1034,7 @@ struct
     | `Array n -> CArrays.to_yojson n
     | `Blob n -> Blobs.to_yojson n
     | `List n -> Lists.to_yojson n
+    | `Thread n -> Threads.to_yojson n
     | `Bot -> `String "⊥"
     | `Top -> `String "⊤"
 
