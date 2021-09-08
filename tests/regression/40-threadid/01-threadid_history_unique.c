@@ -1,4 +1,5 @@
 // PARAM: --sets ana.activated[-] thread
+// requires thread ID with history
 #include <pthread.h>
 #include <stdio.h>
 
