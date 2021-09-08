@@ -488,5 +488,5 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
+  let module WP = GlobSolverFromEqSolver (WP) in
   Selector.add_solver ("td3", (module WP : GenericGlobSolver));

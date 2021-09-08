@@ -221,5 +221,5 @@ module Make =
   end
 
 let _ =
-  let module S3tp = GlobSolverFromIneqSolver (JoinContr (Make)) in
+  let module S3tp = GlobSolverFromEqSolver (Make) in
   Selector.add_solver ("slr3tp", (module S3tp : GenericGlobSolver)); (* two-phased slr3t *)

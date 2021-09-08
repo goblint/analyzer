@@ -693,11 +693,35 @@ struct
     d
 
   let system (v,c) =
-    List.map (tf (v,c)) (Cfg.prev v)
+    match v with
+    | FunctionEntry _ ->
+      None
+    | _ ->
+      let tf getl sidel getg sideg =
+        let tf' eu = tf (v,c) eu getl sidel getg sideg in
+
+        match NodeH.find_option CfgTools.node_scc_global v with
+        | Some scc when NodeH.mem scc.prev v ->
+          let stricts = NodeH.find_all scc.prev v in
+          let xs_stricts = List.map tf' stricts in
+          if List.for_all S.D.is_bot xs_stricts then
+            S.D.bot ()
+          else
+            let xs_strict = List.fold_left S.D.join (S.D.bot ()) xs_stricts in
+            let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
+            let is_strict eu = List.exists (equal eu) stricts in
+            let non_stricts = List.filter (neg is_strict) (Cfg.prev v) in
+            let xs_non_stricts = List.map tf' non_stricts in
+            List.fold_left S.D.join xs_strict xs_non_stricts
+        | _ ->
+          let xs = List.map tf' (Cfg.prev v) in
+          List.fold_left S.D.join (S.D.bot ()) xs
+      in
+      Some tf
 end
 
-(** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
-    that use only one kind of a variable. *)
+(** Combined variables so that we can also use the more common [EqConstrSys]
+    that uses only one kind of a variable. *)
 module Var2 (LV:VarType) (GV:VarType)
   : VarType
     with type t = [ `L of LV.t  | `G of GV.t ]
@@ -729,9 +753,9 @@ struct
     | `G a -> GV.node a
 end
 
-(** Translate a [GlobConstrSys] into a [IneqConstrSys] *)
-module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
-  : IneqConstrSys with type v = Var2(S.LVar)(S.GVar).t
+(** Translate a [GlobConstrSys] into a [EqConstrSys] *)
+module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
+  : EqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
                    and type d = Lattice.Either(S.G)(S.D).t
                    and module Var = Var2(S.LVar)(S.GVar)
                    and module Dom = Lattice.Either(S.G)(S.D)
@@ -754,12 +778,12 @@ struct
   let getR = function
     | `Left x -> x
     | `Right _ -> S.G.bot ()
-    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Right!"
+    | _ -> failwith "EqConstrSysFromGlobConstrSys broken: Right!"
 
   let getL = function
     | `Right x -> x
     | `Left _ -> S.D.top ()
-    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Left!"
+    | _ -> failwith "EqConstrSysFromGlobConstrSys broken: Left!"
 
   let l, g = (fun x -> `L x), (fun x -> `G x)
   let le, ri = (fun x -> `Right x), (fun x -> `Left x)
@@ -770,63 +794,22 @@ struct
     |> le
 
   let system = function
-    | `G _ -> []
-    | `L x -> List.map conv (S.system x)
+    | `G _ -> None
+    | `L x -> Option.map conv (S.system x)
 end
 
 
 (** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
-(* TODO: unused *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
     struct
-      module IneqSys = IneqConstrSysFromGlobConstrSys (S)
-      module EqSys = Generic.NormalSysConverter (IneqSys)
+      module EqSys = EqConstrSysFromGlobConstrSys (S)
 
       module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
-
-      let getR v = function
-        | `Left x -> x
-        | `Right x ->
-          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
-          undefined ()
-
-      let getL v = function
-        | `Right x -> x
-        | `Left x ->
-          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
-          undefined ()
-
-      let solve ls gs l =
-        let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls
-                 @ List.map (fun (x,v) -> EqSys.conv (`G x), `Left  v) gs in
-        let sv = List.map (fun x -> EqSys.conv (`L x)) l in
-        let hm = Sol'.solve EqSys.box vs sv in
-        let l' = LH.create 113 in
-        let g' = GH.create 113 in
-        let split_vars = function
-          | (`L x,_) -> fun y -> LH.replace l' x (getL x y)
-          | (`G x,_) -> fun y -> GH.replace g' x (getR x y)
-        in
-        VH.iter split_vars hm;
-        (l', g')
-    end
-
-(** Transforms a [GenericIneqBoxSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
-  : GenericGlobSolver
-  = functor (S:GlobConstrSys) ->
-    functor (LH:Hash.H with type key=S.LVar.t) ->
-    functor (GH:Hash.H with type key=S.GVar.t) ->
-    struct
-      module IneqSys = IneqConstrSysFromGlobConstrSys (S)
-
-      module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
-      module Sol' = Sol (IneqSys) (VH)
 
       let getG v = function
         | `Left x -> x
@@ -845,7 +828,7 @@ module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
         let vs = List.map (fun (x,v) -> `L x, `Right v) ls
                  @ List.map (fun (x,v) -> `G x, `Left v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm = Sol'.solve IneqSys.box vs sv in
+        let hm = Sol'.solve EqSys.box vs sv in
         let l' = LH.create 113 in
         let g' = GH.create 113 in
         let split_vars = function
@@ -1171,7 +1154,7 @@ struct
           complain_l v d' d
       in
       let rhs = system v in
-      List.iter verify_constraint rhs
+      Option.may verify_constraint rhs
     in
     LH.iter verify_var sigma;
     Goblintutil.in_verifying_stage := false
@@ -1191,7 +1174,7 @@ struct
     let rec one_lvar x =
       if not (LH.mem reachablel x) then begin
         LH.replace reachablel x ();
-        List.iter one_constraint (system x)
+        Option.may one_constraint (system x)
       end
     and one_constraint rhs =
       let getl y =

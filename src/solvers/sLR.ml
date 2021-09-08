@@ -533,29 +533,6 @@ module PrintInfluence =
       r
   end
 
-module JoinContr (Sol: GenericEqBoxSolver) =
-  functor (S:IneqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
-  struct
-    include Sol (Generic.SimpleSysConverter (S)) (HM)
-  end
-
-module MoreVars (Sol: GenericEqBoxSolver) =
-  functor (S:IneqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
-  struct
-    module HM1   = Hashtbl.Make (Generic.ExtendInt (S.Var))
-    module EqSys = Generic.NormalSysConverter (S)
-    include Sol (EqSys) (HM1)
-    let solve box is iv =
-      let box' (k,_) x y = box k x y in
-      let is' = List.map (fun (k,v) -> EqSys.conv k, v) is in
-      let iv' = List.map (fun k -> EqSys.conv k) iv in
-      let r = solve box' is' iv' in
-      let r' = HM.create (HM1.length r) in
-      HM1.iter (fun (k,_) v -> HM.replace r' k (try S.Dom.join v (HM.find r' k) with Not_found -> v)) r;
-      r'
-  end
 
 module TwoPhased =
   functor (V:Version) ->
@@ -585,48 +562,32 @@ module JustWiden =
   end
 
 let _ =
-  let module W1 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 1 end))) in
-  let module W2 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 2 end))) in
-  let module W3 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 3 end))) in
+  let module W1 = GlobSolverFromEqSolver (JustWiden (struct let ver = 1 end)) in
+  let module W2 = GlobSolverFromEqSolver (JustWiden (struct let ver = 2 end)) in
+  let module W3 = GlobSolverFromEqSolver (JustWiden (struct let ver = 3 end)) in
   Selector.add_solver ("widen1",  (module W1 : GenericGlobSolver));
   Selector.add_solver ("widen2",  (module W2 : GenericGlobSolver));
   Selector.add_solver ("widen3",  (module W3 : GenericGlobSolver));
-  let module S2 = GlobSolverFromIneqSolver (JoinContr (TwoPhased (struct let ver = 1 end))) in
+  let module S2 = GlobSolverFromEqSolver (TwoPhased (struct let ver = 1 end)) in
   Selector.add_solver ("two",  (module S2 : GenericGlobSolver));
-  let module S1 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 1 end))) in
+  let module S1 = GlobSolverFromEqSolver (Make (struct let ver = 1 end)) in
   Selector.add_solver ("new",  (module S1 : GenericGlobSolver));
   Selector.add_solver ("slr+", (module S1 : GenericGlobSolver))
 
 let _ =
-  let module S1 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 1 end))) in
-  let module S2 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 2 end))) in
-  let module S3 = GlobSolverFromIneqSolver (JoinContr (SLR3)) in
-  let module S4 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 4 end))) in
+  let module S1 = GlobSolverFromEqSolver (Make (struct let ver = 1 end)) in
+  let module S2 = GlobSolverFromEqSolver (Make (struct let ver = 2 end)) in
+  let module S3 = GlobSolverFromEqSolver (SLR3) in
+  let module S4 = GlobSolverFromEqSolver (Make (struct let ver = 4 end)) in
   Selector.add_solver ("slr1", (module S1 : GenericGlobSolver)); (* W&N at every program point *)
   Selector.add_solver ("slr2", (module S2 : GenericGlobSolver)); (* W&N dynamic at certain points, growing number of W-points *)
   Selector.add_solver ("slr3", (module S3 : GenericGlobSolver)); (* same as S2 but number of W-points may also shrink *)
   Selector.add_solver ("slr4", (module S4 : GenericGlobSolver)); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
-  let module S1p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 1 end)))) in
-  let module S2p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 2 end)))) in
-  let module S3p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 3 end)))) in
-  let module S4p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 4 end)))) in
+  let module S1p = GlobSolverFromEqSolver (PrintInfluence (Make (struct let ver = 1 end))) in
+  let module S2p = GlobSolverFromEqSolver (PrintInfluence (Make (struct let ver = 2 end))) in
+  let module S3p = GlobSolverFromEqSolver (PrintInfluence (Make (struct let ver = 3 end))) in
+  let module S4p = GlobSolverFromEqSolver (PrintInfluence (Make (struct let ver = 4 end))) in
   Selector.add_solver ("slr1p", (module S1p : GenericGlobSolver)); (* same as S1-4 above but with side-effects *)
   Selector.add_solver ("slr2p", (module S2p : GenericGlobSolver));
   Selector.add_solver ("slr3p", (module S3p : GenericGlobSolver));
   Selector.add_solver ("slr4p", (module S4p : GenericGlobSolver));
-  let module S1 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 1 end))) in
-  let module S2 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 2 end))) in
-  let module S3 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 3 end))) in
-  let module S4 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 4 end))) in
-  Selector.add_solver ("slr1x", (module S1 : GenericGlobSolver)); (* alias for S1-4 *)
-  Selector.add_solver ("slr2x", (module S2 : GenericGlobSolver));
-  Selector.add_solver ("slr3x", (module S3 : GenericGlobSolver));
-  Selector.add_solver ("slr4x", (module S4 : GenericGlobSolver));
-  let module S1p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 1 end)))) in
-  let module S2p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 2 end)))) in
-  let module S3p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 3 end)))) in
-  let module S4p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 4 end)))) in
-  Selector.add_solver ("slr1xp", (module S1p : GenericGlobSolver)); (* alias for S1p-4p *)
-  Selector.add_solver ("slr2xp", (module S2p : GenericGlobSolver));
-  Selector.add_solver ("slr3xp", (module S3p : GenericGlobSolver));
-  Selector.add_solver ("slr4xp", (module S4p : GenericGlobSolver));
