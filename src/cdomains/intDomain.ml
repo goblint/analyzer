@@ -2012,7 +2012,7 @@ struct
   type int_t = Ints_t.t
 
   (* represents congruence class of c mod m, None is bot *)
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving ord]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
 
   let ( *: ) = Ints_t.mul
   let (+:) = Ints_t.add
@@ -2063,11 +2063,6 @@ struct
       let b = if m =: Ints_t.zero then "" else if m = Ints_t.one then "ℤ" else Ints_t.to_string m^"ℤ" in
       let c = if a = "" || b = "" then "" else "+" in
       a^c^b
-
-  let equal a b = match a, b with
-    | None, None -> true
-    | Some (a, b), Some (c, d) -> a =: c && b =: d
-    | _, _ -> false
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 
