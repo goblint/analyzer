@@ -114,6 +114,7 @@ struct
       ([], S.singleton base_tid)
     else
       ([base_tid], S.empty ())
+
   let threadenter ((p, _ ) as current, cs) l v =
     let n = Base.threadenter l v in
     let ((p', s') as composed) = compose current n in
