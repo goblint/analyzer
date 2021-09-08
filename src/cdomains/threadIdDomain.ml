@@ -144,5 +144,14 @@ struct
   let name () = "Thread"
 end
 
-module Thread = History (FunLoc) (* TODO: make dynamically switchable? *)
+(* Since the thread ID module is extensively used statically, it cannot be dynamically switched via an option. *)
+(* TODO: make dynamically switchable? using flag-configured delegating module (like array domains)? *)
+
+(* Old thread IDs *)
+(* module Thread = Unit (FunLoc) *)
+
+(* Thread IDs with prefix-set history *)
+module Thread = History (FunLoc)
+
+
 module ThreadLifted = Lift (Thread)
