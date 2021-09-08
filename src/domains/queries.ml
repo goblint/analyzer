@@ -92,6 +92,7 @@ type _ t =
   | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
+  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
 
 type 'a result = 'a
@@ -140,6 +141,7 @@ struct
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
+    | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
 
   (** Get bottom result for query. *)
@@ -187,6 +189,7 @@ struct
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> PartAccessResult.top ()
+    | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
 end
 
@@ -232,7 +235,8 @@ struct
       | Any (MayBeLess _) -> 28
       | Any HeapVar -> 29
       | Any (IsHeapVar _) -> 30
-      | Any (EvalThread _) -> 31
+      | Any (IsMultiple _) -> 31
+      | Any (EvalThread _) -> 32
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -265,6 +269,7 @@ struct
       | Any (MayBeLess (e1, e2)), Any (MayBeEqual (e3, e4)) ->
         [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
+      | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)

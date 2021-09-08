@@ -257,7 +257,7 @@ struct
           match ctx.ask (Queries.MayPointTo exp) with
           | x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
-            if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
+            if LS.mem top_elt x then M.debug "Query result for MayPointTo contains top!";
             let xs = LS.remove top_elt x |> LS.elements in
             List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
           | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
@@ -294,7 +294,7 @@ struct
           pid, ctx_hash, Pred.of_node node
         in
         match Pml.special_fun fname with
-        | None -> M.debug_each ("extract_osek: unhandled function "^fname); ctx.local
+        | None -> M.debug "extract_osek: unhandled function %s" fname; ctx.local
         | Some eval_args ->
           if M.tracing then M.trace "extract_osek" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
           let rec combine_opt f a b = match a, b with
@@ -323,7 +323,7 @@ struct
 
   let init () = (* registers which functions to extract and writes out their definitions *)
     Osek.Spec.parse_oil ();
-    let mainfuns = List.map Json.string (GobConfig.get_list "mainfun") in
+    let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.length mainfuns = 1); (* TODO? *)

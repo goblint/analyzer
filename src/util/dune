@@ -1,2 +1,2 @@
-(ocamllex jsonLexer oilLexer)
-(ocamlyacc jsonParser oilParser)
+(ocamllex oilLexer)
+(ocamlyacc oilParser)

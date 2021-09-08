@@ -1,8 +1,8 @@
 open Cil
 open Pretty
 
-type asm_out = (string option * string * CilType.Lval.t) list [@@deriving to_yojson]
-type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving to_yojson]
+type asm_out = (string option * string * CilType.Lval.t) list [@@deriving eq, to_yojson]
+type asm_in  = (string option * string * CilType.Exp.t ) list [@@deriving eq, to_yojson]
 
 type t =
   | Assign of CilType.Lval.t * CilType.Exp.t
@@ -31,7 +31,7 @@ type t =
   (** This is here for historical reasons. I never use Skip edges! *)
   | SelfLoop
   (** This for interrupt edges.! *)
-[@@deriving to_yojson]
+[@@deriving eq, to_yojson]
 
 
 let pretty () = function

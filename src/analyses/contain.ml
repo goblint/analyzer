@@ -1,10 +1,13 @@
-(** Protection using 'private' field modifier in C++.  *)
+(** Protection using 'private' field modifier in C++.
+    see doi.org/10.1007/978-3-642-28891-3_11
+    A. Herz, and K. Apinis "Class-Modular, class-escape and points-to analysis for object-oriented languages"
+    Builds on the ability of LLVM < 3.1 to emit semantically equivalent C code as a target
+    Requires a CXX.json file to work *)
 
 open Prelude.Ana
 let sprint = Pretty.sprint
 open Analyses
 open GobConfig
-open Json
 
 module GU = Goblintutil
 module FieldVars = Basetype.FieldVariables
@@ -43,6 +46,7 @@ struct
     Hashtbl.replace ht (get_pure_name f.svar.vname) ()
 
   let init_inh_rel () =
+    let open Yojson.Safe.Util in
     let module StringH =
     struct
       type t = string [@@deriving eq]
@@ -54,44 +58,44 @@ struct
       let inhy = try InhMap.find inh y with _ -> [] in
       List.fold_right (closure_add x) inhy (D.InhRel.add (x,y) acc)
     in
-    let add_inh_entry cn xs  =
-      let xs = List.map (fun x -> string !x) !(array !xs) in
+    let add_inh_entry (cn, xs) =
+      let xs = List.map to_string (xs |> to_list) in
       InhMap.add inh cn xs
     in
-    let add_htbl htbl cn xs =
-      let xs = List.map (fun x -> string !x) !(array !xs) in
+    let add_htbl htbl (cn, xs) =
+      let xs = List.map to_string (xs |> to_list) in
       Hashtbl.replace htbl cn xs
     in
-    let add_htbl_demangle htbl cn xs =
-      let xs = List.map (fun x -> string !x) !(array !xs) in
+    let add_htbl_demangle htbl (cn, xs) =
+      let xs = List.map to_string (xs |> to_list) in
       match (GU.get_class cn) with
       | Some c ->
         (*printf "ADD_VTBL %s\n" c;*)
         Hashtbl.replace htbl c xs
       | _ -> ()
     in
-    let add_htbl_re htbl cn xs  =
-      let xs = List.map (fun x -> Str.regexp (string !x)) !(array !xs) in
+    let add_htbl_re htbl (cn, xs)  =
+      let xs = List.map (fun x -> Str.regexp (x |> to_string)) (xs |> to_list) in
       Hashtbl.replace htbl cn xs
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
     let json=
       match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
-      | [] -> Messages.bailwith "Containment analysis needs a CXX.json file."
+      | [] -> failwith "Containment analysis needs a CXX.json file."
       | f :: _ ->
         begin
           try
-            let inhr_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
-            Object.iter add_inh_entry !(objekt !(field inhr_tbl "inheritance"));
-            Object.iter (add_htbl D.public_vars) !(objekt !(field inhr_tbl "public_vars"));
-            Object.iter (add_htbl D.private_vars) !(objekt !(field inhr_tbl "private_vars"));
-            Object.iter (add_htbl D.public_methods) !(objekt !(field inhr_tbl "public_methods"));
-            Object.iter (add_htbl D.private_methods) !(objekt !(field inhr_tbl "private_methods"));
-            Object.iter (add_htbl D.friends) !(objekt !(field inhr_tbl "friends"));
-            Object.iter (add_htbl_demangle D.vtbls) !(objekt !(field inhr_tbl "vtbls"));
-            Object.iter (add_htbl D.derived) !(objekt !(field inhr_tbl "derived"));
-            Object.iter (add_htbl ContainDomain.fields) !(objekt !(field inhr_tbl "fields"));
+            let inhr_json = Yojson.Safe.from_channel (Stdlib.open_in f) in
+            List.iter add_inh_entry (inhr_json |> member "inheritance" |> to_assoc);
+            List.iter (add_htbl D.public_vars) (inhr_json |> member "public_vars" |> to_assoc);
+            List.iter (add_htbl D.private_vars) (inhr_json |> member "private_vars" |> to_assoc);
+            List.iter (add_htbl D.public_methods) (inhr_json |> member "public_methods" |> to_assoc);
+            List.iter (add_htbl D.private_methods) (inhr_json |> member "private_methods" |> to_assoc);
+            List.iter (add_htbl D.friends) (inhr_json |> member "friends" |> to_assoc);
+            List.iter (add_htbl_demangle D.vtbls) (inhr_json |> member "vtbls" |> to_assoc);
+            List.iter (add_htbl D.derived) (inhr_json |> member "derived" |> to_assoc);
+            List.iter (add_htbl ContainDomain.fields) (inhr_json |> member "fields" |> to_assoc);
             D.inc := InhMap.fold (fun k -> List.fold_right (closure_add k)) inh !D.inc;
-          with JsonE x ->
+          with Yojson.Safe.Util.Type_error (x, _) ->
             failwith ("Containment analysis failed to read CXX.json: " ^ x)
         end
     in (*read in SAFE.json, suppress warnings for safe funs/vars*)
@@ -100,11 +104,11 @@ struct
     | [] -> ()
     | f :: _ ->
       try
-        Messages.report "Problems for safe objects from SAFE.json are suppressed!";
-        let safe_tbl = objekt (JsonParser.value JsonLexer.token (Lexing.from_channel (open_in f))) in
-        Object.iter (add_htbl_re D.safe_vars) !(objekt !(field safe_tbl "variables"));
-        Object.iter (add_htbl_re D.safe_methods) !(objekt !(field safe_tbl "methods"));
-      with JsonE x ->
+        Messages.warn "Problems for safe objects from SAFE.json are suppressed!";
+        let safe_json = Yojson.Safe.from_channel (Stdlib.open_in f) in
+        List.iter (add_htbl_re D.safe_vars) (safe_json |> member "variables" |> to_assoc);
+        List.iter (add_htbl_re D.safe_methods) (safe_json |> member "methods" |> to_assoc);
+      with Yojson.Safe.Util.Type_error (x, _) ->
         failwith ("Containment analysis failed to read SAFE.json: " ^ x)
 
   let funcount = ref 0
@@ -286,12 +290,12 @@ struct
       end
     else
       begin
-        (*Messages.report("CHECK METHOD : "^f.svar.vname);*)
+        (*Messages.warn ~msg:("CHECK METHOD : "^f.svar.vname) ();*)
         (*if D.is_top st then failwith "ARGH!";*)
         if (D.is_public_method_name f.svar.vname) (*|| is_fptr f.svar ctx*) then
           begin
             (*printf ("P");*)
-            (*Messages.report("PUBLIC METHOD : "^f.svar.vname);*)
+            (*Messages.warn ~msg:("PUBLIC METHOD : "^f.svar.vname) ();*)
             add_analyzed_fun f D.analyzed_funs; (*keep track of analyzed funs*)
             if D.is_bot ctx.local && not (islocal_notmain f.svar.vname ctx.global)
             then
@@ -302,7 +306,7 @@ struct
         else
           begin
             (*rintf ("p");*)
-            (*Messages.report("PRIVATE METHOD : "^f.svar.vname);*)
+            (*Messages.warn ~msg:("PRIVATE METHOD : "^f.svar.vname) ();*)
             (*D.report("Dom : "^sprint 80 (D.pretty () ctx.local)^"\n");*)
             if not (danger_bot ctx) then
               begin
@@ -496,7 +500,7 @@ struct
     end
 
   let eval_funvar ctx fval: varinfo list = (*also called for ignore funs*)
-    (*Messages.report (sprint 160 (d_exp () fval) );*)
+    (*Messages.warn ~msg:(sprint 160 (d_exp () fval) ) ();*)
     if danger_bot ctx then [] else
       let fd,st,gd = ctx.local in
       match fval with
@@ -504,11 +508,11 @@ struct
       | Lval (Mem e,NoOffset)  -> (*fptr!*)
         if not ((get_bool "ana.cont.localclass")) then [D.unresFunDec.svar]
         else
-          (*Messages.report("fcheck vtbl : "^sprint 160 (d_exp () e));*)
+          (*Messages.warn ~msg:("fcheck vtbl : "^sprint 160 (d_exp () e)) ();*)
           let vtbl_lst = get_vtbl e (fd,st,gd) ctx.global in
           if not (vtbl_lst=[]) then
             begin
-              (*List.iter (fun x -> Messages.report("VFUNC_CALL_RESOLVED : "^x.vname)) vtbl_lst;*)
+              (*List.iter (fun x -> Messages.warn ~msg:("VFUNC_CALL_RESOLVED : "^x.vname) ()) vtbl_lst;*)
               vtbl_lst
             end
           else
@@ -517,18 +521,18 @@ struct
             let flds_bot = ContainDomain.FieldSet.is_bot flds in
             if cft && flds_bot then
               begin
-                (*Messages.report("fptr cft : "^string_of_bool cft);*)
+                (*Messages.warn ~msg:("fptr cft : "^string_of_bool cft) ();*)
                 let fns = D.get_fptr_items ctx.global in
                 let add_svar x y =
                   match ContainDomain.FuncName.from_fun_name x with
-                  | Some x -> Messages.report ("fptr check: "^x.vname );(x)::y
+                  | Some x -> Messages.warn "fptr check: %s" x.vname;(x)::y
                   | _ -> y
                 in
                 ContainDomain.VarNameSet.fold (fun x y ->  add_svar x y) fns []
               end
             else
               begin
-                (*Messages.report("VARS:");*)
+                (*Messages.warn ~msg:("VARS:") ();*)
                 let vars = D.get_vars e in
                 let rvs =
                   List.fold_left (fun y x -> ContainDomain.ArgSet.join (D.Danger.find x st) y)  (ContainDomain.ArgSet.bot ()) vars

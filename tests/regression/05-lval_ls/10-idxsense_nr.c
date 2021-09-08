@@ -1,4 +1,4 @@
-// SKIP works with --sets ana.activated[+] symb_locks --sets ana.activated[+] var_eq
+// SKIP works with --set ana.activated[+] symb_locks --set ana.activated[+] var_eq
 // Copied to 06/23
 #include <pthread.h>
 

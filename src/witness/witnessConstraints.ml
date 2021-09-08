@@ -166,7 +166,6 @@ struct
 
   let call_descr = Spec.call_descr
 
-  let val_of c = (Dom.singleton (Spec.val_of c) (R.bot ()), Sync.bot ())
   let context (l, _) =
     if Dom.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."

@@ -13,6 +13,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
+              | Warnings        (** Filtering warnings                            *)
               [@@deriving enum]
 
 let all_categories = min_category -- max_category |> of_enum |> map (Option.get % category_of_enum)
@@ -25,6 +26,7 @@ let catDescription = function
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
+  | Warnings        -> "Filtering of warnings"
 
 (** A place to store registered variables *)
 let registrar = ref []
@@ -63,7 +65,6 @@ let _ = ()
       ; reg Std "justcil"         "false"        "Just parse and output the CIL."
       ; reg Std "justcfg"         "false"        "Only output the CFG in cfg.dot ."
       ; reg Std "printstats"      "false"        "Outputs timing information."
-      ; reg Std "gccwarn"         "false"        "Output warnings in GCC format."
       ; reg Std "verify"          "true"         "Verify that the solver reached a post-fixpoint. Beware that disabling this also disables output of warnings since post-processing of the results is done in the verification phase!"
       ; reg Std "mainfun"         "['main']"     "Sets the name of the main functions."
       ; reg Std "exitfun"         "[]"           "Sets the name of the cleanup functions."
@@ -74,7 +75,7 @@ let _ = ()
       ; reg Std "cppflags"        "''"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
-      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, or pretty."
+      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, pretty, json-messages."
       ; reg Std "warnstyle"       "'pretty'"     "Result style: legacy, pretty, or xml."
       ; reg Std "solver"          "'td3'"         "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
@@ -90,14 +91,14 @@ let _ = ()
       ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
-      ; reg Std "warn"            "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
+      ; reg Std "warn_at"         "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Std "gobview"         "false"        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'."
 
 (* {4 category [Analyses]} *)
 let _ = ()
       ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','threadreturn','escape','mutex','mallocWrapper']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
-      (* octApron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
+      (* apron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
       ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
@@ -137,6 +138,8 @@ let _ = ()
       ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
+      ; reg Analyses "ana.arrayoob"        "false"        "Array out of bounds check"
+      ; reg Analyses "ana.apron.no-context" "false" "Ignore entire relation in function contexts."
 
 (* {4 category [Semantics]} *)
 let _ = ()
@@ -159,7 +162,7 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.octapron.privatization" "'mutex-meet'" "Which octApron privatization to use? dummy/protection/protection-path/mutex-meet"
+      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
@@ -167,7 +170,6 @@ let _ = ()
       ; reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses."
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
-      ; reg Experimental "exp.full-context"      "false" "Do not side-effect function entries. If partial contexts (or ana.ctx_insens) are used, this will fail!"
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
       ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
       ; reg Experimental "exp.no-interval-context" "false" "Ignore integer values of the Interval domain in function contexts."
@@ -182,10 +184,9 @@ let _ = ()
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
-      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls. Method depends on exp.full-context - true: unfeasible because then it has to store calls in the context; false: only store calls in local state."
-      ; reg Experimental "exp.widen-context-partial" "false" "After widening also apply the context function to get a partial context (options no-*-context, earlyglobs)."
+      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
-      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilzed, unstable_self: widen if side-effected var gets destabilized."
+      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"
@@ -234,77 +235,96 @@ let _ = ()
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
       ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
 
-let default_schema = "\
-{ 'id'              : 'root'
-, 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'printstats', 'gccwarn', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
-, 'additionalProps' : false
-, 'properties' :
-  { 'ana' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+(* {4 category [Warnings]} *)
+let _ = ()
+      ; reg Warnings "warn.assert"          "true"  "Assert messages"
+      ; reg Warnings "warn.behavior"        "true"  "undefined behavior warnings"
+      ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
+      ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
+      ; reg Warnings "warn.race"            "true"  "Race warnings"
+      ; reg Warnings "warn.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
+      ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
+      ; reg Warnings "warn.error"           "true"  "Error severity messages"
+      ; reg Warnings "warn.warning"         "true"  "Warning severity messages"
+      ; reg Warnings "warn.info"            "true"  "Info severity messages"
+      ; reg Warnings "warn.debug"           "true"  "Debug severity messages"
+      ; reg Warnings "warn.success"         "true"  "Success severity messages"
+
+let default_schema = {schema|
+{ "id"              : "root"
+, "type"            : "object"
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "warnstyle", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "additionalProps" : false
+, "properties" :
+  { "ana" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'sem'               : {}
-  , 'trans'             : {}
-  , 'phases'            : {}
-  , 'exp' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+  , "sem"               : {}
+  , "trans"             : {}
+  , "phases"            : {}
+  , "exp" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'dbg' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+  , "dbg" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'questions' :
-    { 'file'            : ''
+  , "questions" :
+    { "file"            : ""
     }
-  , 'outfile'         : {}
-  , 'includes'        : {}
-  , 'kernel_includes' : {}
-  , 'custom_includes' : {}
-  , 'custom_incl'     : {}
-  , 'custom_libc'     : {}
-  , 'justcil'         : {}
-  , 'justcfg'         : {}
-  , 'printstats'      : {}
-  , 'gccwarn'         : {}
-  , 'verify'        : {}
-  , 'mainfun'         : {}
-  , 'exitfun'         : {}
-  , 'otherfun'        : {}
-  , 'allglobs'        : {}
-  , 'keepcpp'         : {}
-  , 'tempDir'         :
-    { 'type'            : 'string'
+  , "outfile"         : {}
+  , "includes"        : {}
+  , "kernel_includes" : {}
+  , "custom_includes" : {}
+  , "custom_incl"     : {}
+  , "custom_libc"     : {}
+  , "justcil"         : {}
+  , "justcfg"         : {}
+  , "printstats"      : {}
+  , "verify"        : {}
+  , "mainfun"         : {}
+  , "exitfun"         : {}
+  , "otherfun"        : {}
+  , "allglobs"        : {}
+  , "keepcpp"         : {}
+  , "tempDir"         :
+    { "type"            : "string"
     }
-  , 'cppflags'        : {}
-  , 'kernel'          : {}
-  , 'dump_globs'      : {}
-  , 'result'          :
-    { 'type'            : 'string'
+  , "cppflags"        : {}
+  , "kernel"          : {}
+  , "dump_globs"      : {}
+  , "result"          :
+    { "type"            : "string"
     }
-  , 'warnstyle'          :
-    { 'type'            : 'string'
+  , "warnstyle"          :
+    { "type"            : "string"
     }
-  , 'solver'          : {}
-  , 'comparesolver'   : {}
-  , 'solverdiffs'     : {}
-  , 'allfuns'         : {}
-  , 'nonstatic'       : {}
-  , 'colors'          : {}
-  , 'g2html'          : {}
-  , 'interact'        : {}
-  , 'save_run'        : {}
-  , 'load_run'        : {}
-  , 'compare_runs'    : {}
-  , 'gobview'         : {}
-  , 'warn'            : {}
+  , "solver"          : {}
+  , "comparesolver"   : {}
+  , "solverdiffs"     : {}
+  , "allfuns"         : {}
+  , "nonstatic"       : {}
+  , "colors"          : {}
+  , "g2html"          : {}
+  , "interact"        : {}
+  , "save_run"        : {}
+  , "load_run"        : {}
+  , "compare_runs"    : {}
+  , "warn_at"         : {}
+  , "warn"              :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
+    }
+  , "gobview"         : {}
   }
-}"
+}|schema}
 
 let _ =
-  let v = JsonParser.value JsonLexer.token @@ Lexing.from_string default_schema in
+  let v = Yojson.Safe.from_string default_schema in
   GobConfig.addenum_sch v

@@ -15,8 +15,7 @@ let get_spec () : (module Spec) =
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 = (val
             (module MCP.MCP2 : Spec)
-            |> lift (get_bool "exp.widen-context" && get_bool "exp.full-context") (module WidenContextLifter)
-            |> lift (get_bool "exp.widen-context" && neg get_bool "exp.full-context") (module WidenContextLifterSide)
+            |> lift (get_bool "exp.widen-context") (module WidenContextLifterSide)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
             |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
@@ -167,7 +166,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.warn ("Calculated state for undefined function: unexpected node "^Ana.sprint Node.pretty_plain n)
+          Messages.warn "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
     in
     LHT.iter add_local_var h;
     res
@@ -414,7 +413,7 @@ struct
         ) else (
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
-          Goblintutil.should_warn := get_string "warn" = "early" || gobview;
+          Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
           let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if save_run <> "" then (
             let solver = Filename.concat save_run solver_file in
@@ -444,7 +443,7 @@ struct
               );
               Serialize.marshal !MCP.analyses_table analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
-              Serialize.marshal !Messages.warning_table warnings;
+              Serialize.marshal !Messages.Table.messages_list warnings;
               Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
@@ -462,9 +461,9 @@ struct
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
       );
 
-      if (get_bool "verify" || get_string "warn" <> "never") && compare_runs = [] then (
+      if (get_bool "verify" || get_string "warn_at" <> "never") && compare_runs = [] then (
         if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
-        Goblintutil.should_warn := get_string "warn" <> "never";
+        Goblintutil.should_warn := get_string "warn_at" <> "never";
         Stats.time "verify" (Vrfyr.verify lh) gh;
       );
 
@@ -508,7 +507,7 @@ struct
         print_globals gh;
 
       (* run activated transformations with the analysis result *)
-      let active_transformations = get_list "trans.activated" |> List.map Json.string in
+      let active_transformations = get_string_list "trans.activated" in
       (if List.length active_transformations > 0 then
         (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =
@@ -554,7 +553,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
-      M.print_msg "Timeout reached!" (!Tracing.current_loc);
+      M.error ~loc:!Tracing.current_loc "Timeout reached!";
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.

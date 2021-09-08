@@ -339,7 +339,7 @@ struct
               a (* probably garbage, but this is deref's problem *)
               (*raise (CastError s)*)
             | SizeOfError (s,t) ->
-              M.warn_each("size of error: " ^  s ^ "\n");
+              M.warn "size of error: %s" s;
               a
           end
         | x -> x (* TODO we should also keep track of the type here *)
@@ -458,7 +458,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_all m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
@@ -486,7 +486,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_all m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal BI.zero x -> AD.join AD.null_ptr y
@@ -515,7 +515,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_all m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr y
@@ -583,7 +583,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn_all m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr y
@@ -818,7 +818,7 @@ struct
               end
             | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ("Trying to read an index, but was not given an array ("^show x^")"); top ()
+            | _ -> M.warn "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
     in
     let l, o = match exp with
@@ -918,14 +918,14 @@ struct
                   | `Index (idx, _) when IndexDomain.equal idx (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero) ->
                     (* Why does cil index unions? We'll just pick the first field. *)
                     top (), `Field (List.nth fld.fcomp.cfields 0,`NoOffset)
-                  | _ -> M.warn_each "Why are you indexing on a union? Normal people give a field name.";
+                  | _ -> M.warn "Why are you indexing on a union? Normal people give a field name.";
                     top (), offs
                 end
               in
               `Union (`Lifted fld, do_update_offset ask tempval tempoffs value exp l' o' v t)
             | `Bot -> `Union (`Lifted fld, do_update_offset ask `Bot offs value exp l' o' v t)
             | `Top -> M.warn "Trying to update a field, but the union is unknown"; top ()
-            | _ -> M.warn_each "Trying to update a field, but was not given a union"; top ()
+            | _ -> M.warn "Trying to update a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
@@ -949,7 +949,7 @@ struct
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
-            | _ -> M.warn_each ("Trying to update an index, but was not given an array("^show x^")"); top ()
+            | _ -> M.warn "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
       in mu result
     in

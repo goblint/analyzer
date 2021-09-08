@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] thread
+// PARAM: --set ana.activated[+] thread
 // Copy of 05/08 with thread enabled
 #include <pthread.h>
 

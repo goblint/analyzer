@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.congruence --sets sem.int.signed_overflow assume_none
+// PARAM: --enable ana.int.congruence --set sem.int.signed_overflow assume_none
 int main() {
     int top;
     int i = 0;
