@@ -64,7 +64,7 @@ struct
     | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
-          M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
+          M.debug "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
           Queries.LS.remove top_elt a
         ) else a
       in
@@ -104,7 +104,7 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-        M.debug_each @@ "CondVars: saving " ^ sprint Lval.CilLval.pretty clval ^ " = " ^ sprint d_exp expr;
+        M.debug "CondVars: saving %a = %a" Lval.CilLval.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
@@ -133,10 +133,10 @@ struct
     (* D.only_globals ctx.local *)
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, D.bot ()]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* combine caller's state with globals from callee *)
     (* TODO (precision): globals with only global vars are kept, the rest is lost -> collect which globals are assigned to *)
     (* D.merge (fun k s1 s2 -> match s2 with Some ss2 when (fst k).vglob && D.only_global_exprs ss2 -> s2 | _ when (fst k).vglob -> None | _ -> s1) ctx.local au *)

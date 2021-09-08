@@ -61,7 +61,7 @@ module Thread = struct
       let name =
         match loc with
         | None -> f.vname
-        | Some l -> f.vname ^ "@" ^ Basetype.ProgLines.show l
+        | Some l -> f.vname ^ "@" ^ CilType.Location.show l
       in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       Hashtbl.add thread_hash (f,loc) newvar;

@@ -123,7 +123,7 @@ struct
         List.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
-        Messages.report ("Uninitialized variable " ^ (Addr.show (Addr.from_var_offset a)) ^ " accessed.");
+        Messages.warn "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
         false
       end else
         t in
@@ -162,7 +162,7 @@ struct
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.warn ("Failed to analyze union at point " ^ (Addr.show (Addr.from_var_offset (v,rev cx))) ^ " -- did not find " ^ tf.fname);
+        M.warn "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -190,7 +190,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.warn ("Failed to analyze union at point " ^ (Addr.show (Addr.from_var_offset (v,rev cx))));
+      M.warn "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
       []
 
 
@@ -267,11 +267,11 @@ struct
     | _ -> nst
 
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     [ctx.local, nst]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : trans_out =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : trans_out =
     ignore (List.map (fun x -> is_expr_initd (Analyses.ask_of_ctx ctx) x ctx.local) args);
     let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in

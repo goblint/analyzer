@@ -56,7 +56,7 @@ struct
 end
 
 module Loc = struct
-  include Printable.Liszt (Basetype.ProgLines)
+  include Printable.Liszt (CilType.Location)
   let dummy = []
 end
 module Dom3 = struct

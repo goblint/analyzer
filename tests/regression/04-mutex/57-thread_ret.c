@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.interval  --sets ana.activated[-] threadreturn
+//PARAM: --enable ana.int.interval  --set ana.activated[-] threadreturn
 
 #include<pthread.h>
 #include <pthread.h>

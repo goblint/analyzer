@@ -3,7 +3,6 @@
 open Prelude.Ana
 open Analyses
 open DeadlockDomain
-open Printf
 
 let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 
@@ -28,10 +27,8 @@ struct
     if !Goblintutil.in_verifying_stage then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.show e.addr) (ValueDomain.Addr.show newLock.addr) e.loc.line newLock.loc.line b.loc.line a.loc.line) in
-            Messages.report msg;
-            let msg = (sprintf "Deadlock warning: Locking order %s, %s at lines %i, %i violates order at %i, %i." (ValueDomain.Addr.show newLock.addr) (ValueDomain.Addr.show e.addr) b.loc.line a.loc.line e.loc.line newLock.loc.line) in
-            Messages.report ~loc:a.loc msg;
+            Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc CilType.Location.pretty b.loc CilType.Location.pretty a.loc;
+            Messages.warn ~loc:a.loc "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr CilType.Location.pretty b.loc CilType.Location.pretty a.loc CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc;
           )
           else () ) !forbiddenList ) lockList;
 
@@ -76,11 +73,11 @@ struct
     ctx.local
 
   (* Calls/Enters a function *)
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [D.bot (),ctx.local]
 
   (* Leaves a function *)
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)
@@ -97,7 +94,7 @@ struct
     match a.f (Queries.MayPointTo exp) with
     | a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | b -> Messages.warn ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'."); []
+    | b -> Messages.warn "Could not evaluate '%a' to an points-to set, instead got '%a'." d_exp exp Queries.LS.pretty b; []
 
   (* Called when calling a special/unknown function *)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =

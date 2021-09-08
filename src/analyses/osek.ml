@@ -29,13 +29,13 @@ let is_atomic_type (t: typ): bool =
 
 let is_atomic lval =
   let (lval, _) = removeOffsetLval lval in
-  let typ = typeOfLval lval in
+  let typ = Cilfacade.typeOfLval lval in
   is_atomic_type typ
 
 let is_ignorable lval =
   (*  ignore (printf "Var %a\n" d_lval lval);*)
   try ValueDomain.Compound.is_immediate_type (Cilfacade.typeOfLval lval) || is_atomic lval
-  with Not_found -> false
+  with Cilfacade.TypeOfError _ -> false
 
 
 module Flag =
@@ -242,7 +242,7 @@ struct
   module Flags = FlagModes.Spec.D
   module Acc = Hashtbl.Make (Basetype.Variables)
   module AccKeySet = Set.Make (Basetype.Variables)
-  module AccLoc = Printable.Prod3 (Printable.Prod3 (Basetype.ProgLines) (Flag) (IntDomain.Booleans)) (Lockset) (Offs)
+  module AccLoc = Printable.Prod3 (Printable.Prod3 (CilType.Location) (Flag) (IntDomain.Booleans)) (Lockset) (Offs)
   module AccValSet = Set.Make (Printable.Prod (AccLoc) (Flags))
   let acc     : AccValSet.t Acc.t = Acc.create 100
   let accKeys : AccKeySet.t ref   = ref AccKeySet.empty
@@ -471,7 +471,7 @@ struct
       match fs with
       | LockingPattern.EField f :: _ -> (e,f.fcomp,fs) :: xs
       | _ -> xs
-      (*      match unrollType (typeOf (LockingPattern.fromEl e dummy)) with
+      (*      match unrollType (Cilfacade.typeOf (LockingPattern.fromEl e dummy)) with
               | TComp (c,_) -> (e,c,fs) :: xs
               | _ -> xs*)
     in
@@ -484,8 +484,8 @@ struct
     | Failure _ -> None
 
   let unknown_access () =
-    (*M.report "unknown access 'with lockset:'";*)
-    Messages.warn_all "Access to unknown address could be global"
+    (*M.warn ~msg:"unknown access 'with lockset:'" ();*)
+    Messages.warn "Access to unknown address could be global"
 
   (* All else must have failed --- making a last ditch effort to generate type
       invariant if that fails then give up and become unsound. *)
@@ -569,8 +569,8 @@ struct
     match q with
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
-      Queries.ID.of_int @@ Int64.of_int pry
-    | Queries.Priority vname -> begin try Queries.ID.of_int @@ Int64.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end
+      Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int pry (* TODO: what ikind to use for priorities? *)
+    | Queries.Priority vname -> begin try Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end (* TODO: what ikind to use for priorities? *)
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
@@ -618,7 +618,7 @@ struct
   let access_address (ask: Queries.ask) regs write lv : accesses =
     if is_ignorable lv then [] else
       let add_reg (v,o) =
-        (*       Messages.report ("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))); *)
+        (*       Messages.warn ~msg:("Region: "^(sprint 80 (d_lval () lv))^" = "^v.vname^(Offs.short 80 (Offs.from_offset (conv_offset o)))) (); *)
         Region (Some (Lval lv), v, Offs.from_offset (conv_offset o), write)
       in
       match ask.f (Queries.MayPointTo (mkAddrOf lv)) with
@@ -664,7 +664,7 @@ struct
     (*    let is_unknown x = match x with Unknown _ -> true | _ -> false in*)
     match a.f (Queries.Regions exp) with
     | regs when not (Queries.LS.is_top regs) ->
-      (*           Messages.report ((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs); *)
+      (*           Messages.warn ~msg:((sprint 80 (d_exp () exp))^" is in regions "^Queries.LS.short 800 regs) (); *)
       accs (Queries.LS.elements regs)
     | _ -> accs []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
@@ -714,7 +714,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
 
   let activate_task ctx (task_name : string) : unit =
-    let task = Cilfacade.getFun task_name in
+    let task = Cilfacade.find_name_fundec task_name in
     ctx.spawn None task.svar []
 
   (* transfer functions *)
@@ -773,11 +773,11 @@ struct
     let read = access_one_top (Analyses.ask_of_ctx ctx) false exp in
     add_accesses ctx read ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    (M.enter ctx (lval: lval option) (f:varinfo) (args:exp list))
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    (M.enter ctx (lval: lval option) (f:fundec) (args:exp list))
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
-    M.combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc au
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+    M.combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let fvname = get_api_names f.vname in
@@ -1127,21 +1127,21 @@ struct
         let var_str = gl.vname ^ ValueDomain.Offs.show offset in
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
         let handle_race def_warn = begin
-          if (List.mem gl.vname  (List.map Json.string @@ get_list "ana.osek.safe_vars")) then begin
+          if (List.mem gl.vname  (get_string_list "ana.osek.safe_vars")) then begin
             suppressed := !suppressed+1;
             if (get_bool "allglobs") then
-              print_group (safe_str "safe variable") warnings
+              warn_group_old (safe_str "safe variable") warnings
             else
               ignore (printf "Suppressed warning: %s is not guarded\n" var_str)
           end else begin
             (*filter out safe task access. redo is_race report accordingly List.not List.mem gl.vname  *)
-            let safe_tasks = List.map make_task (List.map Json.string @@ get_list "ana.osek.safe_task") in
-            let safe_irpts = List.map make_isr (List.map Json.string @@ get_list "ana.osek.safe_isr") in
+            let safe_tasks = List.map make_task (get_string_list "ana.osek.safe_task") in
+            let safe_irpts = List.map make_isr (get_string_list "ana.osek.safe_isr") in
             let safe_funs = safe_irpts @ safe_tasks in
             if safe_funs = [] then begin
               race_free := false;
               let warn = def_warn ^ " at " ^ var_str in
-              print_group warn warnings
+              warn_group_old warn warnings
             end else begin
               filtered := !filtered +1;
               (*((_, dom_elem,_),_) -> let lock_names_list = names (Lockset.ReverseAddrSet.elements dom_elem) in
@@ -1154,43 +1154,43 @@ struct
               | Race -> begin
                   race_free := false;
                   let warn = "Datarace at " ^ var_str in
-                  print_group warn warnings
+                  warn_group_old warn warnings
                 end
               | Guarded locks ->
                 let lock_str = Mutex.Lockset.show locks in
                 if (get_bool "allglobs") then
-                  print_group (safe_str "common mutex after filtering") warnings
+                  warn_group_old (safe_str "common mutex after filtering") warnings
                 else
                   ignore (printf "Found correlation: %s is guarded by lockset %s after filtering\n" var_str lock_str)
               | Priority pry ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str "same priority after filtering") warnings
+                  warn_group_old (safe_str "same priority after filtering") warnings
                 else
                   ignore (printf "Found correlation: %s is guarded by priority %s after filtering\n" var_str (string_of_int pry))
               | Defence (defpry,offpry) ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str "defensive priority exceeds offensive priority after filtering") warnings
+                  warn_group_old (safe_str "defensive priority exceeds offensive priority after filtering") warnings
                 else
                   ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s after filtering\n" var_str (string_of_int defpry) (string_of_int offpry))
               | Flag (flagvar) ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses after filtering") ) warnings
+                  warn_group_old (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses after filtering") ) warnings
                 else
                   ignore (printf "Found correlation: %s is guarded by flag %s after filtering\n" var_str flagvar)
               | ReadOnly ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str "only read after filtering") warnings
+                  warn_group_old (safe_str "only read after filtering") warnings
               | ThreadLocal ->
                 if (get_bool "allglobs") then
-                  print_group (safe_str "thread local after filtering") warnings
+                  warn_group_old (safe_str "thread local after filtering") warnings
               | BadFlag -> begin
                   race_free := false;
                   let warn = "Writerace at 'flag' " ^ var_str in
-                  print_group warn warnings
+                  warn_group_old warn warnings
                 end
               | GoodFlag -> begin
                   if (get_bool "allglobs") then begin
-                    print_group (safe_str "is a flag after filtering") warnings
+                    warn_group_old (safe_str "is a flag after filtering") warnings
                   end else  begin
                     ignore (printf "Found flag behaviour after filtering: %s\n" var_str)
                   end
@@ -1208,38 +1208,38 @@ struct
           | Guarded locks ->
             let lock_str = Mutex.Lockset.show locks in
             if (get_bool "allglobs") then
-              print_group (safe_str "common mutex") warnings
+              warn_group_old (safe_str "common mutex") warnings
             else
               ignore (printf "Found correlation: %s is guarded by lockset %s\n" var_str lock_str)
           | Priority pry ->
             if (get_bool "allglobs") then
-              print_group (safe_str "same priority") warnings
+              warn_group_old (safe_str "same priority") warnings
             else
               ignore (printf "Found correlation: %s is guarded by priority %s\n" var_str (string_of_int pry))
           | Defence (defpry,offpry) ->
             if (get_bool "allglobs") then
-              print_group (safe_str "defensive priority exceeds offensive priority") warnings
+              warn_group_old (safe_str "defensive priority exceeds offensive priority") warnings
             else
               ignore (printf "Found correlation: %s is guarded by defensive priority %s against offensive priority %s\n" var_str (string_of_int defpry) (string_of_int offpry))
           | Flag (flagvar) ->
             if (get_bool "allglobs") then
-              print_group (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses") ) warnings
+              warn_group_old (safe_str ("variable "^flagvar ^" used to prevent concurrent accesses") ) warnings
             else
               ignore (printf "Found correlation: %s is guarded by flag %s\n" var_str flagvar)
           | ReadOnly ->
             if (get_bool "allglobs") then
-              print_group (safe_str "only read") warnings
+              warn_group_old (safe_str "only read") warnings
           | ThreadLocal ->
             if (get_bool "allglobs") then
-              print_group (safe_str "thread local") warnings
+              warn_group_old (safe_str "thread local") warnings
           | BadFlag -> begin
               race_free := false;
               let warn = "Writerace at 'flag' " ^ var_str in
-              print_group warn warnings
+              warn_group_old warn warnings
             end
           | GoodFlag -> begin
               if (get_bool "allglobs") then begin
-                print_group (safe_str "is a flag") warnings
+                warn_group_old (safe_str "is a flag") warnings
               end else  begin
                 ignore (printf "Found flag behaviour: %s\n" var_str)
               end

@@ -247,7 +247,7 @@ struct
                 let n = ask.f (Q.EvalInt e') in
                 match Q.ID.to_int n with
                 | Some i ->
-                  (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
+                  (`Lifted (Cil.kinteger64 IInt (IntOps.BigIntOps.to_int64 i)), (xl, xm, xr))
                 | _ -> default
               end
             | _ -> default
@@ -305,7 +305,7 @@ struct
         match e with
         | `Lifted e' ->
           let n = ask.f (Q.EvalInt e') in
-          Option.map BI.of_int64 (Q.ID.to_int n)
+          Option.map BI.of_bigint (Q.ID.to_int n)
         |_ -> None
       in
       let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
@@ -377,8 +377,9 @@ struct
               | false -> Val.bot()
               | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
               (
-                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
+                let t = Cilfacade.typeOf e' in
+                let ik = Cilfacade.get_ikind t in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, t),i')) with
                 | true -> xm
                 | _ ->
                   begin
@@ -394,8 +395,9 @@ struct
               | _ -> xm)
 
               (
-                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
+                let t = Cilfacade.typeOf e' in
+                let ik = Cilfacade.get_ikind t in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), t),i')) with
                 | true -> xm
                 | _ ->
                   begin
@@ -563,6 +565,26 @@ struct
 
   let update_length _ x = x
 end
+(* This is the main array out of bounds check*)
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+  if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
+    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
+    (* For an explanation of the warning types check the Pull Request #255 *)
+    match(idx_after_start, idx_before_end) with
+    | Some true, Some true -> (* Certainly in bounds on both sides.*)
+      ()
+    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
+    | Some true, None ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
+    | Some false, Some true ->
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
+    | None, Some true ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
+    | _ ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+  else ()
 
 
 module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
@@ -571,7 +593,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
@@ -607,7 +632,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l

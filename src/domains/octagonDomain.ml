@@ -314,4 +314,6 @@ struct
     in to_string 0
 
   let show x = "array octagon"
+
+  let pretty_diff () (x,y) = Pretty.text "Unsupported"
 end

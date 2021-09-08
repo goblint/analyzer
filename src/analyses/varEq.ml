@@ -1,12 +1,9 @@
 (** Variable equalities necessary for per-element patterns. *)
 
-module M = Messages
-module GU = Goblintutil
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
 module Exp = Exp.Exp
-(*module BS = Base.Spec*)
 module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
@@ -132,7 +129,7 @@ struct
         | Index (e,o) -> type_may_change_t e bt || may_change_t_offset o
         | Field (_,o) -> may_change_t_offset o
       in
-      let at = typeOf a in
+      let at = Cilfacade.typeOf a in
       (isIntegralType at && isIntegralType bt) || (typ_equal at bt) ||
       match a with
       | Const _
@@ -153,7 +150,7 @@ struct
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
       | _ -> failwith "Unmatched pattern."
     in
-    let bt =  unrollTypeDeep (typeOf b) in
+    let bt =  unrollTypeDeep (Cilfacade.typeOf b) in
     type_may_change_t a bt
 
   let may_change_pt ask (b:exp) (a:exp) : bool =
@@ -196,21 +193,21 @@ struct
     let pt e = ask.f (Queries.MayPointTo e) in
     let bls = pt b in
     let bt =
-      match unrollTypeDeep (typeOf b) with
+      match unrollTypeDeep (Cilfacade.typeOf b) with
       | TPtr (t,_) -> t
       | _ -> voidType
     in (* type of thing that changed: typeof( *b ) *)
     let rec type_may_change_apt a =
       (* With abstract points-to (like in type invariants in accesses).
          Here we implement it in part --- minimum to protect local integers. *)
-      (*       Messages.report ("a: "^sprint 80 (d_plainexp () a)); *)
-      (*       Messages.report ("b: "^sprint 80 (d_plainexp () b)); *)
+      (*       Messages.warn ~msg:("a: "^sprint 80 (d_plainexp () a)) (); *)
+      (*       Messages.warn ~msg:("b: "^sprint 80 (d_plainexp () b)) (); *)
       (* ignore (printf "may_change %a %a\n*%a\n*%a\n\n" d_exp a d_exp b d_plainexp a d_plainexp b); *)
       match a, b with
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
         (* lval *.field changes -> local var stays the same *)
         false
-      (*         | dr, Lval (Var lv,NoOffset) when (isIntegralType (typeOf dr)) && (isPointerType (lv.vtype)) && not (isIntegralType (typeOf (Lval (Mem (Lval (Var lv,NoOffset)),NoOffset)))) ->
+      (*         | dr, Lval (Var lv,NoOffset) when (isIntegralType (Cilfacade.typeOf dr)) && (isPointerType (lv.vtype)) && not (isIntegralType (Cilfacade.typeOfLval (Mem (Lval (Var lv,NoOffset)),NoOffset))) ->
                   (* lval *x changes -> local var stays the same *)
                   false*)
       | _ ->
@@ -223,11 +220,11 @@ struct
         | Field (_,o) -> may_change_t_offset o
       in
       let at =
-        match unrollTypeDeep (typeOf a) with
+        match unrollTypeDeep (Cilfacade.typeOf a) with
         | TPtr (t,a) -> t
         | at -> at
       in
-      (*      Messages.report
+      (*      Messages.warn
               ( sprint 80 (d_type () at)
               ^ " : "
               ^ sprint 80 (d_type () bt)
@@ -245,9 +242,9 @@ struct
               | Lval (Var _,o)
               | AddrOf (Var _,o)
               | StartOf (Var _,o) -> may_change_t_offset o
-              | Lval (Mem e,o)    -> (*Messages.report "Lval" ;*) may_change_t_offset o || type_may_change_t true e
-              | AddrOf (Mem e,o)  -> (*Messages.report "Addr" ;*) may_change_t_offset o || type_may_change_t false e
-              | StartOf (Mem e,o) -> (*Messages.report "Start";*) may_change_t_offset o || type_may_change_t false e
+              | Lval (Mem e,o)    -> (*Messages.warn "Lval" ;*) may_change_t_offset o || type_may_change_t true e
+              | AddrOf (Mem e,o)  -> (*Messages.warn "Addr" ;*) may_change_t_offset o || type_may_change_t false e
+              | StartOf (Mem e,o) -> (*Messages.warn "Start";*) may_change_t_offset o || type_may_change_t false e
               | CastE (t,e) -> type_may_change_t deref e
               | Question _ -> failwith "Logical operations should be compiled away by CIL."
               | _ -> failwith "Unmatched pattern."
@@ -289,7 +286,7 @@ struct
           let als = pt e in
           (als, lval_is_not_disjoint bl als)
       in
-      (*      Messages.report
+      (*      Messages.warn
               ( sprint 80 (Lval.CilLval.pretty () bl)
               ^ " in PT("
               ^ sprint 80 (d_exp () a)
@@ -320,13 +317,13 @@ struct
     in
     let r =
       if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
-      then ((*Messages.report "No PT-set: switching to types ";*) type_may_change_apt a )
+      then ((*Messages.warn "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
     (*    if r
-          then (Messages.report ("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
-          else (Messages.report ("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)); r)
-          Messages.report (sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls));
+          then (Messages.warn ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          else (Messages.warn ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          Messages.warn ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
     *)    r
 
   (* Remove elements, that would change if the given lval would change.*)
@@ -356,7 +353,8 @@ struct
     | UnOp _
     | BinOp _ -> None
     | Const _ -> Some false
-    | Lval (Var v,_) -> Some v.vglob
+    | Lval (Var v,_) ->
+      Some (v.vglob || (ask.f (Queries.IsMultiple v)))
     | Lval (Mem e, _) ->
       begin match ask.f (Queries.MayPointTo e) with
         | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar, `NoOffset) ls) ->
@@ -364,8 +362,10 @@ struct
         | _ -> Some true
       end
     | CastE (t,e) -> is_global_var ask e
-    | AddrOf lval -> Some false
-    | StartOf lval -> Some false
+    | AddrOf (Var v,_) -> Some (ask.f (Queries.IsMultiple v)) (* Taking an address of a global is fine*)
+    | AddrOf lv -> Some false (* TODO: sound?! *)
+    | StartOf (Var v,_) ->  Some (ask.f (Queries.IsMultiple v)) (* Taking an address of a global is fine*)
+    | StartOf lv -> Some false (* TODO: sound?! *)
     | Question _ -> failwith "Logical operations should be compiled away by CIL."
     | _ -> failwith "Unmatched pattern."
 
@@ -375,8 +375,8 @@ struct
           match x with (Var v,_) -> not v.vglob | _ -> false
           in
           let st =
-    *)  let lvt = unrollType @@ typeOf (Lval lv) in
-    (*     Messages.report (sprint 80 (d_type () lvt)); *)
+    *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
+    (*     Messages.warn ~msg:(sprint 80 (d_type () lvt)) (); *)
     if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv
     && is_global_var ask rv = Some false
@@ -470,7 +470,6 @@ struct
       let rm = remove (Analyses.ask_of_ctx ctx) (Var lv, NoOffset) st in
       add_eq (Analyses.ask_of_ctx ctx) (Var lv, NoOffset) exp rm
     in
-    let f = Cilfacade.getdec f in
     let nst =
       try fold_left2 assign_one_param ctx.local f.sformals args
       with SetDomain.Unsupported _ -> (* ignore varargs fr now *) D.top ()
@@ -541,7 +540,7 @@ struct
     | None -> Queries.ES.empty ()
     | Some es when D.B.is_bot es -> Queries.ES.bot ()
     | Some es ->
-      let et = typeOf e in
+      let et = Cilfacade.typeOf e in
       let add x xs =
         Queries.ES.add (CastE (et,x)) xs
       in
@@ -578,7 +577,7 @@ struct
       true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
-      (*          Messages.report ("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r));  *)
+      (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
       r
     | _ -> Queries.Result.top x
 

@@ -2,7 +2,7 @@ module Q     = Queries
 module GU    = Goblintutil
 module Var   = Basetype.Variables
 module Bool  = IntDomain.Booleans
-module Offs  = Lval.Offset (IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.OldDomainFacade (IntDomain.Integers))) (IntDomain.PtrDiffIkind))
+module Offs  = Lval.Offset (IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.OldDomainFacade (IntDomain.Integers (IntOps.Int64Ops)))) (IntDomain.PtrDiffIkind))
 module CLval = Lval.CilLval
 
 open Cil
@@ -180,7 +180,7 @@ let eval_lp ask (e:exp) : lexp option =
   | _ -> None
 
 
-let warn_todo s = Messages.warn ("NotImplemented exception! "^s)
+let warn_todo s = Messages.warn "NotImplemented exception! %s" s
 
 let alias_top lp = SHMap.remove lp
 
@@ -290,7 +290,7 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (sm:SHMap.t) : bool =
     let app_edge' f s = function
       | `Lifted1 s -> f s
       | `Lifted2 s -> f s
-      | `Bot ->  Messages.bailwith "not implemented1"
+      | `Bot ->  failwith "not implemented1"
       | `Top ->  s ()
     in
     let point_to_me lp =
@@ -300,7 +300,7 @@ let proper_list_segment ask gl (lp1:ListPtr.t) (sm:SHMap.t) : bool =
     if Edges.is_top n
     || app_edge' (fun x -> ListPtrSet.is_empty x) (fun () -> true) n
     then None else
-      let lp' = app_edge' ListPtrSet.choose (fun () -> Messages.bailwith "not implemented2") n in
+      let lp' = app_edge' ListPtrSet.choose (fun () -> failwith "not implemented2") n in
       if app_edge (ListPtrSet.for_all point_to_me) n
       then Some lp' else None
   in
@@ -326,7 +326,7 @@ let proper_list_segment' ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : b
       let app_edge' f s = function
         | `Lifted1 s -> f s
         | `Lifted2 s -> f s
-        | `Bot ->  Messages.bailwith "not implemented1"
+        | `Bot ->  failwith "not implemented1"
         | `Top ->  s ()
       in
       let point_to_me lp =
@@ -335,7 +335,7 @@ let proper_list_segment' ask gl (lp1:ListPtr.t) (lp2:ListPtr.t) (sm:SHMap.t) : b
       in
       app_edge' (fun x -> not (ListPtrSet.is_top x)) (fun () -> false) n &&
       app_edge' (fun x -> not (ListPtrSet.is_top x)) (fun () -> false) p &&
-      let lp' = app_edge' ListPtrSet.choose (fun () -> Messages.bailwith "not implemented2") n in
+      let lp' = app_edge' ListPtrSet.choose (fun () -> failwith "not implemented2") n in
       app_edge (ListPtrSet.for_all point_to_me) n &&
       (*     app_edge (ListPtrSet.mem lp1) p && *)
       if ListPtr.equal lp1 lp2 then true else
@@ -526,7 +526,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
         (blab (not (lpv'.vglob)) (fun () -> Pretty.printf "global %s is never dead\n" lpv'.vname) &&
          let killer = ref dummyFunDec.svar in
          blab (if Usedef.VS.exists (fun x -> if CilType.Varinfo.equal lpv' x then (killer := x; true) else false) alive
-               then ((*ignore (Messages.report ("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname));*)false)
+               then ((*ignore (Messages.warn ~msg:("List "^ListPtr.short 80 lp^" totally destroyed by "^(!killer).vname) ());*)false)
                else true) (fun () -> Pretty.printf "%s in alive list\n" lpv'.vname ))
       in
       blab (not (ListPtrSet.is_top pointedBy)) (fun () -> Pretty.printf "everything points at me\n") &&
@@ -546,7 +546,7 @@ let sync_one ask gl upd (sm:SHMap.t) : SHMap.t * ((varinfo * bool) list) * ((var
     else
       let isbroken = not (proper_list k) in
       (*if isbroken then Messages.waitWhat (ListPtr.short 80 k) ;*)
-      (*       Messages.report ("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list"); *)
+      (*       Messages.warn ~msg:("checking :"^ListPtr.short 80 k^" -- "^if isbroken then " broken " else "still a list") (); *)
       (kill ask gl upd k sm, (ListPtr.get_var k, isbroken) :: ds, reg_for k :: rms)
   in
   SHMap.fold f sm (sm,[],[])

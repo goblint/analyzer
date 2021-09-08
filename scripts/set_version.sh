@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 VERSION=$(git describe --all --long --dirty 2> /dev/null)
 CILVERSION=$(git --git-dir=../cil/.git describe --tags 2> /dev/null | sed s@^cil-@@)
 
@@ -12,8 +12,6 @@ fi
 if [ ! -f src/config.ml ]; then
   {
     echo "let tracing = false"
-    echo "let tracking = false"
-    echo "let experimental = false"
     echo "let cpp = \"cpp\""
   } >> src/config.ml
 fi

@@ -3,7 +3,9 @@
 open Prelude.Ana
 open Analyses
 
-let debug_doc doc = M.debug_each (Pretty.sprint 99 doc)
+module BI = IntOps.BigIntOps
+
+let debug_doc doc = M.debug "%a" Pretty.insert doc
 
 module Functions = struct
   let prefix = "LAP_Se_"
@@ -26,7 +28,7 @@ module Functions = struct
   let ret_no_timeout = List.remove ret_any TIMED_OUT
   (* abstract value for return codes *)
   (* TODO: Check whether Cil.IInt is correct here *)
-  let vd ret = `Int (ValueDomain.ID.(List.map (of_int Cil.IInt % IntOps.BigIntOps.of_int % return_code_to_enum) ret |> List.fold_left join (bot ()))) (* ana.int.enums should be enabled *)
+  let vd ret = `Int (ValueDomain.ID.(List.map (of_int Cil.IInt % BI.of_int % return_code_to_enum) ret |> List.fold_left join (bot ()))) (* ana.int.enums should be enabled *)
   let effects fname args =
     if not (List.mem fname arinc_special) || List.is_empty args then None
     else
@@ -93,7 +95,6 @@ struct
   let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
 
   let context d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
-  (* let val_of d = d *)
 
   (* function for creating a new intermediate node (will generate a new sid every time!) *)
   let mkDummyNode ?loc line =
@@ -109,7 +110,7 @@ struct
   let is_single ctx =
     not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx))
   let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
-  let is_mainfun name = List.mem name (List.map Json.string (GobConfig.get_list "mainfun"))
+  let is_mainfun name = List.mem name (GobConfig.get_string_list "mainfun")
 
   type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }
   let get_env ctx =
@@ -117,7 +118,7 @@ struct
     let d = ctx.local in
     let node = Option.get !MyCFG.current_node in
     (* determine if we are at the root of a process or in some called function *)
-    let fundec = MyCFG.getFun node in
+    let fundec = Node.find_fundec node in
     let curpid = match Pid.to_int d.pid with Some i -> i | None -> failwith @@ "get_env: Pid.to_int = None inside function "^fundec.svar.vname^". State: " ^ D.show d in
     let pname = match get_by_pid curpid with Some s -> s | None -> failwith @@ "get_env: no processname for pid in Hashtbl!" in
     let procid = Process, pname in
@@ -125,14 +126,14 @@ struct
     let id = if List.exists ((=) fundec.svar) pfuns || is_mainfun fundec.svar.vname then Process, pname else Function, fname_ctx d.ctx fundec.svar in
     { d; node; fundec; pname; procid; id }
   let add_edges ?r ?dst ?d env action =
-    Pred.iter (fun node -> ArincUtil.add_edge env.id (node, action, r, MyCFG.getLoc (dst |? env.node))) (d |? env.d).pred
+    Pred.iter (fun node -> ArincUtil.add_edge env.id (node, action, r, Node.location (dst |? env.node))) (d |? env.d).pred
   let add_actions env xs =
     (* add edges for all predecessor nodes (from pred. node to env.node) *)
     List.iter (fun (action,r) -> match r with Some r -> add_edges ~r env action | None -> add_edges env action) xs;
     (* update domain by replacing the set of pred. nodes with the current node *)
     if List.is_empty xs then env.d else D.pred (const @@ Pred.of_node env.node) env.d
   (* is exp of the return code type (pointers are not considered!) *)
-  let is_return_code_type exp = typeOf exp |> unrollTypeDeep |> function
+  let is_return_code_type exp = Cilfacade.typeOf exp |> unrollTypeDeep |> function
     | TEnum(ei, _) when ei.ename = "T13" -> true
     | _ -> false
   let return_code_is_success = function 0L | 1L -> true | _ -> false
@@ -145,7 +146,7 @@ struct
   let dummy_global_dlval = { dummyFunDec.svar with vname = "Gret" }, `NoOffset
   let global_dlval dlval fname =
     if Lval.CilLval.class_tag dlval = `Global then (
-      M.debug_each @@ "WARN: " ^ fname ^ ": use of global lval: " ^ str_return_dlval dlval;
+      M.debug "WARN: %s: use of global lval: %s" fname (str_return_dlval dlval);
       if GobConfig.get_bool "ana.arinc.merge_globals" then dummy_global_dlval else dlval
     ) else dlval
   let mayPointTo ctx exp =
@@ -153,18 +154,18 @@ struct
     | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
-          M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " contains TOP!"; (* UNSOUND *)
+          M.debug "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
           Queries.LS.remove top_elt a
         ) else a
       in
       Queries.LS.elements a'
     | v ->
-      M.debug_each @@ "mayPointTo: query result for " ^ sprint d_exp exp ^ " is " ^ sprint Queries.LS.pretty v;
+      M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
   let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
-  let debugMayPointTo ctx exp = M.debug_each @@ sprint d_exp exp ^ " mayPointTo " ^ (String.concat ", " (List.map (sprint Lval.CilLval.pretty) (mayPointTo ctx exp)))
+  let debugMayPointTo ctx exp = M.debug "%a mayPointTo %a" d_exp exp (Pretty.d_list ", " Lval.CilLval.pretty) (mayPointTo ctx exp)
 
 
   (* transfer functions *)
@@ -174,19 +175,19 @@ struct
         else output edge that non-det. sets the lhs to a value from the range *)
     (* things to note:
        1. is_return_code_type must be checked on the result of mayPointTo and not on lval! otherwise we have problems with pointers
-       2. Cil.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
+       2. Cilfacade.typeOf throws an exception because the base type of a query result from goblint is not an array but is accessed with an index TODO why is this? ignored casts?
        3. mayPointTo also returns pointers if there's a top element in the set (outputs warning), so that we don't miss anything *)
     if GobConfig.get_bool "ana.arinc.assume_success" then ctx.local else
       (* OPT: this matching is just for speed up to avoid querying on every assign *)
       match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
         (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
-        if not @@ Option.is_some !MyCFG.current_node then (M.debug_each "assign: MyCFG.current_node not set :("; ctx.local) else
+        if not @@ Option.is_some !MyCFG.current_node then (M.debug "assign: MyCFG.current_node not set :("; ctx.local) else
         if D.is_bot1 ctx.local then ctx.local else
           let env = get_env ctx in
           let edges_added = ref false in
           let f dlval =
-            (* M.debug_each @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
-            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with _ -> M.debug_each @@ "assign: Cil.typeOf "^ sprint d_exp (Lval.CilLval.to_exp dlval) ^" threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound."; true in
+            (* M.debug @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
+            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with Cilfacade.TypeOfError Index_NonArray -> M.debug "assign: Cilfacade.typeOf %a threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound." d_exp (Lval.CilLval.to_exp dlval); true in
             if (not is_ret_type) || Lval.CilLval.has_index dlval then () else
               let dlval = global_dlval dlval "assign" in
               edges_added := true;
@@ -224,7 +225,7 @@ struct
                let else_node = NodeTbl.get @@ Branch (List.hd else_stmts) in
                let dst_node = if tv then then_node else else_node in
                let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
-                   M.debug_each @@ "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
+                   M.debug "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
                    add_edges env ArincUtil.Nop;
                    { ctx.local with pred = Pred.of_node env.node }
                  ) else ctx.local
@@ -252,11 +253,11 @@ struct
         | _ -> ctx.local
 
   let checkPredBot d tf f xs =
-    if d.pred = Pred.bot () then M.debug_each @@ tf^": mapping is BOT!!! function: "^f.vname^". "^(String.concat "\n" @@ List.map (fun (n,d) -> n ^ " = " ^ Pretty.sprint 200 (Pred.pretty () d.pred)) xs);
+    if d.pred = Pred.bot () then M.debug "%s: mapping is BOT!!! function: %s. %a" tf f.vname (Pretty.d_list "\n" (fun () (n, d) -> Pretty.dprintf "%s = %a" n Pred.pretty d.pred)) xs;
     d
 
   let body ctx (f:fundec) : D.t = (* enter is not called for spawned processes -> initialize them here *)
-    (* M.debug_each @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
+    (* M.debug @@ "BODY " ^ f.svar.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; *)
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
     let module BaseMain = (val Base.get_main ()) in
@@ -267,13 +268,13 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
-    (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug_each doesn't print anything here *) *)
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = (* on function calls (also for main); not called for spawned processes *)
+    (* print_endline @@ "ENTER " ^ f.vname ^" @ "^ string_of_int (!Tracing.current_loc).line; (* somehow M.debug doesn't print anything here *) *)
     let d_caller = ctx.local in
     let d_callee = if D.is_bot ctx.local then ctx.local else { ctx.local with pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     if D.is_bot1 ctx.local || D.is_bot1 au then ctx.local else
       let env = get_env ctx in
       let d_caller = ctx.local in
@@ -294,7 +295,7 @@ struct
             | Lval lval when is_return_code_type (Lval (var callee_var)) -> Some (callee_var, lval)
             | _ -> None
           in
-          let rargs = List.combine (Cilfacade.getdec f).sformals args |> List.filter_map check in
+          let rargs = List.combine f.sformals args |> List.filter_map check in
           let assign pred dst_node callee_var caller_dlval =
             let caller_dlval = global_dlval caller_dlval "combine" in
             let callee_dlval = callee_var, `NoOffset in
@@ -307,7 +308,7 @@ struct
           in
           (* we need to assign all lvals each caller arg may point to *)
           let last_pred = if GobConfig.get_bool "ana.arinc.assume_success" then d_caller.pred else List.fold_left (fun pred (callee_var,caller_lval) -> let dst_node = NodeTbl.get (Combine caller_lval) in iterMayPointTo ctx (AddrOf caller_lval) (assign pred dst_node callee_var); Pred.of_node dst_node) d_caller.pred rargs in
-          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx d_callee.ctx f))
+          add_edges ~d:{ d_caller with pred = last_pred } env (ArincUtil.Call (fname_ctx d_callee.ctx f.svar))
         );
         (* set current node as new predecessor, since something interesting happend during the call *)
         { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
@@ -326,14 +327,13 @@ struct
       let is_arinc_fun = startsWith Functions.prefix f.vname in
       let is_creating_fun = startsWith (Functions.prefix^"Create") f.vname in
       if M.tracing && is_arinc_fun then (
-        let args_str = String.concat ", " (List.map (sprint d_exp) arglist) in
         (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
-        M.debug_each @@ "found "^f.vname^"("^args_str^") in "^env.fundec.svar.vname
+        M.debug "found %s(%a) in %s" f.vname (Pretty.d_list ", " d_exp) arglist env.fundec.svar.vname
       );
       let is_error_handler = env.pname = pname_ErrorHandler in
       let eval_int exp =
         match ctx.ask (Queries.EvalInt exp) with
-        | `Lifted i -> i
+        | x when Queries.ID.is_int x -> Option.get @@ Queries.ID.to_int x
         | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp^" in "^f.vname
       in
       let eval_str exp =
@@ -366,7 +366,7 @@ struct
             let f dlval =
               let dlval = global_dlval dlval "special" in
               if not @@ is_return_code_type @@ Lval.CilLval.to_exp dlval
-              then (M.debug_each @@ "WARN: last argument in arinc function may point to something other than a return code: " ^ str_return_dlval dlval; None)
+              then (M.debug "WARN: last argument in arinc function may point to something other than a return code: %s" (str_return_dlval dlval); None)
               else (add_return_dlval env `Write dlval; Some (str_return_dlval dlval))
             in
             (* add actions for all lvals r may point to *)
@@ -378,7 +378,7 @@ struct
       in
       let add_action action = add_actions [action] in
       (*
-         let assert_ptr e = match unrollType (typeOf e) with
+         let assert_ptr e = match unrollType (Cilfacade.typeOf e) with
            | TPtr _ -> ()
            | _ -> failwith @@ f.vname ^ " expects arguments to be some pointer, but got "^sprint d_exp e^" which is "^sprint d_plainexp e
          in
@@ -397,16 +397,17 @@ struct
       (* Partition *)
       | "LAP_Se_SetPartitionMode", [mode; r] -> begin
           match ctx.ask (Queries.EvalInt mode) with
-          | `Lifted i ->
-            let pm = partition_mode_of_enum @@ Int64.to_int i in
-            if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" i (show_partition_mode_opt pm);
-            if mode_is_multi (Pmo.of_int i) then (
+          | x when Queries.ID.is_int x ->
+            let i = Option.get @@ Queries.ID.to_int x in
+            let pm = partition_mode_of_enum @@ BI.to_int i in
+            if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" (BI.to_int64 i) (show_partition_mode_opt pm);
+            if mode_is_multi (Pmo.of_int (BI.to_int64 i)) then (
               let tasks = ctx.global tasks_var in
               ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
               Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
             );
             add_action (SetPartitionMode pm)
-            |> D.pmo (const @@ Pmo.of_int i)
+            |> D.pmo (const @@ Pmo.of_int (BI.to_int64 i))
           | _ -> D.top ()
         end
       | "LAP_Se_GetPartitionStatus", [status; r] -> todo () (* != mode *)
@@ -419,7 +420,7 @@ struct
         (* | "F62", [dst; src; len] (* strncmp *) *)
         (* | "F63", [dst; src; len] (* memcpy *) *)
         ->
-        M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
+        M.debug @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
         (*debugMayPointTo ctx dst;*)
         assert_ptr dst; assert_ptr src;
         (* let dst_lval = mkMem ~addr:dst ~off:NoOffset in *)
@@ -428,12 +429,12 @@ struct
         | ls ->
             ignore @@ Pretty.printf "strcpy %a points to %a\n" d_exp dst Queries.LS.pretty ls;
             Queries.LS.iter (fun (v,o) -> ctx.assign ~name:"base" (Var v, Lval.CilLval.to_ciloffs o) src) ls
-        | _ -> M.debug_each @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^"): dst may point to anything!";
+        | _ -> M.debug @@ "strcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^"): dst may point to anything!";
         end;
         d
       | "F63" , [dst; src; len] (* memcpy *)
         ->
-        M.debug_each @@ "memcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
+        M.debug @@ "memcpy/"^f.vname^"("^sprint d_plainexp dst^", "^sprint d_plainexp src^")";
         (match ctx.ask (Queries.EvalInt len) with
          | `Int i ->
            (*
@@ -448,11 +449,11 @@ struct
            let dst_lval = mkMem ~addr:dst ~off:NoOffset in
            let src_lval = mkMem ~addr:src ~off:NoOffset in
            ctx.assign ~name:"base" dst_lval (Lval src_lval); (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
-         | v -> M.debug_each @@ "F63/memcpy: don't know length: " ^ sprint Queries.Result.pretty v;
+         | v -> M.debug @@ "F63/memcpy: don't know length: " ^ sprint Queries.Result.pretty v;
            let lval = mkMem ~addr:dst ~off:NoOffset in
            ctx.assign ~name:"base" lval MyCFG.unknown_exp
         );
-        M.debug_each @@ "done with memcpy/"^f.vname;
+        M.debug @@ "done with memcpy/"^f.vname;
         d
       | "F1" , [dst; data; len] (* memset: write char to dst len times *)
         ->
@@ -467,7 +468,7 @@ struct
            *)
            let dst_lval = mkMem ~addr:dst ~off:NoOffset in
            ctx.assign ~name:"base" dst_lval data; (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
-         | v -> M.debug_each @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
+         | v -> M.debug @@ "F1/memset: don't know length: " ^ sprint Queries.Result.pretty v;
            let lval = mkMem ~addr:dst ~off:NoOffset in
            ctx.assign ~name:"base" lval MyCFG.unknown_exp
         );
@@ -475,7 +476,7 @@ struct
         *)
       (* Processes *)
       | "LAP_Se_CreateProcess", [AddrOf attr; pid; r] ->
-        let cm = match unrollType (typeOfLval attr) with
+        let cm = match unrollType (Cilfacade.typeOfLval attr) with
           | TComp (c,_) -> c
           | _ -> failwith "type-error: first argument of LAP_Se_CreateProcess not a struct."
         in
@@ -497,18 +498,21 @@ struct
         let per  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_period)) in
         let cap  = ctx.ask (Queries.EvalInt (field Goblintutil.arinc_time_capacity)) in
         begin match name, entry_point, pri, per, cap with
-          | `Lifted name, ls, `Lifted pri, `Lifted per, `Lifted cap when not (Queries.LS.is_top ls)
-                                                                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
+          | `Lifted name, ls, pri, per, cap when not (Queries.LS.is_top ls)
+                                                                   && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) && Queries.ID.is_int pri && Queries.ID.is_int per && Queries.ID.is_int cap ->
+            let pri = BI.to_int64 (Option.get @@ Queries.ID.to_int pri) in
+            let per = BI.to_int64 (Option.get @@ Queries.ID.to_int per) in
+            let cap = BI.to_int64 (Option.get @@ Queries.ID.to_int cap) in
+            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in (* do we need this? what happens if we spawn a variable that's not a function? shouldn't this check be in spawn? *)
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-            let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in
+            let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
             let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
             ctx.sideg tasks_var tasks;
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
-          | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); d (* TODO: f*)
+          | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail (M.debug "%s") (`Result (f name, f entry_point, f pri, f per, f cap)); d (* TODO: f*)
         end
       | "LAP_Se_GetProcessId", [name; pid; r] ->
         assign_id_by_name Process name pid; d
@@ -527,7 +531,7 @@ struct
       | "LAP_Se_Suspend", [pid; r] ->
         add_actions @@ List.map (fun pid -> Suspend pid) (eval_id pid)
       | "LAP_Se_SuspendSelf", [timeout; r] ->
-        let t = eval_int timeout in
+        let t = BI.to_int64 (eval_int timeout) in
         add_action (SuspendSelf (env.procid, t))
       | "LAP_Se_Resume", [pid; r] ->
         add_actions @@ List.map (fun pid -> Resume pid) (eval_id pid)
@@ -564,7 +568,7 @@ struct
       | "LAP_Se_DisplayBlackboard", [bbid; msg_addr; len; r] ->
         add_actions @@ List.map (fun id -> DisplayBlackboard id) (eval_id bbid)
       | "LAP_Se_ReadBlackboard", [bbid; timeout; msg_addr; len; r] ->
-        let t = eval_int timeout in
+        let t = BI.to_int64 (eval_int timeout) in
         add_actions @@ List.map (fun id -> ReadBlackboard (id, t)) (eval_id bbid)
       | "LAP_Se_ClearBlackboard", [bbid; r] ->
         add_actions @@ List.map (fun id -> ClearBlackboard id) (eval_id bbid)
@@ -576,9 +580,9 @@ struct
         (* create resource for name *)
         let sid' = Semaphore, eval_str name in
         assign_id sid (get_id sid');
-        add_action (CreateSemaphore Action.({ sid = sid'; cur = eval_int cur; max = eval_int max; queuing = eval_int queuing }))
+        add_action (CreateSemaphore Action.({ sid = sid'; cur = (BI.to_int64 (eval_int cur)); max = (BI.to_int64 (eval_int max)); queuing = (BI.to_int64 (eval_int queuing)) }))
       | "LAP_Se_WaitSemaphore", [sid; timeout; r] -> (* TODO timeout *)
-        let t = eval_int timeout in
+        let t = BI.to_int64 (eval_int timeout) in
         add_actions @@ List.map (fun id -> WaitSemaphore (id, t)) (eval_id sid)
       | "LAP_Se_SignalSemaphore", [sid; r] ->
         add_actions @@ List.map (fun id -> SignalSemaphore id) (eval_id sid)
@@ -595,7 +599,7 @@ struct
       | "LAP_Se_ResetEvent", [eid; r] ->
         add_actions @@ List.map (fun id -> ResetEvent id) (eval_id eid)
       | "LAP_Se_WaitEvent", [eid; timeout; r] -> (* TODO timeout *)
-        let t = eval_int timeout in
+        let t = BI.to_int64 (eval_int timeout) in
         add_actions @@ List.map (fun id -> WaitEvent (id, t)) (eval_id eid)
       | "LAP_Se_GetEventId", [name; eid; r] ->
         assign_id_by_name Event name eid; d
@@ -603,7 +607,7 @@ struct
       (* Time *)
       | "LAP_Se_GetTime", [time; r] -> todo ()
       | "LAP_Se_TimedWait", [delay; r] ->
-        add_action (TimedWait (eval_int delay))
+        add_action (TimedWait (BI.to_int64 (eval_int delay)))
       | "LAP_Se_PeriodicWait", [r] ->
         add_action PeriodicWait
       (* Errors *)
@@ -611,9 +615,9 @@ struct
         begin match ctx.ask (Queries.ReachableFrom (entry_point)) with
           | ls when not (Queries.LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
             let pid = get_pid pname_ErrorHandler in
-            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (typeOfLval lval)) ls in
+            let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
-            let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_node (MyCFG.Function f); ctx = Ctx.top () } in
+            let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
             let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
             ctx.sideg tasks_var tasks;
             add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
@@ -632,8 +636,7 @@ struct
     let d = ctx.local in
     match q with
     | Queries.Priority _ ->
-      if Pri.is_int d.pri then
-        Queries.ID.of_int @@ Option.get @@ Pri.to_int d.pri
+      if Pri.is_int d.pri then Queries.ID.of_int IInt @@ BI.of_int64 @@ Option.get @@ Pri.to_int d.pri (* TODO: what ikind to use for priorities? *)
       else if Pri.is_top d.pri then Queries.Result.top q else Queries.Result.bot q (* TODO: remove bot *)
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)
@@ -649,7 +652,7 @@ struct
     );
     if GobConfig.get_bool "ana.arinc.validate" then ArincUtil.validate ()
 
-  let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main").svar); ctx = Ctx.top () }
+  let startstate v = { pid = Pid.of_int 0L; pri = Pri.top (); per = Per.top (); cap = Cap.top (); pmo = Pmo.of_int 1L; pre = PrE.of_int 0L; pred = Pred.of_node (MyCFG.Function (emptyFunction "main")); ctx = Ctx.top () }
   let exitstate  v = D.bot ()
 
   let threadenter ctx lval f args =

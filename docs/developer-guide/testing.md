@@ -20,9 +20,12 @@ Regression tests can be run with various granularity:
 
 To pass additional options to Goblint with `update_suite.rb`, use the `gobopt` environment variable, e.g.:
 ```
-gobopt='--sets exp.privatization write+lock' ./scripts/update_suite.rb
+gobopt='--set exp.privatization write+lock' ./scripts/update_suite.rb
 ```
 
+### Writing
+* Add parameters to a regression test in the first line: `// PARAM: --set dbg.debug true`
+* Annotate lines inside the regression test with comments: `arr[9] = 10; // WARN`
 
 ## Domain tests
 Property-based testing (a la QuickCheck) is used to test some domains (`Lattice.S` implementations) for their lattice properties.

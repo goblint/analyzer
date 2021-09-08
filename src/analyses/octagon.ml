@@ -29,8 +29,7 @@ struct
   let is_local_and_not_pointed_to v =
     (not (v.vglob ||
          v.vdecl.line = -1 || (* TODO: Why?  CIL says:The line number. -1 means "do not know"	*)
-         v.vdecl.line = -3 ||
-         v.vdecl.line = -4))
+         Cilfacade.is_varinfo_formal v))
     && (not v.vaddrof)  (* to avoid handling pointers, only vars whose address is never taken (i.e. can not be pointed to) *)
     && (Cil.isIntegralType v.vtype)
 
@@ -260,7 +259,7 @@ struct
       | Lval(Var v, NoOffset) -> v
       | _ -> raise (Invalid_argument "only call with Lval(Var v, NoOffset)")
     in
-    let formals = (Cilfacade.getdec fn).sformals in
+    let formals = fn.sformals in
     let formals_and_exps = zip formals args in
     let relevant_vars_in_args = List.filter is_relevant_var args |> List.map get_var in
     let relevant_octagon_part = D.keep_only relevant_vars_in_args ctx.local in
@@ -279,10 +278,10 @@ struct
     let closed = D.strong_closure (List.fold_left add_const relevant_octagon_part formals_and_exps) in (* compute closure so relationships between formals are inferred. TODO: Is it ok to do this here? *)
     D.keep_only formals closed (* Remove vars that were only needed because they were in exp *)
 
-  let enter ctx (lval: lval option) (fn:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fn:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (after:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (after:D.t) : D.t =
     match lval with
     | Some (Var v, NoOffset) ->
         let retval = evaluate_exp after (Lval ((Var (return_varinfo ())), NoOffset)) in
@@ -362,8 +361,9 @@ struct
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then INV.to_int inv |> Option.get |> BI.to_int64 |> Queries.ID.of_int
+      then INV.to_int inv |> Option.get |> Queries.ID.of_int (Cilfacade.get_ikind_exp exp)
       else Queries.Result.top q
+    (* TODO: support interval return based on removed InInterval in commit 8c4d6f261f7b007c19e6464419a43ea195d56a6c *)
     | _ -> Queries.Result.top q
 
   let threadspawn ctx lval f args fctx = ctx.local

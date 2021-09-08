@@ -66,7 +66,7 @@ module ExpEval : Transform.S =
             |> List.map (fun (f : Cil.fundec) -> f.sallstmts |> List.map (fun s -> f, s))
             |> List.flatten
             (* Add locations *)
-            |> List.map (fun (f, (s : Cil.stmt)) -> (Cil.get_stmtLoc s.skind, f, s))
+            |> List.map (fun (f, (s : Cil.stmt)) -> (Cilfacade.get_stmtLoc s, f, s))
             (* Filter artificial ones by impossible location *)
             |> List.filter (fun ((l : Cil.location), _, _) -> l.line >= 0)
             (* Create hash table *)
@@ -105,7 +105,7 @@ module ExpEval : Transform.S =
                         fun (s : Cil.stmt) ->
                           succeeding_statement := Some s;
                           (* Evaluate at (directly before) a succeeding location *)
-                          Some(self#try_ask (Cil.get_stmtLoc s.skind) expression)
+                          Some(self#try_ask (Cilfacade.get_stmtLoc s) expression)
                       end
                       statement.succs
                     with Not_found -> None
@@ -129,11 +129,11 @@ module ExpEval : Transform.S =
         method private try_ask location expression =
           match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
             (* Evaluable: Definite *)
-          | Some (`Lifted value) -> Some (Some (value <> Int64.zero))
-            (* Evaluable: Inconclusive *)
-          | Some `Top -> Some None
+          | Some x when Queries.ID.is_int x -> Some (Some (not(IntOps.BigIntOps.equal (Option.get @@ Queries.ID.to_int x) IntOps.BigIntOps.zero)))
             (* Inapplicable: Unreachable *)
-          | Some `Bot -> None
+          | Some x when Queries.ID.is_bot x -> None
+            (* Evaluable: Inconclusive *)
+          | Some x -> Some None
             (* Inapplicable: Unlisted *)
           | None -> None
 
@@ -153,7 +153,7 @@ module ExpEval : Transform.S =
               Ok query
 
     let string_of_location (location : Cil.location) =
-      location.file ^ ":" ^ (location.line |> string_of_int) ^ " [" ^ (location.byte |> string_of_int) ^ "]"
+      CilType.Location.show location ^ " [" ^ (location.byte |> string_of_int) ^ "]"
 
     let file_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.file l'.file
     let byte_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.byte l'.byte

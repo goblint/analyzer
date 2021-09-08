@@ -34,15 +34,15 @@ module WP =
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
       let rec destabilize x =
-        if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
           HM.remove stable y;
-          (* if tracing then trace "sol2" "destabilize %a on %i\n" S.Var.pretty_trace y (S.Var.line_nr y); *)
+          (* if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace y; *)
           if not (HM.mem called y) then destabilize y) w
       and solve x phase =
-        if tracing then trace "sol2" "solve %a on %i, called: %b, stable: %b\n" S.Var.pretty_trace x (S.Var.line_nr x) (HM.mem called x) (HM.mem stable x);
+        if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
@@ -59,7 +59,7 @@ module WP =
             (* if tracing then if is_side x then trace "sol2" "solve side: old = %a, tmp = %a, widen = %a\n" S.Dom.pretty old S.Dom.pretty tmp S.Dom.pretty (S.Dom.widen old (S.Dom.join old tmp)); *)
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
-            (* if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) on %i is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) (S.Var.line_nr x) S.Dom.pretty tmp S.Dom.pretty old; *)
+            (* if tracing then trace "sol2" "new value for %a (wpx: %b, is_side: %b) is %a. Old value was %a\n" S.Var.pretty_trace x (HM.mem rho x) (is_side x) S.Dom.pretty tmp S.Dom.pretty old; *)
             HM.replace rho x tmp;
             destabilize x;
             (solve[@tailcall]) x phase;
@@ -71,13 +71,13 @@ module WP =
           );
         )
       and eq x get set =
-        if tracing then trace "sol2" "eq %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
       and eval x y =
-        if tracing then trace "sol2" "eval %a on %i ## %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x) S.Var.pretty_trace y (S.Var.line_nr y);
+        if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
         if HM.mem called y then HM.replace wpoint y ();
         solve y Widen;
@@ -92,7 +92,7 @@ module WP =
           solve y Widen;
         )
       and init x =
-        if tracing then trace "sol2" "init %a on %i\n" S.Var.pretty_trace x (S.Var.line_nr x);
+        if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
         if not (HM.mem rho x) then (
           new_var_event x;
           HM.replace rho  x (S.Dom.bot ())
@@ -100,7 +100,7 @@ module WP =
       in
 
       let set_start (x,d) =
-        if tracing then trace "sol2" "set_start %a on %i ## %a\n" S.Var.pretty_trace x  (S.Var.line_nr x) S.Dom.pretty d;
+        if tracing then trace "sol2" "set_start %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d;
         init x;
         HM.replace rho x d;
         solve x Widen
@@ -151,5 +151,5 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
+  let module WP = GlobSolverFromEqSolver (WP) in
   Selector.add_solver ("topdown_term", (module WP : GenericGlobSolver));

@@ -68,7 +68,7 @@ module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = Deriving.Map.Make (Domain)
+  module M = Map.Make (Domain)
 
   include Printable.Std
   type key = Domain.t
@@ -165,8 +165,6 @@ struct
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (Domain.show k)) Range.printXml v

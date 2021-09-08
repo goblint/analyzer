@@ -1,43 +1,40 @@
-# goblint
-![Build status](https://github.com/goblint/analyzer/workflows/build%20and%20run%20tests/badge.svg)
-[![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
+# Goblint
+[![locked workflow status](https://github.com/goblint/analyzer/actions/workflows/locked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/locked.yml)
+[![unlocked workflow status](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml)
 [![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
+[![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
 
 Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/en/latest/) or [GitHub](./docs/).
 
-## Setup
-### Linux / MacOS
-**For an up-to-date-version, clone this repository, use `make setup` to install OCaml and all dependencies, and `make` to build.**
+## Installing
+Both for using an up-to-date version of Goblint or developing it, the best way is to install from source by cloning this repository.
 
-Alternatively: Install [opam](http://opam.ocaml.org/doc/Install.html), and then do `opam install goblint`. Warning: The OPAM package is updated infrequently.
+_The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very outdated and should currently not be used._
 
-Run goblint: `./goblint tests/regression/04-mutex/01-simple_rc.c`.
+### Linux
+1. Install [opam](https://opam.ocaml.org/doc/Install.html).
+2. Run `make setup` to install OCaml and dependencies via opam.
+3. Run `make` to build Goblint itself.
 
-If something goes wrong, take a look at [travis-ci.sh](scripts/travis-ci.sh) for an example Ubuntu/macOS setup.
-
-### macOS
-Goblint relies on GNU `cpp` to preprocess source files - the default clang `cpp` on macOS will not work.
-You can install it with `brew install gcc` (first do `xcode-select --install` if you don't want to build from source). You can check src/config.ml to see what command is used to call `cpp`.
+### MacOS
+1. Install GCC with `brew install gcc` (first run `xcode-select --install` if you don't want to build it from source). Goblint requires GCC while macOS's default `cpp` is Clang, which will not work.
+2. Continue using Linux instructions.
 
 ### Windows
-For Windows, we recommend using [WSL](https://docs.microsoft.com/de-de/windows/wsl/install-win10).
+1. Install [WSL](https://docs.microsoft.com/en-us/windows/wsl/install-win10).
+2. Continue using Linux instructions in WSL.
 
-### Docker / Virtual machine
-You can run Goblint in a [Docker container](https://hub.docker.com/r/voglerr/goblint/) using: `docker run -it voglerr/goblint ./goblint --help`.
+### Other
+* **Docker.** Clone and run `make docker`.
+* **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
+* **[Docker Hub](https://hub.docker.com/r/voglerr/goblint)** (outdated). Run `docker run -it voglerr/goblint bash`.
+* **[opam](https://opam.ocaml.org/packages/goblint/)** (very outdated). Run `opam install goblint`.
 
-A virtual machine containing Goblint can be set up using [Vagrant](http://www.vagrantup.com/): `vagrant up && vagrant ssh`.
 
-### Web frontend
-The analysis results are printed to stdout by default.
-Adding `--html` saves the results as XML, which is then transformed to be viewable in a web browser.
-Use `make jar` to build the needed Java program.
+## Running
+To confirm that the installation worked, you can try running Goblint as follows:
+```
+./goblint tests/regression/04-mutex/01-simple_rc.c
+```
 
-    ./goblint --html path/to/file.c
-
-Open `result/index.xml` in a browser of your choice.
-Depending on the browser security settings, it might be necessary to serve the result directory from a webserver to access it.
-This can be done by e.g. running `python3 -m http.server` in the `result` directory. The results should then be accessible at `http://localhost:8000`
-
-<!-- ### Web frontend -->
-<!-- Use `make npm` to setup the web frontend and start serving on <http://localhost:3000>. -->
-<!-- See its [README](https://github.com/vogler/goblint-webapp) for details. -->
+For further information, see [documentation](https://goblint.readthedocs.io/en/latest/user-guide/running/).

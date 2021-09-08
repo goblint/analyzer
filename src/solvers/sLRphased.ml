@@ -136,10 +136,10 @@ module Make =
           HM.replace rho0 x d;
           HM.replace infl x VS.empty;
           if side then (
-            print_endline @@ "Variable by side-effect " ^ S.Var.var_id x ^ " ("^ string_of_int (S.Var.line_nr x) ^") to " ^ string_of_int !count_side;
+            print_endline @@ "Variable by side-effect " ^ S.Var.var_id x ^ " to " ^ string_of_int !count_side;
             HM.replace key  x !count_side; decr count_side
           ) else (
-            print_endline @@ "Variable " ^ S.Var.var_id x ^ " ("^ string_of_int (S.Var.line_nr x) ^") to " ^ string_of_int !count;
+            print_endline @@ "Variable " ^ S.Var.var_id x ^ " to " ^ string_of_int !count;
             HM.replace key  x !count; decr count
           );
           do_var false x;
@@ -221,5 +221,5 @@ module Make =
   end
 
 let _ =
-  let module S3tp = GlobSolverFromIneqSolver (JoinContr (Make)) in
+  let module S3tp = GlobSolverFromEqSolver (Make) in
   Selector.add_solver ("slr3tp", (module S3tp : GenericGlobSolver)); (* two-phased slr3t *)
