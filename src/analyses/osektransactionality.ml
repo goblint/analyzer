@@ -169,8 +169,6 @@ struct
     if !transactional then
       print_endline "Goblint did not find any non-transactional behavior in this program!"
 
-  let init () = ()
-
 end
 
 let _ =

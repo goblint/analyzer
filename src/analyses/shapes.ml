@@ -274,7 +274,7 @@ struct
   let startstate v = LD.singleton (SHMap.top ()), Re.startstate v
   let exitstate  v = LD.singleton (SHMap.top ()), Re.exitstate v
 
-  let init () = Printexc.record_backtrace true
+  let init ?marshal () = Printexc.record_backtrace true
 
   (*  let init () = *)
   (*    Goblintutil.region_offsets := false*)

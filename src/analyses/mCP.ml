@@ -260,7 +260,9 @@ struct
     let deps (x,_) = iter (check_dep x) @@ assoc x !dep_list in
     iter deps xs
 
-  let init () =
+
+  type marshal = Obj.t list
+  let init ?marshal () =
     let map' f =
       let f x =
         try f x
@@ -281,9 +283,14 @@ struct
       Printf.printf "\n";
       iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
       Printf.printf "\n";*)
-    iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init ()) !analyses_list
+    match marshal with
+    | Some marshal ->
+      combine !analyses_list marshal
+      |> iter (fun ((_,{spec=(module S:MCPSpec); _}), marshal) -> S.init ~marshal:(Obj.obj marshal) ())
+    | None ->
+      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init ()) !analyses_list
 
-  let finalize () = iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.finalize ()) !analyses_list
+  let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !analyses_list
 
   let spec x = (assoc x !analyses_list).spec
   let spec_list xs =
@@ -402,8 +409,9 @@ struct
       List.map (fun (n,d) -> n, spec_assign n d) xs
 
   let finalize () =
-    finalize ();
-    Access.print_result ()
+    let r = finalize () in
+    Access.print_result ();
+    r
 
   let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
     let split_one n (d,emits) =

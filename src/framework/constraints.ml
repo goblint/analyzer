@@ -21,6 +21,7 @@ struct
 
   let name () = S.name () ^" hashconsed"
 
+  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
   let finalize = S.finalize
 
@@ -97,6 +98,7 @@ struct
 
   let name () = S.name () ^" context hashconsed"
 
+  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
   let finalize = S.finalize
 
@@ -186,10 +188,11 @@ struct
   let start_level = ref (`Top)
   let error_level = ref (`Lifted  0L)
 
-  let init () =
+  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
+  let init ?marshal () =
     if get_bool "dbg.slice.on" then
       start_level := `Lifted (Int64.of_int (get_int "dbg.slice.n"));
-    S.init ()
+    S.init ?marshal ()
 
   let finalize = S.finalize
 
@@ -278,15 +281,15 @@ end
 (** Limits the number of widenings per node. *)
 module LimitLifter (S:Spec) =
 struct
-  include (S : module type of S with module D := S.D)
+  include (S : module type of S with module D := S.D and type marshal = S.marshal)
 
   let name () = S.name ()^" limited"
 
   let limit = ref 0
 
-  let init () =
+  let init ?marshal () =
     limit := get_int "dbg.limit.widen";
-    S.init ()
+    S.init ?marshal ()
 
   module H = MyCFG.NodeH
   let h = H.create 13
@@ -323,6 +326,7 @@ struct
 
   let name () = S.name ()^" with widened contexts"
 
+  type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
 
@@ -386,6 +390,7 @@ struct
 
   let name () = S.name ()^" lifted"
 
+  type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
 
@@ -890,6 +895,7 @@ struct
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
+  type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
 

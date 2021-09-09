@@ -316,8 +316,10 @@ sig
 
   val name : unit -> string
 
-  val init : unit -> unit
-  val finalize : unit -> unit
+  type marshal
+
+  val init : ?marshal:marshal -> unit -> unit
+  val finalize : unit -> marshal
   (* val finalize : G.t -> unit *)
 
   val startstate : varinfo -> D.t
@@ -442,7 +444,8 @@ end
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
-  let init     () = ()
+  type marshal = unit
+  let init ?marshal () = ()
   let finalize () = ()
   (* no inits nor finalize -- only analyses like Mutex, Base, ... need
      these to do postprocessing or other imperative hacks. *)

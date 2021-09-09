@@ -410,8 +410,8 @@ struct
     end;
     ctx.local
 
-  let init () =
-    init ();
+  let init ?marshal () =
+    init ?marshal ();
     arinc_analysis_activated := List.mem "arinc" (get_string_list "ana.activated")
 
 end

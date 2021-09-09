@@ -144,8 +144,6 @@ struct
     in
     BatFile.with_file_out "flags.json" print_flags_file
 
-  let init () =  ()
-
 end
 
 let _ =

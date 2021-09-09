@@ -18,7 +18,7 @@ struct
   let extra_var = Goblintutil.create_var (makeGlobalVar "__deadlock_variable" intType)
   let gate_var = Goblintutil.create_var (makeGlobalVar "__gatelock_variable" intType)
 
-  let init     () = MSpec.init ()
+  let init ?marshal    () = MSpec.init ?marshal ()
   let finalize () = MSpec.finalize ()
 
   let sync = MSpec.sync

@@ -84,7 +84,7 @@ sig
   val path: (node * node) list
 end
 
-module MakePathSpec (Arg: PathArg) : Analyses.MCPSpec =
+module MakePathSpec (Arg: PathArg) =
 struct
   module KMP = ObserverAutomaton.KMP (
     struct

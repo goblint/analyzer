@@ -43,8 +43,6 @@ struct
 
 
   (* Initialization and finalization *)
-  let init () = ()
-
   let finalize () = ()
 
   (* Some required states *)
