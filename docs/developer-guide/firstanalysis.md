@@ -10,10 +10,9 @@ We will analyze the following C program.
 It is not the most complicated program one could imagine, but we have to start somewhere.
 
 ```c
-#include<assert.h>
+#include <assert.h>
 
 int main() {
-
   int x;
   int unknown;
 
@@ -26,33 +25,35 @@ int main() {
   // The above code branches on an uninitialized variable.
   // The value of x could be either 5 or 7.
 
-  assert(x > 0);  // Thus, this assertion should hold!
+  assert(x > 0); // TODO: Thus, this assertion should hold!
 
   return 0;
 }
 ```
 
-This program is in the Goblint repository: *tests/regression/99-tutorials/01-first.c*.
+This program is in the Goblint repository: `tests/regression/99-tutorials/01-first.c`.
 But if you run Goblint out of the box on this example, it will not work:
 
-`./goblint --enable dbg.debug tests/regression/99-tutorials/01-first.c`
+```console
+./goblint --enable dbg.debug tests/regression/99-tutorials/01-first.c
+```
 
 This will claim that the assertion in unknown.
 Goblint could verify that this assertion does hold using interval analysis (`--enable ana.int.interval`), but here we will implement a simple sign analysis instead.
 
 ## Starting point
 
-We begin with the flawed implementation in ***src/analyses/tutorials/signs.ml***.
-If you immediately try to run Goblint with the new analysis enabled: `--sets "ana.activated[+]" signs`. The result will still be that nothing is verified, so you need to fix all the problems in the code.
+We begin with the flawed implementation in **`src/analyses/tutorials/signs.ml`**.
+If you immediately try to run Goblint with the new analysis enabled: `--set "ana.activated[+]" signs`. The result will still be that nothing is verified, so you need to fix all the problems in the code.
 
-It may still be useful to use Goblint's HTML output to [see the result](../user-guide/inspecting.md) of the analysis. This will also include Goblnt's base analysis, which is needed to deal with function calls, but it may be useful to turn off integer analysis with `--disable int.ana.def_exc`, so that only your implemented analysis plays a role.
+It may still be useful to use Goblint's HTML output to [see the result](../user-guide/inspecting.md) of the analysis. This will also include Goblint's base analysis, which is needed to deal with function calls.
 
 ## Designing the domain
 
-We first need to design the abstract domain. It may help if you have read some theoretical tutorial on abstract domains. Our first sign lattice will simply contain the elements `{-, 0, +}` with top and bottom added. These elements are defined in the module *Signs* and then we define the sign lattice *SL* by adding bottom and top elements. This is done by the functor *Lattice.Flat*. You should look at the following functions and fix their problems.
+We first need to design the abstract domain. It may help if you have read some theoretical tutorial on abstract domains. Our first sign lattice will simply contain the elements `{-, 0, +}` with top and bottom added. These elements are defined in the module `Signs` and then we define the sign lattice `SL` by adding bottom and top elements. This is done by the functor `Lattice.Flat`. You should look at the following functions and fix their problems.
 
 1. `of_int i` should abstract integers to their best representation in our abstract domain. Our sign domain can distinguish positive, negative and zero values, so do it right!
-2. `gt x y` should answer true if the value represented by *x* is definitely greater than the value represented by *y*. There seems to be a crucial case missing here in the otherwise excellent implementation...
+2. `gt x y` should answer true if the value represented by `x` is definitely greater than the value represented by `y`. There seems to be a crucial case missing here in the otherwise excellent implementation...
 
 We will represent tha abstract state of the program as a map from variables to the newly created sign domain.
 
