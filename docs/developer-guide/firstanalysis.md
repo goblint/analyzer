@@ -72,4 +72,11 @@ With this in place, we should have sufficient information to tell Goblint that t
 
 ## Extending the domain
 
-You could now independently enrich the lattice to also keep track of non-negative and non-positive values, such that the join of Zero and Pos is NonNeg, and then handle assertions for `x >= 0`.
+You could now enrich the lattice to also have a representation for non-negative (i.e., zero or positive) values.
+Then the join of `Zero` and `Pos` would be "non-negative" instead of `Top`, allowing you to prove that such join is greated than `Neg`.
+For example, have a look at the following program: `tests/regression/99-tutorials/02-first-extend.c`.
+
+_Hint:_
+The easiest way to do this is to use the powerset lattice of `{-, 0, +}`.
+For example, "non-negative" is represented by `{0, +}`, while negative is represented by `{-}`.
+To do this, modify `SL` by using `SetDomain.Make` instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.
