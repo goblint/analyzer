@@ -29,7 +29,7 @@ int pqueue_put(PQUEUE *qp)
   while (qp->occupied >= qp->qsize) {
 
   }
-  assert(qp->occupied >= 0); // TODO
+  assert(qp->occupied >= 0); // precise privatization fails
   (qp->occupied) ++;
   pthread_mutex_unlock(& qp->mtx);
   return (1);
@@ -42,7 +42,7 @@ int pqueue_get(PQUEUE *qp)
   while (qp->occupied <= 0) {
 
   }
-  assert(qp->occupied > 0); // TODO
+  assert(qp->occupied > 0); // precise privatization fails
   if (qp->occupied > 0) {
     (qp->occupied) --;
     got = 1;

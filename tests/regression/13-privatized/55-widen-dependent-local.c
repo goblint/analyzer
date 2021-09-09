@@ -22,7 +22,7 @@ int put() {
   while (g >= limit) { // problematic widen
 
   }
-  assert(g >= 0); // TODO
+  assert(g >= 0); // precise privatization fails
   g++;
   pthread_mutex_unlock(&A);
 }

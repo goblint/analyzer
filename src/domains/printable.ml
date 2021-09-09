@@ -52,13 +52,6 @@ struct
   let relift x = x
 end
 
-(* Only include where data is guaranteed to be non-cyclic *)
-module StdPolyCompare =
-struct
-  include Std
-  let compare = compare (* Careful, does not terminate on cyclic data *)
-end
-
 module Blank =
 struct
   include Std
@@ -68,12 +61,6 @@ struct
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
 end
 
-(* Only include where data is guaranteed to be non-cyclic *)
-module BlankPolyCompare =
-struct
-  include Blank
-  let compare = compare (* Careful, does not terminate on cyclic data *)
-end
 
 module type Showable =
 sig
@@ -559,8 +546,8 @@ end
 
 module Strings =
 struct
-  type t = string [@@deriving eq, to_yojson]
-  include StdPolyCompare
+  type t = string [@@deriving eq, ord, to_yojson]
+  include Std
   let hash (x:t) = Hashtbl.hash x
   let pretty () n = text n
   let show n = n

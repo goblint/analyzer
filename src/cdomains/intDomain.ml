@@ -491,7 +491,7 @@ module Std (B: sig
     val show: t -> string
     val equal: t -> t -> bool
   end) = struct
-  include Printable.StdPolyCompare
+  include Printable.Std
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
   let hash = Hashtbl.hash
@@ -513,7 +513,7 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 struct
   let name () = "intervals"
   type int_t = Ints_t.t
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
 
   let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
@@ -915,7 +915,7 @@ module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t an
 struct
   include Printable.Std
   let name () = "integers"
-  type t = Ints_t.t [@@deriving eq]
+  type t = Ints_t.t [@@deriving eq, ord]
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
@@ -1179,7 +1179,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of BigInt.t
     | `Bot
-  ] [@@deriving eq]
+  ] [@@deriving eq, ord]
   type int_t = BigInt.t
   let name () = "def_exc"
 
@@ -1626,7 +1626,7 @@ end
 module MakeBooleans (N: BooleansNames) =
 struct
   type int_t = IntOps.Int64Ops.t
-  type t = bool [@@deriving eq, to_yojson]
+  type t = bool [@@deriving eq, ord, to_yojson]
   let name () = "booleans"
   let top () = true
   let bot () = false
@@ -2012,7 +2012,7 @@ struct
   type int_t = Ints_t.t
 
   (* represents congruence class of c mod m, None is bot *)
-  type t = (Ints_t.t * Ints_t.t) option
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
 
   let ( *: ) = Ints_t.mul
   let (+:) = Ints_t.add
@@ -2063,11 +2063,6 @@ struct
       let b = if m =: Ints_t.zero then "" else if m = Ints_t.one then "ℤ" else Ints_t.to_string m^"ℤ" in
       let c = if a = "" || b = "" then "" else "+" in
       a^c^b
-
-  let equal a b = match a, b with
-    | None, None -> true
-    | Some (a, b), Some (c, d) -> a =: c && b =: d
-    | _, _ -> false
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
 

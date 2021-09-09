@@ -7,8 +7,6 @@ open Analyses
  We do not pass information interprocedurally. *)
 module Spec : Analyses.MCPSpec =
 struct
-  include Analyses.DefaultSpec
-
   let name () = "constants"
 
   module I = IntDomain.Flattened
@@ -20,6 +18,7 @@ struct
   (* No contexts*)
   module C = Lattice.Unit
 
+  include Analyses.IdentitySpec
   let context _ = ()
 
   let is_integer_var (v: varinfo) =
@@ -94,9 +93,7 @@ struct
     set_local_int_lval_top ctx.local lval
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.top ()]
-  let threadspawn ctx lval f args fctx = D.bot ()
-  let exitstate  v = D.top ()
+  let exitstate v = D.top () (* TODO: why is this different from startstate? *)
 end
 
 let _ =
