@@ -53,7 +53,10 @@ struct
   module G = Lattice.Unit
   module C = D
 
-  include Analyses.IdentitySpec (D)
+  let startstate v = D.bot ()
+  let exitstate = startstate
+
+  include Analyses.IdentitySpec
 
   (* This should now evaluate expressions. *)
   let eval (d: D.t) (exp: exp): SL.t = match exp with

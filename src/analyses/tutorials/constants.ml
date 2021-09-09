@@ -18,7 +18,7 @@ struct
   (* No contexts*)
   module C = Lattice.Unit
 
-  include Analyses.IdentitySpec (D)
+  include Analyses.IdentitySpec
   let context _ = ()
 
   let is_integer_var (v: varinfo) =
@@ -91,6 +91,9 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* When calling a special function, and assign the result to some local int variable, we also set it to top. *)
     set_local_int_lval_top ctx.local lval
+
+  let startstate v = D.bot ()
+  let exitstate v = D.top () (* TODO: why is this different from startstate? *)
 end
 
 let _ =

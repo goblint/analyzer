@@ -483,32 +483,30 @@ struct
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)
-module IdentitySpec (D: Lattice.S) =
+module IdentitySpec =
 struct
   include DefaultSpec
-  let assign ctx (lval:lval) (rval:exp) : D.t =
+  let assign ctx (lval:lval) (rval:exp) =
     ctx.local
 
-  let branch ctx (exp:exp) (tv:bool) : D.t =
+  let branch ctx (exp:exp) (tv:bool) =
     ctx.local
 
-  let body ctx (f:fundec) : D.t =
+  let body ctx (f:fundec) =
     ctx.local
 
-  let return ctx (exp:exp option) (f:fundec) : D.t =
+  let return ctx (exp:exp option) (f:fundec) =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
     [ctx.local, ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au =
     au
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     ctx.local
 
-  let startstate v = D.bot ()
   let threadenter ctx lval f args = [ctx.local]
   let threadspawn ctx lval f args fctx = ctx.local
-  let exitstate  v = D.top ()
 end
