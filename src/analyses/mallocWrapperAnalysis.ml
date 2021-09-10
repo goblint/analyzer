@@ -56,8 +56,14 @@ struct
   let exitstate  v = D.top ()
 
   let heap_hash = Hashtbl.create 113
+  (* This hashtable is not marshaled, which is a problem.
+     But since Goblintutil.create_var is deterministic w.r.t the name containing location,
+     then it gets identically reconstructed when unmarshaling and verifying. *)
 
   let get_heap_var sideg loc =
+    (* Use existing varinfo instead of allocating a duplicate,
+       which would be equal by determinism of create_var though. *)
+    (* TODO: is this poor man's hashconsing? *)
     try Hashtbl.find heap_hash loc
     with Not_found ->
       let name = "(alloc@" ^ CilType.Location.show loc ^ ")" in
