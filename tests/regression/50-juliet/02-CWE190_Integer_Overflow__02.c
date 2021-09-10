@@ -1,3 +1,4 @@
+// PARAM: --enable ana.int.interval
 #include<stdio.h>
 #include <stdlib.h>
 

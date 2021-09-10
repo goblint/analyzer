@@ -1,3 +1,4 @@
+// PARAM: --enable ana.int.interval
 #include<stdio.h>
 
 static int badStatic = 0;
