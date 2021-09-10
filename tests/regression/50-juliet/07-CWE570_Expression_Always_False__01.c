@@ -3,9 +3,9 @@
 
 bool gFalse = false;
 
-void main() 
+void main()
 {
-    if (gFalse) // WARN: expression is always false
+    if (gFalse) // TODO WARN: expression is always false
     {
         printf("Never prints");
     }
