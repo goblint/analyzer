@@ -159,6 +159,46 @@ struct
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
     List.iter (one_w f) !Messages.Table.messages_list
 
+ let printSarifResults f (xs:value M.t) =
+      let print_id f = function
+        | MyCFG.Statement stmt  -> BatPrintf.fprintf f " %d" stmt.sid
+        | MyCFG.Function g      -> BatPrintf.fprintf f " %d" g.svar.vid
+        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f " %d" g.svar.vid
+      in    
+      let print_warning  warning=
+         match     warning with 
+          `text (s,loc) ->  BatPrintf.fprintf f "\n        \"string\": \"%s\"," s;
+
+          |`group ((s:string),x::t) -> BatPrintf.fprintf f "\n        \"string case2\": \"%s\"," s;
+
+          |`group ( (s:string),__ ) ->  BatPrintf.fprintf f "\n        \"string case3\": \"%s\"," s;
+(*
+          `group (s,x:xs) ->  BatPrintf.fprintf f "\n        \"string case2\": \"%s\"," s;
+          `group ( (s:string),_[] ) ->  BatPrintf.fprintf f "\n        \"string case3\": \"%s\"," s;
+          _ -> BatPrintf.fprintf f "\n        \"string case4\": \"%s\"," s;
+          *)
+       in   
+      let print_one_entry (loc,n,fd) (v:value)=        
+        BatPrintf.fprintf f "    {\n        \"ruleId\": \"%a\"," print_id n;
+        BatPrintf.fprintf f "\n        \"level\": \"%s\"," "none" ;
+        BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," "TODO message text" ;
+        BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    " ;
+        BatPrintf.fprintf f "       \"physicalLocation\": " ;
+        BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" loc.file ;
+        BatPrintf.fprintf f "              \"region\": {\n                \"startLine\":%d\n              }\n      " loc.line ;
+        BatPrintf.fprintf f "       }\n";
+        BatPrintf.fprintf f "       }\n       ]";
+        BatPrintf.fprintf f "\n    },\n";
+        (*  (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv
+        BatPrintf.fprintf f "\n        \"states\": %s\n    },\n"  (Yojson.Safe.to_string (Range.to_yojson v));    
+        BatPrintf.fprintf f "\n        \"file\": \"%s\"," loc.file ;
+        BatPrintf.fprintf f "\n        \"byte\": \"%d\", \"states\": %s\n    },\n"  loc.byte (Yojson.Safe.to_string (Range.to_yojson v))*)
+      in      
+      BatPrintf.fprintf f "\"message table length:%d\n" (List.length !Messages.Table.messages_list) 
+       
+      (*List.iter print_warning !Messages.Table.messages_list;
+      iter print_one_entry xs*)
+     
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
@@ -213,6 +253,58 @@ struct
       else
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
+    | "sarif" -> 
+      let open BatPrintf in
+      let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+      let file2funs = SH.create 100 in
+      let funs2node = SH.create 100 in
+       iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
+      iterGlobals file (function
+          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
+          | _ -> ()
+        );
+      let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
+      let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
+      (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
+      (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
+      let p_node f = function
+        | MyCFG.Statement stmt  -> fprintf f "\"%d\"" stmt.sid
+        | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.svar.vid
+        | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.svar.vid
+      in
+      let printSarifLogObject f =  
+        (*let print version f (loc,n,fd)::xs= fprintf f "\"version\": \"%s\",\n  " "2.1.0"  in*)
+        fprintf f "{\n \"$schema\": \"%s\",\n  " "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
+        fprintf f "\"version\": \"%s\",\n  " "2.1.0";
+      in 
+      let write_file f fn =
+        printf "Writing sarif to temp. file: %s\n%!" fn;
+        printSarifLogObject f;
+        fprintf f "\"runs\": [\n  ";
+        fprintf f "{\n  ";
+        fprintf f "\"tool\": {\n    ";
+        fprintf f "\ \"driver\": {\n       ";
+        fprintf f "\"name\": \"%s\",\n       " "goblint";
+        fprintf f "\"fullName\": \"%s\",\n       " "goblint static analyser";        
+        fprintf f "\"downloadUri\": \"%s\"\n    " "https://github.com/goblint/analyzer";
+        fprintf f "}\n  ";  
+        fprintf f "},\n";
+        fprintf f "\   \"invocations\": [\n       ";
+        fprintf f "{\n";        
+        fprintf f "        \"commandLine\": \"%a\",\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
+        fprintf f "        \"executionSuccessful\": %B\n    " true;        
+        fprintf f "   }\n";  
+        fprintf f "   ],\n" ;
+        fprintf f "   \"defaultSourceLanguage\": \"%s\",\n" "C";
+        fprintf f "   \"results\": [\n%a" printSarifResults (Lazy.force table) ;
+        fprintf f "]\n" ;
+        fprintf f "}\n  " ;
+        fprintf f "]\n" ;       
+        fprintf f "}\n";       
+        
+      in
+      let f = BatIO.output_channel out in
+      write_file f (get_string "outfile")
     | "json" ->
       let open BatPrintf in
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in

@@ -80,6 +80,18 @@ let option_spec_list =
     set_bool "g2html" true;
     set_string "result" "fast_xml"
   in
+  let configure_sarif () =
+    if (get_string "outfile" = "") then
+      set_string "outfile" "test.sarif";
+    if get_string "exp.g2html_path" = "" then
+      set_string "exp.g2html_path" exe_dir;
+    set_bool "dbg.print_dead_code" true;
+    set_bool "exp.cfgdot" true;
+    set_bool "g2html" false;
+    set_bool "printstats" true;
+    set_string "warn" "early";
+    set_string "result" "sarif"
+  in
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""
   ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
@@ -98,6 +110,7 @@ let option_spec_list =
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
   ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
+  ; "--sarif"               , Arg.Unit (fun _ -> configure_sarif ()),""
   ; "--html"               , Arg.Unit (fun _ -> configure_html ()),""
   ; "--compare_runs"       , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x))], ""
   ; "--oil"                , Arg.String oil, ""
