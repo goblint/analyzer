@@ -13,7 +13,6 @@ int main() {
     assert(ptr1==ptr2); // UNKNOWN!
 
     // CIL turn this into the following, that is not UB and will fail in the concrete
-    // Goblint claims that this holds
     assert((unsigned long) ptr1 == (unsigned long) ptr2); // UNKNOWN!
 
     // Here, we do not claim it holds, as we cast our abstract values to the type for ints on assignment
