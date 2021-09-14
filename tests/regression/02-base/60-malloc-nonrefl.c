@@ -9,11 +9,11 @@ int main() {
     int* ptr1 = malloc_2(sizeof(int));
     int* ptr2 = malloc_2(sizeof(int));
 
-    // This is technically UB (comparing unrelated pointers)
-    assert(ptr1==ptr2); // UNKNOWN!
+    // will fail in the concrete
+    assert(ptr1==ptr2); // UNKNOWN
 
-    // CIL turn this into the following, that is not UB and will fail in the concrete
-    assert((unsigned long) ptr1 == (unsigned long) ptr2); // UNKNOWN!
+    // CIL turns this into the following
+    assert((unsigned long) ptr1 == (unsigned long) ptr2); // UNKNOWN
 
     // Here, we do not claim it holds, as we cast our abstract values to the type for ints on assignment
     int i1 =  (int)ptr1;
