@@ -158,44 +158,50 @@ struct
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
     List.iter (one_w f) !Messages.Table.messages_list
-
- let printSarifResults f (xs:value M.t) =
-      let print_id f = function
-        | MyCFG.Statement stmt  -> BatPrintf.fprintf f " %d" stmt.sid
-        | MyCFG.Function g      -> BatPrintf.fprintf f " %d" g.svar.vid
-        | MyCFG.FunctionEntry g -> BatPrintf.fprintf f " %d" g.svar.vid
-      in    
-      let print_warning  warning=
-         match     warning with 
-          `text (s,loc) ->  BatPrintf.fprintf f "\n        \"string\": \"%s\"," s;
-
-          |`group ((s:string),x::t) -> BatPrintf.fprintf f "\n        \"string case2\": \"%s\"," s;
-
-          |`group ( (s:string),__ ) ->  BatPrintf.fprintf f "\n        \"string case3\": \"%s\"," s;
 (*
-          `group (s,x:xs) ->  BatPrintf.fprintf f "\n        \"string case2\": \"%s\"," s;
-          `group ( (s:string),_[] ) ->  BatPrintf.fprintf f "\n        \"string case3\": \"%s\"," s;
-          _ -> BatPrintf.fprintf f "\n        \"string case4\": \"%s\"," s;
-          *)
-       in   
-      let print_one_entry (loc,n,fd) (v:value)=        
-        BatPrintf.fprintf f "    {\n        \"ruleId\": \"%a\"," print_id n;
-        BatPrintf.fprintf f "\n        \"level\": \"%s\"," "none" ;
-        BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," "TODO message text" ;
-        BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    " ;
-        BatPrintf.fprintf f "       \"physicalLocation\": " ;
-        BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" loc.file ;
-        BatPrintf.fprintf f "              \"region\": {\n                \"startLine\":%d\n              }\n      " loc.line ;
-        BatPrintf.fprintf f "       }\n";
-        BatPrintf.fprintf f "       }\n       ]";
-        BatPrintf.fprintf f "\n    },\n";
-        (*  (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv
-        BatPrintf.fprintf f "\n        \"states\": %s\n    },\n"  (Yojson.Safe.to_string (Range.to_yojson v));    
-        BatPrintf.fprintf f "\n        \"file\": \"%s\"," loc.file ;
-        BatPrintf.fprintf f "\n        \"byte\": \"%d\", \"states\": %s\n    },\n"  loc.byte (Yojson.Safe.to_string (Range.to_yojson v))*)
-      in      
-      BatPrintf.fprintf f "\"message table length:%d\n" (List.length !Messages.Table.messages_list) 
-       
+    let location (piece: Messages.Piece.t) =
+      match piece.loc with 
+          None -> 0;
+          Some location -> location.line;
+          Some _ ->1;
+*)
+    let rec printMultipiece f (mp:Messages.MultiPiece.t)=match mp with
+       | Single (piece: Messages.Piece.t) ->  
+              BatPrintf.fprintf f "              \"region\": {\n                \"startLine\":%d\n              }\n      " 1 ;
+        | Group g ->BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;;
+
+    let printSarifResults f (xs:value M.t) =     
+         let print_new_entry (message:Messages.Message.t )=     
+             BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;
+              BatPrintf.fprintf f "\n        \"level\": \"%s\"," "none" ;
+              BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," "TODO message text" ;
+              BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    " ;
+              BatPrintf.fprintf f "       \"physicalLocation\": " ;
+              (*
+              BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" loc.file ;
+             BatPrintf.fprintf f "              \"region\": {\n                \"startLine\":%d\n              }\n      " loc.line ;
+              *)
+             BatPrintf.fprintf f "       }\n";
+             BatPrintf.fprintf f "       }\n       ]";
+              BatPrintf.fprintf f "\n    },\n";
+             BatPrintf.fprintf f "one entry \n";
+            BatPrintf.fprintf f "    {\n        \"severity\": \"%s\","  (Messages.Severity.to_string message.severity);
+         
+       in
+       let rec print_new (message_table:Messages.Message.t list)= 
+          match message_table with 
+          [] -> BatPrintf.fprintf f "\n";
+          |x::[] -> print_new_entry x;
+          | x::xs ->print_new_entry x;
+                   BatPrintf.fprintf f ";" ;
+                    print_new xs;
+           
+       in
+      
+      BatPrintf.fprintf f "\"message table length:%d\n" (List.length !Messages.Table.messages_list); 
+      print_new (List.rev !Messages.Table.messages_list)
+      
+      
       (*List.iter print_warning !Messages.Table.messages_list;
       iter print_one_entry xs*)
      

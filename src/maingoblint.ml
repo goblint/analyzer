@@ -88,8 +88,6 @@ let option_spec_list =
     set_bool "dbg.print_dead_code" true;
     set_bool "exp.cfgdot" true;
     set_bool "g2html" false;
-    set_bool "printstats" true;
-    set_string "warn" "early";
     set_string "result" "sarif"
   in
   let tmp_arg = ref "" in
