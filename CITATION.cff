@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 
 preferred-citation:
-  type: conference # CFF doesn't have inproceedings, but in BibTex conference is an alias for inproceedings
+  type: conference-paper # this corresponds to inproceedings in BibTex: https://github.com/citation-file-format/ruby-cff/blob/d5b8dac597946d01e52967cf160325bf6218f9f6/lib/cff/formatter/bibtex_formatter.rb#L86-L87
   authors:
     - given-names: Vesal
       family-names: Vojdani
