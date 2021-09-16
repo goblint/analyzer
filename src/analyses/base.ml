@@ -469,6 +469,7 @@ struct
   let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
   let context (fd: fundec) (st: store): store =
+    (* TODO: use fd attrs *)
     let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
     st |>
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))

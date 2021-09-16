@@ -20,7 +20,8 @@ struct
 
   let should_join = Priv.should_join
 
-  let context fd x = if GobConfig.get_bool "ana.apron.no-context" then D.bot () else x (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
+  let context fd x =
+    if GobConfig.get_bool "ana.apron.no-context" || Cilfacade.hasGoblintContextAttribute "apron.no-context" fd.svar.vattr then D.bot () else x (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
 
 
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
