@@ -1,6 +1,7 @@
 cff-version: 1.2.0
+
 preferred-citation:
-  type: proceedings
+  type: conference # CFF doesn't have inproceedings, but in BibTex conference is an alias for inproceedings
   authors:
     - given-names: Vesal
       family-names: Vojdani
@@ -15,10 +16,10 @@ preferred-citation:
     - given-names: Ralf
       family-names: Vogler
   title: "Static race detection for device drivers: the Goblint approach"
-  collection-title: "Proceedings of the 31st IEEE/ACM International Conference on Automated Software Engineering, ASE 2016"
+  collection-title: "Proceedings of the 31st IEEE/ACM International Conference on Automated Software Engineering, ASE 2016" # not used by GitHub
   start: 391
   end: 402
   publisher:
-    name: ACM
-  year: 2016
+    name: ACM # not used by GitHub
+  year: 2016 # not used by GitHub
   doi: 10.1145/2970276.2970337
