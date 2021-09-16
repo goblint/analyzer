@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+preferred-citation:
+  type: proceedings
+  authors:
+    - given-names: Vesal
+      family-names: Vojdani
+    - given-names: Kalmer
+      family-names: Apinis
+    - given-names: Vootele
+      family-names: Rõtov
+    - given-names: Helmut
+      family-names: Seidl
+    - given-names: Varmo
+      family-names: Vene
+    - given-names: Ralf
+      family-names: Vogler
+  title: "Static race detection for device drivers: the Goblint approach"
+  collection-title: "Proceedings of the 31st IEEE/ACM International Conference on Automated Software Engineering, ASE 2016"
+  start: 391
+  end: 402
+  publisher:
+    name: ACM
+  year: 2016
+  doi: 10.1145/2970276.2970337
