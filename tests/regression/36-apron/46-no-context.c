@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval --enable ana.apron.no-context
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval --disable ana.apron.context
 #include <assert.h>
 
 int oct(int x, int y) {
@@ -14,7 +14,7 @@ void main() {
   int x, y, res;
   if (x <= y) {
     res = oct(x, y);
-    assert(res == 1); // UNKNOWN (indended by no-context)
+    assert(res == 1); // UNKNOWN (indended by disabled context)
   }
 
   res = oct(x, y);

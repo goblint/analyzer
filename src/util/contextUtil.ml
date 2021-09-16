@@ -9,14 +9,14 @@ let has_attribute s al =
       | _ -> false
     ) al
 
-let should_remove ~removeOption ~removeAttr ~keepAttr fd =
+let should_remove ~keepOption ~removeAttr ~keepAttr fd =
   let al = fd.svar.vattr in
-  match GobConfig.get_bool removeOption, has_attribute removeAttr al, has_attribute keepAttr al with
+  match GobConfig.get_bool keepOption, has_attribute removeAttr al, has_attribute keepAttr al with
   | _, true, true ->
     failwith (Printf.sprintf "ContextUtil.should_remove: conflicting context attributes %s and %s on %s" removeAttr keepAttr (CilType.Fundec.show fd))
   | _, false, true
-  | false, false, false ->
+  | true, false, false ->
     false
-  | true, _, false
+  | false, _, false
   | _, true, false ->
     true
