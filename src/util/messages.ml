@@ -15,7 +15,7 @@ struct
   [@@deriving eq, show { with_path = false }]
 
   let hash x = Hashtbl.hash x (* variants, so this is fine *)
-  let to_string = function
+ let to_string = function
       | Error -> "error"
       | Warning -> "warning"
       | Info -> "info"

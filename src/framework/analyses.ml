@@ -158,17 +158,26 @@ struct
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
     List.iter (one_w f) !Messages.Table.messages_list
-(*
-    let location (piece: Messages.Piece.t) =
-      match piece.loc with 
-          None -> 0;
-          Some location -> location.line;
-          Some _ ->1;
-*)
+   
+    let print_physicalLocationPiece f Messages.Piece.{loc; text = m; _} =
+      match loc with
+      | Some l ->
+        BatPrintf.fprintf f "       \"physicalLocation\": " ;
+             
+            BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" l.file ;
+            BatPrintf.fprintf f "              \"region\": {\n                \"startLine\":%d,\n         " l.line ;
+            BatPrintf.fprintf f "              \"startColumn\":%d\n              }\n      " l.column ;
+              
+            BatPrintf.fprintf f "       }\n";
+      | None ->
+        () (* TODO: not outputting warning without location *)
+    
+                
     let rec printMultipiece f (mp:Messages.MultiPiece.t)=match mp with
-       | Single (piece: Messages.Piece.t) ->  
-              BatPrintf.fprintf f "              \"region\": {\n                \"startLine\":%d\n              }\n      " 1 ;
-        | Group g ->BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;;
+       | Single (piece: Messages.Piece.t) -> 
+           print_physicalLocationPiece f  piece;                               
+     | Group {group_text = n; pieces = e} ->
+        BatPrintf.fprintf f ""
 
     let printSarifResults f (xs:value M.t) =     
          let print_new_entry (message:Messages.Message.t )=     
@@ -176,12 +185,7 @@ struct
               BatPrintf.fprintf f "\n        \"level\": \"%s\"," "none" ;
               BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," "TODO message text" ;
               BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    " ;
-              BatPrintf.fprintf f "       \"physicalLocation\": " ;
-              (*
-              BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" loc.file ;
-             BatPrintf.fprintf f "              \"region\": {\n                \"startLine\":%d\n              }\n      " loc.line ;
-              *)
-             BatPrintf.fprintf f "       }\n";
+            printMultipiece f message.multipiece;
              BatPrintf.fprintf f "       }\n       ]";
               BatPrintf.fprintf f "\n    },\n";
              BatPrintf.fprintf f "one entry \n";
