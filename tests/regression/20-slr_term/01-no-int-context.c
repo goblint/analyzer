@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set solver slr3t --disable exp.int-context
+// PARAM: --enable ana.int.interval --set solver slr3t --disable ana.base.context.int
 
 int f (int i) { // -2
 	return i+1; } // -3

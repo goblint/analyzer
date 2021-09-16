@@ -473,9 +473,9 @@ struct
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
     f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
-    %> f (get_bool "exp.non-ptr-context") drop_non_ptrs
-    %> f (get_bool "exp.int-context") drop_ints
-    %> f (get_bool "exp.interval-context") drop_interval
+    %> f (get_bool "ana.base.context.non-ptr") drop_non_ptrs
+    %> f (get_bool "ana.base.context.int") drop_ints
+    %> f (get_bool "ana.base.context.interval") drop_interval
 
   let context_cpa fd (st: store) = (context fd st).cpa
 

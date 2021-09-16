@@ -7,11 +7,15 @@
       "interval": false,
       "trier ": true
     },
-    "hashcons": true
+    "hashcons": true,
+    "base": {
+      "context": {
+        "non-ptr": false
+      }
+    }
   },
   "exp": {
     "earlyglobs": true,
-    "non-ptr-context": false,
     "widen-context": true,
     "solver": {
       "td3": {
