@@ -12,11 +12,13 @@
       "context": {
         "non-ptr": false
       }
+    },
+    "context": {
+      "widen": true
     }
   },
   "exp": {
     "earlyglobs": true,
-    "widen-context": true,
     "solver": {
       "td3": {
         "term": true,

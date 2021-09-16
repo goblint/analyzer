@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --disable exp.widen-context --disable ana.base.context.int
+// PARAM: --enable ana.int.interval --disable ana.context.widen --disable ana.base.context.int
 #include <assert.h>
 
 int f(int x) __attribute__((goblint_context("base.int"))); // attributes are not permitted in a function definition

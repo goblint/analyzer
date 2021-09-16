@@ -21,13 +21,15 @@
       "symb_locks",
       "region",
       "thread"
-    ]
+    ],
+    "context": {
+      "widen": false
+    }
   },
   "exp": {
     "witness": {
       "id": "enumerate"
     },
-    "widen-context": false,
     "partition-arrays": {
       "enabled": true
     },
