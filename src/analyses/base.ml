@@ -470,12 +470,12 @@ struct
 
   let context (fd: fundec) (st: store): store =
     (* TODO: use fd attrs *)
-    let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
+    let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
-    f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
-    %> f (not (get_bool "exp.non-ptr-context")) drop_non_ptrs
-    %> f (not (get_bool "exp.int-context")) drop_ints
-    %> f (not (get_bool "exp.interval-context")) drop_interval
+    f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
+    %> f (get_bool "exp.non-ptr-context") drop_non_ptrs
+    %> f (get_bool "exp.int-context") drop_ints
+    %> f (get_bool "exp.interval-context") drop_interval
 
   let context_cpa fd (st: store) = (context fd st).cpa
 
