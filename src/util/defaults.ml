@@ -170,7 +170,7 @@ let _ = ()
       ; reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses."
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
-      ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
+      ; reg Experimental "exp.non-ptr-context"      "true" "Non-address values in function contexts."
       ; reg Experimental "exp.int-context"    "true" "Integer values in function contexts."
       ; reg Experimental "exp.interval-context" "true" "Integer values of the Interval domain in function contexts."
       ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc or calloc fails."

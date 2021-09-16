@@ -11,7 +11,7 @@
   },
   "exp": {
     "earlyglobs": true,
-    "addr-context": true,
+    "non-ptr-context": false,
     "widen-context": true,
     "solver": {
       "td3": {

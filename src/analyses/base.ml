@@ -473,7 +473,7 @@ struct
     let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
     st |>
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
-    %> f (get_bool "exp.addr-context") drop_non_ptrs
+    %> f (not (get_bool "exp.non-ptr-context")) drop_non_ptrs
     %> f (not (get_bool "exp.int-context")) drop_ints
     %> f (not (get_bool "exp.interval-context")) drop_interval
 
