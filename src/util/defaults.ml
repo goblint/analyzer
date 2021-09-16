@@ -171,7 +171,7 @@ let _ = ()
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
       ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
-      ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
+      ; reg Experimental "exp.int-context"    "true" "Integer values in function contexts."
       ; reg Experimental "exp.interval-context" "true" "Integer values of the Interval domain in function contexts."
       ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc or calloc fails."
       ; reg Experimental "exp.malloc.wrappers"   "['kmalloc','__kmalloc','usb_alloc_urb','__builtin_alloca','kzalloc']"  "Loads a list of known malloc wrapper functions." (* When something new that maps to malloc or calloc is added to libraryFunctions.ml, it should also be added here.*)

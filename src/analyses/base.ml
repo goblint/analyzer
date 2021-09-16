@@ -474,7 +474,7 @@ struct
     st |>
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
     %> f (get_bool "exp.addr-context") drop_non_ptrs
-    %> f (get_bool "exp.no-int-context") drop_ints
+    %> f (not (get_bool "exp.int-context")) drop_ints
     %> f (not (get_bool "exp.interval-context")) drop_interval
 
   let context_cpa fd (st: store) = (context fd st).cpa
