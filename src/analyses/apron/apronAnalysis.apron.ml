@@ -21,7 +21,7 @@ struct
   let should_join = Priv.should_join
 
   let context fd x =
-    if ContextUtil.shouldRemove ~removeOption:"ana.apron.no-context" ~removeAttr:"apron.no-context" ~keepAttr:"apron.context" fd then
+    if ContextUtil.should_remove ~removeOption:"ana.apron.no-context" ~removeAttr:"apron.no-context" ~keepAttr:"apron.context" fd then
       D.bot () (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
     else
       x

@@ -1,6 +1,6 @@
 open Cil
 
-let hasAttribute s al =
+let has_attribute s al =
   List.exists (function
       | Attr ("goblint_context", args) when List.exists (function
           | AStr s' when s = s' -> true
@@ -9,11 +9,11 @@ let hasAttribute s al =
       | _ -> false
     ) al
 
-let shouldRemove ~removeOption ~removeAttr ~keepAttr fd =
+let should_remove ~removeOption ~removeAttr ~keepAttr fd =
   let al = fd.svar.vattr in
-  match GobConfig.get_bool removeOption, hasAttribute removeAttr al, hasAttribute keepAttr al with
+  match GobConfig.get_bool removeOption, has_attribute removeAttr al, has_attribute keepAttr al with
   | _, true, true ->
-    failwith (Printf.sprintf "ContextUtil.shouldRemove: conflicting context attributes %s and %s on %s" removeAttr keepAttr (CilType.Fundec.show fd))
+    failwith (Printf.sprintf "ContextUtil.should_remove: conflicting context attributes %s and %s on %s" removeAttr keepAttr (CilType.Fundec.show fd))
   | _, false, true
   | false, false, false ->
     false
