@@ -19,7 +19,7 @@ struct
   module C = Lattice.Unit
 
   include Analyses.IdentitySpec
-  let context _ = ()
+  let context _ _ = ()
 
   let is_integer_var (v: varinfo) =
     match v.vtype with

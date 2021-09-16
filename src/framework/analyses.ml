@@ -325,7 +325,7 @@ sig
   val exitstate  : varinfo -> D.t
 
   val should_join : D.t -> D.t -> bool
-  val context : D.t -> C.t
+  val context : fundec -> D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
   val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t
@@ -478,7 +478,7 @@ struct
   let sync ctx _ = ctx.local
   (* Most domains do not have a global part. *)
 
-  let context x = x
+  let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 end
 

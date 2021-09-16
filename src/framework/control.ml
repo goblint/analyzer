@@ -372,12 +372,12 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e)) startvars
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context n e)) startvars
       else
-        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars
+        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context n e)) startvars
     in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
+    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context n e), e) startvars in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in

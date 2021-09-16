@@ -468,7 +468,7 @@ struct
 
   let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
-  let context (st: store): store =
+  let context (fd: fundec) (st: store): store =
     let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
     st |>
     f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
@@ -476,7 +476,7 @@ struct
     %> f (get_bool "exp.no-int-context") drop_ints
     %> f (get_bool "exp.no-interval-context") drop_interval
 
-  let context_cpa (st: store) = (context st).cpa
+  let context_cpa fd (st: store) = (context fd st).cpa
 
   let convertToQueryLval x =
     let rec offsNormal o =
@@ -2336,7 +2336,7 @@ module type MainSpec = sig
   val return_lval: unit -> Cil.lval
   val return_varinfo: unit -> Cil.varinfo
   type extra = (varinfo * Offs.t * bool) list
-  val context_cpa: D.t -> BaseDomain.CPA.t
+  val context_cpa: fundec -> D.t -> BaseDomain.CPA.t
 end
 
 let main_module: (module MainSpec) Lazy.t =

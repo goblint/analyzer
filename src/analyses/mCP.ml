@@ -296,11 +296,11 @@ struct
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let context x =
+  let context fd x =
     let x = spec_list x in
     map (fun (n,(module S:MCPSpec),d) ->
         let d' = if mem n !cont_inse then S.D.top () else obj d in
-        n, repr @@ S.context d'
+        n, repr @@ S.context fd d'
       ) x
 
   let should_join x y =

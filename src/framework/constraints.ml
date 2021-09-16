@@ -30,7 +30,7 @@ struct
   let exitstate  v = D.lift (S.exitstate  v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
-  let context = S.context % D.unlift
+  let context fd = S.context fd % D.unlift
   let call_descr = S.call_descr
 
   let conv ctx =
@@ -106,7 +106,7 @@ struct
   let exitstate  = S.exitstate
   let morphstate = S.morphstate
 
-  let context = C.lift % S.context
+  let context fd = C.lift % S.context fd
   let call_descr f = S.call_descr f % C.unlift
 
   let conv ctx =
@@ -199,7 +199,7 @@ struct
   let exitstate  v = (S.exitstate  v, !start_level)
   let morphstate v (d,l) = (S.morphstate v d, l)
 
-  let context (d,_) = S.context d
+  let context fd (d,_) = S.context fd d
   let call_descr f = S.call_descr f
 
   let conv ctx =
@@ -334,7 +334,7 @@ struct
   let exitstate  = inj S.exitstate
   let morphstate v (d,m) = S.morphstate v d, m
 
-  let context (d,m) = S.context d (* just the child analysis' context *)
+  let context fd (d,m) = S.context fd d (* just the child analysis' context *)
   let call_descr = S.call_descr
 
   let conv ctx =
@@ -398,7 +398,7 @@ struct
   let exitstate  v = `Lifted (S.exitstate  v)
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
-  let context = S.context % D.unlift
+  let context fd = S.context fd % D.unlift
   let call_descr f = S.call_descr f
 
   let conv ctx =
@@ -495,7 +495,7 @@ struct
           spawns := (lval, f, args, d) :: !spawns;
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
-            let c = S.context d in
+            let c = S.context fd d in
             sidel (FunctionEntry fd, c) d;
             ignore (getl (Function fd, c))
           | exception Not_found ->
@@ -605,7 +605,7 @@ struct
       r
     in
     let paths = S.enter ctx lv f args in
-    let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
+    let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
@@ -901,11 +901,11 @@ struct
 
   let call_descr = Spec.call_descr
 
-  let context l =
+  let context fd l =
     if D.cardinal l <> 1 then
       failwith "PathSensitive2.context must be called with a singleton set."
     else
-      Spec.context @@ D.choose l
+      Spec.context fd @@ D.choose l
 
   let conv ctx x =
     let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
