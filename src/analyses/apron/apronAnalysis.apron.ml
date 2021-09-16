@@ -21,17 +21,10 @@ struct
   let should_join = Priv.should_join
 
   let context fd x =
-    let contextAttribute s = ContextUtil.hasAttribute s fd.svar.vattr in
-    match GobConfig.get_bool "ana.apron.no-context", contextAttribute "apron.no-context", contextAttribute "apron.context" with
-    | _, true, true ->
-      failwith ("conflicting apron context attributes on " ^ CilType.Fundec.show fd)
-    | _, false, true
-    | false, false, false ->
-      x (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
-    | true, _, false
-    | _, true, false ->
-      D.bot ()
-
+    if ContextUtil.shouldRemove ~removeOption:"ana.apron.no-context" ~removeAttr:"apron.no-context" ~keepAttr:"apron.context" fd then
+      D.bot () (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
+    else
+      x
 
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
   let startstate _ = { oct = AD.bot (); priv = Priv.startstate () }
