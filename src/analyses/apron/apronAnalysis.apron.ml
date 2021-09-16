@@ -21,7 +21,7 @@ struct
   let should_join = Priv.should_join
 
   let context fd x =
-    let contextAttribute s = Cilfacade.hasGoblintContextAttribute s fd.svar.vattr in
+    let contextAttribute s = ContextUtil.hasAttribute s fd.svar.vattr in
     match GobConfig.get_bool "ana.apron.no-context", contextAttribute "apron.no-context", contextAttribute "apron.context" with
     | _, true, true ->
       failwith ("conflicting apron context attributes on " ^ CilType.Fundec.show fd)

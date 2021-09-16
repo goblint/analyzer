@@ -539,12 +539,3 @@ let stmt_pretty_short () x =
   | Instr (y::ys) -> dn_instr () y
   | If (exp,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
-
-let hasGoblintContextAttribute s al =
-  List.exists (function
-      | Attr ("goblint_context", args) when List.exists (function
-          | AStr s' when s = s' -> true
-          | _ -> false
-        ) args -> true
-      | _ -> false
-    ) al
