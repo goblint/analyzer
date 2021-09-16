@@ -15,7 +15,7 @@ let get_spec () : (module Spec) =
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 = (val
             (module MCP.MCP2 : Spec)
-            |> lift (get_bool "exp.widen-context") (module WidenContextLifterSide)
+            |> lift true (module WidenContextLifterSide) (* option checked in functor *)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
             |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
