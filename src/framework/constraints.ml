@@ -814,35 +814,34 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
       module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
-      let getG v = function
-        | `Lifted1 x -> x
-        | `Lifted2 x ->
-          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
-          (* undefined () *) (* TODO this only happens for test 17/02 arinc/unique_proc *)
-          S.G.bot ()
-        | `Bot -> S.G.bot ()
-        | `Top -> failwith "weirdG"
-
-      let getL v = function
-        | `Lifted2 x -> x
-        | `Lifted1 x ->
-          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
-          undefined ()
-        | `Bot | `Top -> failwith "weirdL"
+      let split_solution hm =
+        let l' = LH.create 113 in
+        let g' = GH.create 113 in
+        let split_vars x d = match x with
+          | `L x ->
+            begin match d with
+              | `Lifted2 d -> LH.replace l' x d
+              | `Bot -> ()
+              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: local variable has top value"
+              | `Lifted1 _ -> failwith "GlobSolverFromEqSolver.split_vars: local variable has global value"
+            end
+          | `G x ->
+            begin match d with
+              | `Lifted1 d -> GH.replace g' x d
+              | `Bot -> ()
+              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: global variable has top value"
+              | `Lifted2 _ -> failwith "GlobSolverFromEqSolver.split_vars: global variable has local value"
+            end
+        in
+        VH.iter split_vars hm;
+        (l', g')
 
       let solve ls gs l =
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
         let hm = Sol'.solve EqSys.box vs sv in
-        let l' = LH.create 113 in
-        let g' = GH.create 113 in
-        let split_vars = function
-          | `L x -> fun y -> LH.replace l' x (getL x y)
-          | `G x -> fun y -> GH.replace g' x (getG x y)
-        in
-        VH.iter split_vars hm;
-        (l', g')
+        split_solution hm
     end
 
 
