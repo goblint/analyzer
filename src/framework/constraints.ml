@@ -776,24 +776,25 @@ struct
 
   let box f x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
 
-  let getR = function
+  let getG = function
     | `Lifted1 x -> x
-    | `Lifted2 _ | `Bot -> S.G.bot ()
-    | _ -> failwith "EqConstrSysFromGlobConstrSys broken: Right!"
+    | `Bot -> S.G.bot ()
+    | `Top -> S.G.top ()
+    | `Lifted2 _ -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has local value"
 
   let getL = function
     | `Lifted2 x -> x
     | `Bot -> S.D.bot ()
-    | `Lifted1 _ -> S.D.top ()
-    | _ -> failwith "EqConstrSysFromGlobConstrSys broken: Left!"
+    | `Top -> S.D.top ()
+    | `Lifted1 _ -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has global value"
 
   let l, g = (fun x -> `L x), (fun x -> `G x)
-  let le, ri = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
+  let lD, gD = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
 
   let conv f get set =
-    f (getL % get % l) (fun x v -> set (l x) (le v))
-      (getR % get % g) (fun x v -> set (g x) (ri v))
-    |> le
+    f (getL % get % l) (fun x v -> set (l x) (lD v))
+      (getG % get % g) (fun x v -> set (g x) (gD v))
+    |> lD
 
   let system = function
     | `G _ -> None
