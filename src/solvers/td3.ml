@@ -71,6 +71,13 @@ module WP =
       let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
+
+      let init_bot_all = false in (* init stores bot in rho for all vars *)
+      let init_bot_rhs = true in (* init stores bot in rho for vars with rhs *)
+      (* all=true gives old behavior, where just read globals also store bot *)
+      (* all=false, rhs=false stores no bots, but also means no dead code detected by solver (never added to rho) and local dead code sections get repeatedly recomputed (as bot) *)
+      (* all=false, rhs=true gives intermediate behavior, where dead code behaves as before, but just read globals don't store bot (no cascading bot recomputation is possible because they don't have rhs) *)
+
       let called = HM.create 10 in
 
       let infl = data.infl in
@@ -223,6 +230,8 @@ module WP =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
         if not (HM.mem rho x) then (
           new_var_event x;
+          if init_bot_all || (init_bot_rhs && S.system x <> None) then
+            HM.replace rho x (S.Dom.bot ())
           (* TODO: fix new_var_event repeatedly triggering when init-ing multiple times without value *)
         )
       in
