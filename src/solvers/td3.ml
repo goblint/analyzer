@@ -156,7 +156,10 @@ module WP =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
-      and simple_solve l x y =
+      and eval l x y =
+        if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+        get_var_event y;
+        if HM.mem called y then HM.replace wpoint y ();
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
         if S.system y = None then (init y; add_infl y x; HM.find rho y) else
         if HM.mem rho y || not space then (solve y Widen; add_infl y x; HM.find rho y) else
@@ -170,12 +173,6 @@ module WP =
           if HM.mem rho y then (HM.remove l y; solve y Widen; add_infl y x; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
         )
-      and eval l x y =
-        if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-        get_var_event y;
-        if HM.mem called y then HM.replace wpoint y ();
-        let tmp = simple_solve l x y in
-        tmp
       and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
         if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
         if S.system y <> None then (
