@@ -162,7 +162,7 @@ module WP =
         if HM.mem called y then HM.replace wpoint y ();
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
         if S.system y = None then (init y; add_infl y x; try HM.find rho y with Not_found -> S.Dom.bot ()) else
-        if HM.mem rho y || not space then (solve y Widen; add_infl y x; try HM.find rho y with Not_found -> S.Dom.bot ()) else
+        if not space || HM.mem wpoint y then (solve y Widen; add_infl y x; try HM.find rho y with Not_found -> S.Dom.bot ()) else
         if HM.mem called y then (init y; HM.remove l y; add_infl y x; try HM.find rho y with Not_found -> S.Dom.bot ()) else
         (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; add_infl y x; y') else *)
         if cache && HM.mem l y then HM.find l y
@@ -170,7 +170,7 @@ module WP =
           HM.replace called y ();
           let tmp = eq y (eval l x) (side x) in
           HM.remove called y;
-          if HM.mem rho y then (HM.remove l y; solve y Widen; add_infl y x; HM.find rho y)
+          if HM.mem wpoint y then (HM.remove l y; solve y Widen; add_infl y x; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
         )
       and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
