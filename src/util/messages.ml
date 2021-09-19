@@ -15,13 +15,15 @@ struct
   [@@deriving eq, show { with_path = false }]
 
   let hash x = Hashtbl.hash x (* variants, so this is fine *)
- let to_string = function
+ 
+  let should_warn e =   
+     let to_string = function
       | Error -> "error"
       | Warning -> "warning"
       | Info -> "info"
       | Debug -> "debug"
       | Success -> "success"
-  let should_warn e =   
+    in
     get_bool ("warn." ^ (to_string e))
 
   let to_yojson x = `String (show x)

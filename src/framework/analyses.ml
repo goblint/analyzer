@@ -199,7 +199,23 @@ struct
                  
                            
 
+   let severityToLevel (severity:Messages.Severity.t)= match severity with
+      | Error -> "error"
+      | Warning -> "warning"
+      | Info -> "note"
+      | Debug -> "none"
+      | Success -> "none"
   
+  let printSarifRules f = 
+      BatPrintf.fprintf f "      {\n";
+      BatPrintf.fprintf f "           \"Id\": \"%s\",\n" "TESTID";
+      BatPrintf.fprintf f "          \"shortDescription\": {\n";
+      BatPrintf.fprintf f "               \"text\": \"%s\"\n" "description";
+      BatPrintf.fprintf f "           },\n";
+      BatPrintf.fprintf f "           \"fullDescription\": {\n";
+      BatPrintf.fprintf f "               \"text\": \"%s\"\n" "description";
+      BatPrintf.fprintf f "           }\n  ";
+      BatPrintf.fprintf f "     }\n  "
 
   let printSarifResults f (xs:value M.t) =  
           let rec printTags f (tags:Messages.Tags.t)= match tags with 
@@ -210,8 +226,8 @@ struct
           in       
          let printOneResult (message:Messages.Message.t )=     
              printTags f message.tags;
-             BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;
-             BatPrintf.fprintf f "\n        \"level\": \"%s\"," (Messages.Severity.to_string message.severity) ;            
+             (*BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;*)
+             BatPrintf.fprintf f "\n        \"level\": \"%s\"," (severityToLevel message.severity) ;            
              printMultipiece f message.multipiece;
              BatPrintf.fprintf f "       }\n       ]";
              BatPrintf.fprintf f "\n    },\n";   
@@ -222,7 +238,8 @@ struct
                |x::[] -> printOneResult x;
                | x::xs ->printOneResult x;
                     printResults xs;
-          in       
+          in  
+          (*BatPrintf.fprintf f "%d"(List.length !Messages.Table.messages_list) ; *)
           printResults (List.rev !Messages.Table.messages_list)
      
   let output table gtable gtfxml (file: file) =
@@ -303,9 +320,13 @@ struct
         fprintf f "\ \"driver\": {\n       ";
         fprintf f "\"name\": \"%s\",\n       " "goblint";
         fprintf f "\"fullName\": \"%s\",\n       " "goblint static analyser";   
+        fprintf f "\"informationUri\": \"%s\",\n       " "https://github.com/goblint/analyzer";
         fprintf f "\"version\": \"%d\",\n       " 1;  
         (* use Version.goblint*)   
-        fprintf f "\"downloadUri\": \"%s\"\n    " "https://github.com/goblint/analyzer";
+        fprintf f "\"downloadUri\": \"%s\",\n    " "https://github.com/goblint/analyzer";
+        fprintf f "    \"rules\": [\n  ";
+        printSarifRules f;
+        fprintf f "     ]\n  ";
         fprintf f "}\n  ";  
         fprintf f "},\n";
         fprintf f "\   \"invocations\": [\n       ";
