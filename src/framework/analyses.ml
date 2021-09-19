@@ -159,55 +159,71 @@ struct
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
     List.iter (one_w f) !Messages.Table.messages_list
    
-    let print_physicalLocationPiece f Messages.Piece.{loc; text = m; _} =
-      match loc with
-      | Some l ->
-        BatPrintf.fprintf f "       \"physicalLocation\": " ;
-             
-            BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" l.file ;
-            BatPrintf.fprintf f "              \"region\": {\n                \"startLine\":%d,\n         " l.line ;
-            BatPrintf.fprintf f "              \"startColumn\":%d\n              }\n      " l.column ;
-              
-            BatPrintf.fprintf f "       }\n";
-      | None ->
-        () (* TODO: not outputting warning without location *)
     
-                
-    let rec printMultipiece f (mp:Messages.MultiPiece.t)=match mp with
-       | Single (piece: Messages.Piece.t) -> 
-           print_physicalLocationPiece f  piece;                               
-     | Group {group_text = n; pieces = e} ->
-        BatPrintf.fprintf f ""
-
-    let printSarifResults f (xs:value M.t) =     
-         let print_new_entry (message:Messages.Message.t )=     
-             BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;
-              BatPrintf.fprintf f "\n        \"level\": \"%s\"," "none" ;
-              BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," "TODO message text" ;
-              BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    " ;
-            printMultipiece f message.multipiece;
-             BatPrintf.fprintf f "       }\n       ]";
-              BatPrintf.fprintf f "\n    },\n";
-             BatPrintf.fprintf f "one entry \n";
-            BatPrintf.fprintf f "    {\n        \"severity\": \"%s\","  (Messages.Severity.to_string message.severity);
-         
-       in
-       let rec print_new (message_table:Messages.Message.t list)= 
-          match message_table with 
-          [] -> BatPrintf.fprintf f "\n";
-          |x::[] -> print_new_entry x;
-          | x::xs ->print_new_entry x;
-                   BatPrintf.fprintf f ";" ;
-                    print_new xs;
+  
+          
+  let print_physicalLocationPiece f Messages.Piece.{loc; text = m; _} =
+        match loc with
+        | Some l ->
+            BatPrintf.fprintf f "       \"physicalLocation\": " ;             
+            BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" l.file ;
+            BatPrintf.fprintf f "              \"region\": {\n";
+            BatPrintf.fprintf f "                \"startLine\":%d,\n" l.line ; 
+            BatPrintf.fprintf f "                \"startColumn\":%d,\n" l.column ; 
+            BatPrintf.fprintf f "                \"endColumn\":%d,\n" l.column ; 
+            BatPrintf.fprintf f "                \"endLine\":%d\n" l.line ;         
+            BatPrintf.fprintf f "             }\n";
            
-       in
-      
-      BatPrintf.fprintf f "\"message table length:%d\n" (List.length !Messages.Table.messages_list); 
-      print_new (List.rev !Messages.Table.messages_list)
-      
-      
-      (*List.iter print_warning !Messages.Table.messages_list;
-      iter print_one_entry xs*)
+         | None ->
+          () (* TODO: not outputting warning without location *)
+         
+  let printMultipiece f (mp:Messages.MultiPiece.t)= 
+      let rec printPieces f (pieces:Messages.Piece.t list)= match pieces with 
+            | [] ->      BatPrintf.fprintf f "           }\n";
+            | x::xs ->  print_physicalLocationPiece f  x; 
+                        printPieces f xs;
+      in
+      let printMessageText f Messages.Piece.{loc; text = m; _} =
+          BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," m ;       
+      in 
+         match mp with
+           | Single (piece: Messages.Piece.t) -> 
+               printMessageText f piece;
+               BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
+               print_physicalLocationPiece f  piece;                              
+               BatPrintf.fprintf f "           }\n";              
+           | Group {group_text = n; pieces = e} ->
+           BatPrintf.fprintf f "\n \n\n\ \n\n      Multipiece!!!\n\n\n\n\n\n    ";
+                BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
+                printPieces f e
+                 
+                           
+
+  
+
+  let printSarifResults f (xs:value M.t) =  
+          let rec printTags f (tags:Messages.Tags.t)= match tags with 
+           | [] ->BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;
+           | x::xs -> match x with 
+            | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","cwe;
+            | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\"," 1; 
+          in       
+         let printOneResult (message:Messages.Message.t )=     
+             printTags f message.tags;
+             BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;
+             BatPrintf.fprintf f "\n        \"level\": \"%s\"," (Messages.Severity.to_string message.severity) ;            
+             printMultipiece f message.multipiece;
+             BatPrintf.fprintf f "       }\n       ]";
+             BatPrintf.fprintf f "\n    },\n";   
+         in
+         let rec printResults (message_table:Messages.Message.t list)= 
+            match message_table with 
+               [] -> BatPrintf.fprintf f "\n";
+               |x::[] -> printOneResult x;
+               | x::xs ->printOneResult x;
+                    printResults xs;
+          in       
+          printResults (List.rev !Messages.Table.messages_list)
      
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
@@ -272,16 +288,7 @@ struct
       iterGlobals file (function
           | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
-        );
-      let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
-      let p_list p f xs = BatList.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
-      (*let p_kv f (k,p,v) = fprintf f "\"%s\": %a" k p v in*)
-      (*let p_obj f xs = BatList.print ~first:"{\n  " ~last:"\n}" ~sep:",\n  " p_kv xs in*)
-      let p_node f = function
-        | MyCFG.Statement stmt  -> fprintf f "\"%d\"" stmt.sid
-        | MyCFG.Function g      -> fprintf f "\"ret%d\"" g.svar.vid
-        | MyCFG.FunctionEntry g -> fprintf f "\"fun%d\"" g.svar.vid
-      in
+        );      
       let printSarifLogObject f =  
         (*let print version f (loc,n,fd)::xs= fprintf f "\"version\": \"%s\",\n  " "2.1.0"  in*)
         fprintf f "{\n \"$schema\": \"%s\",\n  " "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
@@ -295,7 +302,9 @@ struct
         fprintf f "\"tool\": {\n    ";
         fprintf f "\ \"driver\": {\n       ";
         fprintf f "\"name\": \"%s\",\n       " "goblint";
-        fprintf f "\"fullName\": \"%s\",\n       " "goblint static analyser";        
+        fprintf f "\"fullName\": \"%s\",\n       " "goblint static analyser";   
+        fprintf f "\"version\": \"%d\",\n       " 1;  
+        (* use Version.goblint*)   
         fprintf f "\"downloadUri\": \"%s\"\n    " "https://github.com/goblint/analyzer";
         fprintf f "}\n  ";  
         fprintf f "},\n";
