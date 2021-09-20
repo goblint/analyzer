@@ -242,7 +242,6 @@ let _ = ()
       ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
       ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
       ; reg Warnings "warn.race"            "true"  "Race warnings"
-      ; reg Warnings "warn.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
       ; reg Warnings "warn.analyzer"        "true"  "Analyzer messages"
       ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
       ; reg Warnings "warn.error"           "true"  "Error severity messages"
