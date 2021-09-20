@@ -73,10 +73,10 @@ module WP =
       let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
 
       let init_bot_all = false in (* init stores bot in rho for all vars *)
-      let init_bot_rhs = true in (* init stores bot in rho for vars with rhs *)
+      let init_bot_rhs = false in (* init stores bot in rho for vars with rhs *)
       (* all=true gives old behavior, where just read globals also store bot *)
-      (* all=false, rhs=false stores no bots, but also means no dead code detected by solver (never added to rho) and local dead code sections get repeatedly recomputed (as bot) *)
-      (* all=false, rhs=true gives intermediate behavior, where dead code behaves as before, but just read globals don't store bot (no cascading bot recomputation is possible because they don't have rhs) *)
+      (* all=false, rhs=false stores no bots, but also means rhs with bot value get recomputed (as bot) repeatedly, doesn't affect dead code since dead code bot is lifted in local variant, which isn't bot of Lift2 *)
+      (* all=false, rhs=true gives intermediate behavior, where just read globals don't store bot (no cascading bot recomputation is possible because they don't have rhs) *)
 
       let called = HM.create 10 in
 
