@@ -473,7 +473,6 @@ struct
         Stats.time "reachability" (Reach.prune lh gh) startvars'
       );
 
-      let out = M.get_out "uncalled" Legacy.stdout in
       let insrt k _ s = match k with
         | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
         | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
@@ -490,10 +489,8 @@ struct
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
-            if get_bool "dbg.uncalled" then (
-              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int cnt  ^ "LoC" in
-              ignore (Pretty.fprintf out "%s (%a)\n" msg CilType.Location.pretty loc)
-            )
+            if get_bool "dbg.uncalled" then
+              M.warn ~loc ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
