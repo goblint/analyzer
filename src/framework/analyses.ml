@@ -209,6 +209,10 @@ struct
   let printSarifRules f = 
       BatPrintf.fprintf f "      {\n";
       BatPrintf.fprintf f "           \"id\": \"%s\",\n" "TESTID";
+      BatPrintf.fprintf f "           \"helpUri\": \"%s\",\n" "https://github.com/goblint/analyzer";
+      BatPrintf.fprintf f "           \"help\": {\n";
+      BatPrintf.fprintf f "               \"text\": \"%s\"\n" "helptext";
+      BatPrintf.fprintf f "           },\n";
       BatPrintf.fprintf f "          \"shortDescription\": {\n";
       BatPrintf.fprintf f "               \"text\": \"%s\"\n" "description";
       BatPrintf.fprintf f "           },\n";

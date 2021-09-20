@@ -13,6 +13,10 @@
         "rules": [
         {
            "id": "TESTID",
+           "helpUri": "https://github.com/goblint/analyzer",
+           "help": {
+               "text": "helptext"
+           },
           "shortDescription": {
                "text": "description"
            },
@@ -25,122 +29,13 @@
   },
    "invocations": [
        {
-        "commandLine": "./goblint --sarif -o test.sarif tests/regression/02-base/03-pthread_join.c",
+        "commandLine": "./goblint --sarif -o test.sarif tests/regression/02-base/02-simple_assignments.c",
         "executionSuccessful": true
        }
    ],
    "defaultSourceLanguage": "C",
    "results": [
-    {
-        "ruleId": "1",
-        "level": "none",
-        "message": {
-            "text": "Query function answered {([t_fun@tests/regression/02-base/03-pthread_join.c:40:3, main], {})}"
-         },
-        "locations": [
-        {
-           "physicalLocation": {
-              "artifactLocation": {
-                "uri":"tests/regression/02-base/03-pthread_join.c"
-              },
-              "region": {
-                "startLine":43,
-                "startColumn":3,
-                "endColumn":3,
-                "endLine":43
-             }
-           }
-       }
-       ]
-    },
-    {
-        "ruleId": "1",
-        "level": "none",
-        "message": {
-            "text": "Query function answered {([t_fun2@tests/regression/02-base/03-pthread_join.c:48:3, main], {})}"
-         },
-        "locations": [
-        {
-           "physicalLocation": {
-              "artifactLocation": {
-                "uri":"tests/regression/02-base/03-pthread_join.c"
-              },
-              "region": {
-                "startLine":51,
-                "startColumn":3,
-                "endColumn":3,
-                "endLine":51
-             }
-           }
-       }
-       ]
-    },
-    {
-        "ruleId": "1",
-        "level": "none",
-        "message": {
-            "text": "Query function answered {([t_fun3@tests/regression/02-base/03-pthread_join.c:56:3, main], {})}"
-         },
-        "locations": [
-        {
-           "physicalLocation": {
-              "artifactLocation": {
-                "uri":"tests/regression/02-base/03-pthread_join.c"
-              },
-              "region": {
-                "startLine":59,
-                "startColumn":3,
-                "endColumn":3,
-                "endLine":59
-             }
-           }
-       }
-       ]
-    },
-    {
-        "ruleId": "1",
-        "level": "none",
-        "message": {
-            "text": "Query function answered {([t_fun4@tests/regression/02-base/03-pthread_join.c:64:3, main], {})}"
-         },
-        "locations": [
-        {
-           "physicalLocation": {
-              "artifactLocation": {
-                "uri":"tests/regression/02-base/03-pthread_join.c"
-              },
-              "region": {
-                "startLine":67,
-                "startColumn":3,
-                "endColumn":3,
-                "endLine":67
-             }
-           }
-       }
-       ]
-    },
-    {
-        "ruleId": "1",
-        "level": "none",
-        "message": {
-            "text": "Query function answered {([t_fun@tests/regression/02-base/03-pthread_join.c:72:3, main], {})}"
-         },
-        "locations": [
-        {
-           "physicalLocation": {
-              "artifactLocation": {
-                "uri":"tests/regression/02-base/03-pthread_join.c"
-              },
-              "region": {
-                "startLine":73,
-                "startColumn":3,
-                "endColumn":3,
-                "endLine":73
-             }
-           }
-       }
-       ]
-    },
+
 ]
 }
   ]
