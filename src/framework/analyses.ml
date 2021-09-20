@@ -208,7 +208,7 @@ struct
   
   let printSarifRules f = 
       BatPrintf.fprintf f "      {\n";
-      BatPrintf.fprintf f "           \"Id\": \"%s\",\n" "TESTID";
+      BatPrintf.fprintf f "           \"id\": \"%s\",\n" "TESTID";
       BatPrintf.fprintf f "          \"shortDescription\": {\n";
       BatPrintf.fprintf f "               \"text\": \"%s\"\n" "description";
       BatPrintf.fprintf f "           },\n";
