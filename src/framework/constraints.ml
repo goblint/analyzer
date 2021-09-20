@@ -756,18 +756,19 @@ end
 (** Translate a [GlobConstrSys] into a [EqConstrSys] *)
 module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
   : EqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
-                   and type d = Lattice.Either(S.G)(S.D).t
+                   and type d = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames).t
                    and module Var = Var2(S.LVar)(S.GVar)
-                   and module Dom = Lattice.Either(S.G)(S.D)
+                   and module Dom = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
 =
 struct
   module Var = Var2(S.LVar)(S.GVar)
   module Dom =
   struct
-    include Lattice.Either(S.G)(S.D)
+    include Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
     let printXml f = function
-      | `Left  a -> S.G.printXml f a
-      | `Right a -> S.D.printXml f a
+      | `Lifted1 a -> S.G.printXml f a
+      | `Lifted2 a -> S.D.printXml f a
+      | (`Bot | `Top) as x -> printXml f x
   end
   let increment = S.increment
   type v = Var.t
@@ -775,23 +776,25 @@ struct
 
   let box f x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
 
-  let getR = function
-    | `Left x -> x
-    | `Right _ -> S.G.bot ()
-    | _ -> failwith "EqConstrSysFromGlobConstrSys broken: Right!"
+  let getG = function
+    | `Lifted1 x -> x
+    | `Bot -> S.G.bot ()
+    | `Top -> S.G.top ()
+    | `Lifted2 _ -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has local value"
 
   let getL = function
-    | `Right x -> x
-    | `Left _ -> S.D.top ()
-    | _ -> failwith "EqConstrSysFromGlobConstrSys broken: Left!"
+    | `Lifted2 x -> x
+    | `Bot -> S.D.bot ()
+    | `Top -> S.D.top ()
+    | `Lifted1 _ -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has global value"
 
   let l, g = (fun x -> `L x), (fun x -> `G x)
-  let le, ri = (fun x -> `Right x), (fun x -> `Left x)
+  let lD, gD = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
 
   let conv f get set =
-    f (getL % get % l) (fun x v -> set (l x) (le v))
-      (getR % get % g) (fun x v -> set (g x) (ri v))
-    |> le
+    f (getL % get % l) (fun x v -> set (l x) (lD v))
+      (getG % get % g) (fun x v -> set (g x) (gD v))
+    |> lD
 
   let system = function
     | `G _ -> None
@@ -811,32 +814,34 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
       module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
-      let getG v = function
-        | `Left x -> x
-        | `Right x ->
-          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
-          (* undefined () *) (* TODO this only happens for test 17/02 arinc/unique_proc *)
-          S.G.bot ()
-
-      let getL v = function
-        | `Right x -> x
-        | `Left x ->
-          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
-          undefined ()
-
-      let solve ls gs l =
-        let vs = List.map (fun (x,v) -> `L x, `Right v) ls
-                 @ List.map (fun (x,v) -> `G x, `Left v) gs in
-        let sv = List.map (fun x -> `L x) l in
-        let hm = Sol'.solve EqSys.box vs sv in
+      let split_solution hm =
         let l' = LH.create 113 in
         let g' = GH.create 113 in
-        let split_vars = function
-          | `L x -> fun y -> LH.replace l' x (getL x y)
-          | `G x -> fun y -> GH.replace g' x (getG x y)
+        let split_vars x d = match x with
+          | `L x ->
+            begin match d with
+              | `Lifted2 d -> LH.replace l' x d
+              | `Bot -> ()
+              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: local variable has top value"
+              | `Lifted1 _ -> failwith "GlobSolverFromEqSolver.split_vars: local variable has global value"
+            end
+          | `G x ->
+            begin match d with
+              | `Lifted1 d -> GH.replace g' x d
+              | `Bot -> ()
+              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: global variable has top value"
+              | `Lifted2 _ -> failwith "GlobSolverFromEqSolver.split_vars: global variable has local value"
+            end
         in
         VH.iter split_vars hm;
         (l', g')
+
+      let solve ls gs l =
+        let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
+                 @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
+        let sv = List.map (fun x -> `L x) l in
+        let hm = Sol'.solve EqSys.box vs sv in
+        split_solution hm
     end
 
 

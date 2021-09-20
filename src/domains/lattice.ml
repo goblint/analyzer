@@ -556,56 +556,6 @@ struct
     | _ -> Pretty.dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-(* Order matters! *)
-module Either (B1: S) (B2: S) =
-struct
-  include Printable.Either (B1) (B2)
-  let top () = `Left (B1.top ())
-  let bot () = `Right (B2.bot ())
-  let is_top = function
-    | `Left x -> B1.is_top x
-    | `Right x -> false
-  let is_bot = function
-    | `Left x -> false
-    | `Right x -> B2.is_bot x
-  let leq x y =
-    match x, y with
-    | `Left  x, `Left  y -> B1.leq x y
-    | `Right x, `Right y -> B2.leq x y
-    | `Left  _, `Right _ -> false
-    | `Right _, `Left  _ -> true
-  let join x y =
-    match x, y with
-    | `Left  x, `Left  y -> `Left (B1.join x y)
-    | `Right x, `Right y -> `Right (B2.join x y)
-    | `Left  _, `Right _ -> x
-    | `Right _, `Left  _ -> y
-  let meet x y =
-    match x, y with
-    | `Left  x, `Left  y -> `Left (B1.meet x y)
-    | `Right x, `Right y -> `Right (B2.meet x y)
-    | `Left  _, `Right _ -> y
-    | `Right _, `Left  _ -> x
-  let widen x y =
-    match x, y with
-    | `Left  x, `Left  y -> `Left  (B1.widen x y)
-    | `Right x, `Right y -> `Right (B2.widen x y)
-    | `Left  x, `Right y -> `Left x
-    | `Right  x, `Left y -> `Left y
-  let narrow x y =
-    match x, y with
-    | `Left  x, `Left  y -> `Left  (B1.narrow x y)
-    | `Right x, `Right y -> `Right (B2.narrow x y)
-    | `Left  x, `Right y -> `Right y
-    | `Right  x, `Left y -> `Right x
-
-  let pretty_diff () (x,y) =
-    match (x,y) with
-    | `Left x, `Left y ->  B1.pretty_diff () (x,y)
-    | `Right x, `Right y ->  B2.pretty_diff () (x,y)
-    | _ -> Pretty.dprintf "%a not leq %a" pretty x pretty y
-end
-
 module Liszt (Base: S) =
 struct
   include Printable.Liszt (Base)
