@@ -76,7 +76,6 @@ let _ = ()
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
       ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, pretty, json-messages."
-      ; reg Std "warnstyle"       "'pretty'"     "Result style: pretty."
       ; reg Std "solver"          "'td3'"         "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
@@ -254,7 +253,7 @@ let _ = ()
 let default_schema = {schema|
 { "id"              : "root"
 , "type"            : "object"
-, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "warnstyle", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
 , "additionalProps" : false
 , "properties" :
   { "ana" :
@@ -300,9 +299,6 @@ let default_schema = {schema|
   , "kernel"          : {}
   , "dump_globs"      : {}
   , "result"          :
-    { "type"            : "string"
-    }
-  , "warnstyle"          :
     { "type"            : "string"
     }
   , "solver"          : {}

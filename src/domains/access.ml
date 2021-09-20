@@ -551,8 +551,7 @@ let print_accesses () =
 
 
 let print_result () =
-  if !some_accesses then
-    match get_string "warnstyle" with
-    | _ ->
-      print_accesses ();
-      print_summary ()
+  if !some_accesses then (
+    print_accesses ();
+    print_summary ()
+  )
