@@ -549,58 +549,10 @@ let print_accesses () =
   in
   TypeHash.iter f accs
 
-(* TODO: this races xml output is unused, remove? *)
-let print_accesses_xml () =
-  let allglobs = get_bool "allglobs" in
-  let g ls (acs,_) =
-    let h (conf,w,loc,e,lp) =
-      let atyp = if w then "write" else "read" in
-      BatPrintf.printf "  <access type=\"%s\" loc=\"%s\" conf=\"%d\">\n"
-        atyp (CilType.Location.show loc) conf;
-
-      let d_lp f (t,id) = BatPrintf.fprintf f "type=\"%s\" id=\"%s\"" t id in
-
-      let _ = match ls with
-        | None -> print_endline "    <partitions status=\"safe\" />"
-        (*| Some ls when LSSet.is_empty ls ->  print_endline "    <partitions status=\"none\" />" *)
-        | Some ls ->
-          print_endline "    <partitions>";
-          LSSet.iter (BatPrintf.printf "      <part %a />\n" d_lp) ls;
-          print_endline "    </partitions>";
-      in
-
-      print_endline "    <protectors>";
-      LSSet.iter (BatPrintf.printf "      <prot %a />\n" d_lp) lp;
-      print_endline "    </protectors>";
-      print_endline "  </access>"
-    in
-    Set.iter h acs
-  in
-  let h ty lv ht =
-    let memo = sprint ~width:0 (d_memo () (ty,lv)) in
-    match PartOptHash.fold check_safe ht None with
-    | None ->
-      if allglobs then begin
-        BatPrintf.printf "<mem id=\"%s\" status=\"safe\">\n" memo;
-        PartOptHash.iter g ht;
-        print_endline "</mem>"
-      end
-    | Some n ->
-      BatPrintf.printf "<mem id=\"%s\" status=\"race\" conf=\"%d\">\n" memo n;
-      PartOptHash.iter g ht;
-      print_endline "</mem>"
-  in
-  let f ty ht =
-    LvalOptHash.iter (h ty) ht
-  in
-  print_endline "<warnings>";
-  TypeHash.iter f accs;
-  print_endline "</warnings>"
 
 let print_result () =
   if !some_accesses then
     match get_string "warnstyle" with
-    | "xml" -> print_accesses_xml ()
     | _ ->
       print_accesses ();
       print_summary ()
