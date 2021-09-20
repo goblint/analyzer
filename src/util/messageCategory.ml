@@ -28,6 +28,7 @@ type category =
   | Integer of integer
   | Race
   | Cast of cast
+  | Deadcode
   | Unknown
   | Analyzer
 [@@deriving eq]
@@ -160,6 +161,7 @@ let should_warn e =
     | Integer _ -> "integer"
     | Race -> "race"
     | Cast _ -> "cast"
+    | Deadcode -> "deadcode"
     | Unknown -> "unknown"
     | Analyzer -> "analyzer"
   in get_bool ("warn." ^ (to_string e))
@@ -171,6 +173,7 @@ let path_show e =
   | Integer x -> "Integer" :: Integer.path_show x
   | Race -> ["Race"]
   | Cast x -> "Cast" :: Cast.path_show x
+  | Deadcode -> ["Deadcode"]
   | Unknown -> ["Unknown"]
   | Analyzer -> ["Analyzer"]
 
@@ -185,6 +188,7 @@ let from_string_list (s: string list) =
     | "integer" -> Integer.from_string_list t
     | "race" -> Race
     | "cast" -> Cast.from_string_list t
+    | "deadcode" -> Deadcode
     | "analyzer" -> Analyzer
     | _ -> Unknown
 
