@@ -216,7 +216,7 @@ let _ = ()
       ; reg Debugging "dbg.verbose"         "false" "Prints some status information."
       ; reg Debugging "dbg.trace.context"   "false" "Also print the context of solver variables."
       ; reg Debugging "dbg.showtemps"       "false" "Shows CIL's temporary variables when printing the state."
-      ; reg Debugging "dbg.uncalled"        "false" "Display uncalled functions."
+      ; reg Debugging "dbg.uncalled"        "true" "Display uncalled functions."
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
       ; reg Debugging "dbg.timeout"         "'0'"   "Stop solver after this time. 0 means no timeout. Supports optional units h, m, s. E.g. 1m6s = 01m06s = 66; 6h = 6*60*60."
