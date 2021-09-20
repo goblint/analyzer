@@ -3,6 +3,8 @@ open Cil
 open Pretty
 open GobConfig
 
+module M = Messages
+
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
 
@@ -538,7 +540,7 @@ let print_summary () =
 let print_accesses () =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  let g ls (acs,_) =
+  let g (ls, (acs,_)) =
     let h (conf,w,loc,e,lp) =
       let d_ls () = match ls with
         | None -> Pretty.text " is ok"
@@ -546,25 +548,30 @@ let print_accesses () =
         | Some ls -> text " in " ++ LSSet.pretty () ls
       in
       let atyp = if w then "write" else "read" in
-      ignore (printf "  %s@@%a%t with %a (conf. %d)" atyp d_loc loc
-                d_ls LSSet.pretty lp conf);
-      if debug then
-        ignore (printf "  (exp: %a)\n" d_exp e)
-      else
-        ignore (printf "\n")
+      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
+      let doc =
+        if debug then
+          dprintf "%t  (exp: %a)" d_msg d_exp e
+        else
+          d_msg ()
+      in
+      (doc, Some loc)
     in
-    Set.iter h acs
+    Set.enum acs
+    |> Enum.map h
   in
   let h ty lv ht =
+    let msgs () =
+      PartOptHash.enum ht
+      |> Enum.concat_map g
+      |> List.of_enum
+    in
     match PartOptHash.fold check_safe ht None with
     | None ->
-      if allglobs then begin
-        ignore(printf "Memory location %a (safe)\n" d_memo (ty,lv));
-        PartOptHash.iter g ht
-      end
+      if allglobs then
+        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
     | Some n ->
-      ignore(printf "Memory location %a (race with conf. %d)\n" d_memo (ty,lv) n);
-      PartOptHash.iter g ht
+      M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
   in
   let f ty ht =
     LvalOptHash.iter (h ty) ht

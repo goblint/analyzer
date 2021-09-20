@@ -231,6 +231,17 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   in
   Pretty.gprintf finish fmt
 
+let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc msgs =
+    let group_text = Pretty.sprint ~width:max_int doc in
+    let piece_of_msg (doc, loc) =
+      let text = Pretty.sprint ~width:max_int doc in
+      Piece.{loc; text; context = None}
+    in
+    add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
+  in
+  Pretty.gprintf finish fmt
+
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
 let warn ?loc = msg Warning ?loc
 let warn_noloc ?tags = msg_noloc Warning ?tags
