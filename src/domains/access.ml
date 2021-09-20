@@ -510,7 +510,7 @@ let print_races_oldscool () =
         sprint 80 (dprintf "Datarace at %a" d_memo (ty,lv))
     in
     if not safe || allglobs then
-      Messages.warn_group_old groupname xs
+      Messages.msg_group_race_old groupname xs
   in
   let f ty = LvalOptHash.iter (h ty) in
   TypeHash.iter f accs
