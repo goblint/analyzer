@@ -543,7 +543,7 @@ let print_accesses () =
   let g (ls, (acs,_)) =
     let h (conf,w,loc,e,lp) =
       let d_ls () = match ls with
-        | None -> Pretty.text " is ok"
+        | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
         | Some ls when LSSet.is_empty ls -> nil
         | Some ls -> text " in " ++ LSSet.pretty () ls
       in
