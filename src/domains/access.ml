@@ -486,35 +486,6 @@ let is_all_safe () =
   !safe
 
 
-let print_races_oldscool () =
-  let allglobs = get_bool "allglobs" in
-  let k ls (conf,w,loc,e,lp) =
-    let wt = if w then "write" else "read" in
-    match ls with
-    | Some ls ->
-      sprint 80 (dprintf "%s by ??? %a and lockset: %a" wt LSSet.pretty ls LSSet.pretty lp), loc
-    | None ->
-      sprint 80 (dprintf "%s by ??? ⊥ and lockset: %a" wt LSSet.pretty lp), loc
-  in
-  let g ty lv ls (accs,lp) (s,xs) =
-    let nxs  = Set.fold (fun e xs -> (k ls e) :: xs) accs xs in
-    let safe = s && not (partition_race ls (accs,lp)) in
-    (safe, nxs)
-  in
-  let h ty lv ht =
-    let safe, xs = PartOptHash.fold (g ty lv) ht (true, []) in
-    let groupname =
-      if safe then
-        sprint 80 (dprintf "Safely accessed %a (reasons ...)" d_memo (ty,lv))
-      else
-        sprint 80 (dprintf "Datarace at %a" d_memo (ty,lv))
-    in
-    if not safe || allglobs then
-      Messages.msg_group_race_old (if safe then Success else Warning) groupname xs
-  in
-  let f ty = LvalOptHash.iter (h ty) in
-  TypeHash.iter f accs
-
 (* Commenting your code is for the WEAK! *)
 let print_summary () =
   let safe       = ref 0 in
@@ -629,7 +600,6 @@ let print_accesses_xml () =
 let print_result () =
   if !some_accesses then
     match get_string "warnstyle" with
-    | "legacy" -> print_races_oldscool ()
     | "xml" -> print_accesses_xml ()
     | _ ->
       print_accesses ();
