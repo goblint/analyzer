@@ -242,9 +242,9 @@ doproject = lambda do |p|
   end
   starttime = Time.now
   if marshal then
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set warnstyle \"legacy\" --set printstats true --set save_run run  2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --set save_run run  2>#{statsfile}"
   else
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set warnstyle \"legacy\" --set printstats true 2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true 2>#{statsfile}"
   end
   pid = Process.spawn(cmd, :pgroup=>true)
   begin
@@ -286,7 +286,7 @@ doproject = lambda do |p|
     f.puts vrsn
   end
   if marshal then
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set warnstyle \"legacy\" --set printstats true --conf run/config.json --set save_run '' --set load_run run  2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --conf run/config.json --set save_run '' --set load_run run  2>#{statsfile}"
     pid = Process.spawn(cmd, :pgroup=>true)
     begin
       Timeout::timeout(timeout) {Process.wait pid}
@@ -391,7 +391,8 @@ File.open(theresultfile, "w") do |f|
 
       ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
-                    when /lockset:/                  then "race"
+                    when /\(conf\. \d+\)/            then "race"
+                    when /lockset:/                  then "race" # osek races have their own legacy-like output
                     when /Deadlock/                  then "deadlock"
                     when /Assertion .* will fail/    then "fail"
                     when /Assertion .* will succeed/ then "success"
