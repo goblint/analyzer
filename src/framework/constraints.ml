@@ -779,13 +779,13 @@ struct
   let getG = function
     | `Lifted1 x -> x
     | `Bot -> S.G.bot ()
-    | `Top -> S.G.top ()
+    | `Top -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has top value"
     | `Lifted2 _ -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has local value"
 
   let getL = function
     | `Lifted2 x -> x
     | `Bot -> S.D.bot ()
-    | `Top -> S.D.top ()
+    | `Top -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has top value"
     | `Lifted1 _ -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has global value"
 
   let l, g = (fun x -> `L x), (fun x -> `G x)
