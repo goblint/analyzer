@@ -6,8 +6,8 @@ module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
 
-module Thread = ConcDomain.Thread
-module ThreadLifted = ConcDomain.ThreadLifted
+module Thread = ThreadIdDomain.Thread
+module ThreadLifted = ThreadIdDomain.ThreadLifted
 
 let get_current (ask: Queries.ask): ThreadLifted.t =
   ask.f Queries.CurrentThreadId
@@ -22,20 +22,26 @@ module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module D = ThreadLifted
-  module C = ThreadLifted
+  module TD = Thread.D
+
+  module D = Lattice.Prod (ThreadLifted) (TD)
+  module C = D
   module G = Lattice.Unit
 
   let name () = "threadid"
 
-  let startstate v = ThreadLifted.bot ()
-  let exitstate  v = `Lifted (Thread.start_thread v)
+  let startstate v = (ThreadLifted.bot (), TD.bot ())
+  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
 
-  let morphstate v _ = `Lifted (Thread.start_thread v)
+  let morphstate v _ = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 
-  let create_tid v =
-    let loc = !Tracing.current_loc in
-    `Lifted (Thread.spawn_thread loc v)
+  let create_tid (current, td) v =
+    match current with
+    | `Lifted current ->
+      let loc = !Tracing.current_loc in
+      `Lifted (Thread.threadenter (current, td) loc v)
+    | _ ->
+      `Lifted (Thread.threadinit v ~multiple:true)
 
   let body ctx f = ctx.local
 
@@ -45,7 +51,7 @@ struct
     match fundec.svar.vname with
     | "StartupHook" ->
       (* TODO: is this necessary? *)
-      ThreadLifted.top ()
+      (ThreadLifted.top (), TD.bot ()) (* TODO: what should TD be? *)
     | _ ->
       ctx.local
 
@@ -66,7 +72,7 @@ struct
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
     if is_unique ctx then
-      let tid = ctx.local in
+      let tid = fst ctx.local in
       let tid = ThreadLifted.show tid in
       (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
     else
@@ -74,16 +80,22 @@ struct
 
   let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.CurrentThreadId -> ctx.local
+    | Queries.CurrentThreadId -> fst ctx.local
     | Queries.PartAccess {exp; var_opt; write} ->
       part_access ctx exp var_opt write
+    | Queries.MustBeUniqueThread ->
+      begin match fst ctx.local with
+        | `Lifted tid -> Thread.is_unique tid
+        | _ -> Queries.MustBool.top ()
+      end
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
-    [create_tid f]
+    [(create_tid ctx.local f, TD.bot ())]
 
   let threadspawn ctx lval f args fctx =
-    ctx.local
+    let (current, td) = ctx.local in
+    (current, Thread.threadspawn td !Tracing.current_loc f)
 end
 
 let _ =

@@ -15,7 +15,7 @@ struct
 
   let name () = "mallocWrapper"
   module D = PL
-  module G = Lattice.Unit
+  module G = BoolDomain.MayBool
   module C = D
 
   module Q = Queries
@@ -65,6 +65,9 @@ struct
   }
 
   let get_heap_var loc =
+    (* Use existing varinfo instead of allocating a duplicate,
+       which would be equal by determinism of create_var though. *)
+    (* TODO: is this poor man's hashconsing? *)
     try Hashtbl.find !heap_hash loc
     with Not_found ->
       let name = "(alloc@" ^ CilType.Location.show loc ^ ")" in
@@ -73,7 +76,7 @@ struct
       Hashtbl.add !heap_vars newvar.vid ();
       newvar
 
-  let query ctx (type a) (q: a Q.t): a Queries.result =
+  let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
     match q with
     | Q.HeapVar ->
       let loc = match ctx.local with

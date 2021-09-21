@@ -15,7 +15,7 @@ let get_spec () : (module Spec) =
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 = (val
             (module MCP.MCP2 : Spec)
-            |> lift (get_bool "exp.widen-context") (module WidenContextLifterSide)
+            |> lift true (module WidenContextLifterSide) (* option checked in functor *)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
             |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
@@ -131,8 +131,8 @@ struct
     let report tv (loc, dead) =
       if Deadcode.Locmap.mem dead_locations loc then
         match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-        | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp CilType.Location.pretty loc)
-        | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) CilType.Location.pretty loc)
+        | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
+        | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
         | _ -> ()
     in
     if get_bool "dbg.print_dead_code" then (
@@ -376,12 +376,12 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e)) startvars
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context n e)) startvars
       else
-        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars
+        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context n e)) startvars
     in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
+    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context n e), e) startvars in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in
@@ -477,7 +477,6 @@ struct
         Stats.time "reachability" (Reach.prune lh gh) startvars'
       );
 
-      let out = M.get_out "uncalled" Legacy.stdout in
       let insrt k _ s = match k with
         | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
         | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
@@ -494,10 +493,8 @@ struct
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
-            if get_bool "dbg.uncalled" then (
-              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int cnt  ^ "LoC" in
-              ignore (Pretty.fprintf out "%s (%a)\n" msg CilType.Location.pretty loc)
-            )
+            if get_bool "dbg.uncalled" then
+              M.warn ~loc ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;

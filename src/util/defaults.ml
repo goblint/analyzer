@@ -76,7 +76,6 @@ let _ = ()
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
       ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, pretty, json-messages."
-      ; reg Std "warnstyle"       "'pretty'"     "Result style: legacy, pretty, or xml."
       ; reg Std "solver"          "'td3'"         "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
@@ -139,7 +138,11 @@ let _ = ()
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
       ; reg Analyses "ana.arrayoob"        "false"        "Array out of bounds check"
-      ; reg Analyses "ana.apron.no-context" "false" "Ignore entire relation in function contexts."
+      ; reg Analyses "ana.base.context.non-ptr"      "true" "Non-address values in function contexts."
+      ; reg Analyses "ana.base.context.int"    "true" "Integer values in function contexts."
+      ; reg Analyses "ana.base.context.interval" "true" "Integer values of the Interval domain in function contexts."
+      ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
+      ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
 
 (* {4 category [Semantics]} *)
 let _ = ()
@@ -170,9 +173,6 @@ let _ = ()
       ; reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses."
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
-      ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
-      ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
-      ; reg Experimental "exp.no-interval-context" "false" "Ignore integer values of the Interval domain in function contexts."
       ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc or calloc fails."
       ; reg Experimental "exp.malloc.wrappers"   "['kmalloc','__kmalloc','usb_alloc_urb','__builtin_alloca','kzalloc']"  "Loads a list of known malloc wrapper functions." (* When something new that maps to malloc or calloc is added to libraryFunctions.ml, it should also be added here.*)
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
@@ -184,7 +184,6 @@ let _ = ()
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
-      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
       ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
@@ -216,7 +215,7 @@ let _ = ()
       ; reg Debugging "dbg.verbose"         "false" "Prints some status information."
       ; reg Debugging "dbg.trace.context"   "false" "Also print the context of solver variables."
       ; reg Debugging "dbg.showtemps"       "false" "Shows CIL's temporary variables when printing the state."
-      ; reg Debugging "dbg.uncalled"        "false" "Display uncalled functions."
+      ; reg Debugging "dbg.uncalled"        "true" "Display uncalled functions."
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
       ; reg Debugging "dbg.timeout"         "'0'"   "Stop solver after this time. 0 means no timeout. Supports optional units h, m, s. E.g. 1m6s = 01m06s = 66; 6h = 6*60*60."
@@ -242,7 +241,8 @@ let _ = ()
       ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
       ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
       ; reg Warnings "warn.race"            "true"  "Race warnings"
-      ; reg Warnings "warn.array"           "true"  "Array (Out_of_bounds of int*int) warnings"
+      ; reg Warnings "warn.deadcode"        "true"  "Dead code warnings"
+      ; reg Warnings "warn.analyzer"        "true"  "Analyzer messages"
       ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
       ; reg Warnings "warn.error"           "true"  "Error severity messages"
       ; reg Warnings "warn.warning"         "true"  "Warning severity messages"
@@ -253,7 +253,7 @@ let _ = ()
 let default_schema = {schema|
 { "id"              : "root"
 , "type"            : "object"
-, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "warnstyle", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
 , "additionalProps" : false
 , "properties" :
   { "ana" :
@@ -299,9 +299,6 @@ let default_schema = {schema|
   , "kernel"          : {}
   , "dump_globs"      : {}
   , "result"          :
-    { "type"            : "string"
-    }
-  , "warnstyle"          :
     { "type"            : "string"
     }
   , "solver"          : {}

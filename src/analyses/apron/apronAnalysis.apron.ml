@@ -20,8 +20,11 @@ struct
 
   let should_join = Priv.should_join
 
-  let context x = if GobConfig.get_bool "ana.apron.no-context" then D.bot () else x (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
-
+  let context fd x =
+    if ContextUtil.should_keep ~keepOption:"ana.apron.context" ~removeAttr:"apron.no-context" ~keepAttr:"apron.context" fd then
+      x
+    else
+      D.bot () (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
 
   let exitstate  _ = { oct = AD.bot (); priv = Priv.startstate () }
   let startstate _ = { oct = AD.bot (); priv = Priv.startstate () }

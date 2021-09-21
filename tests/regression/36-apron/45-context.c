@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval --disable ana.apron.no-context
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval --enable ana.apron.context
 #include <assert.h>
 
 int oct(int x, int y) {

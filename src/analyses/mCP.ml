@@ -303,11 +303,11 @@ struct
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let context x =
+  let context fd x =
     let x = spec_list x in
     map (fun (n,(module S:MCPSpec),d) ->
         let d' = if mem n !cont_inse then S.D.top () else obj d in
-        n, repr @@ S.context d'
+        n, repr @@ S.context fd d'
       ) x
 
   let should_join x y =
@@ -535,6 +535,7 @@ struct
       Result.top () (* query cycle *)
     else
       let asked' = QuerySet.add (Any q) asked in
+      let sides = ref [] in
       let f a (n,(module S:MCPSpec),d) =
         let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
           { local  = obj d
@@ -550,8 +551,8 @@ struct
           ; global = (fun v      -> ctx.global v |> assoc n |> obj)
           ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
           ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-          ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
-          (* sideg is forbidden in query, because they would bypass sides grouping in other transfer functions.
+          ; sideg  = (fun v g    -> sides := (v, (n, repr g)) :: !sides)
+          (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
              See https://github.com/goblint/analyzer/pull/214. *)
           ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
           }
@@ -568,7 +569,9 @@ struct
         (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
         f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
       | _ ->
-        fold_left f (Result.top ()) @@ spec_list ctx.local
+        let r = fold_left f (Result.top ()) @@ spec_list ctx.local in
+        do_sideg ctx !sides;
+        r
 
   and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
     query' QuerySet.empty ctx q

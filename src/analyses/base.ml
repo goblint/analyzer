@@ -395,6 +395,7 @@ struct
     | `List e -> reachable_from_value ask gs st (`Address (ValueDomain.Lists.entry_rand e)) t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
+    | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
    * all pointers within a structure should be considered, but we don't follow
@@ -467,15 +468,15 @@ struct
 
   let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
-  let context (st: store): store =
-    let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
+  let context (fd: fundec) (st: store): store =
+    let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
-    f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
-    %> f (get_bool "exp.addr-context") drop_non_ptrs
-    %> f (get_bool "exp.no-int-context") drop_ints
-    %> f (get_bool "exp.no-interval-context") drop_interval
+    f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
+    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
+    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
+    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
 
-  let context_cpa (st: store) = (context st).cpa
+  let context_cpa fd (st: store) = (context fd st).cpa
 
   let convertToQueryLval x =
     let rec offsNormal o =
@@ -539,6 +540,7 @@ struct
           in
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
         | `Int _ -> (empty, TS.bot (), false)
+        | `Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
       reachable_from_value (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)
     in
@@ -823,9 +825,9 @@ struct
         match (eval_rv a gs st n) with
         | `Address adr ->
           (if AD.is_null adr
-           then M.error ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[M.Tag.CWE 476] "Must dereference NULL pointer"
+           then M.error ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "Must dereference NULL pointer"
            else if AD.may_be_null adr
-           then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[M.Tag.CWE 476] "May dereference NULL pointer");
+           then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer");
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
@@ -852,7 +854,7 @@ struct
     | `Int i -> i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
     | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
     (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
-    | v      -> M.debug "Query function answered %a" VD.pretty v; Queries.ID.bot ()
+    | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
     r
@@ -930,6 +932,12 @@ struct
           if AD.mem Addr.UnknownPtr a
           then Q.LS.add (dummyFunDec.svar, `NoOffset) s
           else s
+        | `Bot -> Queries.Result.bot q (* TODO: remove *)
+        | _ -> Queries.Result.top q
+      end
+    | Q.EvalThread e -> begin
+      match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        | `Thread a -> a
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -1253,6 +1261,7 @@ struct
     | `Array n ->  ValueDomain.CArrays.is_bot n
     | `Blob n ->  ValueDomain.Blobs.is_bot n
     | `List n ->  ValueDomain.Lists.is_bot n
+    | `Thread n -> ValueDomain.Threads.is_bot n
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
     | `Top -> false
 
@@ -1704,6 +1713,7 @@ struct
           | [(x,offs)] ->
             let t = v.vtype in
             let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+            if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
             let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
             set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
           | _ ->
@@ -1808,7 +1818,7 @@ struct
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp |> VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType in
         let nst: store =
           match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add tid rv nst.cpa}
+          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv nst.cpa}
           | _ -> nst
         in
         set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
@@ -1993,16 +2003,16 @@ struct
     (* TODO: use format instead of %s for the following messages *)
     match check_assert e ctx.local with
     | `Lifted false ->
-      warn (M.error ~category:M.Category.Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
+      warn (M.error ~category:Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `Lifted true ->
-      warn (M.success ~category:M.Category.Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
+      warn (M.success ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
     | `Bot ->
-      M.error ~category:M.Category.Assert "%s" ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
+      M.error ~category:Assert "%s" ("Assertion \"" ^ expr ^ "\" produces a bottom. What does that mean? (currently uninitialized arrays' content is bottom)");
       ctx.local
     | `Top ->
-      warn (M.warn ~category:M.Category.Assert "%s") ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
+      warn (M.warn ~category:Assert "%s") ~annot:"UNKNOWN" ("Assertion \"" ^ expr ^ "\" is unknown.");
       (* make the state meet the assertion in the rest of the code *)
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
@@ -2126,7 +2136,7 @@ struct
           begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
             | `Lifted tid ->
               let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-              let nst = {st with cpa=CPA.add tid rv st.cpa} in
+              let nst = {st with cpa=CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv st.cpa} in
               (* TODO: emit thread return event so other analyses are aware? *)
               publish_all {ctx with local=nst} `Return (* like normal return *)
             | _ -> ()
@@ -2153,7 +2163,8 @@ struct
         | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
-            | `Address a ->
+            | `Thread a ->
+              let a = List.fold AD.join (AD.bot ()) (List.map (fun x -> AD.from_var (ThreadIdDomain.Thread.to_varinfo x)) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
               set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) (get (Analyses.ask_of_ctx ctx) gs st a None)
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
@@ -2314,7 +2325,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx octx) octx.global octx.sideg st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
-      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Address (AD.from_var tid))
+      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
     | _ ->
       ctx.local
 end
@@ -2325,7 +2336,7 @@ module type MainSpec = sig
   val return_lval: unit -> Cil.lval
   val return_varinfo: unit -> Cil.varinfo
   type extra = (varinfo * Offs.t * bool) list
-  val context_cpa: D.t -> BaseDomain.CPA.t
+  val context_cpa: fundec -> D.t -> BaseDomain.CPA.t
 end
 
 let main_module: (module MainSpec) Lazy.t =

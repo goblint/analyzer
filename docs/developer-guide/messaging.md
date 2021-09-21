@@ -30,13 +30,15 @@ For example:
 Messages.warn "Text";
 Messages.debug "Text"; (* severity functions *)
 Messages.warn "Text %s %d %a" "foo" 42 Cil.d_exp exp; (* Pretty format *)
-Messages.warn ~category:Messages.Category.Integer.overflow "Text"; (* category *)
-Messages.warn ~category:Messages.Category.Integer.overflow ~tags:[Messages.Tag.CWE 190] "Text"; (* extra tags *)
+Messages.warn ~category:Analyzer "Text"; (* category *)
+Messages.warn ~category:Messages.Category.Integer.overflow "Text"; (* category via helper *)
+Messages.warn ~category:Messages.Category.Integer.overflow ~tags:[CWE 190] "Text"; (* extra tags *)
 Messages.warn ~loc:otherloc "Text"; (* non-current location *)
 Messages.warn_noloc "Text"; (* no location *)
 ```
 
 The `~category` argument is optional and defaults to `Unknown`, but all newly added messages should have non-unknown category. New categories should be defined if necessary.
+The `Messages.Category.` prefix is only necessary when using nested definitions from helper modules.
 
 The `~tags` argument is optional and allows an arbitrary list of tags (including multiple different categories). The `~category` argument is simply for convenience to add one category tag.
 

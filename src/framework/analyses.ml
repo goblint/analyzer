@@ -335,7 +335,7 @@ sig
   val exitstate  : varinfo -> D.t
 
   val should_join : D.t -> D.t -> bool
-  val context : D.t -> C.t
+  val context : fundec -> D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
   val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t
@@ -489,6 +489,35 @@ struct
   let sync ctx _ = ctx.local
   (* Most domains do not have a global part. *)
 
-  let context x = x
+  let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+end
+
+(* Even more default implementations. Most transfer functions acting as identity functions. *)
+module IdentitySpec =
+struct
+  include DefaultSpec
+  let assign ctx (lval:lval) (rval:exp) =
+    ctx.local
+
+  let branch ctx (exp:exp) (tv:bool) =
+    ctx.local
+
+  let body ctx (f:fundec) =
+    ctx.local
+
+  let return ctx (exp:exp option) (f:fundec) =
+    ctx.local
+
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
+    [ctx.local, ctx.local]
+
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au =
+    au
+
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
+    ctx.local
+
+  let threadenter ctx lval f args = [ctx.local]
+  let threadspawn ctx lval f args fctx = ctx.local
 end

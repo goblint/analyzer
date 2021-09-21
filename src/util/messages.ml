@@ -200,8 +200,8 @@ let add m =
 
 (** Adapts old [print_group] to new message structure.
     Don't use for new (group) warnings. *)
-let warn_group_old group_name errors =
-  let m = Message.{tags = [Category Unknown]; severity = Warning; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None}) errors}} in
+let msg_group_race_old severity group_name errors =
+  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None}) errors}} in
   add m;
 
   if (get_bool "ana.osek.warnfiles") then
@@ -228,6 +228,17 @@ let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
     add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = !current_context}}
+  in
+  Pretty.gprintf finish fmt
+
+let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc msgs =
+    let group_text = Pretty.sprint ~width:max_int doc in
+    let piece_of_msg (doc, loc) =
+      let text = Pretty.sprint ~width:max_int doc in
+      Piece.{loc; text; context = None}
+    in
+    add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
   in
   Pretty.gprintf finish fmt
 
