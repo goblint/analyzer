@@ -252,7 +252,7 @@ module WP =
         print_endline "Destabilizing start functions if their start state changed...";
         (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
         List.iter (fun (v,d) ->
-          match List.assoc_opt v data.st with
+          match GU.assoc_eq v data.st S.Var.equal with
           | Some d' ->
               if S.Dom.equal d d' then
                 (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
