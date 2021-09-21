@@ -316,9 +316,17 @@ sig
 
   val name : unit -> string
 
+  (** Auxiliary data (outside of solution domains) that needs to be marshaled and unmarshaled.
+      This includes:
+      * hashtables,
+      * varinfos (create_var),
+      * RichVarinfos. *)
   type marshal
 
+  (** Initialize using unmarshaled auxiliary data (if present). *)
   val init : marshal option -> unit
+
+  (** Finalize and return auxiliary data to be marshaled. *)
   val finalize : unit -> marshal
   (* val finalize : G.t -> unit *)
 
