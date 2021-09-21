@@ -1,3 +1,5 @@
+// PARAM: --enable ana.int.interval
+// def_exc doesn't eval_rv/invariant <= INT_MAX using Exc range
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
