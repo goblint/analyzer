@@ -413,3 +413,6 @@ let self_signal signal = Unix.kill (Unix.getpid ()) signal
 let rec zip x y = match x,y with
   | (x::xs), (y::ys) -> (x,y) :: zip xs ys
   | _ -> []
+
+let assoc_eq (x: 'a) (ys: ('a * 'b) list) (eq: 'a -> 'a -> bool): ('b option) =
+  Option.map Batteries.Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
