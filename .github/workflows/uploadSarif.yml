@@ -16,7 +16,8 @@ jobs:
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
-
+    permissions:
+       security-events: write
     steps:
         - name: Checkout code
           uses: actions/checkout@v2
@@ -37,16 +38,21 @@ jobs:
           run: ./make.sh nat
         - name: Run Goblint
           run: ./goblint --sarif -o GitHubSarif.sarif tests/regression/02-base/02-simple_assignments.c
-  upload-Sarif:
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-    steps:
+        - name: Upload SARIF file
+            uses: github/codeql-action/upload-sarif@v1
+            with:
+              # Path to SARIF file relative to the root of the repository
+              sarif_file: GitHubSarif.sarif
+# upload-Sarif:
+ #   runs-on: ubuntu-latest
+ #   permissions:
+  #    security-events: write
+  #  steps:
       # This step checks out a copy of your repository.
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v1
-        with:
+   #   - name: Checkout repository
+   #     uses: actions/checkout@v2
+   #   - name: Upload SARIF file
+    #    uses: github/codeql-action/upload-sarif@v1
+    #    with:
           # Path to SARIF file relative to the root of the repository
-          sarif_file: GitHubSarif.sarif
+      #   sarif_file: GitHubSarif.sarif
