@@ -468,15 +468,15 @@ struct
 
   let drop_interval = CPA.map (function `Int x -> `Int (ID.no_interval x) | x -> x)
 
-  let context (st: store): store =
-    let f t f (st: store) = if t then { st with cpa = f st.cpa} else st in
+  let context (fd: fundec) (st: store): store =
+    let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
-    f !GU.earlyglobs (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
-    %> f (get_bool "exp.addr-context") drop_non_ptrs
-    %> f (get_bool "exp.no-int-context") drop_ints
-    %> f (get_bool "exp.no-interval-context") drop_interval
+    f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
+    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
+    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
+    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
 
-  let context_cpa (st: store) = (context st).cpa
+  let context_cpa fd (st: store) = (context fd st).cpa
 
   let convertToQueryLval x =
     let rec offsNormal o =
@@ -2336,7 +2336,7 @@ module type MainSpec = sig
   val return_lval: unit -> Cil.lval
   val return_varinfo: unit -> Cil.varinfo
   type extra = (varinfo * Offs.t * bool) list
-  val context_cpa: D.t -> BaseDomain.CPA.t
+  val context_cpa: fundec -> D.t -> BaseDomain.CPA.t
 end
 
 let main_module: (module MainSpec) Lazy.t =

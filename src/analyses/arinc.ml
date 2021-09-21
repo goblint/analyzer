@@ -94,7 +94,7 @@ struct
 
   let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
 
-  let context d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
+  let context fd d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
 
   (* function for creating a new intermediate node (will generate a new sid every time!) *)
   let mkDummyNode ?loc line =
@@ -261,7 +261,7 @@ struct
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
     let module BaseMain = (val Base.get_main ()) in
-    let base_context = BaseMain.context_cpa @@ Obj.obj @@ List.assoc "base" ctx.presub in
+    let base_context = BaseMain.context_cpa f @@ Obj.obj @@ List.assoc "base" ctx.presub in
     let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
     { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
 

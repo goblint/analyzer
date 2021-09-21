@@ -1,6 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval --disable ana.apron.context
 #include <assert.h>
 
+int oct(int x, int y) __attribute__((goblint_context("apron.context"))); // attributes are not permitted in a function definition
 int oct(int x, int y) {
   int s;
   if (x <= y)
@@ -14,7 +15,7 @@ void main() {
   int x, y, res;
   if (x <= y) {
     res = oct(x, y);
-    assert(res == 1); // UNKNOWN (indended by disabled context)
+    assert(res == 1);
   }
 
   res = oct(x, y);

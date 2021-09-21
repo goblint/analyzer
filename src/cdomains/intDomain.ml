@@ -2480,7 +2480,7 @@ module IntDomTupleImpl = struct
 
   let name () = "intdomtuple"
 
-  (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `exp.no-int-context`. TODO better solution? *)
+  (* The Interval domain can lead to too many contexts for recursive functions (top is [min,max]), but we don't want to drop all ints as with `ana.base.context.int`. TODO better solution? *)
   let no_interval = Tuple4.map2 (const None)
 
   type 'a m = (module S with type t = 'a)

@@ -19,6 +19,7 @@ nav:
   - 'User guide':
     - user-guide/running.md
     - user-guide/inspecting.md
+    - user-guide/annotating.md
   - 'Developer guide':
     - developer-guide/developing.md
     - developer-guide/firstanalysis.md
