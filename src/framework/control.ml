@@ -130,11 +130,10 @@ struct
     );
     let str = function true -> "then" | false -> "else" in
     let report tv (loc, dead) =
-      if Deadcode.Locmap.mem dead_locations loc then
-        match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-        | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
-        | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
-        | _ -> ()
+      match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
+      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
+      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
+      | _ -> ()
     in
     if get_bool "dbg.print_dead_code" then (
       let by_fst (a,_) (b,_) = Stdlib.compare a b in

@@ -1009,15 +1009,15 @@ struct
 
   let branch ctx exp tv =
     if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then (
-      Locmap.replace Deadcode.dead_branches_cond !Tracing.next_loc exp;
+      Locmap.replace Deadcode.dead_branches_cond !Tracing.current_loc exp;
       try
         let r = branch ctx exp tv in
         (* branch is live *)
-        Locmap.replace (dead_branches tv) !Tracing.next_loc false;
+        Locmap.replace (dead_branches tv) !Tracing.current_loc false;
         r
       with Deadcode ->
         (* branch is dead *)
-        locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv);
+        locmap_modify_def true !Tracing.current_loc (fun x -> x) (dead_branches tv);
         raise Deadcode
     )
     else
