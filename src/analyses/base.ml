@@ -1761,6 +1761,8 @@ struct
       raise Deadcode
     (* Otherwise we try to impose an invariant: *)
     | _ ->
+      (* Sometimes invariant may be more precise than eval_rv and also raise Deadcode, making the branch dead.
+         For example, 50-juliet/08-CWE570_Expression_Always_False__02. *)
       refine ()
 
   let body ctx f =
