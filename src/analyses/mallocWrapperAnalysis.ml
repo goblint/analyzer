@@ -58,6 +58,11 @@ struct
   let heap_hash = Hashtbl.create 113
   let heap_vars = Hashtbl.create 113
 
+  type marshal = {
+    heap_hash: (location, varinfo) Hashtbl.t;
+    heap_vars: (int, unit) Hashtbl.t;
+  }
+
   let get_heap_var loc =
     try Hashtbl.find heap_hash loc
     with Not_found ->
@@ -83,7 +88,18 @@ struct
     let init ?marshal () =
       List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
       Hashtbl.clear heap_hash;
-      Hashtbl.clear heap_vars
+      Hashtbl.clear heap_vars;
+      match marshal with
+      | Some m ->
+        let add_all f t =
+          Hashtbl.iter (Hashtbl.add t) f
+        in
+        add_all m.heap_hash heap_hash;
+        add_all m.heap_vars heap_vars
+      | None -> ()
+
+  let finalize () =
+    {heap_hash; heap_vars}
 end
 
 let _ =
