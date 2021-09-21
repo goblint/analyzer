@@ -36,22 +36,10 @@ jobs:
 
         - name: Build
           run: ./make.sh nat
-        - name: Run Goblint
-          run: ./goblint --sarif -o GitHubSarif.sarif tests/regression/02-base/02-simple_assignments.c
-        - uses: github/codeql-action/upload-sarif@v1
+        - name: Generate the Sarif output
+          run: ./goblint --sarif -o GitHubSarif.sarif tests/regression/03-practical/04-assign_to_ukwn.c
+        - name: Upload the generated Sarif File
+          uses: github/codeql-action/upload-sarif@v1
           with:
              # Path to SARIF file relative to the root of the repository
             sarif_file: GitHubSarif.sarif
-# upload-Sarif:
- #   runs-on: ubuntu-latest
- #   permissions:
-  #    security-events: write
-  #  steps:
-      # This step checks out a copy of your repository.
-   #   - name: Checkout repository
-   #     uses: actions/checkout@v2
-   #   - name: Upload SARIF file
-    #    uses: github/codeql-action/upload-sarif@v1
-    #    with:
-          # Path to SARIF file relative to the root of the repository
-      #   sarif_file: GitHubSarif.sarif
