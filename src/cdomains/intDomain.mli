@@ -233,7 +233,7 @@ sig
   val of_congruence: Cil.ikind -> int_t * int_t -> t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
-   TODO: Should be ported to S in the future. *)
+    TODO: Should be ported to S in the future. *)
 
 module type S =
 sig
@@ -270,6 +270,8 @@ sig
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
+
+  val projection: Cil.ikind -> (bool * bool * bool * bool) -> t -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -296,6 +298,8 @@ sig
   val ending     : Cil.ikind -> int_t -> t
 
   val is_top_of: Cil.ikind -> t -> bool
+
+  val projection: (bool * bool * bool * bool) -> t -> t
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
@@ -311,6 +315,11 @@ end
 module PtrDiffIkind : Ikind
 
 module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t
+
+module IntDomUtil : sig
+  val precision_from_fundec: Cil.fundec -> (bool * bool * bool * bool)
+  val precision_from_node: unit -> (bool * bool * bool * bool)
+end
 
 (* module ManyInts : S *)
 (* module IntDomList : S *)

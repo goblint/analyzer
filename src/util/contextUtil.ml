@@ -6,6 +6,10 @@ let has_attribute s al =
           | AStr s' when s = s' -> true
           | _ -> false
         ) args -> true
+      | Attr ("precision", args) when List.exists (function
+          | AStr s' when s = s' -> true
+          | _ -> false
+        ) args -> true
       | _ -> false
     ) al
 
