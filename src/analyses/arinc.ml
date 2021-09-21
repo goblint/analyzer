@@ -49,7 +49,7 @@ struct
 
   let name () = "arinc"
 
-  let init ?marshal () =
+  let init marshal =
     LibraryFunctions.add_lib_funs Functions.special;
     LibraryFunctions.add_effects Functions.effects
 

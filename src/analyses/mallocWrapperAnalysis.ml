@@ -85,7 +85,7 @@ struct
       Hashtbl.mem heap_vars v.vid
     | _ -> Queries.Result.top q
 
-    let init ?marshal () =
+    let init marshal =
       List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
       Hashtbl.clear heap_hash;
       Hashtbl.clear heap_vars;

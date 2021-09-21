@@ -262,7 +262,7 @@ struct
 
 
   type marshal = Obj.t list
-  let init ?marshal () =
+  let init marshal =
     let map' f =
       let f x =
         try f x
@@ -286,9 +286,9 @@ struct
     match marshal with
     | Some marshal ->
       combine !analyses_list marshal
-      |> iter (fun ((_,{spec=(module S:MCPSpec); _}), marshal) -> S.init ~marshal:(Obj.obj marshal) ())
+      |> iter (fun ((_,{spec=(module S:MCPSpec); _}), marshal) -> S.init (Some (Obj.obj marshal)))
     | None ->
-      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init ()) !analyses_list
+      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init None) !analyses_list
 
   let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !analyses_list
 

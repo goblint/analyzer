@@ -318,7 +318,7 @@ sig
 
   type marshal
 
-  val init : ?marshal:marshal -> unit -> unit
+  val init : marshal option -> unit
   val finalize : unit -> marshal
   (* val finalize : G.t -> unit *)
 
@@ -445,7 +445,7 @@ end
 module DefaultSpec =
 struct
   type marshal = unit
-  let init ?marshal () = ()
+  let init _ = ()
   let finalize () = ()
   (* no inits nor finalize -- only analyses like Mutex, Base, ... need
      these to do postprocessing or other imperative hacks. *)

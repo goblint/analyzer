@@ -15,7 +15,7 @@ struct
 
   let flag_list = ref []
 
-  let init ?marshal () = flag_list := get_string_list "ana.osek.flags"
+  let init marshal = flag_list := get_string_list "ana.osek.flags"
 
   let eval_int (ask: Queries.ask) exp =
     match ask.f (Queries.EvalInt exp) with

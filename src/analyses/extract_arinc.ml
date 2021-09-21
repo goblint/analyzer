@@ -375,7 +375,7 @@ struct
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main"))
   let exitstate  v = D.bot ()
 
-  let init ?marshal () = (* registers which functions to extract and writes out their definitions *)
+  let init marshal = (* registers which functions to extract and writes out their definitions *)
     init (); (* TODO: why wasn't this called before? *)
     let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;

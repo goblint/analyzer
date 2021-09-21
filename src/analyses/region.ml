@@ -181,7 +181,7 @@ struct
 
   let name () = "region"
 
-  let init ?marshal () =
+  let init marshal =
     partition_varstore := Goblintutil.create_var @@ makeVarinfo false "REGION_PARTITIONS" voidType;
 
 end

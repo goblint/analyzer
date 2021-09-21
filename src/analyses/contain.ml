@@ -113,7 +113,7 @@ struct
 
   let funcount = ref 0
 
-  let init ?marshal () =
+  let init marshal =
     init_inh_rel ();
     Printexc.record_backtrace true;
     iterGlobals (!Cilfacade.current_file) (function GFun (f,_) -> incr funcount| _ -> ());

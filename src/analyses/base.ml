@@ -81,7 +81,7 @@ struct
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
-  let init ?marshal () =
+  let init marshal =
     return_varstore := Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType;
     Priv.init ()
 

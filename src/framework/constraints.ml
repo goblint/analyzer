@@ -189,10 +189,10 @@ struct
   let error_level = ref (`Lifted  0L)
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
-  let init ?marshal () =
+  let init marshal =
     if get_bool "dbg.slice.on" then
       start_level := `Lifted (Int64.of_int (get_int "dbg.slice.n"));
-    S.init ?marshal ()
+    S.init marshal
 
   let finalize = S.finalize
 
@@ -287,9 +287,9 @@ struct
 
   let limit = ref 0
 
-  let init ?marshal () =
+  let init marshal =
     limit := get_int "dbg.limit.widen";
-    S.init ?marshal ()
+    S.init marshal
 
   module H = MyCFG.NodeH
   let h = H.create 13

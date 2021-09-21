@@ -1262,7 +1262,7 @@ struct
     if !filtered > 0 then
       print_endline ("Filtering of safe tasks/irpts was used " ^  (string_of_int !filtered) ^ " time(s).")
 
-  let init ?marshal () = (*
+  let init marshal = (*
     let tramp = get_string "ana.osek.tramp" in
     if Sys.file_exists(tramp) then begin
       parse_tramp tramp;

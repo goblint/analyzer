@@ -279,10 +279,10 @@ struct
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
     if get_string "load_run" <> "" then (
-      Spec.init ~marshal:(Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal")) ()
+      Spec.init (Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal")))
     )
     else
-      Spec.init ();
+      Spec.init None;
     Access.init file;
 
     let test_domain (module D: Lattice.S): unit =

@@ -321,7 +321,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 
-  let init ?marshal () = (* registers which functions to extract and writes out their definitions *)
+  let init marshal = (* registers which functions to extract and writes out their definitions *)
     Osek.Spec.parse_oil ();
     let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
