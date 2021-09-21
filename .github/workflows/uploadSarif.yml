@@ -38,11 +38,10 @@ jobs:
           run: ./make.sh nat
         - name: Run Goblint
           run: ./goblint --sarif -o GitHubSarif.sarif tests/regression/02-base/02-simple_assignments.c
-        - name: Upload SARIF file
-            uses: github/codeql-action/upload-sarif@v1
-            with:
-              # Path to SARIF file relative to the root of the repository
-              sarif_file: GitHubSarif.sarif
+        - uses: github/codeql-action/upload-sarif@v1
+          with:
+             # Path to SARIF file relative to the root of the repository
+            sarif_file: GitHubSarif.sarif
 # upload-Sarif:
  #   runs-on: ubuntu-latest
  #   permissions:
