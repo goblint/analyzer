@@ -538,7 +538,7 @@ struct
   let set_overflow_flag ik =
     if Cil.isSigned ik && !GU.in_verifying_stage then (
       Goblintutil.did_overflow := true;
-      M.warn ~category:M.Category.Integer.overflow ~tags:[M.Tag.CWE 190] "Integer overflow"
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "Integer overflow"
     )
 
   let norm ik = function None -> None | Some (x,y) ->
