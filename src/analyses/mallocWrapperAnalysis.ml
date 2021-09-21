@@ -86,16 +86,16 @@ struct
       Hashtbl.mem !heap_vars v.vid
     | _ -> Queries.Result.top q
 
-    let init marshal =
-      List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
-      match marshal with
-      | Some m ->
-        heap_hash := m.heap_hash;
-        heap_vars := m.heap_vars
-      | None ->
-        (* TODO: is this necessary? resetting between multiple analyze_loop-s/phases? *)
-        Hashtbl.clear !heap_hash;
-        Hashtbl.clear !heap_vars
+  let init marshal =
+    List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
+    match marshal with
+    | Some m ->
+      heap_hash := m.heap_hash;
+      heap_vars := m.heap_vars
+    | None ->
+      (* TODO: is this necessary? resetting between multiple analyze_loop-s/phases? *)
+      Hashtbl.clear !heap_hash;
+      Hashtbl.clear !heap_vars
 
   let finalize () =
     {heap_hash = !heap_hash; heap_vars = !heap_vars}
