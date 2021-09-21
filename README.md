@@ -13,8 +13,9 @@ _The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very
 
 ### Linux
 1. Install [opam](https://opam.ocaml.org/doc/Install.html).
-2. Run `make setup` to install OCaml and dependencies via opam.
-3. Run `make` to build Goblint itself.
+2. Make sure the following are installed: `git patch m4 autoconf libgmp-dev libmpfr-dev`.
+3. Run `make setup` to install OCaml and dependencies via opam.
+4. Run `make` to build Goblint itself.
 
 ### MacOS
 1. Install GCC with `brew install gcc` (first run `xcode-select --install` if you don't want to build it from source). Goblint requires GCC while macOS's default `cpp` is Clang, which will not work.
