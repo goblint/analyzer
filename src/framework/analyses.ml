@@ -208,7 +208,7 @@ struct
   
   let printSarifRules f = 
       BatPrintf.fprintf f "      {\n";
-      BatPrintf.fprintf f "           \"id\": \"%s\",\n" "TESTID";
+      BatPrintf.fprintf f "           \"id\": \"%s\",\n" "1";
       BatPrintf.fprintf f "           \"helpUri\": \"%s\",\n" "https://github.com/goblint/analyzer";
       BatPrintf.fprintf f "           \"help\": {\n";
       BatPrintf.fprintf f "               \"text\": \"%s\"\n" "helptext";
@@ -341,8 +341,8 @@ struct
         fprintf f "   ],\n" ;
         fprintf f "   \"defaultSourceLanguage\": \"%s\",\n" "C";
         fprintf f "   \"results\": [\n%a" printSarifResults (Lazy.force table) ;
-        fprintf f "]\n" ;
-        fprintf f "}\n  " ;
+        fprintf f "   ]\n" ;
+        fprintf f "   }\n  " ;
         fprintf f "]\n" ;       
         fprintf f "}\n";       
         
