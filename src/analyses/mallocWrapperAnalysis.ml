@@ -8,7 +8,7 @@ module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = Lattice.Flat (CilType.Location) (struct
+  module PL = Lattice.Flat (MyCFG.PrintableNode) (struct
     let top_name = "Unknown line"
     let bot_name = "Unreachable line"
   end)
@@ -38,8 +38,8 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let calleeofinterest = Hashtbl.mem wrappers f.svar.vname in
     let calleectx = if calleeofinterest then
-       if ctx.local = `Top then
-        `Lifted (Node.location ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        if ctx.local = `Top then
+          `Lifted ctx.node (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
         else ctx.local (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
       else D.top () in  (* if an uninteresting callee is called, then we forget what was called before *)
     [(ctx.local, calleectx)]
@@ -54,32 +54,30 @@ struct
   let threadenter ctx lval f args = [D.top ()]
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
-
-  type id_type = Sid of int | Vid of int
   let heap_hash = ref (Hashtbl.create 113)
 
-  let get_heap_var sideg nodeId =
+  let get_heap_var sideg node =
     (* Use existing varinfo instead of allocating a duplicate,
        which would be equal by determinism of create_var though. *)
     (* TODO: is this poor man's hashconsing? *)
-    try Hashtbl.find !heap_hash nodeId
+    try Hashtbl.find !heap_hash node
     with Not_found ->
-      let name = match nodeId with
-        | Sid i -> "(alloc@" ^ "sid" ^ ":" ^ string_of_int i ^ ")"
-        | Vid i -> "(alloc@" ^ "vid" ^ ":" ^ string_of_int i ^ ")" in
+      let name = match node with
+        | Node.Statement s -> "(alloc@" ^ "sid" ^ ":" ^ string_of_int s.sid ^ ")"
+        | Function f -> "(alloc@" ^ "vid" ^ ":" ^ string_of_int f.svar.vid ^ ")"
+        | _ -> raise (Failure "A function entry node can never be the node after a malloc") in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      Hashtbl.add !heap_hash nodeId newvar;
+      Hashtbl.add !heap_hash node newvar;
       sideg newvar true;
       newvar
 
   let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
     match q with
     | Q.HeapVar ->
-      let nodeId = (match ctx.node with
-          | Statement s -> Sid s.sid
-          | Function f -> Vid f.svar.vid
-          | _ -> raise (Failure "A function entry node can never be the node after a malloc")) in
-      `Lifted (get_heap_var ctx.sideg nodeId)
+      let node = match ctx.local with
+        | `Lifted vinfo -> vinfo
+        | _ -> ctx.node in
+      `Lifted (get_heap_var ctx.sideg node)
     | Q.IsHeapVar v ->
       ctx.global v
     | Q.IsMultiple v ->

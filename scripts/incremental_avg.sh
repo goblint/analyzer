@@ -12,7 +12,7 @@ repetitions=${2}
 start_commit=${3}
 limit=${4-"999"}
 out="out"
-diff_exclude=":^fonts :^tests :^chkfont.c :^getopt.c :^figfont.txt :^showfigfonts :^figmagic :^figlist :^figlet.6 :^chkfont.6 :^figlist.6 
+diff_exclude=":^fonts :^tests :^chkfont.c :^getopt.c :^figfont.txt :^showfigfonts :^figmagic :^figlist :^figlet.6 :^chkfont.6 :^figlist.6
   :^showfigfonts.6 :^Makefile :^Makefile.tc :^README :^CHANGES :^FAQ :^LICENSE :^run-tests.sh :^tests.sh :^.gitignore"
 
 function git_bwd() { # checkout previous commit
