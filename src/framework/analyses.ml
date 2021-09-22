@@ -234,13 +234,15 @@ struct
              BatPrintf.fprintf f "\n        \"level\": \"%s\"," (severityToLevel message.severity) ;            
              printMultipiece f message.multipiece;
              BatPrintf.fprintf f "       }\n       ]";
-             BatPrintf.fprintf f "\n    },\n";   
+             BatPrintf.fprintf f "\n    }";   
          in
          let rec printResults (message_table:Messages.Message.t list)= 
             match message_table with 
                [] -> BatPrintf.fprintf f "\n";
                |x::[] -> printOneResult x;
+               BatPrintf.fprintf f "\n";
                | x::xs ->printOneResult x;
+                    BatPrintf.fprintf f ",\n";
                     printResults xs;
           in  
           (*BatPrintf.fprintf f "%d"(List.length !Messages.Table.messages_list) ; *)
