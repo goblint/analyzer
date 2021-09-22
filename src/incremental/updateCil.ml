@@ -68,7 +68,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   in
   let reset_globals (glob: global) =
     try
-      let (old_glob, commit) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
+      let (old_glob, _) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
       match (glob, old_glob) with
       | GFun (nw, _), GFun (old, _) -> reset_fun nw old
       | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
@@ -88,24 +88,23 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old
     | _ -> ()
   in
-  let update_fun (f: fundec) (old_f: fundec) =
+  let update_fun (f: fundec) =
     f.svar.vid <- make_vid ();
     List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
     List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
     List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
   in
-  let update_var (v: varinfo) (old_v: varinfo) =
+  let update_var (v: varinfo) =
     v.vid <- make_vid ()
   in
   let update_globals (glob: global) =
     try
-      let (old_glob, commit) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
-      if (String.equal commit current_commit) then (
-        match (glob, old_glob) with
-        | GFun (nw, _), GFun (old, _) -> update_fun nw old
-        | GVar (nw, _, _), GVar (old, _, _) -> update_var nw old
-        | GVarDecl (nw, _), GVarDecl (old, _) -> update_var nw old
-        | _ -> ())
+      let (old_glob, _) = Hashtbl.find map (CompareAST.identifier_of_global glob) in
+      match (glob, old_glob) with
+      | GFun (nw, _), GFun (old, _) -> update_fun nw
+      | GVar (nw, _, _), GVar (old, _, _) -> update_var nw
+      | GVarDecl (nw, _), GVarDecl (old, _) -> update_var nw
+      | _ -> ()
     with Failure m -> ()
   in
   let update_sids (glob: global) = match glob with
