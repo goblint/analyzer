@@ -60,14 +60,15 @@ struct
     (* Use existing varinfo instead of allocating a duplicate,
        which would be equal by determinism of create_var though. *)
     (* TODO: is this poor man's hashconsing? *)
-    try Hashtbl.find !heap_hash node
+    let nodeId = match node with
+      | Node.Statement s -> "sid:" ^ (string_of_int s.sid)
+      | Function f -> "vid:" ^ (string_of_int f.svar.vid)
+      | _ -> raise (Failure "A function entry node can never be the node after a malloc") in
+    try Hashtbl.find !heap_hash nodeId
     with Not_found ->
-      let name = match node with
-        | Node.Statement s -> "(alloc@" ^ "sid" ^ ":" ^ string_of_int s.sid ^ ")"
-        | Function f -> "(alloc@" ^ "vid" ^ ":" ^ string_of_int f.svar.vid ^ ")"
-        | _ -> raise (Failure "A function entry node can never be the node after a malloc") in
+      let name = "(alloc@" ^ nodeId ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      Hashtbl.add !heap_hash node newvar;
+      Hashtbl.add !heap_hash nodeId newvar;
       sideg newvar true;
       newvar
 
