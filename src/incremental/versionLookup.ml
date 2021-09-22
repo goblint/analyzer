@@ -9,11 +9,11 @@ type max_ids = {
   max_vid: int;
 }
 
-let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (global_identifier, Cil.global * commitID) Hashtbl.t) =
+let updateMap (oldFile: Cil.file) (newFile: Cil.file) (newCommitID: commitID) (ht: (global_identifier, Cil.global) Hashtbl.t) =
   let changes = compareCilFiles oldFile newFile in
   (* TODO: For updateCIL, we have to show whether the new data is from an changed or added functiong  *)
-  List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) (glob, newCommitID)) (List.map (fun a -> a.current) changes.changed);
-  List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) (glob, newCommitID)) changes.added;
+  List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) glob) (List.map (fun a -> a.current) changes.changed);
+  List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) glob) changes.added;
   (ht, changes)
 
 let create_map (new_file: Cil.file) (commit: commitID) =
@@ -23,12 +23,12 @@ let create_map (new_file: Cil.file) (commit: commitID) =
   let update_vid vid = if vid > !max_vid then max_vid := vid in
   let add_to_hashtbl tbl (global: Cil.global) =
     match global with
-    | GFun (fund, loc) as f -> update_vid fund.svar.vid; update_sid fund.smaxid; Hashtbl.replace tbl (identifier_of_global f) (f, commit)
-    | GVar (var, _, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) (v, commit)
-    | GVarDecl (var, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) (v, commit)
+    | GFun (fund, _) as f -> update_vid fund.svar.vid; update_sid fund.smaxid; Hashtbl.replace tbl (identifier_of_global f) f
+    | GVar (var, _, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) v
+    | GVarDecl (var, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) v
     | other -> ()
   in
-  let tbl : (global_identifier, Cil.global * commitID) Hashtbl.t = Hashtbl.create 1000 in
+  let tbl : (global_identifier, Cil.global) Hashtbl.t = Hashtbl.create 1000 in
   Cil.iterGlobals new_file (add_to_hashtbl tbl);
   tbl, {max_sid = !max_sid; max_vid =  !max_vid}
 
