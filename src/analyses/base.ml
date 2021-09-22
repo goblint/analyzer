@@ -1126,7 +1126,8 @@ struct
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let new_value = update_offset (Priv.read_global a gs st x) in
-        let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value in
+        let new_value' = VD.projection (true, true, true, true) new_value in
+        let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value' in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
       end else begin
@@ -2276,7 +2277,6 @@ struct
       let p = IDU.precision_from_node () in
       let return_val' = VD.projection p return_val in
       let cpa' = CPA.map (fun v -> VD.projection p v) nst.cpa in
-
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st

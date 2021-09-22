@@ -1587,7 +1587,10 @@ struct
     ] (* S TODO: decide frequencies *)
 
   let refine_with_congruence ik a b = a
-  let refine_with_interval ik a b = a
+  let refine_with_interval ik a b = match a, b with
+    | `Definite x, Some(i) -> meet ik (`Definite x) (of_interval ik i)
+    | `Excluded (s, r), Some(i) -> meet ik (`Excluded (s, r)) (of_interval ik i)
+    | _ -> a
   let refine_with_excl_list ik a b = match a, b with
     | `Excluded (s, r), Some(ls) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls)
     | _ -> a
@@ -2488,7 +2491,8 @@ module IntDomUtil = struct
   let precision_from_node () =
     let node = !MyCFG.current_node in
     if Option.is_some node then
-      precision_from_fundec (Node.find_fundec (Option.get node))
+      let fd = Node.find_fundec (Option.get node) in
+      precision_from_fundec fd
     else
       (true, true, true, true)
 end
@@ -2766,58 +2770,16 @@ module IntDomTupleImpl = struct
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.to_yojson x }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
-  (*
-  let rec get_precision attrs =
-    match attrs with
-    | [] -> None (* If a function has not been annotated precision will be None and instead the config will be used, i.e. ani.int.* *)
-    | Cil.Attr("precision", [ AInt ap ]) :: attrs' -> Some ap
-    | attr :: attrs' -> get_precision attrs'
-  let is_precision ((i1, i2, i3, i4): t) =
-    let to_int x = Bool.to_int (Option.is_some x) in
-    to_int i2 + to_int i3 + to_int i4
-  let precision_from_conf () =
-    let f n = Bool.to_int (get_bool ("ana.int."^n)) in
-    f "interval" + f "enums" + f "congruence"
-  let get_fun () =
-    (*let node = Option.get !MyCFG.current_node in*)
-    let tmp = !MyCFG.current_node in
-    let node = if Option.is_some tmp then Option.get tmp else failwith("No Node!") in
-    Node.find_fundec node
-
-  let projection ik ?(p = None) ((i1, i2, i3, i4): t) =
-    let v = (i1, i2, i3, i4) in
-    let p_pre = is_precision v in
-    let p_post = if Option.is_none p then precision_from_conf () else Option.get p in
-    if p_post < p_pre then
-      let (i1', i2', i3', i4') = refine ik v in
-      match p_post with
-      | 0 -> (i1', None, None, None)
-      | 1 -> (i1', i2', None, None)
-      | 2 -> (i1', i2', i3', None)
-      | _ -> failwith "unreachable" (* Since p is bound by [0,3] *)
-    else if p_post == p_pre then
-      refine ik v
-    else
-      match p_post with
-      | 1 -> refine ik (i1, Some (I2.top_of ik), None, None)
-      | 2 -> refine ik (i1, Some (I2.top_of ik), Some (I3.top_of ik), None)
-      | 3 -> refine ik (i1, Some (I2.top_of ik), Some (I3.top_of ik), Some (I4.top_of ik))
-      | _ -> failwith "unreachable"
-    *)
   let projection ik (b1, b2, b3, b4) ((i1, i2, i3, i4): t) =
-    let set b i i' =
-      if b then
-        if Option.is_some i then
-          i
-        else
-          Some i'
-      else
-        None
+    let set i' = function
+      | true, Some i -> Some i
+      | true, None -> Some i'
+      | false, _ -> None
     in
-    refine ik ( set b1 i1 (I1.top_of ik)
-              , set b2 i2 (I2.top_of ik)
-              , set b3 i3 (I3.top_of ik)
-              , set b4 i4 (I4.top_of ik))
+    refine ik ( set (I1.top_of ik) (b1, i1)
+              , set (I2.top_of ik) (b2, i2)
+              , set (I3.top_of ik) (b3, i3)
+              , set (I4.top_of ik) (b4, i4))
 
   (* f2: binary ops *)
   let join ik =
