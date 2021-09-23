@@ -171,5 +171,5 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromEqSolver (WP) in
-  Selector.add_solver ("topdown", (module WP : GenericGlobSolver));
+  let module WP = GlobIncrSolverFromEqSolver (WP) in
+  Selector.add_solver ("topdown", (module WP : GenericIncrGlobSolver));

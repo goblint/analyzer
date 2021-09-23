@@ -22,11 +22,11 @@ module Make =
         raise @@ ConfigError ("Solver '"^solver^"' not found. Abort!")
 
     let solve =
-      let module Sol = (val choose_solver (get_string "solver") : GenericGlobSolver) in
+      let module Sol = (val choose_solver (get_string "solver") : GenericIncrGlobSolver) in
       let module F = Sol (S) (LH) (GH) in
       F.solve
   end
 
 let _ =
-  let module T1 : GenericGlobSolver = Make in
+  let module T1 : GenericIncrGlobSolver = Make in
   ()

@@ -181,4 +181,4 @@ module TD3 =
   end
 
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromEqSolver (TD3) : Analyses.GenericGlobSolver));
+  Selector.add_solver ("topdown_deprecated", (module GlobIncrSolverFromEqSolver (TD3) : Analyses.GenericIncrGlobSolver));

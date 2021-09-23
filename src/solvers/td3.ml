@@ -411,10 +411,9 @@ module WP =
       let reuse_stable = GobConfig.get_bool "exp.incremental.stable" in
       let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
       if !incremental_mode <> "off" then (
-        let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-        let loaded, data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
-          then true, Serialize.unmarshal file_in
-          else false, create_empty_data ()
+        let loaded, data = match S.increment.old_data, !incremental_mode <> "complete" with
+          | Some d, true -> true, Obj.obj d.solver_data
+          | _ -> false, create_empty_data ()
         in
         (* This hack is for fixing hashconsing.
          * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
@@ -460,33 +459,16 @@ module WP =
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
         let result = solve box st vs data in
-        let path = Goblintutil.create_dir S.increment.current_commit_dir in
-        if Sys.file_exists path then (
-          let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
-          print_endline @@ "Saving solver result to " ^ file_out;
-          Serialize.marshal result file_out;
-        );
-        clear_data result;
-
-        (* Compare current rho to old rho *)
-        if Sys.file_exists file_in && !incremental_mode <> "complete" then (
-          let old_rho = (Serialize.unmarshal file_in: solver_data).rho in
-          let eq r s =
-            let leq r s = HM.fold (fun k v acc -> acc && (try S.Dom.leq v (HM.find s k) with Not_found -> false)) r true
-          in leq r s && leq s r in
-          print_endline @@ "Rho " ^ (if eq result.rho old_rho then "did not change" else "changed") ^ " compared to previous analysis.";
-        );
-
-        result.rho
+        result.rho, Some (Obj.repr result)
       )
       else (
         let data = create_empty_data () in
         let result = solve box st vs data in
         clear_data result;
-        result.rho
+        result.rho, None
       )
   end
 
 let _ =
-  let module WP = GlobSolverFromEqSolver (WP) in
-  Selector.add_solver ("td3", (module WP : GenericGlobSolver));
+  let module WP = GlobSolverFromEqIncrSolver (WP) in
+  Selector.add_solver ("td3", (module WP : GenericIncrGlobSolver));

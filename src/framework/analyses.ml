@@ -357,15 +357,20 @@ sig
   val event : (D.t, G.t, C.t) ctx -> Events.t -> (D.t, G.t, C.t) ctx -> D.t
 end
 
+type analyzed_data = {
+  cil_file: Cil.file ;
+  solver_data: Obj.t;
+}
+
 type increment_data = {
-  analyzed_commit_dir: string;
-  current_commit_dir: string;
+  old_data: analyzed_data option;
+  new_file: Cil.file;
   changes: CompareAST.change_info
 }
 
-let empty_increment_data () = {
-  analyzed_commit_dir = "";
-  current_commit_dir = "";
+let empty_increment_data file = {
+  old_data = None;
+  new_file = file;
   changes = CompareAST.empty_change_info ()
 }
 
@@ -417,6 +422,16 @@ module type GenericEqBoxSolver =
     val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
   end
 
+(* Like [GenericEqBoxSolver], but the solve method additionally returns an optional solver state for reuse in incremental runs *)
+module type GenericIncrEqBoxSolver =
+  functor (S:EqConstrSys) ->
+  functor (H:Hash.H with type key=S.v) ->
+  sig
+    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs].  *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t option
+  end
+
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericGlobSolver =
   functor (S:GlobConstrSys) ->
@@ -426,6 +441,17 @@ module type GenericGlobSolver =
     (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].  *)
     val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
+  end
+
+(* Like [GenericGlobSolver], but the solve method additionally returns an optional solver state for reuse in incremental runs *)
+module type GenericIncrGlobSolver =
+  functor (S:GlobConstrSys) ->
+  functor (LH:Hash.H with type key=S.LVar.t) ->
+  functor (GH:Hash.H with type key=S.GVar.t) ->
+  sig
+    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs].  *)
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * Obj.t option
   end
 
 module ResultType2 (S:Spec) =

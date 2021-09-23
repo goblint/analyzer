@@ -1,11 +1,9 @@
 open Prelude
 
 let goblint_dirname = ".gob"
-
 let version_map_filename = "version.data"
-
 let cilFileName = "ast.data"
-
+let solver_data_file_name = "solver.data"
 let src_direcotry = ref ""
 
 let gob_directory () = let src_dir = !src_direcotry in
@@ -47,7 +45,15 @@ let last_analyzed_commit () =
     Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
   with e -> None
 
+let last_analyzed_commit_dir () =
+  let analyzed_commit = last_analyzed_commit () in
+  Option.map (Filename.concat (gob_directory ())) analyzed_commit
+
+let solver_data_store_path () =
+  Option.map (flip Filename.concat solver_data_file_name) (current_commit_dir ())
+
 let marshal obj fileName  =
+  print_endline @@ "Trying to output to " ^ fileName;
   let chan = open_out_bin fileName in
   Marshal.output chan obj;
   close_out chan
@@ -59,17 +65,22 @@ let unmarshal fileName =
 let results_exist () =
   last_analyzed_commit () <> None
 
-let last_analyzed_commit_dir (src_files: string list) =
-  match last_analyzed_commit () with
-  | Some commit -> commit_dir () commit
-  | None -> failwith "No previous analysis results"
+let last_analyzed_commit_dir () =
+  Option.map (commit_dir ()) (last_analyzed_commit ())
 
-let load_latest_cil (src_files: string list) =
-  try
-    let dir = last_analyzed_commit_dir src_files in
+let load_latest_cil (): Cil.file option =
+  match last_analyzed_commit_dir () with
+  | Some dir ->
     let cil = Filename.concat dir cilFileName in
     Some (unmarshal cil)
-  with e -> None
+  | None -> None
+
+let load_solver_data (): Obj.t option =
+  let concat = Filename.concat in
+  match last_analyzed_commit_dir () with
+  | Some dir ->
+    Some (unmarshal (concat dir solver_data_file_name))
+  | _ -> None
 
 let save_cil (file: Cil.file) = match current_commit_dir () with
   | Some dir ->

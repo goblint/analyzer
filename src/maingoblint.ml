@@ -385,39 +385,38 @@ let store_map updated_map max_ids = (* Creates the directory for the commit *)
   | None -> ()
 
 (* Detects changes and renames vids and sids. *)
-let diff_and_rename file =
+let diff_and_rename current_file =
   Serialize.src_direcotry := src_path ();
-
-  let change_info = (match Serialize.current_commit () with
+  let change_info: Analyses.increment_data = (match Serialize.current_commit () with
       | Some current_commit -> ((* "put the preparation for incremental analysis here!" *)
           if get_bool "dbg.verbose" then print_endline ("incremental mode running on commit " ^ current_commit);
-          let (changes, last_analyzed_commit) =
+          let (changes, last_analyzed_commit, old_file, solver_data) =
             (match Serialize.last_analyzed_commit () with
-             | Some last_analyzed_commit -> (match Serialize.load_latest_cil !cFileNames with
+             | Some last_analyzed_commit -> (match Serialize.load_latest_cil () with
                  | Some file2 ->
-                   let (version_map, changes, max_ids) = update_map file2 file in
-                   let max_ids = UpdateCil.update_ids file2 max_ids file version_map current_commit changes in
+                   let (version_map, changes, max_ids) = update_map file2 current_file in
+                   let max_ids = UpdateCil.update_ids file2 max_ids current_file version_map current_commit changes in
                    store_map version_map max_ids;
-                   (changes, last_analyzed_commit)
+                   let solver_data = Serialize.load_solver_data () in
+                   (changes, last_analyzed_commit, Some file2, solver_data)
                  | None -> failwith "No ast.data from previous analysis found!"
                )
              | None -> (match Serialize.current_commit_dir () with
                  | Some commit_dir ->
-                   let (version_map, max_ids) = VersionLookup.create_map file current_commit in
+                   let (version_map, max_ids) = VersionLookup.create_map current_file current_commit in
                    store_map version_map max_ids;
-                   (CompareAST.empty_change_info (), "")
+                   (CompareAST.empty_change_info (), "", None, None)
                  | None -> failwith "Directory for storing the results of the current run could not be created!")
             ) in
-          Serialize.save_cil file;
-          let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
+          Serialize.save_cil current_file;
+          let old_data = match old_file, solver_data with Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data) | _, _ -> None in
           let current_commit_dir = Filename.concat (data_path ()) current_commit in
-          Cilfacade.print_to_file (Filename.concat current_commit_dir "cil.c") file;
+          Cilfacade.print_to_file (Filename.concat current_commit_dir "cil.c") current_file;
           if "" <> last_analyzed_commit then (
-            CompareAST.check_file_changed analyzed_commit_dir current_commit_dir;
-            (* Note: Global initializers/start state changes are not considered here: *)
+            (* Output whether functions or globals changed. *)
             CompareAST.check_any_changed changes
           );
-          {Analyses.changes = changes; analyzed_commit_dir; current_commit_dir}
+          {Analyses.changes = changes; old_data; new_file = current_file}
         )
       | None -> failwith "Failure! Working directory is not clean")
   in change_info
@@ -452,7 +451,7 @@ let main () =
       print_endline command;
     );
     let file = preprocess_files () |> merge_preprocessed in
-    let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
+    let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data file else diff_and_rename file in
     file|> do_analyze changeInfo;
     do_stats ();
     do_html_output ();
