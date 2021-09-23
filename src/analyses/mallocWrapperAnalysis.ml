@@ -8,7 +8,7 @@ module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = Lattice.Flat (MyCFG.PrintableNode) (struct
+  module PL = Lattice.Flat (Node) (struct
     let top_name = "Unknown line"
     let bot_name = "Unreachable line"
   end)

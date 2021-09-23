@@ -1,6 +1,8 @@
 open Cil
 open Pretty
 
+include Printable.Std
+
 (** A node in the Control Flow Graph is either a statement or function. Think of
  * the function node as last node that all the returning nodes point to.  So
  * the result of the function call is contained in the function node. *)
@@ -34,6 +36,12 @@ let pretty_trace () = function
   | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
   | Function      fd -> dprintf "call of %s" fd.svar.vname
   | FunctionEntry fd -> dprintf "entry state of %s" fd.svar.vname
+
+(** Output functions for Printable interface *)
+let pretty () x = pretty_trace () x
+let show x = Pretty.sprint ~width:max_int (pretty () x)
+let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+let to_yojson x = `String (show x)
 
 (** Show node ID for CFG and results output. *)
 let show_id = function

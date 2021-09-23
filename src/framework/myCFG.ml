@@ -52,27 +52,3 @@ let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *
 let dummy_node = FunctionEntry Cil.dummyFunDec
 
 let all_array_index_exp : exp = CastE(TInt(Cilfacade.ptrdiff_ikind (),[]), unknown_exp)
-
-module PrintableNode:
-sig
-  include Printable.S with type t = node
-end =
-struct
-  include Printable.Std
-
-  type t = node
-
-  let name () = "node"
-
-  (* Identity *)
-  let compare x y = Node.compare x y
-  let equal x y = Node.compare x y = 0
-  let hash x = Node.hash x
-
-  (* Output *)
-  let pretty () x = Node.pretty_trace () x
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-
-end
