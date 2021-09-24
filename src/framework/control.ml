@@ -278,7 +278,11 @@ struct
 
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
-    Spec.init ();
+    if get_string "load_run" <> "" then (
+      Spec.init (Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal")))
+    )
+    else
+      Spec.init None;
     Access.init file;
 
     let test_domain (module D: Lattice.S): unit =
@@ -574,7 +578,10 @@ struct
     if get_bool "exp.cfgdot" then
       CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
-    Spec.finalize ();
+    let marshal = Spec.finalize () in
+    if get_string "save_run" <> "" then (
+      Serialize.marshal marshal (Filename.concat (get_string "save_run") "spec_marshal")
+    );
 
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Result.output (lazy local_xml) gh make_global_fast_xml file

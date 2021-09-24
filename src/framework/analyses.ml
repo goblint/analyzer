@@ -316,8 +316,18 @@ sig
 
   val name : unit -> string
 
-  val init : unit -> unit
-  val finalize : unit -> unit
+  (** Auxiliary data (outside of solution domains) that needs to be marshaled and unmarshaled.
+      This includes:
+      * hashtables,
+      * varinfos (create_var),
+      * RichVarinfos. *)
+  type marshal
+
+  (** Initialize using unmarshaled auxiliary data (if present). *)
+  val init : marshal option -> unit
+
+  (** Finalize and return auxiliary data to be marshaled. *)
+  val finalize : unit -> marshal
   (* val finalize : G.t -> unit *)
 
   val startstate : varinfo -> D.t
@@ -442,7 +452,8 @@ end
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
-  let init     () = ()
+  type marshal = unit
+  let init _ = ()
   let finalize () = ()
   (* no inits nor finalize -- only analyses like Mutex, Base, ... need
      these to do postprocessing or other imperative hacks. *)

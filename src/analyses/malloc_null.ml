@@ -229,7 +229,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.empty ()
 
-  let init () =
+  let init marshal =
     set_bool "exp.malloc.fail" true;
     return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end

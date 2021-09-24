@@ -379,7 +379,7 @@ struct
   let sync ctx reason =
     Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
 
-  let init () =
+  let init marshal =
     Priv.init ()
 
   let finalize () =

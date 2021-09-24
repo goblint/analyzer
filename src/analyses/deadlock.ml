@@ -42,11 +42,6 @@ struct
     end
 
 
-  (* Initialization and finalization *)
-  let init () = ()
-
-  let finalize () = ()
-
   (* Some required states *)
   let startstate _ : D.t = D.empty ()
   let threadenter ctx lval f args = [D.empty ()]
