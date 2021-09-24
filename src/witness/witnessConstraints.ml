@@ -155,6 +155,7 @@ struct
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
+  type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
 

@@ -55,21 +55,25 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  let heap_hash = Hashtbl.create 113
-  (* This hashtable is not marshaled, which is a problem.
-     But since Goblintutil.create_var is deterministic w.r.t the name containing location,
-     then it gets identically reconstructed when unmarshaling and verifying. *)
+  (* refs to reassign unmarshaled in init *)
+  let heap_hash = ref (Hashtbl.create 113)
+  let heap_vars = ref (Hashtbl.create 113)
 
-  let get_heap_var sideg loc =
+  type marshal = {
+    heap_hash: (location, varinfo) Hashtbl.t;
+    heap_vars: (int, unit) Hashtbl.t;
+  }
+
+  let get_heap_var loc =
     (* Use existing varinfo instead of allocating a duplicate,
        which would be equal by determinism of create_var though. *)
     (* TODO: is this poor man's hashconsing? *)
-    try Hashtbl.find heap_hash loc
+    try Hashtbl.find !heap_hash loc
     with Not_found ->
       let name = "(alloc@" ^ CilType.Location.show loc ^ ")" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      Hashtbl.add heap_hash loc newvar;
-      sideg newvar true;
+      Hashtbl.add !heap_hash loc newvar;
+      Hashtbl.add !heap_vars newvar.vid ();
       newvar
 
   let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
@@ -78,16 +82,26 @@ struct
       let loc = match ctx.local with
       | `Lifted vinfo -> vinfo
       | _ -> Node.location ctx.node in
-      `Lifted (get_heap_var ctx.sideg loc)
+      `Lifted (get_heap_var loc)
     | Q.IsHeapVar v ->
-      ctx.global v
+      Hashtbl.mem !heap_vars v.vid
     | Q.IsMultiple v ->
-      ctx.global v
+      Hashtbl.mem !heap_vars v.vid
     | _ -> Queries.Result.top q
 
-    let init () =
-      List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
-      Hashtbl.clear heap_hash
+  let init marshal =
+    List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
+    match marshal with
+    | Some m ->
+      heap_hash := m.heap_hash;
+      heap_vars := m.heap_vars
+    | None ->
+      (* TODO: is this necessary? resetting between multiple analyze_loop-s/phases? *)
+      Hashtbl.clear !heap_hash;
+      Hashtbl.clear !heap_vars
+
+  let finalize () =
+    {heap_hash = !heap_hash; heap_vars = !heap_vars}
 end
 
 let _ =
