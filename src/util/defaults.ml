@@ -207,7 +207,7 @@ let _ = ()
       ; reg Experimental "exp.incremental.mode"   "'off'" "Use incremental analysis in the TD3 solver. Values: off (default), incremental (analyze based on data from a previous commit or fresh if there is none), complete (discard loaded data and start fresh)."
       ; reg Experimental "exp.incremental.stable" "true"  "Reuse the stable set and selectively destabilize it."
       ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
-      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly."
+      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
 
 (* {4 category [Debugging]} *)
 let _ = ()
