@@ -16,6 +16,7 @@ type t =
   (** The variable information associated with the function declaration. *)
 [@@deriving eq, ord, to_yojson]
 
+let name () = "node"
 
 (* TODO: remove this? *)
 (** Pretty node plainly with entire stmt. *)

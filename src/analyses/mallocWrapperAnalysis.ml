@@ -9,9 +9,9 @@ struct
   include Analyses.DefaultSpec
 
   module PL = Lattice.Flat (Node) (struct
-    let top_name = "Unknown line"
-    let bot_name = "Unreachable line"
-  end)
+      let top_name = "Unknown node"
+      let bot_name = "Unreachable node"
+    end)
 
   let name () = "mallocWrapper"
   module D = PL
