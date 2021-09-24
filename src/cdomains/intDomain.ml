@@ -1158,40 +1158,54 @@ module Exclusion =
 struct
   module R = Interval32
   module I = BI
-  type t = Exc of BISet.t * Interval32.t [@@deriving eq, ord] (* inclusion/exclusion set *)
+  (* We use these types for the functions in this module to make the intended meaning more explicit *)
+  type t = Exc of BISet.t * Interval32.t
+  type inc = Inc of BISet.t
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
-  let cardinality_of_range r = BI.add (BI.neg (min_of_range r)) (max_of_range r)
+  let cardinality_of_range r = BI.add BI.one (BI.add (BI.neg (min_of_range r)) (max_of_range r))
+
+  let cardinality_BISet s =
+    BI.of_int (BISet.cardinal s)
+
+  let leq_excl_incl (Exc (xs, r)) (Inc ys) =
+    (* For a <= b to hold, the cardinalities must fit, i.e. |a| <= |b|, which implies |min_r, max_r| - |xs| <= |ys|. We check this first. *)
+    let lower_bound_cardinality_a = BI.sub (cardinality_of_range r) (cardinality_BISet xs) in
+    let card_b = cardinality_BISet ys in
+    if I.compare lower_bound_cardinality_a card_b > 0 then
+      false
+    else (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
+      let min_a = min_of_range r in
+      let max_a = max_of_range r in
+      GU.for_all_in_range (min_a, max_a) (fun el -> BISet.mem el xs || BISet.mem el ys)
+
   let leq (Exc (xs, r)) (Exc (ys, s)) =
-    let cardinality_BISet s =
-      BI.of_int (BISet.cardinal s)
-    in
     let min_a, max_a = min_of_range r, max_of_range r in
-        let exluded_check = BISet.for_all (fun y -> BISet.mem y xs || I.compare y min_a < 0 || I.compare y max_a > 0) ys in (* if true, then the values ys, that are not in b, also do not occur in a *)
-        if not exluded_check
-        then false
-        else begin (* Check whether all elements that are in the range r, but not in s, are in xs, i.e. excluded. *)
-          if R.leq r s then true
-          else begin if I.compare (cardinality_BISet xs) (I.sub (cardinality_of_range r) (cardinality_of_range s)) >= 0 (* Check whether the number of excluded elements in a is as least as big as |min_r, max_r| - |min_s, max_s| *)
-            then
-              let min_b, max_b = min_of_range s, max_of_range s in
-              let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
-                if I.compare min_a min_b < 0 then
-                  GU.for_all_in_range (min_a, BI.sub min_b BI.one) (fun x -> BISet.mem x xs)
-                else
-                  true
-              in
-              let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
-                if I.compare max_b max_a < 0 then
-                  GU.for_all_in_range (BI.add max_b BI.one, max_a) (fun x -> BISet.mem x xs)
-                else
-                  true
-              in
-              leq1 && (leq2 ())
+    let excluded_check = BISet.for_all (fun y -> BISet.mem y xs || I.compare y min_a < 0 || I.compare y max_a > 0) ys in (* if true, then the values ys, that are not in b, also do not occur in a *)
+    if not excluded_check
+    then false
+    else begin (* Check whether all elements that are in the range r, but not in s, are in xs, i.e. excluded. *)
+      if R.leq r s then true
+      else begin if I.compare (cardinality_BISet xs) (I.sub (cardinality_of_range r) (cardinality_of_range s)) >= 0 (* Check whether the number of excluded elements in a is as least as big as |min_r, max_r| - |min_s, max_s| *)
+        then
+          let min_b, max_b = min_of_range s, max_of_range s in
+          let leq1 = (* check whether the elements in [r_l; s_l-1] are all in xs, i.e. excluded *)
+            if I.compare min_a min_b < 0 then
+              GU.for_all_in_range (min_a, BI.sub min_b BI.one) (fun x -> BISet.mem x xs)
             else
-              false
-          end
-        end
+              true
+          in
+          let leq2 () = (* check whether the elements in [s_u+1; r_u] are all in xs, i.e. excluded *)
+            if I.compare max_b max_a < 0 then
+              GU.for_all_in_range (BI.add max_b BI.one, max_a) (fun x -> BISet.mem x xs)
+            else
+              true
+          in
+          leq1 && (leq2 ())
+        else
+          false
+      end
+    end
 end
 
 module DefExc : S with type int_t = BigInt.t = (* definite or set of excluded values *)
@@ -1351,14 +1365,7 @@ struct
     | `Definite x, `Excluded (s,r) -> in_range r x && not (S.mem x s)
     (* No finite exclusion set can be leq than a definite value *)
     | `Excluded (xs, xr), `Definite d ->
-      (* for a leq b to hold, the cardinality of gamma(a) needs to be at most 1 *)
-      let lower_bound_cardinality_a = BigInt.sub (Exclusion.cardinality_of_range xr) (BigInt.of_int (S.cardinal xs)) in
-      if BI.compare lower_bound_cardinality_a BI.one > 0 then false (* cardinality of a is too high *)
-      else begin
-        (* we check whether all elements in the range xr are either in x or equal to d*)
-        let min_a, max_a = Exclusion.min_of_range xr, Exclusion.max_of_range xr in
-        GU.for_all_in_range (min_a, max_a) (fun e -> S.mem e xs || BigInt.equal e d)
-      end
+      Exclusion.(leq_excl_incl (Exc (xs, xr)) (Inc (S.singleton d)))
     | `Excluded (xs,xr), `Excluded (ys,yr) ->
       Exclusion.(leq (Exc (xs,xr)) (Exc (ys, yr)))
 
@@ -1844,9 +1851,6 @@ module Enums : S with type int_t = BigInt.t = struct
   let widen = join
   let narrow = meet
   let leq a b =
-    let cardinality_BISet s =
-      BI.of_int (BISet.cardinal s)
-    in
     match a, b with
     | Inc xs, Exc (ys, r) ->
       if BISet.is_empty xs
@@ -1861,17 +1865,9 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc xs, Inc ys ->
       BISet.subset xs ys
     | Exc (xs, r), Exc (ys, s) ->
-      Exclusion.(leq (Exc (xs, r)) (Exc (ys, r)))
+      Exclusion.(leq (Exc (xs, r)) (Exc (ys, s)))
     | Exc (xs, r), Inc ys ->
-      (* For a <= b to hold, the cardinalities must fit, i.e. |a| <= |b|, which implies |min_r, max_r| - |xs| <= |ys|. We check this first. *)
-      let card_a = BI.sub (Exclusion.cardinality_of_range r) (cardinality_BISet xs) in
-      let card_b = cardinality_BISet ys in
-      if I.compare card_a card_b > 0 then
-        false
-      else (* The cardinality did fit, so we check for all elements that are represented by range r, whether they are in (xs union ys) *)
-        let min_a = Exclusion.min_of_range r in
-        let max_a = Exclusion.max_of_range r in
-        GU.for_all_in_range (min_a, max_a) (fun el -> BISet.mem el xs || BISet.mem el ys)
+      Exclusion.(leq_excl_incl (Exc (xs, r)) (Inc ys))
 
   let handle_bot x y f = match is_bot x, is_bot y with
     | false, false -> f ()
@@ -2019,7 +2015,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let eq ik x y =
     handle_bot x y (fun () ->
       match x, y with
-      | Inc xs, Inc ys when BISet.is_singleton xs && BISet.is_singleton ys -> of_bool ik (I.equal (BISet.choose xs) (BISet.choose ys))
+        | Inc xs, Inc ys when BISet.is_singleton xs && BISet.is_singleton ys -> of_bool ik (I.equal (BISet.choose xs) (BISet.choose ys))
       | _, _ ->
         if is_bot (meet ik x y) then
           (* If the meet is empty, there is no chance that concrete values are equal *)
