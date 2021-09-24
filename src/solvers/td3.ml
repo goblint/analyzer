@@ -94,14 +94,50 @@ module WP =
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
-      let rec destabilize x =
+      (* let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
             HM.remove stable y;
             if not (HM.mem called y) then destabilize y
-          ) w
+          ) w *)
+      let rec destabilize x =
+        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
+        let cutoffs = HM.create 13 in
+        let rec destabilize' x force =
+          (* TODO: extract predicate *)
+          let is_cutoff = match S.Var.node x with
+            | Function fd when not (CilType.Fundec.equal fd Cil.dummyFunDec) -> true
+            | _ -> false
+          in
+          if tracing then tracei "sol2" "destabilize' %a (is_cutoff=%B)\n" S.Var.pretty_trace x is_cutoff;
+          if not force && is_cutoff then (
+            HM.replace cutoffs x ()
+          )
+          else (
+            let w = HM.find_default infl x VS.empty in
+            HM.replace infl x VS.empty;
+            VS.iter (fun y ->
+                HM.remove stable y;
+                if not (HM.mem called y) then destabilize' y false
+              ) w
+          );
+          if tracing then traceu "sol2" "destabilize' %a (is_cutoff=%B)\n" S.Var.pretty_trace x is_cutoff
+        in
+        destabilize' x true;
+        HM.iter (fun (cutoff as x) _ ->
+            (* let w = HM.find_default infl x VS.empty in
+            HM.replace infl x VS.empty;
+            VS.iter (fun y ->
+                HM.remove stable y;
+                if not (HM.mem called y) then destabilize y
+              ) w *)
+            (* destabilize' cutoff true *)
+
+            (* if not (VS.is_empty (HM.find_default infl x VS.empty)) then *)
+              solve x Widen
+          ) cutoffs
       and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
