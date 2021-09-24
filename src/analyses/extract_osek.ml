@@ -322,6 +322,7 @@ struct
   let exitstate  v = D.bot ()
 
   let init marshal = (* registers which functions to extract and writes out their definitions *)
+    init (); (* TODO: why wasn't this called before? *)
     Osek.Spec.parse_oil ();
     let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
