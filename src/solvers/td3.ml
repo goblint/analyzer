@@ -278,7 +278,7 @@ module WP =
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         let old_ret = Hashtbl.create 103 in
-        if not !any_changed_start_state then (
+        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
             let old_rho = HM.find rho k in
@@ -298,7 +298,7 @@ module WP =
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion !any_changed_start_state;
+        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant"));
         add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
@@ -313,26 +313,21 @@ module WP =
 
         List.iter set_start st;
 
-        if not !any_changed_start_state then (
+        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant" then (
           (* solve on the return node of changed functions. Only destabilize influenced nodes outside the function if the analysis result changed *)
-          print_endline "solving changed functions";
-          let numDest = ref 0 in
+          print_endline "Separately solving changed functions...";
           Hashtbl.iter (fun x (old_rho, old_infl) -> ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
-            ignore @@ Pretty.printf "solving for %a\n" Node.pretty_trace (S.Var.node x);
             solve x Widen;
             if not (S.Dom.leq (HM.find rho x) old_rho) then (
-              numDest := !numDest + 1; print_endline "actually destabilize...";
               HM.replace infl x old_infl;
               destabilize x; HM.replace stable x ())
           ) old_ret;
 
-          if !numDest = 0 then print_endline "no actual destabilization needed!";
-          print_endline "final solve"
-          (* ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals) *)
+          print_endline "Final solve..."
         )
       );
 
-      if !incremental_mode = "off" then List.iter set_start st;
+      if not (GobConfig.get_bool "incremental.load") then List.iter set_start st;
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
       let i = ref 0 in
