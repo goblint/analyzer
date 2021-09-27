@@ -169,6 +169,7 @@ module WP =
             with AbortEq ->
               abort_rhs_event x;
               if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
+              HM.remove destab_dep x; (* TODO: safe to remove here? doesn't prevent some aborts? *)
               old
           in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
@@ -200,7 +201,6 @@ module WP =
                   ) (HM.find destab_infl x)
               );
               HM.remove destab_infl x
-              (* TODO: remove from destab_dep? *)
             );
             destabilize x;
             (solve[@tailcall]) x phase true
@@ -210,7 +210,6 @@ module WP =
               if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
               (* don't push front here *)
               HM.remove destab_infl x
-              (* TODO: remove from destab_dep? *)
             );
             if not (HM.mem stable x) then (
               (solve[@tailcall]) x Widen changed
