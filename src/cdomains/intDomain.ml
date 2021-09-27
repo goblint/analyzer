@@ -2771,15 +2771,25 @@ module IntDomTupleImpl = struct
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
   let projection ik (b1, b2, b3, b4) ((i1, i2, i3, i4): t) =
-    let set i' = function
-      | true, Some i -> Some i
-      | true, None -> Some i'
-      | false, _ -> None
+    let set_top i' = function
+      | Some i -> Some i
+      | None -> Some i'
     in
-    refine ik ( set (I1.top_of ik) (b1, i1)
-              , set (I2.top_of ik) (b2, i2)
-              , set (I3.top_of ik) (b3, i3)
-              , set (I4.top_of ik) (b4, i4))
+    let set_none b i =
+      match b, i with
+        | true, Some i -> Some i
+        | _ -> None
+    in
+    let (i1', i2', i3', i4') =
+      refine ik ( set_top (I1.top_of ik) i1
+                , set_top (I2.top_of ik) i2
+                , set_top (I3.top_of ik) i3
+                , set_top (I4.top_of ik) i4)
+    in
+    ( set_none b1 i1'
+    , set_none b2 i2'
+    , set_none b3 i3'
+    , set_none b4 i4')
 
   (* f2: binary ops *)
   let join ik =
