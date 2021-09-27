@@ -225,8 +225,8 @@ module WP =
           )
         )
         else if HM.mem called x then
-          true
-          (* HM.mem called_changed x *)
+          (* true *)
+          changed || HM.mem called_changed x
         else
           changed
       and eq x get set =
