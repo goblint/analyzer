@@ -57,28 +57,29 @@ struct
 
 
   (* refs to reassign unmarshaled in init *)
-  let heap_hash = ref (Hashtbl.create 113)
-  let heap_vars = ref (Hashtbl.create 113)
+  module NH = Hashtbl.Make (Node)
+  module VH = Hashtbl.Make (CilType.Varinfo)
+  let heap_hash = ref (NH.create 113)
+  let heap_vars = ref (VH.create 113)
 
   type marshal = {
-    heap_hash: (string, varinfo) Hashtbl.t;
-    heap_vars: (int, unit) Hashtbl.t;
+    heap_hash: varinfo NH.t;
+    heap_vars: unit VH.t;
   }
 
   let get_heap_var node =
     (* Use existing varinfo instead of allocating a duplicate,
        which would be equal by determinism of create_var though. *)
     (* TODO: is this poor man's hashconsing? *)
-    let nodeId = match node with
-      | Node.Statement s -> "sid:" ^ (string_of_int s.sid)
-      | Function f -> "vid:" ^ (string_of_int f.svar.vid)
-      | _ -> raise (Failure "A function entry node can never be the node after a malloc") in
-    try Hashtbl.find !heap_hash nodeId
+    try NH.find !heap_hash node
     with Not_found ->
-      let name = "(alloc@" ^ nodeId ^ ")" in
+      let name = match node with
+        | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
+        | Function f -> "(alloc@vid:" ^ (string_of_int f.svar.vid) ^ ")"
+        | _ -> raise (Failure "A function entry node can never be the node after a malloc") in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      Hashtbl.add !heap_hash nodeId newvar;
-      Hashtbl.add !heap_vars newvar.vid ();
+      NH.add !heap_hash node newvar;
+      VH.add !heap_vars newvar ();
       newvar
 
   let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
@@ -89,9 +90,9 @@ struct
         | _ -> ctx.node in
       `Lifted (get_heap_var node)
     | Q.IsHeapVar v ->
-      Hashtbl.mem !heap_vars v.vid
+      VH.mem !heap_vars v
     | Q.IsMultiple v ->
-      Hashtbl.mem !heap_vars v.vid
+      VH.mem !heap_vars v
     | _ -> Queries.Result.top q
 
   let init marshal =
@@ -102,8 +103,8 @@ struct
       heap_vars := m.heap_vars
     | None ->
       (* TODO: is this necessary? resetting between multiple analyze_loop-s/phases? *)
-      Hashtbl.clear !heap_hash;
-      Hashtbl.clear !heap_vars
+      NH.clear !heap_hash;
+      VH.clear !heap_vars
 
   let finalize () =
     {heap_hash = !heap_hash; heap_vars = !heap_vars}
