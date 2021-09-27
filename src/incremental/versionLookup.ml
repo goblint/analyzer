@@ -1,8 +1,5 @@
 open CompareAST
 open Cil
-open Serialize
-
-type commitID = string
 
 type max_ids = {
   max_sid: int;
@@ -16,7 +13,7 @@ let updateMap (oldFile: Cil.file) (newFile: Cil.file) (ht: (global_identifier, C
   List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) glob) changes.added;
   (ht, changes)
 
-let create_map (new_file: Cil.file) (commit: commitID) =
+let create_map (new_file: Cil.file) =
   let max_sid = ref 0 in
   let max_vid = ref 0 in
   let update_sid sid = if sid > !max_sid then max_sid := sid in
@@ -33,14 +30,11 @@ let create_map (new_file: Cil.file) (commit: commitID) =
   tbl, {max_sid = !max_sid; max_vid = !max_vid}
 
 (* Load and update the version map *)
-let load_and_update_map (folder: string) (old_commit: commitID) (oldFile: Cil.file) (newFile: Cil.file) =
-  let commitFolder = Filename.concat folder old_commit in
-  let versionFile = Filename.concat commitFolder version_map_filename in
-  let oldMap, max_ids = Serialize.unmarshal versionFile in
-  let updated, changes = updateMap oldFile newFile oldMap in
-  updated, changes, max_ids
-
-let restore_map (folder: string) (old_file: Cil.file) (new_file: Cil.file) =
-  match (Serialize.last_analyzed_commit ()) with
-  | Some old_commit -> load_and_update_map folder old_commit old_file new_file
-  | None -> raise (Failure "No commit has been analyzed yet. Restore map failed.")
+let load_and_update_map (oldFile: Cil.file) (newFile: Cil.file) =
+  if not (Serialize.results_exist ()) then
+    failwith "Cannot restore map when no results exist."
+  else begin
+    let oldMap, max_ids = Serialize.load_data Serialize.VersionData in
+    let updated, changes = updateMap oldFile newFile oldMap in
+    updated, changes, max_ids
+  end

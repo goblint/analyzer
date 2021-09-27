@@ -371,54 +371,32 @@ let handle_extraspecials () =
   LibraryFunctions.add_lib_funs funs
 
 let src_path () = Git.git_directory (List.first !cFileNames)
-let data_path () = Filename.concat (src_path ()) ".gob"
-
-let update_map old_file new_file =
-  let dir = Serialize.gob_directory () in
-  VersionLookup.restore_map dir old_file new_file
-
-let store_map updated_map max_ids = (* Creates the directory for the commit *)
-  match Serialize.current_commit_dir () with
-  | Some commit_dir ->
-    let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
-    Serialize.marshal (updated_map, max_ids) map_file_name
-  | None -> ()
 
 (* Detects changes and renames vids and sids. *)
 let diff_and_rename current_file =
+  (* Analysis results will be loaded and stored from a sub-directoy of the C source-dir *)
   Serialize.src_direcotry := src_path ();
-  let change_info: Analyses.increment_data = (match Serialize.current_commit () with
-      | Some current_commit -> ((* "put the preparation for incremental analysis here!" *)
-          if get_bool "dbg.verbose" then print_endline ("incremental mode running on commit " ^ current_commit);
-          let (changes, last_analyzed_commit, old_file, solver_data) =
-            (match Serialize.last_analyzed_commit () with
-             | Some last_analyzed_commit -> (match Serialize.load_latest_cil () with
-                 | Some file2 ->
-                   let (version_map, changes, max_ids) = update_map file2 current_file in
-                   let max_ids = UpdateCil.update_ids file2 max_ids current_file version_map current_commit changes in
-                   store_map version_map max_ids;
-                   let solver_data = Serialize.load_solver_data () in
-                   (changes, last_analyzed_commit, Some file2, solver_data)
-                 | None -> failwith "No ast.data from previous analysis found!"
-               )
-             | None -> (match Serialize.current_commit_dir () with
-                 | Some commit_dir ->
-                   let (version_map, max_ids) = VersionLookup.create_map current_file current_commit in
-                   store_map version_map max_ids;
-                   (CompareAST.empty_change_info (), "", None, None)
-                 | None -> failwith "Directory for storing the results of the current run could not be created!")
-            ) in
-          Serialize.save_cil current_file;
-          let old_data = match old_file, solver_data with Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data) | _, _ -> None in
-          let current_commit_dir = Filename.concat (data_path ()) current_commit in
-          Cilfacade.print_to_file (Filename.concat current_commit_dir "cil.c") current_file;
-          if "" <> last_analyzed_commit then (
-            (* Output whether functions or globals changed. *)
-            CompareAST.check_any_changed changes
-          );
-          {Analyses.changes = changes; old_data; new_file = current_file}
-        )
-      | None -> failwith "Failure! Working directory is not clean")
+  (* Create change info, either from old results, or from scratch if there are no previous results. *)
+  let change_info: Analyses.increment_data =
+    let (changes, old_file, solver_data, version_map, max_ids) =
+      if Serialize.results_exist () then begin
+        let old_file = Serialize.load_data Serialize.CilFile in
+        let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
+        let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
+        let solver_data = Serialize.load_data Serialize.SolverData in
+        (changes, Some old_file, solver_data, version_map, max_ids)
+      end else begin
+        let (version_map, max_ids) = VersionLookup.create_map current_file in
+        (CompareAST.empty_change_info (), None, None, version_map, max_ids)
+      end
+    in
+    Serialize.store_data current_file Serialize.CilFile;
+    Serialize.store_data (version_map, max_ids) Serialize.VersionData;
+    let old_data = match old_file, solver_data with
+      | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
+      | _, _ -> None
+    in
+    {Analyses.changes = changes; old_data; new_file = current_file}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)

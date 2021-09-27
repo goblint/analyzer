@@ -416,9 +416,10 @@ struct
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if GobConfig.get_string "exp.incremental.mode" <> "off" then begin
-            match solver_data, Serialize.solver_data_store_path () with
-            | Some data, Some path -> Serialize.marshal data path
-            | _, _ -> ()
+            match solver_data with
+            | Some data ->
+              Serialize.store_data (Some data) Serialize.SolverData
+            | None -> (print_endline "solver did not produce any solver data"; M.warn_noloc ~category:MessageCategory.Analyzer "Solver did not produce any data to store for an incremental run.")
           end;
           if save_run <> "" then (
             let solver = Filename.concat save_run solver_file in
@@ -470,6 +471,8 @@ struct
         if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
         Goblintutil.should_warn := get_string "warn_at" <> "never";
         Stats.time "verify" (Vrfyr.verify lh) gh;
+        if GobConfig.get_string "exp.incremental.mode" <> "off" then
+          Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
       );
 
       if get_bool "ana.sv-comp.enabled" then (

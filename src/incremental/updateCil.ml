@@ -18,7 +18,7 @@ let store_node_location (n: Node.t) (l: location): unit =
 
 let zero_ids = {max_sid = 0; max_vid = 0}
 
-let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global) Hashtbl.t) (current_commit: string) (changes: change_info) =
+let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global) Hashtbl.t) (changes: change_info) =
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 

@@ -1,7 +1,7 @@
 {
   "ana": {
     "activated": [
-      "base"
+      "base", "mallocWrapper"
     ],
     "int": {
       "interval": true,
@@ -11,6 +11,7 @@
   },
   "exp": {
     "earlyglobs": true,
+    "privatization": "none",
     "solver": {
       "td3": {
         "term": true,
