@@ -77,7 +77,6 @@ module WP =
       let called_changed = HM.create 10 in
 
       let infl = data.infl in
-      let dep = HM.create 10 in
       let sides = data.sides in
       let rho = data.rho in
       let wpoint = data.wpoint in
@@ -85,6 +84,7 @@ module WP =
 
       let destab_infl = HM.create 10 in
       let destab_front = HM.create 10 in
+      let destab_dep = HM.create 10 in
 
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
@@ -99,7 +99,7 @@ module WP =
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
-        HM.replace dep x (VS.add y (try HM.find dep x with Not_found -> VS.empty));
+        (* HM.replace dep x (VS.add y (try HM.find dep x with Not_found -> VS.empty)); *)
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
       let rec destabilize ?(front=true) x =
@@ -114,6 +114,9 @@ module WP =
         )
         else (
           HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
+          VS.iter (fun y ->
+              HM.replace destab_dep y (VS.add x (try HM.find destab_dep y with Not_found -> VS.empty))
+            ) w
         );
         VS.iter (fun y ->
             (* TODO: remove from dep? *)
@@ -141,8 +144,8 @@ module WP =
           let old = HM.find rho x in
           let l = HM.create 10 in
           let eval' =
-            if HM.mem dep x && abort then (
-              let unasked_dep_x = ref (HM.find dep x) in
+            if HM.mem destab_dep x && abort then (
+              let unasked_dep_x = ref (HM.find destab_dep x) in
               let all_dep_x_unchanged = ref true in
               fun y ->
                 let (d, changed) = eval l x y in
@@ -197,6 +200,7 @@ module WP =
                   ) (HM.find destab_infl x)
               );
               HM.remove destab_infl x
+              (* TODO: remove from destab_dep? *)
             );
             destabilize x;
             (solve[@tailcall]) x phase true
@@ -206,6 +210,7 @@ module WP =
               if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
               (* don't push front here *)
               HM.remove destab_infl x
+              (* TODO: remove from destab_dep? *)
             );
             if not (HM.mem stable x) then (
               (solve[@tailcall]) x Widen changed
