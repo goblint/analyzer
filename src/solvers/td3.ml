@@ -164,6 +164,7 @@ module WP =
             try
               eq x eval' (side x)
             with AbortEq ->
+              abort_rhs_event x;
               if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
               old
           in

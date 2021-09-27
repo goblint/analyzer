@@ -282,7 +282,7 @@ let merge_preprocessed cpp_file_names =
 let do_stats () =
   if get_bool "printstats" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d  \n" !Goblintutil.vars !Goblintutil.evals);
+    ignore (Pretty.printf "vars = %d    evals = %d    aborts = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.aborts);
     print_newline ();
     Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ()
