@@ -25,14 +25,6 @@ let identifier_of_global glob =
   | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
   | _ -> raise (Failure "No variable or function")
 
-let any_changed (c: change_info) =
-  not @@ List.for_all (fun l -> l = 0) [List.length c.changed; List.length c.removed; List.length c.added]
-
-(* Check whether any changes to function definitions or types of globals were detected *)
-let check_any_changed (c: change_info) =
-  if GobConfig.get_string "exp.incremental.mode" = "incremental" then
-    print_endline @@ "Function definitions " ^ (if any_changed c then "or types of globals changed." else "and types of globals did not change.")
-
 module GlobalMap = Map.Make(struct
     type t = global_identifier [@@deriving ord]
   end)
