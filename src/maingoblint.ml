@@ -375,7 +375,7 @@ let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
     let (changes, old_file, solver_data, version_map, max_ids) =
-      if Serialize.results_exist () then begin
+      if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         let old_file = Serialize.load_data Serialize.CilFile in
         let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
@@ -386,8 +386,10 @@ let diff_and_rename current_file =
         (CompareAST.empty_change_info (), None, None, version_map, max_ids)
       end
     in
-    Serialize.store_data current_file Serialize.CilFile;
-    Serialize.store_data (version_map, max_ids) Serialize.VersionData;
+    if GobConfig.get_bool "incremental.save" then begin
+      Serialize.store_data current_file Serialize.CilFile;
+      Serialize.store_data (version_map, max_ids) Serialize.VersionData
+    end;
     let old_data = match old_file, solver_data with
       | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
       | _, _ -> None
@@ -425,7 +427,7 @@ let main () =
       print_endline command;
     );
     let file = preprocess_files () |> merge_preprocessed in
-    let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data file else diff_and_rename file in
+    let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
     file|> do_analyze changeInfo;
     do_stats ();
     do_html_output ();

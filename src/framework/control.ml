@@ -415,7 +415,7 @@ struct
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
-          if GobConfig.get_string "exp.incremental.mode" <> "off" then begin
+          if GobConfig.get_bool "incremental.save" then begin
             match solver_data with
             | Some data ->
               Serialize.store_data (Some data) Serialize.SolverData
@@ -471,7 +471,7 @@ struct
         if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
         Goblintutil.should_warn := get_string "warn_at" <> "never";
         Stats.time "verify" (Vrfyr.verify lh) gh;
-        if GobConfig.get_string "exp.incremental.mode" <> "off" then
+        if GobConfig.get_bool "incremental.save" then
           Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
       );
 
