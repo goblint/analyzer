@@ -1,15 +1,14 @@
 open Prelude
 
-
-let goblint_dirname = ".goblint"
+let base_directory = ref (Sys.getcwd ()) (* base directory where incremental results are stored *)
+let goblint_dirname = "incremental_data"
 let version_map_filename = "version.data"
 let cil_file_name = "ast.data"
 let solver_data_file_name = "solver.data"
-let src_direcotry = ref ""
-let results_dir = "incr_results"
-let results_tmp_dir = "incr_results_tmp"
+let results_dir = "results"
+let results_tmp_dir = "results_tmp"
 
-let gob_directory () = let src_dir = !src_direcotry in
+let gob_directory () = let src_dir = !base_directory in
   Filename.concat src_dir goblint_dirname
 
 let gob_results_dir () =

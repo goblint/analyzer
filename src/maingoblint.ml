@@ -370,12 +370,8 @@ let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
   LibraryFunctions.add_lib_funs funs
 
-let src_path () = Git.git_directory (List.first !cFileNames)
-
 (* Detects changes and renames vids and sids. *)
 let diff_and_rename current_file =
-  (* Analysis results will be loaded and stored from a sub-directoy of the C source-dir *)
-  Serialize.src_direcotry := src_path ();
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
     let (changes, old_file, solver_data, version_map, max_ids) =
