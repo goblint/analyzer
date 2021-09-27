@@ -415,12 +415,8 @@ struct
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
-          if GobConfig.get_bool "incremental.save" then begin
-            match solver_data with
-            | Some data ->
-              Serialize.store_data (Some data) Serialize.SolverData
-            | None -> (print_endline "solver did not produce any solver data"; M.warn_noloc ~category:MessageCategory.Analyzer "Solver did not produce any data to store for an incremental run.")
-          end;
+          if GobConfig.get_bool "incremental.save" then
+            Serialize.store_data solver_data Serialize.SolverData;
           if save_run <> "" then (
             let solver = Filename.concat save_run solver_file in
             let analyses = Filename.concat save_run "analyses.marshalled" in
@@ -459,9 +455,9 @@ struct
       in
 
       if get_string "comparesolver" <> "" then (
-        let compare_with (module S2 :  GenericIncrGlobSolver) =
+        let compare_with (module S2 : GenericGlobSolver) =
           let module S2' = S2 (EQSys) (LHT) (GHT) in
-          let r2, _ = S2'.solve entrystates entrystates_global startvars' in
+          let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
         compare_with (Slvr.choose_solver (get_string "comparesolver"))

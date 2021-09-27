@@ -805,21 +805,10 @@ struct
     | `L x -> Option.map conv (S.system x)
 end
 
-(* Transforms a [GenericGlobSolver] into a [GenericIncrGlobSolver], by always returning [None] in as the second component of the tuple returned by [solve] *)
-module GlobIncrSolverFromGlobSolver (Sol:GenericGlobSolver)
-  : GenericIncrGlobSolver
-  = functor (S:GlobConstrSys) ->
-    functor (LH:Hash.H with type key=S.LVar.t) ->
-    functor (GH:Hash.H with type key=S.GVar.t) ->
-    struct
-      module Sol = Sol (S) (LH) (GH)
-      let solve ls gs l =
-        Sol.solve ls gs l, None
-    end
 
-(** Transforms a [GenericIncrEqBoxSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromEqIncrSolver (Sol:GenericIncrEqBoxSolver)
-  : GenericIncrGlobSolver
+(** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
+module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
+  : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
@@ -859,20 +848,6 @@ module GlobSolverFromEqIncrSolver (Sol:GenericIncrEqBoxSolver)
         split_solution hm, solver_data
     end
 
-(* Transforms a [GenericEqBoxSolver] into a [GenericIncrEqBoxSolver], by always returning [None] in as the second component of the tuple returned by [solve] *)
-module IncrEqSolverFromEqSolver (Sol:GenericEqBoxSolver)
-  : GenericIncrEqBoxSolver
-  =  functor (S:EqConstrSys) ->
-    functor (H:Hash.H with type key=S.v) ->
-    struct
-      module Sol = Sol (S) (H)
-      let solve box x y =
-        Sol.solve box x y, None
-    end
-
-module GlobIncrSolverFromEqSolver (Sol:GenericEqBoxSolver)
-  : GenericIncrGlobSolver
-  = GlobSolverFromEqIncrSolver (IncrEqSolverFromEqSolver (Sol))
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive2 (Spec:Spec)

@@ -96,10 +96,10 @@ module Make =
       HM.clear stable;
       HM.clear infl  ;
 
-      rho
+      rho, Goblintutil.dummy_obj
 
   end
 
 let _ =
-  let module S3 = Constraints.GlobIncrSolverFromEqSolver (Make) in
-  Selector.add_solver ("effectWConEq", (module S3 : GenericIncrGlobSolver));
+  let module S3 = Constraints.GlobSolverFromEqSolver (Make) in
+  Selector.add_solver ("effectWConEq", (module S3 : GenericGlobSolver));

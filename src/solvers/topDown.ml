@@ -166,10 +166,10 @@ module WP =
       HM.clear set   ;
       HPM.clear rho'  ;
 
-      rho
+      rho, Goblintutil.dummy_obj
 
   end
 
 let _ =
-  let module WP = GlobIncrSolverFromEqSolver (WP) in
-  Selector.add_solver ("topdown", (module WP : GenericIncrGlobSolver));
+  let module WP = GlobSolverFromEqSolver (WP) in
+  Selector.add_solver ("topdown", (module WP : GenericGlobSolver));

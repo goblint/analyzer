@@ -176,9 +176,9 @@ module TD3 =
       HM.clear set   ;
       HPM.clear rho'  ;
 
-      rho
+      rho, Goblintutil.dummy_obj
 
   end
 
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module GlobIncrSolverFromEqSolver (TD3) : Analyses.GenericIncrGlobSolver));
+  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromEqSolver (TD3) : Analyses.GenericGlobSolver));

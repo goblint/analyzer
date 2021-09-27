@@ -416,3 +416,5 @@ let rec zip x y = match x,y with
 
 let assoc_eq (x: 'a) (ys: ('a * 'b) list) (eq: 'a -> 'a -> bool): ('b option) =
   Option.map Batteries.Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
+
+let dummy_obj = Obj.repr ()

@@ -454,15 +454,15 @@ module WP =
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
         let result = solve box st vs data in
-        result.rho, Some (Obj.repr result)
+        result.rho, Obj.repr result
       )
       else (
         let data = create_empty_data () in
         let result = solve box st vs data in
-        result.rho, Some (Obj.repr result)
+        result.rho, Obj.repr result
       )
   end
 
 let _ =
-  let module WP = GlobSolverFromEqIncrSolver (WP) in
-  Selector.add_solver ("td3", (module WP : GenericIncrGlobSolver));
+  let module WP = GlobSolverFromEqSolver (WP) in
+  Selector.add_solver ("td3", (module WP : GenericGlobSolver));

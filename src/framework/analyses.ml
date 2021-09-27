@@ -417,19 +417,10 @@ module type GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key=S.v) ->
   sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
-  end
-
-(* Like [GenericEqBoxSolver], but the solve method additionally returns an optional solver state for reuse in incremental runs *)
-module type GenericIncrEqBoxSolver =
-  functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key=S.v) ->
-  sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t option
+    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
+        for serialization or a dummy object. *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t
   end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
@@ -438,20 +429,10 @@ module type GenericGlobSolver =
   functor (LH:Hash.H with type key=S.LVar.t) ->
   functor (GH:Hash.H with type key=S.GVar.t) ->
   sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
-  end
-
-(* Like [GenericGlobSolver], but the solve method additionally returns an optional solver state for reuse in incremental runs *)
-module type GenericIncrGlobSolver =
-  functor (S:GlobConstrSys) ->
-  functor (LH:Hash.H with type key=S.LVar.t) ->
-  functor (GH:Hash.H with type key=S.GVar.t) ->
-  sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * Obj.t option
+    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
+        for serialization or a dummy object. *)
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * Obj.t
   end
 
 module ResultType2 (S:Spec) =
