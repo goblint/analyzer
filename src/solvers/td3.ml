@@ -66,6 +66,8 @@ module WP =
 
     type phase = Widen | Narrow
 
+    exception AbortEq
+
     let solve box st vs data =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
@@ -125,7 +127,33 @@ module WP =
           let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) (side x) in
+          let eval' =
+            if HM.mem dep x then (
+              let unasked_dep_x = ref (HM.find dep x) in
+              let all_dep_x_unchanged = ref true in
+              fun y ->
+                let (d, changed) = eval l x y in
+                if VS.mem y !unasked_dep_x then (
+                  unasked_dep_x := VS.remove y !unasked_dep_x;
+                  if changed then
+                    all_dep_x_unchanged := false;
+                  if VS.is_empty !unasked_dep_x && !all_dep_x_unchanged then
+                    raise AbortEq
+                );
+                d
+            )
+            else
+              fun y ->
+                let (d, changed) = eval l x y in
+                d
+          in
+          let tmp =
+            try
+              eq x eval' (side x)
+            with AbortEq ->
+              if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
+              old
+          in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
