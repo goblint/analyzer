@@ -82,8 +82,8 @@ and global_typ_acc: (typ * typ) list ref = ref [] (* TODO: optimize with physica
 and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y) -> a == x && b == y) acc (* TODO: seems slightly more efficient to not use "fun (x, y) ->" directly to avoid caml_tuplify2 *)
 
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
-  (* if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a\n" d_type a d_type b; *)
-  if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a (%d)\n" d_type a d_type b (List.length acc); (* TODO: remove because always calls List.length *)
+  if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a\n" d_type a d_type b;
+  (* if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a (%d)\n" d_type a d_type b (List.length acc); (* TODO: remove because always calls List.length *) *)
   let r =
   if mem_typ_acc a b acc || mem_typ_acc a b !global_typ_acc then (
     if Messages.tracing then Messages.trace "compare" "in acc\n";
