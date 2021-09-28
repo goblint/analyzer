@@ -18,12 +18,14 @@ type global_type = Fun | Decl | Var | Other
 
 and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
 
+exception NoGlobalIdentifier of global
+
 let identifier_of_global glob =
   match glob with
   | GFun (fundec, l) -> {name = fundec.svar.vname; global_t = Fun}
   | GVar (var, init, l) -> {name = var.vname; global_t = Var}
   | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
-  | _ -> raise (Failure "No variable or function")
+  | _ -> raise (NoGlobalIdentifier glob)
 
 module GlobalMap = Map.Make(struct
     type t = global_identifier [@@deriving ord]
@@ -257,7 +259,7 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
          then changes.unchanged <- global :: changes.unchanged
          else changes.changed <- {current = global; old = old_global} :: changes.changed
        with Not_found -> ())
-    with e -> () (* Global was no variable or function, it does not belong into the map *)
+    with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)
   in
   let checkExists map global =
     let name = identifier_of_global global in
