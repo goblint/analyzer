@@ -74,6 +74,7 @@ module WP =
       let called = HM.create 10 in
 
       let infl = data.infl in
+      let dep = HM.create 10 in
       let sides = data.sides in
       let rho = data.rho in
       let wpoint = data.wpoint in
@@ -91,7 +92,8 @@ module WP =
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
-        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
+        HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+        HM.replace dep x (VS.add y (try HM.find dep x with Not_found -> VS.empty));
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
       let rec destabilize x =
@@ -99,6 +101,7 @@ module WP =
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
+            (* TODO: remove from dep? *)
             HM.remove stable y;
             if not (HM.mem called y) then destabilize y
           ) w
@@ -107,6 +110,7 @@ module WP =
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.fold (fun y b ->
+            (* TODO: remove from dep? *)
             let was_stable = HM.mem stable y in
             HM.remove stable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
