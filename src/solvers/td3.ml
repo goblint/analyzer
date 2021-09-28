@@ -82,6 +82,9 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let destab_infl = HM.create 10 in
+      let destab_front = HM.create 10 in
+
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
@@ -98,14 +101,23 @@ module WP =
         HM.replace dep x (VS.add y (try HM.find dep x with Not_found -> VS.empty));
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
-      let rec destabilize x =
+      let rec destabilize ?(front=true) x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
+        (* HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty)); *)
+        if front then (
+          VS.iter (fun y ->
+              HM.replace destab_front y ()
+            ) w
+        )
+        else (
+          HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
+        );
         VS.iter (fun y ->
             (* TODO: remove from dep? *)
             HM.remove stable y;
-            if not (HM.mem called y) then destabilize y
+            if not (HM.mem called y) then destabilize ~front:false y
           ) w
       and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
@@ -137,7 +149,7 @@ module WP =
                   unasked_dep_x := VS.remove y !unasked_dep_x;
                   if changed then
                     all_dep_x_unchanged := false;
-                  if VS.is_empty !unasked_dep_x && !all_dep_x_unchanged then
+                  if VS.is_empty !unasked_dep_x && !all_dep_x_unchanged && not (HM.mem destab_front x) then (* must check front here, because each eval might change it for x *)
                     raise AbortEq
                 );
                 d
@@ -172,11 +184,27 @@ module WP =
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
+            if HM.mem destab_front x then (
+              HM.remove destab_front x;
+              if HM.mem destab_infl x then (
+                VS.iter (fun y ->
+                    if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                    HM.replace destab_front y ()
+                  ) (HM.find destab_infl x)
+              );
+              (* HM.remove destab_infl x *)
+            );
             destabilize x;
             (* (solve[@tailcall]) x phase; *)
             ignore (solve x phase);
             true
           ) else (
+            if HM.mem destab_front x then (
+              HM.remove destab_front x;
+              if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
+              (* don't push front here *)
+              (* HM.remove destab_infl x *)
+            );
             if not (HM.mem stable x) then (
               (solve[@tailcall]) x Widen
             ) else if term && phase = Widen then (
