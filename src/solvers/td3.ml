@@ -130,7 +130,7 @@ module WP =
             HM.remove stable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
-      and solve ?(abort=true) x phase: bool =
+      and solve ?(abort=true) x phase (changed: bool): bool =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
@@ -199,9 +199,7 @@ module WP =
               (* HM.remove destab_infl x *)
             );
             destabilize x;
-            (* (solve[@tailcall]) x phase; *)
-            ignore (solve x phase);
-            true
+            (solve[@tailcall]) x phase true
           ) else (
             if HM.mem destab_front x then (
               HM.remove destab_front x;
@@ -210,23 +208,23 @@ module WP =
               (* HM.remove destab_infl x *)
             );
             if not (HM.mem stable x) then (
-              (solve[@tailcall]) x Widen
+              (solve[@tailcall]) x Widen changed
             ) else if term && phase = Widen then (
               HM.remove stable x;
-              (solve[@tailcall]) ~abort:false x Narrow
+              (solve[@tailcall]) ~abort:false x Narrow changed
             ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
               HM.remove wpoint x;
-              false
+              changed
             )
             else
-              false
+              changed
           )
         )
         else if HM.mem called x then
           true
           (* HM.mem called_changed x *)
         else
-          false
+          changed
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
         eval_rhs_event x;
@@ -236,7 +234,7 @@ module WP =
       and simple_solve l x y: S.d * bool =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
         if S.system y = None then (init y; (HM.find rho y, true (* TODO: ??? *))) else
-        if HM.mem rho y || not space then (let changed = solve y Widen in (HM.find rho y, changed)) else
+        if HM.mem rho y || not space then (let changed = solve y Widen false in (HM.find rho y, changed)) else
         failwith "space abort unimplemented"
       and eval l x y: S.d * bool =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
@@ -387,7 +385,7 @@ module WP =
             print_newline ();
             flush_all ();
           );
-          List.iter (fun x -> ignore (solve x Widen)) unstable_vs;
+          List.iter (fun x -> ignore (solve x Widen false)) unstable_vs;
           solver ();
         )
       in
