@@ -89,7 +89,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
         | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
         | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
         | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2)
-          ->  eq_typ_acc typ1 typ2 acc && eq_list eq_args list1 list2 && varArg1 = varArg2 &&
+          ->  eq_typ_acc typ1 typ2 acc && eq_list (eq_args acc) list1 list2 && varArg1 = varArg2 &&
               eq_list eq_attribute attr1 attr2
         | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2)
           ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
@@ -118,8 +118,8 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) =
   eq_list eq_eitems a.eitems b.eitems
 (* Ignore ereferenced *)
 
-and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
-    (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ typ1 typ2 && eq_list eq_attribute attr1 attr2
+and eq_args (acc: (typ * typ) list) (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
+    (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
 
 and eq_typsig (a: typsig) (b: typsig) =
   match a, b with
