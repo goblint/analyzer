@@ -196,7 +196,7 @@ module WP =
                     HM.replace destab_front y ()
                   ) (HM.find destab_infl x)
               );
-              (* HM.remove destab_infl x *)
+              HM.remove destab_infl x
             );
             destabilize x;
             (solve[@tailcall]) x phase true
@@ -205,7 +205,7 @@ module WP =
               HM.remove destab_front x;
               if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
               (* don't push front here *)
-              (* HM.remove destab_infl x *)
+              HM.remove destab_infl x
             );
             if not (HM.mem stable x) then (
               (solve[@tailcall]) x Widen changed
