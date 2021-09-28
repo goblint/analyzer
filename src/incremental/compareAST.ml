@@ -77,13 +77,20 @@ and eq_lhost (a: lhost) (b: lhost) = match a, b with
   | Mem exp1, Mem exp2 -> eq_exp exp1 exp2
   | _, _ -> false
 
+and global_typ_acc: (typ * typ) list ref = ref [] (* TODO: optimize with physical Hashtbl? *)
+
+and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y) -> a == x && b == y) acc (* TODO: seems slightly more efficient to not use "fun (x, y) ->" directly to avoid caml_tuplify2 *)
+
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
   (* if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a\n" d_type a d_type b; *)
   if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a (%d)\n" d_type a d_type b (List.length acc); (* TODO: remove because always calls List.length *)
   let r =
-  if( List.exists (fun x-> match x with (x,y)-> a==x && b == y) acc)
-  then (if Messages.tracing then Messages.trace "compare" "in acc\n"; true)
+  if mem_typ_acc a b acc || mem_typ_acc a b !global_typ_acc then (
+    if Messages.tracing then Messages.trace "compare" "in acc\n";
+    true
+  )
   else (let acc = List.cons (a,b) acc in
+        let r =
         match a, b with
         | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
         | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
@@ -101,7 +108,12 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
         | TComp (compinfo1, attr1), TComp (compinfo2, attr2) -> let res = eq_compinfo compinfo1 compinfo2 acc &&  eq_list eq_attribute attr1 attr2 in (if res && compinfo1.cname <> compinfo2.cname then compinfo2.cname <- compinfo1.cname); res
         | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
         | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
-        | _, _ -> a = b)
+        | _, _ -> a = b
+        in
+        if r then (* TODO: only do for nontrivial types? *)
+          global_typ_acc := (a, b) :: !global_typ_acc;
+        r
+        )
   in
   if Messages.tracing then Messages.traceu "compare" "eq_typ_acc %a vs %a\n" d_type a d_type b;
   r
@@ -258,6 +270,7 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
       e -> map
   in
   let changes = empty_change_info () in
+  global_typ_acc := [];
   let checkUnchanged map global =
     try
       let ident = identifier_of_global global in
