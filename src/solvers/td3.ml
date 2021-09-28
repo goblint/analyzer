@@ -117,7 +117,7 @@ module WP =
             HM.remove stable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
-      and solve x phase: bool =
+      and solve ?(abort=true) x phase: bool =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
@@ -128,7 +128,7 @@ module WP =
           let old = HM.find rho x in
           let l = HM.create 10 in
           let eval' =
-            if HM.mem dep x then (
+            if HM.mem dep x && abort then (
               let unasked_dep_x = ref (HM.find dep x) in
               let all_dep_x_unchanged = ref true in
               fun y ->
@@ -181,7 +181,7 @@ module WP =
               (solve[@tailcall]) x Widen
             ) else if term && phase = Widen then (
               HM.remove stable x;
-              (solve[@tailcall]) x Narrow
+              (solve[@tailcall]) ~abort:false x Narrow
             ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
               HM.remove wpoint x;
               false
