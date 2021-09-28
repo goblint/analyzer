@@ -681,10 +681,13 @@ struct
     let old_loc2 = !Tracing.next_loc in
     let _       = Tracing.current_loc := f in
     let _       = Tracing.next_loc := t in
-    let d       = tf var getl sidel getg sideg prev_node edge d in
-    let _       = Tracing.current_loc := old_loc in
-    let _       = Tracing.next_loc := old_loc2 in
-    d
+    Fun.protect ~finally:(fun () ->
+        let _       = Tracing.current_loc := old_loc in
+        Tracing.next_loc := old_loc2
+      ) (fun () ->
+        let d       = tf var getl sidel getg sideg prev_node edge d in
+        d
+      )
 
   let tf (v,c) (edges, u) getl sidel getg sideg =
     let pval = getl (u,c) in
@@ -696,10 +699,15 @@ struct
     let old_context = !M.current_context in
     let _       = current_node := Some u in
     M.current_context := Some (Obj.repr c);
-    let d       = tf (v,c) (e,u) getl sidel getg sideg in
-    let _       = current_node := old_node in
-    M.current_context := old_context;
-    d
+    Fun.protect ~finally:(fun () ->
+        let _       = current_node := old_node in
+        M.current_context := old_context
+      ) (fun () ->
+        let d       = tf (v,c) (e,u) getl sidel getg sideg in
+        let _       = current_node := old_node in
+        M.current_context := old_context;
+        d
+      )
 
   let system (v,c) =
     match v with
