@@ -99,14 +99,12 @@ module WP =
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
-        (* HM.replace dep x (VS.add y (try HM.find dep x with Not_found -> VS.empty)); *)
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
       let rec destabilize ?(front=true) x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        (* HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty)); *)
         if front then (
           VS.iter (fun y ->
               HM.replace destab_front y ()
@@ -119,7 +117,6 @@ module WP =
             ) w
         );
         VS.iter (fun y ->
-            (* TODO: remove from dep? *)
             HM.remove stable y;
             if not (HM.mem called y) then destabilize ~front:false y
           ) w
@@ -128,7 +125,6 @@ module WP =
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.fold (fun y b ->
-            (* TODO: remove from dep? *)
             let was_stable = HM.mem stable y in
             HM.remove stable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
@@ -225,7 +221,6 @@ module WP =
           )
         )
         else if HM.mem called x then
-          (* true *)
           changed || HM.mem called_changed x
         else
           changed
