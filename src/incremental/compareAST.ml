@@ -121,6 +121,7 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) =
 and eq_args (acc: (typ * typ) list) (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
     (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
 
+(* TODO: why unused? *)
 and eq_typsig (a: typsig) (b: typsig) =
   match a, b with
   | TSArray (ts1, i1, attr1), TSArray (ts2, i2, attr2) -> eq_typsig ts1 ts2 && i1 = i2 && eq_list eq_attribute attr1 attr2
