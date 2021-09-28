@@ -340,7 +340,7 @@ module WP =
       if tracing then trace "sol2" "Restarting globals\n";
       HM.iter (fun x _ ->
           (* TODO: hack to identify globals *)
-          if Node.equal (S.Var.node x) (Function Cil.dummyFunDec) then (
+          if Node.equal (S.Var.node x) (Function Cil.dummyFunDec) (* && (String.starts_with (Pretty.sprint ~width:max_int (S.Var.pretty_trace () x))"bwritten on") *) then (
             if tracing then trace "sol2" "Restarting global %a\n" S.Var.pretty_trace x;
             HM.replace rho x (S.Dom.bot ());
             (* HM.remove rho x; *)
