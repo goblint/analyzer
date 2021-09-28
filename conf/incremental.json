@@ -5,9 +5,11 @@
     ],
     "int": {
       "interval": true,
-      "trier ": false
+      "def_exc": false
     },
-    "hashcons": true
+    "opt":{
+      "hashcons": false
+    }
   },
   "incremental": {
     "load": true,
