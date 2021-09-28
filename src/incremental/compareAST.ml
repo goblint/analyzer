@@ -78,8 +78,11 @@ and eq_lhost (a: lhost) (b: lhost) = match a, b with
   | _, _ -> false
 
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
+  (* if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a\n" d_type a d_type b; *)
+  if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a (%d)\n" d_type a d_type b (List.length acc); (* TODO: remove because always calls List.length *)
+  let r =
   if( List.exists (fun x-> match x with (x,y)-> a==x && b == y) acc)
-  then true
+  then (if Messages.tracing then Messages.trace "compare" "in acc\n"; true)
   else (let acc = List.cons (a,b) acc in
         match a, b with
         | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
@@ -99,6 +102,9 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
         | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
         | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
         | _, _ -> a = b)
+  in
+  if Messages.tracing then Messages.traceu "compare" "eq_typ_acc %a vs %a\n" d_type a d_type b;
+  r
 
 and eq_typ (a: typ) (b: typ) = eq_typ_acc a b []
 
@@ -159,7 +165,10 @@ and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) =
   a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list)=
-  a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr
+  if Messages.tracing then Messages.tracei "compare" "fieldinfo %s vs %s\n" a.fname b.fname;
+  let r = a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr in
+  if Messages.tracing then Messages.traceu "compare" "fieldinfo %s vs %s\n" a.fname b.fname;
+  r
 
 and eq_offset (a: offset) (b: offset) = match a, b with
     NoOffset, NoOffset -> true
