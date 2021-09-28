@@ -74,6 +74,7 @@ module WP =
       let space = GobConfig.get_bool "exp.solver.td3.space" in
       (* let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in *)
       let called = HM.create 10 in
+      let called_changed = HM.create 10 in
 
       let infl = data.infl in
       let dep = HM.create 10 in
@@ -170,6 +171,7 @@ module WP =
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
+          HM.remove called_changed x;
           let tmp =
             if not wp then tmp
             else
@@ -184,6 +186,7 @@ module WP =
             update_var_event x old tmp;
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
+            HM.replace called_changed x ();
             if HM.mem destab_front x then (
               HM.remove destab_front x;
               if HM.mem destab_infl x then (
@@ -220,6 +223,7 @@ module WP =
         )
         else if HM.mem called x then
           true
+          (* HM.mem called_changed x *)
         else
           false
       and eq x get set =
