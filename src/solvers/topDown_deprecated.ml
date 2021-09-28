@@ -176,7 +176,7 @@ module TD3 =
       HM.clear set   ;
       HPM.clear rho'  ;
 
-      rho
+      rho, Goblintutil.dummy_obj
 
   end
 

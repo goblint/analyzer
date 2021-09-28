@@ -181,7 +181,7 @@ module SLR3 =
       HM.clear set   ;
       HPM.clear rho'  ;
 
-      rho
+      rho, Goblintutil.dummy_obj
 
   end
 
@@ -486,7 +486,7 @@ module Make =
         print_newline ();
       );
 
-      X.to_list ()
+      X.to_list (), Goblintutil.dummy_obj
 
   end
 
@@ -495,7 +495,7 @@ module type MyGenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key = S.v) ->
   sig
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t
     val wpoint : unit H.t
     val infl :  S.v list H.t
     val h_find_default : 'a H.t -> S.v -> 'a -> 'a
@@ -513,7 +513,7 @@ module PrintInfluence =
     module S1 = Sol (S) (HM)
     let solve box x y =
       let ch = Legacy.open_out "test.dot" in
-      let r = S1.solve box x y in
+      let r, _ = S1.solve box x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
         let s = Pretty.sprint 80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
@@ -530,7 +530,7 @@ module PrintInfluence =
       HM.iter f r;
       ignore (Pretty.fprintf ch "}\n");
       Legacy.close_out_noerr ch;
-      r
+      r, Goblintutil.dummy_obj
   end
 
 
@@ -542,7 +542,7 @@ module TwoPhased =
     include Make (V) (S) (HM)
     let narrow = narrow S.Dom.narrow
     let solve box is iv =
-      let sd = solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv in
+      let sd, _ = solve (fun _ x y -> S.Dom.widen x (S.Dom.join x y)) is iv in
       let iv' = HM.fold (fun k _ b -> k::b) sd [] in
       let f v x y =
         (* ignore (Pretty.printf "changed %a\nold:%a\nnew:%a\n\n" S.Var.pretty_trace v S.Dom.pretty x S.Dom.pretty y); *)
