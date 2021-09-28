@@ -70,7 +70,7 @@ module WP =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
-      let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
+      (* let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in *)
       let called = HM.create 10 in
 
       let infl = data.infl in
@@ -111,7 +111,7 @@ module WP =
             HM.remove stable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
-      and solve x phase =
+      and solve x phase: bool =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
@@ -141,36 +141,39 @@ module WP =
             if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
             destabilize x;
-            (solve[@tailcall]) x phase;
-          ) else if not (HM.mem stable x) then (
-            (solve[@tailcall]) x Widen;
-          ) else if term && phase = Widen then (
-            HM.remove stable x;
-            (solve[@tailcall]) x Narrow;
-          ) else if not space && (not term || phase = Narrow) then (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
-            HM.remove wpoint x;
+            (* (solve[@tailcall]) x phase; *)
+            ignore (solve x phase);
+            true
+          ) else (
+            if not (HM.mem stable x) then (
+              (solve[@tailcall]) x Widen
+            ) else if term && phase = Widen then (
+              HM.remove stable x;
+              (solve[@tailcall]) x Narrow
+            ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+              HM.remove wpoint x;
+              false
+            )
+            else
+              false
+          )
         )
+        else if HM.mem called x then
+          true
+        else
+          false
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
-      and simple_solve l x y =
+      and simple_solve l x y: S.d * bool =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
-        if S.system y = None then (init y; HM.find rho y) else
-        if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
-        if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
-        (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
-        if cache && HM.mem l y then HM.find l y
-        else (
-          HM.replace called y ();
-          let tmp = eq y (eval l x) (side x) in
-          HM.remove called y;
-          if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
-          else (if cache then HM.replace l y tmp; tmp)
-        )
-      and eval l x y =
+        if S.system y = None then (init y; (HM.find rho y, true (* TODO: ??? *))) else
+        if HM.mem rho y || not space then (let changed = solve y Widen in (HM.find rho y, changed)) else
+        failwith "space abort unimplemented"
+      and eval l x y: S.d * bool =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
         if HM.mem called y then HM.replace wpoint y ();
@@ -319,7 +322,7 @@ module WP =
             print_newline ();
             flush_all ();
           );
-          List.iter (fun x -> solve x Widen) unstable_vs;
+          List.iter (fun x -> ignore (solve x Widen)) unstable_vs;
           solver ();
         )
       in
