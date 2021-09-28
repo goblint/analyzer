@@ -108,7 +108,10 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
         | TComp (compinfo1, attr1), TComp (compinfo2, attr2) -> let res = eq_compinfo compinfo1 compinfo2 acc &&  eq_list eq_attribute attr1 attr2 in (if res && compinfo1.cname <> compinfo2.cname then compinfo2.cname <- compinfo1.cname); res
         | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
         | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
-        | _, _ -> a = b
+        | TVoid attr1, TVoid attr2 -> eq_list eq_attribute attr1 attr2
+        | TInt (ik1, attr1), TInt (ik2, attr2) -> ik1 = ik2 && eq_list eq_attribute attr1 attr2
+        | TFloat (fk1, attr1), TFloat (fk2, attr2) -> fk1 = fk2 && eq_list eq_attribute attr1 attr2
+        | _, _ -> false
         in
         if r then (* TODO: only do for nontrivial types? *)
           global_typ_acc := (a, b) :: !global_typ_acc;
