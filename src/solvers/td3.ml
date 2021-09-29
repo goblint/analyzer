@@ -77,8 +77,11 @@ module WP =
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
+      (* If true, incremental destabilized side-effected vars will be restarted.
+         If false, they are not. *)
+      let restart_sided = true in
       (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
-         if false, it will restart all destabilized side-effected vars. *)
+         If false, it will restart all destabilized side-effected vars. *)
       let restart_only_globals = false in
 
       let () = print_solver_stats := fun () ->
@@ -289,6 +292,13 @@ module WP =
               HM.remove stable y;
               destabilize_with_side y
             ) w
+        in
+
+        let destabilize_with_side =
+          if restart_sided then
+            destabilize_with_side
+          else
+            destabilize
         in
 
         (* If a global changes because of some assignment inside a function, we reanalyze,
