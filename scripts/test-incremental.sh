@@ -13,6 +13,7 @@ args="--enable dbg.debug --enable printstats -v"
 
 patch -b $source $patch
 
-./goblint --conf $conf $args --enable incremental.load $source &> $base$test.after.log
+./goblint --conf $conf $args --enable incremental.load $source &> $base$test.after.incr.log
+./goblint --conf $conf $args $source &> $base$test.after.scratch.log
 
 patch -b -R $source $patch
