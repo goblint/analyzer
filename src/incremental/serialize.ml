@@ -7,7 +7,6 @@ let cil_file_name = "ast.data"
 let solver_data_file_name = "solver.data"
 let results_dir = "results"
 let results_tmp_dir = "results_tmp"
-let heap_file_name = "heap.data"
 let gob_directory () = let src_dir = !base_directory in
   Filename.concat src_dir goblint_dirname
 
