@@ -11,6 +11,6 @@ int main() {
     pthread_t id;
     pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
 
-    assert(g == 1);
+    assert(g == 1); // success before, success after
     return 0;
 }
