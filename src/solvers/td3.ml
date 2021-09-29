@@ -104,14 +104,6 @@ module WP =
             HM.remove stable y;
             if not (HM.mem called y) then destabilize y
           ) w
-      (* and destabilize_side x =
-       if tracing then trace "sol2" "destabilize_side %a\n" S.Var.pretty_trace x;
-        let w = HM.find_default side_dep x VS.empty in
-        HM.replace side_dep x VS.empty;
-        VS.iter (fun y ->
-            HM.remove stable y;
-            if not (HM.mem called y) then destabilize y
-          ) w *)
       and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
@@ -381,25 +373,6 @@ module WP =
         )
       in
       solver ();
-
-      (* Printf.printf "Restarting globals\n";
-      if tracing then trace "sol2" "Restarting globals\n";
-      HM.iter (fun x _ ->
-          (* TODO: hack to identify globals *)
-          if Node.equal (S.Var.node x) (Function Cil.dummyFunDec) (* && (String.starts_with (Pretty.sprint ~width:max_int (S.Var.pretty_trace () x))"bwritten on") *) then (
-            if tracing then trace "sol2" "Restarting global %a\n" S.Var.pretty_trace x;
-            HM.replace rho x (S.Dom.bot ());
-            (* HM.remove rho x; *)
-            HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
-            HM.remove sides x; (* just in case *)
-            destabilize x;
-            destabilize_side x;
-          )
-        ) rho;
-
-      List.iter set_start st; (* TODO: necessary? *)
-      (* List.iter init vs; *)
-      solver (); *)
       (* Before we solved all unstable vars in rho with a rhs in a loop. This is unneeded overhead since it also solved unreachable vars (reachability only removes those from rho further down). *)
       (* After termination, only those variables are stable which are
        * - reachable from any of the queried variables vs, or
