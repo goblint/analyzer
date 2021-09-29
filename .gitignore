@@ -64,3 +64,9 @@ runtime/*
 
 # perf
 perf.data*
+
+# incremental analysis
+incremental_data/
+
+# test-incremental.sh
+*.log
