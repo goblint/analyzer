@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Example: ./scripts/test-incremental.sh 01-global
+
 test=$1
 
 base=./tests/incremental/
