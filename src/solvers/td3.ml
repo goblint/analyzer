@@ -45,11 +45,6 @@ module WP =
       side_infl = HM.create 10;
     }
 
-    (* TODO: unused *)
-    let clear_data data =
-      HM.clear data.infl;
-      HM.clear data.stable
-
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
         Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
