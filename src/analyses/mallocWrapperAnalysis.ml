@@ -71,8 +71,7 @@ struct
     with Not_found ->
       let name = match node with
         | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
-        | Function f -> "(alloc@vid:" ^ (string_of_int f.svar.vid) ^ ")"
-        | _ -> raise (Failure "A function entry node can never be the node after a malloc") in
+        | _ -> failwith "A function entry or return node can not be the node after a malloc" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       NH.add !heap_hash node newvar;
       VH.add !heap_vars newvar node;
