@@ -332,7 +332,7 @@ module WP =
       in
       solver ();
 
-      Printf.printf "Restarting globals\n";
+      (* Printf.printf "Restarting globals\n";
       if tracing then trace "sol2" "Restarting globals\n";
       HM.iter (fun x _ ->
           (* TODO: hack to identify globals *)
@@ -349,7 +349,7 @@ module WP =
 
       List.iter set_start st; (* TODO: necessary? *)
       (* List.iter init vs; *)
-      solver ();
+      solver (); *)
       (* Before we solved all unstable vars in rho with a rhs in a loop. This is unneeded overhead since it also solved unreachable vars (reachability only removes those from rho further down). *)
       (* After termination, only those variables are stable which are
        * - reachable from any of the queried variables vs, or
