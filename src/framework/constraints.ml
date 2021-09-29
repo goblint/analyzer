@@ -21,6 +21,7 @@ struct
 
   let name () = S.name () ^" hashconsed"
 
+  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
   let finalize = S.finalize
 
@@ -30,7 +31,7 @@ struct
   let exitstate  v = D.lift (S.exitstate  v)
   let morphstate v d = D.lift (S.morphstate v (D.unlift d))
 
-  let context = S.context % D.unlift
+  let context fd = S.context fd % D.unlift
   let call_descr = S.call_descr
 
   let conv ctx =
@@ -97,6 +98,7 @@ struct
 
   let name () = S.name () ^" context hashconsed"
 
+  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init = S.init
   let finalize = S.finalize
 
@@ -106,7 +108,7 @@ struct
   let exitstate  = S.exitstate
   let morphstate = S.morphstate
 
-  let context = C.lift % S.context
+  let context fd = C.lift % S.context fd
   let call_descr f = S.call_descr f % C.unlift
 
   let conv ctx =
@@ -186,10 +188,11 @@ struct
   let start_level = ref (`Top)
   let error_level = ref (`Lifted  0L)
 
-  let init () =
+  type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
+  let init marshal =
     if get_bool "dbg.slice.on" then
       start_level := `Lifted (Int64.of_int (get_int "dbg.slice.n"));
-    S.init ()
+    S.init marshal
 
   let finalize = S.finalize
 
@@ -199,7 +202,7 @@ struct
   let exitstate  v = (S.exitstate  v, !start_level)
   let morphstate v (d,l) = (S.morphstate v d, l)
 
-  let context (d,_) = S.context d
+  let context fd (d,_) = S.context fd d
   let call_descr f = S.call_descr f
 
   let conv ctx =
@@ -278,15 +281,15 @@ end
 (** Limits the number of widenings per node. *)
 module LimitLifter (S:Spec) =
 struct
-  include (S : module type of S with module D := S.D)
+  include (S : module type of S with module D := S.D and type marshal = S.marshal)
 
   let name () = S.name ()^" limited"
 
   let limit = ref 0
 
-  let init () =
+  let init marshal =
     limit := get_int "dbg.limit.widen";
-    S.init ()
+    S.init marshal
 
   module H = MyCFG.NodeH
   let h = H.create 13
@@ -323,6 +326,7 @@ struct
 
   let name () = S.name ()^" with widened contexts"
 
+  type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
 
@@ -334,7 +338,7 @@ struct
   let exitstate  = inj S.exitstate
   let morphstate v (d,m) = S.morphstate v d, m
 
-  let context (d,m) = S.context d (* just the child analysis' context *)
+  let context fd (d,m) = S.context fd d (* just the child analysis' context *)
   let call_descr = S.call_descr
 
   let conv ctx =
@@ -361,10 +365,14 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      let v_old = M.find f.svar m in (* S.D.bot () if not found *)
-      let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-      Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
-      v_new, M.add f.svar v_new m
+      if ContextUtil.should_keep ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
+        let v_old = M.find f.svar m in (* S.D.bot () if not found *)
+        let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
+        Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
+        v_new, M.add f.svar v_new m
+      )
+      else
+        v_cur, m
     in
     S.enter (conv ctx) r f args
     |> List.map (fun (c,v) -> (c,m), d' v) (* c: caller, v: callee *)
@@ -386,6 +394,7 @@ struct
 
   let name () = S.name ()^" lifted"
 
+  type marshal = S.marshal
   let init = S.init
   let finalize = S.finalize
 
@@ -398,7 +407,7 @@ struct
   let exitstate  v = `Lifted (S.exitstate  v)
   let morphstate v d = try `Lifted (S.morphstate v (D.unlift d)) with Deadcode -> d
 
-  let context = S.context % D.unlift
+  let context fd = S.context fd % D.unlift
   let call_descr f = S.call_descr f
 
   let conv ctx =
@@ -495,12 +504,12 @@ struct
           spawns := (lval, f, args, d) :: !spawns;
           match Cilfacade.find_varinfo_fundec f with
           | fd ->
-            let c = S.context d in
+            let c = S.context fd d in
             sidel (FunctionEntry fd, c) d;
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            M.warn_each ~msg:("Created a thread from unknown function " ^ f.vname) ()
+            M.warn "Created a thread from unknown function %s" f.vname
             (* actual implementation (e.g. invalidation) is done by threadenter *)
         ) ds
     in
@@ -567,7 +576,7 @@ struct
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     let d =
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
-          List.mem fd.svar.vname (List.map Json.string (get_list "mainfun"))) &&
+          List.mem fd.svar.vname (get_string_list "mainfun")) &&
          (get_bool "kernel" || get_string "ana.osek.oil" <> "")
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
@@ -605,7 +614,7 @@ struct
       r
     in
     let paths = S.enter ctx lv f args in
-    let paths = List.map (fun (c,v) -> (c, S.context v, v)) paths in
+    let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
@@ -633,7 +642,7 @@ struct
     let one_function f =
       match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
-        M.warn_each ~msg:("Using special for defined function " ^ f.vname) ();
+        M.warn "Using special for defined function %s" f.vname;
         tf_special_call ctx lv f args
       | fd ->
         tf_normal_call ctx lv e fd args getl sidel getg sideg
@@ -684,18 +693,44 @@ struct
 
   let tf (v,c) (e,u) getl sidel getg sideg =
     let old_node = !current_node in
+    let old_context = !M.current_context in
     let _       = current_node := Some u in
-    let d       = try tf (v,c) (e,u) getl sidel getg sideg
-      with M.Bailure s -> Messages.warn_each ~msg:s (); (getl (u,c))  in
+    M.current_context := Some (Obj.repr c);
+    let d       = tf (v,c) (e,u) getl sidel getg sideg in
     let _       = current_node := old_node in
+    M.current_context := old_context;
     d
 
   let system (v,c) =
-    List.map (tf (v,c)) (Cfg.prev v)
+    match v with
+    | FunctionEntry _ ->
+      None
+    | _ ->
+      let tf getl sidel getg sideg =
+        let tf' eu = tf (v,c) eu getl sidel getg sideg in
+
+        match NodeH.find_option CfgTools.node_scc_global v with
+        | Some scc when NodeH.mem scc.prev v ->
+          let stricts = NodeH.find_all scc.prev v in
+          let xs_stricts = List.map tf' stricts in
+          if List.for_all S.D.is_bot xs_stricts then
+            S.D.bot ()
+          else
+            let xs_strict = List.fold_left S.D.join (S.D.bot ()) xs_stricts in
+            let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
+            let is_strict eu = List.exists (equal eu) stricts in
+            let non_stricts = List.filter (neg is_strict) (Cfg.prev v) in
+            let xs_non_stricts = List.map tf' non_stricts in
+            List.fold_left S.D.join xs_strict xs_non_stricts
+        | _ ->
+          let xs = List.map tf' (Cfg.prev v) in
+          List.fold_left S.D.join (S.D.bot ()) xs
+      in
+      Some tf
 end
 
-(** Combined variables so that we can also use the more common [IneqConstrSys], and [EqConstrSys]
-    that use only one kind of a variable. *)
+(** Combined variables so that we can also use the more common [EqConstrSys]
+    that uses only one kind of a variable. *)
 module Var2 (LV:VarType) (GV:VarType)
   : VarType
     with type t = [ `L of LV.t  | `G of GV.t ]
@@ -727,21 +762,22 @@ struct
     | `G a -> GV.node a
 end
 
-(** Translate a [GlobConstrSys] into a [IneqConstrSys] *)
-module IneqConstrSysFromGlobConstrSys (S:GlobConstrSys)
-  : IneqConstrSys with type v = Var2(S.LVar)(S.GVar).t
-                   and type d = Lattice.Either(S.G)(S.D).t
+(** Translate a [GlobConstrSys] into a [EqConstrSys] *)
+module EqConstrSysFromGlobConstrSys (S:GlobConstrSys)
+  : EqConstrSys   with type v = Var2(S.LVar)(S.GVar).t
+                   and type d = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames).t
                    and module Var = Var2(S.LVar)(S.GVar)
-                   and module Dom = Lattice.Either(S.G)(S.D)
+                   and module Dom = Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
 =
 struct
   module Var = Var2(S.LVar)(S.GVar)
   module Dom =
   struct
-    include Lattice.Either(S.G)(S.D)
+    include Lattice.Lift2(S.G)(S.D)(Printable.DefaultNames)
     let printXml f = function
-      | `Left  a -> S.G.printXml f a
-      | `Right a -> S.D.printXml f a
+      | `Lifted1 a -> S.G.printXml f a
+      | `Lifted2 a -> S.D.printXml f a
+      | (`Bot | `Top) as x -> printXml f x
   end
   let increment = S.increment
   type v = Var.t
@@ -749,109 +785,72 @@ struct
 
   let box f x y = if Dom.leq y x then Dom.narrow x y else Dom.widen x (Dom.join x y)
 
-  let getR = function
-    | `Left x -> x
-    | `Right _ -> S.G.bot ()
-    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Right!"
+  let getG = function
+    | `Lifted1 x -> x
+    | `Bot -> S.G.bot ()
+    | `Top -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has top value"
+    | `Lifted2 _ -> failwith "EqConstrSysFromGlobConstrSys.getG: global variable has local value"
 
   let getL = function
-    | `Right x -> x
-    | `Left _ -> S.D.top ()
-    | _ -> failwith "IneqConstrSysFromGlobConstrSys broken: Left!"
+    | `Lifted2 x -> x
+    | `Bot -> S.D.bot ()
+    | `Top -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has top value"
+    | `Lifted1 _ -> failwith "EqConstrSysFromGlobConstrSys.getL: local variable has global value"
 
   let l, g = (fun x -> `L x), (fun x -> `G x)
-  let le, ri = (fun x -> `Right x), (fun x -> `Left x)
+  let lD, gD = (fun x -> `Lifted2 x), (fun x -> `Lifted1 x)
 
   let conv f get set =
-    f (getL % get % l) (fun x v -> set (l x) (le v))
-      (getR % get % g) (fun x v -> set (g x) (ri v))
-    |> le
+    f (getL % get % l) (fun x v -> set (l x) (lD v))
+      (getG % get % g) (fun x v -> set (g x) (gD v))
+    |> lD
 
   let system = function
-    | `G _ -> []
-    | `L x -> List.map conv (S.system x)
+    | `G _ -> None
+    | `L x -> Option.map conv (S.system x)
 end
 
 
 (** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
-(* TODO: unused *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hash.H with type key=S.LVar.t) ->
     functor (GH:Hash.H with type key=S.GVar.t) ->
     struct
-      module IneqSys = IneqConstrSysFromGlobConstrSys (S)
-      module EqSys = Generic.NormalSysConverter (IneqSys)
+      module EqSys = EqConstrSysFromGlobConstrSys (S)
 
       module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
-      let getR v = function
-        | `Left x -> x
-        | `Right x ->
-          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
-          undefined ()
-
-      let getL v = function
-        | `Right x -> x
-        | `Left x ->
-          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
-          undefined ()
-
-      let solve ls gs l =
-        let vs = List.map (fun (x,v) -> EqSys.conv (`L x), `Right v) ls
-                 @ List.map (fun (x,v) -> EqSys.conv (`G x), `Left  v) gs in
-        let sv = List.map (fun x -> EqSys.conv (`L x)) l in
-        let hm = Sol'.solve EqSys.box vs sv in
+      let split_solution hm =
         let l' = LH.create 113 in
         let g' = GH.create 113 in
-        let split_vars = function
-          | (`L x,_) -> fun y -> LH.replace l' x (getL x y)
-          | (`G x,_) -> fun y -> GH.replace g' x (getR x y)
+        let split_vars x d = match x with
+          | `L x ->
+            begin match d with
+              | `Lifted2 d -> LH.replace l' x d
+              | `Bot -> ()
+              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: local variable has top value"
+              | `Lifted1 _ -> failwith "GlobSolverFromEqSolver.split_vars: local variable has global value"
+            end
+          | `G x ->
+            begin match d with
+              | `Lifted1 d -> GH.replace g' x d
+              | `Bot -> ()
+              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: global variable has top value"
+              | `Lifted2 _ -> failwith "GlobSolverFromEqSolver.split_vars: global variable has local value"
+            end
         in
         VH.iter split_vars hm;
         (l', g')
-    end
-
-(** Transforms a [GenericIneqBoxSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromIneqSolver (Sol:GenericIneqBoxSolver)
-  : GenericGlobSolver
-  = functor (S:GlobConstrSys) ->
-    functor (LH:Hash.H with type key=S.LVar.t) ->
-    functor (GH:Hash.H with type key=S.GVar.t) ->
-    struct
-      module IneqSys = IneqConstrSysFromGlobConstrSys (S)
-
-      module VH : Hash.H with type key=IneqSys.v = Hashtbl.Make(IneqSys.Var)
-      module Sol' = Sol (IneqSys) (VH)
-
-      let getG v = function
-        | `Left x -> x
-        | `Right x ->
-          ignore @@ Pretty.printf "GVar %a has local value %a\n" S.GVar.pretty_trace v S.D.pretty x;
-          (* undefined () *) (* TODO this only happens for test 17/02 arinc/unique_proc *)
-          S.G.bot ()
-
-      let getL v = function
-        | `Right x -> x
-        | `Left x ->
-          ignore @@ Pretty.printf "LVar %a has global value %a\n" S.LVar.pretty_trace v S.G.pretty x;
-          undefined ()
 
       let solve ls gs l =
-        let vs = List.map (fun (x,v) -> `L x, `Right v) ls
-                 @ List.map (fun (x,v) -> `G x, `Left v) gs in
+        let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
+                 @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm = Sol'.solve IneqSys.box vs sv in
-        let l' = LH.create 113 in
-        let g' = GH.create 113 in
-        let split_vars = function
-          | `L x -> fun y -> LH.replace l' x (getL x y)
-          | `G x -> fun y -> GH.replace g' x (getG x y)
-        in
-        VH.iter split_vars hm;
-        (l', g')
+        let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        split_solution hm, solver_data
     end
 
 
@@ -905,6 +904,7 @@ struct
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
+  type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
 
@@ -916,11 +916,11 @@ struct
 
   let call_descr = Spec.call_descr
 
-  let context l =
+  let context fd l =
     if D.cardinal l <> 1 then
       failwith "PathSensitive2.context must be called with a singleton set."
     else
-      Spec.context @@ D.choose l
+      Spec.context fd @@ D.choose l
 
   let conv ctx x =
     let rec ctx' = { ctx with ask   = (fun (type a) (q: a Queries.t) -> Spec.query ctx' q)
@@ -1169,7 +1169,7 @@ struct
           complain_l v d' d
       in
       let rhs = system v in
-      List.iter verify_constraint rhs
+      Option.may verify_constraint rhs
     in
     LH.iter verify_var sigma;
     Goblintutil.in_verifying_stage := false
@@ -1189,7 +1189,7 @@ struct
     let rec one_lvar x =
       if not (LH.mem reachablel x) then begin
         LH.replace reachablel x ();
-        List.iter one_constraint (system x)
+        Option.may one_constraint (system x)
       end
     and one_constraint rhs =
       let getl y =

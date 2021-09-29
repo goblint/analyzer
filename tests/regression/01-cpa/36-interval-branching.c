@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc
+// PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc
 #include <stdio.h>
 int main(){
     int i;

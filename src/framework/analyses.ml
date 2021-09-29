@@ -144,27 +144,20 @@ struct
     iter print_one xs
 
   let printXmlWarning f () =
-    let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+    let one_text f Messages.Piece.{loc; text = m; _} =
+      match loc with
+      | Some l ->
+        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+      | None ->
+        () (* TODO: not outputting warning without location *)
     in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
+    let one_w f (m: Messages.Message.t) = match m.multipiece with
+      | Single piece  -> one_text f piece
+      | Group {group_text = n; pieces = e} ->
         BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w f x = BatPrintf.fprintf f "\n<warning>%a</warning>" one_w x in
-    List.iter (one_w f) !Messages.warning_table
-
-  let printXmlGlobals f () =
-    let one_text f (m,l) =
-      BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
-    in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
-        BatPrintf.fprintf f "<group name=\"%s\">%a</group>\n" n (BatList.print ~first:"" ~last:"" ~sep:"" one_text) e
-    in
-    List.iter (one_w f) !Messages.warning_table
+    List.iter (one_w f) !Messages.Table.messages_list
 
   let output table gtable gtfxml (file: file) =
     let out = Messages.get_out result_name !GU.out in
@@ -264,6 +257,8 @@ struct
        iter insert (Lazy.force table);
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
+    | "json-messages" ->
+      Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -321,8 +316,18 @@ sig
 
   val name : unit -> string
 
-  val init : unit -> unit
-  val finalize : unit -> unit
+  (** Auxiliary data (outside of solution domains) that needs to be marshaled and unmarshaled.
+      This includes:
+      * hashtables,
+      * varinfos (create_var),
+      * RichVarinfos. *)
+  type marshal
+
+  (** Initialize using unmarshaled auxiliary data (if present). *)
+  val init : marshal option -> unit
+
+  (** Finalize and return auxiliary data to be marshaled. *)
+  val finalize : unit -> marshal
   (* val finalize : G.t -> unit *)
 
   val startstate : varinfo -> D.t
@@ -330,7 +335,7 @@ sig
   val exitstate  : varinfo -> D.t
 
   val should_join : D.t -> D.t -> bool
-  val context : D.t -> C.t
+  val context : fundec -> D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
   val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t
@@ -362,15 +367,20 @@ sig
   val event : (D.t, G.t, C.t) ctx -> Events.t -> (D.t, G.t, C.t) ctx -> D.t
 end
 
+type analyzed_data = {
+  cil_file: Cil.file ;
+  solver_data: Obj.t;
+}
+
 type increment_data = {
-  analyzed_commit_dir: string;
-  current_commit_dir: string;
+  old_data: analyzed_data option;
+  new_file: Cil.file;
   changes: CompareAST.change_info
 }
 
-let empty_increment_data () = {
-  analyzed_commit_dir = "";
-  current_commit_dir = "";
+let empty_increment_data file = {
+  old_data = None;
+  new_file = file;
   changes = CompareAST.empty_change_info ()
 }
 
@@ -397,9 +407,6 @@ sig
   val increment : increment_data
 end
 
-(** Any system of side-effecting inequations over lattices. *)
-module type IneqConstrSys = MonSystem with type 'a m := 'a list
-
 (** Any system of side-effecting equations over lattices. *)
 module type EqConstrSys = MonSystem with type 'a m := 'a option
 
@@ -412,7 +419,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   val increment : increment_data
-  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) list
+  val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
 end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
@@ -420,19 +427,10 @@ module type GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key=S.v) ->
   sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
-  end
-
-(** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericIneqBoxSolver =
-  functor (S: IneqConstrSys) ->
-  functor (H:Hash.H with type key=S.v) ->
-  sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
+        for serialization or a dummy object. *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t
   end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
@@ -441,9 +439,10 @@ module type GenericGlobSolver =
   functor (LH:Hash.H with type key=S.LVar.t) ->
   functor (GH:Hash.H with type key=S.GVar.t) ->
   sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
+    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
+        for serialization or a dummy object. *)
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * Obj.t
   end
 
 module ResultType2 (S:Spec) =
@@ -460,7 +459,8 @@ end
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
-  let init     () = ()
+  type marshal = unit
+  let init _ = ()
   let finalize () = ()
   (* no inits nor finalize -- only analyses like Mutex, Base, ... need
      these to do postprocessing or other imperative hacks. *)
@@ -480,7 +480,7 @@ struct
   let vdecl ctx _ = ctx.local
 
   let asm x =
-    ignore (M.warn ~msg:"ASM statement ignored." ());
+    ignore (M.warn "ASM statement ignored.");
     x.local (* Just ignore. *)
 
   let skip x = x.local (* Just ignore. *)
@@ -496,6 +496,35 @@ struct
   let sync ctx _ = ctx.local
   (* Most domains do not have a global part. *)
 
-  let context x = x
+  let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+end
+
+(* Even more default implementations. Most transfer functions acting as identity functions. *)
+module IdentitySpec =
+struct
+  include DefaultSpec
+  let assign ctx (lval:lval) (rval:exp) =
+    ctx.local
+
+  let branch ctx (exp:exp) (tv:bool) =
+    ctx.local
+
+  let body ctx (f:fundec) =
+    ctx.local
+
+  let return ctx (exp:exp option) (f:fundec) =
+    ctx.local
+
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) =
+    [ctx.local, ctx.local]
+
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc au =
+    au
+
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
+    ctx.local
+
+  let threadenter ctx lval f args = [ctx.local]
+  let threadspawn ctx lval f args fctx = ctx.local
 end

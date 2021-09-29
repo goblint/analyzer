@@ -15,7 +15,7 @@ let get_spec () : (module Spec) =
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
   let module S1 = (val
             (module MCP.MCP2 : Spec)
-            |> lift (get_bool "exp.widen-context") (module WidenContextLifterSide)
+            |> lift true (module WidenContextLifterSide) (* option checked in functor *)
             (* hashcons before witness to reduce duplicates, because witness re-uses contexts in domain and requires tag for PathSensitive3 *)
             |> lift (get_bool "ana.opt.hashcons" || get_bool "ana.sv-comp.enabled") (module HashconsContextLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
@@ -131,8 +131,8 @@ struct
     let report tv (loc, dead) =
       if Deadcode.Locmap.mem dead_locations loc then
         match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-        | true, Some exp -> ignore (Pretty.printf "Dead code: the %s branch over expression '%a' is dead! (%a)\n" (str tv) d_exp exp CilType.Location.pretty loc)
-        | true, None     -> ignore (Pretty.printf "Dead code: an %s branch is dead! (%a)\n" (str tv) CilType.Location.pretty loc)
+        | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
+        | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
         | _ -> ()
     in
     if get_bool "dbg.print_dead_code" then (
@@ -166,7 +166,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.warn ~msg:("Calculated state for undefined function: unexpected node "^Ana.sprint Node.pretty_plain n) ()
+          Messages.warn "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
     in
     LHT.iter add_local_var h;
     res
@@ -278,7 +278,11 @@ struct
 
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
-    Spec.init ();
+    if get_string "load_run" <> "" then (
+      Spec.init (Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal")))
+    )
+    else
+      Spec.init None;
     Access.init file;
 
     let test_domain (module D: Lattice.S): unit =
@@ -372,12 +376,12 @@ struct
 
     let startvars' =
       if get_bool "exp.forward" then
-        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e)) startvars
+        List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context n e)) startvars
       else
-        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context e)) startvars
+        List.map (fun (n,e) -> (MyCFG.Function n, Spec.context n e)) startvars
     in
 
-    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context e), e) startvars in
+    let entrystates = List.map (fun (n,e) -> (MyCFG.FunctionEntry n, Spec.context n e), e) startvars in
     let entrystates_global = GHT.to_list gh in
 
     let uncalled_dead = ref 0 in
@@ -414,7 +418,9 @@ struct
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
-          let lh, gh = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
+          let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
+          if GobConfig.get_bool "incremental.save" then
+            Serialize.store_data solver_data Serialize.SolverData;
           if save_run <> "" then (
             let solver = Filename.concat save_run solver_file in
             let analyses = Filename.concat save_run "analyses.marshalled" in
@@ -443,7 +449,7 @@ struct
               );
               Serialize.marshal !MCP.analyses_table analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
-              Serialize.marshal !Messages.warning_table warnings;
+              Serialize.marshal !Messages.Table.messages_list warnings;
               Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
@@ -453,9 +459,9 @@ struct
       in
 
       if get_string "comparesolver" <> "" then (
-        let compare_with (module S2 :  GenericGlobSolver) =
+        let compare_with (module S2 : GenericGlobSolver) =
           let module S2' = S2 (EQSys) (LHT) (GHT) in
-          let r2 = S2'.solve entrystates entrystates_global startvars' in
+          let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
         compare_with (Slvr.choose_solver (get_string "comparesolver"))
@@ -465,6 +471,8 @@ struct
         if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
         Goblintutil.should_warn := get_string "warn_at" <> "never";
         Stats.time "verify" (Vrfyr.verify lh) gh;
+        if GobConfig.get_bool "incremental.save" then
+          Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
       );
 
       if get_bool "ana.sv-comp.enabled" then (
@@ -473,7 +481,6 @@ struct
         Stats.time "reachability" (Reach.prune lh gh) startvars'
       );
 
-      let out = M.get_out "uncalled" Legacy.stdout in
       let insrt k _ s = match k with
         | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
         | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
@@ -490,10 +497,8 @@ struct
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
-            if get_bool "dbg.uncalled" then (
-              let msg = "Function \"" ^ fn.svar.vname ^ "\" will never be called: " ^ string_of_int cnt  ^ "LoC" in
-              ignore (Pretty.fprintf out "%s (%a)\n" msg CilType.Location.pretty loc)
-            )
+            if get_bool "dbg.uncalled" then
+              M.warn ~loc ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
@@ -507,7 +512,7 @@ struct
         print_globals gh;
 
       (* run activated transformations with the analysis result *)
-      let active_transformations = get_list "trans.activated" |> List.map Json.string in
+      let active_transformations = get_string_list "trans.activated" in
       (if List.length active_transformations > 0 then
         (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =
@@ -553,7 +558,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
-      M.print_msg "Timeout reached!" (!Tracing.current_loc);
+      M.error ~loc:!Tracing.current_loc "Timeout reached!";
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.
@@ -577,7 +582,10 @@ struct
     if get_bool "exp.cfgdot" then
       CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
-    Spec.finalize ();
+    let marshal = Spec.finalize () in
+    if get_string "save_run" <> "" then (
+      Serialize.marshal marshal (Filename.concat (get_string "save_run") "spec_marshal")
+    );
 
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Result.output (lazy local_xml) gh make_global_fast_xml file

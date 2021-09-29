@@ -148,7 +148,7 @@ struct
             let ls = Lockset.filter snd ctx.local in
             let el = P.effect_fun ~write:w ls in
             ctx.sideg v el
-        | None -> M.warn ~msg:"Write to unknown address: privatization is unsound." ()
+        | None -> M.warn "Write to unknown address: privatization is unsound."
       end;
 
       (*partitions & locks*)
@@ -410,9 +410,9 @@ struct
     end;
     ctx.local
 
-  let init () =
-    init ();
-    arinc_analysis_activated := List.exists (fun x -> Json.string x="arinc") (get_list "ana.activated")
+  let init marshal =
+    init marshal;
+    arinc_analysis_activated := List.mem "arinc" (get_string_list "ana.activated")
 
 end
 

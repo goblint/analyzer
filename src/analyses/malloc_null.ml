@@ -47,7 +47,7 @@ struct
       if D.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then
         let var = Addr.from_var_offset v in
-        Messages.warn_each ~msg:("Possible dereferencing of null on variable '" ^ (Addr.show var) ^ "'.") ~warning:(Messages.Warning.Behavior.Undefined.nullpointer_dereference ()) ()
+        Messages.warn ~category:Messages.Category.Behavior.Undefined.nullpointer_dereference "Possible dereferencing of null on variable '%a'." Addr.pretty var
     with SetDomain.Unsupported _ -> ()
 
   (* Warn null-lval dereferences, but not normal (null-) lvals*)
@@ -229,7 +229,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.empty ()
 
-  let init () =
+  let init marshal =
     set_bool "exp.malloc.fail" true;
     return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end

@@ -75,7 +75,7 @@ type _ t =
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
-  | CurrentThreadId: VI.t t
+  | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | EvalInt: exp -> ID.t t
@@ -92,6 +92,8 @@ type _ t =
   | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
+  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
+  | EvalThread: exp -> ConcDomain.ThreadSet.t t
 
 type 'a result = 'a
 
@@ -132,13 +134,15 @@ struct
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
     | BlobSize _ -> (module ID)
-    | CurrentThreadId -> (module VI)
+    | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
     | EvalStr _ -> (module SD)
     | PrintFullState -> (module Unit)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> (module PartAccessResult)
+    | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
+    | EvalThread _ -> (module ConcDomain.ThreadSet)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -178,13 +182,15 @@ struct
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
     | BlobSize _ -> ID.top ()
-    | CurrentThreadId -> VI.top ()
+    | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
     | EvalStr _ -> SD.top ()
     | PrintFullState -> Unit.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> PartAccessResult.top ()
+    | IsMultiple _ -> MustBool.top ()
+    | EvalThread _ -> ConcDomain.ThreadSet.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -229,6 +235,8 @@ struct
       | Any (MayBeLess _) -> 28
       | Any HeapVar -> 29
       | Any (IsHeapVar _) -> 30
+      | Any (IsMultiple _) -> 31
+      | Any (EvalThread _) -> 32
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -261,6 +269,8 @@ struct
       | Any (MayBeLess (e1, e2)), Any (MayBeEqual (e3, e4)) ->
         [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
+      | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
+      | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end

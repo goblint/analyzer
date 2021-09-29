@@ -1,7 +1,6 @@
 (** Helpful functions for dealing with [Cil]. *)
 
 open GobConfig
-open Json
 open Cil
 module E = Errormsg
 module GU = Goblintutil
@@ -89,7 +88,7 @@ let register_preprocess name visitor_fun =
 let do_preprocess ast =
   let f fd (name, visitor_fun) =
     (* this has to be done here, since the settings aren't available when register_preprocess is called *)
-    if List.mem name (List.map Json.string @@ get_list "ana.activated") then
+    if List.mem name (get_string_list "ana.activated") then
       ignore @@ visitCilFunction (visitor_fun fd) fd
   in
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
@@ -127,7 +126,7 @@ class addConstructors cons = object
   inherit nopCilVisitor
   val mutable cons1 = cons
   method! vfunc fd =
-    if List.mem fd.svar.vname (List.map string (get_list "mainfun")) then begin
+    if List.mem fd.svar.vname (get_string_list "mainfun") then begin
       if get_bool "dbg.verbose" then ignore (Pretty.printf "Adding constructors to: %s\n" fd.svar.vname);
       let loc = match fd.sbody.bstmts with
         | s :: _ -> get_stmtLoc s
@@ -208,10 +207,10 @@ let getFuns fileAST : startfuns =
   let add_other f (m,e,o) = (m,e,f::o) in
   let f acc glob =
     match glob with
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "mainfun") -> add_main def acc
     | GFun({svar={vname=mn; _}; _} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "exitfun") -> add_exit def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "otherfun") -> add_other def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
       Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
@@ -239,7 +238,7 @@ let rec get_ikind t =
   | TEnum ({ekind = ik; _},_) -> ik
   | TPtr _ -> get_ikind !Cil.upointType
   | _ ->
-    Messages.warn_each ~msg:"Something that we expected to be an integer type has a different type, assuming it is an IInt" ();
+    Messages.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";
     Cil.IInt
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
@@ -497,6 +496,7 @@ let find_varinfo_role vi = VarinfoH.find (Lazy.force varinfo_roles) vi (* vi arg
 let is_varinfo_formal vi =
   match find_varinfo_role vi with
   | Formal _ -> true
+  | exception Not_found
   | _ -> false
 
 
@@ -509,7 +509,8 @@ let find_scope_fundec vi =
   | Local fd ->
     Some fd
   | Function
-  | Global ->
+  | Global
+  | exception Not_found ->
     None
 
 

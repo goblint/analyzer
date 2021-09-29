@@ -56,10 +56,10 @@ module Make =
         set x (eq x (eval x) set)
       done;
       stop_event ();
-      rho
+      rho, Goblintutil.dummy_obj
   end
 
 
 let _ =
-  let module S = GlobSolverFromIneqSolver (SLR.JoinContr (Make)) in
+  let module S = GlobSolverFromEqSolver (Make) in
   Selector.add_solver ("WL",  (module S : GenericGlobSolver));
