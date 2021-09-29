@@ -266,7 +266,7 @@ module WP =
 
           (* is side-effected var (global/function entry)? *)
           let w = HM.find_default side_dep x VS.empty in
-          HM.replace side_dep x VS.empty;
+          HM.remove side_dep x;
 
           if not (VS.is_empty w) then (
             (* restart side-effected var *)
@@ -296,7 +296,7 @@ module WP =
 
           (* destabilize side infl *)
           let w = HM.find_default side_infl x VS.empty in
-          HM.replace side_infl x VS.empty;
+          HM.remove side_infl x;
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
               HM.remove stable y;
