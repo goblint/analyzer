@@ -360,6 +360,8 @@ module WP =
         delete_marked infl;
         delete_marked wpoint;
         delete_marked stable;
+        delete_marked side_dep;
+        delete_marked side_infl;
 
         print_data data "Data after clean-up"
       );
