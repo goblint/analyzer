@@ -1,0 +1,10 @@
+--- tests/incremental/04-global-add.c	2021-09-29 14:11:10.085414395 +0300
++++ "tests/incremental/04-global-add copy.c"	2021-09-29 14:11:15.785447525 +0300
+@@ -4,6 +4,7 @@
+ int g = 1;
+ 
+ void* t_fun(void *arg) {
++    g = 2;
+     return NULL;
+ }
+ 
