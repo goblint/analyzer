@@ -367,15 +367,20 @@ sig
   val event : (D.t, G.t, C.t) ctx -> Events.t -> (D.t, G.t, C.t) ctx -> D.t
 end
 
+type analyzed_data = {
+  cil_file: Cil.file ;
+  solver_data: Obj.t;
+}
+
 type increment_data = {
-  analyzed_commit_dir: string;
-  current_commit_dir: string;
+  old_data: analyzed_data option;
+  new_file: Cil.file;
   changes: CompareAST.change_info
 }
 
-let empty_increment_data () = {
-  analyzed_commit_dir = "";
-  current_commit_dir = "";
+let empty_increment_data file = {
+  old_data = None;
+  new_file = file;
   changes = CompareAST.empty_change_info ()
 }
 
@@ -422,9 +427,10 @@ module type GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
   functor (H:Hash.H with type key=S.v) ->
   sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
+    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
+        for serialization or a dummy object. *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t
   end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
@@ -433,9 +439,10 @@ module type GenericGlobSolver =
   functor (LH:Hash.H with type key=S.LVar.t) ->
   functor (GH:Hash.H with type key=S.GVar.t) ->
   sig
-    (** The hash-map [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs].  *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> S.D.t LH.t * S.G.t GH.t
+    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
+        for serialization or a dummy object. *)
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * Obj.t
   end
 
 module ResultType2 (S:Spec) =

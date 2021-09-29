@@ -11,8 +11,15 @@
       "hashcons": false
     }
   },
+  "incremental": {
+    "load": true,
+    "save": true,
+    "wpoint": false,
+    "stable": true
+  },
   "exp": {
     "earlyglobs": true,
+    "privatization": "none",
     "solver": {
       "td3": {
         "term": true,
@@ -20,11 +27,7 @@
         "space_cache": true,
         "space_restore": true
       }
-    },
-    "incremental": {
-      "mode": "incremental"
-    },
-    "privatization": "none"
+    }
   },
   "dbg": {
     "verbose": true,

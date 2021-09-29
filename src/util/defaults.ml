@@ -9,6 +9,7 @@ open List
 (** Main categories of configuration variables. *)
 type category = Std             (** Parsing input, includes, standard stuff, etc. *)
               | Analyses        (** Analyses                                      *)
+              | Incremental     (** Incremental features                          *)
               | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
@@ -26,6 +27,7 @@ let catDescription = function
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
+  | Incremental     -> "Incremental analysis options"
   | Warnings        -> "Filtering of warnings"
 
 (** A place to store registered variables *)
@@ -144,6 +146,13 @@ let _ = ()
       ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
 
+(* {4 category [Incremental]} *)
+let _ = ()
+      ; reg Incremental "incremental.load"   "false" "Load incremental analysis results, in case any exist."
+      ; reg Incremental "incremental.save"   "false" "Store incremental analysis results."
+      ; reg Incremental "incremental.stable" "true"  "Reuse the stable set and selectively destabilize it (recommended)."
+      ; reg Incremental "incremental.wpoint" "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
+
 (* {4 category [Semantics]} *)
 let _ = ()
       (* TODO: split unknown_function to undefined_function and unknown_function_ptr *)
@@ -204,9 +213,6 @@ let _ = ()
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
       ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
-      ; reg Experimental "exp.incremental.mode"   "'off'" "Use incremental analysis in the TD3 solver. Values: off (default), incremental (analyze based on data from a previous commit or fresh if there is none), complete (discard loaded data and start fresh)."
-      ; reg Experimental "exp.incremental.stable" "true"  "Reuse the stable set and selectively destabilize it."
-      ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
       ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
 
 (* {4 category [Debugging]} *)
@@ -262,6 +268,7 @@ let default_schema = {schema|
     , "required"        : []
     }
   , "sem"               : {}
+  , "incremental"       : {}
   , "trans"             : {}
   , "phases"            : {}
   , "exp" :

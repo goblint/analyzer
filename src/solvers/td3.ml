@@ -16,10 +16,6 @@ open Messages
 open CompareAST
 open Cil
 
-let result_file_name = "td3.data"
-
-let incremental_mode = ref "off"
-
 module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
@@ -85,7 +81,7 @@ module WP =
         print_context_stats rho
       in
 
-      if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
+      if GobConfig.get_bool "incremental.load" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in
 
@@ -241,7 +237,7 @@ module WP =
 
       start_event ();
 
-      if !incremental_mode = "incremental" then (
+      if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
         (* If a global changes because of some assignment inside a function, we reanalyze,
@@ -407,14 +403,12 @@ module WP =
       {st; infl; sides; rho; wpoint; stable}
 
     let solve box st vs =
-      incremental_mode := GobConfig.get_string "exp.incremental.mode";
-      let reuse_stable = GobConfig.get_bool "exp.incremental.stable" in
-      let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
-      if !incremental_mode <> "off" then (
-        let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-        let loaded, data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
-          then true, Serialize.unmarshal file_in
-          else false, create_empty_data ()
+      let reuse_stable = GobConfig.get_bool "incremental.stable" in
+      let reuse_wpoint = GobConfig.get_bool "incremental.wpoint" in
+      if GobConfig.get_bool "incremental.load" then (
+        let loaded, data = match S.increment.old_data with
+          | Some d -> true, Obj.obj d.solver_data
+          | _ -> false, create_empty_data ()
         in
         (* This hack is for fixing hashconsing.
          * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
@@ -460,30 +454,12 @@ module WP =
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
         let result = solve box st vs data in
-        let path = Goblintutil.create_dir S.increment.current_commit_dir in
-        if Sys.file_exists path then (
-          let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
-          print_endline @@ "Saving solver result to " ^ file_out;
-          Serialize.marshal result file_out;
-        );
-        clear_data result;
-
-        (* Compare current rho to old rho *)
-        if Sys.file_exists file_in && !incremental_mode <> "complete" then (
-          let old_rho = (Serialize.unmarshal file_in: solver_data).rho in
-          let eq r s =
-            let leq r s = HM.fold (fun k v acc -> acc && (try S.Dom.leq v (HM.find s k) with Not_found -> false)) r true
-          in leq r s && leq s r in
-          print_endline @@ "Rho " ^ (if eq result.rho old_rho then "did not change" else "changed") ^ " compared to previous analysis.";
-        );
-
-        result.rho
+        result.rho, Obj.repr result
       )
       else (
         let data = create_empty_data () in
         let result = solve box st vs data in
-        clear_data result;
-        result.rho
+        result.rho, Obj.repr result
       )
   end
 
