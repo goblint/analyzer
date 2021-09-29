@@ -81,9 +81,10 @@ and global_typ_acc: (typ * typ) list ref = ref [] (* TODO: optimize with physica
 
 and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y) -> a == x && b == y) acc (* TODO: seems slightly more efficient to not use "fun (x, y) ->" directly to avoid caml_tuplify2 *)
 
+and pretty_length () l = Pretty.num (List.length l)
+
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
-  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a\n" d_type a d_type b;
-  (* if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%d)\n" d_type a d_type b (List.length acc); (* TODO: remove because always calls List.length *) *)
+  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
   let r = (match a, b with
         | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
         | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
