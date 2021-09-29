@@ -82,6 +82,9 @@ module WP =
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
+      (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
+         if false, it will restart all destabilized side-effected vars. *)
+      let restart_only_globals = false in
 
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
@@ -265,7 +268,7 @@ module WP =
           let w = HM.find_default side_dep x VS.empty in
           HM.remove side_dep x;
 
-          if not (VS.is_empty w) then (
+          if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) then (
             (* restart side-effected var *)
             if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
             ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pretty_trace x);
