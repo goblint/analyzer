@@ -82,8 +82,8 @@ and global_typ_acc: (typ * typ) list ref = ref [] (* TODO: optimize with physica
 and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y) -> a == x && b == y) acc (* TODO: seems slightly more efficient to not use "fun (x, y) ->" directly to avoid caml_tuplify2 *)
 
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
-  if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a\n" d_type a d_type b;
-  (* if Messages.tracing then Messages.tracei "compare" "eq_typ_acc %a vs %a (%d)\n" d_type a d_type b (List.length acc); (* TODO: remove because always calls List.length *) *)
+  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a\n" d_type a d_type b;
+  (* if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%d)\n" d_type a d_type b (List.length acc); (* TODO: remove because always calls List.length *) *)
   let r = (match a, b with
         | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
         | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
@@ -100,7 +100,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
         (* The following two lines are a hack to ensure that anonymous types get the same name and thus, the same typsig *)
         | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->
           if mem_typ_acc a b acc || mem_typ_acc a b !global_typ_acc then (
-            if Messages.tracing then Messages.trace "compare" "in acc\n";
+            if Messages.tracing then Messages.trace "compareast" "in acc\n";
             true
           )
           else (
@@ -119,7 +119,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
         | TFloat (fk1, attr1), TFloat (fk2, attr2) -> fk1 = fk2 && eq_list eq_attribute attr1 attr2
         | _, _ -> false)
   in
-  if Messages.tracing then Messages.traceu "compare" "eq_typ_acc %a vs %a\n" d_type a d_type b;
+  if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a\n" d_type a d_type b;
   r
 
 and eq_typ (a: typ) (b: typ) = eq_typ_acc a b []
@@ -170,9 +170,9 @@ and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) =
   a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list)=
-  if Messages.tracing then Messages.tracei "compare" "fieldinfo %s vs %s\n" a.fname b.fname;
+  if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
   let r = a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr in
-  if Messages.tracing then Messages.traceu "compare" "fieldinfo %s vs %s\n" a.fname b.fname;
+  if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
   r
 
 and eq_offset (a: offset) (b: offset) = match a, b with
