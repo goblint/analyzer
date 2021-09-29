@@ -52,7 +52,7 @@ Other tracing functions are available:
 To build a Goblint executable with debug information, run the following command within the `analyzer` directory.
 
 ```console
-make debug
+make byte
 ```
 
 This will create a file called `goblint.byte`.
