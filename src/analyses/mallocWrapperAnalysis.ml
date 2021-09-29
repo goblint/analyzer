@@ -4,6 +4,8 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
+include PreMallocWrapperAnalysis
+
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
@@ -56,15 +58,9 @@ struct
   let exitstate  v = D.top ()
 
 
-  (* refs to reassign unmarshaled in init *)
-  module NH = Hashtbl.Make (Node)
-  module VH = Hashtbl.Make (CilType.Varinfo)
-  let heap_hash = ref (NH.create 113)
-  let heap_vars = ref (VH.create 113)
-
   type marshal = {
     heap_hash: varinfo NH.t;
-    heap_vars: unit VH.t;
+    heap_vars: Node.t VH.t;
   }
 
   let get_heap_var node =
@@ -79,7 +75,7 @@ struct
         | _ -> raise (Failure "A function entry node can never be the node after a malloc") in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
       NH.add !heap_hash node newvar;
-      VH.add !heap_vars newvar ();
+      VH.add !heap_vars newvar node;
       newvar
 
   let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
