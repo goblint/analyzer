@@ -353,6 +353,10 @@ module WP =
         print_data data "Data after clean-up"
       );
 
+      (* reachability will populate these tables for incremental global restarting *)
+      HM.clear side_dep;
+      HM.clear side_infl;
+
       List.iter set_start st;
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
@@ -427,10 +431,7 @@ module WP =
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
 
-      (* reachability will populate these tables for incremental global restarting *)
-      HM.clear side_dep;
-      HM.clear side_infl;
-
+      (* reachability also populates side_dep and side_infl *)
       let reachability xs =
         let reachable = HM.create (HM.length rho) in
         let rec one_var x =
