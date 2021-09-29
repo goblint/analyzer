@@ -65,7 +65,7 @@ rule() {
     ;; byte)
       eval $(opam config env)
       dune build goblint.byte &&
-      cp _build/default/$TARGET.bc goblint.byte
+      cp _build/default/goblint.byte goblint.byte
     ;; profile)
       # gprof (run only generates gmon.out). use: gprof goblint
       ocb -tag profile $TARGET.p.native &&
