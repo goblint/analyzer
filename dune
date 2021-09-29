@@ -8,8 +8,8 @@
 )
 
 (rule
-  (target goblint.bc)
+  (target goblint.byte)
   (deps src/goblint.bc)
-  (action (copy src/goblint.bc goblint.bc))
+  (action (copy src/goblint.bc goblint.byte))
   (mode (promote (until-clean))) ; replace existing file in source tree
 )
