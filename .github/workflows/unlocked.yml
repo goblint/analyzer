@@ -18,8 +18,8 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
+          - 4.13.x
           - 4.12.x
-          - 4.11.x
           - 4.09.x
         apron:
           - false

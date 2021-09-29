@@ -849,8 +849,8 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm = Sol'.solve EqSys.box vs sv in
-        split_solution hm
+        let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        split_solution hm, solver_data
     end
 
 

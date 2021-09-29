@@ -56,7 +56,7 @@ module Make =
         set x (eq x (eval x) set)
       done;
       stop_event ();
-      rho
+      rho, Goblintutil.dummy_obj
   end
 
 

@@ -235,7 +235,7 @@ module SLR3term =
       HM.clear set   ;
       HPM.clear rho' ;
 
-      rho
+      rho, Goblintutil.dummy_obj
   end
 
 let _ =

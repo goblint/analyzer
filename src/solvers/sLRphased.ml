@@ -217,7 +217,7 @@ module Make =
       HM.clear set   ;
       HPM.clear rho' ;
 
-      rho1
+      rho1, Goblintutil.dummy_obj
   end
 
 let _ =
