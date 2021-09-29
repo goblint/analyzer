@@ -1126,7 +1126,11 @@ struct
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let new_value = update_offset (Priv.read_global a gs st x) in
-        let new_value' = VD.projection (true, true, true, true) new_value in
+
+        (* Projection to precision*)
+        let b = GobConfig.get_bool "exp.annotated.precision" in
+        let new_value' = if b then VD.projection (true, true, true, true) new_value else new_value in
+
         let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value' in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
@@ -1909,7 +1913,8 @@ struct
 
     (* Projection to precision *)
     let p = IDU.precision_from_fundec fundec in
-    let cpa' = CPA.map (fun v -> VD.projection p v) new_cpa in
+    let b = GobConfig.get_bool "exp.annotated.precision" in
+    let cpa' = if b then CPA.map (fun v -> VD.projection p v) new_cpa else new_cpa in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2275,8 +2280,10 @@ struct
 
       (* Projection to precision *)
       let p = IDU.precision_from_node () in
-      let return_val' = VD.projection p return_val in
-      let cpa' = CPA.map (fun v -> VD.projection p v) nst.cpa in
+      let b = GobConfig.get_bool "exp.annotated.precision" in
+      let return_val' = if b then VD.projection p return_val else return_val in
+      let cpa' = if b then CPA.map (fun v -> VD.projection p v) nst.cpa else nst.cpa in
+
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st

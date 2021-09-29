@@ -1,4 +1,4 @@
-// PARAM: --set ana.int.refinement fixpoint
+// PARAM: --enable exp.annotated.precision --set ana.int.refinement fixpoint
 #include<assert.h>
 
 int f(int in) __attribute__ ((precision("def_exc", "interval"))) {

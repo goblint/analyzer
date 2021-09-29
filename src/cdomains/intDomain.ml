@@ -2530,17 +2530,21 @@ module IntDomTupleImpl = struct
   type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
   type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
   let create r x = (* use where values are introduced *)
-    let (b1, b2, b3, b4) = precision_from_node () in
-    let f b g = if b then Some (g x) else None in
-    f b1 @@ r.fi (module I1), f b2 @@ r.fi (module I2), f b3 @@ r.fi (module I3), f b4 @@ r.fi (module I4)
-  (*let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3), f "congruence" @@ r.fi (module I4)*)
+    if GobConfig.get_bool "exp.annotated.precision" then
+      let (b1, b2, b3, b4) = precision_from_node () in
+      let f b g = if b then Some (g x) else None in
+      f b1 @@ r.fi (module I1), f b2 @@ r.fi (module I2), f b3 @@ r.fi (module I3), f b4 @@ r.fi (module I4)
+    else
+      let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
+      f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3), f "congruence" @@ r.fi (module I4)
   let create2 r x = (* use where values are introduced *)
-    let (b1, b2, b3, b4) = precision_from_node () in
-    let f b g = if b then Some (g x) else None in
-    f b1 @@ r.fi2 (module I1), f b2 @@ r.fi2 (module I2), f b3 @@ r.fi2 (module I3), f b4 @@ r.fi2 (module I4)
-  (*let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3), f "congruence" @@ r.fi2 (module I4)*)
+    if GobConfig.get_bool "exp.annotated.precision" then
+      let (b1, b2, b3, b4) = precision_from_node () in
+      let f b g = if b then Some (g x) else None in
+      f b1 @@ r.fi2 (module I1), f b2 @@ r.fi2 (module I2), f b3 @@ r.fi2 (module I3), f b4 @@ r.fi2 (module I4)
+    else
+      let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
+      f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3), f "congruence" @@ r.fi2 (module I4)
 
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
@@ -2777,8 +2781,8 @@ module IntDomTupleImpl = struct
     in
     let set_none b i =
       match b, i with
-        | true, Some i -> Some i
-        | _ -> None
+      | true, Some i -> Some i
+      | _ -> None
     in
     let (i1', i2', i3', i4') =
       refine ik ( set_top (I1.top_of ik) i1

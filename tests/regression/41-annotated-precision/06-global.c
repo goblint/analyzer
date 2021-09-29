@@ -1,4 +1,4 @@
-// PARAM: --enable exp.earlyglobs --set ana.int.refinement fixpoint
+// PARAM: --enable exp.annotated.precision --enable exp.earlyglobs --set ana.int.refinement fixpoint
 #include<assert.h>
 
 int g1 = 0;
