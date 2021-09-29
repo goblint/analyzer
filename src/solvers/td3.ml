@@ -196,9 +196,6 @@ module WP =
         );
         assert (S.system y = None);
         init y;
-        (* TODO: only add side_dep, side_infl at reachability/verify *)
-        HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
-        HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
         if side_widen = "unstable_self" then add_infl x y;
         let op =
           if HM.mem wpoint y then fun a b ->
@@ -459,6 +456,10 @@ module WP =
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
 
+      (* reachability will populate these tables for incremental global restarting *)
+      HM.clear side_dep;
+      HM.clear side_infl;
+
       let reachability xs =
         let reachable = HM.create (HM.length rho) in
         let rec one_var x =
@@ -466,10 +467,14 @@ module WP =
             HM.replace reachable x ();
             match S.system x with
             | None -> ()
-            | Some x -> one_constraint x
+            | Some f -> one_constraint x f
           )
-        and one_constraint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> ignore @@ Pretty.printf "reachability: one_constraint: could not find variable %a\n" S.Var.pretty_trace x; S.Dom.bot ()) (fun x _ -> one_var x))
+        and one_side x y _ =
+          one_var y;
+          HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
+          HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
+        and one_constraint x f =
+          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> ignore @@ Pretty.printf "reachability: one_constraint: could not find variable %a\n" S.Var.pretty_trace x; S.Dom.bot ()) (one_side x))
         in
         List.iter one_var xs;
         HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
