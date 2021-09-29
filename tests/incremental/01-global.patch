@@ -13,8 +13,8 @@
      pthread_t id;
      pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
  
--    assert(g == 1);
-+    assert(g == 2);
+-    assert(g == 1); // success before, success after
++    assert(g == 2); // success before, success after
      return 0;
  }
 \ No newline at end of file
