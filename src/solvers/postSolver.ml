@@ -62,7 +62,8 @@ struct
 
     Goblintutil.in_verifying_stage := false
 
-  (* TODO: add (combined) timing *)
+  let post xs vs vh =
+    Stats.time "postsolver" (post xs vs) vh
 end
 
 module Lift (Solver: GenericEqBoxSolver): GenericEqBoxSolver =
