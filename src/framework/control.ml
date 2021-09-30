@@ -477,6 +477,9 @@ struct
         compare_with (Selector.choose_solver (get_string "comparesolver"))
       );
 
+      (* Most warnings happen before durin postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
+      Goblintutil.should_warn := PostSolverArg.should_warn;
+
       if GobConfig.get_bool "incremental.save" then (
         Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
       );
