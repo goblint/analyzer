@@ -1,1 +1,0 @@
-(** Minimal signature for hashtables. *)
