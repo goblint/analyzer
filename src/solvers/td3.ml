@@ -83,6 +83,9 @@ module WP =
       (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
          If false, it will restart all destabilized side-effected vars. *)
       let restart_only_globals = false in
+      (* If true, wpoint will be restarted to bot when added.
+         This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
+      let restart_wpoint = true in
 
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
@@ -179,8 +182,7 @@ module WP =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
         if HM.mem called y then (
-          if not (HM.mem wpoint y) then (
-            (* TODO: add boolean flag *)
+          if restart_wpoint && not (HM.mem wpoint y) then (
             if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
             HM.replace rho y (S.Dom.bot ());
             (* destabilize y *) (* TODO: would this do anything on called? *)
