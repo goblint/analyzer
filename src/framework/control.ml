@@ -42,7 +42,13 @@ struct
   module GHT   = BatHashtbl.Make (EQSys.GVar)
 
   (* The solver *)
-  module Slvr  = (GlobSolverFromEqSolver (PostSolver.Lift (Selector.Make))) (EQSys) (LHT) (GHT)
+  module PostSolverArg =
+  struct
+    let should_prune = true
+    let should_verify = get_bool "verify"
+    let should_warn = get_string "warn_at" <> "never"
+  end
+  module Slvr  = (GlobSolverFromEqSolver (PostSolver.Lift (PostSolverArg) (Selector.Make))) (EQSys) (LHT) (GHT)
   (* The verifyer *)
   module Vrfyr = Verify2 (EQSys) (LHT) (GHT)
   (* The comparator *)
@@ -460,8 +466,13 @@ struct
 
       if get_string "comparesolver" <> "" then (
         let compare_with (module S2 : GenericEqBoxSolver) =
-          (* TODO: don't warn from this postsolver? *)
-          let module S2' = (GlobSolverFromEqSolver (PostSolver.Lift (S2))) (EQSys) (LHT) (GHT) in
+          let module PostSolverArg2 =
+          struct
+            include PostSolverArg
+            let should_warn = false (* we already warn from main solver *)
+          end
+          in
+          let module S2' = (GlobSolverFromEqSolver (PostSolver.Lift (PostSolverArg) (S2))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in

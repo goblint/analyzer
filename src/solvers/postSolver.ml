@@ -1,16 +1,27 @@
 open Prelude
 open Analyses
-open GobConfig
 
-module Post (S: EqConstrSys) (VH: Hash.H with type key = S.v) =
+module type Arg =
+sig
+  val should_prune: bool
+  val should_verify: bool
+  val should_warn: bool
+end
+
+module Post (Arg: Arg) (S: EqConstrSys) (VH: Hash.H with type key = S.v) =
 struct
+  open Arg
+
   let post xs vs vh =
     (* TODO: reachability/verify should do something with xs as well? *)
     ignore (Pretty.printf "Post solver\n");
 
-    let should_verify = get_bool "verify" in
     Goblintutil.in_verifying_stage := true;
-    (if should_verify then Goblintutil.verified := Some true);
+    if should_verify then
+      Goblintutil.verified := Some true;
+
+    let old_should_warn = !Goblintutil.should_warn in
+    Goblintutil.should_warn := should_warn;
 
     let complain_constraint x ~lhs ~rhs =
       Goblintutil.verified := Some false;
@@ -50,27 +61,31 @@ struct
         )
       in
       List.iter one_var xs;
-      (* TODO: expose VH.filteri_inplace *)
 
-      (* TODO: should_remove option *)
-      VH.iter (fun x _ ->
-          if not (VH.mem reachable x) then
-            VH.remove vh x
-        ) vh
+      if should_prune then (
+        (* TODO: expose VH.filteri_inplace *)
+        VH.iter (fun x _ ->
+            if not (VH.mem reachable x) then
+              VH.remove vh x
+          ) vh
+      )
     in
     reachability vs;
 
-    Goblintutil.in_verifying_stage := false
+    Goblintutil.in_verifying_stage := false;
+
+    Goblintutil.should_warn := old_should_warn
 
   let post xs vs vh =
-    Stats.time "postsolver" (post xs vs) vh
+    if should_prune || should_verify || should_warn then
+      Stats.time "postsolver" (post xs vs) vh
 end
 
-module Lift (Solver: GenericEqBoxSolver): GenericEqBoxSolver =
+module Lift (Arg: Arg) (Solver: GenericEqBoxSolver): GenericEqBoxSolver =
   functor (S: EqConstrSys) (VH: Hash.H with type key = S.v) ->
   struct
     module Solver = Solver (S) (VH)
-    module Post = Post (S) (VH)
+    module Post = Post (Arg) (S) (VH)
 
     let solve box xs vs =
       let (vh, _) as ret = Solver.solve box xs vs in
