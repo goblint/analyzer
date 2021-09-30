@@ -121,7 +121,17 @@ end
 
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
-  include Hash.Printable (ResultNode) (Range)
+  include Hashtbl.Make (ResultNode)
+  type nonrec t = Range.t t (* specialize polymorphic type for Range values *)
+
+  let pretty () mapping =
+    let f key st dok =
+      dok ++ dprintf "%a ->@?  @[%a@]\n" ResultNode.pretty key Range.pretty st
+    in
+    let content () = fold f mapping nil in
+    let defline () = dprintf "OTHERS -> Not available\n" in
+    dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
+
   include C
 
   let printXml f xs =
