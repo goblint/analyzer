@@ -65,10 +65,8 @@ struct
       List.iter one_var xs;
 
       if should_prune then (
-        (* TODO: expose VH.filteri_inplace *)
-        VH.iter (fun x _ ->
-            if not (VH.mem reachable x) then
-              VH.remove vh x
+        VH.filteri_inplace (fun x _ ->
+            VH.mem reachable x
           ) vh
       )
     in
