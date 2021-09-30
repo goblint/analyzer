@@ -19,25 +19,6 @@ sig
   val length: 'a t -> int
 end
 
-module type SP =
-sig
-  include Printable.S
-  type key
-  type value
-  val create: int -> t
-  val clear: t -> unit
-  val copy: t -> t
-  val add: t -> key -> value -> unit
-  val remove: t -> key -> unit
-  val find: t -> key -> value
-  val find_all: t -> key -> value list
-  val replace : t -> key -> value -> unit
-  val mem : t -> key -> bool
-  val iter: (key -> value -> unit) -> t -> unit
-  val fold: (key -> value -> 'b -> 'b) -> t -> 'b -> 'b
-  val length: t -> int
-end
-
 module Printable (Domain: Printable.S) (Range: Printable.S) =
 struct
   include Printable.Std
