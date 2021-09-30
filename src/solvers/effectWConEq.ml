@@ -1,8 +1,9 @@
+open Prelude
 open Analyses
 
 module Make =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Generic.SolverStats (S) (HM)
     module VS = BatSet.Make (S.Var)

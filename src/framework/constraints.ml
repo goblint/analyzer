@@ -815,12 +815,12 @@ end
 module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
-    functor (LH:Hash.H with type key=S.LVar.t) ->
-    functor (GH:Hash.H with type key=S.GVar.t) ->
+    functor (LH:Hashtbl.S with type key=S.LVar.t) ->
+    functor (GH:Hashtbl.S with type key=S.GVar.t) ->
     struct
       module EqSys = EqConstrSysFromGlobConstrSys (S)
 
-      module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
+      module VH : Hashtbl.S with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
       let split_solution hm =
@@ -1006,8 +1006,8 @@ module Compare
                         and module GVar = Basetype.Variables
                         and module D = S.D
                         and module G = S.G)
-    (LH:Hash.H with type key=Sys.LVar.t)
-    (GH:Hash.H with type key=Sys.GVar.t)
+    (LH:Hashtbl.S with type key=Sys.LVar.t)
+    (GH:Hashtbl.S with type key=Sys.GVar.t)
 =
 struct
   open S
@@ -1120,8 +1120,8 @@ end
 (** Verify if the hashmap pair is really a (partial) solution. *)
 module Verify2
     (S:GlobConstrSys)
-    (LH:Hash.H with type key=S.LVar.t)
-    (GH:Hash.H with type key=S.GVar.t)
+    (LH:Hashtbl.S with type key=S.LVar.t)
+    (GH:Hashtbl.S with type key=S.GVar.t)
 =
 struct
   open S

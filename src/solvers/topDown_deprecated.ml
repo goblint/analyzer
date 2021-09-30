@@ -10,7 +10,7 @@ exception SolverCannotDoGlobals
 (** modified SLR3 as top down solver *)
 module TD3 =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)

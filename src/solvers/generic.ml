@@ -9,8 +9,8 @@ let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 module SolverInteractiveWGlob
     (S:Analyses.GlobConstrSys)
-    (LH:Hash.H with type key=S.LVar.t)
-    (GH:Hash.H with type key=S.GVar.t) =
+    (LH:Hashtbl.S with type key=S.LVar.t)
+    (GH:Hashtbl.S with type key=S.GVar.t) =
 struct
   open S
   open Printf
@@ -171,7 +171,7 @@ struct
       write_all hl hg
 end
 
-module SolverStats (S:EqConstrSys) (HM:Hash.H with type key = S.v) =
+module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct
   open S
   open Messages
@@ -288,7 +288,7 @@ end
 (** use this if your [box] is [join] --- the simple solver *)
 module DirtyBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 
@@ -362,7 +362,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
 (* use this if you do widenings & narrowings (but no narrowings for globals) --- maybe outdated *)
 module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 
@@ -463,7 +463,7 @@ module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
 (* use this if you do widenings & narrowings for globals --- outdated *)
 module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 

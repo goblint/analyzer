@@ -9,7 +9,7 @@ sig
   val should_warn: bool
 end
 
-module Post (Arg: Arg) (S: EqConstrSys) (VH: Hash.H with type key = S.v) =
+module Post (Arg: Arg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) =
 struct
   open Arg
 
@@ -84,7 +84,7 @@ struct
 end
 
 module Lift (Arg: Arg) (Solver: GenericEqBoxSolver): GenericEqBoxSolver =
-  functor (S: EqConstrSys) (VH: Hash.H with type key = S.v) ->
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module Solver = Solver (S) (VH)
     module Post = Post (Arg) (S) (VH)

@@ -9,7 +9,7 @@ let narrow f = if GobConfig.get_bool "exp.no-narrow" then (fun a b -> a) else f
 (** the SLR3 box solver *)
 module SLR3 =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)
@@ -173,7 +173,7 @@ module type Version = sig val ver : int end
 module Make =
   functor (V:Version) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     let h_find_option h x =
@@ -458,7 +458,7 @@ module Make =
 
 module type MyGenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   sig
     val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t
     val wpoint : unit H.t
@@ -473,7 +473,7 @@ module type MyGenericEqBoxSolver =
 module PrintInfluence =
   functor (Sol:MyGenericEqBoxSolver) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     module S1 = Sol (S) (HM)
     let solve box x y =
@@ -502,7 +502,7 @@ module PrintInfluence =
 module TwoPhased =
   functor (V:Version) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Make (V) (S) (HM)
     let narrow = narrow S.Dom.narrow
@@ -519,7 +519,7 @@ module TwoPhased =
 module JustWiden =
   functor (V:Version) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Make (V) (S) (HM)
     let solve box is iv =

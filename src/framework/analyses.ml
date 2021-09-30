@@ -1,5 +1,6 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
+open Prelude
 open Cil
 open Pretty
 open GobConfig
@@ -204,7 +205,7 @@ struct
         (* FIXME: This is a super ridiculous hack we needed because BatIO has no way to get the raw channel CIL expects here. *)
         let name, chn = Filename.open_temp_file "stat" "goblint" in
         Stats.print chn "";
-        close_out chn;
+        Stdlib.close_out chn;
         let f_in = BatFile.open_in name in
         let s = BatIO.read_all f_in in
         BatIO.close_in f_in;
@@ -435,7 +436,7 @@ end
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key=S.v) ->
+  functor (H:Hashtbl.S with type key=S.v) ->
   sig
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
@@ -446,8 +447,8 @@ module type GenericEqBoxSolver =
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericGlobSolver =
   functor (S:GlobConstrSys) ->
-  functor (LH:Hash.H with type key=S.LVar.t) ->
-  functor (GH:Hash.H with type key=S.GVar.t) ->
+  functor (LH:Hashtbl.S with type key=S.LVar.t) ->
+  functor (GH:Hashtbl.S with type key=S.GVar.t) ->
   sig
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures

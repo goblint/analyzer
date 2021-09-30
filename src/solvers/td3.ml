@@ -18,7 +18,7 @@ open Cil
 
 module WP =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)

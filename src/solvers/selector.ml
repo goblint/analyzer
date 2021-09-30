@@ -17,7 +17,7 @@ let choose_solver solver =
 (** The solver that actually uses the implementation based of [GobConfig.get_string "solver"]. *)
 module Make =
   functor (S:EqConstrSys) ->
-  functor (VH:Hash.H with type key = S.v) ->
+  functor (VH:Hashtbl.S with type key = S.v) ->
   struct
 
     let solve =
