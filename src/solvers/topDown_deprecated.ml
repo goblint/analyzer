@@ -1,6 +1,5 @@
 open Prelude
 open Analyses
-open Constraints
 open Messages
 
 module GU = Goblintutil
@@ -181,4 +180,4 @@ module TD3 =
   end
 
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module GlobSolverFromEqSolver (TD3) : Analyses.GenericGlobSolver));
+  Selector.add_solver ("topdown_deprecated", (module TD3 : Analyses.GenericEqBoxSolver));

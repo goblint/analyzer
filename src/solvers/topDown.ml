@@ -2,7 +2,6 @@
 
 open Prelude
 open Analyses
-open Constraints
 open Messages
 
 module WP =
@@ -171,5 +170,4 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromEqSolver (WP) in
-  Selector.add_solver ("topdown", (module WP : GenericGlobSolver));
+  Selector.add_solver ("topdown", (module WP : GenericEqBoxSolver));

@@ -464,5 +464,4 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromEqSolver (WP) in
-  Selector.add_solver ("td3", (module WP : GenericGlobSolver));
+  Selector.add_solver ("td3", (module WP : GenericEqBoxSolver));

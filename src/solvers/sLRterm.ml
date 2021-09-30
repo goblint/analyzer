@@ -1,6 +1,5 @@
 open Prelude
 open Analyses
-open Constraints
 open Messages
 open SLR
 
@@ -239,5 +238,4 @@ module SLR3term =
   end
 
 let _ =
-  let module S3t = GlobSolverFromEqSolver (SLR3term) in
-  Selector.add_solver ("slr3t", (module S3t : GenericGlobSolver)); (* same as S2 but number of W-points may also shrink + terminating? *)
+  Selector.add_solver ("slr3t", (module SLR3term : GenericEqBoxSolver)); (* same as S2 but number of W-points may also shrink + terminating? *)

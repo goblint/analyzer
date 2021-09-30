@@ -1,6 +1,5 @@
 open Prelude
 open Analyses
-open Constraints
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -61,5 +60,4 @@ module Make =
 
 
 let _ =
-  let module S = GlobSolverFromEqSolver (Make) in
-  Selector.add_solver ("WL",  (module S : GenericGlobSolver));
+  Selector.add_solver ("WL",  (module Make : GenericEqBoxSolver));
