@@ -1,3 +1,4 @@
+open Prelude
 open Analyses
 
 module Post (S: EqConstrSys) (VH: Hash.H with type key = S.v) =
@@ -6,24 +7,30 @@ struct
     (* TODO: reachability/verify should do something with xs as well? *)
     ignore (Pretty.printf "Post solver\n");
 
-    (* TODO: inline aliases *)
-    let module HM = VH in
-    let rho = vh in
-
     let reachability xs =
-      let reachable = HM.create (HM.length rho) in
+      let reachable = VH.create (VH.length vh) in
       let rec one_var x =
-        if not (HM.mem reachable x) then (
-          HM.replace reachable x ();
-          match S.system x with
-          | None -> ()
-          | Some x -> one_constraint x
+        if not (VH.mem reachable x) then (
+          VH.replace reachable x ();
+          Option.may one_constraint (S.system x)
         )
       and one_constraint f =
-        ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
+        let get x =
+          one_var x;
+          try VH.find vh x with Not_found -> S.Dom.bot ()
+        in
+        let set x _ =
+          one_var x
+        in
+        ignore (f get set)
       in
       List.iter one_var xs;
-      HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
+      (* TODO: expose VH.filteri_inplace *)
+
+      VH.iter (fun x _ ->
+          if not (VH.mem reachable x) then
+            VH.remove vh x
+        ) vh
     in
     reachability vs;
 
