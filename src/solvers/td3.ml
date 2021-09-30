@@ -178,7 +178,15 @@ module WP =
       and eval l x y =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
-        if HM.mem called y then HM.replace wpoint y ();
+        if HM.mem called y then (
+          if not (HM.mem wpoint y) then (
+            (* TODO: add boolean flag *)
+            if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
+            HM.replace rho y (S.Dom.bot ());
+            (* destabilize y *) (* TODO: would this do anything on called? *)
+          );
+          HM.replace wpoint y ();
+        );
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
