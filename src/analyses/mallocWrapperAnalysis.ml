@@ -4,14 +4,16 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
+include PreMallocWrapperAnalysis
+
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = Lattice.Flat (CilType.Location) (struct
-    let top_name = "Unknown line"
-    let bot_name = "Unreachable line"
-  end)
+  module PL = Lattice.Flat (Node) (struct
+      let top_name = "Unknown node"
+      let bot_name = "Unreachable node"
+    end)
 
   let name () = "mallocWrapper"
   module D = PL
@@ -38,8 +40,8 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let calleeofinterest = Hashtbl.mem wrappers f.svar.vname in
     let calleectx = if calleeofinterest then
-       if ctx.local = `Top then
-        `Lifted (Node.location ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        if ctx.local = `Top then
+          `Lifted ctx.node (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
         else ctx.local (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
       else D.top () in  (* if an uninteresting callee is called, then we forget what was called before *)
     [(ctx.local, calleectx)]
@@ -55,38 +57,37 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  (* refs to reassign unmarshaled in init *)
-  let heap_hash = ref (Hashtbl.create 113)
-  let heap_vars = ref (Hashtbl.create 113)
 
   type marshal = {
-    heap_hash: (location, varinfo) Hashtbl.t;
-    heap_vars: (int, unit) Hashtbl.t;
+    heap_hash: varinfo NH.t;
+    heap_vars: Node.t VH.t;
   }
 
-  let get_heap_var loc =
+  let get_heap_var node =
     (* Use existing varinfo instead of allocating a duplicate,
        which would be equal by determinism of create_var though. *)
     (* TODO: is this poor man's hashconsing? *)
-    try Hashtbl.find !heap_hash loc
+    try NH.find !heap_hash node
     with Not_found ->
-      let name = "(alloc@" ^ CilType.Location.show loc ^ ")" in
+      let name = match node with
+        | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
+        | _ -> failwith "A function entry or return node can not be the node after a malloc" in
       let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      Hashtbl.add !heap_hash loc newvar;
-      Hashtbl.add !heap_vars newvar.vid ();
+      NH.add !heap_hash node newvar;
+      VH.add !heap_vars newvar node;
       newvar
 
   let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
     match q with
     | Q.HeapVar ->
-      let loc = match ctx.local with
-      | `Lifted vinfo -> vinfo
-      | _ -> Node.location ctx.node in
-      `Lifted (get_heap_var loc)
+      let node = match ctx.local with
+        | `Lifted vinfo -> vinfo
+        | _ -> ctx.node in
+      `Lifted (get_heap_var node)
     | Q.IsHeapVar v ->
-      Hashtbl.mem !heap_vars v.vid
+      VH.mem !heap_vars v
     | Q.IsMultiple v ->
-      Hashtbl.mem !heap_vars v.vid
+      VH.mem !heap_vars v
     | _ -> Queries.Result.top q
 
   let init marshal =
@@ -97,8 +98,8 @@ struct
       heap_vars := m.heap_vars
     | None ->
       (* TODO: is this necessary? resetting between multiple analyze_loop-s/phases? *)
-      Hashtbl.clear !heap_hash;
-      Hashtbl.clear !heap_vars
+      NH.clear !heap_hash;
+      VH.clear !heap_vars
 
   let finalize () =
     {heap_hash = !heap_hash; heap_vars = !heap_vars}

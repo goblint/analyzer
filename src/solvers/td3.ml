@@ -283,7 +283,7 @@ module WP =
           let add_stmts (f: fundec) =
             List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
           in
-          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f) functions;
+          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
