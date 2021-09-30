@@ -1,5 +1,6 @@
 open Prelude
 open Analyses
+open GobConfig
 
 module type Arg =
 sig
@@ -14,7 +15,8 @@ struct
 
   let post xs vs vh =
     (* TODO: reachability/verify should do something with xs as well? *)
-    ignore (Pretty.printf "Post solver\n");
+    if get_bool "dbg.verbose" then
+      Printf.printf "Postsolving (prune=%B, verify=%B, warn=%B)\n" should_prune should_verify should_warn;
 
     Goblintutil.in_verifying_stage := true;
     if should_verify then

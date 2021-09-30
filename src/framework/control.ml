@@ -49,8 +49,6 @@ struct
     let should_warn = get_string "warn_at" <> "never"
   end
   module Slvr  = (GlobSolverFromEqSolver (PostSolver.Lift (PostSolverArg) (Selector.Make))) (EQSys) (LHT) (GHT)
-  (* The verifyer *)
-  module Vrfyr = Verify2 (EQSys) (LHT) (GHT)
   (* The comparator *)
   module Comp = Compare (Spec) (EQSys) (LHT) (GHT)
 
@@ -479,18 +477,8 @@ struct
         compare_with (Selector.choose_solver (get_string "comparesolver"))
       );
 
-      if (get_bool "verify" || get_string "warn_at" <> "never") && compare_runs = [] then (
-        if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
-        Goblintutil.should_warn := get_string "warn_at" <> "never";
-        Stats.time "verify" (Vrfyr.verify lh) gh;
-        if GobConfig.get_bool "incremental.save" then
-          Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
-      );
-
-      if get_bool "ana.sv-comp.enabled" then (
-        (* prune already here so local_xml and thus HTML are also pruned *)
-        let module Reach = Reachability (EQSys) (LHT) (GHT) in
-        Stats.time "reachability" (Reach.prune lh gh) startvars'
+      if GobConfig.get_bool "incremental.save" then (
+        Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
       );
 
       let insrt k _ s = match k with

@@ -1116,6 +1116,7 @@ struct
     print_newline ();
 end
 
+(* TODO: unused after PostSolver, remove? *)
 (** Verify if the hashmap pair is really a (partial) solution. *)
 module Verify2
     (S:GlobConstrSys)
@@ -1178,6 +1179,7 @@ struct
     Goblintutil.in_verifying_stage := false
 end
 
+(* TODO: unused after PostSolver, remove? *)
 module Reachability
     (EQSys:GlobConstrSys)
     (LH:Hashtbl.S with type key=EQSys.LVar.t)
