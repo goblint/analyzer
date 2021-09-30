@@ -185,23 +185,6 @@ module Make =
       iterate false max_int;
       List.iter (solve1 max_int) vs;
       iterate true max_int; (* TODO remove? *)
-
-      let reachability rho xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then begin
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constaint x
-          end
-        and one_constaint f =
-          ignore (f (fun x -> one_var x; HM.find rho x) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho1
-      in
-      reachability rho1 vs;
       stop_event ();
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
