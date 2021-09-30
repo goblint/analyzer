@@ -126,6 +126,11 @@ module WP =
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
+          (* Here we cache HM.mem wpoint x before eq. If during eq eval makes x wpoint, then be still don't apply widening the first time, but just overwrite.
+             It means that the first iteration at wpoint is still precise.
+             This doesn't matter during normal solving (?), because old would be bot.
+             This matters during incremental loading, when wpoints have been removed (or not marshaled) and are redetected.
+             Then the previous local wpoint value is discarded automagically and not joined/widened, providing limited restarting of local wpoints. (See eval for more complete restarting.) *)
           let wp = HM.mem wpoint x in
           let l = HM.create 10 in
           let tmp = eq x (eval l x) (side x) in
@@ -183,6 +188,9 @@ module WP =
         get_var_event y;
         if HM.mem called y then (
           if restart_wpoint && not (HM.mem wpoint y) then (
+            (* Even though solve cleverly restarts redetected wpoints during incremental load, the loop body would be calculated based on the old wpoint value.
+               The loop body might then side effect the old value, see tests/incremental/06-local-wpoint-read.
+               Here we avoid this, by setting it to bottom for the loop body eval. *)
             if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
             HM.replace rho y (S.Dom.bot ());
             (* destabilize y *) (* TODO: would this do anything on called? *)
