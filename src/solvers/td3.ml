@@ -124,13 +124,13 @@ module WP =
           HM.replace stable x ();
           HM.replace called x ();
           let wp = HM.mem wpoint x in
-          let old = HM.find rho x in
           let l = HM.create 10 in
           let tmp = eq x (eval l x) (side x) in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
+          let old = HM.find rho x in
           let tmp =
             if not wp then tmp
             else
