@@ -1,5 +1,6 @@
 open Prelude
 open Analyses
+open Constraints
 open Messages
 
 module GU = Goblintutil
@@ -158,9 +159,9 @@ module TD3 =
       HM.clear set   ;
       HPM.clear rho'  ;
 
-      rho, Goblintutil.dummy_obj
+      rho
 
   end
 
 let _ =
-  Selector.add_solver ("topdown_deprecated", (module TD3 : Analyses.GenericEqBoxSolver));
+  Selector.add_solver ("topdown_deprecated", (module EqIncrSolverFromEqSolver (TD3)));

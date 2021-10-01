@@ -1,5 +1,6 @@
 open Prelude
 open Analyses
+open Constraints
 
 module Make =
   functor (S:EqConstrSys) ->
@@ -80,9 +81,9 @@ module Make =
       HM.clear stable;
       HM.clear infl  ;
 
-      rho, Goblintutil.dummy_obj
+      rho
 
   end
 
 let _ =
-  Selector.add_solver ("effectWConEq", (module Make : GenericEqBoxSolver));
+  Selector.add_solver ("effectWConEq", (module EqIncrSolverFromEqSolver (Make)));

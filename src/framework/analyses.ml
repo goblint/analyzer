@@ -433,6 +433,20 @@ sig
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
 end
 
+(* TODO: update comments *)
+(** A solver is something that can translate a system into a solution (hash-table) *)
+module type GenericEqBoxIncrSolver =
+  functor (S:EqConstrSys) ->
+  functor (H:Hashtbl.S with type key=S.v) ->
+  sig
+    type marshal
+
+    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
+        for serialization or a dummy object. *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * marshal
+  end
+
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
@@ -441,7 +455,7 @@ module type GenericEqBoxSolver =
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
         for serialization or a dummy object. *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
   end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)

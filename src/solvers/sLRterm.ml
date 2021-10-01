@@ -1,5 +1,6 @@
 open Prelude
 open Analyses
+open Constraints
 open Messages
 open SLR
 
@@ -217,8 +218,8 @@ module SLR3term =
       HM.clear set   ;
       HPM.clear rho' ;
 
-      rho, Goblintutil.dummy_obj
+      rho
   end
 
 let _ =
-  Selector.add_solver ("slr3t", (module SLR3term : GenericEqBoxSolver)); (* same as S2 but number of W-points may also shrink + terminating? *)
+  Selector.add_solver ("slr3t", (module EqIncrSolverFromEqSolver (SLR3term))); (* same as S2 but number of W-points may also shrink + terminating? *)

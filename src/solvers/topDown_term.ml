@@ -2,6 +2,7 @@
 
 open Prelude
 open Analyses
+open Constraints
 open Messages
 
 module WP =
@@ -128,9 +129,9 @@ module WP =
       HM.clear infl  ;
       HM.clear rho'  ;
 
-      rho, Goblintutil.dummy_obj
+      rho
 
   end
 
 let _ =
-  Selector.add_solver ("topdown_term", (module WP : GenericEqBoxSolver));
+  Selector.add_solver ("topdown_term", (module EqIncrSolverFromEqSolver (WP)));

@@ -32,6 +32,8 @@ module WP =
       mutable stable: unit HM.t
     }
 
+    type marshal = solver_data
+
     let create_empty_data () = {
       st = [];
       infl = HM.create 10;
@@ -437,14 +439,14 @@ module WP =
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
         let result = solve box st vs data in
-        result.rho, Obj.repr result
+        result.rho, result
       )
       else (
         let data = create_empty_data () in
         let result = solve box st vs data in
-        result.rho, Obj.repr result
+        result.rho, result
       )
   end
 
 let _ =
-  Selector.add_solver ("td3", (module WP : GenericEqBoxSolver));
+  Selector.add_solver ("td3", (module WP : GenericEqBoxIncrSolver));

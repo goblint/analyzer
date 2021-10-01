@@ -729,6 +729,18 @@ struct
       Some tf
 end
 
+
+module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolver =
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    module Sol = Sol (S) (VH)
+
+    type marshal = unit
+
+    let solve box xs vs =
+      (Sol.solve box xs vs, ())
+  end
+
 (** Combined variables so that we can also use the more common [EqConstrSys]
     that uses only one kind of a variable. *)
 module Var2 (LV:VarType) (GV:VarType)
@@ -811,8 +823,8 @@ struct
 end
 
 
-(** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
+(** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
+module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolver)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
@@ -853,7 +865,7 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
         let hm, solver_data = Sol'.solve EqSys.box vs sv in
-        split_solution hm, solver_data
+        split_solution hm, Obj.repr solver_data
     end
 
 

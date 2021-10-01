@@ -1,5 +1,6 @@
 open Prelude
 open Analyses
+open Constraints
 open Messages
 open SLR
 
@@ -199,8 +200,8 @@ module Make =
       HM.clear set   ;
       HPM.clear rho' ;
 
-      rho1, Goblintutil.dummy_obj
+      rho1
   end
 
 let _ =
-  Selector.add_solver ("slr3tp", (module Make : GenericEqBoxSolver)); (* two-phased slr3t *)
+  Selector.add_solver ("slr3tp", (module EqIncrSolverFromEqSolver (Make))); (* two-phased slr3t *)

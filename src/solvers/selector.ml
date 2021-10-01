@@ -19,13 +19,15 @@ module Make =
   functor (S:EqConstrSys) ->
   functor (VH:Hashtbl.S with type key = S.v) ->
   struct
+    type marshal = Obj.t
 
-    let solve =
-      let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxSolver) in
+    let solve box xs vs =
+      let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxIncrSolver) in
       let module F = Sol (S) (VH) in
-      F.solve
+      let (vh, marshal) = F.solve box xs vs in
+      (vh, Obj.repr marshal)
   end
 
 let _ =
-  let module T1 : GenericEqBoxSolver = Make in
+  let module T1 : GenericEqBoxIncrSolver = Make in
   ()
