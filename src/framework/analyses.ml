@@ -435,7 +435,7 @@ end
 
 (* TODO: update comments *)
 (** A solver is something that can translate a system into a solution (hash-table) *)
-module type GenericEqBoxIncrSolver =
+module type GenericEqBoxIncrSolverBase =
   functor (S:EqConstrSys) ->
   functor (H:Hashtbl.S with type key=S.v) ->
   sig
@@ -446,6 +446,19 @@ module type GenericEqBoxIncrSolver =
         for serialization or a dummy object. *)
     val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * marshal
   end
+
+module type IncrSolverArg =
+sig
+  (* TODO: just list of postsolvers instead? *)
+  val should_prune: bool
+  val should_verify: bool
+  val should_warn: bool
+end
+
+(** A solver is something that can translate a system into a solution (hash-table) *)
+module type GenericEqBoxIncrSolver =
+  functor (Arg: IncrSolverArg) ->
+    GenericEqBoxIncrSolverBase
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericEqBoxSolver =

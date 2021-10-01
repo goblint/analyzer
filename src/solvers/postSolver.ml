@@ -186,9 +186,9 @@ struct
 end
 
 module LiftStd (Arg: MakeStdArg) (Solver: GenericEqBoxIncrSolver): GenericEqBoxIncrSolver =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  functor (Arg2: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
-    module Solver = Solver (S) (VH)
+    module Solver = Solver (Arg2) (S) (VH)
     module Post = MakeStd (Arg) (S) (VH)
 
     type marshal = Solver.marshal

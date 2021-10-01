@@ -731,13 +731,14 @@ end
 
 
 module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolver =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module Sol = Sol (S) (VH)
 
     type marshal = unit
 
     let solve box xs vs =
+      (* TODO: use Arg for postsolvers *)
       (Sol.solve box xs vs, ())
   end
 
@@ -824,7 +825,7 @@ end
 
 
 (** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolver)
+module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->

@@ -16,6 +16,7 @@ let choose_solver solver =
 
 (** The solver that actually uses the implementation based of [GobConfig.get_string "solver"]. *)
 module Make =
+  functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (VH:Hashtbl.S with type key = S.v) ->
   struct
@@ -23,7 +24,7 @@ module Make =
 
     let solve box xs vs =
       let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxIncrSolver) in
-      let module F = Sol (S) (VH) in
+      let module F = Sol (Arg) (S) (VH) in
       let (vh, marshal) = F.solve box xs vs in
       (vh, Obj.repr marshal)
   end

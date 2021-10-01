@@ -17,6 +17,7 @@ open CompareAST
 open Cil
 
 module WP =
+  functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
