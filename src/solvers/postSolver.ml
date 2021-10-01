@@ -184,17 +184,3 @@ struct
 
   include MakeList (MakeListArg) (S) (VH)
 end
-
-module LiftStd (Arg: MakeStdArg) (Solver: GenericEqBoxIncrSolver): GenericEqBoxIncrSolver =
-  functor (Arg2: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  struct
-    module Solver = Solver (Arg2) (S) (VH)
-    module Post = MakeStd (Arg) (S) (VH)
-
-    type marshal = Solver.marshal
-
-    let solve box xs vs =
-      let (vh, _) as ret = Solver.solve box xs vs in
-      Post.post xs vs vh;
-      ret
-  end

@@ -734,12 +734,14 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
   functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module Sol = Sol (S) (VH)
+    module Post = PostSolver.MakeStd (Arg) (S) (VH)
 
     type marshal = unit
 
     let solve box xs vs =
-      (* TODO: use Arg for postsolvers *)
-      (Sol.solve box xs vs, ())
+      let vh = Sol.solve box xs vs in
+      Post.post xs vs vh;
+      (vh, ())
   end
 
 (** Combined variables so that we can also use the more common [EqConstrSys]

@@ -21,6 +21,8 @@ module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    module Post = PostSolver.MakeStd (Arg) (S) (HM)
+
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
@@ -385,6 +387,8 @@ module WP =
         HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
         print_newline ();
       );
+
+      Post.post st vs rho; (* TODO: add side_infl postsolver *)
 
       {st; infl; sides; rho; wpoint; stable}
 
