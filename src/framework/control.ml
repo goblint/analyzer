@@ -48,7 +48,7 @@ struct
     let should_verify = get_bool "verify"
     let should_warn = get_string "warn_at" <> "never"
   end
-  module Slvr  = (GlobSolverFromEqSolver (PostSolver.Lift (PostSolverArg) (Selector.Make))) (EQSys) (LHT) (GHT)
+  module Slvr  = (GlobSolverFromEqSolver (PostSolver.LiftStd (PostSolverArg) (Selector.Make))) (EQSys) (LHT) (GHT)
   (* The comparator *)
   module Comp = Compare (Spec) (EQSys) (LHT) (GHT)
 
@@ -470,7 +470,7 @@ struct
             let should_warn = false (* we already warn from main solver *)
           end
           in
-          let module S2' = (GlobSolverFromEqSolver (PostSolver.Lift (PostSolverArg) (S2))) (EQSys) (LHT) (GHT) in
+          let module S2' = (GlobSolverFromEqSolver (PostSolver.LiftStd (PostSolverArg) (S2))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
