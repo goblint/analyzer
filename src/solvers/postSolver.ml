@@ -164,23 +164,18 @@ sig
   val should_warn: bool
 end
 
-module MakeStd (Arg: MakeStdArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) =
+module ListArgFromStdArg (Arg: MakeStdArg): MakeListArg =
 struct
-  module MakeListArg =
-  struct
-    open Arg
+  open Arg
 
-    let postsolvers: (bool * (module S)) list = [
-      (should_prune, (module Prune));
-      (should_verify, (module Verify));
-      (should_warn, (module Warn));
-    ]
+  let postsolvers: (bool * (module S)) list = [
+    (should_prune, (module Prune));
+    (should_verify, (module Verify));
+    (should_warn, (module Warn));
+  ]
 
-    let postsolvers =
-      postsolvers
-      |> List.filter fst
-      |> List.map snd
-  end
-
-  include MakeList (MakeListArg) (S) (VH)
+  let postsolvers =
+    postsolvers
+    |> List.filter fst
+    |> List.map snd
 end
