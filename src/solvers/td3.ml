@@ -314,7 +314,7 @@ module WP =
         List.iter set_start st;
 
         if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant" then (
-          (* solve on the return node of changed functions. Only destabilize influenced nodes outside the function if the analysis result changed *)
+          (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           Hashtbl.iter (fun x (old_rho, old_infl) -> ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
             solve x Widen;
@@ -325,9 +325,9 @@ module WP =
 
           print_endline "Final solve..."
         )
+      ) else (
+        List.iter set_start st;
       );
-
-      if not (GobConfig.get_bool "incremental.load") then List.iter set_start st;
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
       let i = ref 0 in
