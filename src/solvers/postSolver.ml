@@ -2,6 +2,7 @@ open Prelude
 open Analyses
 open GobConfig
 
+(** Postsolver with hooks. *)
 module type S =
 sig
   module S: EqConstrSys
@@ -13,10 +14,12 @@ sig
   val finalize: vh:S.Dom.t VH.t -> reachable:unit VH.t -> unit
 end
 
+(** Functorial postsolver for any system. *)
 module type F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   S with module S = S and module VH = VH
 
+(** Base implementation for postsolver. *)
 module Unit: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
@@ -28,6 +31,7 @@ module Unit: F =
     let finalize ~vh ~reachable = ()
   end
 
+(** Sequential composition of two postsolvers. *)
 module Compose (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH): S with module S = PS1.S and module VH = PS1.VH =
 struct
   module S = PS1.S
@@ -47,6 +51,7 @@ struct
     PS2.finalize ~vh ~reachable
 end
 
+(** Postsolver for pruning solution using reachability. *)
 module Prune: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
@@ -58,6 +63,7 @@ module Prune: F =
         ) vh
   end
 
+(** Postsolver for verifying solution in demand-driven fashion. *)
 module Verify: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
@@ -85,6 +91,7 @@ module Verify: F =
         complain_constraint x ~lhs ~rhs
   end
 
+(** Postsolver for enabling messages (warnings) output. *)
 module Warn: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
@@ -100,6 +107,8 @@ module Warn: F =
       Goblintutil.should_warn := Option.get !old_should_warn
   end
 
+(** Make complete postsolving function from postsolver.
+    This is generic and non-incremental. *)
 module Make (PS: S) =
 struct
   module S = PS.S
@@ -141,15 +150,21 @@ struct
     Stats.time "postsolver" (post xs vs) vh
 end
 
+(** List of postsolvers. *)
 module type MakeListArg =
 sig
+  (* Specify S and VH here to constrain all postsolvers to use the same. *)
   module S: EqConstrSys
   module VH: Hashtbl.S with type key = S.v
+  (* Auxiliary module type because first-class module types cannot contain module constraints. *)
   module type M = S with module S = S and module VH = VH
 
   val postsolvers: (module M) list
 end
 
+(** Make complete postsolving function from list of postsolvers.
+    If list is empty, no postsolving is performed.
+    This is generic and non-incremental. *)
 module MakeList (Arg: MakeListArg) =
 struct
   module S = Arg.S
@@ -172,6 +187,7 @@ struct
       M.post xs vs vh
 end
 
+(** Standard postsolver options. *)
 module type MakeStdArg =
 sig
   val should_prune: bool
@@ -179,6 +195,7 @@ sig
   val should_warn: bool
 end
 
+(** List of standard postsolvers. *)
 module ListArgFromStdArg (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (Arg: MakeStdArg): MakeListArg with module S = S and module VH = VH =
 struct
   open Arg
