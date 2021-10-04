@@ -20,7 +20,7 @@ module Make =
   functor (S:EqConstrSys) ->
   functor (VH:Hashtbl.S with type key = S.v) ->
   struct
-    type marshal = Obj.t
+    type marshal = Obj.t (* cannot use Sol.marshal because cannot unpack first-class module in applicative functor *)
 
     let solve box xs vs =
       let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxIncrSolver) in
