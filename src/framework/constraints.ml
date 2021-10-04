@@ -839,6 +839,8 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
       module VH : Hashtbl.S with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
+      type marshal = Sol'.marshal
+
       let split_solution hm =
         let l' = LH.create 113 in
         let g' = GH.create 113 in
@@ -869,7 +871,7 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
         let hm, solver_data = Sol'.solve EqSys.box vs sv in
-        split_solution hm, Obj.repr solver_data
+        split_solution hm, solver_data
     end
 
 

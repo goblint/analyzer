@@ -476,10 +476,12 @@ module type GenericGlobSolver =
   functor (LH:Hashtbl.S with type key=S.LVar.t) ->
   functor (GH:Hashtbl.S with type key=S.GVar.t) ->
   sig
+    type marshal
+
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
-        for serialization or a dummy object. *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * Obj.t
+        reached from starting values [xs].
+        As a second component the solver returns data structures for incremental serialization. *)
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * marshal
   end
 
 module ResultType2 (S:Spec) =
