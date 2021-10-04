@@ -141,6 +141,10 @@ let rec pretty_edges () = function
   | [_,x] -> Edge.pretty_plain () x
   | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
 
+let get_pseudo_return_id fd =
+  let start_id = 10_000_000_000 in (* TODO get max_sid? *)
+  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
+  if sid < start_id then sid + start_id else sid
 
 let node_scc_global = NH.create 113
 
@@ -244,9 +248,7 @@ let createCFG (file: file) =
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
           let newst = mkStmt (Return (None, fd_loc)) in
-          let start_id = 10_000_000_000 in (* TODO get max_sid? *)
-          let sid = Hashtbl.hash fd_loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
-          newst.sid <- if sid < start_id then sid + start_id else sid;
+          newst.sid <- get_pseudo_return_id fd;
           fd.sallstmts <- fd.sallstmts @ [newst]; (* TODO: anything bad happen from changing sallstmts? should also update smaxid? *)
           let newst_node = Statement newst in
           addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);

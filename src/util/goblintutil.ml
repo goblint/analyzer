@@ -414,6 +414,12 @@ let rec zip x y = match x,y with
   | (x::xs), (y::ys) -> (x,y) :: zip xs ys
   | _ -> []
 
+let rec for_all_in_range (a, b) f =
+  let module BI = IntOps.BigIntOps in
+  if BI.compare a b > 0
+  then true
+  else f a && (for_all_in_range (BI.add a (BI.one), b) f)
+
 let assoc_eq (x: 'a) (ys: ('a * 'b) list) (eq: 'a -> 'a -> bool): ('b option) =
   Option.map Batteries.Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
 

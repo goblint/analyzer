@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-# Example: ./scripts/test-incremental.sh 01-global
+# Example: ./scripts/test-incremental.sh 00-local
+#
+# Inspect/diff *.before.log, *.after.incr.log and *.after.scratch.log
 
 test=$1
 
