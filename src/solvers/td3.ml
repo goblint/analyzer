@@ -278,7 +278,7 @@ module WP =
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         let old_ret = Hashtbl.create 103 in
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant" then (
+        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
             let old_rho = HM.find rho k in
@@ -298,7 +298,7 @@ module WP =
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant"));
+        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant.on"));
         add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
@@ -313,14 +313,19 @@ module WP =
 
         List.iter set_start st;
 
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant" then (
+        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
-          Hashtbl.iter (fun x (old_rho, old_infl) -> ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
-            solve x Widen;
-            if not (S.Dom.leq (HM.find rho x) old_rho) then (
-              HM.replace infl x old_infl;
-              destabilize x; HM.replace stable x ())
+          let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
+          Hashtbl.iter (
+            fun x (old_rho, old_infl) ->
+              ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
+              solve x Widen;
+              if not (op (HM.find rho x) old_rho) then (
+                HM.replace infl x old_infl;
+                destabilize x;
+                HM.replace stable x ()
+              )
           ) old_ret;
 
           print_endline "Final solve..."
