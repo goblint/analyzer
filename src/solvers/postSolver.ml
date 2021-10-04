@@ -28,7 +28,7 @@ module Unit: F =
     let finalize ~vh ~reachable = ()
   end
 
-module ComposeBase (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH): S with module S = PS1.S and module VH = PS1.VH =
+module Compose (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH): S with module S = PS1.S and module VH = PS1.VH =
 struct
   module S = PS1.S
   module VH = PS1.VH
@@ -46,28 +46,6 @@ struct
     PS1.finalize ~vh ~reachable;
     PS2.finalize ~vh ~reachable
 end
-
-module Compose (PS1: F) (PS2: F): F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  struct
-    module S = S
-    module VH = VH
-    module PS1 = PS1 (S) (VH)
-    module PS2 = PS2 (S) (VH)
-
-    let init () =
-      PS1.init ();
-      PS2.init ()
-    let one_side ~vh ~x ~y ~d =
-      PS1.one_side ~vh ~x ~y ~d;
-      PS2.one_side ~vh ~x ~y ~d
-    let one_constraint ~vh ~x ~rhs =
-      PS1.one_constraint ~vh ~x ~rhs;
-      PS2.one_constraint ~vh ~x ~rhs
-    let finalize ~vh ~reachable =
-      PS1.finalize ~vh ~reachable;
-      PS2.finalize ~vh ~reachable
-  end
 
 module Prune: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
@@ -176,7 +154,7 @@ struct
     | [] -> None
     | postsolvers ->
       let compose (module PS1: Arg.M) (module PS2: Arg.M) =
-        (module (ComposeBase (PS1) (PS2)): Arg.M)
+        (module (Compose (PS1) (PS2)): Arg.M)
       in
       Some (List.reduce compose postsolvers)
 
