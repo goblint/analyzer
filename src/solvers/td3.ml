@@ -296,7 +296,7 @@ module WP =
         add_nodes_of_fun removed_funs marked_for_deletion;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in (* TODO: don't use string-based nodes *)
+        let delete_marked s = HM.filteri_inplace (fun k _ -> not (Hashtbl.mem  marked_for_deletion (S.Var.var_id k))) s in (* TODO: don't use string-based nodes *)
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
@@ -371,7 +371,7 @@ module WP =
             if tracing then trace "sol2" "restored var %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d
           in
           List.iter get vs;
-          HM.iter (fun x v -> if not (HM.mem visited x) then HM.remove rho x) rho
+          HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Stats.time "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
@@ -416,25 +416,29 @@ module WP =
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
+          let rho' = HM.create (HM.length data.rho) in
           HM.iter (fun k v ->
-            HM.remove data.rho k; (* remove old values *)
             (* call hashcons on contexts and abstract values; results in new tags *)
             let k' = S.Var.relift k in
             let v' = S.Dom.join (S.Dom.bot ()) v in
-            HM.replace data.rho k' v';
+            HM.replace rho' k' v';
           ) data.rho;
+          data.rho <- rho';
+          let stable' = HM.create (HM.length data.stable) in
           HM.iter (fun k v ->
-            HM.remove data.stable k;
-            HM.replace data.stable (S.Var.relift k) v
+            HM.replace stable' (S.Var.relift k) v
           ) data.stable;
+          data.stable <- stable';
+          let wpoint' = HM.create (HM.length data.wpoint) in
           HM.iter (fun k v ->
-            HM.remove data.wpoint k;
-            HM.replace data.wpoint (S.Var.relift k) v
+            HM.replace wpoint' (S.Var.relift k) v
           ) data.wpoint;
+          data.wpoint <- wpoint';
+          let infl' = HM.create (HM.length data.infl) in
           HM.iter (fun k v ->
-            HM.remove data.infl k;
-            HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
+            HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
           ) data.infl;
+          data.infl <- infl';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.join (S.Dom.bot ()) v) data.st;
         );
         if not reuse_stable then (
