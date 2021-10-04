@@ -2,7 +2,7 @@ open Prelude
 open Analyses
 open GobConfig
 
-module type SBase =
+module type S =
 sig
   module S: EqConstrSys
   module VH: Hashtbl.S with type key = S.v
@@ -13,11 +13,11 @@ sig
   val finalize: vh:S.Dom.t VH.t -> reachable:unit VH.t -> unit
 end
 
-module type S =
+module type F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  SBase with module S = S and module VH = VH
+  S with module S = S and module VH = VH
 
-module Unit: S =
+module Unit: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module S = S
@@ -28,7 +28,7 @@ module Unit: S =
     let finalize ~vh ~reachable = ()
   end
 
-module ComposeBase (PS1: SBase) (PS2: SBase with module S = PS1.S and module VH = PS1.VH): SBase with module S = PS1.S and module VH = PS1.VH =
+module ComposeBase (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH): S with module S = PS1.S and module VH = PS1.VH =
 struct
   module S = PS1.S
   module VH = PS1.VH
@@ -47,7 +47,7 @@ struct
     PS2.finalize ~vh ~reachable
 end
 
-module Compose (PS1: S) (PS2: S): S =
+module Compose (PS1: F) (PS2: F): F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module S = S
@@ -69,7 +69,7 @@ module Compose (PS1: S) (PS2: S): S =
       PS2.finalize ~vh ~reachable
   end
 
-module Prune: S =
+module Prune: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     include Unit (S) (VH)
@@ -80,7 +80,7 @@ module Prune: S =
         ) vh
   end
 
-module Verify: S =
+module Verify: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     include Unit (S) (VH)
@@ -107,7 +107,7 @@ module Verify: S =
         complain_constraint x ~lhs ~rhs
   end
 
-module Warn: S =
+module Warn: F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     include Unit (S) (VH)
@@ -122,7 +122,7 @@ module Warn: S =
       Goblintutil.should_warn := Option.get !old_should_warn
   end
 
-module Make (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (PS: SBase with module S = S and module VH = VH)  =
+module Make (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (PS: S with module S = S and module VH = VH)  =
 struct
   let post xs vs vh =
     (* TODO: reachability/verify should do something with xs as well? *)
@@ -164,7 +164,7 @@ module type MakeListArg =
 sig
   module S: EqConstrSys
   module VH: Hashtbl.S with type key = S.v
-  module type M = SBase with module S = S and module VH = VH
+  module type M = S with module S = S and module VH = VH
 
   val postsolvers: (module M) list
 end
@@ -201,9 +201,9 @@ struct
 
   module S = S
   module VH = VH
-  module type M = SBase with module S = S and module VH = VH
+  module type M = S with module S = S and module VH = VH
 
-  let postsolvers: (bool * (module S)) list = [
+  let postsolvers: (bool * (module F)) list = [
     (should_prune, (module Prune));
     (should_verify, (module Verify));
     (should_warn, (module Warn));
@@ -213,5 +213,5 @@ struct
     postsolvers
     |> List.filter fst
     |> List.map snd
-    |> List.map (fun (module S2: S) -> (module S2 (S) (VH): M))
+    |> List.map (fun (module F: F) -> (module F (S) (VH): M))
 end
