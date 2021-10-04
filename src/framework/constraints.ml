@@ -734,7 +734,7 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
   functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module Sol = Sol (S) (VH)
-    module Post = PostSolver.MakeList (S) (VH) (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
+    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
 
     type marshal = unit
 

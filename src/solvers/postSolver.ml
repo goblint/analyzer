@@ -100,8 +100,11 @@ module Warn: F =
       Goblintutil.should_warn := Option.get !old_should_warn
   end
 
-module Make (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (PS: S with module S = S and module VH = VH)  =
+module Make (PS: S) =
 struct
+  module S = PS.S
+  module VH = PS.VH
+
   let post xs vs vh =
     (* TODO: reachability/verify should do something with xs as well? *)
     if get_bool "dbg.verbose" then
@@ -147,8 +150,11 @@ sig
   val postsolvers: (module M) list
 end
 
-module MakeList (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (Arg: MakeListArg with module S = S and module VH = VH) =
+module MakeList (Arg: MakeListArg) =
 struct
+  module S = Arg.S
+  module VH = Arg.VH
+
   let postsolver_opt: (module Arg.M) option =
     match Arg.postsolvers with
     | [] -> None
@@ -162,7 +168,7 @@ struct
     match postsolver_opt with
     | None -> ()
     | Some (module PS) ->
-      let module M = Make (S) (VH) (PS) in
+      let module M = Make (PS) in
       M.post xs vs vh
 end
 

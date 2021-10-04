@@ -21,7 +21,7 @@ module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    module Post = PostSolver.MakeList (S) (HM) (PostSolver.ListArgFromStdArg (S) (HM) (Arg))
+    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg))
 
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
