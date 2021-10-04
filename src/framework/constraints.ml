@@ -729,7 +729,8 @@ struct
       Some tf
 end
 
-
+(** Convert a non-incremental solver into an "incremental" solver.
+    It will solve from scratch, perform standard postsolving and have no marshal data. *)
 module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolver =
   functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
