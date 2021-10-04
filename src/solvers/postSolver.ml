@@ -107,6 +107,36 @@ module Warn: F =
       Goblintutil.should_warn := Option.get !old_should_warn
   end
 
+(** [EqConstrSys] together with start values to be used. *)
+module type StartEqConstrSys =
+sig
+  include EqConstrSys
+  val starts: (v * d) list
+end
+
+(** Join start values into right-hand sides.
+    This simplifies start handling in [Make]. *)
+module EqConstrSysFromStartEqConstrSys (S: StartEqConstrSys): EqConstrSys with type v = S.v and type d = S.d and module Var = S.Var and module Dom = S.Dom =
+struct
+  include S
+
+  module VH = Hashtbl.Make (S.Var)
+  (* starts as Hashtbl for quick lookup *)
+  let starth =
+    (* VH.of_list S.starts *) (* TODO: BatHashtbl.Make.of_list is broken, use after new Batteries release *)
+    let starth = VH.create (List.length S.starts) in
+    List.iter (fun (x, d) ->
+        VH.replace starth x d
+      ) S.starts;
+    starth
+
+  let system x =
+    match S.system x, VH.find_option starth x with
+    | f_opt, None -> f_opt
+    | None, Some d -> Some (fun _ _ -> d)
+    | Some f, Some d -> Some (fun get set -> S.Dom.join (f get set) d)
+end
+
 (** Make complete postsolving function from postsolver.
     This is generic and non-incremental. *)
 module Make (PS: S) =
@@ -115,9 +145,16 @@ struct
   module VH = PS.VH
 
   let post xs vs vh =
-    (* TODO: reachability/verify should do something with xs as well? *)
     if get_bool "dbg.verbose" then
       print_endline "Postsolving\n";
+
+    let module StartS =
+    struct
+      include S
+      let starts = xs
+    end
+    in
+    let module S = EqConstrSysFromStartEqConstrSys (StartS) in
 
     Goblintutil.postsolving := true;
     PS.init ();
