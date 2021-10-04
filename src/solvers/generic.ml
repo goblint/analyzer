@@ -5,6 +5,30 @@ open Analyses
 let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 
+module LoadRunSolver: GenericEqBoxSolver =
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    let solve box xs vs =
+      (* copied from Control.solve_and_postprocess *)
+      let solver_file = "solver.marshalled" in
+      let load_run = get_string "load_run" in
+      let solver = Filename.concat load_run solver_file in
+      if get_bool "dbg.verbose" then
+        print_endline ("Loading the solver result of a saved run from " ^ solver);
+      let vh: S.d VH.t = Serialize.unmarshal solver in
+      if get_bool "ana.opt.hashcons" then (
+        VH.iter (fun x d ->
+            VH.remove vh x; (* TODO: is it correct to remove during iter? TD3 does this *)
+            let x' = S.Var.relift x in
+            let d' = S.Dom.join (S.Dom.bot ()) d in
+            VH.replace vh x' d'
+          ) vh
+      );
+      vh
+  end
+
+module LoadRunIncrSolver: GenericEqBoxIncrSolver =
+  Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 
 module SolverInteractiveWGlob

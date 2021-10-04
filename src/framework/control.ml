@@ -47,6 +47,11 @@ struct
     let should_prune = true
     let should_verify = get_bool "verify"
     let should_warn = get_string "warn_at" <> "never"
+    let should_save_run =
+      (* copied from solve_and_postprocess *)
+      let gobview = get_bool "gobview" in
+      let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+      save_run <> ""
   end
   module Slvr  = (GlobSolverFromEqSolver (Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
@@ -399,17 +404,9 @@ struct
       let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
       let lh, gh = if load_run <> "" then (
-          let solver = Filename.concat load_run solver_file in
-          if get_bool "dbg.verbose" then
-            print_endline ("Loading the solver result of a saved run from " ^ solver);
-          let lh,gh = Serialize.unmarshal solver in
-          if get_bool "ana.opt.hashcons" then (
-            let lh' = LHT.create (LHT.length lh) in
-            let gh' = GHT.create (GHT.length gh) in
-            LHT.iter (fun k v -> let k' = EQSys.LVar.relift k in let v' = EQSys.D.join (EQSys.D.bot ()) v in LHT.replace lh' k' v') lh;
-            GHT.iter (fun k v -> let k' = EQSys.GVar.relift k in let v' = EQSys.G.join (EQSys.G.bot ()) v in GHT.replace gh' k' v') gh;
-            lh', gh'
-          ) else lh,gh
+          let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
+          let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
+          r2
         ) else if compare_runs <> [] then (
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
@@ -426,7 +423,6 @@ struct
           if GobConfig.get_bool "incremental.save" then
             Serialize.store_data solver_data Serialize.SolverData;
           if save_run <> "" then (
-            let solver = Filename.concat save_run solver_file in
             let analyses = Filename.concat save_run "analyses.marshalled" in
             let config = Filename.concat save_run "config.json" in
             let meta = Filename.concat save_run "meta.json" in
@@ -435,10 +431,9 @@ struct
             let warnings = Filename.concat save_run "warnings.marshalled" in
             let stats = Filename.concat save_run "stats.marshalled" in
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ solver ^ ", the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
+              print_endline ("Saving the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
             ignore @@ GU.create_dir (save_run); (* ensure the directory exists *)
-            Serialize.marshal (lh, gh) solver;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
@@ -468,6 +463,7 @@ struct
           struct
             include PostSolverArg
             let should_warn = false (* we already warn from main solver *)
+            let should_save_run = false (* we already save main solver *)
           end
           in
           let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg))) (EQSys) (LHT) (GHT) in

@@ -107,6 +107,24 @@ module Warn: F =
       Goblintutil.should_warn := Option.get !old_should_warn
   end
 
+(** Postsolver for save_run option. *)
+module SaveRun: F =
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    include Unit (S) (VH)
+
+    let finalize ~vh ~reachable =
+      (* copied from Control.solve_and_postprocess *)
+      let solver_file = "solver.marshalled" in
+      let gobview = get_bool "gobview" in
+      let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+      let solver = Filename.concat save_run solver_file in
+      if get_bool "dbg.verbose" then
+        print_endline ("Saving the solver result to " ^ solver);
+      ignore @@ GU.create_dir save_run; (* ensure the directory exists *)
+      Serialize.marshal vh solver
+  end
+
 (** [EqConstrSys] together with start values to be used. *)
 module type StartEqConstrSys =
 sig
@@ -230,6 +248,7 @@ sig
   val should_prune: bool
   val should_verify: bool
   val should_warn: bool
+  val should_save_run: bool
 end
 
 (** List of standard postsolvers. *)
@@ -245,6 +264,7 @@ struct
     (should_prune, (module Prune));
     (should_verify, (module Verify));
     (should_warn, (module Warn));
+    (should_save_run, (module SaveRun));
   ]
 
   let postsolvers =

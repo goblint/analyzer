@@ -453,6 +453,7 @@ sig
   val should_prune: bool
   val should_verify: bool
   val should_warn: bool
+  val should_save_run: bool
 end
 
 (** An incremental solver takes the argument about postsolving. *)
