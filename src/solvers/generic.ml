@@ -17,14 +17,16 @@ module LoadRunSolver: GenericEqBoxSolver =
         print_endline ("Loading the solver result of a saved run from " ^ solver);
       let vh: S.d VH.t = Serialize.unmarshal solver in
       if get_bool "ana.opt.hashcons" then (
+        let vh' = VH.create (VH.length vh) in
         VH.iter (fun x d ->
-            VH.remove vh x; (* TODO: is it correct to remove during iter? TD3 does this *)
             let x' = S.Var.relift x in
             let d' = S.Dom.join (S.Dom.bot ()) d in
-            VH.replace vh x' d'
-          ) vh
-      );
-      vh
+            VH.replace vh' x' d'
+          ) vh;
+        vh'
+      )
+      else
+        vh
   end
 
 module LoadRunIncrSolver: GenericEqBoxIncrSolver =
