@@ -2,27 +2,56 @@ open Prelude
 open Analyses
 open GobConfig
 
+module type SBase =
+sig
+  module S: EqConstrSys
+  module VH: Hashtbl.S with type key = S.v
+
+  val init: unit -> unit
+  val one_side: vh:S.Dom.t VH.t -> x:S.v -> y:S.v -> d:S.Dom.t -> unit
+  val one_constraint: vh:S.Dom.t VH.t -> x:S.v -> rhs:S.Dom.t -> unit
+  val finalize: vh:S.Dom.t VH.t -> reachable:unit VH.t -> unit
+end
+
 module type S =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  sig
-    val init: unit -> unit
-    val one_side: vh:S.Dom.t VH.t -> x:S.v -> y:S.v -> d:S.Dom.t -> unit
-    val one_constraint: vh:S.Dom.t VH.t -> x:S.v -> rhs:S.Dom.t -> unit
-    val finalize: vh:S.Dom.t VH.t -> reachable:unit VH.t -> unit
-  end
+  SBase with module S = S and module VH = VH
 
 module Unit: S =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
+    module S = S
+    module VH = VH
     let init () = ()
     let one_side ~vh ~x ~y ~d = ()
     let one_constraint ~vh ~x ~rhs = ()
     let finalize ~vh ~reachable = ()
   end
 
+module ComposeBase (PS1: SBase) (PS2: SBase with module S = PS1.S and module VH = PS1.VH): SBase with module S = PS1.S and module VH = PS1.VH =
+struct
+  module S = PS1.S
+  module VH = PS1.VH
+
+  let init () =
+    PS1.init ();
+    PS2.init ()
+  let one_side ~vh ~x ~y ~d =
+    PS1.one_side ~vh ~x ~y ~d;
+    PS2.one_side ~vh ~x ~y ~d
+  let one_constraint ~vh ~x ~rhs =
+    PS1.one_constraint ~vh ~x ~rhs;
+    PS2.one_constraint ~vh ~x ~rhs
+  let finalize ~vh ~reachable =
+    PS1.finalize ~vh ~reachable;
+    PS2.finalize ~vh ~reachable
+end
+
 module Compose (PS1: S) (PS2: S): S =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
+    module S = S
+    module VH = VH
     module PS1 = PS1 (S) (VH)
     module PS2 = PS2 (S) (VH)
 
@@ -93,10 +122,8 @@ module Warn: S =
       Goblintutil.should_warn := Option.get !old_should_warn
   end
 
-module Make (PS: S) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) =
+module Make (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (PS: SBase with module S = S and module VH = VH)  =
 struct
-  module PS = PS (S) (VH)
-
   let post xs vs vh =
     (* TODO: reachability/verify should do something with xs as well? *)
     if get_bool "dbg.verbose" then
@@ -135,17 +162,21 @@ end
 
 module type MakeListArg =
 sig
-  val postsolvers: (module S) list
+  module S: EqConstrSys
+  module VH: Hashtbl.S with type key = S.v
+  module type M = SBase with module S = S and module VH = VH
+
+  val postsolvers: (module M) list
 end
 
-module MakeList (Arg: MakeListArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) =
+module MakeList (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (Arg: MakeListArg with module S = S and module VH = VH) =
 struct
-  let postsolver_opt: (module S) option =
+  let postsolver_opt: (module Arg.M) option =
     match Arg.postsolvers with
     | [] -> None
     | postsolvers ->
-      let compose (module PS1: S) (module PS2: S) =
-        (module (Compose (PS1) (PS2)): S)
+      let compose (module PS1: Arg.M) (module PS2: Arg.M) =
+        (module (ComposeBase (PS1) (PS2)): Arg.M)
       in
       Some (List.reduce compose postsolvers)
 
@@ -153,7 +184,7 @@ struct
     match postsolver_opt with
     | None -> ()
     | Some (module PS) ->
-      let module M = Make (PS) (S) (VH) in
+      let module M = Make (S) (VH) (PS) in
       M.post xs vs vh
 end
 
@@ -164,9 +195,13 @@ sig
   val should_warn: bool
 end
 
-module ListArgFromStdArg (Arg: MakeStdArg): MakeListArg =
+module ListArgFromStdArg (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (Arg: MakeStdArg): MakeListArg with module S = S and module VH = VH =
 struct
   open Arg
+
+  module S = S
+  module VH = VH
+  module type M = SBase with module S = S and module VH = VH
 
   let postsolvers: (bool * (module S)) list = [
     (should_prune, (module Prune));
@@ -178,4 +213,5 @@ struct
     postsolvers
     |> List.filter fst
     |> List.map snd
+    |> List.map (fun (module S2: S) -> (module S2 (S) (VH): M))
 end
