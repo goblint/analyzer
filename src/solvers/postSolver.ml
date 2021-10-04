@@ -110,7 +110,7 @@ struct
     if get_bool "dbg.verbose" then
       print_endline "Postsolving\n";
 
-    Goblintutil.in_verifying_stage := true;
+    Goblintutil.postsolving := true;
     PS.init ();
 
     let reachable = VH.create (VH.length vh) in
@@ -135,7 +135,7 @@ struct
     List.iter one_var vs;
 
     PS.finalize ~vh ~reachable;
-    Goblintutil.in_verifying_stage := false
+    Goblintutil.postsolving := false
 
   let post xs vs vh =
     Stats.time "postsolver" (post xs vs) vh

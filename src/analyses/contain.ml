@@ -579,7 +579,7 @@ struct
       (*D.report (" SPECIAL_FN '"^f.vname^"'.");*)
       if danger_bot ctx || ignore_this ctx.local ctx.global || (D.is_safe_name f.vname) then ctx.local else begin
         let from = (Some (AddrOf (Var f,NoOffset))) in
-        if not (D.is_safe_name f.vname)&& !Goblintutil.in_verifying_stage then add_reentrant_fun f.vname ctx.global;
+        if not (D.is_safe_name f.vname)&& !Goblintutil.postsolving then add_reentrant_fun f.vname ctx.global;
         if is_private f ctx.global then
           D.add_required_fun_priv f.vname; (*called priv member funs should be analyzed!*)
         let fs=D.get_tainted_fields ctx.global in

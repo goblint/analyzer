@@ -1143,7 +1143,7 @@ struct
 
   let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
     let should_verify = get_bool "verify" in
-    Goblintutil.in_verifying_stage := true;
+    Goblintutil.postsolving := true;
     (if should_verify then Goblintutil.verified := Some true);
     let complain_l (v:LVar.t) lhs rhs =
       Goblintutil.verified := Some false;
@@ -1191,7 +1191,7 @@ struct
       Option.may verify_constraint rhs
     in
     LH.iter verify_var sigma;
-    Goblintutil.in_verifying_stage := false
+    Goblintutil.postsolving := false
 end
 
 (* TODO: unused after PostSolver, remove? *)
