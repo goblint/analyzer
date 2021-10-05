@@ -78,6 +78,10 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      (* In incremental load, initially stable nodes, which are never destabilized.
+         These don't have to be re-verified and warnings can be reused. *)
+      let superstable = HM.copy stable in
+
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
@@ -99,6 +103,7 @@ module WP =
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
             HM.remove stable y;
+            HM.remove superstable y;
             if not (HM.mem called y) then destabilize y
           ) w
       and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
@@ -108,6 +113,7 @@ module WP =
         VS.fold (fun y b ->
             let was_stable = HM.mem stable y in
             HM.remove stable y;
+            HM.remove superstable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
       and solve x phase =
@@ -145,6 +151,7 @@ module WP =
             (solve[@tailcall]) x Widen;
           ) else if term && phase = Widen then (
             HM.remove stable x;
+            HM.remove superstable x;
             (solve[@tailcall]) x Narrow;
           ) else if not space && (not term || phase = Narrow) then (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
             HM.remove wpoint x;
@@ -407,7 +414,7 @@ module WP =
             Goblintutil.postsolving := true;
             PS.init ();
 
-            let reachable = HM.create (HM.length vh) in
+            let reachable = HM.copy superstable in (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
             let rec one_var x =
               if not (HM.mem reachable x) then (
                 HM.replace reachable x ();
