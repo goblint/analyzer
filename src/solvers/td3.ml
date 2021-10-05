@@ -287,6 +287,7 @@ module WP =
           (* destabilize side infl *)
           let w = HM.find_default side_infl x VS.empty in
           HM.remove side_infl x;
+          (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
               HM.remove stable y;
