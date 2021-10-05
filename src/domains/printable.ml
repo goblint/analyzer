@@ -220,6 +220,10 @@ struct
     | `Lifted x -> Base.invariant c x
     | `Top | `Bot -> Invariant.none
 
+  let relift x = match x with
+    | `Bot |`Top -> x
+    | `Lifted v -> `Lifted (relift v)
+
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
@@ -320,6 +324,11 @@ struct
     | `Lifted2 n ->  Base2.show n
     | `Bot -> bot_name
     | `Top -> top_name
+
+  let relift x = match x with
+    | `Lifted1 n -> `Lifted1 (Base1.relift n)
+    | `Lifted2 n -> `Lifted2 (Base2.relift n)
+    | `Bot | `Top -> x
 
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let printXml f = function
