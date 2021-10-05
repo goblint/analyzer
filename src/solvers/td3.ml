@@ -130,21 +130,26 @@ module WP =
               else
                 box x old tmp
           in
+          if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
+          if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
           if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
             update_var_event x old tmp;
-            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
             destabilize x;
             (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then (
+            if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
             (solve[@tailcall]) x Widen;
-          ) else if term && phase = Widen then (
+          ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
+            if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;
-          ) else if not space && (not term || phase = Narrow) then (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+          ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+            if tracing then trace "sol2" "solve removing wpoint %a\n" S.Var.pretty_trace x;
             HM.remove wpoint x;
+          )
         )
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
