@@ -21,8 +21,6 @@ module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg))
-
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
@@ -388,7 +386,58 @@ module WP =
         print_newline ();
       );
 
-      Post.post st vs rho; (* TODO: add side_infl postsolver *)
+      let module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg)) in
+      begin match Post.postsolver_opt with
+        | None -> ()
+        | Some (module PS) ->
+          let open GobConfig in
+
+          let post xs vs vh =
+            if get_bool "dbg.verbose" then
+              print_endline "Postsolving\n";
+
+            let module StartS =
+            struct
+              include S
+              let starts = xs
+            end
+            in
+            let module S = PostSolver.EqConstrSysFromStartEqConstrSys (StartS) in
+
+            Goblintutil.postsolving := true;
+            PS.init ();
+
+            let reachable = HM.create (HM.length vh) in
+            let rec one_var x =
+              if not (HM.mem reachable x) then (
+                HM.replace reachable x ();
+                Option.may (one_constraint x) (S.system x)
+              )
+            and one_constraint x f =
+              let get y =
+                one_var y;
+                try HM.find vh y with Not_found -> S.Dom.bot ()
+              in
+              let set y d =
+                PS.one_side ~vh ~x ~y ~d;
+                (* check before recursing *)
+                one_var y
+              in
+              let rhs = f get set in
+              PS.one_constraint ~vh ~x ~rhs
+            in
+            List.iter one_var vs;
+
+            PS.finalize ~vh ~reachable;
+            Goblintutil.postsolving := false
+          in
+
+          let post xs vs vh =
+            Stats.time "postsolver" (post xs vs) vh
+          in
+
+          post st vs rho (* TODO: add side_infl postsolver *)
+      end;
 
       {st; infl; sides; rho; wpoint; stable}
 
