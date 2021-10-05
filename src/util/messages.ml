@@ -125,9 +125,12 @@ struct
 
   let mem = MH.mem messages_table
 
+  let add_hook: (Message.t -> unit) ref = ref (fun _ -> ())
+
   let add m =
     MH.replace messages_table m ();
-    messages_list := m :: !messages_list
+    messages_list := m :: !messages_list;
+    !add_hook m
 
   let to_yojson () =
     [%to_yojson: Message.t list] (List.rev !messages_list) (* reverse to get in addition order *)

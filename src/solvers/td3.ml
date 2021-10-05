@@ -30,7 +30,8 @@ module WP =
       mutable sides: VS.t HM.t;
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
-      mutable stable: unit HM.t
+      mutable stable: unit HM.t;
+      mutable var_messages: Message.t HM.t;
     }
 
     type marshal = solver_data
@@ -41,7 +42,8 @@ module WP =
       sides = HM.create 10;
       rho = HM.create 10;
       wpoint = HM.create 10;
-      stable = HM.create 10
+      stable = HM.create 10;
+      var_messages = HM.create 10;
     }
 
     let clear_data data =
@@ -65,6 +67,28 @@ module WP =
 
     type phase = Widen | Narrow
 
+    module S =
+    struct
+      include S
+
+      let current_var = ref None
+
+      let system x =
+        match S.system x with
+        | None -> None
+        | Some f ->
+          let f' get set =
+            let old_current_var = !current_var in
+            current_var := Some x;
+            Fun.protect ~finally:(fun () ->
+                current_var := old_current_var
+              ) (fun () ->
+                f get set
+              )
+          in
+          Some f'
+    end
+
     let solve box st vs data =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
@@ -81,6 +105,8 @@ module WP =
       (* In incremental load, initially stable nodes, which are never destabilized.
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
+
+      let var_messages = data.var_messages in
 
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
@@ -393,6 +419,8 @@ module WP =
         print_newline ();
       );
 
+      HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages;
+
       let module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg)) in
       begin match Post.postsolver_opt with
         | None -> ()
@@ -403,6 +431,7 @@ module WP =
             if get_bool "dbg.verbose" then
               print_endline "Postsolving\n";
 
+            let module OutS = S in
             let module StartS =
             struct
               include S
@@ -413,6 +442,16 @@ module WP =
 
             Goblintutil.postsolving := true;
             PS.init ();
+
+            HM.iter (fun _ m ->
+                Messages.add m
+              ) var_messages;
+
+            Messages.Table.add_hook := (fun m ->
+              match !OutS.current_var with
+              | Some x -> HM.add var_messages x m
+              | None -> ()
+            );
 
             let reachable = HM.copy superstable in (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
             let rec one_var x =
@@ -446,7 +485,7 @@ module WP =
           post st vs rho (* TODO: add side_infl postsolver *)
       end;
 
-      {st; infl; sides; rho; wpoint; stable}
+      {st; infl; sides; rho; wpoint; stable; var_messages}
 
     let solve box st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
@@ -496,6 +535,7 @@ module WP =
           ) data.infl;
           data.infl <- infl';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.join (S.Dom.bot ()) v) data.st;
+          (* TODO: relift var_messages? *)
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
