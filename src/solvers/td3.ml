@@ -193,39 +193,48 @@ module WP =
             update_var_event x old tmp;
             HM.replace rho x tmp;
             HM.replace called_changed x ();
-            if HM.mem destab_front x then (
-              HM.remove destab_front x;
-              if HM.mem destab_infl x then (
-                VS.iter (fun y ->
-                    if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-                    HM.replace destab_front y ()
-                  ) (HM.find destab_infl x)
-              );
-              HM.remove destab_infl x
+            if HM.mem stable x then (
+              (* If some side during eq made x unstable, then it should remain in destab_front.
+                 Otherwise recursive solve might prematurely abort it. *)
+              if HM.mem destab_front x then (
+                HM.remove destab_front x;
+                if HM.mem destab_infl x then (
+                  VS.iter (fun y ->
+                      if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                      HM.replace destab_front y ()
+                    ) (HM.find destab_infl x)
+                );
+                HM.remove destab_infl x
+              )
             );
             destabilize x;
             (solve[@tailcall]) x phase true
           ) else (
-            if HM.mem destab_front x then (
-              HM.remove destab_front x;
-              if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
-              (* don't push front here *)
-              HM.remove destab_infl x
-            );
+            (* TODO: why non-equal and non-stable checks in switched order compared to TD3 paper? *)
             if not (HM.mem stable x) then (
+              (* If some side during eq made x unstable, then it should remain in destab_front.
+                 Otherwise recursive solve might prematurely abort it. *)
               if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
               (solve[@tailcall]) x Widen changed
-            ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
-              if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
-              HM.remove stable x;
-              (solve[@tailcall]) ~abort:false x Narrow changed
-            ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
-              if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
-              HM.remove wpoint x;
-              changed
+            ) else (
+              if HM.mem destab_front x then (
+                HM.remove destab_front x;
+                if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
+                (* don't push front here *)
+                HM.remove destab_infl x
+              );
+              if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
+                if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
+                HM.remove stable x;
+                (solve[@tailcall]) ~abort:false x Narrow changed
+              ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+                if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
+                HM.remove wpoint x;
+                changed
+              )
+              else
+                changed
             )
-            else
-              changed
           )
         )
         else if HM.mem called x then
