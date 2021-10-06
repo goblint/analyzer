@@ -30,8 +30,8 @@ module WP =
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
       mutable stable: unit HM.t;
-      mutable side_dep: VS.t HM.t;
-      mutable side_infl: VS.t HM.t;
+      mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
+      mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
     }
 
     let create_empty_data () = {
