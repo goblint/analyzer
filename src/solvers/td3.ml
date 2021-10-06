@@ -79,10 +79,10 @@ module WP =
       let side_infl = data.side_infl in
       (* If true, incremental destabilized side-effected vars will be restarted.
          If false, they are not. *)
-      let restart_sided = true in
+      let restart_sided = GobConfig.get_bool "incremental.restart.sided.enabled" in
       (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
          If false, it will restart all destabilized side-effected vars. *)
-      let restart_only_globals = false in
+      let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
 
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
