@@ -4,9 +4,16 @@ import sys
 from pathlib import Path
 import re
 import subprocess
+import argparse
 
+parser = argparse.ArgumentParser()
 
-goblint_root = Path(".")
+parser.add_argument("-g", "--goblint_path", dest = "goblint_path", default = ".", help="Path to Goblint root")
+parser.add_argument("-t", "--target_path", dest = "target_path", default = ".", help="Path to the regression tests")
+
+args = parser.parse_args()
+
+goblint_root = Path(args.goblint_path)
 goblint_regression = goblint_root / "tests" / "regression"
 
 EXCLUDE_TASKS = [
@@ -38,7 +45,7 @@ EXCLUDE_TASKS = [
     "29-svcomp_01-race-2_5b-container_of", # duplicate sv-benchmarks
 ]
 
-target_root = Path(sys.argv[1])
+target_root = Path(args.target_path)
 
 for goblint_f in sorted(goblint_regression.glob("**/*.c")):
     print(goblint_f, end=": ")
@@ -87,6 +94,7 @@ for goblint_f in sorted(goblint_regression.glob("**/*.c")):
         properties["../properties/unreach-call.prp"] = True
 
     # TODO: unreach-call property based on asserts
+    
 
     if properties:
         print()
