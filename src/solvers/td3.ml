@@ -29,7 +29,9 @@ module WP =
       mutable sides: VS.t HM.t;
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
-      mutable stable: unit HM.t
+      mutable stable: unit HM.t;
+      mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
+      mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
     }
 
     let create_empty_data () = {
@@ -38,17 +40,15 @@ module WP =
       sides = HM.create 10;
       rho = HM.create 10;
       wpoint = HM.create 10;
-      stable = HM.create 10
+      stable = HM.create 10;
+      side_dep = HM.create 10;
+      side_infl = HM.create 10;
     }
-
-    let clear_data data =
-      HM.clear data.infl;
-      HM.clear data.stable
 
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint)
+        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
+          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl)
 
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
@@ -75,9 +75,18 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let side_dep = data.side_dep in
+      let side_infl = data.side_infl in
+      (* If true, incremental destabilized side-effected vars will be restarted.
+         If false, they are not. *)
+      let restart_sided = GobConfig.get_bool "incremental.restart.sided.enabled" in
+      (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
+         If false, it will restart all destabilized side-effected vars. *)
+      let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
+
       let () = print_solver_stats := fun () ->
-        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
-          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
+          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl);
         print_context_stats rho
       in
 
@@ -245,6 +254,59 @@ module WP =
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
+
+        (* destabilize which restarts side-effected vars *)
+        let rec destabilize_with_side x =
+          if tracing then trace "sol2" "destabilize_with_side %a\n" S.Var.pretty_trace x;
+
+          (* is side-effected var (global/function entry)? *)
+          let w = HM.find_default side_dep x VS.empty in
+          HM.remove side_dep x;
+
+          if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) then (
+            (* restart side-effected var *)
+            if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
+            ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pretty_trace x);
+            HM.replace rho x (S.Dom.bot ());
+            (* HM.remove rho x; *)
+            HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
+            HM.remove sides x; (* just in case *)
+
+            (* destabilize side dep to redo side effects *)
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "destabilize_with_side %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                HM.remove stable y;
+                destabilize_with_side y
+              ) w
+          );
+
+          (* destabilize eval infl *)
+          let w = HM.find_default infl x VS.empty in
+          HM.replace infl x VS.empty;
+          VS.iter (fun y ->
+              if tracing then trace "sol2" "destabilize_with_side %a infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+              HM.remove stable y;
+              destabilize_with_side y
+            ) w;
+
+          (* destabilize side infl *)
+          let w = HM.find_default side_infl x VS.empty in
+          HM.remove side_infl x;
+          (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
+          VS.iter (fun y ->
+              if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+              HM.remove stable y;
+              destabilize_with_side y
+            ) w
+        in
+
+        let destabilize_with_side =
+          if restart_sided then
+            destabilize_with_side
+          else
+            destabilize
+        in
+
         (* If a global changes because of some assignment inside a function, we reanalyze,
          * but if it changes because of a different global initializer, then
          *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
@@ -260,7 +322,7 @@ module WP =
                 ()
               else (
                 ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                destabilize v
+                destabilize_with_side v
               )
           | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
         ) st;
@@ -280,7 +342,7 @@ module WP =
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         (* Actually destabilize all nodes contained in changed functions. TODO only destabilize fun_... nodes *)
-        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable; (* TODO: don't use string-based nodes *)
+        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize_with_side k) stable; (* TODO: don't use string-based nodes *)
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         (* TODO: don't use string-based nodes, make marked_for_deletion of type unit (Hashtbl.Make (Node)).t *)
@@ -301,9 +363,15 @@ module WP =
         delete_marked infl;
         delete_marked wpoint;
         delete_marked stable;
+        delete_marked side_dep;
+        delete_marked side_infl;
 
         print_data data "Data after clean-up"
       );
+
+      (* reachability will populate these tables for incremental global restarting *)
+      HM.clear side_dep;
+      HM.clear side_infl;
 
       List.iter set_start st;
       List.iter init vs;
@@ -379,6 +447,7 @@ module WP =
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
 
+      (* reachability also populates side_dep and side_infl *)
       let reachability xs =
         let reachable = HM.create (HM.length rho) in
         let rec one_var x =
@@ -386,10 +455,14 @@ module WP =
             HM.replace reachable x ();
             match S.system x with
             | None -> ()
-            | Some x -> one_constraint x
+            | Some f -> one_constraint x f
           )
-        and one_constraint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> ignore @@ Pretty.printf "reachability: one_constraint: could not find variable %a\n" S.Var.pretty_trace x; S.Dom.bot ()) (fun x _ -> one_var x))
+        and one_side x y _ =
+          one_var y;
+          HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
+          HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
+        and one_constraint x f =
+          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> ignore @@ Pretty.printf "reachability: one_constraint: could not find variable %a\n" S.Var.pretty_trace x; S.Dom.bot ()) (one_side x))
         in
         List.iter one_var xs;
         HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
@@ -405,7 +478,7 @@ module WP =
         print_newline ();
       );
 
-      {st; infl; sides; rho; wpoint; stable}
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl}
 
     let solve box st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in

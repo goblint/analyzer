@@ -1,0 +1,11 @@
+--- tests/incremental/06-call-remove.c	2021-10-05 10:49:27.305643809 +0300
++++ "tests/incremental/06-call-remove copy.c"	2021-10-05 10:49:37.397808651 +0300
+@@ -8,7 +8,7 @@
+ }
+ 
+ void* t_fun(void *arg) {
+-    foo();
++    // foo();
+     return NULL;
+ }
+ 
