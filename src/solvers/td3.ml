@@ -142,7 +142,7 @@ module WP =
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
-          let old = HM.find rho x in
+          let old = HM.find rho x in (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
           let tmp =
             if not wp then tmp
             else
