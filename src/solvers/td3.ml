@@ -83,6 +83,13 @@ module WP =
       (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
          If false, it will restart all destabilized side-effected vars. *)
       let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
+      (* If true, wpoint will be restarted to bot when added.
+         This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
+      let restart_wpoint = GobConfig.get_bool "incremental.restart.wpoint.enabled" in
+      (* If true, each wpoint will be restarted once when added.
+         If false, it will be restarted each time it is added again (wpoints are removed after Narrow). *)
+      let restart_once = GobConfig.get_bool "incremental.restart.wpoint.once" in
+      let restarted_wpoint = HM.create 10 in
 
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
@@ -123,14 +130,19 @@ module WP =
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
+          (* Here we cache HM.mem wpoint x before eq. If during eq eval makes x wpoint, then be still don't apply widening the first time, but just overwrite.
+             It means that the first iteration at wpoint is still precise.
+             This doesn't matter during normal solving (?), because old would be bot.
+             This matters during incremental loading, when wpoints have been removed (or not marshaled) and are redetected.
+             Then the previous local wpoint value is discarded automagically and not joined/widened, providing limited restarting of local wpoints. (See eval for more complete restarting.) *)
           let wp = HM.mem wpoint x in
-          let old = HM.find rho x in
           let l = HM.create 10 in
           let tmp = eq x (eval l x) (side x) in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
+          let old = HM.find rho x in (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
           let tmp =
             if not wp then tmp
             else
@@ -183,7 +195,21 @@ module WP =
       and eval l x y =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
-        if HM.mem called y then HM.replace wpoint y ();
+        if HM.mem called y then (
+          if restart_wpoint && not (HM.mem wpoint y) then (
+            (* Even though solve cleverly restarts redetected wpoints during incremental load, the loop body would be calculated based on the old wpoint value.
+               The loop body might then side effect the old value, see tests/incremental/06-local-wpoint-read.
+               Here we avoid this, by setting it to bottom for the loop body eval. *)
+            if not (restart_once && HM.mem restarted_wpoint y) then (
+              if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
+              HM.replace rho y (S.Dom.bot ());
+              (* destabilize y *) (* TODO: would this do anything on called? *)
+              if restart_once then (* avoid populating hashtable unnecessarily *)
+                HM.replace restarted_wpoint y ();
+            )
+          );
+          HM.replace wpoint y ();
+        );
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp

@@ -154,6 +154,8 @@ let _ = ()
       ; reg Incremental "incremental.wpoint" "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
       ; reg Incremental "incremental.restart.sided.enabled" "true" "TODO"
       ; reg Incremental "incremental.restart.sided.only-global" "false" "TODO"
+      ; reg Incremental "incremental.restart.wpoint.enabled" "true" "TODO"
+      ; reg Incremental "incremental.restart.wpoint.once" "true" "TODO"
 
 (* {4 category [Semantics]} *)
 let _ = ()
