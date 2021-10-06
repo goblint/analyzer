@@ -826,6 +826,43 @@ struct
     | `L x -> Option.map conv (S.system x)
 end
 
+(** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)
+module GlobConstrSolFromEqConstrSolBase (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) (VH: Hashtbl.S with type key = Var2 (S.LVar) (S.GVar).t) =
+struct
+  let split_solution hm =
+    let l' = LH.create 113 in
+    let g' = GH.create 113 in
+    let split_vars x d = match x with
+      | `L x ->
+        begin match d with
+          | `Lifted2 d -> LH.replace l' x d
+          (* | `Bot -> () *)
+          (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
+            This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
+          | `Bot -> LH.replace l' x (S.D.bot ())
+          | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has top value"
+          | `Lifted1 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has global value"
+        end
+      | `G x ->
+        begin match d with
+          | `Lifted1 d -> GH.replace g' x d
+          | `Bot -> ()
+          | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: global variable has top value"
+          | `Lifted2 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: global variable has local value"
+        end
+    in
+    VH.iter split_vars hm;
+    (l', g')
+end
+
+(** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution. *)
+module GlobConstrSolFromEqConstrSol (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) =
+struct
+  module S2 = EqConstrSysFromGlobConstrSys (S)
+  module VH = Hashtbl.Make (S2.Var)
+
+  include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
+end
 
 (** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
@@ -839,39 +876,16 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
       module VH : Hashtbl.S with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
-      type marshal = Sol'.marshal
+      module Splitter = GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH) (* reuse EqSys and VH *)
 
-      let split_solution hm =
-        let l' = LH.create 113 in
-        let g' = GH.create 113 in
-        let split_vars x d = match x with
-          | `L x ->
-            begin match d with
-              | `Lifted2 d -> LH.replace l' x d
-              (* | `Bot -> () *)
-              (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
-                 This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
-              | `Bot -> LH.replace l' x (S.D.bot ())
-              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: local variable has top value"
-              | `Lifted1 _ -> failwith "GlobSolverFromEqSolver.split_vars: local variable has global value"
-            end
-          | `G x ->
-            begin match d with
-              | `Lifted1 d -> GH.replace g' x d
-              | `Bot -> ()
-              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: global variable has top value"
-              | `Lifted2 _ -> failwith "GlobSolverFromEqSolver.split_vars: global variable has local value"
-            end
-        in
-        VH.iter split_vars hm;
-        (l', g')
+      type marshal = Sol'.marshal
 
       let solve ls gs l =
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
         let hm, solver_data = Sol'.solve EqSys.box vs sv in
-        split_solution hm, solver_data
+        Splitter.split_solution hm, solver_data
     end
 
 
