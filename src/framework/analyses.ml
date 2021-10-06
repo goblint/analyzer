@@ -213,6 +213,17 @@ struct
       else
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
+     | "sarif" -> 
+      let open BatPrintf in
+      
+     
+      let write_file f fn =
+        printf "Writing sarif to temp. file: %s\n%!" fn;
+        Sarif.createSarifOutput f;
+      
+      in
+      let f = BatIO.output_channel out in
+      write_file f (get_string "outfile")
     | "json" ->
       let open BatPrintf in
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
