@@ -86,6 +86,10 @@ module WP =
       (* If true, wpoint will be restarted to bot when added.
          This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
       let restart_wpoint = true in
+      (* If true, each wpoint will be restarted once when added.
+         If false, it will be restarted each time it is added again (wpoints are removed after Narrow). *)
+      let restart_once = true in
+      let restarted_wpoint = HM.create 10 in
 
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
@@ -191,9 +195,13 @@ module WP =
             (* Even though solve cleverly restarts redetected wpoints during incremental load, the loop body would be calculated based on the old wpoint value.
                The loop body might then side effect the old value, see tests/incremental/06-local-wpoint-read.
                Here we avoid this, by setting it to bottom for the loop body eval. *)
-            if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
-            HM.replace rho y (S.Dom.bot ());
-            (* destabilize y *) (* TODO: would this do anything on called? *)
+            if not (restart_once && HM.mem restarted_wpoint y) then (
+              if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
+              HM.replace rho y (S.Dom.bot ());
+              (* destabilize y *) (* TODO: would this do anything on called? *)
+              if restart_once then (* avoid populating hashtable unnecessarily *)
+                HM.replace restarted_wpoint y ();
+            )
           );
           HM.replace wpoint y ();
         );
