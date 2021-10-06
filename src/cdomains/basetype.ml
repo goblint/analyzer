@@ -23,7 +23,12 @@ struct
   let trace_enabled = true
   let is_global v = v.vglob
   let copy x = x
-  let show x = GU.demangle x.vname
+  let show x =
+    if PreMallocWrapperAnalysis.is_heap_var x then
+      let node = PreMallocWrapperAnalysis.get_node x in
+      let loc = UpdateCil.getLoc node in
+      GU.demangle "(" ^ x.vname ^ ", " ^ CilType.Location.show loc ^ ")"
+    else GU.demangle x.vname
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
   let get_location x = x.vdecl

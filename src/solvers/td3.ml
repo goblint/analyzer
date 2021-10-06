@@ -30,8 +30,8 @@ module WP =
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
       mutable stable: unit HM.t;
-      mutable side_dep: VS.t HM.t;
-      mutable side_infl: VS.t HM.t;
+      mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
+      mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
     }
 
     let create_empty_data () = {
@@ -79,10 +79,10 @@ module WP =
       let side_infl = data.side_infl in
       (* If true, incremental destabilized side-effected vars will be restarted.
          If false, they are not. *)
-      let restart_sided = true in
+      let restart_sided = GobConfig.get_bool "incremental.restart.sided.enabled" in
       (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
          If false, it will restart all destabilized side-effected vars. *)
-      let restart_only_globals = false in
+      let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
       (* If true, wpoint will be restarted to bot when added.
          This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
       let restart_wpoint = true in
@@ -305,6 +305,7 @@ module WP =
           (* destabilize side infl *)
           let w = HM.find_default side_infl x VS.empty in
           HM.remove side_infl x;
+          (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
               HM.remove stable y;
@@ -362,7 +363,7 @@ module WP =
           let add_stmts (f: fundec) =
             List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
           in
-          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f) functions;
+          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
