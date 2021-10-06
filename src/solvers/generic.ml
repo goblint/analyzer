@@ -359,7 +359,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
       List.iter (fun (k,v) -> set k v) xs;
       solve_all vs;
       stop_event ();
-      sol
+      sol, Goblintutil.dummy_obj
   end
 
 (* use this if you do widenings & narrowings (but no narrowings for globals) --- maybe outdated *)
@@ -456,7 +456,7 @@ module SoundBoxSolverImpl =
       sol, sols
 
     (** the solve function *)
-    let solve box xs ys = solveWithStart box (H.create 1024, H.create 1024) xs ys |> fst
+    let solve box xs ys = solveWithStart box (H.create 1024, H.create 1024) xs ys |> fst, Goblintutil.dummy_obj
   end
 
 module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
@@ -565,5 +565,5 @@ module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
       List.iter (fun (k,v) -> side k k v) xs;
       solve_all vs;
       stop_event ();
-      sol
+      sol, Goblintutil.dummy_obj
   end

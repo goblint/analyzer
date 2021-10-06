@@ -836,7 +836,10 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
           | `L x ->
             begin match d with
               | `Lifted2 d -> LH.replace l' x d
-              | `Bot -> ()
+              (* | `Bot -> () *)
+              (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
+                 This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
+              | `Bot -> LH.replace l' x (S.D.bot ())
               | `Top -> failwith "GlobSolverFromEqSolver.split_vars: local variable has top value"
               | `Lifted1 _ -> failwith "GlobSolverFromEqSolver.split_vars: local variable has global value"
             end
@@ -855,8 +858,8 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm = Sol'.solve EqSys.box vs sv in
-        split_solution hm
+        let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        split_solution hm, solver_data
     end
 
 

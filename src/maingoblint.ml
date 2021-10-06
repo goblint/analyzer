@@ -364,62 +364,38 @@ let check_arguments () =
   if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
-  if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int")
+  if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
+  if (get_bool "incremental.save" || get_bool "incremental.load") && get_bool "ana.opt.hashcons" then (set_bool "ana.opt.hashcons" false; warn "Disabled option ana.opt.hashcons because incremental.save or incremental.load is enabled.")
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
   LibraryFunctions.add_lib_funs funs
 
-let src_path () = Git.git_directory (List.first !cFileNames)
-let data_path () = Filename.concat (src_path ()) ".gob"
-
-let update_map old_file new_file =
-  let dir = Serialize.gob_directory () in
-  VersionLookup.restore_map dir old_file new_file
-
-let store_map updated_map max_ids = (* Creates the directory for the commit *)
-  match Serialize.current_commit_dir () with
-  | Some commit_dir ->
-    let map_file_name = Filename.concat commit_dir Serialize.version_map_filename in
-    Serialize.marshal (updated_map, max_ids) map_file_name
-  | None -> ()
-
 (* Detects changes and renames vids and sids. *)
-let diff_and_rename file =
-  Serialize.src_direcotry := src_path ();
-
-  let change_info = (match Serialize.current_commit () with
-      | Some current_commit -> ((* "put the preparation for incremental analysis here!" *)
-          if get_bool "dbg.verbose" then print_endline ("incremental mode running on commit " ^ current_commit);
-          let (changes, last_analyzed_commit) =
-            (match Serialize.last_analyzed_commit () with
-             | Some last_analyzed_commit -> (match Serialize.load_latest_cil !cFileNames with
-                 | Some file2 ->
-                   let (version_map, changes, max_ids) = update_map file2 file in
-                   let max_ids = UpdateCil.update_ids file2 max_ids file version_map current_commit changes in
-                   store_map version_map max_ids;
-                   (changes, last_analyzed_commit)
-                 | None -> failwith "No ast.data from previous analysis found!"
-               )
-             | None -> (match Serialize.current_commit_dir () with
-                 | Some commit_dir ->
-                   let (version_map, max_ids) = VersionLookup.create_map file current_commit in
-                   store_map version_map max_ids;
-                   (CompareAST.empty_change_info (), "")
-                 | None -> failwith "Directory for storing the results of the current run could not be created!")
-            ) in
-          Serialize.save_cil file;
-          let analyzed_commit_dir = Filename.concat (data_path ()) last_analyzed_commit in
-          let current_commit_dir = Filename.concat (data_path ()) current_commit in
-          Cilfacade.print_to_file (Filename.concat current_commit_dir "cil.c") file;
-          if "" <> last_analyzed_commit then (
-            CompareAST.check_file_changed analyzed_commit_dir current_commit_dir;
-            (* Note: Global initializers/start state changes are not considered here: *)
-            CompareAST.check_any_changed changes
-          );
-          {Analyses.changes = changes; analyzed_commit_dir; current_commit_dir}
-        )
-      | None -> failwith "Failure! Working directory is not clean")
+let diff_and_rename current_file =
+  (* Create change info, either from old results, or from scratch if there are no previous results. *)
+  let change_info: Analyses.increment_data =
+    let (changes, old_file, solver_data, version_map, max_ids) =
+      if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
+        let old_file = Serialize.load_data Serialize.CilFile in
+        let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
+        let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
+        let solver_data = Serialize.load_data Serialize.SolverData in
+        (changes, Some old_file, Some solver_data, version_map, max_ids)
+      end else begin
+        let (version_map, max_ids) = VersionLookup.create_map current_file in
+        (CompareAST.empty_change_info (), None, None, version_map, max_ids)
+      end
+    in
+    if GobConfig.get_bool "incremental.save" then begin
+      Serialize.store_data current_file Serialize.CilFile;
+      Serialize.store_data (version_map, max_ids) Serialize.VersionData
+    end;
+    let old_data = match old_file, solver_data with
+      | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
+      | _, _ -> None
+    in
+    {Analyses.changes = changes; old_data; new_file = current_file}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
@@ -452,7 +428,7 @@ let main () =
       print_endline command;
     );
     let file = preprocess_files () |> merge_preprocessed in
-    let changeInfo = if GobConfig.get_string "exp.incremental.mode" = "off" then Analyses.empty_increment_data () else diff_and_rename file in
+    let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
     file|> do_analyze changeInfo;
     do_stats ();
     do_html_output ();

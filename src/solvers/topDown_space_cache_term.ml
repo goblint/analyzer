@@ -209,7 +209,7 @@ module WP =
       HM.clear stable;
       HM.clear infl  ;
 
-      rho
+      rho, Goblintutil.dummy_obj
 
   end
 

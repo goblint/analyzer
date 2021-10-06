@@ -166,7 +166,7 @@ module WP =
       HM.clear set   ;
       HPM.clear rho'  ;
 
-      rho
+      rho, Goblintutil.dummy_obj
 
   end
 

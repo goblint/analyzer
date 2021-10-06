@@ -16,10 +16,6 @@ open Messages
 open CompareAST
 open Cil
 
-let result_file_name = "td3.data"
-
-let incremental_mode = ref "off"
-
 module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
@@ -92,7 +88,7 @@ module WP =
         print_context_stats rho
       in
 
-      if !incremental_mode = "incremental" then print_data data "Loaded data for incremental analysis";
+      if GobConfig.get_bool "incremental.load" then print_data data "Loaded data for incremental analysis";
 
       let cache_sizes = ref [] in
 
@@ -181,11 +177,12 @@ module WP =
               else
                 box x old tmp
           in
+          if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
+          if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
           if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
             update_var_event x old tmp;
-            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
             HM.replace called_changed x ();
             if HM.mem destab_front x then (
@@ -208,11 +205,14 @@ module WP =
               HM.remove destab_infl x
             );
             if not (HM.mem stable x) then (
+              if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
               (solve[@tailcall]) x Widen changed
-            ) else if term && phase = Widen then (
+            ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
+              if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
               HM.remove stable x;
               (solve[@tailcall]) ~abort:false x Narrow changed
             ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+              if tracing then trace "sol2" "solve removing wpoint %a\n" S.Var.pretty_trace x;
               HM.remove wpoint x;
               changed
             )
@@ -306,7 +306,7 @@ module WP =
 
       start_event ();
 
-      if !incremental_mode = "incremental" then (
+      if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
         (* If a global changes because of some assignment inside a function, we reanalyze,
@@ -317,7 +317,7 @@ module WP =
         print_endline "Destabilizing start functions if their start state changed...";
         (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
         List.iter (fun (v,d) ->
-          match List.assoc_opt v data.st with
+          match GU.assoc_eq v data.st S.Var.equal with
           | Some d' ->
               if S.Dom.equal d d' then
                 (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
@@ -352,7 +352,7 @@ module WP =
           let add_stmts (f: fundec) =
             List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
           in
-          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f) functions;
+          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
@@ -472,14 +472,12 @@ module WP =
       {st; infl; sides; rho; wpoint; stable}
 
     let solve box st vs =
-      incremental_mode := GobConfig.get_string "exp.incremental.mode";
-      let reuse_stable = GobConfig.get_bool "exp.incremental.stable" in
-      let reuse_wpoint = GobConfig.get_bool "exp.incremental.wpoint" in
-      if !incremental_mode <> "off" then (
-        let file_in = Filename.concat S.increment.analyzed_commit_dir result_file_name in
-        let loaded, data =  if Sys.file_exists file_in && !incremental_mode <> "complete"
-          then true, Serialize.unmarshal file_in
-          else false, create_empty_data ()
+      let reuse_stable = GobConfig.get_bool "incremental.stable" in
+      let reuse_wpoint = GobConfig.get_bool "incremental.wpoint" in
+      if GobConfig.get_bool "incremental.load" then (
+        let loaded, data = match S.increment.old_data with
+          | Some d -> true, Obj.obj d.solver_data
+          | _ -> false, create_empty_data ()
         in
         (* This hack is for fixing hashconsing.
          * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
@@ -525,30 +523,12 @@ module WP =
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
         let result = solve box st vs data in
-        let path = Goblintutil.create_dir S.increment.current_commit_dir in
-        if Sys.file_exists path then (
-          let file_out = Filename.concat S.increment.current_commit_dir result_file_name in
-          print_endline @@ "Saving solver result to " ^ file_out;
-          Serialize.marshal result file_out;
-        );
-        clear_data result;
-
-        (* Compare current rho to old rho *)
-        if Sys.file_exists file_in && !incremental_mode <> "complete" then (
-          let old_rho = (Serialize.unmarshal file_in: solver_data).rho in
-          let eq r s =
-            let leq r s = HM.fold (fun k v acc -> acc && (try S.Dom.leq v (HM.find s k) with Not_found -> false)) r true
-          in leq r s && leq s r in
-          print_endline @@ "Rho " ^ (if eq result.rho old_rho then "did not change" else "changed") ^ " compared to previous analysis.";
-        );
-
-        result.rho
+        result.rho, Obj.repr result
       )
       else (
         let data = create_empty_data () in
         let result = solve box st vs data in
-        clear_data result;
-        result.rho
+        result.rho, Obj.repr result
       )
   end
 
