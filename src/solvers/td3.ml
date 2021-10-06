@@ -126,7 +126,7 @@ module WP =
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
       and solve ?(abort=true) x phase (changed: bool): bool =
-        if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
+        if tracing then trace "sol2" "solve %a, phase: %s, changed: %b, abort: %b, called: %b, stable: %b\n" S.Var.pretty_trace x (match phase with Widen -> "Widen" | Narrow -> "Narrow") changed abort (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
@@ -136,15 +136,22 @@ module WP =
           let old = HM.find rho x in
           let l = HM.create 10 in
           let eval' =
+            if tracing then trace "sol2" "eval' %a abort=%b destab_dep=%b\n" S.Var.pretty_trace x abort (HM.mem destab_dep x);
             if HM.mem destab_dep x && abort then (
+              let vs_pretty () vs =
+                VS.fold (fun x acc -> Pretty.dprintf "%a, %a" S.Var.pretty_trace x Pretty.insert acc) vs Pretty.nil
+              in
               let unasked_dep_x = ref (HM.find destab_dep x) in
+              if tracing then trace "sol2" "eval' %a dep=%a\n" S.Var.pretty_trace x vs_pretty !unasked_dep_x;
               let all_dep_x_unchanged = ref true in
               fun y ->
                 let (d, changed) = eval l x y in
+                if tracing then trace "sol2" "eval' %a asked %a changed=%b mem=%b\n" S.Var.pretty_trace x S.Var.pretty_trace y changed (VS.mem y !unasked_dep_x);
                 if VS.mem y !unasked_dep_x then (
                   unasked_dep_x := VS.remove y !unasked_dep_x;
                   if changed then
                     all_dep_x_unchanged := false;
+                  if tracing then trace "sol2" "eval' %a asked %a checking abort unasked=%a all_unchanged=%b front=%b\n" S.Var.pretty_trace x S.Var.pretty_trace y vs_pretty !unasked_dep_x !all_dep_x_unchanged (HM.mem destab_front x);
                   if VS.is_empty !unasked_dep_x && !all_dep_x_unchanged && not (HM.mem destab_front x) then (* must check front here, because each eval might change it for x *)
                     raise AbortEq
                 );
@@ -182,6 +189,7 @@ module WP =
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
           if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
+            if tracing then trace "sol" "Changed\n";
             update_var_event x old tmp;
             HM.replace rho x tmp;
             HM.replace called_changed x ();
@@ -212,7 +220,7 @@ module WP =
               HM.remove stable x;
               (solve[@tailcall]) ~abort:false x Narrow changed
             ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
-              if tracing then trace "sol2" "solve removing wpoint %a\n" S.Var.pretty_trace x;
+              if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
               HM.remove wpoint x;
               changed
             )
