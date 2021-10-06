@@ -85,10 +85,10 @@ module WP =
       let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
       (* If true, wpoint will be restarted to bot when added.
          This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
-      let restart_wpoint = true in
+      let restart_wpoint = GobConfig.get_bool "incremental.restart.wpoint.enabled" in
       (* If true, each wpoint will be restarted once when added.
          If false, it will be restarted each time it is added again (wpoints are removed after Narrow). *)
-      let restart_once = true in
+      let restart_once = GobConfig.get_bool "incremental.restart.wpoint.once" in
       let restarted_wpoint = HM.create 10 in
 
       let () = print_solver_stats := fun () ->
