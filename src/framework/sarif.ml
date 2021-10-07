@@ -149,9 +149,7 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
             BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" (trimFile l.file) ;
             BatPrintf.fprintf f "              \"region\": {\n";
             BatPrintf.fprintf f "                \"startLine\":%d,\n" l.line ; 
-            BatPrintf.fprintf f "                \"startColumn\":%d,\n" l.column ; 
-            BatPrintf.fprintf f "                \"endColumn\":%d,\n" l.column ; 
-            BatPrintf.fprintf f "                \"endLine\":%d\n" l.line ;    
+            BatPrintf.fprintf f "                \"startColumn\":%d\n" l.column ;    
             (*printContext f con;*)
             BatPrintf.fprintf f "             }\n"
        
