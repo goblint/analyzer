@@ -5,21 +5,12 @@
 module GU = Goblintutil
 module Category = MessageCategory
 
-module Information =
-struct
-type t = {
-  description: String.t;
-  helpUri:String.t;
-
-}
-end
 module Sarif =
 struct 
  type t = {
     id: String.t;
     category:Category.t;
-    cwe:Int.t;
-    information:Information.t;    
+    cwe:Int.t; 
   } 
 
  
@@ -248,7 +239,7 @@ let printSarifResults f =
           printResults (List.rev !Messages.Table.messages_list)
 
 
-
+(* creates output in the Sarif format.*)
 let createSarifOutput f =
         BatPrintf.fprintf f "{\n \"$schema\": \"%s\",\n  " "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
         BatPrintf.fprintf f "\"version\": \"%s\",\n  " "2.1.0";
