@@ -236,7 +236,7 @@ module WP =
             ignore (Pretty.eprintf "bad abort %a: \n%a\n vs \n%a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp);
             assert false;
           );
-          (* HM.replace prev_dep_vals x new_dep_vals_x; *) (* TODO: why not always? *)
+          HM.replace prev_dep_vals x new_dep_vals_x;
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -258,7 +258,6 @@ module WP =
             if tracing then trace "sol" "Changed\n";
             update_var_event x old tmp;
             HM.replace rho x tmp;
-            HM.replace prev_dep_vals x new_dep_vals_x;
             HM.replace called_changed x ();
             if abort then (
               if HM.mem destab_front x then (
@@ -303,13 +302,10 @@ module WP =
               ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
                 HM.remove wpoint x;
-                HM.replace prev_dep_vals x new_dep_vals_x;
                 changed
               )
-              else (
-                HM.replace prev_dep_vals x new_dep_vals_x;
+              else
                 changed
-              )
             )
           )
         )
