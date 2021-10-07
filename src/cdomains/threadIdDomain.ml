@@ -13,8 +13,8 @@ sig
   (** Overapproximates whether the first TID can be involved in the creation fo the second TID*)
   val may_create: t -> t -> bool
 
-  (** Find the latest known unique common ancestor of two TIDs, if there is one. Always safe to return None *)
-  val cdef_ancestor: t -> t -> t option
+  (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
+  val is_must_parent: t -> t -> bool
 end
 
 module type Stateless =
@@ -65,7 +65,7 @@ struct
 
   let is_unique _ = false (* TODO: should this consider main unique? *)
   let may_create _ _ = true
-  let cdef_ancestor _ _ = None
+  let is_must_parent _ _ = false
 end
 
 
@@ -104,12 +104,12 @@ struct
   let is_unique (_, s) =
     S.is_empty s
 
-  let cdef_ancestor (p,s) (p',s') =
-    let np = P.common_suffix p p' in
-    if np = [] then
-      None
+  let is_must_parent (p,s) (p',s') =
+    if not (S.is_empty s) then
+      false
     else
-      Some (P.common_suffix p p', S.empty ())
+      let cdef_prefix = P.common_suffix p p' in
+      P.equal p cdef_prefix
 
   let may_create (p,s) (p',s') =
     S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
