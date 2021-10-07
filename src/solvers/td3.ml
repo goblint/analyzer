@@ -161,7 +161,6 @@ module WP =
           let l = HM.create 10 in
           let prev_dep_vals_x = HM.find_default prev_dep_vals x (HM.create 0) in
           let new_dep_vals_x = HM.create (HM.length prev_dep_vals_x) in
-          let bad_abort = ref false in
           let eval' =
             if tracing then trace "sol2" "eval' %a abortable=%b destab_dep=%b\n" S.Var.pretty_trace x abortable (HM.mem destab_dep x);
             if abort && abortable && HM.mem destab_dep x then (
@@ -196,8 +195,7 @@ module WP =
                   if should_abort then (
                     if abort_verify && not should_abort_verify then (
                       ignore (Pretty.eprintf "should not abort %a\n" S.Var.pretty_trace x);
-                      bad_abort := true;
-                      (* assert false; *)
+                      assert false;
                     );
                     (* assert (should_abort_verify); *)
                     raise AbortEq
@@ -232,10 +230,6 @@ module WP =
                 ) prev_dep_vals_x;
               old
           in
-          if !bad_abort then (
-            ignore (Pretty.eprintf "bad abort %a: \n%a\n vs \n%a\n" S.Var.pretty_trace x S.Dom.pretty old S.Dom.pretty tmp);
-            assert false;
-          );
           HM.replace prev_dep_vals x new_dep_vals_x;
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
