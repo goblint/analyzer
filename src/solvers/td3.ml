@@ -115,7 +115,11 @@ module WP =
           VS.iter (fun y ->
               if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
               HM.replace destab_front y ()
-            ) w
+            ) w;
+          (* VS.iter (fun y ->
+              if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
+              HM.replace destab_front y ()
+            ) (HM.find_default destab_infl x VS.empty) *)
         )
         else (
           HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
@@ -207,21 +211,21 @@ module WP =
             update_var_event x old tmp;
             HM.replace rho x tmp;
             HM.replace called_changed x ();
-            if HM.mem stable x then (
-              (* If some side during eq made x unstable, then it should remain in destab_front.
-                 Otherwise recursive solve might prematurely abort it. *)
-              if HM.mem destab_front x then (
+            if HM.mem destab_front x then (
+              if HM.mem stable x then (
+                (* If some side during eq made x unstable, then it should remain in destab_front.
+                   Otherwise recursive solve might prematurely abort it. *)
                 if tracing then trace "sol2" "front remove %a\n" S.Var.pretty_trace x;
                 HM.remove destab_front x;
-                if HM.mem destab_infl x then (
-                  VS.iter (fun y ->
-                      if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-                      if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
-                      HM.replace destab_front y ()
-                    ) (HM.find destab_infl x)
-                );
-                HM.remove destab_infl x
-              )
+              );
+              if HM.mem destab_infl x then (
+                VS.iter (fun y ->
+                    if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                    if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
+                    HM.replace destab_front y ()
+                  ) (HM.find destab_infl x)
+              );
+              HM.remove destab_infl x
             );
             destabilize x;
             (solve[@tailcall]) x phase true
