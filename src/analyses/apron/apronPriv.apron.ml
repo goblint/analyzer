@@ -462,6 +462,186 @@ struct
   let finalize () = ()
 end
 
+(** Per-mutex meet with TIDs. *)
+module PerMutexMeetPrivTID: S =
+struct
+  open Protection
+  open ExplicitMutexGlobals
+
+  module D = MapDomain.MapBot_LiftTop(Basetype.Variables)(AD)
+  module G = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
+
+  let just_roll_with_it v = (* FIXME: be smart here! *)
+    let bs = List.map snd (G.bindings v) in
+    List.fold_left AD.join (AD.bot ()) bs
+
+  let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
+
+  module V = ApronDomain.V
+
+  let startstate () = D.bot ()
+
+  let should_join _ _ = true
+
+  let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
+
+  let get_m_with_mutex_inits ask getg m =
+    let get_m = just_roll_with_it @@ getg (mutex_addr_to_varinfo m) in
+    let get_mutex_inits = just_roll_with_it @@ getg (mutex_inits ()) in
+    let get_mutex_inits' = AD.keep_filter get_mutex_inits (fun var ->
+        match V.find_metadata var with
+        | Some (Global g) -> is_protected_by ask m g
+        | _ -> false
+      )
+    in
+    AD.join get_m get_mutex_inits'
+
+  let get_mutex_global_g_with_mutex_inits ask getg g =
+    let get_mutex_global_g = just_roll_with_it @@ getg (mutex_global g) in
+    let get_mutex_inits = just_roll_with_it @@ getg (mutex_inits ()) in
+    let g_var = V.global g in
+    let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
+    AD.join get_mutex_global_g get_mutex_inits'
+
+  let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
+    let oct = st.oct in
+    (* lock *)
+    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
+    (* read *)
+    let g_var = V.global g in
+    let x_var = Var.of_string x.vname in
+    let oct_local = AD.add_vars oct [g_var] in
+    let oct_local = AD.assign_var oct_local x_var g_var in
+    (* unlock *)
+    let oct_local' =
+      if is_unprotected ask g then
+        AD.remove_vars oct_local [g_var]
+      else
+        oct_local
+    in
+    oct_local'
+
+  let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
+    let oct = st.oct in
+    (* lock *)
+    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
+    (* write *)
+    let g_var = V.global g in
+    let x_var = Var.of_string x.vname in
+    let oct_local = AD.add_vars oct [g_var] in
+    let oct_local = AD.assign_var oct_local g_var x_var in
+    (* unlock *)
+    let oct_side = AD.keep_vars oct_local [g_var] in
+    let tid = ask.f Queries.CurrentThreadId in
+    let sidev = G.singleton tid oct_side in
+    sideg (mutex_global g) sidev;
+    let oct_local' =
+      if is_unprotected ask g then
+        AD.remove_vars oct_local [g_var]
+      else
+        oct_local
+    in
+    {st with oct = oct_local'}
+
+  let lock ask getg (st: ApronComponents (D).t) m =
+    let oct = st.oct in
+    let get_m = get_m_with_mutex_inits ask getg m in
+    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+    let get_m = AD.keep_filter get_m (fun var ->
+        match V.find_metadata var with
+        | Some (Global g) -> is_protected_by ask m g
+        | _ -> false
+      )
+    in
+    let oct' = AD.meet oct get_m in
+    {st with oct = oct'}
+
+  let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
+    let oct = st.oct in
+    let oct_side = AD.keep_filter oct (fun var ->
+        match V.find_metadata var with
+        | Some (Global g) -> is_protected_by ask m g
+        | _ -> false
+      )
+    in
+    let tid = ask.f Queries.CurrentThreadId in
+    let sidev = G.singleton tid oct_side in
+    let vi = mutex_addr_to_varinfo m in
+    sideg (mutex_addr_to_varinfo m) sidev;
+    let priv' = D.add vi oct_side st.priv in
+    let oct_local = AD.remove_filter oct (fun var ->
+        match V.find_metadata var with
+        | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
+        | _ -> false
+      )
+    in
+    {oct = oct_local; priv = priv'}
+
+  let sync ask getg sideg (st: ApronComponents (D).t) reason =
+    match reason with
+    | `Return -> (* required for thread return *)
+      (* TODO: implement? *)
+      begin match ThreadId.get_current ask with
+        | `Lifted x (* when CPA.mem x st.cpa *) ->
+          st
+        | _ ->
+          st
+      end
+    | `Join ->
+      if (ask.f Q.MustBeSingleThreaded) then
+        st
+      else
+        let oct = st.oct in
+        let g_vars = List.filter (fun var ->
+            match V.find_metadata var with
+            | Some (Global _) -> true
+            | _ -> false
+          ) (AD.vars oct)
+        in
+        let oct_side = AD.keep_vars oct g_vars in
+        let tid = ask.f Queries.CurrentThreadId in
+        let sidev = G.singleton tid oct_side in
+        sideg (mutex_inits ()) sidev;
+        let oct_local = AD.remove_filter oct (fun var ->
+            match V.find_metadata var with
+            | Some (Global g) -> is_unprotected ask g
+            | _ -> false
+          )
+        in
+        {st with oct = oct_local}
+    | `Normal
+    | `Init
+    | `Thread ->
+      st
+
+  let enter_multithreaded (ask:Q.ask) getg sideg (st: ApronComponents (D).t): ApronComponents (D).t =
+    let oct = st.oct in
+    (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
+    let g_vars = List.filter (fun var ->
+        match V.find_metadata var with
+        | Some (Global _) -> true
+        | _ -> false
+      ) (AD.vars oct)
+    in
+    let oct_side = AD.keep_vars oct g_vars in
+    let tid = ask.f Queries.CurrentThreadId in
+    let sidev = G.singleton tid oct_side in
+    let vi = mutex_inits () in
+    sideg vi sidev;
+     (* FIXME: introduce into local state *)
+    let oct_local = AD.remove_vars oct g_vars in (* TODO: side effect initial values to mutex_globals? *)
+    {st with oct = oct_local}
+
+  let threadenter ask getg (st: ApronComponents (D).t): ApronComponents (D).t =
+    {oct = AD.bot (); priv = startstate ()}
+
+  let init () = ()
+  let finalize () = ()
+end
+
+
+
+
 (** Write-Centered Reading. *)
 (* TODO: uncompleted, only W, P components from basePriv *)
 module WriteCenteredPriv: S =
@@ -680,6 +860,7 @@ let priv_module: (module S) Lazy.t =
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)
+         | "mutex-meet-tid" -> (module PerMutexMeetPrivTID)
          (* | "write" -> (module WriteCenteredPriv) *)
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
