@@ -8,8 +8,9 @@ import argparse
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-g", "--goblint_path", dest = "goblint_path", default = ".", help="Path to Goblint root")
-parser.add_argument("-t", "--target_path", dest = "target_path", default = ".", help="Path to the regression tests")
+parser.add_argument("-g", "--goblint_path", dest = "goblint_path", default = ".", help="Path to Goblint root.")
+parser.add_argument("-t", "--target_path", dest = "target_path", default = ".", help="Path to the regression tests.")
+parser.add_argument("-f", "--target_folder", dest = "target_folder", default = "**", help="Path to the folder wih a group of tests. Default: all folders.")
 
 args = parser.parse_args()
 
@@ -47,7 +48,7 @@ EXCLUDE_TASKS = [
 
 target_root = Path(args.target_path)
 
-for goblint_f in sorted(goblint_regression.glob("**/*.c")):
+for goblint_f in sorted(goblint_regression.glob(args.target_folder+"/*.c")):
     print(goblint_f, end=": ")
 
     content = goblint_f.read_text()
@@ -94,7 +95,10 @@ for goblint_f in sorted(goblint_regression.glob("**/*.c")):
         properties["../properties/unreach-call.prp"] = True
 
     # TODO: unreach-call property based on asserts
-    
+    #while re.search(r"assert", content):
+       # properties["../properties/unreach-call.prp"] = True
+        #content = content.replace("assert", "if"), 
+    # print("type", content.replace("assert", "ASSERT"))
 
     if properties:
         print()
