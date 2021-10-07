@@ -159,16 +159,27 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
        
          
   let printMultipiece f (mp:Messages.MultiPiece.t)= 
+
+      let printMessageText f Messages.Piece.{loc; text = m; _} =
+          BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," m ;       
+      in 
+      let printMessages f (pieces:Messages.Piece.t list) = 
+          let toMessage Messages.Piece.{loc; text = m; _} =m in
+          match pieces with
+          | [] -> BatPrintf.fprintf f "";
+          | x::xs ->  BatPrintf.fprintf f "\n        \"message\": {\n";       
+          (* (BatArray.print ~first:"" ~last:"" ~sep:"; ")*)    
+                      BatPrintf.fprintf f "           \"text\": \"%s\"\n    " (String.concat ";\n " (List.map toMessage pieces)) ;   
+                      BatPrintf.fprintf f "      },\n";
+      in
       let rec printPieces f (pieces:Messages.Piece.t list)= match pieces with 
             | [] ->      BatPrintf.fprintf f "           }\n";
             | x::[] ->  print_physicalLocationPiece f  x; 
             | x::xs ->  print_physicalLocationPiece f  x; 
                         BatPrintf.fprintf f "     },\n";
                         printPieces f xs;
-      in
-      let printMessageText f Messages.Piece.{loc; text = m; _} =
-          BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," m ;       
-      in 
+                       
+      in     
          match mp with
            | Single (piece: Messages.Piece.t) -> 
                printMessageText f piece;
@@ -178,7 +189,8 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
            | Group {group_text = n; pieces = e} ->
                 BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
                 printPieces f e;
-                 BatPrintf.fprintf f "           }\n"
+                printMessages f e;
+                BatPrintf.fprintf f "           },\n"               
 
  let severityToLevel (severity:Messages.Severity.t)= match severity with
       | Error -> "error"
@@ -191,13 +203,11 @@ let printSarifResults f =
           let rec printTags f (tags:Messages.Tags.t)= match tags with 
            | [] ->BatPrintf.fprintf f "  Unexpected Error,  empty tags in Messages.Tags";
            | x::xs -> match x with 
-            | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (string_of_int cwe);
-             (* | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (MessageCategory.show cat ); *)
-            | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.returnCategory cat ); 
+            | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (string_of_int cwe);            
+            | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.returnCategory cat );
           in       
          let printOneResult (message:Messages.Message.t )=             
              printTags f   message.tags;    
-             (*BatPrintf.fprintf f "    {\n        \"ruleId\": \"%d\","1;*)
              BatPrintf.fprintf f "\n        \"level\": \"%s\"," (severityToLevel message.severity) ;            
              printMultipiece f message.multipiece;
              BatPrintf.fprintf f "       }\n       ]";
@@ -224,8 +234,8 @@ let createSarifOutput f =
         BatPrintf.fprintf f "{\n  ";
         BatPrintf.fprintf f "\"tool\": {\n    ";
         BatPrintf.fprintf f "\ \"driver\": {\n       ";
-        BatPrintf.fprintf f "\"name\": \"%s\",\n       " "goblint";
-        BatPrintf.fprintf f "\"fullName\": \"%s\",\n       " "goblint static analyser";   
+        BatPrintf.fprintf f "\"name\": \"%s\",\n       " "Goblint";
+        BatPrintf.fprintf f "\"fullName\": \"%s\",\n       " "Goblint static analyser";   
         BatPrintf.fprintf f "\"informationUri\": \"%s\",\n       " "https://goblint.in.tum.de/home";
         BatPrintf.fprintf f "\"organization\": \"%s\",\n       " "TUM ";
         BatPrintf.fprintf f "\"version\": \"%s\",\n       " Version.goblint; 
