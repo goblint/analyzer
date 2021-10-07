@@ -447,6 +447,16 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     loop 0 xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let common_prefix x y =
+    let rec helper acc x y =
+      match x,y with
+      | x::xs, y::ys when Base.equal x y-> helper (x::acc) xs ys
+      | _ -> acc
+    in
+    List.rev (helper [] x y)
+
+  let common_suffix x y = List.rev (common_prefix (List.rev x) (List.rev y))
 end
 
 module type ChainParams = sig
