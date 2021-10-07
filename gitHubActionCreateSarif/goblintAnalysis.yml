@@ -9,7 +9,7 @@ jobs:
     env:
       # ./analysisTarget/main.c needs to be replaced with ./analysisTarget/PATH_TO_MAIN
       #the prefix  ./analysisTarget/ is removed in Goblint, so the location shows correctly in Github
-      MAIN_NAME: './analysisTarget/05-inf_loop.c'
+      MAIN_NAME: './analysisTarget/main.c'
     strategy:
       fail-fast: false
       matrix:
