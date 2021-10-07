@@ -78,6 +78,7 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let abort = GobConfig.get_bool "exp.solver.td3.abort" in
       let destab_infl = HM.create 10 in
       let destab_front = HM.create 10 in
       let destab_dep = HM.create 10 in
@@ -111,21 +112,23 @@ module WP =
         trace_called ();
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        if front then (
-          VS.iter (fun y ->
-              if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
-              HM.replace destab_front y ()
-            ) w;
-          (* VS.iter (fun y ->
-              if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
-              HM.replace destab_front y ()
-            ) (HM.find_default destab_infl x VS.empty) *)
-        )
-        else (
-          HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
-          VS.iter (fun y ->
-              HM.replace destab_dep y (VS.add x (try HM.find destab_dep y with Not_found -> VS.empty))
-            ) w
+        if abort then (
+          if front then (
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
+                HM.replace destab_front y ()
+              ) w;
+            (* VS.iter (fun y ->
+                if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
+                HM.replace destab_front y ()
+              ) (HM.find_default destab_infl x VS.empty) *)
+          )
+          else (
+            HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
+            VS.iter (fun y ->
+                HM.replace destab_dep y (VS.add x (try HM.find destab_dep y with Not_found -> VS.empty))
+              ) w
+          )
         );
         VS.iter (fun y ->
             if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
@@ -141,8 +144,8 @@ module WP =
             HM.remove stable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
-      and solve ?(abort=true) x phase (changed: bool): bool =
-        if tracing then trace "sol2" "solve %a, phase: %s, changed: %b, abort: %b, called: %b, stable: %b\n" S.Var.pretty_trace x (match phase with Widen -> "Widen" | Narrow -> "Narrow") changed abort (HM.mem called x) (HM.mem stable x);
+      and solve ?(abortable=true) x phase (changed: bool): bool =
+        if tracing then trace "sol2" "solve %a, phase: %s, changed: %b, abortable: %b, called: %b, stable: %b\n" S.Var.pretty_trace x (match phase with Widen -> "Widen" | Narrow -> "Narrow") changed abortable (HM.mem called x) (HM.mem stable x);
         trace_called ();
         init x;
         assert (S.system x <> None);
@@ -154,8 +157,8 @@ module WP =
           let old = HM.find rho x in
           let l = HM.create 10 in
           let eval' =
-            if tracing then trace "sol2" "eval' %a abort=%b destab_dep=%b\n" S.Var.pretty_trace x abort (HM.mem destab_dep x);
-            if HM.mem destab_dep x && abort then (
+            if tracing then trace "sol2" "eval' %a abortable=%b destab_dep=%b\n" S.Var.pretty_trace x abortable (HM.mem destab_dep x);
+            if abort && abortable && HM.mem destab_dep x then (
               let vs_pretty () vs =
                 VS.fold (fun x acc -> Pretty.dprintf "%a, %a" S.Var.pretty_trace x Pretty.insert acc) vs Pretty.nil
               in
@@ -211,21 +214,23 @@ module WP =
             update_var_event x old tmp;
             HM.replace rho x tmp;
             HM.replace called_changed x ();
-            if HM.mem destab_front x then (
-              if HM.mem stable x then (
-                (* If some side during eq made x unstable, then it should remain in destab_front.
-                   Otherwise recursive solve might prematurely abort it. *)
-                if tracing then trace "sol2" "front remove %a\n" S.Var.pretty_trace x;
-                HM.remove destab_front x;
-              );
-              if HM.mem destab_infl x then (
-                VS.iter (fun y ->
-                    if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-                    if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
-                    HM.replace destab_front y ()
-                  ) (HM.find destab_infl x)
-              );
-              HM.remove destab_infl x
+            if abort then (
+              if HM.mem destab_front x then (
+                if HM.mem stable x then (
+                  (* If some side during eq made x unstable, then it should remain in destab_front.
+                    Otherwise recursive solve might prematurely abort it. *)
+                  if tracing then trace "sol2" "front remove %a\n" S.Var.pretty_trace x;
+                  HM.remove destab_front x;
+                );
+                if HM.mem destab_infl x then (
+                  VS.iter (fun y ->
+                      if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                      if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
+                      HM.replace destab_front y ()
+                    ) (HM.find destab_infl x)
+                );
+                HM.remove destab_infl x
+              )
             );
             destabilize x;
             (solve[@tailcall]) x phase true
@@ -237,7 +242,7 @@ module WP =
               if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
               (solve[@tailcall]) x Widen changed
             ) else (
-              if HM.mem destab_front x then (
+              if abort && HM.mem destab_front x then (
                 if tracing then trace "sol2" "front remove %a\n" S.Var.pretty_trace x;
                 HM.remove destab_front x;
                 if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
@@ -248,7 +253,7 @@ module WP =
                 if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
                 HM.remove stable x;
-                (solve[@tailcall]) ~abort:false x Narrow changed
+                (solve[@tailcall]) ~abortable:false x Narrow changed
               ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
                 HM.remove wpoint x;
