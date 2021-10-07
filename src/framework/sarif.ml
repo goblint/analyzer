@@ -142,7 +142,9 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
         
           match String.sub path 0 16  with 
             | "./analysistarget/" -> Str.string_after  path 17;  
-            |_ ->path;
+            | "/analysistarget/" -> Str.string_after  path 16;  
+            | "analysistarget/" -> Str.string_after  path 15;  
+            |_ -> path;
           in
           
         match loc with
