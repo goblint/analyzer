@@ -451,10 +451,10 @@ struct
   let common_prefix x y =
     let rec helper acc x y =
       match x,y with
-      | x::xs, y::ys when Base.equal x y-> helper (acc @ [x]) xs ys
+      | x::xs, y::ys when Base.equal x y-> helper (x::acc) xs ys
       | _ -> acc
     in
-    helper [] x y
+    List.rev (helper [] x y)
 
   let common_suffix x y = List.rev (common_prefix (List.rev x) (List.rev y))
 end
