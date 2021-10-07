@@ -140,7 +140,7 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
      (* for the github action removes leading ./analysistarget/*)
         let trimFile (path:string) = 
         
-          match String.sub path 0 16  with 
+          match String.sub path 0 17  with 
             | "./analysistarget/" -> Str.string_after  path 17;  
             | "/analysistarget/" -> Str.string_after  path 16;  
             | "analysistarget/" -> Str.string_after  path 15;  
