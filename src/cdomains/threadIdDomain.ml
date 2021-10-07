@@ -96,6 +96,14 @@ struct
   let is_unique (_, s) =
     S.is_empty s
 
+  (** Find the latest definite common ancestor of two tids *)
+  let cdef_ancestor (p,s) (p',s') =
+    (P.common_suffix p p', S.empty ())
+
+  (** Overapproximation of whether (p,s) can be involved in the creation of (p',s') *)
+  let may_create (p,s) (p',s') =
+    S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
+
   let compose ((p, s) as current) n =
     if BatList.mem_cmp Base.compare n p then (
       (* TODO: can be optimized by implementing some kind of partition_while function *)
