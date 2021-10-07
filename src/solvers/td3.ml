@@ -92,6 +92,15 @@ module WP =
 
       let cache_sizes = ref [] in
 
+      let trace_called () =
+        if tracing then (
+          let called_pretty () called =
+            HM.fold (fun x _ acc -> Pretty.dprintf "%a, %a" S.Var.pretty_trace x Pretty.insert acc) called Pretty.nil
+          in
+          trace "sol2" "called: %a\n" called_pretty called
+        )
+      in
+
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
@@ -99,10 +108,12 @@ module WP =
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
       let rec destabilize ?(front=true) x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
+        trace_called ();
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         if front then (
           VS.iter (fun y ->
+              if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
               HM.replace destab_front y ()
             ) w
         )
@@ -113,6 +124,7 @@ module WP =
             ) w
         );
         VS.iter (fun y ->
+            if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
             HM.remove stable y;
             if not (HM.mem called y) then destabilize ~front:false y
           ) w
@@ -127,9 +139,11 @@ module WP =
           ) w false
       and solve ?(abort=true) x phase (changed: bool): bool =
         if tracing then trace "sol2" "solve %a, phase: %s, changed: %b, abort: %b, called: %b, stable: %b\n" S.Var.pretty_trace x (match phase with Widen -> "Widen" | Narrow -> "Narrow") changed abort (HM.mem called x) (HM.mem stable x);
+        trace_called ();
         init x;
         assert (S.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
+          if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace x;
           HM.replace stable x ();
           HM.replace called x ();
           let wp = HM.mem wpoint x in
@@ -197,10 +211,12 @@ module WP =
               (* If some side during eq made x unstable, then it should remain in destab_front.
                  Otherwise recursive solve might prematurely abort it. *)
               if HM.mem destab_front x then (
+                if tracing then trace "sol2" "front remove %a\n" S.Var.pretty_trace x;
                 HM.remove destab_front x;
                 if HM.mem destab_infl x then (
                   VS.iter (fun y ->
                       if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                      if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
                       HM.replace destab_front y ()
                     ) (HM.find destab_infl x)
                 );
@@ -218,6 +234,7 @@ module WP =
               (solve[@tailcall]) x Widen changed
             ) else (
               if HM.mem destab_front x then (
+                if tracing then trace "sol2" "front remove %a\n" S.Var.pretty_trace x;
                 HM.remove destab_front x;
                 if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
                 (* don't push front here *)
@@ -225,6 +242,7 @@ module WP =
               );
               if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
                 if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
+                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
                 HM.remove stable x;
                 (solve[@tailcall]) ~abort:false x Narrow changed
               ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
@@ -277,6 +295,7 @@ module WP =
         in
         let old = HM.find rho y in
         let tmp = op old d in
+        if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
