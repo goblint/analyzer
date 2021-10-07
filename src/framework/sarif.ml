@@ -5,13 +5,7 @@
 module GU = Goblintutil
 module Category = MessageCategory
 
-module Sarif =
-struct 
- type t = {
-    id: String.t;
-    category:Category.t;
-    cwe:Int.t; 
-  } 
+
 
  
   (* Given a Goblint Category or a CWE 
@@ -139,7 +133,7 @@ struct
           | Overflow -> "190";
           | DivByZero -> "369"
  
-end
+
 
 let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
         (* The context can be important too, but at the moment the results of it can be quite confusing *)
@@ -211,13 +205,13 @@ let printSarifResults f =
         in          
           let rec printTags f (tags:Messages.Tags.t)= 
             match List.find_map getCWE tags with 
-              | Some cwe ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.getRuleID (string_of_int cwe)); 
+              | Some cwe ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleID (string_of_int cwe)); 
               | None ->
                   match tags with 
                     | [] ->BatPrintf.fprintf f "  Unexpected Error,  empty tags in Messages.Tags";
                     | x::xs -> match x with 
-                      | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.getRuleID (string_of_int cwe));            
-                      | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.getRuleID (Sarif.returnCategory cat) );
+                      | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleID (string_of_int cwe));            
+                      | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleID (returnCategory cat) );
               
           in       
          let printOneResult (message:Messages.Message.t )=             
@@ -255,7 +249,7 @@ let createSarifOutput f =
         BatPrintf.fprintf f "\"version\": \"%s\",\n       " Version.goblint; 
         BatPrintf.fprintf f "\"downloadUri\": \"%s\",\n    " "https://github.com/goblint/analyzer";
         BatPrintf.fprintf f "    \"rules\": [\n  ";
-        Sarif.printCategorieRules f ["Analyzer"; "119"; "190";"241"; "362"; "369"; "416"; "476"; "561"; "570"; "571"; "787"; "788"];
+        printCategorieRules f ["Analyzer"; "119"; "190";"241"; "362"; "369"; "416"; "476"; "561"; "570"; "571"; "787"; "788"];
         BatPrintf.fprintf f "\n     ]\n  ";
         BatPrintf.fprintf f "   }\n  ";  
         BatPrintf.fprintf f "},\n";
@@ -267,7 +261,7 @@ let createSarifOutput f =
         BatPrintf.fprintf f "   ],\n" ;
         BatPrintf.fprintf f "   \"defaultSourceLanguage\": \"%s\",\n" "C";
         BatPrintf.fprintf f "   \"results\": [\n";
-         printSarifResults f;
+        printSarifResults f;
         BatPrintf.fprintf f "   ]\n" ;
         BatPrintf.fprintf f "   }\n  " ;
         BatPrintf.fprintf f "]\n" ;       
