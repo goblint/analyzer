@@ -108,8 +108,8 @@ struct
     if not (S.is_empty s) then
       false
     else
-      let cdef_prefix = P.common_suffix p p' in
-      P.equal p cdef_prefix
+      let cdef_ancestor = P.common_suffix p p' in
+      P.equal p cdef_ancestor
 
   let may_create (p,s) (p',s') =
     S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
