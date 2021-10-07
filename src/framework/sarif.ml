@@ -167,13 +167,12 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
           let toMessage Messages.Piece.{loc; text = m; _} =m in
           match pieces with
           | [] -> BatPrintf.fprintf f "";
-          | x::xs ->  BatPrintf.fprintf f "\n        \"message\": {\n";       
-          (* (BatArray.print ~first:"" ~last:"" ~sep:"; ")*)    
-                      BatPrintf.fprintf f "           \"text\": \"%s\"\n    " (String.concat ";\n " (List.map toMessage pieces)) ;   
-                      BatPrintf.fprintf f "      },\n";
+          | x::xs ->  BatPrintf.fprintf f "\n        \"message\": {\n";  
+                      BatPrintf.fprintf f "           \"text\": \"%s\"\n    " (String.concat ";   " (List.map toMessage pieces)) ;   
+                      BatPrintf.fprintf f "      }\n";
       in
       let rec printPieces f (pieces:Messages.Piece.t list)= match pieces with 
-            | [] ->      BatPrintf.fprintf f "           }\n";
+            | [] ->      BatPrintf.fprintf f "";
             | x::[] ->  print_physicalLocationPiece f  x; 
             | x::xs ->  print_physicalLocationPiece f  x; 
                         BatPrintf.fprintf f "     },\n";
@@ -184,13 +183,14 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
            | Single (piece: Messages.Piece.t) -> 
                printMessageText f piece;
                BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
-               print_physicalLocationPiece f  piece;                              
-               BatPrintf.fprintf f "           }\n";              
+               print_physicalLocationPiece f  piece;  
+               BatPrintf.fprintf f "       }\n       ]";            
            | Group {group_text = n; pieces = e} ->
                 BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
-                printPieces f e;
-                printMessages f e;
-                BatPrintf.fprintf f "           },\n"               
+                printPieces f e;                
+                BatPrintf.fprintf f "           }\n" ;   
+                BatPrintf.fprintf f "       }\n     ],";           
+                printMessages f e
 
  let severityToLevel (severity:Messages.Severity.t)= match severity with
       | Error -> "error"
@@ -209,8 +209,7 @@ let printSarifResults f =
          let printOneResult (message:Messages.Message.t )=             
              printTags f   message.tags;    
              BatPrintf.fprintf f "\n        \"level\": \"%s\"," (severityToLevel message.severity) ;            
-             printMultipiece f message.multipiece;
-             BatPrintf.fprintf f "       }\n       ]";
+             printMultipiece f message.multipiece;             
              BatPrintf.fprintf f "\n    }";   
          in
          let rec printResults (message_table:Messages.Message.t list)= 
