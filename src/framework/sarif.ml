@@ -2,7 +2,6 @@
 
 
 
-module GU = Goblintutil
 module Category = MessageCategory
 
 
@@ -136,14 +135,11 @@ module Category = MessageCategory
 
 
 let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
-        (* The context can be important too, but at the moment the results of it can be quite confusing *)
-     (* for the github action removes leading ./analysistarget/*)
-        let trimFile (path:string) = 
-        
+        (* The context can be important too, but at the moment displaying it's value in a useful way is hard. *)
+     (* for the github action removes leading ./analysistarget/ the trimFile function will most likely change a bit.*)
+        let trimFile (path:string) =         
           match String.sub path 0 17  with 
             | "./analysistarget/" -> Str.string_after  path 17;  
-            | "/analysistarget/" -> Str.string_after  path 16;  
-            | "analysistarget/" -> Str.string_after  path 15;  
             |_ -> path;
           in
           
@@ -156,7 +152,6 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
             BatPrintf.fprintf f "              \"region\": {\n";
             BatPrintf.fprintf f "                \"startLine\":%d,\n" l.line ; 
             BatPrintf.fprintf f "                \"startColumn\":%d\n" l.column ;    
-            (*printContext f con;*)
             BatPrintf.fprintf f "             }\n"
        
          
@@ -195,6 +190,7 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
                 BatPrintf.fprintf f "       }\n     ],";           
                 printMessages f e
 
+(*matches the Goblint severity to the Sarif property level.*)
  let severityToLevel (severity:Messages.Severity.t)= match severity with
       | Error -> "error"
       | Warning -> "warning"
@@ -210,7 +206,7 @@ let printSarifResults f =
         in          
          (* if a CWE is present only the CWE is used, since using multiple ones for the same result doesn' make sense. 
           If only Categorys are present, all of them are displayed.*)
-          let rec printTags f (tags:Messages.Tags.t)= 
+          let printTags f (tags:Messages.Tags.t)= 
             match List.find_map getCWE tags with 
               | Some cwe ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleID (string_of_int cwe)); 
               | None ->
