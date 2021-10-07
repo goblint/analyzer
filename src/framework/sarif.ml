@@ -3,54 +3,58 @@
 
 
 module GU = Goblintutil
-
-
+module Category = MessageCategory
 
 module Information =
 struct
-  type t = {
-    shortDescription: String.t;
-    helpText:String.t;
-    helpUri:String.t;
-    fullDescription: String.t;
-  }
+type t = {
+  description: String.t;
+  helpUri:String.t;
 
+}
 end
 module Sarif =
 struct 
  type t = {
     id: String.t;
+    category:Category.t;
+    cwe:Int.t;
     information:Information.t;    
   } 
 
-  (* returns (id,helpText,shortDescription,helpUri,longDescription) *)
-  let getDescription (category:string) = match category with 
-         |"Analyzer" -> ("Analyzer","The category analyser describes ....","","https://goblint.in.tum.de/home","");
-          |"119" -> ("GO"^category,
-          "Improper Restriction of Operations within the Bounds of a Memory Buffer"
+ 
+  (* Given a Goblint Category or a CWE 
+  returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
+  let getDescription (id:string) = match id with 
+         |"Analyzer" -> ("GO001","The category analyser describes ....","","https://goblint.in.tum.de/home","");
+         |"119" -> ("GO002",
+          "CWE 119:Improper Restriction of Operations within the Bounds of a Memory Buffer"
           ,"The software performs operations on a memory buffer, but it can read from or write to a memory location that is outside of the intended boundary of the buffer. ",
           "https://cwe.mitre.org/data/definitions/119.html",
           "Certain languages allow direct addressing of memory locations and do not automatically ensure that these locations are valid for the memory buffer that is being referenced"
           ^"This can cause read or write operations to be performed on memory locations that may be associated with other variables, data structures, or internal program data."
           ^"As a result, an attacker may be able to execute arbitrary code, alter the intended control flow, read sensitive information, or cause the system to crash. ");
-         | "190" -> ("GO"^category ,
+         | "190" -> ("GO003" ,
          "The software performs a calculation that can produce an integer overflow or wraparound, when the logic assumes that the resulting value will always be larger than the original value." 
          ^"This can introduce other weaknesses when the calculation is used for resource management or execution control. "
          ,"Integer Overflow or Wraparound","https://cwe.mitre.org/data/definitions/190.html",
         "An integer overflow or wraparound occurs when an integer value is incremented to a value that is too large to store in the associated representation. When this occurs, the value may wrap to become a very small or negative number. While this may be intended behavior in circumstances that rely on wrapping, it can have security consequences if the wrap is unexpected. This is especially the case if the integer overflow can be triggered using user-supplied inputs. This becomes security-critical when the result is used to control looping, make a security decision, or determine the offset or size in behaviors such as memory allocation, copying, concatenation, etc.  ");
-        | "241" -> ("GO"^category,"Improper Handling of Unexpected Data Type",
-          "The software does not handle or incorrectly handles when a particular element is not the expected type, e.g. it expects a digit (0-9) but is provided with a letter (A-Z). ","https://cwe.mitre.org/data/definitions/241.html",
-           "")
-        | "362" -> ("GO"^category," Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
+        | "241" -> ("GO004",
+        "CWE 241:Improper Handling of Unexpected Data Type",
+        "The software does not handle or incorrectly handles when a particular element is not the expected type, e.g. it expects a digit (0-9) but is provided with a letter (A-Z). ",
+        "https://cwe.mitre.org/data/definitions/241.html",
+         "")
+        | "362"| "Race"-> ("GO005",
+        "CWE 362: Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
         "The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ",
         "https://cwe.mitre.org/data/definitions/362.html",
         "")
-         | "369" -> ("GO"^category," Divide By Zero",
+         | "369" -> ("GO006","CWE 369: Divide By Zero",
          "The product divides a value by zero. ",
          "https://cwe.mitre.org/data/definitions/369.html",
         "This weakness typically occurs when an unexpected value is provided to the product, or if an error occurs that is not properly detected. It frequently occurs in calculations involving physical dimensions such as size, length, width, and height.   ");
-        | "416" -> ("GO"^category,
-        "Use After Free",
+        | "416" -> ("GO007",
+        "CWE 416:Use After Free",
         "Referencing memory after it has been freed can cause a program to crash, use unexpected values, or execute code. ",
         "https://cwe.mitre.org/data/definitions/416.html",
         "The use of previously-freed memory can have any number of adverse consequences, ranging from the corruption of valid data to the execution of arbitrary code, depending on the instantiation and timing of the flaw. "
@@ -59,23 +63,38 @@ struct
            ^"  Confusion over which part of the program is responsible for freeing the memory." 
         ^"In this scenario, the memory in question is allocated to another pointer validly at some point after it has been freed. The original pointer to the freed memory is used again and points to somewhere within the new allocation. As the data is changed, it corrupts the validly used memory; this induces undefined behavior in the process."
         ^"If the newly allocated data chances to hold a class, in C++ for example, various function pointers may be scattered within the heap data. If one of these function pointers is overwritten with an address to valid shellcode, execution of arbitrary code can be achieved. "); 
-        | "476" -> ("GO"^category,"NULL Pointer Dereference",
+        | "476" -> ("GO008","CWE 476:NULL Pointer Dereference",
         "A NULL pointer dereference occurs when the application dereferences a pointer that it expects to be valid, but is NULL, typically causing a crash or exit. ",
         "https://cwe.mitre.org/data/definitions/476.html",
         "NULL pointer dereference issues can occur through a number of flaws, including race conditions, and simple programming omissions. ");
-         | "787" -> ("GO"^category,
-         "Out-of-bounds Write",
+        | "561" |"DeadCode"-> ("GO009","CWE 561:Dead Code",
+        "The software contains dead code, which can never be executed.  ",
+        "https://cwe.mitre.org/data/definitions/561.html",
+        "Dead code is source code that can never be executed in a running program. The surrounding code makes it impossible for a section of code to ever be executed. ");
+        | "570" -> ("GO0010","CWE 570:Expression is Always False",
+        "The software contains an expression that will always evaluate to false. ",
+        "https://cwe.mitre.org/data/definitions/570.html",
+        "");
+         | "571"  -> ("GO0011","CWE 571:Expression is Always True",
+        "The software contains an expression that will always evaluate to true.  ",
+        "https://cwe.mitre.org/data/definitions/571.html",
+        "");
+         | "787" -> ("GO012",
+         "CWE 787: Out-of-bounds Write",
          "The software writes data past the end, or before the beginning, of the intended buffer. ",
          "https://cwe.mitre.org/data/definitions/787.html",
         "Typically, this can result in corruption of data, a crash, or code execution. The software may modify an index or perform pointer arithmetic that references a memory location that is outside of the boundaries of the buffer. "
        ^" A subsequent write operation then produces undefined or unexpected results. ");        
-        | "788" -> ("GO"^category,
-        "Access of Memory Location After End of Buffer",
+        | "788" -> ("GO013",
+        "CWE 788:Access of Memory Location After End of Buffer",
         "The software reads or writes to a buffer using an index or pointer that references a memory location after the end of the buffer. ",
         "https://cwe.mitre.org/data/definitions/788.html",
         "This typically occurs when a pointer or its index is decremented to a position before the buffer;"
          ^"when pointer arithmetic results in a position before the buffer; or when a negative index is used, which generates a position before the buffer.  ");
-        | _ -> ("invalid","invalid","invalid","invalid","invalid")
+        | _ -> ("GO000","Unknown Category","Unknown Category","Unknown Category","Unknown Category")
+
+   let getRuleID (id:string) = match (getDescription id ) with
+      | (ruleId,_,_,_,_) -> ruleId
 
    let rec printCategorieRules f (categories:string list) = 
       let printSingleCategory f cat = match getDescription cat with 
@@ -100,10 +119,11 @@ struct
         | x::[] -> printSingleCategory f x;
         | x::xs -> printSingleCategory f x;
         (*BatPrintf.fprintf f ",";*)
-        BatPrintf.fprintf f "\n";                
+        BatPrintf.fprintf f ",\n";                
           printCategorieRules f xs
      
   let getBehaviorCategory (behavior:MessageCategory.behavior) = match behavior with
+          (* maybe CWE-589: Call to Non-ubiquitous API *)
         | Implementation-> "Implementation";
         | Machine-> "Machine";
         | Undefined u-> match u with 
@@ -114,13 +134,16 @@ struct
               | BeforeStart -> "786:";
               | Unknown -> "119"
         
-  let returnCategory (cat:MessageCategory.category)= match cat with
+     let returnCategory (cat:MessageCategory.category)= match cat with
+  (* Assert is a category, that describer internal Goblint issues and has no real value in a Sarif output *)
     | MessageCategory.Assert -> "Assert";
-    | MessageCategory.Deadcode -> "Deadcode";
+    | MessageCategory.Deadcode -> "561";
     | MessageCategory.Race -> "Race";
     | MessageCategory.Unknown -> "Category Unknown";
+    (* Analyzer is a category, that describer internal Goblint issues and has no real value in a Sarif output *)
     | MessageCategory.Analyzer -> "Analyzer";
     | MessageCategory.Behavior b -> getBehaviorCategory b;
+    (* Cast is a category, that describer internal Goblint issues and has no real value in a Sarif output *)
     | MessageCategory.Cast c -> "241";
     | MessageCategory.Integer i -> match i with 
           | Overflow -> "190";
@@ -129,11 +152,7 @@ struct
 end
 
 let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
-        let printContext f (context:Obj.t option) =  match context with 
-              | Some c -> BatPrintf.fprintf f "has context\n";
-                      BatPrintf.fprintf f "%d\n" (Obj.reachable_words c);
-              | None -> ();
-        in
+        (* The context can be important too, but at the moment the results of it can be quite confusing *)
      (* for the github action removes leading ./analysistarget/*)
         let trimFile (path:string) = 
           Str.string_after  path 17;  
@@ -151,8 +170,6 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
             BatPrintf.fprintf f "                \"endLine\":%d\n" l.line ;    
             (*printContext f con;*)
             BatPrintf.fprintf f "             }\n"
-           
-           
        
          
   let printMultipiece f (mp:Messages.MultiPiece.t)= 
@@ -197,12 +214,21 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
       | Debug -> "none"
       | Success -> "none"
 
-let printSarifResults f =         
-          let rec printTags f (tags:Messages.Tags.t)= match tags with 
-           | [] ->BatPrintf.fprintf f "  Unexpected Error,  empty tags in Messages.Tags";
-           | x::xs -> match x with 
-            | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (string_of_int cwe);            
-            | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.returnCategory cat );
+let printSarifResults f =
+        let getCWE (tag:Messages.Tag.t) = match tag with 
+          | CWE cwe-> Some cwe;
+          | Category cat -> None;
+        in          
+          let rec printTags f (tags:Messages.Tags.t)= 
+            match List.find_map getCWE tags with 
+              | Some cwe ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.getRuleID (string_of_int cwe)); 
+              | None ->
+                  match tags with 
+                    | [] ->BatPrintf.fprintf f "  Unexpected Error,  empty tags in Messages.Tags";
+                    | x::xs -> match x with 
+                      | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.getRuleID (string_of_int cwe));            
+                      | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (Sarif.getRuleID (Sarif.returnCategory cat) );
+              
           in       
          let printOneResult (message:Messages.Message.t )=             
              printTags f   message.tags;    
@@ -239,8 +265,8 @@ let createSarifOutput f =
         BatPrintf.fprintf f "\"version\": \"%s\",\n       " Version.goblint; 
         BatPrintf.fprintf f "\"downloadUri\": \"%s\",\n    " "https://github.com/goblint/analyzer";
         BatPrintf.fprintf f "    \"rules\": [\n  ";
-        Sarif.printCategorieRules f ["124";"190";"281"];
-        BatPrintf.fprintf f "     ]\n  ";
+        Sarif.printCategorieRules f ["Analyzer"; "119"; "190";"241"; "362"; "369"; "416"; "476"; "561"; "570"; "571"; "787"; "788"];
+        BatPrintf.fprintf f "\n     ]\n  ";
         BatPrintf.fprintf f "   }\n  ";  
         BatPrintf.fprintf f "},\n";
         BatPrintf.fprintf f "\   \"invocations\": [\n       ";

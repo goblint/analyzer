@@ -498,7 +498,7 @@ struct
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "dbg.uncalled" then
-              M.warn ~loc ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt
+              M.warn ~loc ~category:Deadcode "Function \'%a\' will never be called: %dLoC" CilType.Fundec.pretty fn cnt
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
