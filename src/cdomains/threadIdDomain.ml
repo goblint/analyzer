@@ -9,6 +9,12 @@ sig
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
   val is_unique: t -> bool
+
+  (** Overapproximates whether the first TID can be involved in the creation fo the second TID*)
+  val may_create: t -> t -> bool
+
+  (** Find the latest known unique common ancestor of two TIDs, if there is one. Always safe to return None *)
+  val cdef_ancestor: t -> t -> t option
 end
 
 module type Stateless =
@@ -58,6 +64,8 @@ struct
     | _ -> false
 
   let is_unique _ = false (* TODO: should this consider main unique? *)
+  let may_create _ _ = true
+  let cdef_ancestor _ _ = None
 end
 
 
@@ -96,11 +104,13 @@ struct
   let is_unique (_, s) =
     S.is_empty s
 
-  (** Find the latest definite common ancestor of two tids *)
   let cdef_ancestor (p,s) (p',s') =
-    (P.common_suffix p p', S.empty ())
+    let np = P.common_suffix p p' in
+    if np = [] then
+      None
+    else
+      Some (P.common_suffix p p', S.empty ())
 
-  (** Overapproximation of whether (p,s) can be involved in the creation of (p',s') *)
   let may_create (p,s) (p',s') =
     S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
 
