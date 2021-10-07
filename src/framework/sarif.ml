@@ -1,9 +1,6 @@
 (** The Sarif format is a standardised output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
 
 
-open Cil
-open Pretty
-open GobConfig
 
 module GU = Goblintutil
 
@@ -184,6 +181,7 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
                printMessageText f piece;
                BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
                print_physicalLocationPiece f  piece;  
+               BatPrintf.fprintf f "           }\n" ;
                BatPrintf.fprintf f "       }\n       ]";            
            | Group {group_text = n; pieces = e} ->
                 BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
@@ -236,7 +234,7 @@ let createSarifOutput f =
         BatPrintf.fprintf f "\"name\": \"%s\",\n       " "Goblint";
         BatPrintf.fprintf f "\"fullName\": \"%s\",\n       " "Goblint static analyser";   
         BatPrintf.fprintf f "\"informationUri\": \"%s\",\n       " "https://goblint.in.tum.de/home";
-        BatPrintf.fprintf f "\"organization\": \"%s\",\n       " "TUM ";
+        BatPrintf.fprintf f "\"organization\": \"%s\",\n       " "TUM - i2 and UTartu - SWS";
         BatPrintf.fprintf f "\"version\": \"%s\",\n       " Version.goblint; 
         BatPrintf.fprintf f "\"downloadUri\": \"%s\",\n    " "https://github.com/goblint/analyzer";
         BatPrintf.fprintf f "    \"rules\": [\n  ";
