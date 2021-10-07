@@ -68,7 +68,7 @@ module WP =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
       let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
       let space = GobConfig.get_bool "exp.solver.td3.space" in
-      (* let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in *)
+      let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
       let called = HM.create 10 in
       let called_changed = HM.create 10 in
 
@@ -278,7 +278,18 @@ module WP =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
         if S.system y = None then (init y; (HM.find rho y, true (* TODO: ??? *))) else
         if HM.mem rho y || not space then (let changed = solve y Widen false in (HM.find rho y, changed)) else
-        failwith "space abort unimplemented"
+        if abort then failwith "space abort unimplemented" else
+        if HM.mem called y then (init y; HM.remove l y; (HM.find rho y, true (* TODO: ??? *))) else
+        (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
+        if cache && HM.mem l y then (HM.find l y, true (* TODO: ??? *))
+        else (
+          HM.replace called y ();
+          (* TODO: abort? *)
+          let tmp = eq y (fun z -> fst (eval l x z)) (side x) in
+          HM.remove called y;
+          if HM.mem rho y then (HM.remove l y; ignore (solve y Widen false); (HM.find rho y, true (* TODO: ??? *)))
+          else (if cache then HM.replace l y tmp; (tmp, true (* TODO: ??? *)))
+        )
       and eval l x y: S.d * bool =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
