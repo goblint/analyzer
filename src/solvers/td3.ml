@@ -117,7 +117,7 @@ module WP =
           let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) (side x) in
+          let tmp = eq x (eval l x) (side ~x:x) in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -166,7 +166,7 @@ module WP =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) (side x) in
+          let tmp = eq y (eval l x) (side ~x:x) in
           HM.remove called y;
           if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
@@ -178,14 +178,16 @@ module WP =
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
-      and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
+      and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
+        (match x with
+         | None -> if tracing then trace "sol2" "side to %a (wpx: %b) ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Dom.pretty d
+         | Some x -> if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d);
         if S.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (S.system y = None);
         init y;
-        if side_widen = "unstable_self" then add_infl x y;
+        (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let op =
           if HM.mem wpoint y then fun a b ->
             if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
@@ -199,8 +201,10 @@ module WP =
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
-          let sided = VS.mem x (HM.find_default sides y VS.empty) in
-          if not sided then add_sides y x;
+          let sided =
+            match x with
+            | Some x -> let sided = VS.mem x (HM.find_default sides y VS.empty) in if not sided then add_sides y x; sided
+            | _ -> false in
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
           if side_widen <> "cycle" then destabilize y;
@@ -247,26 +251,38 @@ module WP =
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
         (* If a global changes because of some assignment inside a function, we reanalyze,
          * but if it changes because of a different global initializer, then
-         *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
-         *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
+         *   if earlyglobs and new privatization: the contexts will be the same since they don't contain the global, but the globals will
+         *      be part of the start variables st. A change in the global initializer is propagated when calling side on the globals in st before solving.
+         *   if not exp.earlyglobs (or exp.earlyglobs + some old privatization):
+         *      if globals are part of the contexts of start functions, the context changes, we don't find the value in rho and reanalyze
+         *      if globals are not part of the contexts (for example because of ana.base.context.int=false) the context might be the same because they
+         *          don't contain the global, but the start state will be different! In this case start functions need to be destabilized and the old start state overwritten
          *)
         print_endline "Destabilizing start functions if their start state changed...";
         (* record whether any function's start state changed. In that case do not use reluctant destabilization *)
         let any_changed_start_state = ref false in
         (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
-        List.iter (fun (v,d) ->
-          match GU.assoc_eq v data.st S.Var.equal with
-          | Some d' ->
-              if S.Dom.equal d d' then
-                (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
-                ()
-              else (
-                ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                any_changed_start_state := true;
-                destabilize v
-              )
-          | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
-        ) st;
+        (* st contains entry nodes of functions and globals, vs contains return nodes of functions. To compare functions from st with those in vs,
+         * we need to get the corresponding fundecs *)
+        let vs_funs = List.map (fun v -> Node.find_fundec (S.Var.node v)) vs in
+        let st_funs = List.map (fun (v,d) -> (v,d,Node.find_fundec (S.Var.node v))) st in
+        List.iter (fun (v,d,f) ->
+            (* st might also contain globals (with exp.earlyglobs on and some of the newer privatizations). Here we only need to check whether the
+             * start state of functions changed. *)
+            if List.mem f vs_funs then
+              match GU.assoc_eq v data.st S.Var.equal with
+              | Some d' ->
+                if S.Dom.equal d d' then
+                  (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
+                  ()
+                else (
+                  ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
+                  any_changed_start_state := true;
+                  destabilize v;
+                  set_start (v,d)
+                )
+              | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
+          ) st_funs;
 
         print_endline "Destabilizing changed functions...";
 
@@ -316,7 +332,8 @@ module WP =
 
         print_data data "Data after clean-up";
 
-        List.iter set_start st;
+        (* call side on all globals in the start variables to make sure that changes in the initializers are propagated *)
+        List.iter (fun (v,d,f) -> if not (List.mem f vs_funs) then side v d) st_funs;
 
         if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
