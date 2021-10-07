@@ -104,6 +104,9 @@ module WP =
           trace "sol2" "called: %a\n" called_pretty called
         )
       in
+      let vs_pretty () vs =
+        VS.fold (fun x acc -> Pretty.dprintf "%a, %a" S.Var.pretty_trace x Pretty.insert acc) vs Pretty.nil
+      in
 
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
@@ -159,14 +162,10 @@ module WP =
           let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let prev_dep_vals_x = HM.find_default prev_dep_vals x (HM.create 0) in
-          let new_dep_vals_x = HM.create (HM.length prev_dep_vals_x) in
+          let prev_dep_vals_x = HM.find_default prev_dep_vals x (HM.create 0) in (* used by abort_verify *)
           let eval' =
             if tracing then trace "sol2" "eval' %a abortable=%b destab_dep=%b\n" S.Var.pretty_trace x abortable (HM.mem destab_dep x);
             if abort && abortable && HM.mem destab_dep x then (
-              let vs_pretty () vs =
-                VS.fold (fun x acc -> Pretty.dprintf "%a, %a" S.Var.pretty_trace x Pretty.insert acc) vs Pretty.nil
-              in
               let unasked_dep_x = ref (HM.find destab_dep x) in
               if tracing then trace "sol2" "eval' %a dep=%a\n" S.Var.pretty_trace x vs_pretty !unasked_dep_x;
               let all_dep_x_unchanged = ref true in
@@ -177,12 +176,11 @@ module WP =
                 if abort_verify then (
                   let prev_d = HM.find_default prev_dep_vals_x y (S.Dom.bot ()) in
                   if not (S.Dom.equal prev_d d) then (
-                    (* ignore (Pretty.eprintf "not changed did change: eval %a %a: old=%a new=%a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty prev_d S.Dom.pretty d); *)
-                    if not changed then (
+                    (* TODO: this is not a bug? change might be covered by destab_front *)
+                    (* if not changed then (
                       ignore (Pretty.eprintf "not changed did change: eval %a %a: \nold=%a\n new=%a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty prev_d S.Dom.pretty d)
-                    );
-                    (* assert false *)
-                    all_dep_x_unchanged_verify := false
+                    ); *)
+                    all_dep_x_unchanged_verify := false;
                   )
                 );
                 if VS.mem y !unasked_dep_x then (
@@ -194,10 +192,8 @@ module WP =
                   let should_abort_verify = !all_dep_x_unchanged_verify in
                   if should_abort then (
                     if abort_verify && not should_abort_verify then (
-                      ignore (Pretty.eprintf "should not abort %a\n" S.Var.pretty_trace x);
-                      assert false;
+                      failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "TD3 abort verify: should not abort %a" S.Var.pretty_trace x));
                     );
-                    (* assert (should_abort_verify); *)
                     raise AbortEq
                   )
                 );
@@ -208,29 +204,29 @@ module WP =
                 let (d, changed) = eval l x y in
                 d
           in
-          let eval' =
-            if abort then (
-              fun y ->
-                let d = eval' y in
-                HM.replace new_dep_vals_x y d;
-                d
-            )
-            else
-              eval'
-          in
           let tmp =
             try
-              eq x eval' (side x)
+              if abort && abort_verify then (
+                (* collect dep vals for x *)
+                let new_dep_vals_x = HM.create (HM.length prev_dep_vals_x) in
+                let eval' y =
+                  let d = eval' y in
+                  HM.replace new_dep_vals_x y d;
+                  d
+                in
+                let tmp = eq x eval' (side x) in
+                HM.replace prev_dep_vals x new_dep_vals_x;
+                tmp
+              )
+              else
+                eq x eval' (side x)
             with AbortEq ->
               abort_rhs_event x;
               if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
               HM.remove destab_dep x; (* TODO: safe to remove here? doesn't prevent some aborts? *)
-              HM.iter (fun y d ->
-                  HM.replace new_dep_vals_x y d;
-                ) prev_dep_vals_x;
+              (* prev_dep_vals remain the same *)
               old
           in
-          HM.replace prev_dep_vals x new_dep_vals_x;
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
