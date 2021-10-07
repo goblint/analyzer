@@ -11,13 +11,13 @@ module Category = MessageCategory
   (* Given a Goblint Category or a CWE 
   returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
   let getDescription (id:string) = match id with 
-         |"Analyzer" -> ("GO001","The category analyser describes ....","","https://goblint.in.tum.de/home","");
-         |"119" -> ("GO002",
-          "CWE 119:Improper Restriction of Operations within the Bounds of a Memory Buffer"
+        |"Analyzer" -> ("GO001","The category analyser describes ....","","https://goblint.in.tum.de/home","");
+        |"119" -> ("GO002",
+           "CWE 119:Improper Restriction of Operations within the Bounds of a Memory Buffer"
           ,"CWE119 ",
-          "https://cwe.mitre.org/data/definitions/119.html",
+           "https://cwe.mitre.org/data/definitions/119.html",
           "The software performs operations on a memory buffer, but it can read from or write to a memory location that is outside of the intended boundary of the buffer.");
-          | "190" -> ("GO003" ,
+        | "190" -> ("GO003" ,
          "The software performs a calculation that can produce an integer overflow or wraparound, when the logic assumes that the resulting value will always be larger than the original value." 
          ^"This can introduce other weaknesses when the calculation is used for resource management or execution control. "
          ,"Integer Overflow or Wraparound","https://cwe.mitre.org/data/definitions/190.html",
@@ -79,6 +79,7 @@ module Category = MessageCategory
    let getRuleID (id:string) = match (getDescription id ) with
       | (ruleId,_,_,_,_) -> ruleId
 
+(* prints the reportingDescriptor object for each category that is given. *)
    let rec printCategorieRules f (categories:string list) = 
       let printSingleCategory f cat = match getDescription cat with 
         | ("invalid","invalid","invalid","invalid","invalid") -> BatPrintf.fprintf f "";
@@ -102,12 +103,11 @@ module Category = MessageCategory
         | [] ->  BatPrintf.fprintf f "";
         | x::[] -> printSingleCategory f x;
         | x::xs -> printSingleCategory f x;
-        (*BatPrintf.fprintf f ",";*)
         BatPrintf.fprintf f ",\n";                
-          printCategorieRules f xs
+        printCategorieRules f xs
      
   let getBehaviorCategory (behavior:MessageCategory.behavior) = match behavior with
-          (* maybe CWE-589: Call to Non-ubiquitous API *)
+          (* maybe CWE-589: Call to Non-ubiquitous API  https://cwe.mitre.org/data/definitions/589.html*)
         | Implementation-> "Implementation";
         | Machine-> "Machine";
         | Undefined u-> match u with 
@@ -127,7 +127,7 @@ module Category = MessageCategory
     (* Analyzer is a category, that describer internal Goblint issues and has no real value in a Sarif output *)
     | MessageCategory.Analyzer -> "Analyzer";
     | MessageCategory.Behavior b -> getBehaviorCategory b;
-    (* Cast is a category, that describer internal Goblint issues and has no real value in a Sarif output *)
+    (* Cast of Type Missmatch is equal to the CWE 241. If MessageCategory.Cast is just an describing an internal Goblint issue, this CWE should be removed. *)
     | MessageCategory.Cast c -> "241";
     | MessageCategory.Integer i -> match i with 
           | Overflow -> "190";
@@ -139,8 +139,12 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
         (* The context can be important too, but at the moment the results of it can be quite confusing *)
      (* for the github action removes leading ./analysistarget/*)
         let trimFile (path:string) = 
-          Str.string_after  path 17;  
+        
+          match String.sub path 0 16  with 
+            | "./analysistarget/" -> Str.string_after  path 17;  
+            |_ ->path;
           in
+          
         match loc with
         | None ->
           BatPrintf.fprintf f "";
@@ -197,10 +201,13 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
       | Success -> "none"
 
 let printSarifResults f =
+       
         let getCWE (tag:Messages.Tag.t) = match tag with 
           | CWE cwe-> Some cwe;
           | Category cat -> None;
         in          
+         (* if a CWE is present only the CWE is used, since using multiple ones for the same result doesn' make sense. 
+          If only Categorys are present, all of them are displayed.*)
           let rec printTags f (tags:Messages.Tags.t)= 
             match List.find_map getCWE tags with 
               | Some cwe ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleID (string_of_int cwe)); 
@@ -227,7 +234,6 @@ let printSarifResults f =
                     BatPrintf.fprintf f ",\n";
                     printResults xs;
           in  
-          (*BatPrintf.fprintf f "MessageTable length %d"(List.length !Messages.Table.messages_list) ; *)
           printResults (List.rev !Messages.Table.messages_list)
 
 
