@@ -235,6 +235,7 @@ let createSarifOutput f =
         BatPrintf.fprintf f "\"fullName\": \"%s\",\n       " "Goblint static analyser";   
         BatPrintf.fprintf f "\"informationUri\": \"%s\",\n       " "https://goblint.in.tum.de/home";
         BatPrintf.fprintf f "\"organization\": \"%s\",\n       " "TUM - i2 and UTartu - SWS";
+        (* Sarif prefers numerical Versions, this could be a future addition to Goblint. *)
         BatPrintf.fprintf f "\"version\": \"%s\",\n       " Version.goblint; 
         BatPrintf.fprintf f "\"downloadUri\": \"%s\",\n    " "https://github.com/goblint/analyzer";
         BatPrintf.fprintf f "    \"rules\": [\n  ";
