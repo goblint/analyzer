@@ -29,12 +29,10 @@ struct
          |"Analyzer" -> ("GO001","The category analyser describes ....","","https://goblint.in.tum.de/home","");
          |"119" -> ("GO002",
           "CWE 119:Improper Restriction of Operations within the Bounds of a Memory Buffer"
-          ,"The software performs operations on a memory buffer, but it can read from or write to a memory location that is outside of the intended boundary of the buffer. ",
+          ,"CWE119 ",
           "https://cwe.mitre.org/data/definitions/119.html",
-          "Certain languages allow direct addressing of memory locations and do not automatically ensure that these locations are valid for the memory buffer that is being referenced"
-          ^"This can cause read or write operations to be performed on memory locations that may be associated with other variables, data structures, or internal program data."
-          ^"As a result, an attacker may be able to execute arbitrary code, alter the intended control flow, read sensitive information, or cause the system to crash. ");
-         | "190" -> ("GO003" ,
+          "The software performs operations on a memory buffer, but it can read from or write to a memory location that is outside of the intended boundary of the buffer.");
+          | "190" -> ("GO003" ,
          "The software performs a calculation that can produce an integer overflow or wraparound, when the logic assumes that the resulting value will always be larger than the original value." 
          ^"This can introduce other weaknesses when the calculation is used for resource management or execution control. "
          ,"Integer Overflow or Wraparound","https://cwe.mitre.org/data/definitions/190.html",
@@ -99,9 +97,10 @@ struct
    let rec printCategorieRules f (categories:string list) = 
       let printSingleCategory f cat = match getDescription cat with 
         | ("invalid","invalid","invalid","invalid","invalid") -> BatPrintf.fprintf f "";
-        | (id,shortDescription,helpText,helpUri,longDescription) -> 
+        | (id,helpText,shortDescription,helpUri,longDescription) -> 
         BatPrintf.fprintf f "      {\n";
         BatPrintf.fprintf f "           \"id\": \"%s\",\n" id;
+        BatPrintf.fprintf f "           \"name\": \"%s\",\n" shortDescription;
         BatPrintf.fprintf f "           \"helpUri\": \"%s\",\n" helpUri;
         BatPrintf.fprintf f "           \"help\": {\n";
         BatPrintf.fprintf f "               \"text\": \"%s\"\n" helpText;
