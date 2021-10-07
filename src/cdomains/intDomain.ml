@@ -2483,10 +2483,10 @@ end
 
 module IntDomUtil = struct
   let precision_from_fundec (fd: Cil.fundec) =
-    ((ContextUtil.should_keep ~keepOption:"ana.int.def_exc" ~removeAttr:"" ~keepAttr:"def_exc" fd),
-     (ContextUtil.should_keep ~keepOption:"ana.int.interval" ~removeAttr:"" ~keepAttr:"interval" fd),
-     (ContextUtil.should_keep ~keepOption:"ana.int.enums" ~removeAttr:"" ~keepAttr:"enum" fd),
-     (ContextUtil.should_keep ~keepOption:"ana.int.congruence" ~removeAttr:"" ~keepAttr:"congruence" fd))
+    ((ContextUtil.should_keep ~isAttr:Precision ~keepOption:"ana.int.def_exc" ~removeAttr:"no-def_exc" ~keepAttr:"def_exc" fd),
+     (ContextUtil.should_keep ~isAttr:Precision ~keepOption:"ana.int.interval" ~removeAttr:"no-interval" ~keepAttr:"interval" fd),
+     (ContextUtil.should_keep ~isAttr:Precision ~keepOption:"ana.int.enums" ~removeAttr:"no-enums" ~keepAttr:"enums" fd),
+     (ContextUtil.should_keep ~isAttr:Precision ~keepOption:"ana.int.congruence" ~removeAttr:"no-congruence" ~keepAttr:"congruence" fd))
 
   let precision_from_node () =
     let node = !MyCFG.current_node in
@@ -2494,7 +2494,7 @@ module IntDomUtil = struct
       let fd = Node.find_fundec (Option.get node) in
       precision_from_fundec fd
     else
-      (true, true, true, true)
+      (true, true, true, true) (* In case a Node is None we have to handle Globals, i.e. we activate all IntDomains (TODO: varify this assumption) *)
 end
 
 (* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I3 below to see where you need to extend. *)
@@ -2790,6 +2790,10 @@ module IntDomTupleImpl = struct
                 , set_top (I3.top_of ik) i3
                 , set_top (I4.top_of ik) i4)
     in
+    (* We have to deactivate IntDomains after the refinement, since we might
+     * lose information if we do it before. E.g. only "Interval" is active
+     * and shall be projected to only "Def_Exc". By seting "Interval" to None
+     * before refinment we have no information for "Def_Exc". *)
     ( set_none b1 i1'
     , set_none b2 i2'
     , set_none b3 i3'

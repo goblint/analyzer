@@ -7,7 +7,7 @@
  * - space_cache (true) ? local cache l for eval calls in each solve (TDcombined) : no cache
  * - space_restore (true) ? eval each rhs and store all in rho : do not restore missing values
  * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml.
- *)
+*)
 
 open Prelude
 open Analyses
@@ -76,9 +76,9 @@ module WP =
       let stable = data.stable in
 
       let () = print_solver_stats := fun () ->
-        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
-          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
-        print_context_stats rho
+          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+          print_context_stats rho
       in
 
       if GobConfig.get_bool "incremental.load" then print_data data "Loaded data for incremental analysis";
@@ -125,10 +125,10 @@ module WP =
           let tmp =
             if not wp then tmp
             else
-              if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
-              else
-                box x old tmp
+            if term then
+              match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
+            else
+              box x old tmp
           in
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
@@ -157,7 +157,7 @@ module WP =
         if S.system y = None then (init y; HM.find rho y) else
         if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
-        (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
+          (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
@@ -244,12 +244,12 @@ module WP =
          * but if it changes because of a different global initializer, then
          *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
          *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
-         *)
+        *)
         print_endline "Destabilizing start functions if their start state changed...";
         (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
         List.iter (fun (v,d) ->
-          match GU.assoc_eq v data.st S.Var.equal with
-          | Some d' ->
+            match GU.assoc_eq v data.st S.Var.equal with
+            | Some d' ->
               if S.Dom.equal d d' then
                 (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
                 ()
@@ -257,8 +257,8 @@ module WP =
                 ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
                 destabilize v
               )
-          | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
-        ) st;
+            | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
+          ) st;
 
         print_endline "Destabilizing changed functions...";
 
@@ -270,7 +270,7 @@ module WP =
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
         (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
         let obsolete = Set.union (Set.of_list (List.map (fun a -> Node.show_id (Function a))  obsolete_funs))
-                                 (Set.of_list (List.map (fun a -> Node.show_id (FunctionEntry a))  obsolete_funs)) in
+            (Set.of_list (List.map (fun a -> Node.show_id (FunctionEntry a))  obsolete_funs)) in
 
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
@@ -418,33 +418,33 @@ module WP =
          * If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
          * In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
          * The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected.
-         *)
+        *)
         (* Another problem are the tags for the context part of a S.Var.t.
          * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
          * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
          * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
-         *)
+        *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           HM.iter (fun k v ->
-            HM.remove data.rho k; (* remove old values *)
-            (* call hashcons on contexts and abstract values; results in new tags *)
-            let k' = S.Var.relift k in
-            let v' = S.Dom.join (S.Dom.bot ()) v in
-            HM.replace data.rho k' v';
-          ) data.rho;
+              HM.remove data.rho k; (* remove old values *)
+              (* call hashcons on contexts and abstract values; results in new tags *)
+              let k' = S.Var.relift k in
+              let v' = S.Dom.join (S.Dom.bot ()) v in
+              HM.replace data.rho k' v';
+            ) data.rho;
           HM.iter (fun k v ->
-            HM.remove data.stable k;
-            HM.replace data.stable (S.Var.relift k) v
-          ) data.stable;
+              HM.remove data.stable k;
+              HM.replace data.stable (S.Var.relift k) v
+            ) data.stable;
           HM.iter (fun k v ->
-            HM.remove data.wpoint k;
-            HM.replace data.wpoint (S.Var.relift k) v
-          ) data.wpoint;
+              HM.remove data.wpoint k;
+              HM.replace data.wpoint (S.Var.relift k) v
+            ) data.wpoint;
           HM.iter (fun k v ->
-            HM.remove data.infl k;
-            HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
-          ) data.infl;
+              HM.remove data.infl k;
+              HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
+            ) data.infl;
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.join (S.Dom.bot ()) v) data.st;
         );
         if not reuse_stable then (

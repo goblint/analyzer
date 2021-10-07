@@ -473,9 +473,9 @@ struct
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
     f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
 
   let context_cpa fd (st: store) = (context fd st).cpa
 
@@ -1127,7 +1127,7 @@ struct
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let new_value = update_offset (Priv.read_global a gs st x) in
 
-        (* Projection to precision*)
+        (* Projection to highest Precision *)
         let b = GobConfig.get_bool "exp.annotated.precision" in
         let new_value' = if b then VD.projection (true, true, true, true) new_value else new_value in
 
@@ -1911,16 +1911,21 @@ struct
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
-    (* Projection to precision *)
+    (* Projection to Precision of the Callee *)
     let p = IDU.precision_from_fundec fundec in
     let b = GobConfig.get_bool "exp.annotated.precision" in
-    let cpa' = if b then CPA.map (fun v -> VD.projection p v) new_cpa else new_cpa in
+    let new_cpa =
+      if b then
+        CPA.map (fun v -> VD.projection p v) new_cpa
+      else
+        new_cpa
+    in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
     (* Add to the set of weakly updated variables *)
     let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
-    {st' with cpa = cpa'; weak = new_weak}
+    {st' with cpa = new_cpa; weak = new_weak}
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
@@ -2278,16 +2283,21 @@ struct
       in
       let nst = add_globals st fun_st in
 
-      (* Projection to precision *)
-      let p = IDU.precision_from_node () in
+      (* Projection to Precision of the Caller *)
+      let p = IDU.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let b = GobConfig.get_bool "exp.annotated.precision" in
-      let return_val' = if b then VD.projection p return_val else return_val in
-      let cpa' = if b then CPA.map (fun v -> VD.projection p v) nst.cpa else nst.cpa in
+      let return_val = if b then VD.projection p return_val else return_val in
+      let cpa' =
+        if b then
+          CPA.map (fun v -> VD.projection p v) nst.cpa
+        else
+          nst.cpa
+      in
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val'
+      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
     in
     combine_one ctx.local after
 
