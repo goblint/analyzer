@@ -6,17 +6,6 @@ import re
 import subprocess
 import argparse
 
-parser = argparse.ArgumentParser()
-
-parser.add_argument("-g", "--goblint_path", dest = "goblint_path", default = ".", help="Path to Goblint root.")
-parser.add_argument("-t", "--target_path", dest = "target_path", default = ".", help="Path to the regression tests.")
-parser.add_argument("-f", "--target_folder", dest = "target_folder", default = "**", help="Path to the folder wih a group of tests. Default: all folders.")
-
-args = parser.parse_args()
-
-goblint_root = Path(args.goblint_path)
-goblint_regression = goblint_root / "tests" / "regression"
-
 EXCLUDE_TASKS = [
     "04-mutex_13-failed_locking",
     "04-mutex_31-uninitialized",
@@ -46,54 +35,75 @@ EXCLUDE_TASKS = [
     "29-svcomp_01-race-2_5b-container_of", # duplicate sv-benchmarks
 ]
 
-target_root = Path(args.target_path)
+def parse_arguments():
+    parser = argparse.ArgumentParser()
 
-for goblint_f in sorted(goblint_regression.glob(args.target_folder+"/*.c")):
-    print(goblint_f, end=": ")
+    parser.add_argument("-g", "--goblint_path", dest = "goblint_path", default = ".", help="Path to Goblint root.")
+    parser.add_argument("-t", "--target_path", dest = "target_path", default = ".", help="Path to the regression tests.")
+    parser.add_argument("-f", "--target_folder", dest = "target_folder", default = "**", help="Path to the folder wih a group of tests. Default: all folders.")
 
-    content = goblint_f.read_text()
-    # handle & strip Goblint param hints
-    m = re.match(r"^//(.*?)\n(.*)$", content, flags=re.DOTALL)
-    if m:
-        top_comment = m.group(1)
-        content = m.group(2)
-    else:
-        top_comment = None
+    global args
+    args = parser.parse_args()
 
-    if top_comment is not None:
-        if "SKIP" in top_comment:
-            print("skip")
+    goblint_root = Path(args.goblint_path)
+    global goblint_regression
+    goblint_regression = goblint_root / "tests" / "regression"
+
+    global target_root
+    target_root = Path(args.target_path)
+
+def process_files():
+    for goblint_f in sorted(goblint_regression.glob(args.target_folder+"/*.c")):
+        print(goblint_f, end=": ")
+
+        content = goblint_f.read_text()
+        # handle & strip Goblint param hints
+        m = re.match(r"^//(.*?)\n(.*)$", content, flags=re.DOTALL)
+        if m:
+            top_comment = m.group(1)
+            content = m.group(2)
+        else:
+            top_comment = None
+
+        if top_comment is not None:
+            if "SKIP" in top_comment:
+                print("skip")
+                continue
+            elif "--set kernel true" in top_comment:
+                print("kernel")
+                continue
+            elif "osek" in top_comment:
+                print("osek")
+                continue
+            elif "--set allfuns true" in top_comment:
+                print("allfuns")
+                continue
+
+        task_name = Path(goblint_f.parent.name + "_" + goblint_f.name).stem
+        if task_name in EXCLUDE_TASKS:
+            print("exclude")
             continue
-        elif "--set kernel true" in top_comment:
-            print("kernel")
-            continue
-        elif "osek" in top_comment:
-            print("osek")
-            continue
-        elif "--set allfuns true" in top_comment:
-            print("allfuns")
-            continue
 
-    task_name = Path(goblint_f.parent.name + "_" + goblint_f.name).stem
-    if task_name in EXCLUDE_TASKS:
-        print("exclude")
-        continue
+        properties = {}
 
-    properties = {}
+        content = re.sub(r"//\s*RACE(?!!)", "// NORACE", content)
+        if re.search(r"//\s*RACE!", content):
+            properties["../properties/no-data-race.prp"] = False
+        elif re.search(r"//\s*NORACE", content):
+            # if didn't contain RACE!, must be race-free
+            properties["../properties/no-data-race.prp"] = True
 
-    content = re.sub(r"//\s*RACE(?!!)", "// NORACE", content)
-    if re.search(r"//\s*RACE!", content):
-        properties["../properties/no-data-race.prp"] = False
-    elif re.search(r"//\s*NORACE", content):
-        # if didn't contain RACE!, must be race-free
-        properties["../properties/no-data-race.prp"] = True
+        if re.search(r"assert_racefree[^\n]*//\s*UNKNOWN", content):
+            properties["../properties/unreach-call.prp"] = False
+        elif "assert_racefree" in content:
+            # if didn't contain UNKNOWN assert_racefree, must be race-free
+            properties["../properties/unreach-call.prp"] = True
 
-    if re.search(r"assert_racefree[^\n]*//\s*UNKNOWN", content):
-        properties["../properties/unreach-call.prp"] = False
-    elif "assert_racefree" in content:
-        # if didn't contain UNKNOWN assert_racefree, must be race-free
-        properties["../properties/unreach-call.prp"] = True
+        handle_asserts(properties, content, task_name)
 
+        handle_properties(properties, task_name, content, top_comment)
+
+def handle_asserts(properties, content, task_name):
     # TODO: unreach-call property based on asserts
     while content.find("assert(") != -1:
         apos = content.find("assert(")
@@ -124,6 +134,7 @@ for goblint_f in sorted(goblint_regression.glob(args.target_folder+"/*.c")):
         #print(content)
     content = content.replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
     
+def handle_properties(properties, task_name, content, top_comment):
     if properties:
         print()
         for property_file, expected_verdict in properties.items():
@@ -164,3 +175,10 @@ for goblint_f in sorted(goblint_regression.glob(args.target_folder+"/*.c")):
 
     else:
         print("no properties")
+
+def main():
+    parse_arguments()
+    process_files()
+
+if __name__ == "__main__":
+    main()
