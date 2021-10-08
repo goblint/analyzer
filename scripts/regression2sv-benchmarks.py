@@ -95,11 +95,23 @@ for goblint_f in sorted(goblint_regression.glob(args.target_folder+"/*.c")):
         properties["../properties/unreach-call.prp"] = True
 
     # TODO: unreach-call property based on asserts
-    #while re.search(r"assert", content):
-       # properties["../properties/unreach-call.prp"] = True
-        #content = content.replace("assert", "if"), 
-    # print("type", content.replace("assert", "ASSERT"))
-
+    while content.find("assert(") != -1:
+        apos = content.find("assert(")
+        assert_pos = apos + 7
+        assert_pos2 = assert_pos
+        while content[assert_pos2] != ")":
+            assert_pos2 += 1
+        assertion = content[assert_pos:assert_pos2]
+        line_end = content.find("\n", assert_pos2)
+        comment_pos = content.find("//", assert_pos2, line_end)
+        if comment_pos != -1:
+            comment = content[comment_pos:line_end]
+            if comment.find("UNKNOWN!") != -1:
+                print(task_name + "contains UNKNOWN! assert")
+        content = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
+        properties["../properties/unreach-call.prp"] = True
+    content = content.replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
+    
     if properties:
         print()
         for property_file, expected_verdict in properties.items():
