@@ -32,6 +32,9 @@ sig
 
   val threadenter: t * D.t -> location -> varinfo -> t
   val threadspawn: D.t -> location -> varinfo -> D.t
+
+  (** If it is possible to get a list of unique thread create thus far, get it *)
+  val created: t -> D.t -> (t list) option
 end
 
 
@@ -77,6 +80,8 @@ struct
 
   let threadenter _ = threadenter
   let threadspawn () _ _ = ()
+
+  let created _ _ = None
 end
 
 module History (Base: Stateless): Stateful =
@@ -140,6 +145,10 @@ struct
       (p, S.singleton n)
     else
       composed
+
+  let created current cs =
+    let els = D.elements cs in
+    Some (List.map (compose current) els)
 
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs

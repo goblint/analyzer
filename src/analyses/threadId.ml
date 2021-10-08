@@ -78,9 +78,15 @@ struct
     else
       (Access.LSSSet.singleton es, es)
 
+  let created (current, td) =
+    match current with
+    | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
+    | _ -> ConcDomain.ThreadSet.top ()
+
   let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.CurrentThreadId -> fst ctx.local
+    | Queries.CreatedThreads -> created ctx.local
     | Queries.PartAccess {exp; var_opt; write} ->
       part_access ctx exp var_opt write
     | Queries.MustBeUniqueThread ->
