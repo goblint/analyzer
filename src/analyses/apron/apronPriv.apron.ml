@@ -512,7 +512,8 @@ struct
     AD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ getg (mutex_global g) in
+    let vi = mutex_global g in
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ getg vi in
     let get_mutex_inits = merge_all @@ getg (mutex_inits ()) in
     let g_var = V.global g in
     let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
@@ -521,7 +522,11 @@ struct
   let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
     let oct = st.oct in
     (* lock *)
-    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let tmp = (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let local_m = BatOption.default (AD.bot ()) (D.find_opt (mutex_global g ) st.priv) in
+    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+    let tmp = AD.join local_m tmp in
+    let oct = AD.meet oct tmp in
     (* read *)
     let g_var = V.global g in
     let x_var = Var.of_string x.vname in
@@ -550,13 +555,14 @@ struct
     let tid = ask.f Queries.CurrentThreadId in
     let sidev = G.singleton tid oct_side in
     sideg (mutex_global g) sidev;
+    let priv' = D.add (mutex_global g) oct_side st.priv in
     let oct_local' =
       if is_unprotected ask g then
         AD.remove_vars oct_local [g_var]
       else
         oct_local
     in
-    {st with oct = oct_local'}
+    {oct = oct_local'; priv = priv'}
 
   let lock ask getg (st: ApronComponents (D).t) m =
     let oct = st.oct in
@@ -564,8 +570,12 @@ struct
     let local_m = BatOption.default (AD.bot ()) (D.find_opt (mutex_addr_to_varinfo m) st.priv) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let local_m = filter_to_protected ask m local_m in
-    let oct' = AD.meet oct (AD.join local_m get_m) in
-    {st with oct = oct'}
+    let r = (AD.join local_m get_m) in
+    if not (AD.is_bot r) then
+      let oct' = AD.meet oct (AD.join local_m get_m) in
+      {st with oct = oct'}
+    else
+      st
 
   let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
     let oct = st.oct in
