@@ -40,7 +40,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-g", "--goblint_path", dest = "goblint_path", default = ".", help="Path to Goblint root.")
-    parser.add_argument("-t", "--target_path", dest = "target_path", default = ".", help="Path to the regression tests.")
+    parser.add_argument("-t", "--target_path", dest = "target_path", required=True, help="Path to the regression tests.")
     parser.add_argument("-f", "--target_folder", dest = "target_folder", default = "**", help="Path to the folder wih a group of tests. Default: all folders.")
 
     global args
@@ -150,11 +150,11 @@ def handle_asserts(properties, content, task_name, top_comment, version):
             content = content[:apos] + content[(line_end+1):]
     if not was_done:
         wrap_up_assert(properties, task_name, content, top_comment)
-            
+
 def wrap_up_assert(properties, task_name, content, top_comment):
     content = content[:].replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
     handle_properties(properties, task_name, content, top_comment)
-    
+
 def handle_properties(properties, task_name, content, top_comment):
     if properties:
         print()
