@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import subprocess
 import argparse
+import copy
 
 EXCLUDE_TASKS = [
     "04-mutex_13-failed_locking",
@@ -99,12 +100,13 @@ def process_files():
             # if didn't contain UNKNOWN assert_racefree, must be race-free
             properties["../properties/unreach-call.prp"] = True
 
-        handle_asserts(properties, content, task_name)
+        handle_asserts(properties, content, task_name, top_comment, 0)
 
-        handle_properties(properties, task_name, content, top_comment)
-
-def handle_asserts(properties, content, task_name):
+def handle_asserts(properties, content, task_name, top_comment, version):
+    assert_found = False
+    was_done = False
     # TODO: unreach-call property based on asserts
+    content_no_assert = ""
     while content.find("assert(") != -1:
         apos = content.find("assert(")
         assert_pos = apos + 7
@@ -113,26 +115,45 @@ def handle_asserts(properties, content, task_name):
             assert_pos2 += 1
         assertion = content[assert_pos:assert_pos2]
         line_end = content.find("\n", assert_pos2)
-        comment_pos = content.find("//", assert_pos2, line_end)
-        if comment_pos != -1:
-            comment = content[(comment_pos+2):line_end]
-            comment = ' '.join(comment.split())
-            if comment == "UNKNOWN!":
-                print(task_name + "contains UNKNOWN! assert")
-                content = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
-            elif comment == "FAIL!":
-                print(task_name + "contains FAIL! assert")
-                content = content[:apos] + "__VERIFIER_ASSERT(!(" + assertion + ")" + content[assert_pos2:]
-            elif comment == "NOWARN!":
-                print(task_name + "contains NOWARN! assert")
-                content = content[:apos] + content[(line_end+1):]
+        if not assert_found:
+            comment_pos = content.find("//", assert_pos2, line_end)
+            if comment_pos != -1:
+                comment = content[(comment_pos+2):line_end]
+                comment = ' '.join(comment.split())
+                if comment == "UNKNOWN!":
+                    assert_found = True
+                    properties_copy = copy.deepcopy(properties)
+                    properties_copy["../properties/unreach-call.prp"] = False
+                    content_normal = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
+                    wrap_up_assert(properties, task_name, content_normal, top_comment)
+                    content_negated = content[:apos] + "__VERIFIER_ASSERT(!(" + assertion + ")" + content[assert_pos2:]
+                    wrap_up_assert(properties, task_name, content_negated, top_comment)
+                    was_done = True
+                elif comment == "FAIL!":
+                    assert_found = True
+                    # TODO: put proper properties for FAIL!
+                    content = content[:apos] + "__VERIFIER_ASSERT(!(" + assertion + ")" + content[assert_pos2:]
+                elif comment == "NOWARN!":
+                    # TODO: put proper properties for NOWARN!
+                    content = content[:apos] + content[(line_end+1):]
+                else:
+                    # TODO: put proper properties
+                    assert_found = True
+                    content = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
             else:
+                # TODO: put proper properties
+                assert_found = True
                 content = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
+            content_no_assert = content[:apos] + content[(line_end+1):]
+            handle_asserts(properties, content_no_assert, task_name + "_v" + str(version), top_comment, version + 1)
         else:
-            content = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
-        #properties["../properties/unreach-call.prp"] = True
-        #print(content)
-    content = content.replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
+            content = content[:apos] + content[(line_end+1):]
+    if not was_done:
+        wrap_up_assert(properties, task_name, content, top_comment)
+            
+def wrap_up_assert(properties, task_name, content, top_comment):
+    content = content[:].replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
+    handle_properties(properties, task_name, content, top_comment)
     
 def handle_properties(properties, task_name, content, top_comment):
     if properties:
@@ -150,6 +171,7 @@ def handle_properties(properties, task_name, content, top_comment):
         print(f"  -> {preprocessed_f}")
         preprocessed_f.touch()
         with preprocessed_f.open("w") as f:
+            # TODO: change -m32 to -m64
             # running gcc in target_root with relative path avoid absolute paths in preprocessor
             subprocess.run(["gcc", "-E", "-P", "-m32", str(target_f.relative_to(target_root))], stdout=f, check=True, cwd=target_root)
 
