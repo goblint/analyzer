@@ -67,12 +67,20 @@ let int_of_scalar ?round (scalar: Scalar.t) =
           end
       in
       Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
-    | _ ->
-      failwith ("int_of_scalar: not rational: " ^ Scalar.to_string scalar)
+    | Float _ ->
+      None (* failwith ("int_of_scalar: not rational (but float): " ^ Scalar.to_string scalar) *)
+    | Mpfrf _ ->
+      None (* failwith ("int_of_scalar: not rational (but Mpfrf): " ^ Scalar.to_string scalar) *)
 
 let bound_texpr d texpr1 =
   let bounds = A.bound_texpr Man.mgr d texpr1 in
-  let min = int_of_scalar ~round:`Ceil bounds.inf in
+  let min = try int_of_scalar ~round:`Ceil bounds.inf with _ ->
+    let s = Format.asprintf "%a (env: %a)" A.print d (Environment.print: Format.formatter -> Environment.t -> unit) (A.env d) in
+    Printf.printf "%s" s;
+    Texpr1.print (Stdlib.Format.err_formatter) texpr1;
+    Stdlib.flush Stdlib.stdout;
+    failwith ("int_of_scalar: t_expr:  not rational (but float): " ^ Scalar.to_string bounds.inf ^ " " ^ s)
+  in
   let max = int_of_scalar ~round:`Floor bounds.sup in
   (min, max)
 
