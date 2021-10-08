@@ -473,6 +473,18 @@ struct
   module D = MapDomain.MapBot_LiftTop(Basetype.Variables)(AD)
   module G = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
 
+  module TID = ThreadIdDomain.Thread
+
+  let compatible current other =
+    match current, other with
+    | `Lifted current, `Lifted other -> (not (TID.is_unique current)) || (not (TID.equal current other))
+    | _ -> true
+
+  let get_relevant_writes m (ask:Q.ask) v local =
+    let current = ask.f Queries.CurrentThreadId in
+    let compats = List.filter (fun (k,v) -> compatible current k) (G.bindings v) in
+    List.fold_left (fun acc (k,v) -> AD.join acc (filter_to_protected ask m v)) local compats
+
   let just_roll_with_it v = (* FIXME: be smart here! *)
     let bs = List.map snd (G.bindings v) in
     List.fold_left AD.join (AD.bot ()) bs
