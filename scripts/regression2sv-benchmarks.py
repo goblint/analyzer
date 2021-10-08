@@ -41,7 +41,7 @@ def parse_arguments():
 
     parser.add_argument("-g", "--goblint_path", dest = "goblint_path", default = ".", help="Path to Goblint root.")
     parser.add_argument("-t", "--target_path", dest = "target_path", required=True, help="Path to the regression tests.")
-    parser.add_argument("-f", "--target_folder", dest = "target_folder", default = "**", help="Path to the folder wih a group of tests. Default: all folders.")
+    parser.add_argument("-s", "--source_folder", dest = "source_folder", default = "**", help="Path to the folder wih a group of tests. Default: all folders.")
 
     global args
     args = parser.parse_args()
@@ -54,7 +54,7 @@ def parse_arguments():
     target_root = Path(args.target_path)
 
 def process_files():
-    for goblint_f in sorted(goblint_regression.glob(args.target_folder+"/*.c")):
+    for goblint_f in sorted(goblint_regression.glob(args.source_folder+"/*.c")):
         print(goblint_f, end=": ")
 
         content = goblint_f.read_text()
