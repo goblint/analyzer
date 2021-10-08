@@ -33,7 +33,7 @@ int main(void) {
 
   pthread_t id[10];
   for(int i = 0; i < 10;i++){
-    pthread_create(id[i], NULL, t_fun, NULL);
+    pthread_create(&id[i], NULL, t_fun, NULL);
   }
 
   pthread_mutex_lock(&A);
