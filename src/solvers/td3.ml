@@ -67,11 +67,11 @@ module WP =
 
     type phase = Widen | Narrow
 
+    let current_var = ref None
+
     module S =
     struct
       include S
-
-      let current_var = ref None
 
       let system x =
         match S.system x with
@@ -421,7 +421,41 @@ module WP =
 
       HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages;
 
-      let module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg)) in
+      let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
+      struct
+        include PostSolver.Warn (S) (HM)
+
+        let init () =
+          init (); (* enable warning like standard Warn *)
+
+          (* replay superstable messages *)
+          HM.iter (fun _ m ->
+              Messages.add m
+            ) var_messages;
+
+          (* hook to collect new messages *)
+          Messages.Table.add_hook := (fun m ->
+            match !current_var with
+            | Some x -> HM.add var_messages x m
+            | None -> ()
+          );
+      end
+      in
+      let module MakeListArg =
+      struct
+        module Arg =
+        struct
+          include Arg
+          let should_warn = false (* disable standard Warn in favor of IncrWarn *)
+        end
+        include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
+
+        let postsolvers = (module IncrWarn: M) :: postsolvers
+      end
+      in
+
+      let module Post = PostSolver.MakeList (MakeListArg) in
+
       begin match Post.postsolver_opt with
         | None -> ()
         | Some (module PS) ->
@@ -431,7 +465,6 @@ module WP =
             if get_bool "dbg.verbose" then
               print_endline "Postsolving\n";
 
-            let module OutS = S in
             let module StartS =
             struct
               include S
@@ -442,16 +475,6 @@ module WP =
 
             Goblintutil.postsolving := true;
             PS.init ();
-
-            HM.iter (fun _ m ->
-                Messages.add m
-              ) var_messages;
-
-            Messages.Table.add_hook := (fun m ->
-              match !OutS.current_var with
-              | Some x -> HM.add var_messages x m
-              | None -> ()
-            );
 
             let reachable = HM.copy superstable in (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
             let rec one_var x =
