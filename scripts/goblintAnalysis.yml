@@ -28,10 +28,7 @@ jobs:
           with:
               repository: AlexanderEichler/analyzer
               #this path needs to be changed to the main branch
-              ref: integrationSarif
-        - name: PWD
-          run: pwd
-
+              ref: integrationSarif  
         - name: Set up OCaml ${{ matrix.ocaml-compiler }}
           env:
             # otherwise setup-ocaml pins non-locked dependencies
