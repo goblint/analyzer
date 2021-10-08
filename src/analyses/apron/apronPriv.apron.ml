@@ -306,11 +306,19 @@ struct
   include Protection
   module V = ApronDomain.V
 
-  let filter_to_protected ask m v = AD.keep_filter v (fun var ->
-      match V.find_metadata var with
+  let remove_globals_unprotected_after_unlock ask m oct =
+    let newly_unprot var = match V.find_metadata var with
+      | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
+      | _ -> false
+    in
+    AD.remove_filter oct newly_unprot
+
+  let keep_only_protected_globals ask m oct =
+    let protected var =  match V.find_metadata var with
       | Some (Global g) -> is_protected_by ask m g
       | _ -> false
-    )
+    in
+    AD.keep_filter oct protected
 end
 
 (** Per-mutex meet. *)
@@ -335,7 +343,7 @@ struct
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in
     let get_mutex_inits = getg (mutex_inits ()) in
-    let get_mutex_inits' = filter_to_protected ask m get_mutex_inits in
+    let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
     AD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
@@ -387,25 +395,15 @@ struct
     let oct = st.oct in
     let get_m = get_m_with_mutex_inits ask getg m in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let get_m = filter_to_protected ask m get_m in
+    let get_m = keep_only_protected_globals ask m get_m in
     let oct' = AD.meet oct get_m in
     {st with oct = oct'}
 
   let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
     let oct = st.oct in
-    let oct_side = AD.keep_filter oct (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      )
-    in
+    let oct_side = keep_only_protected_globals ask m oct in
     sideg (mutex_addr_to_varinfo m) oct_side;
-    let oct_local = AD.remove_filter oct (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
-        | _ -> false
-      )
-    in
+    let oct_local = remove_globals_unprotected_after_unlock ask m oct in
     {st with oct = oct_local}
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
@@ -479,9 +477,9 @@ struct
 
   module L = MapDomain.MapBot_LiftTop(Basetype.Variables)(AD)
   module D = Lattice.Prod (W) (L)
-
   module G = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
 
+  module V = ApronDomain.V
   module TID = ThreadIdDomain.Thread
 
   let compatible current other =
@@ -492,7 +490,7 @@ struct
   let get_relevant_writes (ask:Q.ask) m v =
     let current = ask.f Queries.CurrentThreadId in
     let compats = List.filter (fun (k,v) -> compatible current k) (G.bindings v) in
-    List.fold_left (fun acc (k,v) -> AD.join acc (filter_to_protected ask m v)) (AD.bot ()) compats
+    List.fold_left (fun acc (k,v) -> AD.join acc (keep_only_protected_globals ask m v)) (AD.bot ()) compats
 
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = ask.f Queries.CurrentThreadId in
@@ -503,9 +501,22 @@ struct
     let bs = List.map snd (G.bindings v) in
     List.fold_left AD.join (AD.bot ()) bs
 
+  let remove_globals_unprotected_after_unlock ask m oct =
+    let newly_unprot var = match V.find_metadata var with
+      | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
+      | _ -> false
+    in
+    AD.remove_filter oct newly_unprot
+
+  let keep_only_protected_globals ask m oct =
+    let protected var =  match V.find_metadata var with
+      | Some (Global g) -> is_protected_by ask m g
+      | _ -> false
+    in
+    AD.keep_filter oct protected
+
   let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
-  module V = ApronDomain.V
 
   let startstate () = D.bot ()
 
@@ -517,7 +528,7 @@ struct
     let vi = mutex_addr_to_varinfo m in
     let get_m = get_relevant_writes ask m (getg vi) in
     let get_mutex_inits = merge_all @@ getg (mutex_inits ()) in
-    let get_mutex_inits' = filter_to_protected ask m get_mutex_inits in
+    let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
     AD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
@@ -581,7 +592,7 @@ struct
     let get_m = get_m_with_mutex_inits ask getg m in
     let local_m = BatOption.default (AD.bot ()) (L.find_opt (mutex_addr_to_varinfo m) l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let local_m = filter_to_protected ask m local_m in
+    let local_m = keep_only_protected_globals ask m local_m in
     let r = (AD.join local_m get_m) in
     if not (AD.is_bot r) then
       let oct' = AD.meet oct (AD.join local_m get_m) in
@@ -592,23 +603,13 @@ struct
   let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
     let oct = st.oct in
     let w,l = st.priv in
-    let oct_local = AD.remove_filter oct (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
-        | _ -> false
-      )
-    in
+    let oct_local = remove_globals_unprotected_after_unlock ask m oct in
     let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
     let side_needed = W.exists (fun v -> is_protected_by ask m v) w in
     if not side_needed then
       {oct = oct_local; priv = (w',l)}
     else
-      let oct_side = AD.keep_filter oct (fun var ->
-          match V.find_metadata var with
-          | Some (Global g) -> is_protected_by ask m g
-          | _ -> false
-        )
-      in
+      let oct_side = keep_only_protected_globals ask m oct in
       let tid = ask.f Queries.CurrentThreadId in
       let sidev = G.singleton tid oct_side in
       let vi = mutex_addr_to_varinfo m in
