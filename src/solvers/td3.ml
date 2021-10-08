@@ -441,7 +441,7 @@ module WP =
           );
       end
       in
-      let module MakeListArg =
+      let module MakeIncrListArg =
       struct
         module Arg =
         struct
@@ -451,62 +451,14 @@ module WP =
         include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
 
         let postsolvers = (module IncrWarn: M) :: postsolvers
+
+        let init_reachable ~vh = HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
       end
       in
 
-      let module Post = PostSolver.MakeList (MakeListArg) in
+      let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
 
-      begin match Post.postsolver_opt with
-        | None -> ()
-        | Some (module PS) ->
-          let open GobConfig in
-
-          let post xs vs vh =
-            if get_bool "dbg.verbose" then
-              print_endline "Postsolving\n";
-
-            let module StartS =
-            struct
-              include S
-              let starts = xs
-            end
-            in
-            let module S = PostSolver.EqConstrSysFromStartEqConstrSys (StartS) in
-
-            Goblintutil.postsolving := true;
-            PS.init ();
-
-            let reachable = HM.copy superstable in (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
-            let rec one_var x =
-              if not (HM.mem reachable x) then (
-                HM.replace reachable x ();
-                Option.may (one_constraint x) (S.system x)
-              )
-            and one_constraint x f =
-              let get y =
-                one_var y;
-                try HM.find vh y with Not_found -> S.Dom.bot ()
-              in
-              let set y d =
-                PS.one_side ~vh ~x ~y ~d;
-                (* check before recursing *)
-                one_var y
-              in
-              let rhs = f get set in
-              PS.one_constraint ~vh ~x ~rhs
-            in
-            List.iter one_var vs;
-
-            PS.finalize ~vh ~reachable;
-            Goblintutil.postsolving := false
-          in
-
-          let post xs vs vh =
-            Stats.time "postsolver" (post xs vs) vh
-          in
-
-          post st vs rho (* TODO: add side_infl postsolver *)
-      end;
+      Post.post st vs rho; (* TODO: add side_infl postsolver *)
 
       {st; infl; sides; rho; wpoint; stable; var_messages}
 
