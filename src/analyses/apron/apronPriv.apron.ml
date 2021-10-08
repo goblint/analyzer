@@ -301,10 +301,22 @@ struct
   let finalize () = ()
 end
 
+module CommonPerMutex =
+struct
+  include Protection
+  module V = ApronDomain.V
+
+  let filter_to_protected ask m v = AD.keep_filter v (fun var ->
+      match V.find_metadata var with
+      | Some (Global g) -> is_protected_by ask m g
+      | _ -> false
+    )
+end
+
 (** Per-mutex meet. *)
 module PerMutexMeetPriv: S =
 struct
-  open Protection
+  open CommonPerMutex
   open ExplicitMutexGlobals
 
   module D = Lattice.Unit
@@ -323,12 +335,7 @@ struct
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in
     let get_mutex_inits = getg (mutex_inits ()) in
-    let get_mutex_inits' = AD.keep_filter get_mutex_inits (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      )
-    in
+    let get_mutex_inits' = filter_to_protected ask m get_mutex_inits in
     AD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
@@ -380,12 +387,7 @@ struct
     let oct = st.oct in
     let get_m = get_m_with_mutex_inits ask getg m in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let get_m = AD.keep_filter get_m (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      )
-    in
+    let get_m = filter_to_protected ask m get_m in
     let oct' = AD.meet oct get_m in
     {st with oct = oct'}
 
@@ -465,7 +467,7 @@ end
 (** Per-mutex meet with TIDs. *)
 module PerMutexMeetPrivTID: S =
 struct
-  open Protection
+  open CommonPerMutex
   open ExplicitMutexGlobals
 
   module D = MapDomain.MapBot_LiftTop(Basetype.Variables)(AD)
@@ -488,12 +490,7 @@ struct
   let get_m_with_mutex_inits ask getg m =
     let get_m = just_roll_with_it @@ getg (mutex_addr_to_varinfo m) in
     let get_mutex_inits = just_roll_with_it @@ getg (mutex_inits ()) in
-    let get_mutex_inits' = AD.keep_filter get_mutex_inits (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      )
-    in
+    let get_mutex_inits' = filter_to_protected ask m get_mutex_inits in
     AD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
@@ -547,12 +544,7 @@ struct
     let oct = st.oct in
     let get_m = get_m_with_mutex_inits ask getg m in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let get_m = AD.keep_filter get_m (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      )
-    in
+    let get_m = filter_to_protected ask m get_m in
     let oct' = AD.meet oct get_m in
     {st with oct = oct'}
 
