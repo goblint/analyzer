@@ -6,6 +6,8 @@ import re
 import subprocess
 import argparse
 import copy
+from dataclasses import dataclass
+from typing import List, Optional
 
 EXCLUDE_TASKS = [
     "04-mutex_13-failed_locking",
@@ -102,13 +104,19 @@ def process_files():
 
         handle_asserts(properties, content, task_name, top_comment)
 
+@dataclass
+class Assert:
+    indent: str
+    exp: str
+    comment: Optional[str]
+
 def handle_asserts(properties, content, task_name, top_comment):
     # TODO: unreach-call property based on asserts
 
     # Split the file into parts by asserts
     read = 0
-    codes = []
-    asserts = []
+    codes = [] # type: List[str]
+    asserts = [] # type: List[Assert]
     pattern = re.compile(r"(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
     for match in pattern.finditer(content):
         print(match)
@@ -118,7 +126,7 @@ def handle_asserts(properties, content, task_name, top_comment):
 
         exp = match.group("exp")
         comment = match.group("comment")
-        asserts.append({"indent": match.group("indent"), "exp": exp, "comment": comment})
+        asserts.append(Assert(indent=match.group("indent"), exp=exp, comment=comment))
 
         read = match.end()
 
@@ -129,9 +137,9 @@ def handle_asserts(properties, content, task_name, top_comment):
     prefix_code = ""
     unknown_version = 1
     for i, a in enumerate(asserts):
-        indent = a["indent"]
-        exp = a["exp"]
-        if a["comment"] != None and a["comment"].find("UNKNOWN!") != -1:
+        indent = a.indent
+        exp = a.exp
+        if a.comment != None and a.comment.find("UNKNOWN!") != -1:
             prefix_code = "".join(codes[:i + 1])
             suffix_code = "".join(codes[i + 1:])
             res = prefix_code
@@ -150,10 +158,10 @@ def handle_asserts(properties, content, task_name, top_comment):
     res = ""
     for i, a in enumerate(asserts):
         res += codes[i]
-        indent = a["indent"]
-        exp = a["exp"]
-        if a["comment"] == None or a["comment"].find("UNKNOWN!") == -1:
-            if a["comment"] != None and a["comment"].find("FAIL!") == -1:
+        indent = a.indent
+        exp = a.exp
+        if a.comment == None or a.comment.find("UNKNOWN!") == -1:
+            if a.comment != None and a.comment.find("FAIL!") == -1:
                 res += f"{indent}__VERIFIER_assert(!({exp}));\n"
             else:
                 res += f"{indent}__VERIFIER_assert({exp});\n"
