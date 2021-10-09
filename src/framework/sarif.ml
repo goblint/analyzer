@@ -1,12 +1,114 @@
 (** The Sarif format is a standardised output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
 
 
-
+open GobConfig
+module GU = Goblintutil
 module Category = MessageCategory
 
 
+module SarifProperty =
+struct
+  type t = 
+     | Version 
+     | Schema of string 
+     | ToolName
+     | ToolFullName 
+     | InformationUri
+     | Organization
+     | ToolVersion
+
+  [@@deriving yojson]  
+  
+  let value = function 
+    |Version -> "2.1.0";     
+    |ToolName ->"Goblint"
+    |ToolFullName -> "Goblint static analyser"
+    |InformationUri -> "https://goblint.in.tum.de/home"
+    |Organization -> "TUM - i2 and UTartu - SWS"
+    |ToolVersion-> Version.goblint
+
+  let to_yojson x = `String (value x)
+  
+end 
+module SairfMessageObject =
+struct
+  type t = {
+    text:string;
+    
+  } [@@deriving  to_yojson] 
+
+   
+end 
+module ReportingDescriptor =
+struct
+  type t = {
+    ruleId:string;   [@key "id"]
+    ruleName:string;  [@key "name"]
+    helpUri:string;
+    help:SairfMessageObject.t;
+    shortDescription:SairfMessageObject.t;
+    fullDescription:SairfMessageObject.t;
+
+  } [@@deriving  to_yojson] 
+
+   
+end 
+
+module Driver =
+struct
+  type t = {
+    name:SarifProperty.t;
+    fullName:SarifProperty.t;
+    informationUri:SarifProperty.t;
+    organization:SarifProperty.t;
+    version:SarifProperty.t;
+    rules:ReportingDescriptor.t list
+  } [@@deriving  to_yojson] 
+
+   
+end 
+module Tool =
+struct
+  type t = {
+    driver:Driver.t;   
+  } [@@deriving  to_yojson] 
+
+   
+end 
 
 
+module ResultObject =
+struct
+  type t = {
+      ruleId:string;
+      level:string;
+      message:SairfMessageObject.t;
+  } [@@deriving  to_yojson] 
+
+ 
+end 
+
+module Run =
+struct
+  type t = {
+    tool:Tool.t;
+    defaultSourceLanguage:string;
+    results:ResultObject.t list
+  }[@@deriving  to_yojson] 
+
+  
+end 
+
+
+module SarifLog =
+struct
+  type t = {
+      version:SarifProperty.t  [@name "2.1.0"];
+      schema :string [@key "$schema"];
+      runs:Run.t list  ;
+  } [@@deriving  to_yojson] 
+ 
+end 
 (* Given a Goblint Category or a CWE 
    returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
 let getDescription (id:string) = match id with 
@@ -75,6 +177,75 @@ let getDescription (id:string) = match id with
               ^"when pointer arithmetic results in a position before the buffer; or when a negative index is used, which generates a position before the buffer.  ");
   | _ -> ("GO000","Unknown Category","Unknown Category","Unknown Category","Unknown Category")
 
+let createMessageObject (text:String.t) = 
+  {
+    SairfMessageObject.text=text;
+  }
+let createDescriptor name = 
+  match getDescription name with
+    |  (id,helpText,shortDescription,helpUri,longDescription) -> 
+   {
+    ReportingDescriptor.ruleId=id;   
+    ReportingDescriptor.ruleName=name;  
+    ReportingDescriptor.helpUri=helpUri;
+    ReportingDescriptor.help=(createMessageObject helpText);
+    ReportingDescriptor.shortDescription=(createMessageObject shortDescription);
+    ReportingDescriptor.fullDescription=(createMessageObject longDescription);
+  }  
+let transformToReportingDescriptor (id:String.t)=  
+    createDescriptor  id
+ 
+let (driverObject:Driver.t) =       
+    {
+    Driver.name=SarifProperty.ToolName;
+    Driver.fullName=SarifProperty.ToolFullName;
+    Driver.informationUri=SarifProperty.InformationUri;
+    Driver.organization=SarifProperty.Organization;
+    Driver.version=SarifProperty.ToolVersion;
+    Driver.rules=List.map transformToReportingDescriptor ["Analyzer";"119"]
+      }
+let (toolObject:Tool.t) = 
+  {
+      Tool.driver=driverObject;     
+  }
+(*matches the Goblint severity to the Sarif property level.*)
+let severityToLevel (severity:Messages.Severity.t)= match severity with
+  | Error -> "error"
+  | Warning -> "warning"
+  | Info -> "note"
+  | Debug -> "none"
+  | Success -> "none"
+
+let createResult (message:Messages.Message.t) = 
+    {
+      ResultObject.ruleId="";
+      ResultObject.level=severityToLevel message.severity;
+      ResultObject.message=createMessageObject "";
+    }
+module Sarif =
+struct
+
+  type t =
+    | SarifLog   (*[@name "sarifLog"]*)
+    [@@deriving yojson]  
+
+  let (runObject:Run.t) = {
+    Run.tool=toolObject;
+    Run.defaultSourceLanguage="C";
+    Run.results=List.map createResult (List.rev !Messages.Table.messages_list);
+   }
+   
+  
+  
+   let sarifObject={SarifLog.version=Version;
+                    SarifLog.schema="https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
+                      SarifLog.runs=[runObject] };
+end 
+
+
+let to_yojson () = [%to_yojson: SarifLog.t]  Sarif.sarifObject
+
+
 let getRuleID (id:string) = match (getDescription id ) with
   | (ruleId,_,_,_,_) -> ruleId
 
@@ -139,7 +310,7 @@ let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
   (* for the github action removes leading ./analysistarget/ the trimFile function will most likely change a bit.*)
   let trimFile (path:string) =         
     match String.sub path 0 17  with 
-    | "./analysistarget/" -> Str.string_after  path 17;  
+    | "./analysisTarget" -> Str.string_after  path 17;  
     |_ -> path;
   in
 
@@ -189,14 +360,6 @@ let printMultipiece f (mp:Messages.MultiPiece.t)=
     BatPrintf.fprintf f "           }\n" ;   
     BatPrintf.fprintf f "       }\n     ],";           
     printMessages f e
-
-(*matches the Goblint severity to the Sarif property level.*)
-let severityToLevel (severity:Messages.Severity.t)= match severity with
-  | Error -> "error"
-  | Warning -> "warning"
-  | Info -> "note"
-  | Debug -> "none"
-  | Success -> "none"
 
 let printSarifResults f =
 
@@ -268,3 +431,5 @@ let createSarifOutput f =
   BatPrintf.fprintf f "   }\n  " ;
   BatPrintf.fprintf f "]\n" ;       
   BatPrintf.fprintf f "}\n";
+
+

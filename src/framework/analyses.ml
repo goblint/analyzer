@@ -6,6 +6,10 @@ open GobConfig
 
 module GU = Goblintutil
 module M  = Messages
+module S = Sarif
+module SarifProperty = Sarif.SarifProperty
+
+module SarifLog = Sarif.SarifLog
 
 (** Analysis starts from lists of functions: start functions, exit functions, and
   * other functions. *)
@@ -268,6 +272,8 @@ struct
        iter insert (Lazy.force table);
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
+    | "sarifTest" ->       
+       Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson ())
     | "json-messages" ->
       Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
     | "none" -> ()
