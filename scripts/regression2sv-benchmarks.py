@@ -125,61 +125,54 @@ class Assert:
         """Is definitely unknown."""
         return self.comment is not None and "UNKNOWN!" in self.comment
 
+ASSERT_PATTERN = re.compile(r"(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
+
 def handle_asserts(properties, content, task_name, top_comment):
     # TODO: unreach-call property based on asserts
 
     # Split the file into parts by asserts
-    read = 0
     codes = [] # type: List[str]
     asserts = [] # type: List[Assert]
-    pattern = re.compile(r"(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
-    for match in pattern.finditer(content):
-        print(match)
-
-        code_before = content[read:match.start()]
+    prev_match_end = 0
+    for match in ASSERT_PATTERN.finditer(content):
+        code_before = content[prev_match_end:match.start()]
         codes.append(code_before)
 
-        exp = match.group("exp")
-        comment = match.group("comment")
-        a = Assert(indent=match.group("indent"), exp=exp, comment=comment)
+        a = Assert(indent=match.group("indent"), exp=match.group("exp"), comment=match.group("comment"))
         asserts.append(a)
-        print(a)
 
-        read = match.end()
+        prev_match_end = match.end()
 
-    code_after = content[read:]
+    code_after = content[prev_match_end:]
     codes.append(code_after)
+    # content is represented by: codes[0], asserts[0], codes[1], asserts[1], ..., asserts[n], codes[n + 1]
 
     # Create benchmarks for each UNKNOWN! assert
-    prefix_code = ""
-    unknown_version = 1
     for i, a in enumerate([a for a in asserts if a.is_unknown]):
         unknown_version = i + 1
-        prefix_code = "".join(codes[:i + 1])
-        suffix_code = "".join(codes[i + 1:])
-        res = prefix_code
-        res += f"{a.indent}__VERIFIER_assert({a.exp});\n"
-        res += suffix_code
+        code_prefix = "".join(codes[:i + 1])
+        code_suffix = "".join(codes[i + 1:])
+
+        content = f"{code_prefix}{a.indent}__VERIFIER_assert({a.exp});\n{code_suffix}"
         properties["../properties/unreach-call.prp"] = False
-        wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", res, top_comment)
-        res = prefix_code
-        res += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
-        res += suffix_code
+        wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", content, top_comment)
+
+        content = f"{code_prefix}{a.indent}__VERIFIER_assert(!({a.exp}));\n{code_suffix}"
         properties["../properties/unreach-call.prp"] = False
-        wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", res, top_comment)
+        wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", content, top_comment)
 
     # Create one big benchmark for all the other asserts
-    res = ""
+    content = ""
     for i, a in enumerate(asserts):
-        res += codes[i]
+        content += codes[i]
         if a.is_fail:
-            res += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
+            content += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
         elif a.is_success:
-            res += f"{a.indent}__VERIFIER_assert({a.exp});\n"
-    res += codes[-1]
-    properties["../properties/unreach-call.prp"] = True
+            content += f"{a.indent}__VERIFIER_assert({a.exp});\n"
+    content += codes[-1]
 
-    wrap_up_assert(properties, task_name + "_true", res, top_comment)
+    properties["../properties/unreach-call.prp"] = True
+    wrap_up_assert(properties, task_name + "_true", content, top_comment)
 
 def wrap_up_assert(properties, task_name, content, top_comment):
     content = content[:].replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
