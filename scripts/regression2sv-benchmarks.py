@@ -103,53 +103,74 @@ def process_files():
         handle_asserts(properties, content, task_name, top_comment, 0)
 
 def handle_asserts(properties, content, task_name, top_comment, version):
-    assert_found = False
-    was_done = False
     # TODO: unreach-call property based on asserts
-    content_no_assert = ""
-    while content.find("assert(") != -1:
-        apos = content.find("assert(")
-        assert_pos = apos + 7
-        assert_pos2 = assert_pos
-        while content[assert_pos2] != ")":
-            assert_pos2 += 1
-        assertion = content[assert_pos:assert_pos2]
-        line_end = content.find("\n", assert_pos2)
-        if not assert_found:
-            comment_pos = content.find("//", assert_pos2, line_end)
-            if comment_pos != -1:
-                comment = content[(comment_pos+2):line_end]
-                comment = ' '.join(comment.split())
-                if comment == "UNKNOWN!":
-                    assert_found = True
-                    properties_copy = copy.deepcopy(properties)
-                    properties_copy["../properties/unreach-call.prp"] = False
-                    content_normal = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
-                    wrap_up_assert(properties, task_name, content_normal, top_comment)
-                    content_negated = content[:apos] + "__VERIFIER_ASSERT(!(" + assertion + ")" + content[assert_pos2:]
-                    wrap_up_assert(properties, task_name, content_negated, top_comment)
-                    was_done = True
-                elif comment == "FAIL!":
-                    assert_found = True
-                    # TODO: put proper properties for FAIL!
-                    content = content[:apos] + "__VERIFIER_ASSERT(!(" + assertion + ")" + content[assert_pos2:]
-                elif comment == "NOWARN!":
-                    # TODO: put proper properties for NOWARN!
-                    content = content[:apos] + content[(line_end+1):]
-                else:
-                    # TODO: put proper properties
-                    assert_found = True
-                    content = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
-            else:
-                # TODO: put proper properties
-                assert_found = True
-                content = content[:apos] + "__VERIFIER_ASSERT(" + assertion + content[assert_pos2:]
-            content_no_assert = content[:apos] + content[(line_end+1):]
-            handle_asserts(properties, content_no_assert, task_name + "_v" + str(version), top_comment, version + 1)
+
+    # Split the file into parts by asserts 
+    code_chunks = []
+    read = 0
+    pattern = re.compile("assert[ \t]*\(.*\)[ \t]*;(.*)*(\r\n|\r|\n)*")
+    for match in pattern.finditer(content):
+        #print(match.start(), match.group())
+        #print(re.search("\\\\(.*)(\r\n|\r|\n)*", match.group()))
+
+        code_before = content[read:match.start()]
+    
+        code_chunks.append({"kind": "code", "content": code_before})
+        
+        assertion_code = match.group()
+        comment = re.search("\\\\(.*)(\r\n|\r|\n)*", match.group())
+        code_chunks.append({"kind": "assert", "content": assertion_code, "comment": comment})
+
+        read = match.start() + len(assertion_code)
+
+    code_after = content[read:]
+    
+    code_chunks.append({"kind": "code", "content": code_after})
+
+    version = 0
+    # Create benchmarks for each UNKNOWN! assert
+    prefix_code = ""
+    i = 0
+    for chunk in code_chunks:
+        i += 1
+        if chunk["kind"] == "assert":
+            if chunk["comment"] != None and chunk["comment"].find("UNKNOWN!") != -1:
+                sufix_code = ""
+                for chunk2 in code_chunks[i:]:
+                    if chunk2["kind"] == "code":
+                        sufix_code += chunk2["content"]
+                assertion_normal = chunk["content"].replace("assert", "__VERIFIER_assert")
+                res = prefix_code
+                res += assertion_normal
+                res += sufix_code
+                properties["../properties/unreach-call.prp"] = False
+                wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
+                version += 1
+                assertion_negated = chunk["content"].replace("assert", "__VERIFIER_assert(!") + ")"
+                res = prefix_code
+                res += assertion_negated
+                res += sufix_code
+                properties["../properties/unreach-call.prp"] = False
+                wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
+                version += 1
         else:
-            content = content[:apos] + content[(line_end+1):]
-    if not was_done:
-        wrap_up_assert(properties, task_name, content, top_comment)
+            prefix_code += chunk["content"]   
+
+    # Create one big benchmark for all the other asserts
+    res = ""
+    for chunk in code_chunks:
+        if chunk["kind"] == "assert":
+            if chunk["comment"] == None or chunk["comment"].find("UNKNOWN!") == -1:
+                if chunk["comment"] != None and chunk["comment"].find("FAIL!") == -1:
+                    res += chunk["content"].replace("assert", "__VERIFIER_assert(!") + ")"
+                else: 
+                    res += chunk["content"].replace("assert", "__VERIFIER_assert")
+        else:
+            res += chunk["content"]
+    properties["../properties/unreach-call.prp"] = True
+
+    wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
+    version += 1
             
 def wrap_up_assert(properties, task_name, content, top_comment):
     content = content[:].replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
