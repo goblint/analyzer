@@ -128,7 +128,7 @@ class Assert:
 ASSERT_PATTERN = re.compile(r"(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
 
 def handle_asserts(properties, content, task_name, top_comment):
-    # TODO: unreach-call property based on asserts
+    print()
 
     # Split the file into parts by asserts
     codes = [] # type: List[str]
@@ -147,6 +147,11 @@ def handle_asserts(properties, content, task_name, top_comment):
     codes.append(code_after)
     # content is represented by: codes[0], asserts[0], codes[1], asserts[1], ..., asserts[n], codes[n + 1]
 
+    if asserts:
+        print("  asserts:")
+        for a in asserts:
+            print(f"    {a}")
+
     # Create benchmarks for each UNKNOWN! assert
     for i, a in enumerate([a for a in asserts if a.is_unknown]):
         unknown_version = i + 1
@@ -155,10 +160,12 @@ def handle_asserts(properties, content, task_name, top_comment):
 
         content = f"{code_prefix}{a.indent}__VERIFIER_assert({a.exp});\n{code_suffix}"
         properties["../properties/unreach-call.prp"] = False
+        print(f"  false assert positive version {unknown_version}:")
         wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", content, top_comment)
 
         content = f"{code_prefix}{a.indent}__VERIFIER_assert(!({a.exp}));\n{code_suffix}"
         properties["../properties/unreach-call.prp"] = False
+        print(f"  false assert negative version {unknown_version}:")
         wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", content, top_comment)
 
     # Create one big benchmark for all the other asserts
@@ -172,6 +179,7 @@ def handle_asserts(properties, content, task_name, top_comment):
     content += codes[-1]
 
     properties["../properties/unreach-call.prp"] = True
+    print(f"  true asserts version:")
     wrap_up_assert(properties, task_name + "_true", content, top_comment)
 
 def wrap_up_assert(properties, task_name, content, top_comment):
@@ -180,18 +188,18 @@ def wrap_up_assert(properties, task_name, content, top_comment):
 
 def handle_properties(properties, task_name, content, top_comment):
     if properties:
-        print()
+        # print()
         for property_file, expected_verdict in properties.items():
-            print(f"  {property_file}: {expected_verdict}")
+            print(f"    {property_file}: {expected_verdict}")
 
         # copy file
         target_f = target_root / (task_name + ".c")
-        print(f"  -> {target_f}")
+        print(f"    -> {target_f}")
         target_f.write_text(content)
 
         # preprocess file
         preprocessed_f = target_root / (task_name + ".i")
-        print(f"  -> {preprocessed_f}")
+        print(f"    -> {preprocessed_f}")
         preprocessed_f.touch()
         with preprocessed_f.open("w") as f:
             # TODO: change -m32 to -m64
