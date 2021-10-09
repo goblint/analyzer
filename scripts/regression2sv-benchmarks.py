@@ -69,7 +69,7 @@ def process_files():
             top_comment = None
 
         if top_comment is not None:
-            if "SKIP" in top_comment:
+            if "SKIP" in top_comment and goblint_f.parent.name != "36-apron": # 36-apron is skipped just for our weird regression testing purposes
                 print("skip")
                 continue
             elif "kernel" in top_comment:
