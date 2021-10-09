@@ -110,6 +110,21 @@ class Assert:
     exp: str
     comment: Optional[str]
 
+    @property
+    def is_success(self) -> bool:
+        """Is always succeeding."""
+        return self.comment is None
+
+    @property
+    def is_fail(self) -> bool:
+        """Is always failing."""
+        return self.comment is not None and "FAIL" in self.comment
+
+    @property
+    def is_unknown(self) -> bool:
+        """Is definitely unknown."""
+        return self.comment is not None and "UNKNOWN!" in self.comment
+
 def handle_asserts(properties, content, task_name, top_comment):
     # TODO: unreach-call property based on asserts
 
@@ -126,7 +141,9 @@ def handle_asserts(properties, content, task_name, top_comment):
 
         exp = match.group("exp")
         comment = match.group("comment")
-        asserts.append(Assert(indent=match.group("indent"), exp=exp, comment=comment))
+        a = Assert(indent=match.group("indent"), exp=exp, comment=comment)
+        asserts.append(a)
+        print(a)
 
         read = match.end()
 
@@ -137,18 +154,16 @@ def handle_asserts(properties, content, task_name, top_comment):
     prefix_code = ""
     unknown_version = 1
     for i, a in enumerate(asserts):
-        indent = a.indent
-        exp = a.exp
-        if a.comment != None and a.comment.find("UNKNOWN!") != -1:
+        if a.is_unknown:
             prefix_code = "".join(codes[:i + 1])
             suffix_code = "".join(codes[i + 1:])
             res = prefix_code
-            res += f"{indent}__VERIFIER_assert({exp});\n"
+            res += f"{a.indent}__VERIFIER_assert({a.exp});\n"
             res += suffix_code
             properties["../properties/unreach-call.prp"] = False
             wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", res, top_comment)
             res = prefix_code
-            res += f"{indent}__VERIFIER_assert(!({exp}));\n"
+            res += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
             res += suffix_code
             properties["../properties/unreach-call.prp"] = False
             wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", res, top_comment)
@@ -158,13 +173,10 @@ def handle_asserts(properties, content, task_name, top_comment):
     res = ""
     for i, a in enumerate(asserts):
         res += codes[i]
-        indent = a.indent
-        exp = a.exp
-        if a.comment == None or a.comment.find("UNKNOWN!") == -1:
-            if a.comment != None and a.comment.find("FAIL!") == -1:
-                res += f"{indent}__VERIFIER_assert(!({exp}));\n"
-            else:
-                res += f"{indent}__VERIFIER_assert({exp});\n"
+        if a.is_fail:
+            res += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
+        elif a.is_success:
+            res += f"{a.indent}__VERIFIER_assert({a.exp});\n"
     res += codes[-1]
     properties["../properties/unreach-call.prp"] = True
 
