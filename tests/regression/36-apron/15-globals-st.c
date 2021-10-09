@@ -1,10 +1,14 @@
+extern int __VERIFIER_nondet_int();
+
 // SKIP PARAM: --set ana.activated[+] apron --disable ana.int.interval
 #include <assert.h>
 
 int g = 0;
 
 int main(void) {
-  int x, y, r;
+  int x = __VERIFIER_nondet_int(); // rand
+  int y = __VERIFIER_nondet_int(); //rand
+  int r = __VERIFIER_nondet_int(); //rand
 
   if (r) {
     g = 1;

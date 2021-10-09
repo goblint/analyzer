@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 // PARAM: --enable ana.int.interval --enable exp.priv-distr-init
 #include <pthread.h>
 #include <assert.h>
@@ -65,7 +67,7 @@ void *worker(void *arg )
 int main(int argc , char **argv )
 {
   pthread_t tid;
-  int qsize;
+  int qsize = __VERIFIER_nondet_int();
 
   PQUEUE *qp = &pqb;
   pqueue_init(& pqb, qsize);

@@ -6,7 +6,6 @@ int glob1 = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  int t;
   pthread_mutex_lock(&mutex);
   glob1 = 5;
   assert(glob1 == 5);

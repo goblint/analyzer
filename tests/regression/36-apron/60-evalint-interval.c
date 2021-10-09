@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 #include <assert.h>
 
@@ -9,7 +11,11 @@ void foo(int *pb) {
 }
 
 void main() {
-  int x, y, z, a, b;
+  int x = __VERIFIER_nondet_int(); //rand
+  int y = __VERIFIER_nondet_int(); //rand
+  int z = __VERIFIER_nondet_int(); //rand
+  int a = __VERIFIER_nondet_int(); //rand
+  int b = __VERIFIER_nondet_int(); //rand
   if (x < y && y < z) {
     // base doesn't know anything, apron knows x < y < z
     assert(x < y);

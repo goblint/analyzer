@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 // PARAM: --enable ana.int.interval --enable exp.priv-distr-init
 #include <pthread.h>
 #include <assert.h>
@@ -32,7 +34,7 @@ int main(int argc , char **argv )
   pthread_t tid;
   pthread_create(& tid, NULL, & worker, NULL);
 
-  int r;
+  int r = __VERIFIER_nondet_int();
   limit = r; // only problematic if limit unknown
 
   while (1) {

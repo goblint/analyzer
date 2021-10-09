@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 // SKIP PARAM: --set ana.activated[+] apron
 #include <assert.h>
 
@@ -9,7 +11,7 @@ void f(int x, int y) {
 }
 
 int main(void) {
-  int r;
+  int r = __VERIFIER_nondet_int(); //rand
   g = r;
   h = r + 1;
 

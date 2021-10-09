@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 #include <pthread.h>
 int global = 0;
@@ -5,7 +7,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg)
 {
-    int top;
+    int top = __VERIFIER_nondet_int(); //rand
     pthread_mutex_lock(&mutex);
     if(top) {
         global = 5;

@@ -1,9 +1,11 @@
+extern int __VERIFIER_nondet_int();
+
 // SKIP PARAM: --set ana.activated[+] apron
 // Based on 36/09.
 #include <assert.h>
 
 void main() {
-  int i;
+  int i = __VERIFIER_nondet_int(); //rand
   if (i) { // same as i != 0
     // only implies i != 0
     // doesn't imply i > 0

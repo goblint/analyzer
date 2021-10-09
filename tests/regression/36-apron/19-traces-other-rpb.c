@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 // SKIP PARAM: --set ana.activated[+] apron
 #include <pthread.h>
 #include <assert.h>
@@ -8,7 +10,7 @@ pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t B = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  int t;
+  int t = __VERIFIER_nondet_int(); //rand
   pthread_mutex_lock(&A);
   pthread_mutex_lock(&B);
   g = 17;
@@ -20,7 +22,7 @@ void *t_fun(void *arg) {
 }
 
 void *t2_fun(void *arg) {
-  int t;
+  int t = __VERIFIER_nondet_int(); //rand
   pthread_mutex_lock(&B);
   t = h;
   if (t > -1000) // avoid underflow

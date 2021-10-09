@@ -1,3 +1,5 @@
+extern int __VERIFIER_nondet_int();
+
 // SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 #include<pthread.h>
 int global = 0;
@@ -11,7 +13,7 @@ void *t_fun(void *arg)
 int main(void)
 {
     pthread_t t;
-    int i;
+    int i = __VERIFIER_nondet_int(); //rand
 
     if(i < 1) {
         pthread_create(&t, ((void *)0), t_fun, ((void *)0));
