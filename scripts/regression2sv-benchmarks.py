@@ -177,12 +177,12 @@ def handle_asserts(properties, content, task_name, top_comment):
             content = f"{code_prefix}{a.indent}__VERIFIER_assert({a.exp});\n{code_suffix}"
             properties["../properties/unreach-call.prp"] = False
             print(f"  false assert positive version {unknown_version}:")
-            wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", content, top_comment)
+            handle_properties(properties, task_name + f"_unknown_{unknown_version}_pos", content, top_comment)
 
             content = f"{code_prefix}{a.indent}__VERIFIER_assert(!({a.exp}));\n{code_suffix}"
             properties["../properties/unreach-call.prp"] = False
             print(f"  false assert negative version {unknown_version}:")
-            wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", content, top_comment)
+            handle_properties(properties, task_name + f"_unknown_{unknown_version}_neg", content, top_comment)
 
             unknown_version = i + 1
 
@@ -203,11 +203,8 @@ def handle_asserts(properties, content, task_name, top_comment):
     if found_true:
         properties["../properties/unreach-call.prp"] = True
         print(f"  true asserts version:")
-        wrap_up_assert(properties, task_name + "_true", content, top_comment)
+        handle_properties(properties, task_name + "_true", content, top_comment)
 
-def wrap_up_assert(properties, task_name, content, top_comment):
-    content = content[:].replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
-    handle_properties(properties, task_name, content, top_comment)
 
 def handle_properties(properties, task_name, content, top_comment):
     if properties:
