@@ -85,6 +85,11 @@ def process_files():
                 print("otherfun")
                 continue
 
+        # only generate multithreaded benchmarks because c/goblint-regression/ in sv-benchmarks is included in ConcurrencySafety
+        if not ("pthread_create" in content or "create_threads" in content): # 28-race_reach uses create_threads macro
+            print("singlethreaded")
+            continue
+
         task_name = Path(goblint_f.parent.name + "_" + goblint_f.name).stem
         if task_name in EXCLUDE_TASKS:
             print("exclude")
