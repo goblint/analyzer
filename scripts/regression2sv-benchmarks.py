@@ -100,9 +100,9 @@ def process_files():
             # if didn't contain UNKNOWN assert_racefree, must be race-free
             properties["../properties/unreach-call.prp"] = True
 
-        handle_asserts(properties, content, task_name, top_comment, 0)
+        handle_asserts(properties, content, task_name, top_comment)
 
-def handle_asserts(properties, content, task_name, top_comment, version):
+def handle_asserts(properties, content, task_name, top_comment):
     # TODO: unreach-call property based on asserts
 
     # Split the file into parts by asserts
@@ -135,14 +135,13 @@ def handle_asserts(properties, content, task_name, top_comment, version):
     version = 0
     # Create benchmarks for each UNKNOWN! assert
     prefix_code = ""
-    i = 0
-    for chunk in code_chunks:
-        i += 1
+    unknown_version = 1
+    for i, chunk in enumerate(code_chunks):
         if chunk["kind"] == "assert":
             print(chunk["content"], chunk["comment"])
             if chunk["comment"] != None and chunk["comment"].find("UNKNOWN!") != -1:
                 sufix_code = ""
-                for chunk2 in code_chunks[i:]:
+                for chunk2 in code_chunks[i + 1:]:
                     if chunk2["kind"] == "code":
                         sufix_code += chunk2["content"]
                 assertion_normal = chunk["content"].replace("assert", "__VERIFIER_assert")
@@ -150,15 +149,15 @@ def handle_asserts(properties, content, task_name, top_comment, version):
                 res += assertion_normal
                 res += sufix_code
                 properties["../properties/unreach-call.prp"] = False
-                wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
+                wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", res, top_comment)
                 version += 1
                 assertion_negated = chunk["content"].replace("assert", "__VERIFIER_assert(!").replace(");", "));")
                 res = prefix_code
                 res += assertion_negated
                 res += sufix_code
                 properties["../properties/unreach-call.prp"] = False
-                wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
-                version += 1
+                wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", res, top_comment)
+                unknown_version += 1
         else:
             prefix_code += chunk["content"]
 
@@ -175,8 +174,7 @@ def handle_asserts(properties, content, task_name, top_comment, version):
             res += chunk["content"]
     properties["../properties/unreach-call.prp"] = True
 
-    wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
-    version += 1
+    wrap_up_assert(properties, task_name + "_true", res, top_comment)
 
 def wrap_up_assert(properties, task_name, content, top_comment):
     content = content[:].replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
