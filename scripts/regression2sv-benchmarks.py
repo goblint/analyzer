@@ -117,7 +117,8 @@ class Assert:
     def is_success(self) -> bool:
         """Is always succeeding."""
         return self.comment is None or \
-            (self.comment is not None and "TODO" in self.comment)
+            (self.comment is not None and "TODO" in self.comment) or \
+            (self.comment is not None and "SUCCESS" in self.comment)
 
     @property
     def is_fail(self) -> bool:
@@ -132,8 +133,11 @@ class Assert:
     @property
     def is_ignored(self) -> bool:
         """Is ignored assert."""
-        return self.comment is not None and (("UNKNOWN" in self.comment and "UNKNOWN!" not in self.comment) or \
-            (self.comment == "added" or self.comment == "modified" or self.comment == "precise privatization fails")) # TODO: remove
+        # TODO: NOWARN should be reach_error() true
+        # TODO: assert(1) should be reach_error() false (reachable)
+        # TODO: each assert should also have reach_error() false variant (assertion reachable)
+        return (self.comment is not None and (("UNKNOWN" in self.comment and "UNKNOWN!" not in self.comment) or "NOWARN" in self.comment)) or \
+            self.exp == "1" or self.exp == "1 == 1"
 
 ASSERT_PATTERN = re.compile(r"((?<=[\r\n;])|^)(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
 
@@ -160,14 +164,13 @@ def handle_asserts(properties, content, task_name, top_comment):
     if asserts:
         print("  asserts:")
         for a in asserts:
-            print(f"    {a}")
-            assert a.is_success or a.is_fail or a.is_unknown or a.is_ignored
+            print(f"    {a}{' (ignored)' if a.is_ignored else ''}")
 
     # Create benchmarks for each UNKNOWN! assert
     unknown_version = 1
     for i, a in enumerate(asserts):
         # cannot base unknown_version on i (with filtering) because code_prefix/suffix still needs to use i if there are non-unknown asserts
-        if a.is_unknown:
+        if not a.is_ignored and a.is_unknown:
             code_prefix = "".join(codes[:i + 1])
             code_suffix = "".join(codes[i + 1:])
 
@@ -188,12 +191,13 @@ def handle_asserts(properties, content, task_name, top_comment):
     found_true = False
     for i, a in enumerate(asserts):
         content += codes[i]
-        if a.is_fail:
-            content += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
-            found_true = True
-        elif a.is_success:
-            content += f"{a.indent}__VERIFIER_assert({a.exp});\n"
-            found_true = True
+        if not a.is_ignored:
+            if a.is_fail:
+                content += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
+                found_true = True
+            elif a.is_success:
+                content += f"{a.indent}__VERIFIER_assert({a.exp});\n"
+                found_true = True
     content += codes[-1]
 
     if found_true:
