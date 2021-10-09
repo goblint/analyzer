@@ -110,18 +110,23 @@ def handle_asserts(properties, content, task_name, top_comment, version):
     read = 0
     pattern = re.compile("assert[ \t]*\(.*\)[ \t]*;(.*)*(\r\n|\r|\n)*")
     for match in pattern.finditer(content):
-        #print(match.start(), match.group())
-        #print(re.search("\\\\(.*)(\r\n|\r|\n)*", match.group()))
+        print(match.start(), match.group())
+        print(re.search("\/\/(.*)(\r\n|\r|\n)*", match.group()))
 
         code_before = content[read:match.start()]
     
         code_chunks.append({"kind": "code", "content": code_before})
         
         assertion_code = match.group()
-        comment = re.search("\\\\(.*)(\r\n|\r|\n)*", match.group())
-        code_chunks.append({"kind": "assert", "content": assertion_code, "comment": comment})
 
         read = match.start() + len(assertion_code)
+
+        comment_search = re.search("\/\/(.*)(\r\n|\r|\n)*", match.group())
+        comment = None
+        if comment_search != None :
+            comment = comment_search.group()
+            assertion_code = assertion_code[:comment_search.start()]
+        code_chunks.append({"kind": "assert", "content": assertion_code, "comment": comment})
 
     code_after = content[read:]
     
@@ -134,6 +139,7 @@ def handle_asserts(properties, content, task_name, top_comment, version):
     for chunk in code_chunks:
         i += 1
         if chunk["kind"] == "assert":
+            print(chunk["content"], chunk["comment"])
             if chunk["comment"] != None and chunk["comment"].find("UNKNOWN!") != -1:
                 sufix_code = ""
                 for chunk2 in code_chunks[i:]:
@@ -146,7 +152,7 @@ def handle_asserts(properties, content, task_name, top_comment, version):
                 properties["../properties/unreach-call.prp"] = False
                 wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
                 version += 1
-                assertion_negated = chunk["content"].replace("assert", "__VERIFIER_assert(!") + ")"
+                assertion_negated = chunk["content"].replace("assert", "__VERIFIER_assert(!").replace(");", "));")
                 res = prefix_code
                 res += assertion_negated
                 res += sufix_code
@@ -162,7 +168,7 @@ def handle_asserts(properties, content, task_name, top_comment, version):
         if chunk["kind"] == "assert":
             if chunk["comment"] == None or chunk["comment"].find("UNKNOWN!") == -1:
                 if chunk["comment"] != None and chunk["comment"].find("FAIL!") == -1:
-                    res += chunk["content"].replace("assert", "__VERIFIER_assert(!") + ")"
+                    res += chunk["content"].replace("assert", "__VERIFIER_assert(!").replace(");", "));")
                 else: 
                     res += chunk["content"].replace("assert", "__VERIFIER_assert")
         else:
