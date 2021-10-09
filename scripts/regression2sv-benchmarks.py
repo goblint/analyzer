@@ -141,6 +141,13 @@ class Assert:
 
 ASSERT_PATTERN = re.compile(r"((?<=[\r\n;])|^)(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
 
+ASSERT_HEADER = """#include <assert.h>
+extern void abort(void);
+void reach_error() { assert(0); }
+void __VERIFIER_assert(int cond) { if(!(cond)) { ERROR: {reach_error();abort();} } }
+
+"""
+
 def handle_asserts(properties, content, task_name, top_comment):
     print()
 
@@ -174,12 +181,12 @@ def handle_asserts(properties, content, task_name, top_comment):
             code_prefix = "".join(codes[:i + 1])
             code_suffix = "".join(codes[i + 1:])
 
-            content = f"{code_prefix}{a.indent}__VERIFIER_assert({a.exp});\n{code_suffix}"
+            content = f"{ASSERT_HEADER}{code_prefix}{a.indent}__VERIFIER_assert({a.exp});\n{code_suffix}"
             properties["../properties/unreach-call.prp"] = False
             print(f"  false assert positive version {unknown_version}:")
             handle_properties(properties, task_name + f"_unknown_{unknown_version}_pos", content, top_comment)
 
-            content = f"{code_prefix}{a.indent}__VERIFIER_assert(!({a.exp}));\n{code_suffix}"
+            content = f"{ASSERT_HEADER}{code_prefix}{a.indent}__VERIFIER_assert(!({a.exp}));\n{code_suffix}"
             properties["../properties/unreach-call.prp"] = False
             print(f"  false assert negative version {unknown_version}:")
             handle_properties(properties, task_name + f"_unknown_{unknown_version}_neg", content, top_comment)
@@ -187,7 +194,7 @@ def handle_asserts(properties, content, task_name, top_comment):
             unknown_version = i + 1
 
     # Create one big benchmark for all the other asserts
-    content = ""
+    content = ASSERT_HEADER
     found_true = False
     for i, a in enumerate(asserts):
         content += codes[i]
