@@ -1,7 +1,7 @@
-extern int __VERIFIER_nondet_int();
-
 // SKIP PARAM: --set ana.activated[+] apron
 // Based on 36/09.
+extern int __VERIFIER_nondet_int();
+
 #include <assert.h>
 
 void main() {

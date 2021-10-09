@@ -1,6 +1,6 @@
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 extern int __VERIFIER_nondet_int();
 
-// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 #include <assert.h>
 
 void foo(int a, int *pb) {

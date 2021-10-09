@@ -1,6 +1,6 @@
+// PARAM: --enable ana.int.interval --enable exp.priv-distr-init
 extern int __VERIFIER_nondet_int();
 
-// PARAM: --enable ana.int.interval --enable exp.priv-distr-init
 #include <pthread.h>
 #include <assert.h>
 

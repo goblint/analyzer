@@ -1,6 +1,6 @@
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval --enable ana.apron.context
 extern int __VERIFIER_nondet_int();
 
-// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval --enable ana.apron.context
 #include <assert.h>
 
 int oct(int x, int y) {

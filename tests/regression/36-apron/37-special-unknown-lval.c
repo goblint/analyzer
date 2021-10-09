@@ -1,6 +1,6 @@
+// SKIP PARAM: --set ana.activated[+] apron
 extern int __VERIFIER_nondet_int();
 
-// SKIP PARAM: --set ana.activated[+] apron
 #include <assert.h>
 #include <stdlib.h>
 

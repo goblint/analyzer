@@ -1,6 +1,6 @@
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 extern int __VERIFIER_nondet_int();
 
-// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
 #include <pthread.h>
 int global = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
