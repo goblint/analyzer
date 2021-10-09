@@ -153,21 +153,20 @@ def handle_asserts(properties, content, task_name, top_comment):
     # Create benchmarks for each UNKNOWN! assert
     prefix_code = ""
     unknown_version = 1
-    for i, a in enumerate(asserts):
-        if a.is_unknown:
-            prefix_code = "".join(codes[:i + 1])
-            suffix_code = "".join(codes[i + 1:])
-            res = prefix_code
-            res += f"{a.indent}__VERIFIER_assert({a.exp});\n"
-            res += suffix_code
-            properties["../properties/unreach-call.prp"] = False
-            wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", res, top_comment)
-            res = prefix_code
-            res += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
-            res += suffix_code
-            properties["../properties/unreach-call.prp"] = False
-            wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", res, top_comment)
-            unknown_version += 1
+    for i, a in enumerate([a for a in asserts if a.is_unknown]):
+        unknown_version = i + 1
+        prefix_code = "".join(codes[:i + 1])
+        suffix_code = "".join(codes[i + 1:])
+        res = prefix_code
+        res += f"{a.indent}__VERIFIER_assert({a.exp});\n"
+        res += suffix_code
+        properties["../properties/unreach-call.prp"] = False
+        wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", res, top_comment)
+        res = prefix_code
+        res += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
+        res += suffix_code
+        properties["../properties/unreach-call.prp"] = False
+        wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", res, top_comment)
 
     # Create one big benchmark for all the other asserts
     res = ""
