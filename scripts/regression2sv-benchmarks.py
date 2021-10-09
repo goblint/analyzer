@@ -170,17 +170,21 @@ def handle_asserts(properties, content, task_name, top_comment):
 
     # Create one big benchmark for all the other asserts
     content = ""
+    found_true = False
     for i, a in enumerate(asserts):
         content += codes[i]
         if a.is_fail:
             content += f"{a.indent}__VERIFIER_assert(!({a.exp}));\n"
+            found_true = True
         elif a.is_success:
             content += f"{a.indent}__VERIFIER_assert({a.exp});\n"
+            found_true = True
     content += codes[-1]
 
-    properties["../properties/unreach-call.prp"] = True
-    print(f"  true asserts version:")
-    wrap_up_assert(properties, task_name + "_true", content, top_comment)
+    if found_true:
+        properties["../properties/unreach-call.prp"] = True
+        print(f"  true asserts version:")
+        wrap_up_assert(properties, task_name + "_true", content, top_comment)
 
 def wrap_up_assert(properties, task_name, content, top_comment):
     content = content[:].replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
