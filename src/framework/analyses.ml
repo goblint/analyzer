@@ -217,7 +217,7 @@ struct
       else
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
-     | "sarif" -> 
+     | "sarifOld" -> 
       let open BatPrintf in
       
      
@@ -272,8 +272,14 @@ struct
        iter insert (Lazy.force table);
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
-    | "sarifTest" ->       
-       Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson ())
+    | "sarif" ->
+      let open BatPrintf in
+      let debugMessage=       
+        printf "Writing sarif to temp. file: %s\n%!" (get_string "outfile");
+        printf "Messages.Table.messages_list length: %d\n%!" (List.length (List.rev !Messages.Table.messages_list));
+      in
+      debugMessage;           
+      Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
       Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
     | "none" -> ()

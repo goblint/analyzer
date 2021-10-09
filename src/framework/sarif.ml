@@ -6,109 +6,7 @@ module GU = Goblintutil
 module Category = MessageCategory
 
 
-module SarifProperty =
-struct
-  type t = 
-     | Version 
-     | Schema of string 
-     | ToolName
-     | ToolFullName 
-     | InformationUri
-     | Organization
-     | ToolVersion
 
-  [@@deriving yojson]  
-  
-  let value = function 
-    |Version -> "2.1.0";     
-    |ToolName ->"Goblint"
-    |ToolFullName -> "Goblint static analyser"
-    |InformationUri -> "https://goblint.in.tum.de/home"
-    |Organization -> "TUM - i2 and UTartu - SWS"
-    |ToolVersion-> Version.goblint
-
-  let to_yojson x = `String (value x)
-  
-end 
-module SairfMessageObject =
-struct
-  type t = {
-    text:string;
-    
-  } [@@deriving  to_yojson] 
-
-   
-end 
-module ReportingDescriptor =
-struct
-  type t = {
-    ruleId:string;   [@key "id"]
-    ruleName:string;  [@key "name"]
-    helpUri:string;
-    help:SairfMessageObject.t;
-    shortDescription:SairfMessageObject.t;
-    fullDescription:SairfMessageObject.t;
-
-  } [@@deriving  to_yojson] 
-
-   
-end 
-
-module Driver =
-struct
-  type t = {
-    name:SarifProperty.t;
-    fullName:SarifProperty.t;
-    informationUri:SarifProperty.t;
-    organization:SarifProperty.t;
-    version:SarifProperty.t;
-    rules:ReportingDescriptor.t list
-  } [@@deriving  to_yojson] 
-
-   
-end 
-module Tool =
-struct
-  type t = {
-    driver:Driver.t;   
-  } [@@deriving  to_yojson] 
-
-   
-end 
-
-
-module ResultObject =
-struct
-  type t = {
-      ruleId:string;
-      level:string;
-      message:SairfMessageObject.t;
-  } [@@deriving  to_yojson] 
-
- 
-end 
-
-module Run =
-struct
-  type t = {
-    tool:Tool.t;
-    defaultSourceLanguage:string;
-    results:ResultObject.t list
-  }[@@deriving  to_yojson] 
-
-  
-end 
-
-
-module SarifLog =
-struct
-  type t = {
-      version:SarifProperty.t  [@name "2.1.0"];
-      schema :string [@key "$schema"];
-      runs:Run.t list  ;
-  } [@@deriving  to_yojson] 
- 
-end 
 (* Given a Goblint Category or a CWE 
    returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
 let getDescription (id:string) = match id with 
@@ -177,11 +75,155 @@ let getDescription (id:string) = match id with
               ^"when pointer arithmetic results in a position before the buffer; or when a negative index is used, which generates a position before the buffer.  ");
   | _ -> ("GO000","Unknown Category","Unknown Category","Unknown Category","Unknown Category")
 
+
+let getRuleIDOld (id:string) = match (getDescription id ) with
+  | (ruleId,_,_,_,_) -> ruleId
+(*matches the Goblint severity to the Sarif property level.*)
+let severityToLevel (severity:Messages.Severity.t)= match severity with
+  | Error -> "error"
+  | Warning -> "warning"
+  | Info -> "note"
+  | Debug -> "none"
+  | Success -> "none"
+module SarifProperty =
+struct
+  type t = 
+     | Version 
+     | Schema of string 
+     | ToolName
+     | ToolFullName 
+     | InformationUri
+     | Organization
+     | ToolVersion
+
+  [@@deriving yojson]  
+  
+  let value = function 
+    |Version -> "2.1.0";     
+    |ToolName ->"Goblint"
+    |ToolFullName -> "Goblint static analyser"
+    |InformationUri -> "https://goblint.in.tum.de/home"
+    |Organization -> "TUM - i2 and UTartu - SWS"
+    |ToolVersion-> Version.goblint
+
+  let to_yojson x = `String (value x)
+  
+end 
+module Region =
+struct
+  type t = {
+    startLine:int;
+    startColumn:int;
+  } [@@deriving  to_yojson] 
+
+   
+end 
+module ArtifactLocation =
+struct
+  type t = {
+    uri:string;
+    
+  } [@@deriving  to_yojson] 
+
+   
+end 
+module PhysicalLocation =
+struct
+  type t = {
+    artifactLocation:ArtifactLocation.t;
+    region:Region.t;
+    
+  } [@@deriving  to_yojson] 
+   
+end 
+
+
+module Locations =
+struct
+  type t = {
+    
+    physicalLocation:PhysicalLocation.t;
+    
+  } [@@deriving  to_yojson] 
+   
+end 
+module SairfMessageObject =
+struct
+  type t = {
+    text:string;
+    
+  } [@@deriving  to_yojson] 
+
+   
+end 
+module ReportingDescriptor =
+struct
+  type t = {
+    ruleId:string;   [@key "id"]
+    ruleName:string;  [@key "name"]
+    helpUri:string;
+    help:SairfMessageObject.t;
+    shortDescription:SairfMessageObject.t;
+    fullDescription:SairfMessageObject.t;
+
+  } [@@deriving  to_yojson] 
+
+   
+end 
+
+module Driver =
+struct
+  type t = {
+    name:SarifProperty.t;
+    fullName:SarifProperty.t;
+    informationUri:SarifProperty.t;
+    organization:SarifProperty.t;
+    version:SarifProperty.t;
+    rules:ReportingDescriptor.t list
+  } [@@deriving  to_yojson] 
+
+   
+end 
+module Tool =
+struct
+  type t = {
+    driver:Driver.t;   
+  } [@@deriving  to_yojson] 
+
+   
+end 
+
+
+module ResultObject =
+struct
+  type t = {
+      ruleId:string;
+      level:string;
+      message:SairfMessageObject.t;
+      locations:Locations.t list;
+  } [@@deriving  to_yojson] 
+
+ 
+end 
+
+module Run =
+struct
+  type t = {
+    tool:Tool.t;
+    defaultSourceLanguage:string;
+    results:ResultObject.t list
+  }[@@deriving  to_yojson] 
+
+  
+end 
+
+
 let createMessageObject (text:String.t) = 
   {
     SairfMessageObject.text=text;
   }
-let createDescriptor name = 
+(*A reportingDescriptor offers a lot of information about a Goblint rule *)
+let createReportingDescriptor name = 
   match getDescription name with
     |  (id,helpText,shortDescription,helpUri,longDescription) -> 
    {
@@ -193,7 +235,7 @@ let createDescriptor name =
     ReportingDescriptor.fullDescription=(createMessageObject longDescription);
   }  
 let transformToReportingDescriptor (id:String.t)=  
-    createDescriptor  id
+    createReportingDescriptor  id
  
 let (driverObject:Driver.t) =       
     {
@@ -203,51 +245,105 @@ let (driverObject:Driver.t) =
     Driver.organization=SarifProperty.Organization;
     Driver.version=SarifProperty.ToolVersion;
     Driver.rules=List.map transformToReportingDescriptor ["Analyzer";"119"]
-      }
+    }
 let (toolObject:Tool.t) = 
   {
       Tool.driver=driverObject;     
   }
-(*matches the Goblint severity to the Sarif property level.*)
-let severityToLevel (severity:Messages.Severity.t)= match severity with
-  | Error -> "error"
-  | Warning -> "warning"
-  | Info -> "note"
-  | Debug -> "none"
-  | Success -> "none"
+
+
+(*returns the Rule corresponding to a message entry *)
+let getRuleID (tags:Messages.Tags.t) = 
+  let getCWE (tag:Messages.Tag.t) = match tag with 
+    | CWE cwe-> Some cwe;
+    | Category cat -> None;
+  in          
+  (* if a CWE is present only the CWE is used, since using multiple ones for the same result doesn' make sense. 
+     If only Categorys are present, all of them are displayed.*)
+  match List.find_map getCWE tags with 
+    | Some cwe ->  string_of_int cwe; 
+    | None -> ""
+let createPhysicalLocationObject (piece:Messages.Piece.t) = 
+    let createRegionObject (line,column)=
+    {
+      Region.startLine=line;
+      Region.startColumn=column;
+    }
+    in
+    match piece.loc with 
+    | None -> {
+      Locations.physicalLocation={
+          PhysicalLocation.artifactLocation= {
+              ArtifactLocation.uri="no fileLocation was provided";
+           };
+        PhysicalLocation.region=createRegionObject (0,0);
+      }
+    };
+    | Some loc ->{
+       Locations.physicalLocation={
+       PhysicalLocation.artifactLocation= {
+          ArtifactLocation.uri=loc.file;
+        };
+        PhysicalLocation.region=createRegionObject (loc.line,loc.column);
+    }
+    }
+    
+
+
+let createLocationsObject (multiPiece:Messages.MultiPiece.t) = match multiPiece with 
+  | Single piece ->[createPhysicalLocationObject piece];
+  | Group {group_text = n; pieces = e} ->List.map createPhysicalLocationObject e
+
+
 
 let createResult (message:Messages.Message.t) = 
+let rec getMessage (multiPiece:Messages.MultiPiece.t)=
+match multiPiece with 
+  | Single piece ->piece.text;
+  | Group {group_text = n; pieces = e} ->n
+  in
     {
-      ResultObject.ruleId="";
+      ResultObject.ruleId=getRuleID message.tags;
       ResultObject.level=severityToLevel message.severity;
-      ResultObject.message=createMessageObject "";
+      ResultObject.message=createMessageObject (getMessage message.multipiece);
+      ResultObject.locations=createLocationsObject message.multipiece;
     }
+
+let runObject msgList= 
+{
+    Run.tool=toolObject;
+    Run.defaultSourceLanguage="C";
+    Run.results=List.map createResult msgList;
+}  
+module SarifLog =
+struct
+  type t = {
+      version:string;
+      schema :string [@key "$schema"];
+      runs:Run.t list  ;
+  } [@@deriving  to_yojson] 
+ 
+end 
+
+  
 module Sarif =
 struct
 
   type t =
     | SarifLog   (*[@name "sarifLog"]*)
-    [@@deriving yojson]  
-
-  let (runObject:Run.t) = {
-    Run.tool=toolObject;
-    Run.defaultSourceLanguage="C";
-    Run.results=List.map createResult (List.rev !Messages.Table.messages_list);
-   }
-   
-  
-  
-   let sarifObject={SarifLog.version=Version;
+    [@@deriving yojson] 
+   let sarifObject msgList={SarifLog.version="2.1.0";
                     SarifLog.schema="https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
-                      SarifLog.runs=[runObject] };
+                      SarifLog.runs=[runObject msgList] };
+  
 end 
 
 
-let to_yojson () = [%to_yojson: SarifLog.t]  Sarif.sarifObject
+let to_yojson  msgList= 
+  
+  [%to_yojson: SarifLog.t]  (Sarif.sarifObject msgList) 
 
 
-let getRuleID (id:string) = match (getDescription id ) with
-  | (ruleId,_,_,_,_) -> ruleId
 
 (* prints the reportingDescriptor object for each category that is given. *)
 let rec printCategorieRules f (categories:string list) = 
@@ -371,13 +467,13 @@ let printSarifResults f =
      If only Categorys are present, all of them are displayed.*)
   let printTags f (tags:Messages.Tags.t)= 
     match List.find_map getCWE tags with 
-    | Some cwe ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleID (string_of_int cwe)); 
+    | Some cwe ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleIDOld (string_of_int cwe)); 
     | None ->
       match tags with 
       | [] ->BatPrintf.fprintf f "  Unexpected Error,  empty tags in Messages.Tags";
       | x::xs -> match x with 
-        | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleID (string_of_int cwe));            
-        | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleID (returnCategory cat) );
+        | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleIDOld (string_of_int cwe));            
+        | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleIDOld (returnCategory cat) );
 
   in       
   let printOneResult (message:Messages.Message.t )=             
