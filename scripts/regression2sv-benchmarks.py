@@ -191,7 +191,7 @@ def handle_asserts(properties, content, task_name, top_comment):
             print(f"  false assert negative version {unknown_version}:")
             handle_properties(properties, task_name + f"_unknown_{unknown_version}_neg", content, top_comment)
 
-            unknown_version = i + 1
+            unknown_version += 1
 
     # Create one big benchmark for all the other asserts
     content = ASSERT_HEADER
