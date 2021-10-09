@@ -105,7 +105,7 @@ def process_files():
 def handle_asserts(properties, content, task_name, top_comment, version):
     # TODO: unreach-call property based on asserts
 
-    # Split the file into parts by asserts 
+    # Split the file into parts by asserts
     code_chunks = []
     read = 0
     pattern = re.compile("assert[ \t]*\(.*\)[ \t]*;(.*)*(\r\n|\r|\n)*")
@@ -114,9 +114,9 @@ def handle_asserts(properties, content, task_name, top_comment, version):
         print(re.search("\/\/(.*)(\r\n|\r|\n)*", match.group()))
 
         code_before = content[read:match.start()]
-    
+
         code_chunks.append({"kind": "code", "content": code_before})
-        
+
         assertion_code = match.group()
 
         read = match.start() + len(assertion_code)
@@ -129,7 +129,7 @@ def handle_asserts(properties, content, task_name, top_comment, version):
         code_chunks.append({"kind": "assert", "content": assertion_code, "comment": comment})
 
     code_after = content[read:]
-    
+
     code_chunks.append({"kind": "code", "content": code_after})
 
     version = 0
@@ -160,7 +160,7 @@ def handle_asserts(properties, content, task_name, top_comment, version):
                 wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
                 version += 1
         else:
-            prefix_code += chunk["content"]   
+            prefix_code += chunk["content"]
 
     # Create one big benchmark for all the other asserts
     res = ""
@@ -169,7 +169,7 @@ def handle_asserts(properties, content, task_name, top_comment, version):
             if chunk["comment"] == None or chunk["comment"].find("UNKNOWN!") == -1:
                 if chunk["comment"] != None and chunk["comment"].find("FAIL!") == -1:
                     res += chunk["content"].replace("assert", "__VERIFIER_assert(!").replace(");", "));")
-                else: 
+                else:
                     res += chunk["content"].replace("assert", "__VERIFIER_assert")
         else:
             res += chunk["content"]
@@ -177,7 +177,7 @@ def handle_asserts(properties, content, task_name, top_comment, version):
 
     wrap_up_assert(properties, task_name + "_v" + str(version), res, top_comment)
     version += 1
-            
+
 def wrap_up_assert(properties, task_name, content, top_comment):
     content = content[:].replace("__VERIFIER_ASSERT", "__VERIFIER_assert")
     handle_properties(properties, task_name, content, top_comment)
