@@ -72,14 +72,17 @@ def process_files():
             if "SKIP" in top_comment:
                 print("skip")
                 continue
-            elif "--set kernel true" in top_comment:
+            elif "kernel" in top_comment:
                 print("kernel")
                 continue
             elif "osek" in top_comment:
                 print("osek")
                 continue
-            elif "--set allfuns true" in top_comment:
+            elif "allfuns" in top_comment:
                 print("allfuns")
+                continue
+            elif "otherfun" in top_comment:
+                print("otherfun")
                 continue
 
         task_name = Path(goblint_f.parent.name + "_" + goblint_f.name).stem
@@ -113,7 +116,8 @@ class Assert:
     @property
     def is_success(self) -> bool:
         """Is always succeeding."""
-        return self.comment is None
+        return self.comment is None or \
+            (self.comment is not None and "TODO" in self.comment)
 
     @property
     def is_fail(self) -> bool:
@@ -124,6 +128,12 @@ class Assert:
     def is_unknown(self) -> bool:
         """Is definitely unknown."""
         return self.comment is not None and "UNKNOWN!" in self.comment
+
+    @property
+    def is_ignored(self) -> bool:
+        """Is ignored assert."""
+        return self.comment is not None and (("UNKNOWN" in self.comment and "UNKNOWN!" not in self.comment) or \
+            (self.comment == "added" or self.comment == "modified" or self.comment == "precise privatization fails")) # TODO: remove
 
 ASSERT_PATTERN = re.compile(r"((?<=[\r\n;])|^)(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
 
@@ -151,6 +161,7 @@ def handle_asserts(properties, content, task_name, top_comment):
         print("  asserts:")
         for a in asserts:
             print(f"    {a}")
+            assert a.is_success or a.is_fail or a.is_unknown or a.is_ignored
 
     # Create benchmarks for each UNKNOWN! assert
     for i, a in enumerate([a for a in asserts if a.is_unknown]):
