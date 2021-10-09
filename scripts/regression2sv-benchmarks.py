@@ -106,64 +106,58 @@ def handle_asserts(properties, content, task_name, top_comment):
     # TODO: unreach-call property based on asserts
 
     # Split the file into parts by asserts
-    code_chunks = []
     read = 0
+    codes = []
+    asserts = []
     pattern = re.compile(r"(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
     for match in pattern.finditer(content):
         print(match)
 
         code_before = content[read:match.start()]
-        code_chunks.append({"kind": "code", "content": code_before})
+        codes.append(code_before)
 
         exp = match.group("exp")
         comment = match.group("comment")
-        code_chunks.append({"kind": "assert", "indent": match.group("indent"), "exp": exp, "comment": comment})
+        asserts.append({"indent": match.group("indent"), "exp": exp, "comment": comment})
 
         read = match.end()
 
     code_after = content[read:]
-
-    code_chunks.append({"kind": "code", "content": code_after})
+    codes.append(code_after)
 
     # Create benchmarks for each UNKNOWN! assert
     prefix_code = ""
     unknown_version = 1
-    for i, chunk in enumerate(code_chunks):
-        if chunk["kind"] == "assert":
-            indent = chunk["indent"]
-            exp = chunk["exp"]
-            if chunk["comment"] != None and chunk["comment"].find("UNKNOWN!") != -1:
-                sufix_code = ""
-                for chunk2 in code_chunks[i + 1:]:
-                    if chunk2["kind"] == "code":
-                        sufix_code += chunk2["content"]
-                res = prefix_code
-                res += f"{indent}__VERIFIER_assert({exp});\n"
-                res += sufix_code
-                properties["../properties/unreach-call.prp"] = False
-                wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", res, top_comment)
-                res = prefix_code
-                res += f"{indent}__VERIFIER_assert(!({exp}));\n"
-                res += sufix_code
-                properties["../properties/unreach-call.prp"] = False
-                wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", res, top_comment)
-                unknown_version += 1
-        else:
-            prefix_code += chunk["content"]
+    for i, a in enumerate(asserts):
+        indent = a["indent"]
+        exp = a["exp"]
+        if a["comment"] != None and a["comment"].find("UNKNOWN!") != -1:
+            prefix_code = "".join(codes[:i + 1])
+            suffix_code = "".join(codes[i + 1:])
+            res = prefix_code
+            res += f"{indent}__VERIFIER_assert({exp});\n"
+            res += suffix_code
+            properties["../properties/unreach-call.prp"] = False
+            wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", res, top_comment)
+            res = prefix_code
+            res += f"{indent}__VERIFIER_assert(!({exp}));\n"
+            res += suffix_code
+            properties["../properties/unreach-call.prp"] = False
+            wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", res, top_comment)
+            unknown_version += 1
 
     # Create one big benchmark for all the other asserts
     res = ""
-    for chunk in code_chunks:
-        if chunk["kind"] == "assert":
-            indent = chunk["indent"]
-            exp = chunk["exp"]
-            if chunk["comment"] == None or chunk["comment"].find("UNKNOWN!") == -1:
-                if chunk["comment"] != None and chunk["comment"].find("FAIL!") == -1:
-                    res += f"{indent}__VERIFIER_assert(!({exp}));\n"
-                else:
-                    res += f"{indent}__VERIFIER_assert({exp});\n"
-        else:
-            res += chunk["content"]
+    for i, a in enumerate(asserts):
+        res += codes[i]
+        indent = a["indent"]
+        exp = a["exp"]
+        if a["comment"] == None or a["comment"].find("UNKNOWN!") == -1:
+            if a["comment"] != None and a["comment"].find("FAIL!") == -1:
+                res += f"{indent}__VERIFIER_assert(!({exp}));\n"
+            else:
+                res += f"{indent}__VERIFIER_assert({exp});\n"
+    res += codes[-1]
     properties["../properties/unreach-call.prp"] = True
 
     wrap_up_assert(properties, task_name + "_true", res, top_comment)
