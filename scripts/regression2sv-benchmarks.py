@@ -164,20 +164,24 @@ def handle_asserts(properties, content, task_name, top_comment):
             assert a.is_success or a.is_fail or a.is_unknown or a.is_ignored
 
     # Create benchmarks for each UNKNOWN! assert
-    for i, a in enumerate([a for a in asserts if a.is_unknown]):
-        unknown_version = i + 1
-        code_prefix = "".join(codes[:i + 1])
-        code_suffix = "".join(codes[i + 1:])
+    unknown_version = 1
+    for i, a in enumerate(asserts):
+        # cannot base unknown_version on i (with filtering) because code_prefix/suffix still needs to use i if there are non-unknown asserts
+        if a.is_unknown:
+            code_prefix = "".join(codes[:i + 1])
+            code_suffix = "".join(codes[i + 1:])
 
-        content = f"{code_prefix}{a.indent}__VERIFIER_assert({a.exp});\n{code_suffix}"
-        properties["../properties/unreach-call.prp"] = False
-        print(f"  false assert positive version {unknown_version}:")
-        wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", content, top_comment)
+            content = f"{code_prefix}{a.indent}__VERIFIER_assert({a.exp});\n{code_suffix}"
+            properties["../properties/unreach-call.prp"] = False
+            print(f"  false assert positive version {unknown_version}:")
+            wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", content, top_comment)
 
-        content = f"{code_prefix}{a.indent}__VERIFIER_assert(!({a.exp}));\n{code_suffix}"
-        properties["../properties/unreach-call.prp"] = False
-        print(f"  false assert negative version {unknown_version}:")
-        wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", content, top_comment)
+            content = f"{code_prefix}{a.indent}__VERIFIER_assert(!({a.exp}));\n{code_suffix}"
+            properties["../properties/unreach-call.prp"] = False
+            print(f"  false assert negative version {unknown_version}:")
+            wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_neg", content, top_comment)
+
+            unknown_version = i + 1
 
     # Create one big benchmark for all the other asserts
     content = ""
