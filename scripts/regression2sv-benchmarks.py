@@ -108,25 +108,18 @@ def handle_asserts(properties, content, task_name, top_comment):
     # Split the file into parts by asserts
     code_chunks = []
     read = 0
-    pattern = re.compile("assert[ \t]*\(.*\)[ \t]*;(.*)*(\r\n|\r|\n)*")
+    pattern = re.compile(r"(?P<assert>assert\s*\((?P<exp>.*)\)\s*;)\s*(//\s*(?P<comment>.*)\s*)?(\r\n|\r|\n)")
     for match in pattern.finditer(content):
-        print(match.start(), match.group())
-        print(re.search("\/\/(.*)(\r\n|\r|\n)*", match.group()))
+        print(match)
 
         code_before = content[read:match.start()]
-
         code_chunks.append({"kind": "code", "content": code_before})
 
-        assertion_code = match.group()
-
-        read = match.start() + len(assertion_code)
-
-        comment_search = re.search("\/\/(.*)(\r\n|\r|\n)*", match.group())
-        comment = None
-        if comment_search != None :
-            comment = comment_search.group()
-            assertion_code = assertion_code[:comment_search.start()]
+        assertion_code = match.group("assert")
+        comment = match.group("comment")
         code_chunks.append({"kind": "assert", "content": assertion_code, "comment": comment})
+
+        read = match.end()
 
     code_after = content[read:]
 
