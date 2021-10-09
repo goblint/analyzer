@@ -125,7 +125,7 @@ class Assert:
         """Is definitely unknown."""
         return self.comment is not None and "UNKNOWN!" in self.comment
 
-ASSERT_PATTERN = re.compile(r"(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
+ASSERT_PATTERN = re.compile(r"((?<=[\r\n;])|^)(?P<indent>[ \t]*)assert[ \t]*\((?P<exp>.*)\)[ \t]*;[ \t]*(//[ \t]*(?P<comment>.*)[ \t]*)?(\r\n|\r|\n)")
 
 def handle_asserts(properties, content, task_name, top_comment):
     print()
