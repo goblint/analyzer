@@ -125,7 +125,6 @@ def handle_asserts(properties, content, task_name, top_comment):
 
     code_chunks.append({"kind": "code", "content": code_after})
 
-    version = 0
     # Create benchmarks for each UNKNOWN! assert
     prefix_code = ""
     unknown_version = 1
@@ -143,7 +142,6 @@ def handle_asserts(properties, content, task_name, top_comment):
                 res += sufix_code
                 properties["../properties/unreach-call.prp"] = False
                 wrap_up_assert(properties, task_name + f"_unknown_{unknown_version}_pos", res, top_comment)
-                version += 1
                 res = prefix_code
                 res += f"{indent}__VERIFIER_assert(!({exp}));\n"
                 res += sufix_code
