@@ -36,6 +36,8 @@ EXCLUDE_TASKS = [
     "29-svcomp_01-race-2_3b-container_of", # duplicate sv-benchmarks
     "29-svcomp_01-race-2_4b-container_of", # duplicate sv-benchmarks
     "29-svcomp_01-race-2_5b-container_of", # duplicate sv-benchmarks
+
+    "13-privatized_28-multiple-protecting2-simple", # similar to 13/27
 ]
 
 def parse_arguments():
