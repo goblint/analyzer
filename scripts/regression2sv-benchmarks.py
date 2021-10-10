@@ -37,7 +37,24 @@ EXCLUDE_TASKS = [
     "29-svcomp_01-race-2_4b-container_of", # duplicate sv-benchmarks
     "29-svcomp_01-race-2_5b-container_of", # duplicate sv-benchmarks
 
+    "13-privatized_02-priv_rc", # intentional data race
+    "13-privatized_03-priv_inv", # no-data-race contains assert()
+    "13-privatized_17-priv_interval", # duplicate of 13/01
+    "13-privatized_21-publish-basic", # intentional data race
+    "13-privatized_22-traces-paper", # intentional data race
+    "13-privatized_23-traces-paper2", # intentional data race
+    "13-privatized_26-struct_rc", # intentional data race
     "13-privatized_28-multiple-protecting2-simple", # similar to 13/27
+    "13-privatized_39-traces-ex-5", # intentional data race
+    "13-privatized_43-traces-mine1", # intentional data race
+
+    "36-apron_12-traces-min-rpb1", # intentional data race
+    "36-apron_13-traces-min-rpb2", # intentional data race
+    "36-apron_14-traces-unprot", # intentional data race
+    "36-apron_19-traces-other-rpb", # intentional data race
+    "36-apron_61-branched", # intentional data race
+    "36-apron_62-branched_intricate", # intentional data race
+    "36-apron_63-branched-not-too-brutal", # intentional data race
 ]
 
 def parse_arguments():
