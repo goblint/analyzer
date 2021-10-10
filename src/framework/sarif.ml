@@ -17,7 +17,7 @@ let unknownRule = {
   ruleId="GO000";
   helpText="";
   shortDescription="";
-  helpUri="";
+  helpUri="https://goblint.in.tum.de/home";
   longDescription="";
 }
 
@@ -84,7 +84,7 @@ let rules = [
   (*TODO is this correct? *)
   helpText="Implementation of function might not be present on all versions of the target platform.";
   shortDescription=" Implementation of function might not be present on all versions of the target platform.";
-  helpUri="";
+  helpUri="https://goblint.in.tum.de/home";
   longDescription="";
   };
    {
