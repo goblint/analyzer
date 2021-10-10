@@ -1,4 +1,6 @@
 // PARAM: --set ana.int.interval true --set solver "'td3'"
+extern int __VERIFIER_nondet_int();
+
 #include<pthread.h>
 #include<assert.h>
 
@@ -6,7 +8,7 @@ int glob1 = 0;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  int t;
+  int t = __VERIFIER_nondet_int();
   pthread_mutex_lock(&mutex1);
   if(t == 42) {
       glob1 = 1;
