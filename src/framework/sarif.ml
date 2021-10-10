@@ -30,7 +30,8 @@ let getCWEDescription (cwe:int) = match cwe with
                "",
                "https://cwe.mitre.org/data/definitions/"^(string_of_int cwe)^".html",
                "")
-(* Given a Goblint Category or a CWE 
+
+(* Given a Goblint Category
    returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
 let getDescription (id:string) = match id with 
   |"Analyzer" -> ("GO001","Goblint Category Analyzer","","https://goblint.in.tum.de/home","");
@@ -89,7 +90,7 @@ module InvocationObject =
 struct
   type t = {
     commandLine:string;
-    executionSuccessful:string;
+    executionSuccessful:bool;
     
   } [@@deriving  to_yojson] 
 
@@ -197,7 +198,7 @@ struct
   type t = {
     tool:Tool.t;
     defaultSourceLanguage:string;
-    invocations:InvocationObject.t;
+    invocations:InvocationObject.t list;
     results:ResultObject.t list
   }[@@deriving  to_yojson] 
 
@@ -307,10 +308,10 @@ let createResult (message:Messages.Message.t) =
 
 let runObject msgList= 
 {
-    Run.invocations={
+    Run.invocations=[{
         InvocationObject.commandLine=String.concat  ", " (BatArray.to_list BatSys.argv)  ;
-        InvocationObject.executionSuccessful="true";
-    };
+        InvocationObject.executionSuccessful=true;
+    }];
     Run.tool=toolObject;
     Run.defaultSourceLanguage="C";    
     Run.results=List.map createResult msgList;
@@ -318,6 +319,7 @@ let runObject msgList=
 module SarifLog =
 struct
   type t = {
+     (* Sarif prefers numerical Versions, this could be a future addition to Goblint. *)
       version:string;
       schema :string [@key "$schema"];
       runs:Run.t list  ;
@@ -343,187 +345,5 @@ let to_yojson  msgList=   [%to_yojson: SarifLog.t]  (Sarif.sarifObject msgList)
 
 
 
-(* prints the reportingDescriptor object for each category that is given. *)
-let rec printCategorieRules f (categories:string list) = 
-  let printSingleCategory f cat = match getDescription cat with 
-    | ("invalid","invalid","invalid","invalid","invalid") -> BatPrintf.fprintf f "";
-    | (id,helpText,shortDescription,helpUri,longDescription) -> 
-      BatPrintf.fprintf f "      {\n";
-      BatPrintf.fprintf f "           \"id\": \"%s\",\n" id;
-      BatPrintf.fprintf f "           \"name\": \"%s\",\n" shortDescription;
-      BatPrintf.fprintf f "           \"helpUri\": \"%s\",\n" helpUri;
-      BatPrintf.fprintf f "           \"help\": {\n";
-      BatPrintf.fprintf f "               \"text\": \"%s\"\n" helpText;
-      BatPrintf.fprintf f "           },\n";
-      BatPrintf.fprintf f "          \"shortDescription\": {\n";
-      BatPrintf.fprintf f "               \"text\": \"%s\"\n" shortDescription;
-      BatPrintf.fprintf f "           },\n";
-      BatPrintf.fprintf f "           \"fullDescription\": {\n";
-      BatPrintf.fprintf f "               \"text\": \"%s\"\n" longDescription;
-      BatPrintf.fprintf f "           }\n  ";
-      BatPrintf.fprintf f "     }"
-  in
-  match categories with 
-  | [] ->  BatPrintf.fprintf f "";
-  | x::[] -> printSingleCategory f x;
-  | x::xs -> printSingleCategory f x;
-    BatPrintf.fprintf f ",\n";                
-    printCategorieRules f xs
-
-let getBehaviorCategory (behavior:MessageCategory.behavior) = match behavior with
-  (* maybe CWE-589: Call to Non-ubiquitous API  https://cwe.mitre.org/data/definitions/589.html*)
-  | Implementation-> "Implementation";
-  | Machine-> "Machine";
-  | Undefined u-> match u with 
-    | NullPointerDereference -> "476";
-    | UseAfterFree -> "416"
-    | ArrayOutOfBounds arrayOutOfBounds -> match arrayOutOfBounds with
-      | PastEnd -> "788";
-      | BeforeStart -> "786:";
-      | Unknown -> "119"
-
-let returnCategory (cat:MessageCategory.category)= match cat with
-  (* Assert is a category, that describer internal Goblint issues and has no real value in a Sarif output *)
-  | MessageCategory.Assert -> "Assert";
-  | MessageCategory.Deadcode -> "561";
-  | MessageCategory.Race -> "Race";
-  | MessageCategory.Unknown -> "Category Unknown";
-    (* Analyzer is a category, that describer internal Goblint issues and has no real value in a Sarif output *)
-  | MessageCategory.Analyzer -> "Analyzer";
-  | MessageCategory.Behavior b -> getBehaviorCategory b;
-    (* Cast of Type Missmatch is equal to the CWE 241. If MessageCategory.Cast is just an describing an internal Goblint issue, this CWE should be removed. *)
-  | MessageCategory.Cast c -> "241";
-  | MessageCategory.Integer i -> match i with 
-    | Overflow -> "190";
-    | DivByZero -> "369"
-
-
-
-let print_physicalLocationPiece f Messages.Piece.{loc; text = m; context=con;} =
-  (* The context can be important too, but at the moment displaying it's value in a useful way is hard. *)
-  (* for the github action removes leading ./analysistarget/ the trimFile function will most likely change a bit.*)
-  let trimFile (path:string) =         
-    match String.sub path 0 17  with 
-    | "./analysisTarget" -> Str.string_after  path 17;  
-    |_ -> path;
-  in
-
-  match loc with
-  | None ->
-    BatPrintf.fprintf f "";
-  | Some l ->
-    BatPrintf.fprintf f "       \"physicalLocation\": " ;             
-    BatPrintf.fprintf f "{\n              \"artifactLocation\": {\n                \"uri\":\"%s\"\n              },\n" (trimFile l.file) ;
-    BatPrintf.fprintf f "              \"region\": {\n";
-    BatPrintf.fprintf f "                \"startLine\":%d,\n" l.line ; 
-    BatPrintf.fprintf f "                \"startColumn\":%d\n" l.column ;    
-    BatPrintf.fprintf f "             }\n"
-
-
-let printMultipiece f (mp:Messages.MultiPiece.t)= 
-
-  let printMessageText f Messages.Piece.{loc; text = m; _} =
-    BatPrintf.fprintf f "\n        \"message\": {\n            \"text\": \"%s\"\n         }," m ;       
-  in 
-  let printMessages f (pieces:Messages.Piece.t list) = 
-    let toMessage Messages.Piece.{loc; text = m; _} =m in
-    match pieces with
-    | [] -> BatPrintf.fprintf f "";
-    | x::xs ->  BatPrintf.fprintf f "\n        \"message\": {\n";  
-      BatPrintf.fprintf f "           \"text\": \"%s\"\n    " (String.concat ";   " (List.map toMessage pieces)) ;   
-      BatPrintf.fprintf f "      }\n";
-  in
-  let rec printPieces f (pieces:Messages.Piece.t list)= match pieces with 
-    | [] ->      BatPrintf.fprintf f "";
-    | x::[] ->  print_physicalLocationPiece f  x; 
-    | x::xs ->  print_physicalLocationPiece f  x; 
-      BatPrintf.fprintf f "     },\n";
-      printPieces f xs;
-
-  in     
-  match mp with
-  | Single (piece: Messages.Piece.t) -> 
-    printMessageText f piece;
-    BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
-    print_physicalLocationPiece f  piece;  
-    BatPrintf.fprintf f "           }\n" ;
-    BatPrintf.fprintf f "       }\n       ]";            
-  | Group {group_text = n; pieces = e} ->
-    BatPrintf.fprintf f "\n        \"locations\": [\n        {\n    ";
-    printPieces f e;                
-    BatPrintf.fprintf f "           }\n" ;   
-    BatPrintf.fprintf f "       }\n     ],";           
-    printMessages f e
-
-let printSarifResults f =
-
-  let getCWE (tag:Messages.Tag.t) = match tag with 
-    | CWE cwe-> Some cwe;
-    | Category cat -> None;
-  in          
-  (* if a CWE is present only the CWE is used, since using multiple ones for the same result doesn' make sense. 
-     If only Categorys are present, all of them are displayed.*)
-  let printTags f (tags:Messages.Tags.t)= 
-    match List.find_map getCWE tags with 
-    | Some cwe ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleIDOld (string_of_int cwe)); 
-    | None ->
-      match tags with 
-      | [] ->BatPrintf.fprintf f "  Unexpected Error,  empty tags in Messages.Tags";
-      | x::xs -> match x with 
-        | CWE cwe->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleIDOld (string_of_int cwe));            
-        | Category cat ->  BatPrintf.fprintf f "    {\n        \"ruleId\": \"%s\"," (getRuleIDOld (returnCategory cat) );
-
-  in       
-  let printOneResult (message:Messages.Message.t )=             
-    printTags f   message.tags;    
-    BatPrintf.fprintf f "\n        \"level\": \"%s\"," (severityToLevel message.severity) ;            
-    printMultipiece f message.multipiece;             
-    BatPrintf.fprintf f "\n    }";   
-  in
-  let rec printResults (message_table:Messages.Message.t list)= 
-    match message_table with 
-      [] -> BatPrintf.fprintf f "\n";
-    |x::[] -> printOneResult x;
-      BatPrintf.fprintf f "\n";
-    | x::xs ->printOneResult x;
-      BatPrintf.fprintf f ",\n";
-      printResults xs;
-  in  
-  printResults (List.rev !Messages.Table.messages_list)
-
-
-(* creates output in the Sarif format.*)
-let createSarifOutput f =
-  BatPrintf.fprintf f "{\n \"$schema\": \"%s\",\n  " "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
-  BatPrintf.fprintf f "\"version\": \"%s\",\n  " "2.1.0";
-  BatPrintf.fprintf f "\"runs\": [\n  ";
-  BatPrintf.fprintf f "{\n  ";
-  BatPrintf.fprintf f "\"tool\": {\n    ";
-  BatPrintf.fprintf f "\ \"driver\": {\n       ";
-  BatPrintf.fprintf f "\"name\": \"%s\",\n       " "Goblint";
-  BatPrintf.fprintf f "\"fullName\": \"%s\",\n       " "Goblint static analyser";   
-  BatPrintf.fprintf f "\"informationUri\": \"%s\",\n       " "https://goblint.in.tum.de/home";
-  BatPrintf.fprintf f "\"organization\": \"%s\",\n       " "TUM - i2 and UTartu - SWS";
-  (* Sarif prefers numerical Versions, this could be a future addition to Goblint. *)
-  BatPrintf.fprintf f "\"version\": \"%s\",\n       " Version.goblint; 
-  BatPrintf.fprintf f "\"downloadUri\": \"%s\",\n    " "https://github.com/goblint/analyzer";
-  BatPrintf.fprintf f "    \"rules\": [\n  ";
-  printCategorieRules f ["Analyzer"; "119"; "190";"241"; "362"; "369"; "416"; "476"; "561"; "570"; "571"; "787"; "788"];
-  BatPrintf.fprintf f "\n     ]\n  ";
-  BatPrintf.fprintf f "   }\n  ";  
-  BatPrintf.fprintf f "},\n";
-  BatPrintf.fprintf f "\   \"invocations\": [\n       ";
-  BatPrintf.fprintf f "{\n";        
-  BatPrintf.fprintf f "        \"commandLine\": \"%a\",\n" (BatArray.print ~first:"" ~last:"" ~sep:" " BatString.print) BatSys.argv;
-  BatPrintf.fprintf f "        \"executionSuccessful\": %B\n    " true;        
-  BatPrintf.fprintf f "   }\n";  
-  BatPrintf.fprintf f "   ],\n" ;
-  BatPrintf.fprintf f "   \"defaultSourceLanguage\": \"%s\",\n" "C";
-  BatPrintf.fprintf f "   \"results\": [\n";
-  printSarifResults f;
-  BatPrintf.fprintf f "   ]\n" ;
-  BatPrintf.fprintf f "   }\n  " ;
-  BatPrintf.fprintf f "]\n" ;       
-  BatPrintf.fprintf f "}\n";
 
 
