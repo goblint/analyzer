@@ -1,8 +1,5 @@
 (** The Sarif format is a standardised output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
 
-
-open GobConfig
-module GU = Goblintutil
 module Category = MessageCategory
 
 
@@ -65,9 +62,82 @@ let rules = [
   helpUri="https://goblint.in.tum.de/home";
   longDescription="";
   };
+   {
+  name="Overflow";
+  ruleId="GO0006";
+  helpText="Integer Overflow";
+  shortDescription="Result of arithmetic operation might be outside of the valid range. ";
+  helpUri="https://en.wikipedia.org/wiki/Integer_overflow";
+  longDescription="";
+  };  
+    {
+  name="DivByZero";
+  ruleId="GO0007";
+  helpText="Division by zero";
+  shortDescription="Division by zero can result in undefined behaviour.";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+   {
+  name="Implementation";
+  ruleId="GO0008";
+  (*TODO is this correct? *)
+  helpText="Implementation of function might not be present on all versions of the target platform.";
+  shortDescription=" Implementation of function might not be present on all versions of the target platform.";
+  helpUri="";
+  longDescription="";
+  };
+   {
+  name="Machine";
+  ruleId="GO0009";
+  helpText="TODO";
+  shortDescription="TODO ";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+   {
+  name="NullPointerDereference";
+  ruleId="GO0010";
+  helpText="Nullpointer dereference";
+  shortDescription="A NULL pointer dereference occurs when the application dereferences a pointer that it expects to be valid, but is NULL, typically causing a crash or exit. ";
+  helpUri="https://cwe.mitre.org/data/definitions/476.html";
+  longDescription="";
+  };
+   {
+  name="UseAfterFree";
+  ruleId="GO0011";
+  helpText="TODO";
+  shortDescription="TODO ";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+   {
+  name="PastEnd";
+  ruleId="GO0012";
+  helpText="TODO";
+  shortDescription="TODO ";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+   {
+  name="BeforeStart";
+  ruleId="GO0013";
+  helpText="TODO";
+  shortDescription="TODO ";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };  
+   {
+  name="Unknown Aob";
+  ruleId="GO0014";
+  helpText="Array out of Bounds Error";
+  shortDescription="Array out of Bounds Error ";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
   {
   name="362";
-  ruleId="GO005";
+  ruleId="GO015";
   helpText="Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')";
   shortDescription="The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ";
   helpUri="https://cwe.mitre.org/data/definitions/362.html";
@@ -75,15 +145,23 @@ let rules = [
   };
   {
   name="416";
-  ruleId="GO007";
+  ruleId="GO0016";
   helpText="Use After Free";
   shortDescription="Referencing memory after it has been freed can cause a program to crash, use unexpected values, or execute code. ";
   helpUri="https://cwe.mitre.org/data/definitions/416.html";
   longDescription="";
   };
+   {
+  name="476";
+  ruleId="GO0017";
+  helpText="NULL Pointer Dereference";
+  shortDescription="A NULL pointer dereference occurs when the application dereferences a pointer that it expects to be valid, but is NULL, typically causing a crash or exit. ";
+  helpUri="https://cwe.mitre.org/data/definitions/476.html";
+  longDescription="";
+  };
   {
   name="570";
-  ruleId="GO0010";
+  ruleId="GO0018";
   helpText="Expression is Always False";
   shortDescription="The software contains an expression that will always evaluate to false.";
   helpUri="https://cwe.mitre.org/data/definitions/570.html";
@@ -91,63 +169,37 @@ let rules = [
   };
   {
   name="571";
-  ruleId="GO0011";
+  ruleId="GO0019";
   helpText="Expression is Always True";
   shortDescription="The software contains an expression that will always evaluate to true.";
   helpUri="https://cwe.mitre.org/data/definitions/571.html";
   longDescription="";
+  };
+   {
+  name="787";
+  ruleId="GO0020";
+  helpText="Out-of-bounds Write";
+  shortDescription="The software writes data past the end, or before the beginning, of the intended buffer. ";
+  helpUri="https://cwe.mitre.org/data/definitions/787.html";
+  longDescription="";
+  };
+   {
+  name="788";
+  ruleId="GO0021";
+  helpText="Access of Memory Location After End of Buffer";
+  shortDescription="The software reads or writes to a buffer using an index or pointer that references a memory location after the end of the buffer. ";              
+  helpUri="https://cwe.mitre.org/data/definitions/788.html";
+  longDescription="";
   }
 ]
-(*  
-   | "476" -> ("GO008","CWE 476:NULL Pointer Dereference",
-              "A NULL pointer dereference occurs when the application dereferences a pointer that it expects to be valid, but is NULL, typically causing a crash or exit. ",
-              "https://cwe.mitre.org/data/definitions/476.html",
-              "NULL pointer dereference issues can occur through a number of flaws, including race conditions, and simple programming omissions. ");
-  | "561" |"DeadCode"-> ("GO009","CWE 561:Dead Code",
-                         "The software contains dead code, which can never be executed.  ",
-                         "https://cwe.mitre.org/data/definitions/561.html",
-                         "Dead code is source code that can never be executed in a running program. The surrounding code makes it impossible for a section of code to ever be executed. ");
-  
-  | "787" -> ("GO012",
-              "CWE 787: Out-of-bounds Write",
-              "The software writes data past the end, or before the beginning, of the intended buffer. ",
-              "https://cwe.mitre.org/data/definitions/787.html",
-              "Typically, this can result in corruption of data, a crash, or code execution. The software may modify an index or perform pointer arithmetic that references a memory location that is outside of the boundaries of the buffer. "
-              ^" A subsequent write operation then produces undefined or unexpected results. ");        
-  | "788" -> ("GO013",
-              "CWE 788:Access of Memory Location After End of Buffer",
-              "The software reads or writes to a buffer using an index or pointer that references a memory location after the end of the buffer. ",
-              "https://cwe.mitre.org/data/definitions/788.html",
-              "This typically occurs when a pointer or its index is decremented to a position before the buffer;"
-              ^"when pointer arithmetic results in a position before the buffer; or when a negative index is used, which generates a position before the buffer.  ");
-*)
-
-let getCategoryInformation (searchName:string) = 
+ 
+(*Returns the information about a Rule. If the rule is not found, a default rule will be returned. *)
+let getRuleInformation (searchName:string) = 
     match List.find_opt (fun rule -> rule.name=searchName) rules with 
       | None ->unknownRule ;
       | Some rule -> rule
 
-let getCWEDescription (cwe:int) = match cwe with 
-  | 570 -> ("GO0010","CWE 570:Expression is Always False",
-              "The software contains an expression that will always evaluate to false. ",
-              "https://cwe.mitre.org/data/definitions/570.html",
-              "");
-  | 571  -> ("GO0011","CWE 571:Expression is Always True",
-               "The software contains an expression that will always evaluate to true.  ",
-               "https://cwe.mitre.org/data/definitions/571.html",
-               "");
-  | _ -> ("GO"^(string_of_int cwe),"CWE"^(string_of_int cwe),
-               "",
-               "https://cwe.mitre.org/data/definitions/"^(string_of_int cwe)^".html",
-               "")
 
-(* Given a Goblint Category
-   returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
-let getDescription (id:string) = match id with 
-  |"Analyzer" -> ("GO001","Goblint Category Analyzer","","https://goblint.in.tum.de/home","");
-  |"Assert" -> ("GO002","Goblint Category Assert","","https://goblint.in.tum.de/home","");
- 
-  | _ -> ("GO000","Unknown Category","Unknown Category","Unknown Category","Unknown Category")
 
 (*matches the Goblint severity to the Sarif property level.*)
 let severityToLevel (severity:Messages.Severity.t)= match severity with
@@ -302,7 +354,7 @@ let createReportingDescriptor categoryInformation =
   }  
   
 let transformToReportingDescriptor (id:String.t)=  
-    createReportingDescriptor  (getCategoryInformation id)
+    createReportingDescriptor  (getRuleInformation id)
  
 let (driverObject:Driver.t) =       
     {
@@ -375,12 +427,12 @@ let createLocationsObject (multiPiece:Messages.MultiPiece.t) = match multiPiece 
 
 
 let createResult (message:Messages.Message.t) = 
-  let rec getMessage (multiPiece:Messages.MultiPiece.t)=  match multiPiece with 
+  let getMessage (multiPiece:Messages.MultiPiece.t)=  match multiPiece with 
     | Single piece ->piece.text;
     | Group {group_text = n; pieces = e} ->n
   in
     {
-      ResultObject.ruleId=(getCategoryInformation (getCategoryInformationID message.tags)).ruleId;
+      ResultObject.ruleId=(getRuleInformation (getCategoryInformationID message.tags)).ruleId;
       ResultObject.level=severityToLevel message.severity;
       ResultObject.message=createMessageObject (getMessage message.multipiece);
       ResultObject.locations=createLocationsObject message.multipiece;
