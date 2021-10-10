@@ -7,7 +7,6 @@ open GobConfig
 module GU = Goblintutil
 module M  = Messages
 module S = Sarif
-module SarifProperty = Sarif.SarifProperty
 
 module SarifLog = Sarif.SarifLog
 

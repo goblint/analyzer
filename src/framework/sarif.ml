@@ -7,10 +7,20 @@ module Category = MessageCategory
 
 
 
+type categoryInformation = {
+  name:string;
+  ruleId:string;
+  helpText:string;
+  shortDescription:string;
+  helpUri:string;
+  longDescription:string;
+} 
+
+
 (* Given a Goblint Category or a CWE 
    returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
 let getDescription (id:string) = match id with 
-  |"Analyzer" -> ("GO001","The category analyser describes ....","","https://goblint.in.tum.de/home","");
+  |"Analyzer" -> ("GO001","TODO description","","https://goblint.in.tum.de/home","");
   |"119" -> ("GO002",
              "CWE 119:Improper Restriction of Operations within the Bounds of a Memory Buffer"
             ,"CWE119 ",
@@ -76,6 +86,7 @@ let getDescription (id:string) = match id with
   | _ -> ("GO000","Unknown Category","Unknown Category","Unknown Category","Unknown Category")
 
 
+
 let getRuleIDOld (id:string) = match (getDescription id ) with
   | (ruleId,_,_,_,_) -> ruleId
 (*matches the Goblint severity to the Sarif property level.*)
@@ -85,30 +96,7 @@ let severityToLevel (severity:Messages.Severity.t)= match severity with
   | Info -> "note"
   | Debug -> "none"
   | Success -> "none"
-module SarifProperty =
-struct
-  type t = 
-     | Version 
-     | Schema of string 
-     | ToolName
-     | ToolFullName 
-     | InformationUri
-     | Organization
-     | ToolVersion
 
-  [@@deriving yojson]  
-  
-  let value = function 
-    |Version -> "2.1.0";     
-    |ToolName ->"Goblint"
-    |ToolFullName -> "Goblint static analyser"
-    |InformationUri -> "https://goblint.in.tum.de/home"
-    |Organization -> "TUM - i2 and UTartu - SWS"
-    |ToolVersion-> Version.goblint
-
-  let to_yojson x = `String (value x)
-  
-end 
 module Region =
 struct
   type t = {
@@ -174,11 +162,11 @@ end
 module Driver =
 struct
   type t = {
-    name:SarifProperty.t;
-    fullName:SarifProperty.t;
-    informationUri:SarifProperty.t;
-    organization:SarifProperty.t;
-    version:SarifProperty.t;
+    name:string;
+    fullName:string;
+    informationUri:string;
+    organization:string;
+    version:string;
     rules:ReportingDescriptor.t list
   } [@@deriving  to_yojson] 
 
@@ -236,14 +224,14 @@ let createReportingDescriptor name =
   }  
 let transformToReportingDescriptor (id:String.t)=  
     createReportingDescriptor  id
- 
+
 let (driverObject:Driver.t) =       
     {
-    Driver.name=SarifProperty.ToolName;
-    Driver.fullName=SarifProperty.ToolFullName;
-    Driver.informationUri=SarifProperty.InformationUri;
-    Driver.organization=SarifProperty.Organization;
-    Driver.version=SarifProperty.ToolVersion;
+    Driver.name="Goblint";
+    Driver.fullName= "Goblint static analyser";
+    Driver.informationUri="https://goblint.in.tum.de/home";
+    Driver.organization="TUM - i2 and UTartu - SWS";
+    Driver.version=Version.goblint;
     Driver.rules=List.map transformToReportingDescriptor ["Analyzer";"119"]
     }
 let (toolObject:Tool.t) = 
@@ -262,7 +250,14 @@ let getRuleID (tags:Messages.Tags.t) =
      If only Categorys are present, all of them are displayed.*)
   match List.find_map getCWE tags with 
     | Some cwe ->  string_of_int cwe; 
-    | None -> ""
+    | None -> match tags with
+      | [] -> ""
+      | x::xs -> match x with 
+        |Category cat-> MessageCategory.show cat
+        | CWE c-> "" (*this case should not be reachable *)
+
+
+
 let createPhysicalLocationObject (piece:Messages.Piece.t) = 
     let createRegionObject (line,column)=
     {
@@ -271,10 +266,11 @@ let createPhysicalLocationObject (piece:Messages.Piece.t) =
     }
     in
     match piece.loc with 
+    (*This case is filtered out in hasLocation, but the compiler complains if it is not matched here. *)
     | None -> {
       Locations.physicalLocation={
           PhysicalLocation.artifactLocation= {
-              ArtifactLocation.uri="no fileLocation was provided";
+              ArtifactLocation.uri="no file was provided";
            };
         PhysicalLocation.region=createRegionObject (0,0);
       }
@@ -288,19 +284,20 @@ let createPhysicalLocationObject (piece:Messages.Piece.t) =
     }
     }
     
-
+let hasLocation (piece:Messages.Piece.t) = match  piece.loc with
+  |Some loc -> true
+  |None -> false
 
 let createLocationsObject (multiPiece:Messages.MultiPiece.t) = match multiPiece with 
-  | Single piece ->[createPhysicalLocationObject piece];
-  | Group {group_text = n; pieces = e} ->List.map createPhysicalLocationObject e
+  | Single piece ->List.map createPhysicalLocationObject (List.filter hasLocation  [piece]);
+  | Group {group_text = n; pieces = e} ->List.map createPhysicalLocationObject (List.filter hasLocation e)
 
 
 
 let createResult (message:Messages.Message.t) = 
-let rec getMessage (multiPiece:Messages.MultiPiece.t)=
-match multiPiece with 
-  | Single piece ->piece.text;
-  | Group {group_text = n; pieces = e} ->n
+  let rec getMessage (multiPiece:Messages.MultiPiece.t)=  match multiPiece with 
+    | Single piece ->piece.text;
+    | Group {group_text = n; pieces = e} ->n
   in
     {
       ResultObject.ruleId=getRuleID message.tags;
@@ -339,9 +336,7 @@ struct
 end 
 
 
-let to_yojson  msgList= 
-  
-  [%to_yojson: SarifLog.t]  (Sarif.sarifObject msgList) 
+let to_yojson  msgList=   [%to_yojson: SarifLog.t]  (Sarif.sarifObject msgList) 
 
 
 
