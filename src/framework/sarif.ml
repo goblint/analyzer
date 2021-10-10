@@ -17,34 +17,29 @@ type categoryInformation = {
 } 
 
 
+let getCWEDescription (cwe:int) = match cwe with 
+  | 570 -> ("GO0010","CWE 570:Expression is Always False",
+              "The software contains an expression that will always evaluate to false. ",
+              "https://cwe.mitre.org/data/definitions/570.html",
+              "");
+  | 571  -> ("GO0011","CWE 571:Expression is Always True",
+               "The software contains an expression that will always evaluate to true.  ",
+               "https://cwe.mitre.org/data/definitions/571.html",
+               "");
+  | _ -> ("GO"^(string_of_int cwe),"CWE"^(string_of_int cwe),
+               "",
+               "https://cwe.mitre.org/data/definitions/"^(string_of_int cwe)^".html",
+               "")
 (* Given a Goblint Category or a CWE 
    returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
 let getDescription (id:string) = match id with 
-  |"Analyzer" -> ("GO001","TODO description","","https://goblint.in.tum.de/home","");
-  |"119" -> ("GO002",
-             "CWE 119:Improper Restriction of Operations within the Bounds of a Memory Buffer"
-            ,"CWE119 ",
-            "https://cwe.mitre.org/data/definitions/119.html",
-            "The software performs operations on a memory buffer, but it can read from or write to a memory location that is outside of the intended boundary of the buffer.");
-  | "190" -> ("GO003" ,
-              "The software performs a calculation that can produce an integer overflow or wraparound, when the logic assumes that the resulting value will always be larger than the original value." 
-              ^"This can introduce other weaknesses when the calculation is used for resource management or execution control. "
-             ,"Integer Overflow or Wraparound","https://cwe.mitre.org/data/definitions/190.html",
-             "An integer overflow or wraparound occurs when an integer value is incremented to a value that is too large to store in the associated representation. When this occurs, the value may wrap to become a very small or negative number. While this may be intended behavior in circumstances that rely on wrapping, it can have security consequences if the wrap is unexpected. This is especially the case if the integer overflow can be triggered using user-supplied inputs. This becomes security-critical when the result is used to control looping, make a security decision, or determine the offset or size in behaviors such as memory allocation, copying, concatenation, etc.  ");
-  | "241" -> ("GO004",
-              "CWE 241:Improper Handling of Unexpected Data Type",
-              "The software does not handle or incorrectly handles when a particular element is not the expected type, e.g. it expects a digit (0-9) but is provided with a letter (A-Z). ",
-              "https://cwe.mitre.org/data/definitions/241.html",
-              "")
-  | "362"| "Race"-> ("GO005",
+  |"Analyzer" -> ("GO001","Goblint Category Analyzer","","https://goblint.in.tum.de/home","");
+  |"Assert" -> ("GO002","Goblint Category Assert","","https://goblint.in.tum.de/home","");
+  | "362"-> ("GO005",
                      "CWE 362: Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
                      "The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ",
                      "https://cwe.mitre.org/data/definitions/362.html",
-                     "")
-  | "369" -> ("GO006","CWE 369: Divide By Zero",
-              "The product divides a value by zero. ",
-              "https://cwe.mitre.org/data/definitions/369.html",
-              "This weakness typically occurs when an unexpected value is provided to the product, or if an error occurs that is not properly detected. It frequently occurs in calculations involving physical dimensions such as size, length, width, and height.   ");
+                     "")  
   | "416" -> ("GO007",
               "CWE 416:Use After Free",
               "Referencing memory after it has been freed can cause a program to crash, use unexpected values, or execute code. ",
@@ -63,14 +58,7 @@ let getDescription (id:string) = match id with
                          "The software contains dead code, which can never be executed.  ",
                          "https://cwe.mitre.org/data/definitions/561.html",
                          "Dead code is source code that can never be executed in a running program. The surrounding code makes it impossible for a section of code to ever be executed. ");
-  | "570" -> ("GO0010","CWE 570:Expression is Always False",
-              "The software contains an expression that will always evaluate to false. ",
-              "https://cwe.mitre.org/data/definitions/570.html",
-              "");
-  | "571"  -> ("GO0011","CWE 571:Expression is Always True",
-               "The software contains an expression that will always evaluate to true.  ",
-               "https://cwe.mitre.org/data/definitions/571.html",
-               "");
+  
   | "787" -> ("GO012",
               "CWE 787: Out-of-bounds Write",
               "The software writes data past the end, or before the beginning, of the intended buffer. ",
@@ -97,6 +85,16 @@ let severityToLevel (severity:Messages.Severity.t)= match severity with
   | Debug -> "none"
   | Success -> "none"
 
+module InvocationObject =
+struct
+  type t = {
+    commandLine:string;
+    executionSuccessful:string;
+    
+  } [@@deriving  to_yojson] 
+
+   
+end 
 module Region =
 struct
   type t = {
@@ -199,6 +197,7 @@ struct
   type t = {
     tool:Tool.t;
     defaultSourceLanguage:string;
+    invocations:InvocationObject.t;
     results:ResultObject.t list
   }[@@deriving  to_yojson] 
 
@@ -308,8 +307,12 @@ let createResult (message:Messages.Message.t) =
 
 let runObject msgList= 
 {
+    Run.invocations={
+        InvocationObject.commandLine=String.concat  ", " (BatArray.to_list BatSys.argv)  ;
+        InvocationObject.executionSuccessful="true";
+    };
     Run.tool=toolObject;
-    Run.defaultSourceLanguage="C";
+    Run.defaultSourceLanguage="C";    
     Run.results=List.map createResult msgList;
 }  
 module SarifLog =
