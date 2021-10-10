@@ -1,5 +1,6 @@
 #include<pthread.h>
 #include<assert.h>
+#include <unistd.h> // sleep
 
 
 int A = 5;
@@ -62,7 +63,7 @@ int main () {
   pthread_create(&t1, NULL, generate, NULL);
   pthread_create(&t2, NULL, process, NULL);
   pthread_create(&t3, NULL, dispose, NULL);
-  
+
   for (i=0; i<10; i++) {
     pthread_mutex_lock(&mutex_A);
     pthread_mutex_lock(&mutex_B);
