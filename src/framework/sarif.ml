@@ -15,43 +15,91 @@ type categoryInformation = {
   helpUri:string;
   longDescription:string;
 } 
+let unknownRule = {
+  name="Unknown";
+  ruleId="GO000";
+  helpText="";
+  shortDescription="";
+  helpUri="";
+  longDescription="";
+}
 
-
-let getCWEDescription (cwe:int) = match cwe with 
-  | 570 -> ("GO0010","CWE 570:Expression is Always False",
-              "The software contains an expression that will always evaluate to false. ",
-              "https://cwe.mitre.org/data/definitions/570.html",
-              "");
-  | 571  -> ("GO0011","CWE 571:Expression is Always True",
-               "The software contains an expression that will always evaluate to true.  ",
-               "https://cwe.mitre.org/data/definitions/571.html",
-               "");
-  | _ -> ("GO"^(string_of_int cwe),"CWE"^(string_of_int cwe),
-               "",
-               "https://cwe.mitre.org/data/definitions/"^(string_of_int cwe)^".html",
-               "")
-
-(* Given a Goblint Category
-   returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
-let getDescription (id:string) = match id with 
-  |"Analyzer" -> ("GO001","Goblint Category Analyzer","","https://goblint.in.tum.de/home","");
-  |"Assert" -> ("GO002","Goblint Category Assert","","https://goblint.in.tum.de/home","");
-  | "362"-> ("GO005",
-                     "CWE 362: Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
-                     "The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ",
-                     "https://cwe.mitre.org/data/definitions/362.html",
-                     "")  
-  | "416" -> ("GO007",
-              "CWE 416:Use After Free",
-              "Referencing memory after it has been freed can cause a program to crash, use unexpected values, or execute code. ",
-              "https://cwe.mitre.org/data/definitions/416.html",
-              "The use of previously-freed memory can have any number of adverse consequences, ranging from the corruption of valid data to the execution of arbitrary code, depending on the instantiation and timing of the flaw. "
-              ^"The simplest way data corruption may occur involves the system's reuse of the freed memory. Use-after-free errors have two common and sometimes overlapping causes:"
-              ^"  Error conditions and other exceptional circumstances."
-              ^"  Confusion over which part of the program is responsible for freeing the memory." 
-              ^"In this scenario, the memory in question is allocated to another pointer validly at some point after it has been freed. The original pointer to the freed memory is used again and points to somewhere within the new allocation. As the data is changed, it corrupts the validly used memory; this induces undefined behavior in the process."
-              ^"If the newly allocated data chances to hold a class, in C++ for example, various function pointers may be scattered within the heap data. If one of these function pointers is overwritten with an address to valid shellcode, execution of arbitrary code can be achieved. "); 
-  | "476" -> ("GO008","CWE 476:NULL Pointer Dereference",
+let rules = [
+  {
+  name="Assert";
+  ruleId="GO0001";
+  helpText="Assert Error";
+  shortDescription="This is an internal Goblint Category";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+  {
+  name="Analyzer";
+  ruleId="GO0002";
+  helpText="Analyzer Error";
+  shortDescription="This is an internal Goblint Category";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+  {
+  name="Cast";
+  ruleId="GO0003";
+  helpText="Cast Error";
+  shortDescription="This is an internal Goblint Cast Error, most likely not indicating a problem in the analyzed program.";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+  {
+  name="Deadcode";
+  ruleId="GO0004";
+  helpText="Deadcode";
+  shortDescription="This code is never used in the program.";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+  {
+  name="Race";
+  ruleId="GO0005";
+  helpText="A race condition";
+  shortDescription="The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ";
+  helpUri="https://goblint.in.tum.de/home";
+  longDescription="";
+  };
+  {
+  name="362";
+  ruleId="GO005";
+  helpText="Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')";
+  shortDescription="The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ";
+  helpUri="https://cwe.mitre.org/data/definitions/362.html";
+  longDescription="";
+  };
+  {
+  name="416";
+  ruleId="GO007";
+  helpText="Use After Free";
+  shortDescription="Referencing memory after it has been freed can cause a program to crash, use unexpected values, or execute code. ";
+  helpUri="https://cwe.mitre.org/data/definitions/416.html";
+  longDescription="";
+  };
+  {
+  name="570";
+  ruleId="GO0010";
+  helpText="Expression is Always False";
+  shortDescription="The software contains an expression that will always evaluate to false.";
+  helpUri="https://cwe.mitre.org/data/definitions/570.html";
+  longDescription="";
+  };
+  {
+  name="571";
+  ruleId="GO0011";
+  helpText="Expression is Always True";
+  shortDescription="The software contains an expression that will always evaluate to true.";
+  helpUri="https://cwe.mitre.org/data/definitions/571.html";
+  longDescription="";
+  }
+]
+(*  
+   | "476" -> ("GO008","CWE 476:NULL Pointer Dereference",
               "A NULL pointer dereference occurs when the application dereferences a pointer that it expects to be valid, but is NULL, typically causing a crash or exit. ",
               "https://cwe.mitre.org/data/definitions/476.html",
               "NULL pointer dereference issues can occur through a number of flaws, including race conditions, and simple programming omissions. ");
@@ -72,12 +120,35 @@ let getDescription (id:string) = match id with
               "https://cwe.mitre.org/data/definitions/788.html",
               "This typically occurs when a pointer or its index is decremented to a position before the buffer;"
               ^"when pointer arithmetic results in a position before the buffer; or when a negative index is used, which generates a position before the buffer.  ");
+*)
+
+let getCategoryInformation (searchName:string) = 
+    match List.find_opt (fun rule -> rule.name=searchName) rules with 
+      | None ->unknownRule ;
+      | Some rule -> rule
+
+let getCWEDescription (cwe:int) = match cwe with 
+  | 570 -> ("GO0010","CWE 570:Expression is Always False",
+              "The software contains an expression that will always evaluate to false. ",
+              "https://cwe.mitre.org/data/definitions/570.html",
+              "");
+  | 571  -> ("GO0011","CWE 571:Expression is Always True",
+               "The software contains an expression that will always evaluate to true.  ",
+               "https://cwe.mitre.org/data/definitions/571.html",
+               "");
+  | _ -> ("GO"^(string_of_int cwe),"CWE"^(string_of_int cwe),
+               "",
+               "https://cwe.mitre.org/data/definitions/"^(string_of_int cwe)^".html",
+               "")
+
+(* Given a Goblint Category
+   returns (Ruleid,helpText,shortDescription,helpUri,longDescription) *)
+let getDescription (id:string) = match id with 
+  |"Analyzer" -> ("GO001","Goblint Category Analyzer","","https://goblint.in.tum.de/home","");
+  |"Assert" -> ("GO002","Goblint Category Assert","","https://goblint.in.tum.de/home","");
+ 
   | _ -> ("GO000","Unknown Category","Unknown Category","Unknown Category","Unknown Category")
 
-
-
-let getRuleIDOld (id:string) = match (getDescription id ) with
-  | (ruleId,_,_,_,_) -> ruleId
 (*matches the Goblint severity to the Sarif property level.*)
 let severityToLevel (severity:Messages.Severity.t)= match severity with
   | Error -> "error"
@@ -120,8 +191,16 @@ struct
     artifactLocation:ArtifactLocation.t;
     region:Region.t;
     
-  } [@@deriving  to_yojson] 
-   
+  } [@@deriving  to_yojson]    
+end 
+
+(*This type represents the Sarif locationProperty. 
+It is needed twice, since Sarif requires differen keys names, depending on where it is used.*)
+module LocationObject =
+struct  type t = {
+    location:ArtifactLocation.t;
+        
+  } [@@deriving  to_yojson]    
 end 
 
 
@@ -199,6 +278,7 @@ struct
     tool:Tool.t;
     defaultSourceLanguage:string;
     invocations:InvocationObject.t list;
+    artifacts:LocationObject.t list;
     results:ResultObject.t list
   }[@@deriving  to_yojson] 
 
@@ -211,20 +291,19 @@ let createMessageObject (text:String.t) =
     SairfMessageObject.text=text;
   }
 (*A reportingDescriptor offers a lot of information about a Goblint rule *)
-let createReportingDescriptor name = 
-  match getDescription name with
-    |  (id,helpText,shortDescription,helpUri,longDescription) -> 
+let createReportingDescriptor categoryInformation =   
    {
-    ReportingDescriptor.ruleId=id;   
-    ReportingDescriptor.ruleName=name;  
-    ReportingDescriptor.helpUri=helpUri;
-    ReportingDescriptor.help=(createMessageObject helpText);
-    ReportingDescriptor.shortDescription=(createMessageObject shortDescription);
-    ReportingDescriptor.fullDescription=(createMessageObject longDescription);
+    ReportingDescriptor.ruleId=categoryInformation.ruleId;   
+    ReportingDescriptor.ruleName=categoryInformation.name;  
+    ReportingDescriptor.helpUri=categoryInformation.helpUri;
+    ReportingDescriptor.help=(createMessageObject categoryInformation.helpText);
+    ReportingDescriptor.shortDescription=(createMessageObject categoryInformation.shortDescription);
+    ReportingDescriptor.fullDescription=(createMessageObject categoryInformation.longDescription);
   }  
+  
 let transformToReportingDescriptor (id:String.t)=  
-    createReportingDescriptor  id
-
+    createReportingDescriptor  (getCategoryInformation id)
+ 
 let (driverObject:Driver.t) =       
     {
     Driver.name="Goblint";
@@ -232,7 +311,7 @@ let (driverObject:Driver.t) =
     Driver.informationUri="https://goblint.in.tum.de/home";
     Driver.organization="TUM - i2 and UTartu - SWS";
     Driver.version=Version.goblint;
-    Driver.rules=List.map transformToReportingDescriptor ["Analyzer";"119"]
+    Driver.rules=List.map transformToReportingDescriptor (List.map (fun rule -> rule.name) rules)
     }
 let (toolObject:Tool.t) = 
   {
@@ -241,7 +320,7 @@ let (toolObject:Tool.t) =
 
 
 (*returns the Rule corresponding to a message entry *)
-let getRuleID (tags:Messages.Tags.t) = 
+let getCategoryInformationID (tags:Messages.Tags.t) = 
   let getCWE (tag:Messages.Tag.t) = match tag with 
     | CWE cwe-> Some cwe;
     | Category cat -> None;
@@ -256,7 +335,23 @@ let getRuleID (tags:Messages.Tags.t) =
         |Category cat-> MessageCategory.show cat
         | CWE c-> "" (*this case should not be reachable *)
 
-
+let createArtifactLocationObject (uri:string) =
+{
+    LocationObject.location={
+      ArtifactLocation.uri=uri;
+    }
+}
+let createArtifactObject (uri:string) =
+    {
+      ArtifactLocation.uri=uri;
+    }
+let hasLocation (piece:Messages.Piece.t) = match  piece.loc with
+  |Some loc -> true
+  |None -> false
+(*should only be called after hasLocation*)
+let deOptionalizeLocation (piece:Messages.Piece.t)= match piece.loc with 
+    | Some loc ->loc
+    | None -> assert false
 
 let createPhysicalLocationObject (piece:Messages.Piece.t) = 
     let createRegionObject (line,column)=
@@ -265,28 +360,13 @@ let createPhysicalLocationObject (piece:Messages.Piece.t) =
       Region.startColumn=column;
     }
     in
-    match piece.loc with 
-    (*This case is filtered out in hasLocation, but the compiler complains if it is not matched here. *)
-    | None -> {
-      Locations.physicalLocation={
-          PhysicalLocation.artifactLocation= {
-              ArtifactLocation.uri="no file was provided";
-           };
-        PhysicalLocation.region=createRegionObject (0,0);
-      }
-    };
-    | Some loc ->{
+    {
        Locations.physicalLocation={
-       PhysicalLocation.artifactLocation= {
-          ArtifactLocation.uri=loc.file;
-        };
-        PhysicalLocation.region=createRegionObject (loc.line,loc.column);
+       PhysicalLocation.artifactLocation=  createArtifactObject (deOptionalizeLocation piece).file;
+        PhysicalLocation.region=createRegionObject ((deOptionalizeLocation piece).line,(deOptionalizeLocation piece).column);
     }
     }
     
-let hasLocation (piece:Messages.Piece.t) = match  piece.loc with
-  |Some loc -> true
-  |None -> false
 
 let createLocationsObject (multiPiece:Messages.MultiPiece.t) = match multiPiece with 
   | Single piece ->List.map createPhysicalLocationObject (List.filter hasLocation  [piece]);
@@ -300,18 +380,39 @@ let createResult (message:Messages.Message.t) =
     | Group {group_text = n; pieces = e} ->n
   in
     {
-      ResultObject.ruleId=getRuleID message.tags;
+      ResultObject.ruleId=(getCategoryInformation (getCategoryInformationID message.tags)).ruleId;
       ResultObject.level=severityToLevel message.severity;
       ResultObject.message=createMessageObject (getMessage message.multipiece);
       ResultObject.locations=createLocationsObject message.multipiece;
     }
 
+
+let getFileLocation (multipiece:Messages.MultiPiece.t)= 
+    let getFile (loc:Cil.location) =
+      loc.file
+    in
+    let toLocation = match multipiece with 
+
+    | Single piece ->[deOptionalizeLocation piece];
+    | Group {group_text = n; pieces = e} ->
+    List.map deOptionalizeLocation  (List.filter hasLocation e);
+    in 
+    List.map getFile toLocation 
+
+let collectAllFileLocations (msgList:Messages.Message.t list)=
+    let getUris=
+    List.flatten (List.map (fun (msg:Messages.Message.t)-> getFileLocation msg.multipiece) msgList)
+    in 
+    let uniques x xs = if List.mem x xs then xs else x::xs;
+    in
+    List.fold_right uniques getUris []
 let runObject msgList= 
 {
     Run.invocations=[{
         InvocationObject.commandLine=String.concat  ", " (BatArray.to_list BatSys.argv)  ;
         InvocationObject.executionSuccessful=true;
     }];
+    Run.artifacts= List.map createArtifactLocationObject (collectAllFileLocations   msgList);
     Run.tool=toolObject;
     Run.defaultSourceLanguage="C";    
     Run.results=List.map createResult msgList;
