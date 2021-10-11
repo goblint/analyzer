@@ -467,7 +467,7 @@ module WP =
             HM.remove data.rho k; (* remove old values *)
             (* call hashcons on contexts and abstract values; results in new tags *)
             let k' = S.Var.relift k in
-            let v' = S.Dom.join (S.Dom.bot ()) v in
+            let v' = S.Dom.relift v in
             HM.replace data.rho k' v';
           ) data.rho;
           HM.iter (fun k v ->
@@ -482,7 +482,7 @@ module WP =
             HM.remove data.infl k;
             HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
           ) data.infl;
-          data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.join (S.Dom.bot ()) v) data.st;
+          data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";

@@ -120,7 +120,6 @@ struct
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
   let tag x = x.BatHashcons.tag
-  let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
   let show = lift_f Base.show
   let to_yojson = lift_f (Base.to_yojson)
@@ -221,6 +220,10 @@ struct
     | `Lifted x -> Base.invariant c x
     | `Top | `Bot -> Invariant.none
 
+  let relift x = match x with
+    | `Bot |`Top -> x
+    | `Lifted v -> `Lifted (Base.relift v)
+
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
@@ -263,6 +266,10 @@ struct
   let to_yojson = function
     | `Left x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
     | `Right x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+
+  let relift = function
+    | `Left x -> `Left (Base1.relift x)
+    | `Right x -> `Right (Base2.relift x)
 end
 
 module Option (Base: S) (N: Name) =
@@ -293,6 +300,8 @@ struct
   let to_yojson = function
     | None -> `String N.name
     | Some x -> Base.to_yojson x
+
+  let relift = Option.map Base.relift
 end
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
@@ -321,6 +330,11 @@ struct
     | `Lifted2 n ->  Base2.show n
     | `Bot -> bot_name
     | `Top -> top_name
+
+  let relift x = match x with
+    | `Lifted1 n -> `Lifted1 (Base1.relift n)
+    | `Lifted2 n -> `Lifted2 (Base2.relift n)
+    | `Bot | `Top -> x
 
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let printXml f = function
@@ -420,6 +434,7 @@ struct
 
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 
+  let relift (x,y,z) = (Base1.relift x, Base2.relift y, Base3.relift z)
   let invariant c (x, y, z) = Invariant.(Base1.invariant c x && Base2.invariant c y && Base3.invariant c z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
@@ -435,6 +450,8 @@ struct
     "[" ^ (String.concat ", " elems) ^ "]"
 
   let pretty () x = text (show x)
+
+  let relift x = List.map Base.relift x
 
   let name () = Base.name () ^ " list"
   let printXml f xs =
@@ -508,6 +525,10 @@ struct
   let to_yojson = function
     | `Bot -> `String "⊥"
     | `Lifted n -> Base.to_yojson n
+
+  let relift = function
+    | `Bot -> `Bot
+    | `Lifted n -> `Lifted (Base.relift n)
 end
 
 module LiftTop (Base : S) =
@@ -540,6 +561,10 @@ struct
   let to_yojson = function
     | `Top -> `String "⊤"
     | `Lifted n -> Base.to_yojson n
+
+  let relift = function
+    | `Top -> `Top
+    | `Lifted n -> `Lifted (Base.relift n)
 
   let arbitrary () =
     let open QCheck.Iter in
