@@ -230,7 +230,9 @@ struct
       |> List.map V.local
     in
     AD.remove_vars_with new_oct local_vars;
-    {st with oct = new_oct}
+    let st' = {st with oct = new_oct} in
+    Priv.thread_return (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st'
+
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
@@ -282,6 +284,13 @@ struct
       unify_st
 
   let special ctx r f args =
+    let ask = Analyses.ask_of_ctx ctx in
+    let invalidate_one st lv =
+      assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+          let oct' = AD.forget_vars st.oct [V.local v] in
+          assert_type_bounds oct' v (* re-establish type bounds after forget *)
+        )
+    in
     let st = ctx.local in
     match LibraryFunctions.classify f.vname args with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
@@ -289,14 +298,15 @@ struct
     | `Unknown "__goblint_check" -> st
     | `Unknown "__goblint_commit" -> st
     | `Unknown "__goblint_assert" -> st
+    | `ThreadJoin (id,retvar) ->
+      (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
+      (
+        let st' = Priv.thread_join ask id st in
+        match r with
+        | Some lv -> invalidate_one st' lv
+        | None -> st'
+      )
     | _ ->
-      let ask = Analyses.ask_of_ctx ctx in
-      let invalidate_one st lv =
-        assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-            let oct' = AD.forget_vars st.oct [V.local v] in
-            assert_type_bounds oct' v (* re-establish type bounds after forget *)
-          )
-      in
       let st' = match LibraryFunctions.get_invalidate_action f.vname with
         | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
         | None ->

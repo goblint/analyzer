@@ -30,6 +30,9 @@ sig
   val lock: Q.ask -> (varinfo -> G.t) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
 
+  val thread_join: Q.ask -> exp -> ApronComponents (D).t -> ApronComponents (D).t
+  val thread_return: Q.ask -> (varinfo -> G.t) ->  (varinfo -> G.t -> unit) -> ApronComponents (D).t -> ApronComponents (D).t
+
   val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> ApronComponents (D).t
 
   val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> ApronComponents (D).t
@@ -53,6 +56,10 @@ struct
 
   let lock ask getg st m = st
   let unlock ask getg sideg st m = st
+
+  let thread_join ask exp st = st
+
+  let thread_return ask getg sideg st = st
 
   let sync ask getg sideg st reason = st
 
@@ -255,6 +262,9 @@ struct
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
     {oct = oct_local'; priv = (p', w')}
 
+  let thread_join ask exp st = st
+  let thread_return ask getg sideg st = st
+
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
     | `Return -> (* required for thread return *)
@@ -405,6 +415,10 @@ struct
     sideg (mutex_addr_to_varinfo m) oct_side;
     let oct_local = remove_globals_unprotected_after_unlock ask m oct in
     {st with oct = oct_local}
+
+  let thread_join ask exp st = st
+
+  let thread_return ask getg sideg st = st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
@@ -642,6 +656,21 @@ struct
       sideg (mutex_addr_to_varinfo m) sidev;
       let l' = L.add vi oct_side l in
       {oct = oct_local; priv = (w',LMust.add (mutex_addr_to_varinfo m) lmust,l')}
+
+  let thread_join (ask:Q.ask) exp (st: ApronComponents (D).t) =
+    let w,lmust,l = st.priv in
+    let tids = ask.f (Q.EvalThread exp) in
+    st
+
+  let thread_return ask getg sideg st =
+    (
+      match ThreadId.get_current ask with
+      | `Lifted tid when ThreadReturn.is_current ask ->
+        let varinfo = TID.to_varinfo tid in
+        ()
+      | _ -> ()
+    );
+    st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
