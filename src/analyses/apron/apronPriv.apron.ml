@@ -482,19 +482,32 @@ struct
   module V = ApronDomain.V
   module TID = ThreadIdDomain.Thread
 
-  let compatible current other =
+  let compatible (ask:Q.ask) current other =
     match current, other with
-    | `Lifted current, `Lifted other -> (not (TID.is_unique current)) || (not (TID.equal current other))
+    | `Lifted current, `Lifted other ->
+      let not_self_read = (not (TID.is_unique current)) || (not (TID.equal current other)) in
+      let may_be_running () =
+        if (not (TID.is_must_parent current other)) then
+          true
+        else
+          let created = ask.f Q.CreatedThreads in
+          let ident_or_may_be_created creator = TID.equal creator other || TID.may_create creator other in
+          if ConcDomain.ThreadSet.is_top created then
+            true
+          else
+            ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
+      in
+      not_self_read && (not (GobConfig.get_bool "exp.apron.priv.not-started") || (may_be_running ()))
     | _ -> true
 
   let get_relevant_writes (ask:Q.ask) m v =
     let current = ask.f Queries.CurrentThreadId in
-    let compats = List.filter (fun (k,v) -> compatible current k) (G.bindings v) in
+    let compats = List.filter (fun (k,v) -> compatible ask current k) (G.bindings v) in
     List.fold_left (fun acc (k,v) -> AD.join acc (keep_only_protected_globals ask m v)) (AD.bot ()) compats
 
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = ask.f Queries.CurrentThreadId in
-    let compats = List.filter (fun (k,v) -> compatible current k) (G.bindings v) in
+    let compats = List.filter (fun (k,v) -> compatible ask current k) (G.bindings v) in
     List.fold_left (fun acc (k,v) -> AD.join acc v) (AD.bot ()) compats
 
   let merge_all v = (* FIXME: be smart here! *)

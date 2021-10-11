@@ -6,9 +6,14 @@ int g = 10;
 int h = 10;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 
+void *t_benign(void *arg) {
+  return NULL;
+}
+
 void *t_fun(void *arg) {
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN!
+  g = 12;
+  h = 14;
   pthread_mutex_unlock(&A);
   return NULL;
 }
@@ -16,15 +21,19 @@ void *t_fun(void *arg) {
 int main(void) {
   int t;
 
-  g = 12;
-  h = 14;
+  // Force multi-threaded handling
+  pthread_t id2;
+  pthread_create(&id2, NULL, t_benign, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //FAIL
+  g = 12;
+  h = 14;
   pthread_mutex_unlock(&A);
 
-  pthread_t id;
-  pthread_create(&id, NULL, t_fun, NULL);
+  pthread_mutex_lock(&A);
+  assert(g == h); //UNKNOWN
+  // (FAIL), because initial value overwritten
+  pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
   g = t;
@@ -32,7 +41,14 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN (We want to find out how to contain initial values!)
+  assert(g == h);
+  pthread_mutex_unlock(&A);
+
+  pthread_t id;
+  pthread_create(&id, NULL, t_fun, NULL);
+
+  pthread_mutex_lock(&A);
+  assert(g == h); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   return 0;
