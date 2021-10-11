@@ -829,7 +829,9 @@ struct
 
   let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pretty x Offs.pretty offs pretty value;
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
+      let r =
       match x, offs with
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
@@ -952,6 +954,9 @@ struct
             | _ -> M.warn "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
       in mu result
+      in
+      if M.tracing then M.traceu "update_offset" "do_update_offset -> %a\n" pretty r;
+      r
     in
     let l, o = match exp with
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)
