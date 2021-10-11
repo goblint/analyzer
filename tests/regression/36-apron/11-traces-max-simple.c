@@ -1,6 +1,4 @@
 // SKIP PARAM: --set ana.activated[+] apron
-extern int __VERIFIER_nondet_int();
-
 #include <pthread.h>
 #include <assert.h>
 
@@ -16,8 +14,7 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  int x = __VERIFIER_nondet_int();
-  int y = __VERIFIER_nondet_int();
+  int x, y;
 
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);

@@ -19,7 +19,7 @@ void *t_fun(void *arg) {
 
 int main(void) {
   int r = __VERIFIER_nondet_int(); //rand
-  int t = __VERIFIER_nondet_int(); //rand
+  int t;
 
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
