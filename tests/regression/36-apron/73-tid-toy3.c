@@ -32,7 +32,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //TODO (We want to find out hwo to contain initial values!)
+  assert(g == h); //TODO (We want to find out how to contain initial values!)
   pthread_mutex_unlock(&A);
 
   return 0;
