@@ -475,6 +475,7 @@ struct
     let name () = "W"
   end
 
+  (* Map from locks to last written values thread-locally *)
   module L = MapDomain.MapBot_LiftTop(Basetype.Variables)(AD)
   module D = Lattice.Prod (W) (L)
   module G = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
@@ -692,111 +693,6 @@ struct
   let finalize () = ()
 end
 
-
-
-
-(** Write-Centered Reading. *)
-(* TODO: uncompleted, only W, P components from basePriv *)
-module WriteCenteredPriv: S =
-struct
-  open Locksets
-
-  open WriteCenteredD
-  module D = Lattice.Prod (W) (P)
-
-  module G = AD
-
-  let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
-
-  let startstate () = (W.bot (), P.top ())
-
-  let should_join _ _ = true
-
-  let lockset_init = Lockset.top ()
-
-  (* TODO: distr_init? *)
-
-  let restrict_globals oct =
-    match !MyCFG.current_node with
-    | Some node ->
-      let fd = Node.find_fundec node in
-      if M.tracing then M.trace "apronpriv" "restrict_globals %s\n" fd.svar.vname;
-      (* TODO: avoid *)
-      let vars =
-        foldGlobals !Cilfacade.current_file (fun acc global ->
-            match global with
-            | GVar (vi, _, _) ->
-              vi :: acc
-            (* TODO: what about GVarDecl? *)
-            | _ -> acc
-          ) []
-      in
-      let to_keep = List.map (fun v -> Var.of_string v.vname) vars in
-      AD.keep_vars oct to_keep
-    | None ->
-      (* TODO: when does this happen? *)
-      if M.tracing then M.trace "apronpriv" "restrict_globals -\n";
-      AD.bot ()
-
-  let read_global ask getg (st: ApronComponents (D).t) g x =
-    (* let s = current_lockset ask in *)
-    (* let (w, p) = st.priv in *)
-    (* let p_g = P.find g p in *)
-    (* TODO: implement *)
-    let oct' = AD.add_vars st.oct [Var.of_string g.vname] in
-    let oct' = A.assign_texpr Man.mgr oct' (Var.of_string x.vname) (Texpr1.var (A.env oct') (Var.of_string g.vname)) None in (* TODO: unsound *)
-    oct'
-
-  let write_global ?(invariant=false) ask getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
-    let s = current_lockset ask in
-    let (w, p) = st.priv in
-    let w' = W.add g (MinLocksets.singleton s) w in
-    let p' = P.add g (MinLocksets.singleton s) p in
-    let p' = P.map (fun s' -> MinLocksets.add s s') p' in
-    (* TODO: implement *)
-    let oct' = AD.add_vars st.oct [Var.of_string g.vname] in
-    let oct' = A.assign_texpr Man.mgr oct' (Var.of_string g.vname) (Texpr1.var (A.env oct') (Var.of_string x.vname)) None in (* TODO: unsound? *)
-    sideg (global_varinfo ()) (restrict_globals oct');
-    {oct = oct'; priv = (w', p')}
-
-  let lock ask getg (st: ApronComponents (D).t) m = st
-
-  let unlock ask getg sideg (st: ApronComponents (D).t) m =
-    let s = Lockset.remove m (current_lockset ask) in
-    let (w, p) = st.priv in
-    let p' = P.map (fun s' -> MinLocksets.add s s') p in
-    (* TODO: implement *)
-    sideg (global_varinfo ()) (restrict_globals st.oct);
-    {st with priv = (w, p')}
-
-  let sync ask getg sideg (st: ApronComponents (D).t) reason =
-    match reason with
-    | `Return -> (* required for thread return *)
-      (* TODO: implement? *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x (* when CPA.mem x st.cpa *) ->
-          st
-        | _ ->
-          st
-      end
-    | `Normal
-    | `Join (* TODO: no problem with branched thread creation here? *)
-    | `Init
-    | `Thread ->
-      st
-
-  let enter_multithreaded ask getg sideg (st: ApronComponents (D).t) =
-    (* TODO: implement *)
-    {st with oct = AD.meet st.oct (getg (global_varinfo ()))}
-
-  let threadenter ask getg (st: ApronComponents (D).t): ApronComponents (D).t =
-    {oct = getg (global_varinfo ()); priv = startstate ()}
-
-  let init () = ()
-  let finalize () = ()
-end
-
-
 module TracingPriv (Priv: S): S with module D = Priv.D =
 struct
   include Priv
@@ -914,7 +810,6 @@ let priv_module: (module S) Lazy.t =
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)
          | "mutex-meet-tid" -> (module PerMutexMeetPrivTID)
-         (* | "write" -> (module WriteCenteredPriv) *)
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
     in
