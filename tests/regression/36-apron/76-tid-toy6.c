@@ -42,8 +42,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN
-  // (FAIL), because initial value overwritten
+  assert(g == h); //FAIL
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);

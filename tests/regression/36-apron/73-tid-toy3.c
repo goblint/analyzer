@@ -27,12 +27,16 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
+  assert(g == h); //FAIL
+  pthread_mutex_unlock(&A);
+
+  pthread_mutex_lock(&A);
   g = t;
   h = t;
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN (We want to find out how to contain initial values!)
+  assert(g == h);
   pthread_mutex_unlock(&A);
 
   return 0;

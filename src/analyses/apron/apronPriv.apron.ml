@@ -565,9 +565,10 @@ struct
   let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
     let _,lmust,l = st.priv in
     let oct = st.oct in
+    let mg = mutex_global g in
     (* lock *)
-    let tmp = (get_mutex_global_g_with_mutex_inits true ask getg g) in
-    let local_m = BatOption.default (AD.bot ()) (L.find_opt (mutex_global g ) l) in
+    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem mg lmust)) ask getg g) in
+    let local_m = BatOption.default (AD.bot ()) (L.find_opt (mg) l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let tmp = AD.join local_m tmp in
     let oct = AD.meet oct tmp in
@@ -587,9 +588,10 @@ struct
 
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
     let w,lmust,l = st.priv in
+    let mg = mutex_global g in
     let oct = st.oct in
     (* lock *)
-    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits true ask getg g) in
+    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits (not (LMust.mem mg lmust)) ask getg g) in
     (* write *)
     let g_var = V.global g in
     let x_var = Var.of_string x.vname in
@@ -599,21 +601,22 @@ struct
     let oct_side = AD.keep_vars oct_local [g_var] in
     let tid = ask.f Queries.CurrentThreadId in
     let sidev = G.singleton tid oct_side in
-    sideg (mutex_global g) sidev;
-    let l' = L.add (mutex_global g) oct_side l in
+    sideg mg sidev;
+    let l' = L.add mg oct_side l in
     let oct_local' =
       if is_unprotected ask g then
         AD.remove_vars oct_local [g_var]
       else
         oct_local
     in
-    {oct = oct_local'; priv = (W.add g w,LMust.add (mutex_global g) lmust,l')}
+    {oct = oct_local'; priv = (W.add g w,LMust.add mg lmust,l')}
 
   let lock ask getg (st: ApronComponents (D).t) m =
     let oct = st.oct in
     let _,lmust,l = st.priv in
-    let get_m = get_m_with_mutex_inits true ask getg m in
-    let local_m = BatOption.default (AD.bot ()) (L.find_opt (mutex_addr_to_varinfo m) l) in
+    let m_v = (mutex_addr_to_varinfo m) in
+    let get_m = get_m_with_mutex_inits (not (LMust.mem m_v lmust)) ask getg m in
+    let local_m = BatOption.default (AD.bot ()) (L.find_opt m_v l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let local_m = keep_only_protected_globals ask m local_m in
     let r = (AD.join local_m get_m) in
