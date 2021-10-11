@@ -224,6 +224,8 @@ struct
   type t = {
     startLine:int;
     startColumn:int;
+    endColumn:int;
+    endLine:int;
   } [@@deriving  to_yojson] 
 
 
@@ -416,6 +418,8 @@ let createPhysicalLocationObject (piece:Messages.Piece.t) =
     {
       Region.startLine=line;
       Region.startColumn=column;
+      Region.endLine=line+4;
+      Region.endColumn=column+4;
     }
   in
   {
