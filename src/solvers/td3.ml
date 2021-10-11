@@ -251,6 +251,8 @@ module WP =
          *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
          *)
         print_endline "Destabilizing start functions if their start state changed...";
+        (* record whether any function's start state changed. In that case do not use reluctant destabilization *)
+        let any_changed_start_state = ref false in
         (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
         List.iter (fun (v,d) ->
           match GU.assoc_eq v data.st S.Var.equal with
@@ -260,9 +262,10 @@ module WP =
                 ()
               else (
                 ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
+                any_changed_start_state := true;
                 destabilize v
               )
-          | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
+          | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
         ) st;
 
         print_endline "Destabilizing changed functions...";
@@ -274,26 +277,34 @@ module WP =
         let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.increment.changes.changed in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
         (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
-        let obsolete = Set.union (Set.of_list (List.map (fun a -> Node.show_id (Function a))  obsolete_funs))
-                                 (Set.of_list (List.map (fun a -> Node.show_id (FunctionEntry a))  obsolete_funs)) in
+        let obsolete_ret = Set.of_list (List.map (fun f -> Node.show_id (Function f))  obsolete_funs) in
+        let obsolete_entry = Set.of_list (List.map (fun f -> Node.show_id (FunctionEntry f)) obsolete_funs) in
 
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
-        (* Actually destabilize all nodes contained in changed functions. TODO only destabilize fun_... nodes *)
-        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable; (* TODO: don't use string-based nodes *)
+        let old_ret = Hashtbl.create 103 in
+        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+          (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
+          HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
+            let old_rho = HM.find rho k in
+            let old_infl = HM.find_default infl k VS.empty in
+            Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
+        ) else (
+          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry then destabilize k) stable
+        );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         (* TODO: don't use string-based nodes, make marked_for_deletion of type unit (Hashtbl.Make (Node)).t *)
-        let add_nodes_of_fun (functions: fundec list) (nodes)=
+        let add_nodes_of_fun (functions: fundec list) (nodes) withEntry =
           let add_stmts (f: fundec) =
             List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
           in
-          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
+          List.iter (fun f -> if withEntry then Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion;
-        add_nodes_of_fun removed_funs marked_for_deletion;
+        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant.on"));
+        add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
         let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in (* TODO: don't use string-based nodes *)
@@ -302,10 +313,31 @@ module WP =
         delete_marked wpoint;
         delete_marked stable;
 
-        print_data data "Data after clean-up"
-      );
 
-      List.iter set_start st;
+        print_data data "Data after clean-up";
+
+        List.iter set_start st;
+
+        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+          (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
+          print_endline "Separately solving changed functions...";
+          let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
+          Hashtbl.iter (
+            fun x (old_rho, old_infl) ->
+              ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
+              solve x Widen;
+              if not (op (HM.find rho x) old_rho) then (
+                HM.replace infl x old_infl;
+                destabilize x;
+                HM.replace stable x ()
+              )
+          ) old_ret;
+
+          print_endline "Final solve..."
+        )
+      ) else (
+        List.iter set_start st;
+      );
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
       let i = ref 0 in
