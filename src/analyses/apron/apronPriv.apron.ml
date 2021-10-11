@@ -477,7 +477,10 @@ struct
 
   (* Map from locks to last written values thread-locally *)
   module L = MapDomain.MapBot_LiftTop(Basetype.Variables)(AD)
-  module D = Lattice.Prod (W) (L)
+
+  module LMust = struct include MustVars let name () = "LMust" end
+
+  module D = Lattice.Prod3 (W) (LMust) (L)
   module G = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
 
   module V = ApronDomain.V
@@ -532,32 +535,38 @@ struct
   let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
 
-  let startstate () = D.bot ()
+  let startstate () = W.bot (), LMust.top (), L.bot ()
 
   let should_join _ _ = true
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
 
-  let get_m_with_mutex_inits ask getg m =
+  let get_m_with_mutex_inits inits ask getg m =
     let vi = mutex_addr_to_varinfo m in
     let get_m = get_relevant_writes ask m (getg vi) in
-    let get_mutex_inits = merge_all @@ getg (mutex_inits ()) in
-    let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
-    AD.join get_m get_mutex_inits'
+    if not inits then
+      get_m
+    else
+      let get_mutex_inits = merge_all @@ getg (mutex_inits ()) in
+      let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
+      AD.join get_m get_mutex_inits'
 
-  let get_mutex_global_g_with_mutex_inits ask getg g =
+  let get_mutex_global_g_with_mutex_inits inits ask getg g =
     let vi = mutex_global g in
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ getg vi in
-    let get_mutex_inits = merge_all @@ getg (mutex_inits ()) in
-    let g_var = V.global g in
-    let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
-    AD.join get_mutex_global_g get_mutex_inits'
+    if not inits then
+      get_mutex_global_g
+    else
+      let get_mutex_inits = merge_all @@ getg (mutex_inits ()) in
+      let g_var = V.global g in
+      let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
+      AD.join get_mutex_global_g get_mutex_inits'
 
   let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
-    let _,l = st.priv in
+    let _,lmust,l = st.priv in
     let oct = st.oct in
     (* lock *)
-    let tmp = (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let tmp = (get_mutex_global_g_with_mutex_inits true ask getg g) in
     let local_m = BatOption.default (AD.bot ()) (L.find_opt (mutex_global g ) l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let tmp = AD.join local_m tmp in
@@ -577,10 +586,10 @@ struct
     oct_local'
 
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
-    let w,l = st.priv in
+    let w,lmust,l = st.priv in
     let oct = st.oct in
     (* lock *)
-    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits true ask getg g) in
     (* write *)
     let g_var = V.global g in
     let x_var = Var.of_string x.vname in
@@ -598,12 +607,12 @@ struct
       else
         oct_local
     in
-    {oct = oct_local'; priv = (W.add g w,l')}
+    {oct = oct_local'; priv = (W.add g w,LMust.add (mutex_global g) lmust,l')}
 
   let lock ask getg (st: ApronComponents (D).t) m =
     let oct = st.oct in
-    let _,l = st.priv in
-    let get_m = get_m_with_mutex_inits ask getg m in
+    let _,lmust,l = st.priv in
+    let get_m = get_m_with_mutex_inits true ask getg m in
     let local_m = BatOption.default (AD.bot ()) (L.find_opt (mutex_addr_to_varinfo m) l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let local_m = keep_only_protected_globals ask m local_m in
@@ -616,12 +625,12 @@ struct
 
   let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
     let oct = st.oct in
-    let w,l = st.priv in
+    let w,lmust,l = st.priv in
     let oct_local = remove_globals_unprotected_after_unlock ask m oct in
     let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
     let side_needed = W.exists (fun v -> is_protected_by ask m v) w in
     if not side_needed then
-      {oct = oct_local; priv = (w',l)}
+      {oct = oct_local; priv = (w',lmust,l)}
     else
       let oct_side = keep_only_protected_globals ask m oct in
       let tid = ask.f Queries.CurrentThreadId in
@@ -629,7 +638,7 @@ struct
       let vi = mutex_addr_to_varinfo m in
       sideg (mutex_addr_to_varinfo m) sidev;
       let l' = L.add vi oct_side l in
-      {oct = oct_local; priv = (w',l')}
+      {oct = oct_local; priv = (w',LMust.add (mutex_addr_to_varinfo m) lmust,l')}
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
@@ -687,7 +696,8 @@ struct
     {st with oct = oct_local}
 
   let threadenter ask getg (st: ApronComponents (D).t): ApronComponents (D).t =
-    {oct = AD.bot (); priv = startstate ()}
+    let _,lmust,l = st.priv in
+    {oct = AD.bot (); priv = (W.bot (),lmust,l)}
 
   let init () = ()
   let finalize () = ()
