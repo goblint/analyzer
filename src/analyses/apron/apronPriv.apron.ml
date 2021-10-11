@@ -495,10 +495,23 @@ struct
   module LMust = struct include MustVars let name () = "LMust" end
 
   module D = Lattice.Prod3 (W) (LMust) (L)
-  module G = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
+  module GMutex = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
+  module G = Lattice.Either(GMutex)(Lattice.Unit)
 
   module V = ApronDomain.V
   module TID = ThreadIdDomain.Thread
+
+  let sideg_mutex (sideg: varinfo -> G.t -> unit) (g:varinfo) (v:GMutex.t):unit =
+    sideg g (`Lifted (`Left v))
+
+  let getg_mutex getg g = match getg g with
+    | `Lifted (`Left v) -> v
+    | `Bot -> GMutex.bot ()
+    | _ -> failwith "wrong either argument"
+
+  let getgtids getg g = match getg with
+    | `Lifted (`Right v) -> v
+    | _ -> failwith "wrong either argument"
 
   let compatible (ask:Q.ask) current other =
     match current, other with
@@ -520,16 +533,16 @@ struct
 
   let get_relevant_writes (ask:Q.ask) m v =
     let current = ask.f Queries.CurrentThreadId in
-    let compats = List.filter (fun (k,v) -> compatible ask current k) (G.bindings v) in
+    let compats = List.filter (fun (k,v) -> compatible ask current k) (GMutex.bindings v) in
     List.fold_left (fun acc (k,v) -> AD.join acc (keep_only_protected_globals ask m v)) (AD.bot ()) compats
 
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = ask.f Queries.CurrentThreadId in
-    let compats = List.filter (fun (k,v) -> compatible ask current k) (G.bindings v) in
+    let compats = List.filter (fun (k,v) -> compatible ask current k) (GMutex.bindings v) in
     List.fold_left (fun acc (k,v) -> AD.join acc v) (AD.bot ()) compats
 
   let merge_all v = (* FIXME: be smart here! *)
-    let bs = List.map snd (G.bindings v) in
+    let bs = List.map snd (GMutex.bindings v) in
     List.fold_left AD.join (AD.bot ()) bs
 
   let remove_globals_unprotected_after_unlock ask m oct =
@@ -555,28 +568,29 @@ struct
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
 
-  let get_m_with_mutex_inits inits ask getg m =
+  let get_m_with_mutex_inits inits ask getg_mutex m =
     let vi = mutex_addr_to_varinfo m in
-    let get_m = get_relevant_writes ask m (getg vi) in
+    let get_m = get_relevant_writes ask m (getg_mutex vi) in
     if not inits then
       get_m
     else
-      let get_mutex_inits = merge_all @@ getg (mutex_inits ()) in
+      let get_mutex_inits = merge_all @@ getg_mutex (mutex_inits ()) in
       let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
       AD.join get_m get_mutex_inits'
 
-  let get_mutex_global_g_with_mutex_inits inits ask getg g =
+  let get_mutex_global_g_with_mutex_inits inits ask getg_mutex g =
     let vi = mutex_global g in
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ getg vi in
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ getg_mutex vi in
     if not inits then
       get_mutex_global_g
     else
-      let get_mutex_inits = merge_all @@ getg (mutex_inits ()) in
+      let get_mutex_inits = merge_all @@ getg_mutex (mutex_inits ()) in
       let g_var = V.global g in
       let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
       AD.join get_mutex_global_g get_mutex_inits'
 
   let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
+    let getg g = getg_mutex getg g in
     let _,lmust,l = st.priv in
     let oct = st.oct in
     let mg = mutex_global g in
@@ -601,6 +615,8 @@ struct
     oct_local'
 
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
+    let getg g = getg_mutex getg g in
+    let sideg g v = sideg_mutex sideg g v in
     let w,lmust,l = st.priv in
     let mg = mutex_global g in
     let oct = st.oct in
@@ -614,7 +630,7 @@ struct
     (* unlock *)
     let oct_side = AD.keep_vars oct_local [g_var] in
     let tid = ask.f Queries.CurrentThreadId in
-    let sidev = G.singleton tid oct_side in
+    let sidev = GMutex.singleton tid oct_side in
     sideg mg sidev;
     let l' = L.add mg oct_side l in
     let oct_local' =
@@ -626,6 +642,7 @@ struct
     {oct = oct_local'; priv = (W.add g w,LMust.add mg lmust,l')}
 
   let lock ask getg (st: ApronComponents (D).t) m =
+    let getg g = getg_mutex getg g in
     let oct = st.oct in
     let _,lmust,l = st.priv in
     let m_v = (mutex_addr_to_varinfo m) in
@@ -641,6 +658,7 @@ struct
       st
 
   let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
+    let sideg g v = sideg_mutex sideg g v in
     let oct = st.oct in
     let w,lmust,l = st.priv in
     let oct_local = remove_globals_unprotected_after_unlock ask m oct in
@@ -651,7 +669,7 @@ struct
     else
       let oct_side = keep_only_protected_globals ask m oct in
       let tid = ask.f Queries.CurrentThreadId in
-      let sidev = G.singleton tid oct_side in
+      let sidev = GMutex.singleton tid oct_side in
       let vi = mutex_addr_to_varinfo m in
       sideg (mutex_addr_to_varinfo m) sidev;
       let l' = L.add vi oct_side l in
@@ -673,6 +691,7 @@ struct
     st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
+    let sideg g v = sideg_mutex sideg g v in
     match reason with
     | `Return -> (* required for thread return *)
       (* TODO: implement? *)
@@ -695,7 +714,7 @@ struct
         in
         let oct_side = AD.keep_vars oct g_vars in
         let tid = ask.f Queries.CurrentThreadId in
-        let sidev = G.singleton tid oct_side in
+        let sidev = GMutex.singleton tid oct_side in
         sideg (mutex_inits ()) sidev;
         let oct_local = AD.remove_filter oct (fun var ->
             match V.find_metadata var with
@@ -710,6 +729,7 @@ struct
       st
 
   let enter_multithreaded (ask:Q.ask) getg sideg (st: ApronComponents (D).t): ApronComponents (D).t =
+    let sideg g v = sideg_mutex sideg g v in
     let oct = st.oct in
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
@@ -720,7 +740,7 @@ struct
     in
     let oct_side = AD.keep_vars oct g_vars in
     let tid = ask.f Queries.CurrentThreadId in
-    let sidev = G.singleton tid oct_side in
+    let sidev = GMutex.singleton tid oct_side in
     let vi = mutex_inits () in
     sideg vi sidev;
      (* FIXME: introduce into local state *)

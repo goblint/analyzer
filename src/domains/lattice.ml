@@ -407,7 +407,7 @@ end
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
 module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
 
-module EitherFail (Base1: S) (Base2: S):S =
+module EitherFail (Base1: S) (Base2: S) =
 struct
   include Printable.Either (Base1) (Base2)
 
@@ -440,7 +440,7 @@ struct
     | _ -> failwith "either incompatible operation"
 end
 
-module Either (Base1:S) (Base2:S) = Lift(EitherFail(Base1)(Base2))
+module Either (Base1:S) (Base2:S) = Lift(EitherFail(Base1)(Base2))(struct let bot_name = "bot" let top_name = "top" end)
 
 module LexProd (Base1: S) (Base2: S) =
 struct
