@@ -391,7 +391,7 @@ let trimFile (path:string) =
   let lengthRemove = (String.length (get_string "removePath"))
   in  
   if get_string "removePath" == "" then path else
-    String.sub path lengthRemove  ((String.length path)-lengthRemove) 
+  "./"^(String.sub path lengthRemove  ((String.length path)-lengthRemove) )
 
 let createArtifactLocationObject (uri:string) =
   {
