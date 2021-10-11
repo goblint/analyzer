@@ -384,7 +384,7 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
   | None -> match tags with
     | [] -> ""
     | x::xs -> match x with 
-      |Category cat-> MessageCategory.show cat
+      |Category cat-> MessageCategory.categoryName cat
       | CWE c-> "" (*this case should not be reachable *)
 
 let createArtifactLocationObject (uri:string) =
