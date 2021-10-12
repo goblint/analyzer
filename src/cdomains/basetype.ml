@@ -24,8 +24,8 @@ struct
   let is_global v = v.vglob
   let copy x = x
   let show x =
-    if PreMallocWrapperAnalysis.is_heap_var x then
-      let node = PreMallocWrapperAnalysis.get_node x in
+    if LocationBasedVars.is_heap_var x then
+      let node = LocationBasedVars.get_node x in
       let loc = UpdateCil.getLoc node in
       GU.demangle "(" ^ x.vname ^ ", " ^ CilType.Location.show loc ^ ")"
     else GU.demangle x.vname

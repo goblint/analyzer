@@ -4,16 +4,13 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
-include PreMallocWrapperAnalysis
+include LocationBasedVars
 
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = Lattice.Flat (Node) (struct
-      let top_name = "Unknown node"
-      let bot_name = "Unreachable node"
-    end)
+  module PL = LocationBasedVars.PL
 
   let name () = "mallocWrapper"
   module D = PL

@@ -218,8 +218,8 @@ struct
     | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
 
   let short_addr (x, o) =
-    if PreMallocWrapperAnalysis.is_heap_var x then
-      let node = PreMallocWrapperAnalysis.get_node x in
+    if LocationBasedVars.is_heap_var x then
+      let node = LocationBasedVars.get_node x in
       let loc = UpdateCil.getLoc node in
       GU.demangle "(" ^ x.vname ^ ", " ^ CilType.Location.show loc ^ ")"
     else GU.demangle x.vname ^ short_offs o
