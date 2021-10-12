@@ -741,7 +741,7 @@ struct
     let sidev = GMutex.singleton tid oct_side in
     let vi = mutex_inits () in
     sideg vi sidev;
-     (* FIXME: introduce into local state *)
+    (* Introduction into local state not needed, will be read via initializer *)
     let oct_local = AD.remove_vars oct g_vars in (* TODO: side effect initial values to mutex_globals? *)
     {st with oct = oct_local}
 
