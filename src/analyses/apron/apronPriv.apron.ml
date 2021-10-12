@@ -689,17 +689,20 @@ struct
 
   let thread_join (ask:Q.ask) getg exp (st: ApronComponents (D).t) =
     let w,lmust,l = st.priv in
-    (* TODO: elements might throw an exception *)
-    let tids = ConcDomain.ThreadSet.elements (ask.f (Q.EvalThread exp)) in
-    match tids with
-    | [tid] ->
-      let getg_tid = getg_tid getg in
-      let lmust',l' = getg_tid tid in
-      {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-    | _ ->
-      (* To match the paper more closely, one would have to join in the non-definite case too *)
-      (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
-      st
+    try
+      (* elements throws if the thread set is top *)
+      let tids = ConcDomain.ThreadSet.elements (ask.f (Q.EvalThread exp)) in
+      match tids with
+      | [tid] ->
+        let getg_tid = getg_tid getg in
+        let lmust',l' = getg_tid tid in
+        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+      | _ ->
+        (* To match the paper more closely, one would have to join in the non-definite case too *)
+        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+        st
+    with
+    | _ -> st
 
   let thread_return ask getg sideg (st: ApronComponents (D).t) =
     (

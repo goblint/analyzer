@@ -33,14 +33,17 @@ struct
     match LibraryFunctions.classify f.vname arglist with
     | `ThreadJoin (id, ret_var) ->
       (
-        (* TODO: elements might throw an exception *)
-        let threads = TIDs.elements (ctx.ask (Queries.EvalThread id)) in
-        match threads with
-        | [tid] when TID.is_unique tid->
-          let joined = ctx.global (TID.to_varinfo tid) in
-          D.union (D.add tid ctx.local) joined
-        | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
+        try
+          (* elements throws if the thread set is top *)
+          let threads = TIDs.elements (ctx.ask (Queries.EvalThread id)) in
+          match threads with
+          | [tid] when TID.is_unique tid->
+            let joined = ctx.global (TID.to_varinfo tid) in
+            D.union (D.add tid ctx.local) joined
+          | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
+        with
+          _ -> ctx.local
       )
     | _ -> ctx.local
 
