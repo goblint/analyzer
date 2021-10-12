@@ -149,7 +149,7 @@ rule() {
       ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
 
     ;; *)
-      echo "Unknown action '$1'. Try clean, native, debug, profile or doc.";;
+      echo "Unknown action '$1'. Try clean, native, byte, profile or doc.";;
   esac;
 }
 
