@@ -500,22 +500,6 @@ struct
   module V = ApronDomain.V
   module TID = ThreadIdDomain.Thread
 
-  let sideg_mutex (sideg: varinfo -> G.t -> unit) (g:varinfo) (v:GMutex.t):unit =
-    sideg g (`Lifted (`Left v))
-
-  let sideg_tid (sideg:varinfo -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
-    sideg (TID.to_varinfo tid) (`Lifted (`Right v))
-
-  let getg_mutex getg g = match getg g with
-    | `Lifted (`Left v) -> v
-    | `Bot -> GMutex.bot ()
-    | _ -> failwith "wrong either argument"
-
-  let getg_tid getg tid = match getg (TID.to_varinfo tid) with
-    | `Lifted (`Right v) -> v
-    | `Bot -> GThread.bot ()
-    | _ -> failwith "wrong either argument"
-
   let compatible (ask:Q.ask) current must_joined other =
     match current, other with
     | `Lifted current, `Lifted other ->
@@ -600,7 +584,6 @@ struct
       AD.join get_mutex_global_g get_mutex_inits'
 
   let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
-    let getg g = getg_mutex getg g in
     let _,lmust,l = st.priv in
     let oct = st.oct in
     let mg = mutex_global g in
@@ -625,8 +608,6 @@ struct
     oct_local'
 
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
-    let getg g = getg_mutex getg g in
-    let sideg g v = sideg_mutex sideg g v in
     let w,lmust,l = st.priv in
     let mg = mutex_global g in
     let oct = st.oct in
@@ -652,7 +633,6 @@ struct
     {oct = oct_local'; priv = (W.add g w,LMust.add mg lmust,l')}
 
   let lock ask getg (st: ApronComponents (D).t) m =
-    let getg g = getg_mutex getg g in
     let oct = st.oct in
     let _,lmust,l = st.priv in
     let m_v = (mutex_addr_to_varinfo m) in
@@ -668,7 +648,6 @@ struct
       st
 
   let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
-    let sideg g v = sideg_mutex sideg g v in
     let oct = st.oct in
     let w,lmust,l = st.priv in
     let oct_local = remove_globals_unprotected_after_unlock ask m oct in
@@ -692,8 +671,7 @@ struct
       let tids = ConcDomain.ThreadSet.elements (ask.f (Q.EvalThread exp)) in
       match tids with
       | [tid] ->
-        let getg_tid = getg_tid getg in
-        let lmust',l' = getg_tid tid in
+        let lmust',l' = getg tid in
         {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
       | _ ->
         (* To match the paper more closely, one would have to join in the non-definite case too *)
@@ -707,14 +685,12 @@ struct
       match ThreadId.get_current ask with
       | `Lifted tid when ThreadReturn.is_current ask ->
         let _,lmust,l = st.priv in
-        let sideg_tid = sideg_tid sideg in
-        sideg_tid tid (lmust,l)
+        sideg tid (lmust,l)
       | _ -> ()
     );
     st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
-    let sideg g v = sideg_mutex sideg g v in
     match reason with
     | `Return -> (* required for thread return *)
       (* TODO: implement? *)
@@ -752,7 +728,6 @@ struct
       st
 
   let enter_multithreaded (ask:Q.ask) getg sideg (st: ApronComponents (D).t): ApronComponents (D).t =
-    let sideg g v = sideg_mutex sideg g v in
     let oct = st.oct in
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
@@ -776,6 +751,40 @@ struct
 
   let init () = ()
   let finalize () = ()
+
+  (* All that follows is stupid boilerplate to give each of these functions the getg and sideg that only deals with TIDs or Mutexes *)
+
+  let sideg_mutex (sideg: varinfo -> G.t -> unit) (g:varinfo) (v:GMutex.t):unit =
+    sideg g (`Lifted (`Left v))
+
+  let sideg_tid (sideg:varinfo -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
+    sideg (TID.to_varinfo tid) (`Lifted (`Right v))
+
+  let getg_mutex getg g = match getg g with
+    | `Lifted (`Left v) -> v
+    | `Bot -> GMutex.bot ()
+    | _ -> failwith "wrong either argument"
+
+  let getg_tid getg tid = match getg (TID.to_varinfo tid) with
+    | `Lifted (`Right v) -> v
+    | `Bot -> GThread.bot ()
+    | _ -> failwith "wrong either argument"
+
+  let patch_getside_mutex fn ask getg sideg = fn ask (getg_mutex getg) (sideg_mutex sideg)
+  let patch_getside_tid fn ask getg sideg = fn ask (getg_tid getg) (sideg_tid sideg)
+
+  let patch_get_mutex fn ask getg = fn ask (getg_mutex getg)
+  let patch_get_tid fn ask getg = fn ask (getg_tid getg)
+
+  let read_global = patch_get_mutex read_global
+  let write_global ?(invariant=false) (ask:Q.ask) getg sideg = write_global ~invariant ask (getg_mutex getg) (sideg_mutex sideg)
+  let lock = patch_get_mutex lock
+  let unlock = patch_getside_mutex unlock
+  let thread_join = patch_get_tid thread_join
+  let thread_return = patch_getside_tid thread_return
+  let sync = patch_getside_mutex sync
+  let enter_multithreaded = patch_getside_mutex enter_multithreaded
+  let threadenter = patch_get_mutex threadenter
 end
 
 module TracingPriv (Priv: S): S with module D = Priv.D =
