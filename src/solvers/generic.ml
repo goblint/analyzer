@@ -20,7 +20,7 @@ module LoadRunSolver: GenericEqBoxSolver =
         let vh' = VH.create (VH.length vh) in
         VH.iter (fun x d ->
             let x' = S.Var.relift x in
-            let d' = S.Dom.join (S.Dom.bot ()) d in
+            let d' = S.Dom.relift d in
             VH.replace vh' x' d'
           ) vh;
         vh'
