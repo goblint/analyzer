@@ -388,52 +388,63 @@ let createCFG (file: file) =
           let prev = H.find_all cfgB
         end
         in
-        let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
-        NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
 
-        (* DFS over SCCs starting from FunctionEntry SCC *)
-        let module SH = Hashtbl.Make (SCC) in
-        let visited_scc = SH.create 13 in
-        let rec iter_scc scc =
-          if not (SH.mem visited_scc scc) then (
-            SH.replace visited_scc scc ();
-            if NH.is_empty scc.next then (
-              if not (NH.mem scc.nodes (Function fd)) then (
-                (* scc has no successors but also doesn't contain return node, requires additional connections *)
-                (* find connection candidates from loops *)
-                let targets =
-                  NH.keys scc.nodes
-                  |> BatEnum.concat_map (fun fromNode ->
-                      NH.find_all loop_head_neg1 fromNode
-                      |> BatList.enum
-                      |> BatEnum.filter (fun toNode ->
-                          not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
-                        )
-                      |> BatEnum.map (fun toNode ->
-                          (fromNode, toNode)
-                        )
-                    )
-                  |> BatList.of_enum
-                in
-                let targets = match targets with
-                  | [] -> [(NH.keys scc.nodes |> BatEnum.get_exn, Lazy.force pseudo_return)] (* default to pseudo return if no suitable candidates *)
-                  | targets -> targets
-                in
-                List.iter (fun (fromNode, toNode) ->
-                    addEdge_fromLoc fromNode (Test (one, false)) toNode;
-                    match NH.find_option node_scc toNode with
-                    | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
-                    | None -> () (* pseudo return, wasn't in scc, but is fine *)
-                  ) targets
+        let rec iter_connect () =
+          let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
+
+          let added_connect = ref false in
+
+          (* DFS over SCCs starting from FunctionEntry SCC *)
+          let module SH = Hashtbl.Make (SCC) in
+          let visited_scc = SH.create 13 in
+          let rec iter_scc scc =
+            if not (SH.mem visited_scc scc) then (
+              SH.replace visited_scc scc ();
+              if NH.is_empty scc.next then (
+                if not (NH.mem scc.nodes (Function fd)) then (
+                  (* scc has no successors but also doesn't contain return node, requires additional connections *)
+                  (* find connection candidates from loops *)
+                  let targets =
+                    NH.keys scc.nodes
+                    |> BatEnum.concat_map (fun fromNode ->
+                        NH.find_all loop_head_neg1 fromNode
+                        |> BatList.enum
+                        |> BatEnum.filter (fun toNode ->
+                            not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
+                          )
+                        |> BatEnum.map (fun toNode ->
+                            (fromNode, toNode)
+                          )
+                      )
+                    |> BatList.of_enum
+                  in
+                  let targets = match targets with
+                    | [] -> [(NH.keys scc.nodes |> BatEnum.get_exn, Lazy.force pseudo_return)] (* default to pseudo return if no suitable candidates *)
+                    | targets -> targets
+                  in
+                  List.iter (fun (fromNode, toNode) ->
+                      addEdge_fromLoc fromNode (Test (one, false)) toNode;
+                      added_connect := true;
+                      match NH.find_option node_scc toNode with
+                      | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
+                      | None -> () (* pseudo return, wasn't in scc, but is fine *)
+                    ) targets
+                )
               )
+              else
+                NH.iter (fun _ (_, toNode) ->
+                    iter_scc (NH.find node_scc toNode)
+                  ) scc.next
             )
-            else
-              NH.iter (fun _ (_, toNode) ->
-                  iter_scc (NH.find node_scc toNode)
-                ) scc.next
-          )
+          in
+          iter_scc (NH.find node_scc (FunctionEntry fd));
+
+          if !added_connect then
+            iter_connect () (* added connect edge might have made a cycle of SCCs, have to recompute SCCs to see if it needs connecting *)
+          else
+            NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
         in
-        iter_scc (NH.find node_scc (FunctionEntry fd));
+        iter_connect ();
 
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
