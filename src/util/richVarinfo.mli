@@ -5,7 +5,14 @@ val single: name:string -> (unit -> varinfo)
 module type S =
 sig
   type t
-  val map: name:(t -> string) -> ?size:int -> (t -> varinfo)
+  type marshal
+  module type VarinfoMap =
+  sig
+    val to_varinfo : t -> varinfo
+    val from_varinfo: varinfo -> t option
+    val marshal: marshal
+  end
+  val map: ?marshal:(marshal option) -> ?size:int -> name:(t -> string) -> (module VarinfoMap)
 end
 
 module Make:

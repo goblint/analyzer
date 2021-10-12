@@ -55,9 +55,11 @@ struct
   let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t = (v, Some l)
 
-  let to_varinfo: t -> varinfo =
-    let module RichVarinfoM = RichVarinfo.Make (M) in
-    RichVarinfoM.map ~name:show ~size:113
+  module VarinfoMapBuilder = RichVarinfo.Make (M)
+  module RichVarinfoM = (val VarinfoMapBuilder.map ~marshal:None ~name:show ~size:113 : VarinfoMapBuilder.VarinfoMap)
+
+  let to_varinfo =
+    RichVarinfoM.to_varinfo
 
   let is_main = function
     | ({vname = "main"; _}, None) -> true
@@ -144,9 +146,10 @@ struct
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs
 
+  module VarinfoBuilder = RichVarinfo.Make (M)
+  module VarinfoMap = (val VarinfoBuilder.map ~marshal:None ~name:show ~size:113: VarinfoBuilder.VarinfoMap)
   let to_varinfo: t -> varinfo =
-    let module RichVarinfoM = RichVarinfo.Make (M) in
-    RichVarinfoM.map ~name:show ~size:113
+    VarinfoMap.to_varinfo
 
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
