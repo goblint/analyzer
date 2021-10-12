@@ -30,7 +30,7 @@ sig
   val lock: Q.ask -> (varinfo -> G.t) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
 
-  val thread_join: Q.ask -> exp -> ApronComponents (D).t -> ApronComponents (D).t
+  val thread_join: Q.ask -> (varinfo -> G.t) -> exp -> ApronComponents (D).t -> ApronComponents (D).t
   val thread_return: Q.ask -> (varinfo -> G.t) ->  (varinfo -> G.t -> unit) -> ApronComponents (D).t -> ApronComponents (D).t
 
   val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> ApronComponents (D).t
@@ -57,7 +57,7 @@ struct
   let lock ask getg st m = st
   let unlock ask getg sideg st m = st
 
-  let thread_join ask exp st = st
+  let thread_join ask getg exp st = st
 
   let thread_return ask getg sideg st = st
 
@@ -262,7 +262,7 @@ struct
     let oct_local' = AD.meet oct_local (getg (global_varinfo ())) in
     {oct = oct_local'; priv = (p', w')}
 
-  let thread_join ask exp st = st
+  let thread_join ask getg exp st = st
   let thread_return ask getg sideg st = st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
@@ -416,7 +416,7 @@ struct
     let oct_local = remove_globals_unprotected_after_unlock ask m oct in
     {st with oct = oct_local}
 
-  let thread_join ask exp st = st
+  let thread_join ask getg exp st = st
 
   let thread_return ask getg sideg st = st
 
@@ -496,7 +496,8 @@ struct
 
   module D = Lattice.Prod3 (W) (LMust) (L)
   module GMutex = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
-  module G = Lattice.Either(GMutex)(Lattice.Unit)
+  module GThread = Lattice.Prod (LMust) (L)
+  module G = Lattice.Either(GMutex)(GThread)
 
   module V = ApronDomain.V
   module TID = ThreadIdDomain.Thread
@@ -504,16 +505,20 @@ struct
   let sideg_mutex (sideg: varinfo -> G.t -> unit) (g:varinfo) (v:GMutex.t):unit =
     sideg g (`Lifted (`Left v))
 
+  let sideg_tid (sideg:varinfo -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
+    sideg (TID.to_varinfo tid) (`Lifted (`Right v))
+
   let getg_mutex getg g = match getg g with
     | `Lifted (`Left v) -> v
     | `Bot -> GMutex.bot ()
     | _ -> failwith "wrong either argument"
 
-  let getgtids getg g = match getg with
+  let getg_tid getg tid = match getg (TID.to_varinfo tid) with
     | `Lifted (`Right v) -> v
+    | `Bot -> GThread.bot ()
     | _ -> failwith "wrong either argument"
 
-  let compatible (ask:Q.ask) current other =
+  let compatible (ask:Q.ask) current must_joined other =
     match current, other with
     | `Lifted current, `Lifted other ->
       let not_self_read = (not (TID.is_unique current)) || (not (TID.equal current other)) in
@@ -528,17 +533,24 @@ struct
           else
             ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
       in
-      not_self_read && (not (GobConfig.get_bool "exp.apron.priv.not-started") || (may_be_running ()))
+      let may_not_be_joined () =
+        try
+          not @@ List.mem other (ConcDomain.ThreadSet.elements must_joined)
+        with _ -> true
+      in
+      not_self_read && (not (GobConfig.get_bool "exp.apron.priv.not-started") || (may_be_running ())) && (not (GobConfig.get_bool "exp.apron.priv.must-joined") || (may_not_be_joined ()))
     | _ -> true
 
   let get_relevant_writes (ask:Q.ask) m v =
     let current = ask.f Queries.CurrentThreadId in
-    let compats = List.filter (fun (k,v) -> compatible ask current k) (GMutex.bindings v) in
+    let must_joined = ask.f Queries.MustJoinedThreads in
+    let compats = List.filter (fun (k,v) -> compatible ask current must_joined k) (GMutex.bindings v) in
     List.fold_left (fun acc (k,v) -> AD.join acc (keep_only_protected_globals ask m v)) (AD.bot ()) compats
 
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = ask.f Queries.CurrentThreadId in
-    let compats = List.filter (fun (k,v) -> compatible ask current k) (GMutex.bindings v) in
+    let must_joined = ask.f Queries.MustJoinedThreads in
+    let compats = List.filter (fun (k,v) -> compatible ask current must_joined k) (GMutex.bindings v) in
     List.fold_left (fun acc (k,v) -> AD.join acc v) (AD.bot ()) compats
 
   let merge_all v = (* FIXME: be smart here! *)
@@ -675,17 +687,27 @@ struct
       let l' = L.add vi oct_side l in
       {oct = oct_local; priv = (w',LMust.add (mutex_addr_to_varinfo m) lmust,l')}
 
-  let thread_join (ask:Q.ask) exp (st: ApronComponents (D).t) =
+  let thread_join (ask:Q.ask) getg exp (st: ApronComponents (D).t) =
     let w,lmust,l = st.priv in
-    let tids = ask.f (Q.EvalThread exp) in
-    st
+    (* TODO: elements might throw an exception *)
+    let tids = ConcDomain.ThreadSet.elements (ask.f (Q.EvalThread exp)) in
+    match tids with
+    | [tid] ->
+      let getg_tid = getg_tid getg in
+      let lmust',l' = getg_tid tid in
+      {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+    | _ ->
+      (* To match the paper more closely, one would have to join in the non-definite case too *)
+      (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+      st
 
-  let thread_return ask getg sideg st =
+  let thread_return ask getg sideg (st: ApronComponents (D).t) =
     (
       match ThreadId.get_current ask with
       | `Lifted tid when ThreadReturn.is_current ask ->
-        let varinfo = TID.to_varinfo tid in
-        ()
+        let _,lmust,l = st.priv in
+        let sideg_tid = sideg_tid sideg in
+        sideg_tid tid (lmust,l)
       | _ -> ()
     );
     st

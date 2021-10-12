@@ -33,6 +33,7 @@ struct
     match LibraryFunctions.classify f.vname arglist with
     | `ThreadJoin (id, ret_var) ->
       (
+        (* TODO: elements might throw an exception *)
         let threads = TIDs.elements (ctx.ask (Queries.EvalThread id)) in
         match threads with
         | [tid] when TID.is_unique tid->

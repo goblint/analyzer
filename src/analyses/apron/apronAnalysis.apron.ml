@@ -301,7 +301,7 @@ struct
     | `ThreadJoin (id,retvar) ->
       (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
       (
-        let st' = Priv.thread_join ask id st in
+        let st' = Priv.thread_join ask ctx.global id st in
         match r with
         | Some lv -> invalidate_one st' lv
         | None -> st'

@@ -176,6 +176,7 @@ let _ = ()
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
       ; reg Experimental "exp.apron.privatization" "'mutex-meet-tid'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
       ; reg Experimental "exp.apron.priv.not-started" "true" "Exclude writes from threads that may not be started yet"
+      ; reg Experimental "exp.apron.priv.must-joined" "true" "Exclude writes from threads that must have been joined"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
