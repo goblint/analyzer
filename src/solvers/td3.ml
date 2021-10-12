@@ -89,7 +89,7 @@ module WP =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
-      let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
+      let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
       let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
