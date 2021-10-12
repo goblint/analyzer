@@ -667,6 +667,7 @@ struct
       `Array (CArrays.set ask n (array_idx_top) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
+    |                 _ , `Thread _     -> state (* TODO: no top thread ID set! *)
     |                 t , _             -> top_value t
 
 
