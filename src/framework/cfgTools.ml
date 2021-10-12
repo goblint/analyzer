@@ -148,6 +148,14 @@ let get_pseudo_return_id fd =
 
 let node_scc_global = NH.create 113
 
+exception Not_connect of fundec
+
+let () = Printexc.register_printer (function
+    | Not_connect fd ->
+      Some (Printf.sprintf "CfgTools.Not_connect(%s)" (CilType.Fundec.show fd))
+    | _ -> None (* for other exceptions *)
+  )
+
 let createCFG (file: file) =
   let cfgF = H.create 113 in
   let cfgB = H.create 113 in
@@ -450,7 +458,7 @@ let createCFG (file: file) =
         let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
-          failwith ("MyCFG.createCFG: FunctionEntry not connected to Function (return) in " ^ fd.svar.vname)
+          raise (Not_connect fd)
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
