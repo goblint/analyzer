@@ -1429,7 +1429,7 @@ struct
 
   let read_global ask getg st x =
     let v = Priv.read_global ask getg st x in
-    if !GU.in_verifying_stage && !is_dumping then
+    if !GU.postsolving && !is_dumping then
       LVH.modify_def (VD.bot ()) (!Tracing.current_loc, x) (VD.join v) lvh;
     v
 

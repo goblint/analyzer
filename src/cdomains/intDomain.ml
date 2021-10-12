@@ -530,7 +530,7 @@ struct
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
   let set_overflow_flag ik =
-    if Cil.isSigned ik && !GU.in_verifying_stage then (
+    if Cil.isSigned ik && !GU.postsolving then (
       Goblintutil.did_overflow := true;
       M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "Integer overflow"
     )

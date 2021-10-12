@@ -17,8 +17,9 @@ open CompareAST
 open Cil
 
 module WP =
+  functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
@@ -33,6 +34,8 @@ module WP =
       mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
       mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
     }
+
+    type marshal = solver_data
 
     let create_empty_data () = {
       st = [];
@@ -395,7 +398,7 @@ module WP =
         add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in (* TODO: don't use string-based nodes *)
+        let delete_marked s = HM.filteri_inplace (fun k _ -> not (Hashtbl.mem  marked_for_deletion (S.Var.var_id k))) s in (* TODO: don't use string-based nodes *)
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
@@ -497,35 +500,13 @@ module WP =
             if tracing then trace "sol2" "restored var %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d
           in
           List.iter get vs;
-          HM.iter (fun x v -> if not (HM.mem visited x) then HM.remove rho x) rho
+          HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Stats.time "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
-
-      (* reachability also populates side_dep and side_infl *)
-      let reachability xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then (
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some f -> one_constraint x f
-          )
-        and one_side x y _ =
-          one_var y;
-          HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
-          HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
-        and one_constraint x f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> ignore @@ Pretty.printf "reachability: one_constraint: could not find variable %a\n" S.Var.pretty_trace x; S.Dom.bot ()) (one_side x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
-      in
-      reachability vs;
 
       stop_event ();
       print_data data "Data after solve completed";
@@ -535,6 +516,28 @@ module WP =
         HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
         print_newline ();
       );
+
+      (* postsolver also populates side_dep and side_infl *)
+      let module SideInfl: PostSolver.S with module S = S and module VH = HM =
+      struct
+        include PostSolver.Unit (S) (HM)
+
+        let one_side ~vh ~x ~y ~d =
+          HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
+          HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
+      end
+      in
+      let module MakeListArg =
+      struct
+        include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
+
+        let postsolvers = (module SideInfl: M) :: postsolvers
+      end
+      in
+
+      let module Post = PostSolver.MakeList (MakeListArg) in
+
+      Post.post st vs rho;
 
       {st; infl; sides; rho; wpoint; stable; side_dep; side_infl}
 
@@ -562,25 +565,29 @@ module WP =
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
+          let rho' = HM.create (HM.length data.rho) in
           HM.iter (fun k v ->
-            HM.remove data.rho k; (* remove old values *)
             (* call hashcons on contexts and abstract values; results in new tags *)
             let k' = S.Var.relift k in
             let v' = S.Dom.relift v in
-            HM.replace data.rho k' v';
+            HM.replace rho' k' v';
           ) data.rho;
+          data.rho <- rho';
+          let stable' = HM.create (HM.length data.stable) in
           HM.iter (fun k v ->
-            HM.remove data.stable k;
-            HM.replace data.stable (S.Var.relift k) v
+            HM.replace stable' (S.Var.relift k) v
           ) data.stable;
+          data.stable <- stable';
+          let wpoint' = HM.create (HM.length data.wpoint) in
           HM.iter (fun k v ->
-            HM.remove data.wpoint k;
-            HM.replace data.wpoint (S.Var.relift k) v
+            HM.replace wpoint' (S.Var.relift k) v
           ) data.wpoint;
+          data.wpoint <- wpoint';
+          let infl' = HM.create (HM.length data.infl) in
           HM.iter (fun k v ->
-            HM.remove data.infl k;
-            HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
+            HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
           ) data.infl;
+          data.infl <- infl';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
         );
         if not reuse_stable then (
@@ -590,15 +597,14 @@ module WP =
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
         let result = solve box st vs data in
-        result.rho, Obj.repr result
+        result.rho, result
       )
       else (
         let data = create_empty_data () in
         let result = solve box st vs data in
-        result.rho, Obj.repr result
+        result.rho, result
       )
   end
 
 let _ =
-  let module WP = GlobSolverFromEqSolver (WP) in
-  Selector.add_solver ("td3", (module WP : GenericGlobSolver));
+  Selector.add_solver ("td3", (module WP : GenericEqBoxIncrSolver));

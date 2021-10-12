@@ -42,9 +42,18 @@ struct
   module GHT   = BatHashtbl.Make (EQSys.GVar)
 
   (* The solver *)
-  module Slvr  = Selector.Make (EQSys) (LHT) (GHT)
-  (* The verifyer *)
-  module Vrfyr = Verify2 (EQSys) (LHT) (GHT)
+  module PostSolverArg =
+  struct
+    let should_prune = true
+    let should_verify = get_bool "verify"
+    let should_warn = get_string "warn_at" <> "never"
+    let should_save_run =
+      (* copied from solve_and_postprocess *)
+      let gobview = get_bool "gobview" in
+      let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+      save_run <> ""
+  end
+  module Slvr  = (GlobSolverFromEqSolver (Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
   module Comp = Compare (Spec) (EQSys) (LHT) (GHT)
 
@@ -395,22 +404,21 @@ struct
       let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
       let lh, gh = if load_run <> "" then (
-          let solver = Filename.concat load_run solver_file in
-          if get_bool "dbg.verbose" then
-            print_endline ("Loading the solver result of a saved run from " ^ solver);
-          let lh,gh = Serialize.unmarshal solver in
-          if get_bool "ana.opt.hashcons" then (
-            let lh' = LHT.create (LHT.length lh) in
-            let gh' = GHT.create (GHT.length gh) in
-            LHT.iter (fun k v -> let k' = EQSys.LVar.relift k in let v' = EQSys.D.join (EQSys.D.bot ()) v in LHT.replace lh' k' v') lh;
-            GHT.iter (fun k v -> let k' = EQSys.GVar.relift k in let v' = EQSys.G.join (EQSys.G.bot ()) v in GHT.replace gh' k' v') gh;
-            lh', gh'
-          ) else lh,gh
+          let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
+          let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
+          r2
         ) else if compare_runs <> [] then (
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
             if d1 = d2 then print_endline "Beware that you are comparing a run with itself! There should be no differences.";
-            let r1, r2 = Tuple2.mapn (fun d -> Serialize.unmarshal (d ^ Filename.dir_sep ^ solver_file)) (d1, d2) in
+            let r1, r2 = Tuple2.mapn (fun d ->
+                let vh = Serialize.unmarshal (d ^ Filename.dir_sep ^ solver_file) in
+                (* TODO: no need to relift here? *)
+                (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
+                let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
+                Splitter.split_solution vh
+              ) (d1, d2)
+            in
             Comp.compare (d1, d2) r1 r2;
             r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
           | _ -> failwith "Currently only two runs can be compared!";
@@ -422,7 +430,6 @@ struct
           if GobConfig.get_bool "incremental.save" then
             Serialize.store_data solver_data Serialize.SolverData;
           if save_run <> "" then (
-            let solver = Filename.concat save_run solver_file in
             let analyses = Filename.concat save_run "analyses.marshalled" in
             let config = Filename.concat save_run "config.json" in
             let meta = Filename.concat save_run "meta.json" in
@@ -431,10 +438,9 @@ struct
             let warnings = Filename.concat save_run "warnings.marshalled" in
             let stats = Filename.concat save_run "stats.marshalled" in
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the solver result to " ^ solver ^ ", the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
+              print_endline ("Saving the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
             ignore @@ GU.create_dir (save_run); (* ensure the directory exists *)
-            Serialize.marshal (lh, gh) solver;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
@@ -459,26 +465,26 @@ struct
       in
 
       if get_string "comparesolver" <> "" then (
-        let compare_with (module S2 : GenericGlobSolver) =
-          let module S2' = S2 (EQSys) (LHT) (GHT) in
+        let compare_with (module S2 : GenericEqBoxIncrSolver) =
+          let module PostSolverArg2 =
+          struct
+            include PostSolverArg
+            let should_warn = false (* we already warn from main solver *)
+            let should_save_run = false (* we already save main solver *)
+          end
+          in
+          let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
-        compare_with (Slvr.choose_solver (get_string "comparesolver"))
+        compare_with (Selector.choose_solver (get_string "comparesolver"))
       );
 
-      if (get_bool "verify" || get_string "warn_at" <> "never") && compare_runs = [] then (
-        if (get_bool "verify" && get_bool "dbg.verbose") then print_endline "Verifying the result.";
-        Goblintutil.should_warn := get_string "warn_at" <> "never";
-        Stats.time "verify" (Vrfyr.verify lh) gh;
-        if GobConfig.get_bool "incremental.save" then
-          Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
-      );
+      (* Most warnings happen before durin postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
+      Goblintutil.should_warn := PostSolverArg.should_warn;
 
-      if get_bool "ana.sv-comp.enabled" then (
-        (* prune already here so local_xml and thus HTML are also pruned *)
-        let module Reach = Reachability (EQSys) (LHT) (GHT) in
-        Stats.time "reachability" (Reach.prune lh gh) startvars'
+      if GobConfig.get_bool "incremental.save" then (
+        Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
       );
 
       let insrt k _ s = match k with
