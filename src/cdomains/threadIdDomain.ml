@@ -9,6 +9,12 @@ sig
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
   val is_unique: t -> bool
+
+  (** Overapproximates whether the first TID can be involved in the creation fo the second TID*)
+  val may_create: t -> t -> bool
+
+  (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
+  val is_must_parent: t -> t -> bool
 end
 
 module type Stateless =
@@ -58,6 +64,8 @@ struct
     | _ -> false
 
   let is_unique _ = false (* TODO: should this consider main unique? *)
+  let may_create _ _ = true
+  let is_must_parent _ _ = false
 end
 
 
@@ -95,6 +103,16 @@ struct
 
   let is_unique (_, s) =
     S.is_empty s
+
+  let is_must_parent (p,s) (p',s') =
+    if not (S.is_empty s) then
+      false
+    else
+      let cdef_ancestor = P.common_suffix p p' in
+      P.equal p cdef_ancestor
+
+  let may_create (p,s) (p',s') =
+    S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
 
   let compose ((p, s) as current) n =
     if BatList.mem_cmp Base.compare n p then (
