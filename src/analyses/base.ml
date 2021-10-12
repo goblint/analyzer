@@ -1761,7 +1761,7 @@ struct
       (* to suppress pattern matching warnings: *)
       let fromJust x = match x with Some x -> x | None -> assert false in
       let v = fromJust (ID.to_bool value) in
-      if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin
+      if !GU.postsolving && get_bool "dbg.print_dead_code" then begin
         if v=tv then
           Locmap.replace (dead_branches tv) !Tracing.next_loc false
         else
@@ -1775,13 +1775,13 @@ struct
     | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
       if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
-      if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin
+      if !GU.postsolving && get_bool "dbg.print_dead_code" then begin
         locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv)
       end;
       raise Deadcode
     (* Otherwise we try to impose an invariant: *)
     | _ ->
-      if !GU.in_verifying_stage then
+      if !GU.postsolving then
         Locmap.replace (dead_branches tv) !Tracing.next_loc false;
       refine ()
 

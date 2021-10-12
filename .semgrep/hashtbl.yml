@@ -1,0 +1,15 @@
+rules:
+  - id: hashtbl-iter-modify
+    patterns:
+      - pattern-either:
+        - pattern: $HM.clear $H
+        - pattern: $HM.reset $H
+        - pattern: $HM.add $H $K $V
+        - pattern: $HM.remove $H $K
+        - pattern: $HM.replace $H $K $V
+      - pattern-either:
+        - pattern-inside: $HM.iter ... $H
+        - pattern-inside: $HM.fold ... $H
+    message: modifying Hashtbl during iteration is undefined behavior
+    languages: [ocaml]
+    severity: ERROR
