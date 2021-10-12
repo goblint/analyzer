@@ -416,7 +416,6 @@ struct
     {st with oct = oct_local}
 
   let thread_join ask getg exp st = st
-
   let thread_return ask getg sideg st = st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
