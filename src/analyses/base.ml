@@ -936,7 +936,9 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.EvalThread e -> begin
-      match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+      let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+      (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
+      match v with
         | `Thread a -> a
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q

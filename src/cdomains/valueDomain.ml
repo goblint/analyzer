@@ -353,7 +353,11 @@ struct
   *)
   let cast ?torg t v =
     (*if v = `Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
-    if v = `Bot then v else
+    match v with
+    | `Bot
+    | `Thread _ ->
+      v
+    | _ ->
       let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
       let t = unrollType t in
       let v' = match t with
