@@ -536,7 +536,7 @@ struct
     let compats = List.filter (fun (k,v) -> compatible ask current must_joined k) (GMutex.bindings v) in
     List.fold_left (fun acc (k,v) -> AD.join acc v) (AD.bot ()) compats
 
-  let merge_all v = (* FIXME: be smart here! *)
+  let merge_all v =
     let bs = List.map snd (GMutex.bindings v) in
     List.fold_left AD.join (AD.bot ()) bs
 
