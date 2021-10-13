@@ -32,8 +32,6 @@ struct
   (** We do not add global state, so just lift from [BS]*)
   module G = Lattice.Unit (* TODO: access table *)
 
-  (* TODO: unused *)
-  let arinc_analysis_activated = ref false
 
   let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
@@ -104,9 +102,6 @@ struct
   let startstate v = ()
   let threadenter ctx lval f args = [()]
   let exitstate  v = ()
-
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
-    Queries.Result.top q
 
 
   (** Transfer functions: *)
@@ -194,10 +189,6 @@ struct
     | Some lval -> access_one_top ~force:true ctx true false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
     end;
     ctx.local
-
-  let init marshal =
-    init marshal;
-    arinc_analysis_activated := List.mem "arinc" (get_string_list "ana.activated")
 
 end
 
