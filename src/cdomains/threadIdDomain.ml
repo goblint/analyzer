@@ -46,7 +46,7 @@ struct
   include M
 
   let show = function
-    | (f, Some l) -> f.vname ^ "@" ^ Node.show l
+    | (f, Some n) -> f.vname ^ "@" ^ Node.show n
     | (f, None) -> f.vname
 
   include Printable.PrintSimple (
@@ -59,8 +59,13 @@ struct
   let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t = (v, Some l)
 
+  let describe_varinfo _ = function
+    | (_, Some n) -> CilType.Location.show (Node.location n)
+    | (_, None) -> ""
+
   module VarinfoMapBuilder = RichVarinfo.Make (M)
-  module VarinfoMap = (val VarinfoMapBuilder.map ~name:show ())
+  module VarinfoMap = (val VarinfoMapBuilder.map ~describe_varinfo ~name:show ())
+
   let to_varinfo =
     VarinfoMap.to_varinfo
   type marshal = VarinfoMap.marshal
