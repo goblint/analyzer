@@ -580,6 +580,7 @@ struct
     | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
+    | (`Address x, `Thread y) -> true
     | _ -> warn_type "leq" x y; false
 
   let rec meet x y =
@@ -632,6 +633,9 @@ struct
     | (`Int x, `Thread y)
     | (`Thread y, `Int x) ->
       `Thread y (* TODO: ignores int! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Thread y (* TODO: ignores address! *)
     | _ ->
       warn_type "widen" x y;
       `Top
