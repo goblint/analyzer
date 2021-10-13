@@ -362,4 +362,4 @@ end
 module Spec = MakeSpec (WriteBased)
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["access"] (module Spec : MCPSpec)
