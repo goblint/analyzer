@@ -94,6 +94,7 @@ type _ t =
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
+  | WarnGlobal: CilType.Varinfo.t -> Unit.t t
 
 type 'a result = 'a
 
@@ -143,6 +144,7 @@ struct
     | PartAccess _ -> (module PartAccessResult)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
+    | WarnGlobal _ -> (module Unit)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -191,6 +193,7 @@ struct
     | PartAccess _ -> PartAccessResult.top ()
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
+    | WarnGlobal _ -> Unit.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -237,6 +240,7 @@ struct
       | Any (IsHeapVar _) -> 30
       | Any (IsMultiple _) -> 31
       | Any (EvalThread _) -> 32
+      | Any (WarnGlobal _) -> 33
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -271,6 +275,7 @@ struct
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
+      | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> CilType.Varinfo.compare vi1 vi2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end

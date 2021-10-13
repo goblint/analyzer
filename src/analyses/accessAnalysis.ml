@@ -189,6 +189,11 @@ struct
     end;
     ctx.local
 
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal g ->
+      ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g)
+    | _ -> Queries.Result.top q
 end
 
 let _ =
