@@ -455,6 +455,7 @@ struct
     | (`Blob x, `Blob y) -> Blobs.leq x y
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
+    | (`Address x, `Thread y) -> true
     | _ -> warn_type "leq" x y; false
 
   let rec join x y =
@@ -483,6 +484,9 @@ struct
     | (`Int x, `Thread y)
     | (`Thread y, `Int x) ->
       `Thread y (* TODO: ignores int! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Thread y (* TODO: ignores address! *)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -515,6 +519,9 @@ struct
     | (`Int x, `Thread y)
     | (`Thread y, `Int x) ->
       `Thread y (* TODO: ignores int! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Thread y (* TODO: ignores address! *)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -544,6 +551,9 @@ struct
     | (`Int x, `Thread y)
     | (`Thread y, `Int x) ->
       `Thread y (* TODO: ignores int! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Thread y (* TODO: ignores address! *)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -591,6 +601,9 @@ struct
     | (`Int x, `Thread y)
     | (`Thread y, `Int x) ->
       `Int x (* TODO: ignores thread! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Address x (* TODO: ignores thread! *)
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -638,6 +651,9 @@ struct
     | (`Int x, `Thread y)
     | (`Thread y, `Int x) ->
       `Int x (* TODO: ignores thread! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Address x (* TODO: ignores thread! *)
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | _ ->
