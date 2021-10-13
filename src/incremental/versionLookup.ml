@@ -7,7 +7,7 @@ type max_ids = {
 }
 
 let updateMap (oldFile: Cil.file) (newFile: Cil.file) (ht: (global_identifier, Cil.global) Hashtbl.t) =
-  let changes = compareCilFiles oldFile newFile in
+  let changes = Stats.time "compareCilFiles" (fun () -> compareCilFiles oldFile newFile) () in
   (* TODO: For updateCIL, we have to show whether the new data is from an changed or added functiong  *)
   List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) glob) (List.map (fun a -> a.current) changes.changed);
   List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) glob) changes.added;

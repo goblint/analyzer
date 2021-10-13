@@ -713,7 +713,7 @@ module MapOctagon : S
   let join a b = join a b                       (* a strong closure is useless here if the arguments are strongly closed *)
 
   let leq a b =
-    if !Goblintutil.in_verifying_stage then
+    if !Goblintutil.postsolving then
       leq a b || leq (strong_closure a) b
     else
       leq a b

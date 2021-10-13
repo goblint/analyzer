@@ -17,9 +17,12 @@ open CompareAST
 open Cil
 
 module WP =
+  functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg))
+
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
@@ -31,6 +34,8 @@ module WP =
       mutable wpoint: unit HM.t;
       mutable stable: unit HM.t
     }
+
+    type marshal = solver_data
 
     let create_empty_data () = {
       st = [];
@@ -89,7 +94,7 @@ module WP =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
-      let add_sides y x = HM.replace sides y (VS.add x (try HM.find infl y with Not_found -> VS.empty)) in
+      let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
       let rec destabilize x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
@@ -130,21 +135,26 @@ module WP =
             else
               box x old tmp
           in
+          if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
+          if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
           if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
             update_var_event x old tmp;
-            if tracing then trace "sol" "New Value:%a\n\n" S.Dom.pretty tmp;
             HM.replace rho x tmp;
             destabilize x;
             (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then (
+            if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
             (solve[@tailcall]) x Widen;
-          ) else if term && phase = Widen then (
+          ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
+            if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
             HM.remove stable x;
             (solve[@tailcall]) x Narrow;
-          ) else if not space && (not term || phase = Narrow) then (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+          ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
+            if tracing then trace "sol2" "solve removing wpoint %a\n" S.Var.pretty_trace x;
             HM.remove wpoint x;
+          )
         )
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
@@ -246,6 +256,8 @@ module WP =
          *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
         *)
         print_endline "Destabilizing start functions if their start state changed...";
+        (* record whether any function's start state changed. In that case do not use reluctant destabilization *)
+        let any_changed_start_state = ref false in
         (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
         List.iter (fun (v,d) ->
             match GU.assoc_eq v data.st S.Var.equal with
@@ -255,9 +267,10 @@ module WP =
                 ()
               else (
                 ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
+                any_changed_start_state := true;
                 destabilize v
               )
-            | None -> ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
+            | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
           ) st;
 
         print_endline "Destabilizing changed functions...";
@@ -269,38 +282,67 @@ module WP =
         let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.increment.changes.changed in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
         (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
-        let obsolete = Set.union (Set.of_list (List.map (fun a -> Node.show_id (Function a))  obsolete_funs))
-            (Set.of_list (List.map (fun a -> Node.show_id (FunctionEntry a))  obsolete_funs)) in
+        let obsolete_ret = Set.of_list (List.map (fun f -> Node.show_id (Function f))  obsolete_funs) in
+        let obsolete_entry = Set.of_list (List.map (fun f -> Node.show_id (FunctionEntry f)) obsolete_funs) in
 
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
-        (* Actually destabilize all nodes contained in changed functions. TODO only destabilize fun_... nodes *)
-        HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete then destabilize k) stable; (* TODO: don't use string-based nodes *)
+        let old_ret = Hashtbl.create 103 in
+        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+          (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
+          HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
+              let old_rho = HM.find rho k in
+              let old_infl = HM.find_default infl k VS.empty in
+              Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
+        ) else (
+          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry then destabilize k) stable
+        );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         (* TODO: don't use string-based nodes, make marked_for_deletion of type unit (Hashtbl.Make (Node)).t *)
-        let add_nodes_of_fun (functions: fundec list) (nodes)=
+        let add_nodes_of_fun (functions: fundec list) (nodes) withEntry =
           let add_stmts (f: fundec) =
             List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
           in
-          List.iter (fun f -> Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f) functions;
+          List.iter (fun f -> if withEntry then Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion;
-        add_nodes_of_fun removed_funs marked_for_deletion;
+        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant.on"));
+        add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in (* TODO: don't use string-based nodes *)
+        let delete_marked s = HM.filteri_inplace (fun k _ -> not (Hashtbl.mem  marked_for_deletion (S.Var.var_id k))) s in (* TODO: don't use string-based nodes *)
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
         delete_marked stable;
 
-        print_data data "Data after clean-up"
-      );
 
-      List.iter set_start st;
+        print_data data "Data after clean-up";
+
+        List.iter set_start st;
+
+        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+          (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
+          print_endline "Separately solving changed functions...";
+          let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
+          Hashtbl.iter (
+            fun x (old_rho, old_infl) ->
+              ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
+              solve x Widen;
+              if not (op (HM.find rho x) old_rho) then (
+                HM.replace infl x old_infl;
+                destabilize x;
+                HM.replace stable x ()
+              )
+          ) old_ret;
+
+          print_endline "Final solve..."
+        )
+      ) else (
+        List.iter set_start st;
+      );
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
       let i = ref 0 in
@@ -366,30 +408,13 @@ module WP =
             if tracing then trace "sol2" "restored var %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d
           in
           List.iter get vs;
-          HM.iter (fun x v -> if not (HM.mem visited x) then HM.remove rho x) rho
+          HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Stats.time "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
-
-      let reachability xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then (
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constraint x
-          )
-        and one_constraint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> ignore @@ Pretty.printf "reachability: one_constraint: could not find variable %a\n" S.Var.pretty_trace x; S.Dom.bot ()) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
-      in
-      reachability vs;
 
       stop_event ();
       print_data data "Data after solve completed";
@@ -399,6 +424,8 @@ module WP =
         HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
         print_newline ();
       );
+
+      Post.post st vs rho; (* TODO: add side_infl postsolver *)
 
       {st; infl; sides; rho; wpoint; stable}
 
@@ -426,26 +453,30 @@ module WP =
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
         *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
+          let rho' = HM.create (HM.length data.rho) in
           HM.iter (fun k v ->
-              HM.remove data.rho k; (* remove old values *)
               (* call hashcons on contexts and abstract values; results in new tags *)
               let k' = S.Var.relift k in
-              let v' = S.Dom.join (S.Dom.bot ()) v in
-              HM.replace data.rho k' v';
+              let v' = S.Dom.relift v in
+              HM.replace rho' k' v';
             ) data.rho;
+          data.rho <- rho';
+          let stable' = HM.create (HM.length data.stable) in
           HM.iter (fun k v ->
-              HM.remove data.stable k;
-              HM.replace data.stable (S.Var.relift k) v
+              HM.replace stable' (S.Var.relift k) v
             ) data.stable;
+          data.stable <- stable';
+          let wpoint' = HM.create (HM.length data.wpoint) in
           HM.iter (fun k v ->
-              HM.remove data.wpoint k;
-              HM.replace data.wpoint (S.Var.relift k) v
+              HM.replace wpoint' (S.Var.relift k) v
             ) data.wpoint;
+          data.wpoint <- wpoint';
+          let infl' = HM.create (HM.length data.infl) in
           HM.iter (fun k v ->
-              HM.remove data.infl k;
-              HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
+              HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
             ) data.infl;
-          data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.join (S.Dom.bot ()) v) data.st;
+          data.infl <- infl';
+          data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
@@ -454,15 +485,14 @@ module WP =
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
         let result = solve box st vs data in
-        result.rho, Obj.repr result
+        result.rho, result
       )
       else (
         let data = create_empty_data () in
         let result = solve box st vs data in
-        result.rho, Obj.repr result
+        result.rho, result
       )
   end
 
 let _ =
-  let module WP = GlobSolverFromEqSolver (WP) in
-  Selector.add_solver ("td3", (module WP : GenericGlobSolver));
+  Selector.add_solver ("td3", (module WP : GenericEqBoxIncrSolver));

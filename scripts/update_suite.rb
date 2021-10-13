@@ -365,12 +365,14 @@ File.open(theresultfile, "w") do |f|
   f.puts "<body>"
   f.puts "<table border=2 cellpadding=4>"
   gname = ""
+  vars = 0
+  evals = 0
   projects.each do |p|
     id = "#{p.id} #{p.group}/#{p.name}"
     is_ok = true
     if p.group != gname then
       gname = p.group
-      headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Problems"]
+      headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Vars / Eval", "Problems"]
 #       headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Constraints", "Solver", "Problems"] if tracing
       f.puts "<tr><th colspan=#{headings.size}>#{gname}</th></tr>"
       f.puts "<tr>"
@@ -386,6 +388,10 @@ File.open(theresultfile, "w") do |f|
     lines = IO.readlines(File.join(testresults, warnfile))
     lines.each do |l|
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
+      if l =~ /vars = (\d*).*evals = (\d+)/ then
+        vars = $1
+        evals = $2
+      end
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?\)/
       obj,i = $1,$2.to_i
 
@@ -451,6 +457,8 @@ File.open(theresultfile, "w") do |f|
     else
       f.puts "<td><a href=\"#{statsfile}\">#{"%.2f" % res} s</a></td>"
     end
+
+    f.puts "<td>#{vars} / #{evals}</a></td>"
 
 #     if tracing then
 #       confile = p.name + ".con.txt"

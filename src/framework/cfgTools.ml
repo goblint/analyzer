@@ -141,8 +141,20 @@ let rec pretty_edges () = function
   | [_,x] -> Edge.pretty_plain () x
   | (_,x)::xs -> Pretty.dprintf "%a; %a" Edge.pretty_plain x pretty_edges xs
 
+let get_pseudo_return_id fd =
+  let start_id = 10_000_000_000 in (* TODO get max_sid? *)
+  let sid = Hashtbl.hash fd.svar.vid in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the hash from the functions vid should be unique. *)
+  if sid < start_id then sid + start_id else sid
 
 let node_scc_global = NH.create 113
+
+exception Not_connect of fundec
+
+let () = Printexc.register_printer (function
+    | Not_connect fd ->
+      Some (Printf.sprintf "CfgTools.Not_connect(%s)" (CilType.Fundec.show fd))
+    | _ -> None (* for other exceptions *)
+  )
 
 let createCFG (file: file) =
   let cfgF = H.create 113 in
@@ -244,9 +256,7 @@ let createCFG (file: file) =
          * lazy, so it's only added when actually needed *)
         let pseudo_return = lazy (
           let newst = mkStmt (Return (None, fd_loc)) in
-          let start_id = 10_000_000_000 in (* TODO get max_sid? *)
-          let sid = Hashtbl.hash fd_loc in (* Need pure sid instead of Cil.new_sid for incremental, similar to vid in Goblintutil.create_var. We only add one return stmt per loop, so the location hash should be unique. *)
-          newst.sid <- if sid < start_id then sid + start_id else sid;
+          newst.sid <- get_pseudo_return_id fd;
           fd.sallstmts <- fd.sallstmts @ [newst]; (* TODO: anything bad happen from changing sallstmts? should also update smaxid? *)
           let newst_node = Statement newst in
           addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);
@@ -386,58 +396,69 @@ let createCFG (file: file) =
           let prev = H.find_all cfgB
         end
         in
-        let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
-        NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
 
-        (* DFS over SCCs starting from FunctionEntry SCC *)
-        let module SH = Hashtbl.Make (SCC) in
-        let visited_scc = SH.create 13 in
-        let rec iter_scc scc =
-          if not (SH.mem visited_scc scc) then (
-            SH.replace visited_scc scc ();
-            if NH.is_empty scc.next then (
-              if not (NH.mem scc.nodes (Function fd)) then (
-                (* scc has no successors but also doesn't contain return node, requires additional connections *)
-                (* find connection candidates from loops *)
-                let targets =
-                  NH.keys scc.nodes
-                  |> BatEnum.concat_map (fun fromNode ->
-                      NH.find_all loop_head_neg1 fromNode
-                      |> BatList.enum
-                      |> BatEnum.filter (fun toNode ->
-                          not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
-                        )
-                      |> BatEnum.map (fun toNode ->
-                          (fromNode, toNode)
-                        )
-                    )
-                  |> BatList.of_enum
-                in
-                let targets = match targets with
-                  | [] -> [(NH.keys scc.nodes |> BatEnum.get_exn, Lazy.force pseudo_return)] (* default to pseudo return if no suitable candidates *)
-                  | targets -> targets
-                in
-                List.iter (fun (fromNode, toNode) ->
-                    addEdge_fromLoc fromNode (Test (one, false)) toNode;
-                    match NH.find_option node_scc toNode with
-                    | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
-                    | None -> () (* pseudo return, wasn't in scc, but is fine *)
-                  ) targets
+        let rec iter_connect () =
+          let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
+
+          let added_connect = ref false in
+
+          (* DFS over SCCs starting from FunctionEntry SCC *)
+          let module SH = Hashtbl.Make (SCC) in
+          let visited_scc = SH.create 13 in
+          let rec iter_scc scc =
+            if not (SH.mem visited_scc scc) then (
+              SH.replace visited_scc scc ();
+              if NH.is_empty scc.next then (
+                if not (NH.mem scc.nodes (Function fd)) then (
+                  (* scc has no successors but also doesn't contain return node, requires additional connections *)
+                  (* find connection candidates from loops *)
+                  let targets =
+                    NH.keys scc.nodes
+                    |> BatEnum.concat_map (fun fromNode ->
+                        NH.find_all loop_head_neg1 fromNode
+                        |> BatList.enum
+                        |> BatEnum.filter (fun toNode ->
+                            not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
+                          )
+                        |> BatEnum.map (fun toNode ->
+                            (fromNode, toNode)
+                          )
+                      )
+                    |> BatList.of_enum
+                  in
+                  let targets = match targets with
+                    | [] -> [(NH.keys scc.nodes |> BatEnum.get_exn, Lazy.force pseudo_return)] (* default to pseudo return if no suitable candidates *)
+                    | targets -> targets
+                  in
+                  List.iter (fun (fromNode, toNode) ->
+                      addEdge_fromLoc fromNode (Test (one, false)) toNode;
+                      added_connect := true;
+                      match NH.find_option node_scc toNode with
+                      | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
+                      | None -> () (* pseudo return, wasn't in scc, but is fine *)
+                    ) targets
+                )
               )
+              else
+                NH.iter (fun _ (_, toNode) ->
+                    iter_scc (NH.find node_scc toNode)
+                  ) scc.next
             )
-            else
-              NH.iter (fun _ (_, toNode) ->
-                  iter_scc (NH.find node_scc toNode)
-                ) scc.next
-          )
+          in
+          iter_scc (NH.find node_scc (FunctionEntry fd));
+
+          if !added_connect then
+            iter_connect () (* added connect edge might have made a cycle of SCCs, have to recompute SCCs to see if it needs connecting *)
+          else
+            NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
         in
-        iter_scc (NH.find node_scc (FunctionEntry fd));
+        iter_connect ();
 
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
-          failwith ("MyCFG.createCFG: FunctionEntry not connected to Function (return) in " ^ fd.svar.vname)
+          raise (Not_connect fd)
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
