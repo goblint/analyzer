@@ -152,6 +152,12 @@ let _ = ()
       ; reg Incremental "incremental.save"   "false" "Store incremental analysis results."
       ; reg Incremental "incremental.stable" "true"  "Reuse the stable set and selectively destabilize it (recommended)."
       ; reg Incremental "incremental.wpoint" "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
+      ; reg Incremental "incremental.reluctant.on" "true" "Destabilize nodes in changed functions reluctantly"
+      ; reg Incremental "incremental.reluctant.compare" "'leq'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
+      ; reg Incremental "incremental.restart.sided.enabled" "true" "TODO"
+      ; reg Incremental "incremental.restart.sided.only-global" "false" "TODO"
+      ; reg Incremental "incremental.restart.wpoint.enabled" "true" "TODO"
+      ; reg Incremental "incremental.restart.wpoint.once" "true" "TODO"
       ; reg Incremental "incremental.verify" "true" "TODO"
 
 (* {4 category [Semantics]} *)
