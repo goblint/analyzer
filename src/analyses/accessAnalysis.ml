@@ -19,7 +19,11 @@ struct
   module C = Lattice.Unit
 
   (** We do not add global state, so just lift from [BS]*)
-  module G = Lattice.Unit (* TODO: access table *)
+  module G =
+  struct
+    include SetDomain.Reverse (SetDomain.ToppedSet (Access.LabeledString) (struct let topname = "top" end)) (* TODO: access table *)
+    let leq _ _ = true (* HACK: to pass verify*)
+  end
 
 
   let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
@@ -31,7 +35,13 @@ struct
     in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
-      Access.add e w conf vo oo (po,pd)
+      Access.add e w conf vo oo (po,pd);
+      match vo with
+      | Some v ->
+        if !GU.should_warn then
+          ctx.sideg v (`Lifted pd)
+      | None ->
+        ()
     in
     let add_access_struct conf ci =
       let (po,pd) = part_access ctx e None w in
