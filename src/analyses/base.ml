@@ -1129,7 +1129,7 @@ struct
 
         (* Projection to highest Precision *)
         let b = GobConfig.get_bool "exp.annotated.precision" in
-        let new_value' = if b then VD.projection (true, true, true, true) new_value else new_value in
+        let new_value' = if b then VD.projection (IDU.max_precision ()) new_value else new_value in
 
         let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value' in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
@@ -1914,12 +1914,7 @@ struct
     (* Projection to Precision of the Callee *)
     let p = IDU.precision_from_fundec fundec in
     let b = GobConfig.get_bool "exp.annotated.precision" in
-    let new_cpa =
-      if b then
-        CPA.map (fun v -> VD.projection p v) new_cpa
-      else
-        new_cpa
-    in
+    let new_cpa = if b then CPA.map (fun v -> VD.projection p v) new_cpa else new_cpa in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2287,12 +2282,7 @@ struct
       let p = IDU.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let b = GobConfig.get_bool "exp.annotated.precision" in
       let return_val = if b then VD.projection p return_val else return_val in
-      let cpa' =
-        if b then
-          CPA.map (fun v -> VD.projection p v) nst.cpa
-        else
-          nst.cpa
-      in
+      let cpa' = if b then CPA.map (fun v -> VD.projection p v) nst.cpa else nst.cpa in
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with

@@ -1588,8 +1588,7 @@ struct
 
   let refine_with_congruence ik a b = a
   let refine_with_interval ik a b = match a, b with
-    | `Definite x, Some(i) -> meet ik (`Definite x) (of_interval ik i)
-    | `Excluded (s, r), Some(i) -> meet ik (`Excluded (s, r)) (of_interval ik i)
+    | x, Some(i) -> meet ik x (of_interval ik i)
     | _ -> a
   let refine_with_excl_list ik a b = match a, b with
     | `Excluded (s, r), Some(ls) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls)
@@ -2481,7 +2480,13 @@ struct
   let projection ik p (v: t) = v
 end
 
+(* This is a Helper module to handle annotated precision for functions *)
 module IntDomUtil = struct
+  (* We define precision by the number of IntDomains activated. *)
+  (* We currently have 4 types: DefExc, Interval, Enums, Congruence *)
+  (* Thus we activate all IntDomains for maximum precision *)
+  let max_precision () = (true, true, true, true)
+
   let precision_from_fundec (fd: Cil.fundec) =
     ((ContextUtil.should_keep ~isAttr:Precision ~keepOption:"ana.int.def_exc" ~removeAttr:"no-def_exc" ~keepAttr:"def_exc" fd),
      (ContextUtil.should_keep ~isAttr:Precision ~keepOption:"ana.int.interval" ~removeAttr:"no-interval" ~keepAttr:"interval" fd),
@@ -2494,7 +2499,7 @@ module IntDomUtil = struct
       let fd = Node.find_fundec (Option.get node) in
       precision_from_fundec fd
     else
-      (true, true, true, true) (* In case a Node is None we have to handle Globals, i.e. we activate all IntDomains (TODO: varify this assumption) *)
+      max_precision () (* In case a Node is None we have to handle Globals, i.e. we activate all IntDomains (TODO: varify this assumption) *)
 end
 
 (* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I3 below to see where you need to extend. *)

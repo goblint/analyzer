@@ -1080,7 +1080,13 @@ struct
   and project_list p (acc: Lists.t) (l: Lists.t) =
     match Lists.list_empty l with
     | Some true -> acc
-    | _ -> project_list p (Lists.add (project_addr p (Lists.entry l)) acc) (Lists.del (Lists.entry l) l)
+    | _ ->
+      begin
+        let e = Lists.entry l in
+        let acc' = Lists.add (project_addr p e) acc in
+        let l' = Lists.del e l in
+        project_list p acc' l'
+      end
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =

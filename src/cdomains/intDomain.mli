@@ -317,6 +317,7 @@ module PtrDiffIkind : Ikind
 module IntDomWithDefaultIkind (I: Y) (Ik: Ikind) : Y with type t = I.t and type int_t = I.int_t
 
 module IntDomUtil : sig
+  val max_precision: unit -> (bool * bool * bool * bool)
   val precision_from_fundec: Cil.fundec -> (bool * bool * bool * bool)
   val precision_from_node: unit -> (bool * bool * bool * bool)
 end
