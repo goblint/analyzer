@@ -199,7 +199,8 @@ module WP =
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
-          let sided = VS.mem x (HM.find_default sides y VS.empty) in
+          let old_sides = HM.find_default sides y VS.empty in
+          let sided = VS.mem x old_sides in
           if not sided then add_sides y x;
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
@@ -212,6 +213,10 @@ module WP =
           | "never" -> (* On side-effect cycles, this should terminate via the outer `solver` loop. TODO check. *)
             wpoint_if false
           | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
+            wpoint_if sided
+          | "sides-pp" ->
+            let n = S.Var.node x in
+            let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
             wpoint_if sided
           | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
             (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)

@@ -97,7 +97,7 @@ let _ = ()
 
 (* {4 category [Analyses]} *)
 let _ = ()
-      ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','threadreturn','escape','mutex','mallocWrapper']"  "Lists of activated analyses in this phase."
+      ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','threadreturn','escape','mutex','mallocWrapper','apron','threadJoins']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       (* apron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
@@ -196,7 +196,7 @@ let _ = ()
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
-      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
+      ; reg Experimental "exp.solver.td3.side_widen" "'sides-pp'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"
