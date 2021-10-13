@@ -1,17 +1,9 @@
 (** Mutex analysis. *)
 
 module M = Messages
-module GU = Goblintutil
 module Addr = ValueDomain.Addr
-module Offs = ValueDomain.Offs
 module Lockset = LockDomain.Lockset
 module Mutexes = LockDomain.Mutexes
-module AD = ValueDomain.AD
-module ID = ValueDomain.ID
-module IdxDom = ValueDomain.IndexDomain
-module LockingPattern = Exp.LockingPattern
-module Exp = Exp.Exp
-(*module BS = Base.Spec*)
 module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
