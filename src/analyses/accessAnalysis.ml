@@ -1,4 +1,4 @@
-(** Data race analysis. *)
+(** Acces and data race analysis. *)
 
 module M = Messages
 module GU = Goblintutil
@@ -18,12 +18,12 @@ open Analyses
 open GobConfig
 
 
-(** Data race analyzer without base --- this is the new standard *)
+(** Access and rata race analyzer without base --- this is the new standard *)
 module Spec =
 struct
   include Analyses.DefaultSpec
 
-  let name () = "race"
+  let name () = "access"
 
   (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
   module D = Lattice.Unit
