@@ -35,11 +35,10 @@ struct
 
   let morphstate v _ = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 
-  let create_tid (current, td) v =
+  let create_tid (current, td) (node: Node.t) v =
     match current with
     | `Lifted current ->
-      let loc = !Tracing.current_loc in
-      `Lifted (Thread.threadenter (current, td) loc v)
+      `Lifted (Thread.threadenter (current, td) node v)
     | _ ->
       `Lifted (Thread.threadinit v ~multiple:true)
 
@@ -91,11 +90,11 @@ struct
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
-    [(create_tid ctx.local f, TD.bot ())]
+    [(create_tid ctx.local ctx.node f, TD.bot ())]
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
-    (current, Thread.threadspawn td !Tracing.current_loc f)
+    (current, Thread.threadspawn td ctx.node f)
 
   type marshal = Thread.marshal * ThreadLifted.marshal
 

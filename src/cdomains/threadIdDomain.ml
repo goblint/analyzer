@@ -25,7 +25,7 @@ module type Stateless =
 sig
   include S
 
-  val threadenter: location -> varinfo -> t
+  val threadenter: Node.t -> varinfo -> t
 end
 
 module type Stateful =
@@ -34,19 +34,19 @@ sig
 
   module D: Lattice.S
 
-  val threadenter: t * D.t -> location -> varinfo -> t
-  val threadspawn: D.t -> location -> varinfo -> D.t
+  val threadenter: t * D.t -> Node.t -> varinfo -> t
+  val threadspawn: D.t -> Node.t -> varinfo -> D.t
 end
 
 
 (** Type to represent an abstract thread ID. *)
 module FunLoc: Stateless =
 struct
-  module M = Printable.Prod (CilType.Varinfo) (Printable.Option (CilType.Location) (struct let name = "no location" end))
+  module M = Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
   include M
 
   let show = function
-    | (f, Some l) -> f.vname ^ "@" ^ CilType.Location.show l
+    | (f, Some l) -> f.vname ^ "@" ^ Node.show l
     | (f, None) -> f.vname
 
   include Printable.PrintSimple (
@@ -141,8 +141,8 @@ struct
     else
       ([base_tid], S.empty ())
 
-  let threadenter ((p, _ ) as current, cs) l v =
-    let n = Base.threadenter l v in
+  let threadenter ((p, _ ) as current, cs) (n: Node.t) v =
+    let n = Base.threadenter n v in
     let ((p', s') as composed) = compose current n in
     if is_unique composed && S.mem n cs then
       (p, S.singleton n)
