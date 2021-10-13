@@ -15,13 +15,14 @@ sig
   val from_varinfo: varinfo -> t option
   val is_contained_varinfo: varinfo -> bool
   val describe_varinfo: varinfo -> t -> string
+  val unmarshal: marshal -> unit
   val marshal: marshal
 end
 module type S =
 sig
   type t
   type marshal
-  val map: ?marshal:(marshal option) -> ?size:int -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
+  val map: ?size:int -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
 end
 
 (* Collection of RichVarinfo mappings *)
@@ -69,38 +70,38 @@ struct
   type t = X.t
   type marshal = varinfo XH.t * t VH.t
 
-  let map ?(marshal=None) ?(size=113) ~name ()  =
-    let xh, vh = match marshal with
-      | Some (xh, vh) -> xh, vh
-      | None -> XH.create size, VH.create size
-    in
+  let map ?(size=113) ~name ()  =
     let m = (module struct
+      let xh = ref (XH.create size)
+      let vh = ref (VH.create size)
+
       type nonrec t = t
       type nonrec marshal = marshal
 
       let to_varinfo x =
         try
-          XH.find xh x
+          XH.find !xh x
         with Not_found ->
           let vi = create_var (name x) in
-          XH.replace xh x vi;
-          VH.replace vh vi x;
+          XH.replace !xh x vi;
+          VH.replace !vh vi x;
           vi
 
       let from_varinfo vi =
-        VH.find_opt vh vi
+        VH.find_opt !vh vi
 
       let is_contained_varinfo v =
-        VH.mem vh v
+        VH.mem !vh v
 
       let describe_varinfo v x =
         X.describe_varinfo v x
 
-      let marshal = xh, vh
+      let marshal = !xh, !vh
+      let unmarshal ((xh_loaded, vh_loaded): marshal) =
+        xh := xh_loaded;
+        vh := vh_loaded
     end
     : VarinfoMap with type t = t and type marshal = marshal) in
     VarinfoMapCollection.register_mapping (m :> (module VarinfoMap));
     m
 end
-
-module Variables = Make (EmptyVarinfoDescription (Basetype.Variables))

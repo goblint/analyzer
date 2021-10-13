@@ -218,10 +218,9 @@ struct
     | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
 
   let short_addr (x, o) =
-    if LocationBasedVars.is_heap_var x then
-      let node = LocationBasedVars.get_node x in
-      let loc = UpdateCil.getLoc node in
-      GU.demangle "(" ^ x.vname ^ ", " ^ CilType.Location.show loc ^ ")"
+    if RichVarinfo.VarinfoMapCollection.is_rich_varinfo x then
+      let description = RichVarinfo.VarinfoMapCollection.describe_varinfo x in
+      GU.demangle "(" ^ x.vname ^ ", " ^ description ^ ")"
     else GU.demangle x.vname ^ short_offs o
 
   let show = function
