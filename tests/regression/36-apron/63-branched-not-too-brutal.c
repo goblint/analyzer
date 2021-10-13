@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --enable ana.int.interval
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.int.interval
 #include <pthread.h>
 int global = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;

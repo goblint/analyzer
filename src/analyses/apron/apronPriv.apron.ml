@@ -479,6 +479,7 @@ module PerMutexMeetPrivTID: S =
 struct
   open CommonPerMutex
   open ExplicitMutexGlobals
+  include ConfCheck.RequireThreadFlagPathSensInit
 
   (* May written variables *)
   module W =
@@ -690,31 +691,17 @@ struct
     );
     st
 
-  let sync ask getg sideg (st: ApronComponents (D).t) reason =
+  let sync (ask:Q.ask) getg sideg (st: ApronComponents (D).t) reason =
     match reason with
-    | `Return -> (* required for thread return *)
-      (* TODO: implement? *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x (* when CPA.mem x st.cpa *) ->
-          st
-        | _ ->
-          st
-      end
+    | `Return -> st (* TODO: implement? *)
     | `Join ->
       if (ask.f Q.MustBeSingleThreaded) then
         st
       else
         let oct = st.oct in
-        let g_vars = List.filter (fun var ->
-            match V.find_metadata var with
-            | Some (Global _) -> true
-            | _ -> false
-          ) (AD.vars oct)
-        in
-        let oct_side = AD.keep_vars oct g_vars in
-        let tid = ask.f Queries.CurrentThreadId in
-        let sidev = GMutex.singleton tid oct_side in
-        sideg (mutex_inits ()) sidev;
+        (* There can be no branched going multi-threaded here *)
+        (* TODO: Do we need to remove no longer protected variables here? *)
+        (* TODO: Is not potentially even unsound to do so?! *)
         let oct_local = AD.remove_filter oct (fun var ->
             match V.find_metadata var with
             | Some (Global g) -> is_unprotected ask g
@@ -742,14 +729,15 @@ struct
     let vi = mutex_inits () in
     sideg vi sidev;
     (* Introduction into local state not needed, will be read via initializer *)
-    let oct_local = AD.remove_vars oct g_vars in (* TODO: side effect initial values to mutex_globals? *)
+    (* Also no side-effetc to mutex globals needed, the value here will either by read via the initializer, *)
+    (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
+    let oct_local = AD.remove_vars oct g_vars in
     {st with oct = oct_local}
 
   let threadenter ask getg (st: ApronComponents (D).t): ApronComponents (D).t =
     let _,lmust,l = st.priv in
     {oct = AD.bot (); priv = (W.bot (),lmust,l)}
 
-  let init () = ()
   let finalize () = ()
 
   (* All that follows is stupid boilerplate to give each of these functions the getg and sideg that only deals with TIDs or Mutexes *)

@@ -140,4 +140,14 @@ struct
       ()
   end
 
+  module RequireThreadFlagPathSensInit =
+  struct
+    let init () =
+      let threadflag_active = List.mem "threadflag" (GobConfig.get_string_list "ana.activated") in
+      if threadflag_active then
+        let threadflag_path_sens = List.mem "threadflag" (GobConfig.get_string_list "ana.path_sens") in
+        if not threadflag_path_sens then failwith "The activated privatization requires the 'threadflag' analysis to be path sensitive if it is enabled (it is currently enabled, but not path sensitive)";
+        ()
+  end
+
 end

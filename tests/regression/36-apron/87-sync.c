@@ -2,32 +2,38 @@
 #include <pthread.h>
 #include <stdio.h>
 
-int myglobal;
+int g;
+int h;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void lock() {
-  pthread_mutex_lock(&mutex);
-}
-
-void unlock() {
-  pthread_mutex_unlock(&mutex);
-}
-
-
 void *t_fun(void *arg) {
-  lock();
-  myglobal++; // NORACE
-  unlock();
+  pthread_mutex_lock(&mutex);
+  assert(g==h);
+  pthread_mutex_unlock(&mutex);
   return NULL;
 }
 
 
 int main(void) {
+  int top, top2;
+
+
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  lock();
-  myglobal++; // NORACE
-  unlock();
-  pthread_join (id, NULL);
+
+  pthread_mutex_lock(&mutex);
+  if(top2) {
+    g=34;
+    h=77;
+  }
+
+  g=top;
+  h=top;
+  pthread_mutex_unlock(&mutex);
+
+  pthread_mutex_lock(&mutex);
+  assert(g==h);
+  pthread_mutex_unlock(&mutex);
+
   return 0;
 }
