@@ -158,6 +158,7 @@ let _ = ()
       ; reg Incremental "incremental.restart.sided.only-global" "false" "TODO"
       ; reg Incremental "incremental.restart.wpoint.enabled" "true" "TODO"
       ; reg Incremental "incremental.restart.wpoint.once" "true" "TODO"
+      ; reg Incremental "incremental.verify" "true" "TODO"
 
 (* {4 category [Semantics]} *)
 let _ = ()

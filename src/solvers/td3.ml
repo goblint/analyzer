@@ -33,6 +33,7 @@ module WP =
       mutable stable: unit HM.t;
       mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
       mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
+      mutable var_messages: Message.t HM.t;
     }
 
     type marshal = solver_data
@@ -46,6 +47,7 @@ module WP =
       stable = HM.create 10;
       side_dep = HM.create 10;
       side_infl = HM.create 10;
+      var_messages = HM.create 10;
     }
 
     let print_data data str =
@@ -64,6 +66,28 @@ module WP =
     module HPM = Hashtbl.Make (P)
 
     type phase = Widen | Narrow
+
+    let current_var = ref None
+
+    module S =
+    struct
+      include S
+
+      let system x =
+        match S.system x with
+        | None -> None
+        | Some f ->
+          let f' get set =
+            let old_current_var = !current_var in
+            current_var := Some x;
+            Fun.protect ~finally:(fun () ->
+                current_var := old_current_var
+              ) (fun () ->
+                f get set
+              )
+          in
+          Some f'
+    end
 
     let solve box st vs data =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
@@ -94,6 +118,13 @@ module WP =
       let restart_once = GobConfig.get_bool "incremental.restart.wpoint.once" in
       let restarted_wpoint = HM.create 10 in
 
+      let incr_verify = GobConfig.get_bool "incremental.verify" in
+      (* In incremental load, initially stable nodes, which are never destabilized.
+         These don't have to be re-verified and warnings can be reused. *)
+      let superstable = HM.copy stable in
+
+      let var_messages = data.var_messages in
+
       let () = print_solver_stats := fun () ->
         Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
           (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl);
@@ -115,6 +146,7 @@ module WP =
         HM.replace infl x VS.empty;
         VS.iter (fun y ->
             HM.remove stable y;
+            HM.remove superstable y;
             if not (HM.mem called y) then destabilize y
           ) w
       and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
@@ -124,6 +156,7 @@ module WP =
         VS.fold (fun y b ->
             let was_stable = HM.mem stable y in
             HM.remove stable y;
+            HM.remove superstable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
       and solve x phase =
@@ -169,6 +202,7 @@ module WP =
           ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
             if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
             HM.remove stable x;
+            HM.remove superstable x;
             (solve[@tailcall]) x Narrow;
           ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
             if tracing then trace "sol2" "solve removing wpoint %a\n" S.Var.pretty_trace x;
@@ -527,19 +561,58 @@ module WP =
           HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
       end
       in
-      let module MakeListArg =
+
+      if incr_verify then
+        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages
+      else
+        HM.clear var_messages;
+
+      let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
       struct
+        include PostSolver.Warn (S) (HM)
+
+        let init () =
+          init (); (* enable warning like standard Warn *)
+
+          (* replay superstable messages *)
+          if incr_verify then (
+            HM.iter (fun _ m ->
+                Messages.add m
+              ) var_messages;
+          );
+
+          (* hook to collect new messages *)
+          Messages.Table.add_hook := (fun m ->
+            match !current_var with
+            | Some x -> HM.add var_messages x m
+            | None -> ()
+          );
+      end
+      in
+      let module MakeIncrListArg =
+      struct
+        module Arg =
+        struct
+          include Arg
+          let should_warn = false (* disable standard Warn in favor of IncrWarn *)
+        end
         include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
 
-        let postsolvers = (module SideInfl: M) :: postsolvers
+        let postsolvers = (module SideInfl: M) :: (module IncrWarn: M) :: postsolvers
+
+        let init_reachable ~vh =
+          if incr_verify then
+            HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
+          else
+            HM.create (HM.length vh)
       end
       in
 
-      let module Post = PostSolver.MakeList (MakeListArg) in
+      let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
 
       Post.post st vs rho;
 
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl}
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages}
 
     let solve box st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
@@ -589,6 +662,7 @@ module WP =
           ) data.infl;
           data.infl <- infl';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
+          (* TODO: relift var_messages? *)
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";

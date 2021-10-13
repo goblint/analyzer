@@ -155,9 +155,15 @@ struct
     | Some f, Some d -> Some (fun get set -> S.Dom.join (f get set) d)
 end
 
-(** Make complete postsolving function from postsolver.
-    This is generic and non-incremental. *)
-module Make (PS: S) =
+(** Postsolver for incremental. *)
+module type IncrS =
+sig
+  include S
+  val init_reachable: vh:S.Dom.t VH.t -> unit VH.t
+end
+
+(** Make incremental postsolving function from incremental postsolver. *)
+module MakeIncr (PS: IncrS) =
 struct
   module S = PS.S
   module VH = PS.VH
@@ -177,7 +183,7 @@ struct
     Goblintutil.postsolving := true;
     PS.init ();
 
-    let reachable = VH.create (VH.length vh) in
+    let reachable = PS.init_reachable ~vh in
     let rec one_var x =
       if not (VH.mem reachable x) then (
         VH.replace reachable x ();
@@ -217,10 +223,17 @@ sig
   val postsolvers: (module M) list
 end
 
-(** Make complete postsolving function from list of postsolvers.
-    If list is empty, no postsolving is performed.
-    This is generic and non-incremental. *)
-module MakeList (Arg: MakeListArg) =
+(** List of postsolvers for incremental. *)
+module type MakeIncrListArg =
+sig
+  include MakeListArg
+
+  val init_reachable: vh:S.Dom.t VH.t -> unit VH.t
+end
+
+(** Make incremental postsolving function from incremental list of postsolvers.
+    If list is empty, no postsolving is performed. *)
+module MakeIncrList (Arg: MakeIncrListArg) =
 struct
   module S = Arg.S
   module VH = Arg.VH
@@ -238,8 +251,26 @@ struct
     match postsolver_opt with
     | None -> ()
     | Some (module PS) ->
-      let module M = Make (PS) in
+      let module IncrPS =
+      struct
+        include PS
+        let init_reachable = Arg.init_reachable
+      end
+      in
+      let module M = MakeIncr (IncrPS) in
       M.post xs vs vh
+end
+
+(** Make complete (non-incremental) postsolving function from list of postsolvers.
+    If list is empty, no postsolving is performed. *)
+module MakeList (Arg: MakeListArg) =
+struct
+  module IncrArg =
+  struct
+    include Arg
+    let init_reachable ~vh = VH.create (VH.length vh)
+  end
+  include MakeIncrList (IncrArg)
 end
 
 (** Standard postsolver options. *)
