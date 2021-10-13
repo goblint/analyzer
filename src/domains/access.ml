@@ -92,7 +92,7 @@ let init (f:file) =
   List.iter visit_glob f.globals
 
 
-type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq]
+type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord]
 
 let rec remove_idx : offset -> offs  = function
   | NoOffset    -> `NoOffset
@@ -110,7 +110,7 @@ let rec d_offs () : offs -> doc = function
   | `Index o -> dprintf "[?]%a" d_offs o
   | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
 
-type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq]
+type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord]
 
 let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
@@ -263,21 +263,24 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
   with _ -> get_type voidType e
 
 let some_accesses = ref false
-let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
+let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
     some_accesses := true;
     let tyh = TypeHash.find_def accs  ty (lazy (LvalOptHash.create 10)) in
     let lvh = LvalOptHash.find_def tyh lv (lazy (PartOptHash.create 10)) in
     let loc = !Tracing.current_loc in
     let add_part ls =
+      side ty lv (Some ls) (conf, w, loc, e, lp);
       PartOptHash.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
           (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     in
-    if LSSSet.is_empty pp then
+    if LSSSet.is_empty pp then (
+      side ty lv None (conf, w, loc, e, lp);
       PartOptHash.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
           (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
+    )
     else
       LSSSet.iter add_part pp
   end
@@ -299,7 +302,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
+let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -319,17 +322,17 @@ let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) op
     in
     begin try
         let oss = dist_fields (type_from_type_offset ty) in
-        List.iter (fun os -> add_one e w conf (`Struct (s,addOffs os2 os)) (add_lv os) p) oss
+        List.iter (fun os -> add_one side e w conf (`Struct (s,addOffs os2 os)) (add_lv os) p) oss
       with Failure _ ->
-        add_one e w conf ty lv p
+        add_one side e w conf ty lv p
     end
   | _ when lv = None && !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
   | _ ->
-    add_one e w conf ty lv p
+    add_one side e w conf ty lv p
 
-let add_propagate e w conf ty ls p =
+let add_propagate side e w conf ty ls p =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true
@@ -345,14 +348,14 @@ let add_propagate e w conf ty ls p =
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
-    let add_vars v = add_struct e w conf (`Struct (fi.fcomp, f)) (Some (v, f)) p in
+    let add_vars v = add_struct side e w conf (`Struct (fi.fcomp, f)) (Some (v, f)) p in
     List.iter add_vars vars;
-    add_struct e w conf (`Struct (fi.fcomp, f)) None p;
+    add_struct side e w conf (`Struct (fi.fcomp, f)) None p;
   in
   let just_vars t v =
-    add_struct e w conf (`Type t) (Some (v, `NoOffset)) p;
+    add_struct side e w conf (`Type t) (Some (v, `NoOffset)) p;
   in
-  add_struct e w conf ty None p;
+  add_struct side e w conf ty None p;
   match ty with
   | `Struct (c,os) when only_fields os && os <> `NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
@@ -416,18 +419,18 @@ and distribute_access_exp f w r c = function
     distribute_access_exp f w     r c e
   | _ -> ()
 
-let add e w conf vo oo p =
+let add side e w conf vo oo p =
   if !Goblintutil.should_warn then begin
     let ty = get_val_type e vo oo in
     (* let loc = !Tracing.current_loc in *)
     (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
     match vo, oo with
-    | Some v, Some o -> add_struct e w conf ty (Some (v, remove_idx o)) p
+    | Some v, Some o -> add_struct side e w conf ty (Some (v, remove_idx o)) p
     | _ ->
       if !unsound && isArithmeticType (type_from_type_offset ty) then
-        add_struct e w conf ty None p
+        add_struct side e w conf ty None p
       else
-        add_propagate e w conf ty None p
+        add_propagate side e w conf ty None p
   end
 
 let partition_race ps (accs,ls) =

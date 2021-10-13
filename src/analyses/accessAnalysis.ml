@@ -18,13 +18,76 @@ struct
   module D = Lattice.Unit
   module C = Lattice.Unit
 
-  (** We do not add global state, so just lift from [BS]*)
   module G =
   struct
-    include SetDomain.Reverse (SetDomain.ToppedSet (Access.LabeledString) (struct let topname = "top" end)) (* TODO: access table *)
+    module A =
+    struct
+      include Printable.Std
+      type t = int * bool * CilType.Location.t * CilType.Exp.t * Access.LSSet.t [@@deriving eq, ord]
+
+      let hash (conf, w, loc, e, lp) = 0 (* TODO: never hashed? *)
+
+      let pretty () (conf, w, loc, e, lp) =
+        Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e Access.LSSet.pretty lp
+
+      let show x = Pretty.sprint ~width:max_int (pretty () x)
+      let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+      let to_yojson x = `String (show x)
+    end
+    module AS = SetDomain.Make (A)
+    module LS = SetDomain.Reverse (SetDomain.ToppedSet (Access.LabeledString) (struct let topname = "top" end))
+    module PM = MapDomain.MapBot (Printable.Option (Access.LSSet) (struct let name = "None" end)) (Lattice.Prod (AS) (LS))
+    module T =
+    struct
+      include Printable.Std
+      include Access.Acc_typHashable
+
+      let compare = [%ord: Access.acc_typ]
+
+      let pretty = Access.d_acct
+
+      let show x = Pretty.sprint ~width:max_int (pretty () x)
+      let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+      let to_yojson x = `String (show x)
+    end
+    module TM = MapDomain.MapBot (T) (PM)
+    module O =
+    struct
+      include Printable.Std
+      type t = Access.offs [@@deriving eq, ord]
+
+      let hash _ = 0 (* TODO: not used? *)
+
+      let pretty = Access.d_offs
+
+      let show x = Pretty.sprint ~width:max_int (pretty () x)
+      let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+      let to_yojson x = `String (show x)
+    end
+    module OM = MapDomain.MapBot (O) (TM)
+    include OM
+
     let leq _ _ = true (* HACK: to pass verify*)
   end
 
+  let none_varinfo = ref dummyFunDec.svar
+
+  let init marshal =
+    none_varinfo := GU.create_var @@ makeGlobalVar "__NONE__" voidType
+
+  let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
+    let (g, o) = lv_opt |? (!none_varinfo, `NoOffset) in
+    let d =
+      let open G in
+      OM.singleton o (
+        TM.singleton ty (
+          PM.singleton ls_opt (
+            (AS.singleton (conf, w, loc, e, lp), `Lifted lp)
+          )
+        )
+      )
+    in
+    ctx.sideg g d
 
   let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
@@ -35,17 +98,11 @@ struct
     in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
-      Access.add e w conf vo oo (po,pd);
-      match vo with
-      | Some v ->
-        if !GU.should_warn then
-          ctx.sideg v (`Lifted pd)
-      | None ->
-        ()
+      Access.add (side_access ctx) e w conf vo oo (po,pd);
     in
     let add_access_struct conf ci =
       let (po,pd) = part_access ctx e None w in
-      Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
+      Access.add_struct (side_access ctx) e w conf (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls
