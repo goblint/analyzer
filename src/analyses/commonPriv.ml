@@ -49,7 +49,7 @@ module ExplicitMutexGlobals =
 struct
   include MutexGlobalsBase
   let mutex_global: varinfo -> varinfo =
-    let module VarinfoMap = (val RichVarinfo.Variables.map ~size:103 ~marshal:None ~name:(fun x -> "MUTEX_GLOBAL_" ^ x.vname): RichVarinfo.Variables.VarinfoMap) (* explicit type to force call without ?size *) in
+    let module VarinfoMap = (val RichVarinfo.Variables.map ~name:(fun x -> "MUTEX_GLOBAL_" ^ x.vname) (): RichVarinfo.Variables.VarinfoMap) (* explicit type to force call without ?size *) in
     VarinfoMap.to_varinfo
 
   let mutex_global x =

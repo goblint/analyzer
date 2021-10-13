@@ -12,7 +12,7 @@ sig
     val from_varinfo: varinfo -> t option
     val marshal: marshal
   end
-  val map: ?marshal:(marshal option) -> ?size:int -> name:(t -> string) -> (module VarinfoMap)
+  val map: ?marshal:(marshal option) -> ?size:int -> name:(t -> string) -> unit -> (module VarinfoMap)
 end
 
 module Make:
