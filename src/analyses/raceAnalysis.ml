@@ -38,6 +38,7 @@ struct
   let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
+      ctx.emit (Access {var_opt=vo; write=w});
       (*partitions & locks*)
       ctx.ask (PartAccess {exp=e; var_opt=vo; write=w})
     in

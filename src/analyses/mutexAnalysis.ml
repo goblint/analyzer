@@ -309,6 +309,22 @@ struct
   let threadspawn ctx lval f args fctx =
     ctx.local
 
+  let event ctx e octx =
+    match e with
+    | Events.Access {var_opt; write} ->
+      (*privatization*)
+      begin match var_opt with
+        | Some v ->
+          if not (Lockset.is_bot ctx.local) then
+            let ls = Lockset.filter snd ctx.local in
+            let el = P.effect_fun ~write ls in
+            ctx.sideg v el
+        | None -> M.warn "Write to unknown address: privatization is unsound."
+      end;
+      ctx.local
+    | _ ->
+      ctx.local
+
   let init marshal =
     init marshal;
     arinc_analysis_activated := List.mem "arinc" (get_string_list "ana.activated")
