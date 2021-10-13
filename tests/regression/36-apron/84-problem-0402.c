@@ -1,4 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] apron --sets exp.apron.privatization mutex-meet-tid --set ana.activated[-] threadJoins
+// fixed with issue 389
 #include <pthread.h>
 #include <stdio.h>
 
