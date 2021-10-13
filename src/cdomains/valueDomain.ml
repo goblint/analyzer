@@ -944,13 +944,6 @@ struct
             | `Field (fld, offs) -> begin
                 let t = fld.ftype in
                 let l', o' = shift_one_over l o in
-                `Struct (Structs.replace strc fld (do_update_offset ask `Bot offs value exp l' o' v t))
-              | `Top -> M.warn "Trying to update a field, but the struct is unknown"; top ()
-                                                                                    | _ -> M.warn "Trying to update a field, but was not given a struct"; top ()
-              end
-            | `Field (fld, offs) -> begin
-                let t = fld.ftype in
-                let l', o' = shift_one_over l o in
                 match x with
                 | `Union (last_fld, prev_val) ->
                   let tempval, tempoffs =
