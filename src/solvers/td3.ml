@@ -102,6 +102,7 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let incr_verify = GobConfig.get_bool "incremental.verify" in
       (* In incremental load, initially stable nodes, which are never destabilized.
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
@@ -419,7 +420,10 @@ module WP =
         print_newline ();
       );
 
-      HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages;
+      if incr_verify then
+        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages
+      else
+        HM.clear var_messages;
 
       let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
       struct
@@ -429,9 +433,11 @@ module WP =
           init (); (* enable warning like standard Warn *)
 
           (* replay superstable messages *)
-          HM.iter (fun _ m ->
-              Messages.add m
-            ) var_messages;
+          if incr_verify then (
+            HM.iter (fun _ m ->
+                Messages.add m
+              ) var_messages;
+          );
 
           (* hook to collect new messages *)
           Messages.Table.add_hook := (fun m ->
@@ -452,7 +458,11 @@ module WP =
 
         let postsolvers = (module IncrWarn: M) :: postsolvers
 
-        let init_reachable ~vh = HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
+        let init_reachable ~vh =
+          if incr_verify then
+            HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
+          else
+            HM.create (HM.length vh)
       end
       in
 

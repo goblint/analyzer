@@ -152,6 +152,7 @@ let _ = ()
       ; reg Incremental "incremental.save"   "false" "Store incremental analysis results."
       ; reg Incremental "incremental.stable" "true"  "Reuse the stable set and selectively destabilize it (recommended)."
       ; reg Incremental "incremental.wpoint" "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
+      ; reg Incremental "incremental.verify" "true" "TODO"
 
 (* {4 category [Semantics]} *)
 let _ = ()
