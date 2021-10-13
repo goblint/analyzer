@@ -7,20 +7,59 @@ let single ~name =
   fun () ->
     Lazy.force vi
 
+module type VarinfoMap =
+sig
+  type t
+  type marshal
+  val to_varinfo : t -> varinfo
+  val from_varinfo: varinfo -> t option
+  val is_contained_varinfo: varinfo -> bool
+  val describe_varinfo: varinfo -> t -> string
+  val marshal: marshal
+end
 module type S =
 sig
   type t
   type marshal
-  module type VarinfoMap =
-  sig
-    val to_varinfo : t -> varinfo
-    val from_varinfo: varinfo -> t option
-    val marshal: marshal
-  end
-  val map: ?marshal:(marshal option) -> ?size:int -> name:(t -> string) -> unit -> (module VarinfoMap)
+  val map: ?marshal:(marshal option) -> ?size:int -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
 end
 
-module Make (X: Hashtbl.HashedType) =
+(* Collection of RichVarinfo mappings *)
+module VarinfoMapCollection =
+struct
+
+  let mappings: (module VarinfoMap) list ref = ref []
+
+  let is_rich_varinfo (v: varinfo) =
+    List.exists (fun (module M: VarinfoMap) -> M.is_contained_varinfo v) !mappings
+
+  (** Provides a description to be printed with the varinfo *)
+  let describe_varinfo (v: varinfo) =
+      match List.find_opt (fun (module M: VarinfoMap) -> M.is_contained_varinfo v) !mappings with
+      | None -> failwith "Not a richt varinfo!"
+      | Some m ->
+        let module Map = (val m) in
+        match Map.from_varinfo v with
+        | Some x -> Map.describe_varinfo v x
+        | None -> failwith "Element not found in mapping that claimed to contain it."
+
+  let register_mapping (m) =
+    mappings := m::!mappings
+end
+
+module type T =
+sig
+  include Hashtbl.HashedType
+  (* Provide a description of the varinfo associated to a t *)
+  val describe_varinfo: varinfo -> t -> string
+end
+
+module EmptyVarinfoDescription (X: Hashtbl.HashedType) = struct
+  include X
+  let describe_varinfo v _ =  ""
+end
+
+module Make (X: T) =
 struct
   (* Mapping from X.t to varinfo *)
   module XH = Hashtbl.Make (X)
@@ -30,18 +69,15 @@ struct
   type t = X.t
   type marshal = varinfo XH.t * t VH.t
 
-  module type VarinfoMap =
-  sig
-    val to_varinfo : t -> varinfo
-    val from_varinfo: varinfo -> t option
-    val marshal: marshal
-  end
   let map ?(marshal=None) ?(size=113) ~name ()  =
     let xh, vh = match marshal with
       | Some (xh, vh) -> xh, vh
       | None -> XH.create size, VH.create size
     in
-    (module struct
+    let m = (module struct
+      type nonrec t = t
+      type nonrec marshal = marshal
+
       let to_varinfo x =
         try
           XH.find xh x
@@ -54,9 +90,17 @@ struct
       let from_varinfo vi =
         VH.find_opt vh vi
 
+      let is_contained_varinfo v =
+        VH.mem vh v
+
+      let describe_varinfo v x =
+        X.describe_varinfo v x
+
       let marshal = xh, vh
     end
-    : VarinfoMap)
+    : VarinfoMap with type t = t and type marshal = marshal) in
+    VarinfoMapCollection.register_mapping (m :> (module VarinfoMap));
+    m
 end
 
-module Variables = Make (Basetype.Variables)
+module Variables = Make (EmptyVarinfoDescription (Basetype.Variables))
