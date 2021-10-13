@@ -19,20 +19,17 @@ struct
     end)
   end
 
-  module Node = struct
-    include Node
-    (* Description that gets appended to the varinfo-name in user ouptut. *)
-    let describe_varinfo v node =
-      let loc = UpdateCil.getLoc node in
-      CilType.Location.show loc
-  end
+  (* Description that gets appended to the varinfo-name in user ouptut. *)
+  let describe_varinfo (v: varinfo) node =
+    let loc = UpdateCil.getLoc node in
+    CilType.Location.show loc
 
   let name_malloc_by_node node = match node with
     | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
     | _ -> failwith "A function entry or return node can not be the node after a malloc"
 
   module VarinfoMapBuilder = RichVarinfo.Make(Node)
-  module NodeVarinfoMap = (val VarinfoMapBuilder.map ~name:name_malloc_by_node ())
+  module NodeVarinfoMap = (val VarinfoMapBuilder.map ~describe_varinfo ~name:name_malloc_by_node ())
 
   let name () = "mallocWrapper"
   module D = PL

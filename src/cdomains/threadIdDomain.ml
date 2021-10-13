@@ -59,7 +59,7 @@ struct
   let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t = (v, Some l)
 
-  module VarinfoMapBuilder = RichVarinfo.Make (RichVarinfo.EmptyVarinfoDescription (M))
+  module VarinfoMapBuilder = RichVarinfo.Make (M)
   module VarinfoMap = (val VarinfoMapBuilder.map ~name:show ())
   let to_varinfo =
     VarinfoMap.to_varinfo
@@ -152,7 +152,7 @@ struct
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs
 
-  module VarinfoBuilder = RichVarinfo.Make (RichVarinfo.EmptyVarinfoDescription (M))
+  module VarinfoBuilder = RichVarinfo.Make (M)
   module VarinfoMap = (val VarinfoBuilder.map ~name:show ())
   let to_varinfo: t -> varinfo =
     VarinfoMap.to_varinfo

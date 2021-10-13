@@ -26,19 +26,10 @@ module type S =
 sig
   type t
   type marshal
-  val map: ?size:int -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
+  val map: ?size:int -> ?describe_varinfo:(varinfo -> t -> string) -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
 end
 
-module type T =
-sig
-  include Hashtbl.HashedType
-  val describe_varinfo: varinfo -> t -> string
-end
-
-module EmptyVarinfoDescription:
-  functor (X: Hashtbl.HashedType) ->
-    T with type t = X.t
 
 module Make:
-  functor (X: T) ->
+  functor (X: Hashtbl.HashedType) ->
     S with type t = X.t

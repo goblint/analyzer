@@ -22,7 +22,7 @@ module type S =
 sig
   type t
   type marshal
-  val map: ?size:int -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
+  val map: ?size:int -> ?describe_varinfo:(varinfo -> t -> string) -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
 end
 
 (* Collection of RichVarinfo mappings *)
@@ -48,19 +48,7 @@ struct
     mappings := m::!mappings
 end
 
-module type T =
-sig
-  include Hashtbl.HashedType
-  (* Provide a description of the varinfo associated to a t *)
-  val describe_varinfo: varinfo -> t -> string
-end
-
-module EmptyVarinfoDescription (X: Hashtbl.HashedType) = struct
-  include X
-  let describe_varinfo v _ =  ""
-end
-
-module Make (X: T) =
+module Make (X: Hashtbl.HashedType) =
 struct
   (* Mapping from X.t to varinfo *)
   module XH = Hashtbl.Make (X)
@@ -70,7 +58,10 @@ struct
   type t = X.t
   type marshal = varinfo XH.t * t VH.t
 
-  let map ?(size=113) ~name ()  =
+  (* Empty description is the default *)
+  let describe _ _ = ""
+
+  let map ?(size=113) ?(describe_varinfo=describe) ~name ()  =
     let m = (module struct
       let xh = ref (XH.create size)
       let vh = ref (VH.create size)
@@ -94,7 +85,7 @@ struct
         VH.mem !vh v
 
       let describe_varinfo v x =
-        X.describe_varinfo v x
+        describe_varinfo v x
 
       let marshal () = !xh, !vh
       let unmarshal ((xh_loaded, vh_loaded): marshal) =
