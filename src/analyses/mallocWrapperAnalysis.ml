@@ -99,7 +99,7 @@ struct
     | None -> ()
 
   let finalize () =
-    NodeVarinfoMap.marshal
+    NodeVarinfoMap.marshal ()
 end
 
 let _ =

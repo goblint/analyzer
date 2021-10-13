@@ -16,7 +16,7 @@ sig
   val is_contained_varinfo: varinfo -> bool
   val describe_varinfo: varinfo -> t -> string
   val unmarshal: marshal -> unit
-  val marshal: marshal
+  val marshal: unit -> marshal
 end
 module type S =
 sig
@@ -96,7 +96,7 @@ struct
       let describe_varinfo v x =
         X.describe_varinfo v x
 
-      let marshal = !xh, !vh
+      let marshal () = !xh, !vh
       let unmarshal ((xh_loaded, vh_loaded): marshal) =
         xh := xh_loaded;
         vh := vh_loaded

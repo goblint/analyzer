@@ -11,7 +11,7 @@ sig
   val is_contained_varinfo: varinfo -> bool
   val describe_varinfo: varinfo -> t -> string
   val unmarshal: marshal -> unit
-  val marshal: marshal
+  val marshal: unit -> marshal
 end
 
 module VarinfoMapCollection:

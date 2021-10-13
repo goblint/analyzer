@@ -96,6 +96,18 @@ struct
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
     (current, Thread.threadspawn td !Tracing.current_loc f)
+
+  type marshal = Thread.marshal * ThreadLifted.marshal
+
+  let init m = match m with
+    | Some (t, tl) ->
+      Thread.init t;
+      ThreadLifted.init tl
+    | None -> ()
+
+  let finalize () =
+    Thread.marshal (), ThreadLifted.marshal ()
+
 end
 
 let _ =

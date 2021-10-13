@@ -15,6 +15,10 @@ sig
 
   (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
   val is_must_parent: t -> t -> bool
+
+  type marshal
+  val marshal: unit -> marshal
+  val init: marshal -> unit
 end
 
 module type Stateless =
@@ -56,10 +60,12 @@ struct
   let threadenter l v: t = (v, Some l)
 
   module VarinfoMapBuilder = RichVarinfo.Make (RichVarinfo.EmptyVarinfoDescription (M))
-  module RichVarinfoM = (val VarinfoMapBuilder.map ~name:show ())
-
+  module VarinfoMap = (val VarinfoMapBuilder.map ~name:show ())
   let to_varinfo =
-    RichVarinfoM.to_varinfo
+    VarinfoMap.to_varinfo
+  type marshal = VarinfoMap.marshal
+  let marshal () = VarinfoMap.marshal ()
+  let init m = VarinfoMap.unmarshal m
 
   let is_main = function
     | ({vname = "main"; _}, None) -> true
@@ -148,9 +154,11 @@ struct
 
   module VarinfoBuilder = RichVarinfo.Make (RichVarinfo.EmptyVarinfoDescription (M))
   module VarinfoMap = (val VarinfoBuilder.map ~name:show ())
-
   let to_varinfo: t -> varinfo =
     VarinfoMap.to_varinfo
+  type marshal = VarinfoMap.marshal
+  let marshal () = VarinfoMap.marshal ()
+  let init m = VarinfoMap.unmarshal m
 
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
@@ -165,6 +173,9 @@ module Lift (Thread: S) =
 struct
   include Lattice.Flat (Thread) (ThreadLiftNames)
   let name () = "Thread"
+  type marshal = Thread.marshal
+  let marshal = Thread.marshal
+  let init m = Thread.init m
 end
 
 (* Since the thread ID module is extensively used statically, it cannot be dynamically switched via an option. *)
