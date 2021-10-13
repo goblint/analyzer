@@ -60,22 +60,6 @@ struct
     (* TODO: better indices handling *)
     | `Index (_, o) -> `Index (MyCFG.unknown_exp, conv_offset_inv o)
 
-  (* TODO: unused *)
-  let rec conv_const_offset x =
-    match x with
-    | NoOffset    -> `NoOffset
-    | Index (Const (CInt64 (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_const_offset o)
-    | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
-    | Field (f,o) -> `Field (f, conv_const_offset o)
-
-  (* TODO: unused *)
-  let rec replace_elem (v,o) q ex =
-    match ex with
-    | AddrOf  (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
-    | StartOf (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
-    | Lval    (Mem e,_) when Basetype.CilExp.equal e q ->v, Offs.from_offset (conv_offset o)
-    | CastE (_,e)           -> replace_elem (v,o) q e
-    | _ -> v, Offs.from_offset (conv_offset o)
 
   let part_access ctx e v w =
     let open Access in
@@ -137,9 +121,6 @@ struct
         | _ -> ls
       end
     | _ -> Lockset.top ()
-
-  (* TODO: unused *)
-  let arinc_analysis_activated = ref false
 
 
   (** We just lift start state, global and dependency functions: *)
@@ -324,10 +305,6 @@ struct
       ctx.local
     | _ ->
       ctx.local
-
-  let init marshal =
-    init marshal;
-    arinc_analysis_activated := List.mem "arinc" (get_string_list "ana.activated")
 
 end
 
