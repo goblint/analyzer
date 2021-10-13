@@ -27,8 +27,8 @@ sig
   type t
   type marshal
   val map: ?size:int -> ?describe_varinfo:(varinfo -> t -> string) -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
+  (** [size]: the start size of the hashmap, [describe_varinfo]: Will be used to describe a varinfo associated to some t the user output, [name]: mapping from t to string used to create varinfo names *)
 end
-
 
 module Make:
   functor (X: Hashtbl.HashedType) ->
