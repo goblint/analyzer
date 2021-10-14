@@ -424,3 +424,8 @@ let assoc_eq (x: 'a) (ys: ('a * 'b) list) (eq: 'a -> 'a -> bool): ('b option) =
   Option.map Batteries.Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
 
 let dummy_obj = Obj.repr ()
+
+(*returns the first n elements of a list. *)
+let rec firstElems n li =   match li with 
+  | [] -> [];
+  | x::xs -> if n=1 then [x] else firstElems (n-1) xs;
