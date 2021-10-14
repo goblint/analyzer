@@ -17,7 +17,7 @@ end
 (** Functorial postsolver for any system. *)
 module type F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-    S with module S = S and module VH = VH
+  S with module S = S and module VH = VH
 
 (** Base implementation for postsolver. *)
 module Unit: F =

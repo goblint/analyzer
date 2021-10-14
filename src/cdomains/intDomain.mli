@@ -233,7 +233,7 @@ sig
   val of_congruence: Cil.ikind -> int_t * int_t -> t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
-    TODO: Should be ported to S in the future. *)
+   TODO: Should be ported to S in the future. *)
 
 module type S =
 sig

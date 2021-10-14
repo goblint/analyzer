@@ -7,7 +7,7 @@
  * - space_cache (true) ? local cache l for eval calls in each solve (TDcombined) : no cache
  * - space_restore (true) ? eval each rhs and store all in rho : do not restore missing values
  * For simpler (but unmaintained) versions without the incremental parts see the paper or topDown{,_space_cache_term}.ml.
-*)
+ *)
 
 open Prelude
 open Analyses
@@ -81,9 +81,9 @@ module WP =
       let stable = data.stable in
 
       let () = print_solver_stats := fun () ->
-          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
-            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
-          print_context_stats rho
+        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
+          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+        print_context_stats rho
       in
 
       if GobConfig.get_bool "incremental.load" then print_data data "Loaded data for incremental analysis";
@@ -130,10 +130,10 @@ module WP =
           let tmp =
             if not wp then tmp
             else
-            if term then
-              match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
-            else
-              box x old tmp
+              if term then
+                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
+              else
+                box x old tmp
           in
           if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
           if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
@@ -167,7 +167,7 @@ module WP =
         if S.system y = None then (init y; HM.find rho y) else
         if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
-          (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
+        (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
@@ -254,14 +254,14 @@ module WP =
          * but if it changes because of a different global initializer, then
          *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
          *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
-        *)
+         *)
         print_endline "Destabilizing start functions if their start state changed...";
         (* record whether any function's start state changed. In that case do not use reluctant destabilization *)
         let any_changed_start_state = ref false in
         (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
         List.iter (fun (v,d) ->
-            match GU.assoc_eq v data.st S.Var.equal with
-            | Some d' ->
+          match GU.assoc_eq v data.st S.Var.equal with
+          | Some d' ->
               if S.Dom.equal d d' then
                 (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
                 ()
@@ -270,8 +270,8 @@ module WP =
                 any_changed_start_state := true;
                 destabilize v
               )
-            | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
-          ) st;
+          | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
+        ) st;
 
         print_endline "Destabilizing changed functions...";
 
@@ -291,9 +291,9 @@ module WP =
         if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
-              let old_rho = HM.find rho k in
-              let old_infl = HM.find_default infl k VS.empty in
-              Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
+            let old_rho = HM.find rho k in
+            let old_infl = HM.find_default infl k VS.empty in
+            Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
         ) else (
           HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry then destabilize k) stable
         );
@@ -445,36 +445,36 @@ module WP =
          * If we didn't do this, during solve, a rhs might give the same value as from the old rho but it wouldn't be detected as equal since the tags would be different.
          * In the worst case, every rhs would yield the same value, but we would destabilize for every var in rho until we replaced all values (just with new tags).
          * The other problem is that we would likely use more memory since values from old rho would not be shared with the same values in the hashcons table. So we would keep old values in memory until they are replace in rho and eventually garbage collected.
-        *)
+         *)
         (* Another problem are the tags for the context part of a S.Var.t.
          * This will cause problems when old and new vars interact or when new S.Dom values are used as context:
          * - reachability is a problem since it marks vars reachable with a new tag, which will remove vars with the same context but old tag from rho.
          * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
-        *)
+         *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           let rho' = HM.create (HM.length data.rho) in
           HM.iter (fun k v ->
-              (* call hashcons on contexts and abstract values; results in new tags *)
-              let k' = S.Var.relift k in
-              let v' = S.Dom.relift v in
-              HM.replace rho' k' v';
-            ) data.rho;
+            (* call hashcons on contexts and abstract values; results in new tags *)
+            let k' = S.Var.relift k in
+            let v' = S.Dom.relift v in
+            HM.replace rho' k' v';
+          ) data.rho;
           data.rho <- rho';
           let stable' = HM.create (HM.length data.stable) in
           HM.iter (fun k v ->
-              HM.replace stable' (S.Var.relift k) v
-            ) data.stable;
+            HM.replace stable' (S.Var.relift k) v
+          ) data.stable;
           data.stable <- stable';
           let wpoint' = HM.create (HM.length data.wpoint) in
           HM.iter (fun k v ->
-              HM.replace wpoint' (S.Var.relift k) v
-            ) data.wpoint;
+            HM.replace wpoint' (S.Var.relift k) v
+          ) data.wpoint;
           data.wpoint <- wpoint';
           let infl' = HM.create (HM.length data.infl) in
           HM.iter (fun k v ->
-              HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
-            ) data.infl;
+            HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
+          ) data.infl;
           data.infl <- infl';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
         );

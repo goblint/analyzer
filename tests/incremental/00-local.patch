@@ -2,7 +2,7 @@
 +++ "tests/incremental/00-local copy.c"	2021-09-30 13:12:32.697729338 +0300
 @@ -1,7 +1,7 @@
  #include <assert.h>
-
+ 
  int main() {
 -    int x = 1;
 -    assert(x == 1); // success before, success after
