@@ -211,60 +211,15 @@ struct
     match q with
     | WarnGlobal g ->
       ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g);
-      let open Access in
-      let allglobs = get_bool "allglobs" in
-      let debug = get_bool "dbg.debug" in
+      let v =
+        if CilType.Varinfo.equal g !none_varinfo then (
+          None
+        )
+        else
+          Some g
+      in
       let om = ctx.global g in
-      OM.iter (fun o tm ->
-          let lv =
-            if CilType.Varinfo.equal g !none_varinfo then (
-              assert (o = `NoOffset);
-              None
-            )
-            else
-              Some (g, o)
-          in
-          TM.iter (fun ty pm ->
-              let check_safe ls (accs, lp) prev_safe =
-                (* TODO: Access uses polymorphic Set? *)
-                let accs = Set.of_list (AS.elements accs) in (* TODO: avoid converting between sets *)
-                Access.check_safe ls (accs, lp) prev_safe
-              in
-              let g (ls, (acs,_)) =
-                let h (conf,w,loc,e,lp) =
-                  let d_ls () = match ls with
-                    | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
-                    | Some ls when LSSet.is_empty ls -> nil
-                    | Some ls -> text " in " ++ LSSet.pretty () ls
-                  in
-                  let atyp = if w then "write" else "read" in
-                  let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
-                  let doc =
-                    if debug then
-                      dprintf "%t  (exp: %a)" d_msg d_exp e
-                    else
-                      d_msg ()
-                  in
-                  (doc, Some loc)
-                in
-                AS.elements acs
-                |> List.enum
-                |> Enum.map h
-              in
-              let msgs () =
-                PM.bindings pm
-                |> List.enum
-                |> Enum.concat_map g
-                |> List.of_enum
-              in
-              match PM.fold check_safe pm None with
-              | None ->
-                if allglobs then
-                  M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
-              | Some n ->
-                M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
-            ) tm
-        ) om
+      Access.print_accesses' v om
     | _ -> Queries.Result.top q
 end
 
