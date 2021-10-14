@@ -173,26 +173,6 @@ let get_type fb e =
   | `Type (TPtr (t,a)) -> `Type t
   | x -> x
 
-module HtF (T:Hashtbl.HashedType) =
-struct
-  include Hashtbl.Make (T)
-
-  let find_def ht k z : 'b =
-    try
-      find ht k
-    with Not_found ->
-      let v = Lazy.force z in
-      add ht k v;
-      v
-
-  let modify_def ht k z f: unit =
-    let g = function
-      | None -> Some (f (Lazy.force z))
-      | Some b -> Some (f b)
-    in
-    modify_opt k g ht
-
-end
 
 module Ht =
 struct
@@ -215,7 +195,6 @@ struct
 
 end
 
-(* type -> lval option -> partition option -> (2^(confidence, write, loc, e, locks), locks_union) *)
 module Acc_typHashable
   : Hashtbl.HashedType with type t = acc_typ =
 struct
@@ -224,30 +203,7 @@ struct
     | `Type t -> CilType.Typ.hash t
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 end
-module TypeHash = HtF (Acc_typHashable)
 
-module LvalOptHashable
-  : Hashtbl.HashedType with type t = (varinfo * offs) option =
-struct
-  type t = (CilType.Varinfo.t * offs) option [@@deriving eq]
-  let hash = function
-    | None -> 435
-    | Some (x,y) -> Hashtbl.hash (x.vid, Hashtbl.hash y)
-end
-module LvalOptHash = HtF (LvalOptHashable)
-
-module PartOptHashable
-  : Hashtbl.HashedType with type t = LSSet.t option =
-struct
-  type t = LSSet.t option [@@deriving eq]
-
-  let hash = function
-    | Some x -> LSSet.hash x
-    | None -> 101
-end
-module PartOptHash = HtF (PartOptHashable)
-
-let accs = TypeHash.create 100
 
 type var_o = varinfo option
 type off_o = offset  option
@@ -266,20 +222,12 @@ let some_accesses = ref false
 let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
     some_accesses := true;
-    let tyh = TypeHash.find_def accs  ty (lazy (LvalOptHash.create 10)) in
-    let lvh = LvalOptHash.find_def tyh lv (lazy (PartOptHash.create 10)) in
     let loc = !Tracing.current_loc in
     let add_part ls =
-      side ty lv (Some ls) (conf, w, loc, e, lp);
-      PartOptHash.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
-        )
+      side ty lv (Some ls) (conf, w, loc, e, lp)
     in
     if LSSSet.is_empty pp then (
-      side ty lv None (conf, w, loc, e, lp);
-      PartOptHash.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
-        )
+      side ty lv None (conf, w, loc, e, lp)
     )
     else
       LSSSet.iter add_part pp
