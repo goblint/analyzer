@@ -195,15 +195,6 @@ struct
 
 end
 
-module Acc_typHashable
-  : Hashtbl.HashedType with type t = acc_typ =
-struct
-  type t = acc_typ [@@deriving eq]
-  let hash = function
-    | `Type t -> CilType.Typ.hash t
-    | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
-end
-
 
 type var_o = varinfo option
 type off_o = offset  option
@@ -416,9 +407,11 @@ module PM = MapDomain.MapBot (Printable.Option (LSSet) (struct let name = "None"
 module T =
 struct
   include Printable.Std
-  include Acc_typHashable
+  type t = acc_typ [@@deriving eq, ord]
 
-  let compare = [%ord: acc_typ]
+  let hash = function
+    | `Type t -> CilType.Typ.hash t
+    | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 
   let pretty = d_acct
 
