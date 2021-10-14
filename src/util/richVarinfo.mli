@@ -10,7 +10,7 @@ sig
   val from_varinfo: varinfo -> t option
   val mem_varinfo: varinfo -> bool
   val describe_varinfo: varinfo -> t -> string
-  val unmarshal: marshal -> unit
+  val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
 end
 

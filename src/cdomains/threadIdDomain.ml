@@ -5,9 +5,6 @@ sig
   include Printable.S
   include MapDomain.Groupable with type t := t
 
-  (** Mapping between t and varinfos *)
-  module VarinfoMap: RichVarinfo.VarinfoMap with type t := t
-
   val threadinit: varinfo -> multiple:bool -> t
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
@@ -18,6 +15,10 @@ sig
 
   (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
   val is_must_parent: t -> t -> bool
+
+  type marshal
+  val init: marshal option -> unit
+  val finalize: unit -> marshal
 
   (** How the created varinfos should be namend. Returned strings should not contain [Cil.location]s, but may contain node ids. *)
   val name_varinfo: t -> string
@@ -69,9 +70,6 @@ struct
   let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t = (v, Some l)
 
-  module VarinfoMap = RichVarinfo.Make (RichVarinfo.EmptyDescription (M))
-
-  let to_varinfo = VarinfoMap.to_varinfo
   let is_main = function
     | ({vname = "main"; _}, None) -> true
     | _ -> false
@@ -79,6 +77,12 @@ struct
   let is_unique _ = false (* TODO: should this consider main unique? *)
   let may_create _ _ = true
   let is_must_parent _ _ = false
+
+  module VarinfoMap = RichVarinfo.Make (RichVarinfo.EmptyDescription (M))
+  let to_varinfo = VarinfoMap.to_varinfo
+  type marshal = VarinfoMap.marshal
+  let init m = VarinfoMap.unmarshal m
+  let finalize () = VarinfoMap.marshal ()
 end
 
 
@@ -171,6 +175,10 @@ struct
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
     | _ -> false
+
+  type marshal = VarinfoMap.marshal
+  let finalize () = VarinfoMap.marshal ()
+  let init m = VarinfoMap.unmarshal m
 end
 
 module ThreadLiftNames = struct
@@ -181,7 +189,6 @@ module Lift (Thread: S) =
 struct
   include Lattice.Flat (Thread) (ThreadLiftNames)
   let name () = "Thread"
-  module VarinfoMap = Thread.VarinfoMap
 end
 
 (* Since the thread ID module is extensively used statically, it cannot be dynamically switched via an option. *)

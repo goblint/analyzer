@@ -96,17 +96,12 @@ struct
     let (current, td) = ctx.local in
     (current, Thread.threadspawn td ctx.node f)
 
-  type marshal = Thread.VarinfoMap.marshal * ThreadLifted.VarinfoMap.marshal
-
-  let init m = match m with
-    | Some (t, tl) ->
-      Thread.VarinfoMap.unmarshal t;
-      ThreadLifted.VarinfoMap.unmarshal tl
-    | None -> ()
+  type marshal = Thread.marshal
+  let init m =
+    Thread.init m
 
   let finalize () =
-    Thread.VarinfoMap.marshal (), ThreadLifted.VarinfoMap.marshal ()
-
+    Thread.finalize ()
 end
 
 let _ =

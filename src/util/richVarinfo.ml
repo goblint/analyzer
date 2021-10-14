@@ -15,7 +15,7 @@ sig
   val from_varinfo: varinfo -> t option
   val mem_varinfo: varinfo -> bool
   val describe_varinfo: varinfo -> t -> string
-  val unmarshal: marshal -> unit
+  val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
 end
 
@@ -95,9 +95,11 @@ struct
 
   let marshal () = !xh, !vh
 
-  let unmarshal ((xh_loaded, vh_loaded): marshal) =
-    xh := xh_loaded;
-    vh := vh_loaded
+  let unmarshal = function
+    | Some (xh_loaded, vh_loaded) ->
+      xh := xh_loaded;
+      vh := vh_loaded
+    | None -> ()
 end
 
 module Make (X: H) =

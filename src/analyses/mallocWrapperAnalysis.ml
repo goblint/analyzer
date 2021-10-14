@@ -87,9 +87,7 @@ struct
 
   let init marshal =
     List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
-    match marshal with
-    | Some m -> NodeVarinfoMap.unmarshal m
-    | None -> ()
+    NodeVarinfoMap.unmarshal marshal
 
   let finalize () =
     NodeVarinfoMap.marshal ()
