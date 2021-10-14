@@ -16,6 +16,7 @@ void* f1(void* ptr) {
     printf("g is %i", g);
     g = 0;
     pthread_mutex_unlock(&mut);
+    return NULL;
 }
 
 void* f2(void* ptr) {
@@ -24,6 +25,7 @@ void* f2(void* ptr) {
     g = 0;
     pthread_cond_signal(&cond);
     pthread_mutex_unlock(&mut);
+    return NULL;
 }
 
 int main(int argc, char const *argv[])
