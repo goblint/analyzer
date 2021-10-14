@@ -218,8 +218,8 @@ struct
     | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
 
   let short_addr (x, o) =
-    if RichVarinfo.VarinfoMapCollection.mem_varinfo x then
-      let description = RichVarinfo.VarinfoMapCollection.describe_varinfo x in
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       GU.demangle "(" ^ x.vname ^ ", " ^ description ^ ")"
     else GU.demangle x.vname ^ short_offs o
 

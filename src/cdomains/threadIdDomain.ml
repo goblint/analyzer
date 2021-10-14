@@ -78,7 +78,7 @@ struct
   let may_create _ _ = true
   let is_must_parent _ _ = false
 
-  module VarinfoMap = RichVarinfo.Make (RichVarinfo.EmptyDescription (M))
+  module VarinfoMap = RichVarinfo.Make (M)
   let to_varinfo = VarinfoMap.to_varinfo
   type marshal = VarinfoMap.marshal
   let init m = VarinfoMap.unmarshal m
@@ -169,7 +169,7 @@ struct
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs
 
-  module VarinfoMap = RichVarinfo.Make (RichVarinfo.EmptyDescription(M))
+  module VarinfoMap = RichVarinfo.Make (M)
   let to_varinfo = VarinfoMap.to_varinfo
 
   let is_main = function

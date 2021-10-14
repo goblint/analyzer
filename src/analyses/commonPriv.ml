@@ -55,7 +55,7 @@ struct
       end
     in
     (* TODO: Use marshal/unmarshal of VarinfoMap *)
-    let module VarinfoMap = RichVarinfo.Make (RichVarinfo.EmptyDescription (Variables)) in
+    let module VarinfoMap = RichVarinfo.Make (Variables) in
     VarinfoMap.to_varinfo
 
   let mutex_global x =

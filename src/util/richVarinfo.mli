@@ -7,19 +7,8 @@ sig
   type t
   type marshal
   val to_varinfo : t -> varinfo
-  val from_varinfo: varinfo -> t option
-  val mem_varinfo: varinfo -> bool
-  val describe_varinfo: varinfo -> t -> string
   val unmarshal: marshal option -> unit
   val marshal: unit -> marshal
-end
-
-module VarinfoMapCollection:
-sig
-  val mappings : (module VarinfoMap) list ref
-  val mem_varinfo : varinfo -> bool
-  val describe_varinfo : varinfo -> string
-  val register_mapping : (module VarinfoMap) -> unit
 end
 
 module type G =
@@ -34,10 +23,29 @@ sig
   val describe_varinfo: varinfo -> t -> string
 end
 
-module EmptyDescription:
-  functor (Base: G) ->
-    H with type t = Base.t
-
 module Make:
-  functor (X: H) ->
+  functor (X: G) ->
     VarinfoMap with type t = X.t
+
+module BiVarinfoMap:
+sig
+  module type S = 
+  sig   
+    include VarinfoMap 
+    val from_varinfo: varinfo -> t option
+    val mem_varinfo: varinfo -> bool  
+    val describe_varinfo: varinfo -> t -> string
+  end
+
+  module Collection:
+  sig
+    val mappings : (module S) list ref
+    val mem_varinfo : varinfo -> bool
+    val describe_varinfo : varinfo -> string
+    val register_mapping : (module S) -> unit
+  end
+
+  module Make:
+    functor (X: H) ->
+      S with type t = X.t
+end

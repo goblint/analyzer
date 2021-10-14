@@ -25,8 +25,7 @@ struct
       | _ -> failwith "A function entry or return node can not be the node after a malloc"
   end
 
-  module NodeVarinfoMap = RichVarinfo.Make(Node)
-
+  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(Node)
   let name () = "mallocWrapper"
   module D = PL
   module G = BoolDomain.MayBool

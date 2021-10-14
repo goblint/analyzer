@@ -23,8 +23,8 @@ struct
   let is_global v = v.vglob
   let copy x = x
   let show x =
-    if RichVarinfo.VarinfoMapCollection.mem_varinfo x then
-      let description = RichVarinfo.VarinfoMapCollection.describe_varinfo x in
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
       GU.demangle "(" ^ x.vname ^ ", " ^ description ^ ")"
     else GU.demangle x.vname
   let pretty () x = Pretty.text (show x)
