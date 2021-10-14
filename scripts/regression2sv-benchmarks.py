@@ -52,6 +52,7 @@ EXCLUDE_TASKS = [
     "36-apron_13-traces-min-rpb2", # intentional data race
     "36-apron_14-traces-unprot", # intentional data race
     "36-apron_19-traces-other-rpb", # intentional data race
+    "36-apron_42-threadenter-arg", # intentional threadenter arg as int
     "36-apron_61-branched", # intentional data race
     "36-apron_62-branched_intricate", # intentional data race
     "36-apron_63-branched-not-too-brutal", # intentional data race

@@ -1,6 +1,8 @@
 #include<pthread.h>
 #include<stdio.h>
-#include <unistd.h>
+#include<unistd.h>
+#include <assert.h>
+
 int g;
 
 pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
