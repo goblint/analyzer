@@ -25,7 +25,7 @@ struct
 
   let mappings: (module VarinfoMap) list ref = ref []
 
-  let is_rich_varinfo (v: varinfo) =
+  let mem_varinfo (v: varinfo) =
     List.exists (fun (module M: VarinfoMap) -> M.mem_varinfo v) !mappings
 
   (** Provides a description to be printed with the varinfo *)

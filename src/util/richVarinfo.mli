@@ -17,7 +17,7 @@ end
 module VarinfoMapCollection:
 sig
   val mappings : (module VarinfoMap) list ref
-  val is_rich_varinfo : varinfo -> bool
+  val mem_varinfo : varinfo -> bool
   val describe_varinfo : varinfo -> string
   val register_mapping : (module VarinfoMap) -> unit
 end
