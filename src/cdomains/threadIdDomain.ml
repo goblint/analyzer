@@ -165,8 +165,7 @@ struct
 
   module VarinfoBuilder = RichVarinfo.Make (M)
   module VarinfoMap = (val VarinfoBuilder.map ~name:name_varinfo ())
-  let to_varinfo: t -> varinfo =
-    VarinfoMap.to_varinfo
+  let to_varinfo = VarinfoMap.to_varinfo
 
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
