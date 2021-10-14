@@ -582,9 +582,6 @@ struct
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
-    if get_bool "ana.sv-comp.enabled" then
-      WResult.write lh gh entrystates;
-
     if get_bool "exp.cfgdot" then
       CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
@@ -612,6 +609,9 @@ struct
       Spec.query ctx (WarnGlobal g)
     in
     GHT.iter warn_global gh;
+
+    if get_bool "ana.sv-comp.enabled" then
+      WResult.write lh gh entrystates;
 
     let marshal = Spec.finalize () in
     if get_string "save_run" <> "" then (
