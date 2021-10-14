@@ -57,7 +57,7 @@ struct
   include M
 
   let show = function
-    | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show  (Node.location n))
+    | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
     | (f, None) -> f.vname
 
   include Printable.PrintSimple (
@@ -114,9 +114,9 @@ struct
     (* Varinfos for histories are named using a string representation based on node ids,
      not locations, for compatibilty with incremental analysis.*)
     let name_varinfo ((l, s): t): string =
-     let list_name = String.concat "," (List.map Base.name_varinfo l) in
-     let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
-     list_name ^ ", {" ^ set_name ^ "}"
+      let list_name = String.concat "," (List.map Base.name_varinfo l) in
+      let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
+      list_name ^ ", {" ^ set_name ^ "}"
   end
   include M
 
