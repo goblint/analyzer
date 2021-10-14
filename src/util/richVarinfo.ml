@@ -62,7 +62,7 @@ struct
 end
 
 (* module to maintain bidirectional mappings between some type t and varinfo.
-   Provides a way to add a description shown to the user for varinfos, based on the associated object of type t. 
+   Provides a way to add a description shown to the user for varinfos, based on the associated object of type t.
 *)
 module BiVarinfoMap =
 struct
@@ -71,7 +71,7 @@ struct
   sig
     include VarinfoMap
     val from_varinfo: varinfo -> t option
-    val mem_varinfo: varinfo -> bool  
+    val mem_varinfo: varinfo -> bool
     val describe_varinfo: varinfo -> t -> string
   end
 
@@ -134,7 +134,7 @@ struct
         M.unmarshal (Some xh_loaded);
         vh := vh_loaded
       | None -> ()
-  end 
+  end
 
   (** Create a BiVarinfoMap and register it in the collection *)
   module Make (X: H) =

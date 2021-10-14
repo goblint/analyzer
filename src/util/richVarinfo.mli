@@ -29,11 +29,11 @@ module Make:
 
 module BiVarinfoMap:
 sig
-  module type S = 
-  sig   
-    include VarinfoMap 
+  module type S =
+  sig
+    include VarinfoMap
     val from_varinfo: varinfo -> t option
-    val mem_varinfo: varinfo -> bool  
+    val mem_varinfo: varinfo -> bool
     val describe_varinfo: varinfo -> t -> string
   end
 
