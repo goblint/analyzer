@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 
-cd ..
+# must have goblint checked out into goblint not analyzer directory
 
 make clean
-
 make
+
+# done outside to ensure archive contains goblint/ directory
+cd ..
 
 rm goblint/sv-comp/goblint.zip
 
