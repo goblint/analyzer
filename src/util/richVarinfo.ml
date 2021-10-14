@@ -13,7 +13,7 @@ sig
   type marshal
   val to_varinfo : t -> varinfo
   val from_varinfo: varinfo -> t option
-  val is_contained_varinfo: varinfo -> bool
+  val mem_varinfo: varinfo -> bool
   val describe_varinfo: varinfo -> t -> string
   val unmarshal: marshal -> unit
   val marshal: unit -> marshal
@@ -26,11 +26,11 @@ struct
   let mappings: (module VarinfoMap) list ref = ref []
 
   let is_rich_varinfo (v: varinfo) =
-    List.exists (fun (module M: VarinfoMap) -> M.is_contained_varinfo v) !mappings
+    List.exists (fun (module M: VarinfoMap) -> M.mem_varinfo v) !mappings
 
   (** Provides a description to be printed with the varinfo *)
   let describe_varinfo (v: varinfo) =
-      match List.find_opt (fun (module M: VarinfoMap) -> M.is_contained_varinfo v) !mappings with
+      match List.find_opt (fun (module M: VarinfoMap) -> M.mem_varinfo v) !mappings with
       | None -> failwith "Not a richt varinfo!"
       | Some m ->
         let module Map = (val m) in
@@ -87,7 +87,7 @@ struct
   let from_varinfo vi =
     VH.find_opt !vh vi
 
-  let is_contained_varinfo v =
+  let mem_varinfo v =
     VH.mem !vh v
 
   let describe_varinfo v x =

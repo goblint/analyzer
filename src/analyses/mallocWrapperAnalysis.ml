@@ -80,9 +80,9 @@ struct
         | _ -> ctx.node in
       `Lifted (get_heap_var node)
     | Q.IsHeapVar v ->
-      NodeVarinfoMap.is_contained_varinfo v
+      NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
-      NodeVarinfoMap.is_contained_varinfo v
+      NodeVarinfoMap.mem_varinfo v
     | _ -> Queries.Result.top q
 
   let init marshal =
