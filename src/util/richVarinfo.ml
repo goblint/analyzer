@@ -18,12 +18,6 @@ sig
   val unmarshal: marshal -> unit
   val marshal: unit -> marshal
 end
-module type S =
-sig
-  type t
-  type marshal
-  val map: ?size:int -> ?describe_varinfo:(varinfo -> t -> string) -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
-end
 
 (* Collection of RichVarinfo mappings *)
 module VarinfoMapCollection =
@@ -48,7 +42,27 @@ struct
     mappings := m::!mappings
 end
 
-module Make (X: Hashtbl.HashedType) =
+module type G =
+sig
+  include Hashtbl.HashedType
+  val name_varinfo: t -> string
+end
+
+module type H =
+sig
+  include G
+  val describe_varinfo: varinfo -> t -> string
+end
+
+module EmptyDescription (Base: G) =
+struct
+  include Base
+  let describe_varinfo _ _ = ""
+end
+
+(** This functor cannot register the module it creates in [VarinfoMapCollection].
+    Thus this functor is private to this file, and should only be used through the [Make] defined below. *)
+module PrivateMake (X: H) =
 struct
   (* Mapping from X.t to varinfo *)
   module XH = Hashtbl.Make (X)
@@ -58,41 +72,39 @@ struct
   type t = X.t
   type marshal = varinfo XH.t * t VH.t
 
-  (* Empty description is the default *)
-  let describe _ _ = ""
+  let size = 113
+  let xh = ref (XH.create size)
+  let vh = ref (VH.create size)
+  let to_varinfo x =
+    try
+      XH.find !xh x
+    with Not_found ->
+      let vi = create_var (X.name_varinfo x) in
+      XH.replace !xh x vi;
+      VH.replace !vh vi x;
+      vi
 
-  let map ?(size=113) ?(describe_varinfo=describe) ~name ()  =
-    let m = (module struct
-      let xh = ref (XH.create size)
-      let vh = ref (VH.create size)
+  let from_varinfo vi =
+    VH.find_opt !vh vi
 
-      type nonrec t = t
-      type nonrec marshal = marshal
+  let is_contained_varinfo v =
+    VH.mem !vh v
 
-      let to_varinfo x =
-        try
-          XH.find !xh x
-        with Not_found ->
-          let vi = create_var (name x) in
-          XH.replace !xh x vi;
-          VH.replace !vh vi x;
-          vi
+  let describe_varinfo v x =
+    X.describe_varinfo v x
 
-      let from_varinfo vi =
-        VH.find_opt !vh vi
+  let marshal () = !xh, !vh
 
-      let is_contained_varinfo v =
-        VH.mem !vh v
+  let unmarshal ((xh_loaded, vh_loaded): marshal) =
+    xh := xh_loaded;
+    vh := vh_loaded
+end
 
-      let describe_varinfo v x =
-        describe_varinfo v x
-
-      let marshal () = !xh, !vh
-      let unmarshal ((xh_loaded, vh_loaded): marshal) =
-        xh := xh_loaded;
-        vh := vh_loaded
-    end
-    : VarinfoMap with type t = t and type marshal = marshal) in
-    VarinfoMapCollection.register_mapping (m :> (module VarinfoMap));
-    m
+module Make (X: H) =
+struct
+  module VarinfoMap = PrivateMake(X)
+  include VarinfoMap
+  let register =
+    let m = (module VarinfoMap: VarinfoMap) in
+    VarinfoMapCollection.register_mapping m;
 end

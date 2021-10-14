@@ -4,32 +4,28 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
-(* refs to reassign unmarshaled in init *)
-module NH = Hashtbl.Make (Node)
-module VH = Hashtbl.Make (CilType.Varinfo)
-
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-  module PL = struct
-    include Lattice.Flat (Node) (struct
+  module PL = Lattice.Flat (Node) (struct
       let top_name = "Unknown node"
       let bot_name = "Unreachable node"
     end)
+
+  module Node = struct
+    include Node
+    (* Description that gets appended to the varinfo-name in user ouptut. *)
+    let describe_varinfo (v: varinfo) node =
+      let loc = UpdateCil.getLoc node in
+      CilType.Location.show loc
+
+    let name_varinfo node = match node with
+      | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
+      | _ -> failwith "A function entry or return node can not be the node after a malloc"
   end
 
-  (* Description that gets appended to the varinfo-name in user ouptut. *)
-  let describe_varinfo (v: varinfo) node =
-    let loc = UpdateCil.getLoc node in
-    CilType.Location.show loc
-
-  let name_malloc_by_node node = match node with
-    | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
-    | _ -> failwith "A function entry or return node can not be the node after a malloc"
-
-  module VarinfoMapBuilder = RichVarinfo.Make(Node)
-  module NodeVarinfoMap = (val VarinfoMapBuilder.map ~describe_varinfo ~name:name_malloc_by_node ())
+  module NodeVarinfoMap = RichVarinfo.Make(Node)
 
   let name () = "mallocWrapper"
   module D = PL

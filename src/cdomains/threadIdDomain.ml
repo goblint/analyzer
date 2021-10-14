@@ -44,7 +44,15 @@ end
 (** Type to represent an abstract thread ID. *)
 module FunLoc: Stateless =
 struct
-  module M = Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
+  module M = struct
+    include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
+
+    (* Defines how varinfos representing a FunLoc are named.
+    The varinfo-name contains node ids, but not their location (for compatibility with incremental analysis) *)
+    let name_varinfo = function
+      | (f, Some n) -> f.vname ^ "@" ^ Node.show n
+      | (f, None) -> f.vname
+  end
   include M
 
   let show = function
@@ -61,14 +69,7 @@ struct
   let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t = (v, Some l)
 
-  (* Defines how varinfos representing a FunLoc are named.
-    The varinfo-name contains node ids, but not their location (for compatibility with incremental analysis) *)
-  let name_varinfo = function
-    | (f, Some n) -> f.vname ^ "@" ^ Node.show n
-    | (f, None) -> f.vname
-
-  module VarinfoMapBuilder = RichVarinfo.Make (M)
-  module VarinfoMap = (val VarinfoMapBuilder.map ~name:name_varinfo ())
+  module VarinfoMap = RichVarinfo.Make (RichVarinfo.EmptyDescription (M))
 
   let to_varinfo = VarinfoMap.to_varinfo
   let is_main = function
@@ -104,7 +105,15 @@ struct
     include SetDomain.Make (Base)
     let name () = "set"
   end
-  module M = Printable.Prod (P) (S)
+  module M = struct
+    include Printable.Prod (P) (S)
+    (* Varinfos for histories are named using a string representation based on node ids,
+     not locations, for compatibilty with incremental analysis.*)
+    let name_varinfo ((l, s): t): string =
+     let list_name = String.concat "," (List.map Base.name_varinfo l) in
+     let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
+     list_name ^ ", {" ^ set_name ^ "}"
+  end
   include M
 
   module D =
@@ -156,15 +165,7 @@ struct
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs
 
-  (* Varinfos for histories are named using a string representation based on node ids,
-     not locations, for compatibilty with incremental analysis.*)
-  let name_varinfo ((l, s): t): string =
-    let list_name = String.concat "," (List.map Base.name_varinfo l) in
-    let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
-    list_name ^ ", {" ^ set_name ^ "}"
-
-  module VarinfoBuilder = RichVarinfo.Make (M)
-  module VarinfoMap = (val VarinfoBuilder.map ~name:name_varinfo ())
+  module VarinfoMap = RichVarinfo.Make (RichVarinfo.EmptyDescription(M))
   let to_varinfo = VarinfoMap.to_varinfo
 
   let is_main = function

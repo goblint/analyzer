@@ -22,14 +22,22 @@ sig
   val register_mapping : (module VarinfoMap) -> unit
 end
 
-module type S =
+module type G =
 sig
-  type t
-  type marshal
-  val map: ?size:int -> ?describe_varinfo:(varinfo -> t -> string) -> name:(t -> string) -> unit -> (module VarinfoMap with type t = t and type marshal = marshal)
-  (** [size]: the start size of the hashmap, [describe_varinfo]: Will be used to describe a varinfo associated to some t the user output, [name]: mapping from t to string used to create varinfo names *)
+  include Hashtbl.HashedType
+  val name_varinfo: t -> string
 end
 
+module type H =
+sig
+  include G
+  val describe_varinfo: varinfo -> t -> string
+end
+
+module EmptyDescription:
+  functor (Base: G) ->
+    H with type t = Base.t
+
 module Make:
-  functor (X: Hashtbl.HashedType) ->
-    S with type t = X.t
+  functor (X: H) ->
+    VarinfoMap with type t = X.t

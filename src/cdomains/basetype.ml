@@ -46,8 +46,6 @@ struct
   let arbitrary () = MyCheck.Arbitrary.varinfo
 end
 
-module RichVarinfoVariables = RichVarinfo.Make (Variables)
-
 module RawStrings: Printable.S with type t = string =
 struct
   include Printable.Std
