@@ -510,6 +510,8 @@ let check_safe ls (accs,lp) prev_safe =
   if ls = None then
     prev_safe
   else
+    (* TODO: Access uses polymorphic Set? *)
+    let accs = Set.of_list (AS.elements accs) in (* TODO: avoid converting between sets *)
     let ord_enum = Set.backwards accs in (* hope that it is not nil *)
     let lp_start = (fun (_,_,_,_,lp) -> lp) (BatOption.get (BatEnum.peek ord_enum)) in
     (* ignore(printf "starting with lockset %a\n" LSSet.pretty lp_start); *)
@@ -524,102 +526,22 @@ let check_safe ls (accs,lp) prev_safe =
       (* ignore(printf "race with %d\n" n); *)
       Some n
 
-let check_safe' ls (accs, lp) prev_safe =
-  (* TODO: Access uses polymorphic Set? *)
-  let accs = Set.of_list (AS.elements accs) in (* TODO: avoid converting between sets *)
-  check_safe ls (accs, lp) prev_safe
-
-let is_all_safe' = ref true
-
-let is_all_safe () =
-  let safe = ref true in
-  let h ty lv ht =
-    let safety = PartOptHash.fold check_safe ht None in
-    match safety with
-    | None -> ()
-    | Some n -> safe := false
-  in
-  let f ty = LvalOptHash.iter (h ty) in
-  TypeHash.iter f accs;
-  !safe
-
+let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let print_summary () =
-  let safe       = ref 0 in
-  let vulnerable = ref 0 in
-  let unsafe     = ref 0 in
-  let h ty lv ht =
-    (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
-    let safety = PartOptHash.fold check_safe ht None in
-    match safety with
-    | None -> incr safe
-    | Some n when n >= 100 -> incr unsafe
-    | Some n -> incr vulnerable
-  in
-  let f ty = LvalOptHash.iter (h ty) in
-  TypeHash.iter f accs;
-  ignore (Pretty.printf "\nSummary for all memory locations:\n");
-  ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
-  ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
-  ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
-  ignore (Pretty.printf "\t-------------------\n");
-  ignore (Pretty.printf "\ttotal:       %5d\n" ((!safe) + (!unsafe) + (!vulnerable)))
-
-let incr_summary' safe vulnerable unsafe v om =
+let incr_summary safe vulnerable unsafe v om =
   OM.iter (fun o tm ->
       TM.iter (fun ty pm ->
           (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
-          let safety = PM.fold check_safe' pm None in
+          let safety = PM.fold check_safe pm None in
           match safety with
           | None -> incr safe
-          | Some n when n >= 100 -> is_all_safe' := false; incr unsafe
-          | Some n -> is_all_safe' := false; incr vulnerable
+          | Some n when n >= 100 -> is_all_safe := false; incr unsafe
+          | Some n -> is_all_safe := false; incr vulnerable
         ) tm
     ) om
 
-let print_accesses () =
-  let allglobs = get_bool "allglobs" in
-  let debug = get_bool "dbg.debug" in
-  let g (ls, (acs,_)) =
-    let h (conf,w,loc,e,lp) =
-      let d_ls () = match ls with
-        | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
-        | Some ls when LSSet.is_empty ls -> nil
-        | Some ls -> text " in " ++ LSSet.pretty () ls
-      in
-      let atyp = if w then "write" else "read" in
-      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
-      let doc =
-        if debug then
-          dprintf "%t  (exp: %a)" d_msg d_exp e
-        else
-          d_msg ()
-      in
-      (doc, Some loc)
-    in
-    Set.enum acs
-    |> Enum.map h
-  in
-  let h ty lv ht =
-    let msgs () =
-      PartOptHash.enum ht
-      |> Enum.concat_map g
-      |> List.of_enum
-    in
-    match PartOptHash.fold check_safe ht None with
-    | None ->
-      if allglobs then
-        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
-    | Some n ->
-      M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
-  in
-  let f ty ht =
-    LvalOptHash.iter (h ty) ht
-  in
-  TypeHash.iter f accs
-
-let print_accesses' v om =
+let print_accesses v om =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   OM.iter (fun o tm ->
@@ -659,7 +581,7 @@ let print_accesses' v om =
             |> Enum.concat_map g
             |> List.of_enum
           in
-          match PM.fold check_safe' pm None with
+          match PM.fold check_safe pm None with
           | None ->
             if allglobs then
               M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
@@ -667,9 +589,3 @@ let print_accesses' v om =
             M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
         ) tm
     ) om
-
-let print_result () =
-  if !some_accesses then (
-    print_accesses ();
-    print_summary ()
-  )

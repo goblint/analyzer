@@ -230,8 +230,8 @@ struct
           Some g
       in
       let om = ctx.global g in
-      Access.print_accesses' v om;
-      Access.incr_summary' safe vulnerable unsafe v om
+      Access.print_accesses v om;
+      Access.incr_summary safe vulnerable unsafe v om
     | _ -> Queries.Result.top q
 
   let finalize () =
