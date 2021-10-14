@@ -387,7 +387,7 @@ let bot_partition ps _ =
   ps = None
 
 (* Access table as Lattice. *)
-(* (varinfo ->) offset -> type -> partition option -> (2^(confidence, write, loc, e, locks), locks_inter) *)
+(* (varinfo ->) offset -> type -> partition option -> 2^(confidence, write, loc, e, locks) *)
 module A =
 struct
   include Printable.Std
@@ -403,8 +403,7 @@ struct
   let to_yojson x = `String (show x)
 end
 module AS = SetDomain.Make (A)
-module LS = SetDomain.Reverse (SetDomain.ToppedSet (LabeledString) (struct let topname = "top" end))
-module PM = MapDomain.MapBot (Printable.Option (LSSet) (struct let name = "None" end)) (Lattice.Prod (AS) (LS))
+module PM = MapDomain.MapBot (Printable.Option (LSSet) (struct let name = "None" end)) (AS)
 module T =
 struct
   include Printable.Std
@@ -448,7 +447,7 @@ let check_accs (prev_r,prev_lp,prev_w) (conf,w,loc,e,lp) =
     (new_r, new_lp, new_w)
   | _ -> (prev_r,prev_lp,prev_w)
 
-let check_safe ls (accs,lp) prev_safe =
+let check_safe ls accs prev_safe =
   if ls = None then
     prev_safe
   else
@@ -496,7 +495,7 @@ let print_accesses v om =
           Some (v, o)
       in
       TM.iter (fun ty pm ->
-          let g (ls, (acs,_)) =
+          let g (ls, acs) =
             let h (conf,w,loc,e,lp) =
               let d_ls () = match ls with
                 | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)

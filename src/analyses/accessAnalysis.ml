@@ -48,7 +48,7 @@ struct
       OM.singleton o (
         TM.singleton ty (
           PM.singleton ls_opt (
-            (AS.singleton (conf, w, loc, e, lp), `Lifted lp)
+            AS.singleton (conf, w, loc, e, lp)
           )
         )
       )
