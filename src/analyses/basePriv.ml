@@ -39,9 +39,8 @@ sig
   val finalize: unit -> unit
 end
 
-module NoInitFinalize =
+module NoFinalize =
 struct
-  let init () = ()
   let finalize () = ()
 end
 
@@ -57,7 +56,7 @@ let startstate_threadenter (type d) (startstate: unit -> d) ask (st: d BaseDomai
 
 module OldPrivBase =
 struct
-  include NoInitFinalize
+  include NoFinalize
   module D = Lattice.Unit
 
   let startstate () = ()
@@ -82,8 +81,9 @@ end
 module NonePriv: S =
 struct
   include OldPrivBase
-
   module G = BaseDomain.VD
+
+  let init () = ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     getg x
@@ -134,6 +134,9 @@ struct
 
   module G = BaseDomain.VD
 
+  let init () =
+    if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
+
   let read_global ask getg (st: BaseComponents (D).t) x =
     match CPA.find x st.cpa with
     | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
@@ -182,7 +185,8 @@ end
 
 module PerMutexPrivBase =
 struct
-  include NoInitFinalize
+  include NoFinalize
+  include ConfCheck.RequireMutexActivatedInit
   include ExplicitMutexGlobals
   include Protection
 
@@ -294,7 +298,8 @@ struct
       st
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
           sideg (mutex_global x) (CPA.singleton x v);
           {st with cpa = CPA.remove x st.cpa}
@@ -383,7 +388,8 @@ struct
       {st with cpa = cpa'}
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
           sideg (mutex_global x) (CPA.singleton x v);
           {st with cpa = CPA.remove x st.cpa}
@@ -405,6 +411,9 @@ struct
 
   module D = MustVars
   module G = BaseDomain.VD
+
+  let init () =
+    if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
 
   let startstate () = D.top ()
 
@@ -477,7 +486,8 @@ end
 (** Protection-Based Reading. *)
 module ProtectionBasedPriv (Param: PerGlobalPrivParam): S =
 struct
-  include NoInitFinalize
+  include NoFinalize
+  include ConfCheck.RequireMutexActivatedInit
   open Protection
 
   module P =
@@ -563,7 +573,8 @@ struct
       st'
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
           sideg x (G.create_unprotected v);
           {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
@@ -636,7 +647,8 @@ end
 
 module MinePrivBase =
 struct
-  include NoInitFinalize
+  include NoFinalize
+  include ConfCheck.RequireMutexPathSensInit
   include ImplicitMutexGlobals (* explicit not needed here because G is Prod anyway? *)
 end
 
@@ -657,7 +669,7 @@ struct
   include MineNaivePrivBase
   open Locksets
 
-  module Thread = ConcDomain.Thread
+  module Thread = ThreadIdDomain.Thread
   module ThreadMap = MapDomain.MapBot (Thread) (VD)
 
   (* weak: G -> (2^M -> (T -> D)) *)
@@ -667,7 +679,7 @@ struct
   let global_init_thread = RichVarinfo.single ~name:"global_init"
   let current_thread (ask: Q.ask): Thread.t =
     if !GU.global_initialization then
-      global_init_thread ()
+      ThreadIdDomain.Thread.threadinit (global_init_thread ()) ~multiple:false
     else
       ThreadId.get_current_unlift ask
 
@@ -719,10 +731,11 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
-          let v = CPA.find x st.cpa in
-          sideg (mutex_global x) ((GWeak.singleton (Lockset.empty ()) (ThreadMap.singleton x v), GSync.bot ()));
-          {st with cpa = CPA.remove x st.cpa}
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x' = ThreadIdDomain.Thread.to_varinfo x in
+          let v = CPA.find x' st.cpa in
+          sideg (mutex_global x') ((GWeak.singleton (Lockset.empty ()) (ThreadMap.singleton x v), GSync.bot ()));
+          {st with cpa = CPA.remove x' st.cpa}
         | _ ->
           st
       end
@@ -781,7 +794,8 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
           sideg (mutex_global x) ((GWeak.singleton (Lockset.empty ()) v, GSync.bot ()));
           {st with cpa = CPA.remove x st.cpa}
@@ -855,7 +869,8 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
           sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
           {st with cpa = CPA.remove x st.cpa}
@@ -1008,7 +1023,8 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
           sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
           {st with cpa = CPA.remove x st.cpa}
@@ -1163,7 +1179,8 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
           sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton (Lockset.empty ()) v)));
           {st with cpa = CPA.remove x st.cpa}
@@ -1335,7 +1352,8 @@ struct
     match reason with
     | `Return -> (* required for thread return *)
       begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem x st.cpa ->
+        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
+          let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
           sideg (mutex_global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton (Lockset.empty ()) v)));
           {st with cpa = CPA.remove x st.cpa}
@@ -1411,7 +1429,7 @@ struct
 
   let read_global ask getg st x =
     let v = Priv.read_global ask getg st x in
-    if !GU.in_verifying_stage && !is_dumping then
+    if !GU.postsolving && !is_dumping then
       LVH.modify_def (VD.bot ()) (!Tracing.current_loc, x) (VD.join v) lvh;
     v
 

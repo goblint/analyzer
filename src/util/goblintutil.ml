@@ -3,19 +3,12 @@
 open Cil
 open GobConfig
 
-open Json
 
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
-(** prints the CFG on [getCFG] *)
-let cfg_print = ref false
-
 (** Json files that are given as arguments *)
 let jsonFiles : string list ref = ref []
-
-(** has user specified other thread functions *)
-let has_otherfuns = ref false
 
 (** If this is true we output messages and collect accesses.
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
@@ -28,9 +21,6 @@ let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
 
 (** number of times that globals change !CAUTION: This is only set in contain.ml and is not what one would think it is! *)
 let globals_changed = ref 0
-
-(** use the old accesses vs. the new pairwise accesses *)
-let old_accesses = ref true
 
 (** The file where everything is output *)
 let out = ref stdout
@@ -56,14 +46,11 @@ let type_inv (c:compinfo) : varinfo =
     i
 
 let is_blessed (t:typ): varinfo option =
-  let me_gusta x = List.mem x (List.map string (get_list "exp.unique")) in
+  let me_gusta x = List.mem x (get_string_list "exp.unique") in
   match unrollType t with
   | TComp (ci,_) when me_gusta ci.cname -> Some (type_inv ci)
   | _ -> (None : varinfo option)
 
-
-(** Length of summary description in XML output *)
-let summary_length = 80
 
 (** A hack to see if we are currently doing global inits *)
 let global_initialization = ref false
@@ -71,17 +58,13 @@ let global_initialization = ref false
 (** Another hack to see if earlyglobs is enabled *)
 let earlyglobs = ref false
 
-(** true if in verifying stage *)
-let in_verifying_stage = ref false
+(** Whether currently in postsolver evaluations (e.g. verify, warn) *)
+let postsolving = ref false
 
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
 
 let escape = XmlUtil.escape (* TODO: inline everywhere *)
-
-let trim (x:string): string =
-  let len = String.length x in
-  if x.[len-1] = ' ' then String.sub x 0 (len-1) else x
 
 
 (** Creates a directory and returns the absolute path **)
@@ -138,21 +121,8 @@ let rec name_to_string_hlp = function
   | PtrTo x -> name_to_string_hlp x ^ "*"
   | TypeFun (f,x) -> f ^ "(" ^ name_to_string_hlp x ^ ")"
 
-let prefix = Str.regexp "^::.*"
-
 let name_to_string x =
   name_to_string_hlp x
-
-let rec show = function
-  | Cons -> "Cons"
-  | Dest -> "Dest"
-  | Name x -> "Name \""^x^"\""
-  | Unknown x -> "Unknown \""^x^"\""
-  | Template (a) -> "Template ("^show a^")"
-  | Nested (x,y) -> "Nested ("^show x^","^show y^")"
-  | PtrTo x -> "PtrTo ("^show x^")"
-  | TypeFun (f,x) -> "TypeFun ("^f^","^ name_to_string x ^ ")"
-
 
 let special    = Str.regexp "nw\\|na\\|dl\\|da\\|ps\\|ng\\|ad\\|de\\|co\\|pl\\|mi\\|ml\\|dv\\|rm\\|an\\|or\\|eo\\|aS\\|pL\\|mI\\|mL\\|dV\\|rM\\|aN \\|oR\\|eO\\|ls\\|rs\\|lS\\|rS\\|eq\\|ne\\|lt\\|gt\\|le\\|ge\\|nt\\|aa\\|oo\\|pp\\|mm\\|cm\\|pm\\|pt\\|cl\\|ix\\|qu\\|st\\|sz"
 let dem_prefix = Str.regexp "^_Z\\(.+\\)"
@@ -443,3 +413,14 @@ let self_signal signal = Unix.kill (Unix.getpid ()) signal
 let rec zip x y = match x,y with
   | (x::xs), (y::ys) -> (x,y) :: zip xs ys
   | _ -> []
+
+let rec for_all_in_range (a, b) f =
+  let module BI = IntOps.BigIntOps in
+  if BI.compare a b > 0
+  then true
+  else f a && (for_all_in_range (BI.add a (BI.one), b) f)
+
+let assoc_eq (x: 'a) (ys: ('a * 'b) list) (eq: 'a -> 'a -> bool): ('b option) =
+  Option.map Batteries.Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
+
+let dummy_obj = Obj.repr ()

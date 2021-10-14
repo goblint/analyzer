@@ -2,14 +2,20 @@ opam-version: "2.0"
 synopsis: "Static analysis framework for concurrent C"
 maintainer: [
   "Michael Schwarz <michael.schwarz93@gmail.com>"
+  "Simmo Saan <simmo.saan@gmail.com>"
   "Ralf Vogler <ralf.vogler@gmail.com>"
 ]
 authors: [
-  "Vesal Vojdani, Kalmer Apinis, Ralf Vogler, Michael Schwarz, Julian Erhard"
+  "Vesal Vojdani"
+  "Kalmer Apinis"
+  "Ralf Vogler"
+  "Michael Schwarz"
+  "Julian Erhard"
+  "Simmo Saan"
 ]
 license: "MIT"
 homepage: "https://goblint.in.tum.de"
-doc: "https://goblint.github.io/analyzer"
+doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "apron" {= "v0.9.13"}
@@ -48,7 +54,7 @@ depends: [
   "sexplib0" {= "v0.14.0"}
   "stdlib-shims" {= "0.3.0"}
   "yojson" {= "1.7.0"}
-  "zarith" {= "1.12"}
+  "zarith" {= "1.12-gob0"}
   "zarith_stubs_js" {= "v0.14.0"}
 ]
 build: [
@@ -68,6 +74,9 @@ build: [
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 pin-depends: [
   [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#c16dddf74f6053a8b3fac07ca2feff18d4d56964" ]
+  [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
+  [ "zarith.1.12-gob0" "git+https://github.com/goblint/Zarith.git#goblint-release-1.12" ]
+  [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
 ]
 name: "goblint"
 version: "dev"

@@ -6,6 +6,9 @@ module M = Messages
 module A = Array
 module Q = Queries
 module BI = IntOps.BigIntOps
+
+module LiftExp = Printable.Lift (CilType.Exp) (Printable.DefaultNames)
+
 module type S =
 sig
   include Lattice.S
@@ -294,6 +297,7 @@ struct
   let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pretty x LiftExp.pretty i Val.pretty a;
     if i = `Lifted MyCFG.all_array_index_exp then
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
       let r =  Val.join xm a in
@@ -565,6 +569,26 @@ struct
 
   let update_length _ x = x
 end
+(* This is the main array out of bounds check*)
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+  if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
+    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
+    (* For an explanation of the warning types check the Pull Request #255 *)
+    match(idx_after_start, idx_before_end) with
+    | Some true, Some true -> (* Certainly in bounds on both sides.*)
+      ()
+    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
+    | Some true, None ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
+    | Some false, Some true ->
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
+    | None, Some true ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
+    | _ ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+  else ()
 
 
 module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
@@ -573,7 +597,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
@@ -609,7 +636,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l

@@ -253,14 +253,16 @@ struct
       if not (exists (fun (y',_) -> y=y') xs) then begin
         let xn = assoc x !analyses_table in
         let yn = assoc y !analyses_table in
-        Legacy.Printf.fprintf !Messages.warn_out "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
+        Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
         raise Exit
       end
     in
     let deps (x,_) = iter (check_dep x) @@ assoc x !dep_list in
     iter deps xs
 
-  let init () =
+
+  type marshal = Obj.t list
+  let init marshal =
     let map' f =
       let f x =
         try f x
@@ -268,12 +270,12 @@ struct
       in
       List.map f
     in
-    let xs = map Json.string @@ get_list "ana.activated" in
+    let xs = get_string_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in
     base_id := assoc_inv "base" !analyses_table;
     analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
-    path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
-    cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
+    path_sens := map' (flip assoc_inv !analyses_table) @@ get_string_list "ana.path_sens";
+    cont_inse := map' (flip assoc_inv !analyses_table) @@ get_string_list "ana.ctx_insens";
     dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
     check_deps !analyses_list;
     analyses_list := topo_sort_an !analyses_list;
@@ -281,9 +283,14 @@ struct
       Printf.printf "\n";
       iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
       Printf.printf "\n";*)
-    iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init ()) !analyses_list
+    match marshal with
+    | Some marshal ->
+      combine !analyses_list marshal
+      |> iter (fun ((_,{spec=(module S:MCPSpec); _}), marshal) -> S.init (Some (Obj.obj marshal)))
+    | None ->
+      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init None) !analyses_list
 
-  let finalize () = iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.finalize ()) !analyses_list
+  let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !analyses_list
 
   let spec x = (assoc x !analyses_list).spec
   let spec_list xs =
@@ -296,12 +303,11 @@ struct
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let val_of = identity
-  let context x =
+  let context fd x =
     let x = spec_list x in
     map (fun (n,(module S:MCPSpec),d) ->
         let d' = if mem n !cont_inse then S.D.top () else obj d in
-        n, repr @@ S.context d'
+        n, repr @@ S.context fd d'
       ) x
 
   let should_join x y =
@@ -403,8 +409,9 @@ struct
       List.map (fun (n,d) -> n, spec_assign n d) xs
 
   let finalize () =
-    finalize ();
-    Access.print_result ()
+    let r = finalize () in
+    Access.print_result ();
+    r
 
   let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
     let split_one n (d,emits) =
@@ -528,6 +535,7 @@ struct
       Result.top () (* query cycle *)
     else
       let asked' = QuerySet.add (Any q) asked in
+      let sides = ref [] in
       let f a (n,(module S:MCPSpec),d) =
         let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
           { local  = obj d
@@ -543,8 +551,8 @@ struct
           ; global = (fun v      -> ctx.global v |> assoc n |> obj)
           ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
           ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-          ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in query context.")
-          (* sideg is forbidden in query, because they would bypass sides grouping in other transfer functions.
+          ; sideg  = (fun v g    -> sides := (v, (n, repr g)) :: !sides)
+          (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
              See https://github.com/goblint/analyzer/pull/214. *)
           ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
           }
@@ -561,7 +569,9 @@ struct
         (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
         f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
       | _ ->
-        fold_left f (Result.top ()) @@ spec_list ctx.local
+        let r = fold_left f (Result.top ()) @@ spec_list ctx.local in
+        do_sideg ctx !sides;
+        r
 
   and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
     query' QuerySet.empty ctx q

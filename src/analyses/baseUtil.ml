@@ -13,7 +13,7 @@ let precious_globs = ref []
 let is_precious_glob v = List.mem v.vname !precious_globs
 
 let after_config () =
-  precious_globs := List.map Json.string (get_list "exp.precious_globs")
+  precious_globs := get_string_list "exp.precious_globs"
 
 let _ =
   AfterConfig.register after_config

@@ -23,7 +23,12 @@ struct
   let trace_enabled = true
   let is_global v = v.vglob
   let copy x = x
-  let show x = GU.demangle x.vname
+  let show x =
+    if PreMallocWrapperAnalysis.is_heap_var x then
+      let node = PreMallocWrapperAnalysis.get_node x in
+      let loc = UpdateCil.getLoc node in
+      GU.demangle "(" ^ x.vname ^ ", " ^ CilType.Location.show loc ^ ")"
+    else GU.demangle x.vname
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
   let get_location x = x.vdecl
@@ -46,9 +51,9 @@ end
 
 module RawStrings: Printable.S with type t = string =
 struct
-  include Printable.StdPolyCompare
+  include Printable.Std
   open Pretty
-  type t = string [@@deriving eq, to_yojson]
+  type t = string [@@deriving eq, ord, to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let show x = "\"" ^ x ^ "\""
   let pretty () x = text (show x)
@@ -64,9 +69,9 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 
 module RawBools: Printable.S with type t = bool =
 struct
-  include Printable.StdPolyCompare
+  include Printable.Std
   open Pretty
-  type t = bool [@@deriving eq, to_yojson]
+  type t = bool [@@deriving eq, ord, to_yojson]
   let hash (x:t) = Hashtbl.hash x
   let show (x:t) =  if x then "true" else "false"
   let pretty () x = text (show x)

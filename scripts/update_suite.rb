@@ -10,7 +10,7 @@ def relpath(file)
   return Pathname(file).relative_path_from Pathname(Dir.getwd) # Pathname for arg required for ruby 2.5, 2.6 accepts string as well
 end
 require 'set'
-timeout = 5 # seconds
+timeout = 10 # seconds
 
 def puts(o) # puts is not atomic and messes up linebreaks with multiple threads
   print(o+"\n")
@@ -117,6 +117,7 @@ end
 
 #processing the file information
 projects = []
+project_ids = Set.new
 regs = Dir.open(testfiles)
 regs.sort.each do |d|
   next if File.basename(d)[0] == ?.
@@ -132,6 +133,10 @@ regs.sort.each do |d|
     next if f =~ /goblin_temp/
     next unless f =~ /^[0-9]+-.*\.c$/
     id = gid + "/" + f[0..1]
+    if project_ids.member?(id) then
+      puts "Duplicate test ID #{id}"
+      exit 1
+    end
     testname = f[3..-3]
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
@@ -140,7 +145,6 @@ regs.sort.each do |d|
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
-    debug = false unless lines[0] =~ /DEBUG/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 
@@ -181,9 +185,13 @@ regs.sort.each do |d|
       tests[-1] = "term"
       debug = true
     end
+    # always enable debugging so that the warnings would work
+    debug = true
+
     params << " --set dbg.debug true" if debug
     p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true)
     projects << p
+    project_ids << id
   end
 end
 
@@ -234,9 +242,9 @@ doproject = lambda do |p|
   end
   starttime = Time.now
   if marshal then
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true --sets save_run run  2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --set save_run run  2>#{statsfile}"
   else
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true 2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true 2>#{statsfile}"
   end
   pid = Process.spawn(cmd, :pgroup=>true)
   begin
@@ -278,7 +286,7 @@ doproject = lambda do |p|
     f.puts vrsn
   end
   if marshal then
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --sets warnstyle \"legacy\" --set printstats true --conf run/config.json --sets save_run '' --sets load_run run  2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --conf run/config.json --set save_run '' --set load_run run  2>#{statsfile}"
     pid = Process.spawn(cmd, :pgroup=>true)
     begin
       Timeout::timeout(timeout) {Process.wait pid}
@@ -357,12 +365,14 @@ File.open(theresultfile, "w") do |f|
   f.puts "<body>"
   f.puts "<table border=2 cellpadding=4>"
   gname = ""
+  vars = 0
+  evals = 0
   projects.each do |p|
     id = "#{p.id} #{p.group}/#{p.name}"
     is_ok = true
     if p.group != gname then
       gname = p.group
-      headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Problems"]
+      headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Vars / Eval", "Problems"]
 #       headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Constraints", "Solver", "Problems"] if tracing
       f.puts "<tr><th colspan=#{headings.size}>#{gname}</th></tr>"
       f.puts "<tr>"
@@ -378,24 +388,24 @@ File.open(theresultfile, "w") do |f|
     lines = IO.readlines(File.join(testresults, warnfile))
     lines.each do |l|
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
+      if l =~ /vars = (\d*).*evals = (\d+)/ then
+        vars = $1
+        evals = $2
+      end
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?\)/
       obj,i = $1,$2.to_i
 
       ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
-                    when /lockset:/                  then "race"
+                    when /\(conf\. \d+\)/            then "race"
+                    when /lockset:/                  then "race" # osek races have their own legacy-like output
                     when /Deadlock/                  then "deadlock"
                     when /Assertion .* will fail/    then "fail"
                     when /Assertion .* will succeed/ then "success"
                     when /Assertion .* is unknown/   then "unknown"
-                    when /Uninitialized/             then "warn"
-                    when /dereferencing of null/     then "warn"
-                    when /CW:/                       then "warn"
-                    when /Fixpoint not reached/      then "warn"
-                    when /.*file handle.*/           then "warn"
-                    when /.*file is never closed/    then "warn"
-                    when /.*unclosed files: .*/      then "warn"
-                    when /changed pointer .*/        then "warn"
+                    when /^\[Warning\]/              then "warn"
+                    when /^\[Error\]/                then "warn"
+                    when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     else "other"
                   end
       oldwarn = warnings[i]
@@ -447,6 +457,8 @@ File.open(theresultfile, "w") do |f|
     else
       f.puts "<td><a href=\"#{statsfile}\">#{"%.2f" % res} s</a></td>"
     end
+
+    f.puts "<td>#{vars} / #{evals}</a></td>"
 
 #     if tracing then
 #       confile = p.name + ".con.txt"

@@ -2,7 +2,8 @@ open Cil
 
 type changed_global = {
   old: global;
-  current: global
+  current: global;
+  unchangedHeader: bool
 }
 
 type change_info = {
@@ -18,28 +19,14 @@ type global_type = Fun | Decl | Var | Other
 
 and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
 
+exception NoGlobalIdentifier of global
+
 let identifier_of_global glob =
   match glob with
   | GFun (fundec, l) -> {name = fundec.svar.vname; global_t = Fun}
   | GVar (var, init, l) -> {name = var.vname; global_t = Var}
   | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
-  | _ -> raise (Failure "No variable or function")
-
-let any_changed (c: change_info) =
-  not @@ List.for_all (fun l -> l = 0) [List.length c.changed; List.length c.removed; List.length c.added]
-
-(* Check whether any changes to function definitions or types of globals were detected *)
-let check_any_changed (c: change_info) =
-  if GobConfig.get_string "exp.incremental.mode" = "incremental" then
-    print_endline @@ "Function definitions " ^ (if any_changed c then "or types of globals changed." else "and types of globals did not change.")
-
-(* Print whether the analyzed intermediate code changed *)
-let check_file_changed (old_commit_dir: string) (current_commit_dir: string) =
-  let old = Filename.concat old_commit_dir "cil.c" in
-  let current = Filename.concat current_commit_dir "cil.c" in
-  let old_file = BatFile.with_file_in old BatIO.read_all in
-  let current_file = BatFile.with_file_in current BatIO.read_all in
-  print_endline @@ "CIL-file " ^ (if old_file = current_file then "did not change." else "changed.")
+  | _ -> raise (NoGlobalIdentifier glob)
 
 module GlobalMap = Map.Make(struct
     type t = global_identifier [@@deriving ord]
@@ -91,16 +78,20 @@ and eq_lhost (a: lhost) (b: lhost) = match a, b with
   | Mem exp1, Mem exp2 -> eq_exp exp1 exp2
   | _, _ -> false
 
+and global_typ_acc: (typ * typ) list ref = ref [] (* TODO: optimize with physical Hashtbl? *)
+
+and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y) -> a == x && b == y) acc (* TODO: seems slightly more efficient to not use "fun (x, y) ->" directly to avoid caml_tuplify2 *)
+
+and pretty_length () l = Pretty.num (List.length l)
+
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
-  if( List.exists (fun x-> match x with (x,y)-> a==x && b == y) acc)
-  then true
-  else (let acc = List.cons (a,b) acc in
-        match a, b with
+  if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
+  let r = (match a, b with
         | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
         | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
         | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
         | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2)
-          ->  eq_typ_acc typ1 typ2 acc && eq_list eq_args list1 list2 && varArg1 = varArg2 &&
+          ->  eq_typ_acc typ1 typ2 acc && eq_list (eq_args acc) list1 list2 && varArg1 = varArg2 &&
               eq_list eq_attribute attr1 attr2
         | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2)
           ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
@@ -109,10 +100,29 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
         | TNamed (tinf, attr), b -> eq_typ_acc tinf.ttype b acc (* Ignore tname, treferenced. TODO: dismiss attributes, or not? *)
         | a, TNamed (tinf, attr) -> eq_typ_acc a tinf.ttype acc (* Ignore tname, treferenced . TODO: dismiss attributes, or not? *)
         (* The following two lines are a hack to ensure that anonymous types get the same name and thus, the same typsig *)
-        | TComp (compinfo1, attr1), TComp (compinfo2, attr2) -> let res = eq_compinfo compinfo1 compinfo2 acc &&  eq_list eq_attribute attr1 attr2 in (if res && compinfo1.cname <> compinfo2.cname then compinfo2.cname <- compinfo1.cname); res
+        | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->
+          if mem_typ_acc a b acc || mem_typ_acc a b !global_typ_acc then (
+            if Messages.tracing then Messages.trace "compareast" "in acc\n";
+            true
+          )
+          else (
+            let acc = (a, b) :: acc in
+            let res = eq_compinfo compinfo1 compinfo2 acc && eq_list eq_attribute attr1 attr2 in
+            if res && compinfo1.cname <> compinfo2.cname then
+              compinfo2.cname <- compinfo1.cname;
+            if res then
+              global_typ_acc := (a, b) :: !global_typ_acc;
+            res
+          )
         | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
         | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
-        | _, _ -> a = b)
+        | TVoid attr1, TVoid attr2 -> eq_list eq_attribute attr1 attr2
+        | TInt (ik1, attr1), TInt (ik2, attr2) -> ik1 = ik2 && eq_list eq_attribute attr1 attr2
+        | TFloat (fk1, attr1), TFloat (fk2, attr2) -> fk1 = fk2 && eq_list eq_attribute attr1 attr2
+        | _, _ -> false)
+  in
+  if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a\n" d_type a d_type b;
+  r
 
 and eq_typ (a: typ) (b: typ) = eq_typ_acc a b []
 
@@ -126,19 +136,8 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) =
   eq_list eq_eitems a.eitems b.eitems
 (* Ignore ereferenced *)
 
-and eq_args (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
-    (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ typ1 typ2 && eq_list eq_attribute attr1 attr2
-
-and eq_typsig (a: typsig) (b: typsig) =
-  match a, b with
-  | TSArray (ts1, i1, attr1), TSArray (ts2, i2, attr2) -> eq_typsig ts1 ts2 && i1 = i2 && eq_list eq_attribute attr1 attr2
-  | TSPtr (ts1, attr1), TSPtr (ts2, attr2) -> eq_typsig ts1 ts2 && eq_list eq_attribute attr1 attr2
-  | TSComp (b1, str1, attr1), TSComp (b2, str2, attr2) -> b1 = b2 && str1 = str2 && eq_list eq_attribute attr1 attr2
-  | TSFun (ts1, Some tsList1, b1, attr1), TSFun (ts2, Some tsList2, b2, attr2) -> eq_typsig ts1 ts2 && eq_list eq_typsig tsList1 tsList2 && b1 = b2 && eq_list eq_attribute attr1 attr2
-  | TSFun (ts1, None, b1, attr1), TSFun (ts2, None, b2, attr2) -> eq_typsig ts1 ts2 && b1 = b2 && eq_list eq_attribute attr1 attr2
-  | TSEnum (str1, attr1), TSEnum (str2, attr2) -> str1 = str2 && eq_list eq_attribute attr1 attr2
-  | TSBase typ1, TSBase typ2 -> eq_typ_acc typ1 typ2 []
-  | _, _ -> false
+and eq_args (acc: (typ * typ) list) (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
+    (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
 
 and eq_attrparam (a: attrparam) (b: attrparam) = match a, b with
   | ACons (str1, attrparams1), ACons (str2, attrparams2) -> str1 = str2 && eq_list eq_attrparam attrparams1 attrparams2
@@ -173,7 +172,10 @@ and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) =
   a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list)=
-  a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr
+  if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
+  let r = a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr in
+  if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
+  r
 
 and eq_offset (a: offset) (b: offset) = match a, b with
     NoOffset, NoOffset -> true
@@ -229,13 +231,19 @@ and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
   a.battrs = b.battrs && List.for_all (fun (x,y) -> eq_stmt (x, af) (y, bf)) (List.combine a.bstmts b.bstmts)
 
 let eqF (a: Cil.fundec) (b: Cil.fundec) =
-  try
-    eq_varinfo a.svar b.svar &&
-    List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals) &&
-    List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) &&
-    eq_block (a.sbody, a) (b.sbody, b)
-  with Invalid_argument _ -> (* One of the combines failed because the lists have differend length *)
-    false
+  let unchangedHeader =
+    try
+      eq_varinfo a.svar b.svar &&
+      List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals)
+    with Invalid_argument _ -> false in
+  let identical =
+    try
+      unchangedHeader &&
+      List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) &&
+      eq_block (a.sbody, a) (b.sbody, b)
+    with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
+      false in
+  identical, unchangedHeader
 
 let rec eq_init (a: init) (b: init) = match a, b with
   | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
@@ -249,9 +257,9 @@ let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
 
 let eq_glob (a: global) (b: global) = match a, b with
   | GFun (f,_), GFun (g,_) -> eqF f g
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y
-  | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> (eq_varinfo x y, false) (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> (eq_varinfo x y, false)
+  | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); (false, false)
 
 (* Returns a list of changed functions *)
 let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
@@ -262,18 +270,19 @@ let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
       e -> map
   in
   let changes = empty_change_info () in
+  global_typ_acc := [];
   let checkUnchanged map global =
     try
       let ident = identifier_of_global global in
       (try
          let old_global = GlobalMap.find ident map in
          (* Do a (recursive) equal comparision ignoring location information *)
-         let identical = eq_glob old_global global in
+         let identical, unchangedHeader = eq_glob old_global global in
          if identical
          then changes.unchanged <- global :: changes.unchanged
-         else changes.changed <- {current = global; old = old_global} :: changes.changed
+         else changes.changed <- {current = global; old = old_global; unchangedHeader = unchangedHeader} :: changes.changed
        with Not_found -> ())
-    with e -> () (* Global was no variable or function, it does not belong into the map *)
+    with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)
   in
   let checkExists map global =
     let name = identifier_of_global global in

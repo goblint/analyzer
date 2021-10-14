@@ -9,10 +9,12 @@ open List
 (** Main categories of configuration variables. *)
 type category = Std             (** Parsing input, includes, standard stuff, etc. *)
               | Analyses        (** Analyses                                      *)
+              | Incremental     (** Incremental features                          *)
               | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
+              | Warnings        (** Filtering warnings                            *)
               [@@deriving enum]
 
 let all_categories = min_category -- max_category |> of_enum |> map (Option.get % category_of_enum)
@@ -25,6 +27,8 @@ let catDescription = function
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
+  | Incremental     -> "Incremental analysis options"
+  | Warnings        -> "Filtering of warnings"
 
 (** A place to store registered variables *)
 let registrar = ref []
@@ -63,7 +67,6 @@ let _ = ()
       ; reg Std "justcil"         "false"        "Just parse and output the CIL."
       ; reg Std "justcfg"         "false"        "Only output the CFG in cfg.dot ."
       ; reg Std "printstats"      "false"        "Outputs timing information."
-      ; reg Std "gccwarn"         "false"        "Output warnings in GCC format."
       ; reg Std "verify"          "true"         "Verify that the solver reached a post-fixpoint. Beware that disabling this also disables output of warnings since post-processing of the results is done in the verification phase!"
       ; reg Std "mainfun"         "['main']"     "Sets the name of the main functions."
       ; reg Std "exitfun"         "[]"           "Sets the name of the cleanup functions."
@@ -74,8 +77,7 @@ let _ = ()
       ; reg Std "cppflags"        "''"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
-      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, or pretty."
-      ; reg Std "warnstyle"       "'pretty'"     "Result style: legacy, pretty, or xml."
+      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, pretty, json-messages."
       ; reg Std "solver"          "'td3'"         "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
@@ -90,14 +92,14 @@ let _ = ()
       ; reg Std "save_run"        "''"           "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results."
       ; reg Std "load_run"        "''"           "Load a saved run. See save_run."
       ; reg Std "compare_runs"    "[]"           "Load these saved runs and compare the results. Note that currently only two runs can be compared!"
-      ; reg Std "warn"            "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
+      ; reg Std "warn_at"         "'post'"       "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing)."
       ; reg Std "gobview"         "false"        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'."
 
 (* {4 category [Analyses]} *)
 let _ = ()
       ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','threadreturn','escape','mutex','mallocWrapper']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
-      (* octApron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
+      (* apron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
       ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
       ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
@@ -117,12 +119,10 @@ let _ = ()
       ; reg Analyses "ana.osek.safe_isr"   "[]"    "Ignore accesses in these isr"
       ; reg Analyses "ana.osek.flags"      "[]"    "List of global variables that are flags."
       ; reg Analyses "ana.osek.def_header" "true"  "Generate TASK/ISR macros with default structure"
-      ; reg Analyses "ana.int.wrap_on_signed_overflow" "false" "Whether to assume wrap-around behavior on signed overflow. If set to true, assumes two's complement representation of signed integers. If set to false, goes to top on signed overflow."
       ; reg Analyses "ana.int.def_exc"      "true"  "Use IntDomain.DefExc: definite value/exclusion set."
       ; reg Analyses "ana.int.interval"    "false" "Use IntDomain.Interval32: (int64 * int64) option."
       ; reg Analyses "ana.int.enums"       "false" "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions."
       ; reg Analyses "ana.int.congruence"  "false" "Use IntDomain.Congruence: (c, m) option, meaning congruent to c modulo m"
-      ; reg Analyses "ana.int.congruence_no_overflow" "false" "Assume that no overflows occur in congruence operations"
       ; reg Analyses "ana.int.refinement"   "'never'" "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'"
       ; reg Analyses "ana.file.optimistic" "false" "Assume fopen never fails."
       ; reg Analyses "ana.spec.file"       ""      "Path to the specification file."
@@ -139,8 +139,21 @@ let _ = ()
       ; reg Analyses "ana.sv-comp.functions" "false" "Handle SV-COMP __VERIFIER* functions"
       ; reg Analyses "ana.specification"   "" "SV-COMP specification (path or string)"
       ; reg Analyses "ana.wp"              "false" "Weakest precondition feasibility analysis for SV-COMP violations"
-      ; reg Analyses "ana.octapron.no_uints"    "false"  "Use OctApron without tracking unsigned integers."
-      ; reg Analyses "ana.octapron.no_signed_overflow" "true" "Assume there will be no signed overflow for OctApron."
+      ; reg Analyses "ana.arrayoob"        "false"        "Array out of bounds check"
+      ; reg Analyses "ana.base.context.non-ptr"      "true" "Non-address values in function contexts."
+      ; reg Analyses "ana.base.context.int"    "true" "Integer values in function contexts."
+      ; reg Analyses "ana.base.context.interval" "true" "Integer values of the Interval domain in function contexts."
+      ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
+      ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
+
+(* {4 category [Incremental]} *)
+let _ = ()
+      ; reg Incremental "incremental.load"   "false" "Load incremental analysis results, in case any exist."
+      ; reg Incremental "incremental.save"   "false" "Store incremental analysis results."
+      ; reg Incremental "incremental.stable" "true"  "Reuse the stable set and selectively destabilize it (recommended)."
+      ; reg Incremental "incremental.wpoint" "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
+      ; reg Incremental "incremental.reluctant.on" "true" "Destabilize nodes in changed functions reluctantly"
+      ; reg Incremental "incremental.reluctant.compare" "'leq'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
 
 (* {4 category [Semantics]} *)
 let _ = ()
@@ -148,6 +161,8 @@ let _ = ()
       ; reg Semantics "sem.unknown_function.spawn" "true"  "Unknown function call spawns reachable functions"
       ; reg Semantics "sem.unknown_function.invalidate.globals" "true"  "Unknown function call invalidates all globals"
       ; reg Semantics "sem.builtin_unreachable.dead_code" "false"  "__builtin_unreachable is assumed to be dead code"
+      ; reg Semantics "sem.int.signed_overflow" "'assume_top'" "How to handle overflows of signed types. Values: 'assume_top' (default): Assume signed overflow results in a top value; 'assume_none': Assume program is free of signed overflows;  'assume_wraparound': Assume signed types wrap-around and two's complement representation of signed integers"
+
 
 (* {4 category [Transformations]} *)
 let _ = ()
@@ -161,7 +176,7 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.octapron.privatization" "'mutex-meet'" "Which octApron privatization to use? dummy/protection/protection-path/mutex-meet"
+      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
@@ -169,10 +184,6 @@ let _ = ()
       ; reg Experimental "exp.region-offsets"    "false" "Considers offsets for region accesses."
       ; reg Experimental "exp.unique"            "[]"    "For types that have only one value."
       ; reg Experimental "exp.forward"           "false" "Use implicit forward propagation instead of the demand driven approach."
-      ; reg Experimental "exp.full-context"      "false" "Do not side-effect function entries. If partial contexts (or ana.ctx_insens) are used, this will fail!"
-      ; reg Experimental "exp.addr-context"      "false" "Ignore non-address values in function contexts."
-      ; reg Experimental "exp.no-int-context"    "false" "Ignore all integer values in function contexts."
-      ; reg Experimental "exp.no-interval-context" "false" "Ignore integer values of the Interval domain in function contexts."
       ; reg Experimental "exp.malloc.fail"       "false" "Consider the case where malloc or calloc fails."
       ; reg Experimental "exp.malloc.wrappers"   "['kmalloc','__kmalloc','usb_alloc_urb','__builtin_alloca','kzalloc']"  "Loads a list of known malloc wrapper functions." (* When something new that maps to malloc or calloc is added to libraryFunctions.ml, it should also be added here.*)
       ; reg Experimental "exp.volatiles_are_top" "true"  "volatile and extern keywords set variables permanently to top"
@@ -184,10 +195,8 @@ let _ = ()
       ; reg Experimental "exp.extraspecials"     "[]"    "List of functions that must be analyzed as unknown extern functions"
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
-      ; reg Experimental "exp.widen-context"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls. Method depends on exp.full-context - true: unfeasible because then it has to store calls in the context; false: only store calls in local state."
-      ; reg Experimental "exp.widen-context-partial" "false" "After widening also apply the context function to get a partial context (options no-*-context, earlyglobs)."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
-      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilzed, unstable_self: widen if side-effected var gets destabilized."
+      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"
@@ -206,10 +215,7 @@ let _ = ()
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
       ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
-      ; reg Experimental "exp.incremental.mode"   "'off'" "Use incremental analysis in the TD3 solver. Values: off (default), incremental (analyze based on data from a previous commit or fresh if there is none), complete (discard loaded data and start fresh)."
-      ; reg Experimental "exp.incremental.stable" "true"  "Reuse the stable set and selectively destabilize it."
-      ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
-      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc-6'" "Location of gcc-6. Used to combine source files with cilly."
+      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
 
 (* {4 category [Debugging]} *)
 let _ = ()
@@ -217,7 +223,7 @@ let _ = ()
       ; reg Debugging "dbg.verbose"         "false" "Prints some status information."
       ; reg Debugging "dbg.trace.context"   "false" "Also print the context of solver variables."
       ; reg Debugging "dbg.showtemps"       "false" "Shows CIL's temporary variables when printing the state."
-      ; reg Debugging "dbg.uncalled"        "false" "Display uncalled functions."
+      ; reg Debugging "dbg.uncalled"        "true" "Display uncalled functions."
       ; reg Debugging "dbg.dump"            ""      "Dumps the results to the given path"
       ; reg Debugging "dbg.cilout"          ""      "Where to dump cil output"
       ; reg Debugging "dbg.timeout"         "'0'"   "Stop solver after this time. 0 means no timeout. Supports optional units h, m, s. E.g. 1m6s = 01m06s = 66; 6h = 6*60*60."
@@ -234,78 +240,97 @@ let _ = ()
       ; reg Debugging "dbg.regression"      "false" "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)"
       ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
+      ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
 
-let default_schema = "\
-{ 'id'              : 'root'
-, 'type'            : 'object'
-, 'required'        : ['outfile', 'includes', 'kernel_includes', 'custom_includes', 'custom_incl', 'custom_libc', 'justcil', 'justcfg', 'printstats', 'gccwarn', 'verify', 'mainfun', 'exitfun', 'otherfun', 'allglobs', 'keepcpp', 'tempDir', 'cppflags', 'kernel', 'dump_globs', 'result', 'warnstyle', 'solver', 'allfuns', 'nonstatic', 'colors', 'g2html']
-, 'additionalProps' : false
-, 'properties' :
-  { 'ana' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+(* {4 category [Warnings]} *)
+let _ = ()
+      ; reg Warnings "warn.assert"          "true"  "Assert messages"
+      ; reg Warnings "warn.behavior"        "true"  "undefined behavior warnings"
+      ; reg Warnings "warn.integer"         "true"  "integer (Overflow, Div_by_zero) warnings"
+      ; reg Warnings "warn.cast"            "true"  "Cast (Type_mismatch(bug) warnings"
+      ; reg Warnings "warn.race"            "true"  "Race warnings"
+      ; reg Warnings "warn.deadcode"        "true"  "Dead code warnings"
+      ; reg Warnings "warn.analyzer"        "true"  "Analyzer messages"
+      ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
+      ; reg Warnings "warn.error"           "true"  "Error severity messages"
+      ; reg Warnings "warn.warning"         "true"  "Warning severity messages"
+      ; reg Warnings "warn.info"            "true"  "Info severity messages"
+      ; reg Warnings "warn.debug"           "true"  "Debug severity messages"
+      ; reg Warnings "warn.success"         "true"  "Success severity messages"
+
+let default_schema = {schema|
+{ "id"              : "root"
+, "type"            : "object"
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "additionalProps" : false
+, "properties" :
+  { "ana" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'sem'               : {}
-  , 'trans'             : {}
-  , 'phases'            : {}
-  , 'exp' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+  , "sem"               : {}
+  , "incremental"       : {}
+  , "trans"             : {}
+  , "phases"            : {}
+  , "exp" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'dbg' :
-    { 'type'            : 'object'
-    , 'additionalProps' : true
-    , 'required'        : []
+  , "dbg" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'questions' :
-    { 'file'            : ''
+  , "questions" :
+    { "file"            : ""
     }
-  , 'outfile'         : {}
-  , 'includes'        : {}
-  , 'kernel_includes' : {}
-  , 'custom_includes' : {}
-  , 'custom_incl'     : {}
-  , 'custom_libc'     : {}
-  , 'justcil'         : {}
-  , 'justcfg'         : {}
-  , 'printstats'      : {}
-  , 'gccwarn'         : {}
-  , 'verify'        : {}
-  , 'mainfun'         : {}
-  , 'exitfun'         : {}
-  , 'otherfun'        : {}
-  , 'allglobs'        : {}
-  , 'keepcpp'         : {}
-  , 'tempDir'         :
-    { 'type'            : 'string'
+  , "outfile"         : {}
+  , "includes"        : {}
+  , "kernel_includes" : {}
+  , "custom_includes" : {}
+  , "custom_incl"     : {}
+  , "custom_libc"     : {}
+  , "justcil"         : {}
+  , "justcfg"         : {}
+  , "printstats"      : {}
+  , "verify"        : {}
+  , "mainfun"         : {}
+  , "exitfun"         : {}
+  , "otherfun"        : {}
+  , "allglobs"        : {}
+  , "keepcpp"         : {}
+  , "tempDir"         :
+    { "type"            : "string"
     }
-  , 'cppflags'        : {}
-  , 'kernel'          : {}
-  , 'dump_globs'      : {}
-  , 'result'          :
-    { 'type'            : 'string'
+  , "cppflags"        : {}
+  , "kernel"          : {}
+  , "dump_globs"      : {}
+  , "result"          :
+    { "type"            : "string"
     }
-  , 'warnstyle'          :
-    { 'type'            : 'string'
+  , "solver"          : {}
+  , "comparesolver"   : {}
+  , "solverdiffs"     : {}
+  , "allfuns"         : {}
+  , "nonstatic"       : {}
+  , "colors"          : {}
+  , "g2html"          : {}
+  , "interact"        : {}
+  , "save_run"        : {}
+  , "load_run"        : {}
+  , "compare_runs"    : {}
+  , "warn_at"         : {}
+  , "warn"              :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
     }
-  , 'solver'          : {}
-  , 'comparesolver'   : {}
-  , 'solverdiffs'     : {}
-  , 'allfuns'         : {}
-  , 'nonstatic'       : {}
-  , 'colors'          : {}
-  , 'g2html'          : {}
-  , 'interact'        : {}
-  , 'save_run'        : {}
-  , 'load_run'        : {}
-  , 'compare_runs'    : {}
-  , 'gobview'         : {}
-  , 'warn'            : {}
+  , "gobview"         : {}
   }
-}"
+}|schema}
 
 let _ =
-  let v = JsonParser.value JsonLexer.token @@ Lexing.from_string default_schema in
+  let v = Yojson.Safe.from_string default_schema in
   GobConfig.addenum_sch v

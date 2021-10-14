@@ -7,7 +7,7 @@ open Messages
 
 module WP =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)
@@ -142,23 +142,6 @@ module WP =
         )
       in
       solve_sidevs ();
-
-      let reachability xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then (
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constaint x
-          )
-        and one_constaint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
-      in
-      reachability vs;
       stop_event ();
 
       HM.clear stable;
@@ -171,5 +154,4 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
-  Selector.add_solver ("topdown", (module WP : GenericGlobSolver));
+  Selector.add_solver ("topdown", (module EqIncrSolverFromEqSolver (WP)));

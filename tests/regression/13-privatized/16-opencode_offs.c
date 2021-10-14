@@ -1,7 +1,7 @@
-// SKIP PARAM: --set ana.activated[+] "'shape'"  --set nonstatic true --sets exp.unique[+] usb_drv --sets exp.unique[+] usb_bus --set exp.region-offsets true
+// SKIP PARAM: --set ana.activated[+] "'shape'"  --set nonstatic true --set exp.unique[+] usb_drv --set exp.unique[+] usb_bus --set exp.region-offsets true
 #include<linuxlight.h>
 
-struct usb_drv { 
+struct usb_drv {
   struct list_head buses;
   struct mutex     buses_lock;
 };

@@ -1,0 +1,14 @@
+rules:
+  - id: cilfacade
+    pattern-either:
+      - pattern: Cil.typeOf
+      - pattern: Cil.typeOfLval
+      - pattern: Cil.typeOfInit
+      - pattern: Cil.typeOffset
+      - pattern: Cil.get_stmtLoc
+    paths:
+      exclude:
+        - cilfacade.ml
+    message: use Cilfacade instead
+    languages: [ocaml]
+    severity: WARNING

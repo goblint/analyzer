@@ -1,0 +1,69 @@
+name: unlocked
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+  schedule:
+    # nightly
+    - cron: '31 1 * * *' # 01:31 UTC, 02:31/03:31 Munich, 03:31/04:31 Tartu
+    # GitHub Actions load is high at minute 0, so avoid that
+
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        ocaml-compiler:
+          # - 4.13.x # TODO: re-enable when Batteries gets support: https://github.com/ocaml-batteries-team/batteries-included/issues/1045
+          - 4.12.x
+          - 4.09.x
+        apron:
+          - false
+          - true
+
+    # customize name to use readable string for apron instead of just a boolean
+    # workaround for missing ternary operator: https://github.com/actions/runner/issues/409
+    name: regression (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}${{ matrix.apron && ', apron' || '' }})
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install dependencies
+        run: opam install . --deps-only
+
+      - name: Install Apron dependencies
+        if: ${{ matrix.apron }}
+        run: |
+          opam depext apron
+          opam install apron
+
+      - name: Build
+        run: ./make.sh nat
+
+      - name: Test regression
+        run: ./make.sh headers testci
+
+      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group apron -s
+
+      - name: Build domaintest
+        run: ./make.sh domaintest
+
+      - name: Test domains
+        run: ./goblint.domaintest # could be made long
+
+      - name: Test marshal regression
+        run: ruby scripts/update_suite.rb -m

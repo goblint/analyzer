@@ -3,23 +3,28 @@ opam-version: "2.0"
 synopsis: "Static analysis framework for concurrent C"
 maintainer: [
   "Michael Schwarz <michael.schwarz93@gmail.com>"
+  "Simmo Saan <simmo.saan@gmail.com>"
   "Ralf Vogler <ralf.vogler@gmail.com>"
 ]
 authors: [
-  "Vesal Vojdani, Kalmer Apinis, Ralf Vogler, Michael Schwarz, Julian Erhard"
+  "Vesal Vojdani"
+  "Kalmer Apinis"
+  "Ralf Vogler"
+  "Michael Schwarz"
+  "Julian Erhard"
+  "Simmo Saan"
 ]
 license: "MIT"
 homepage: "https://goblint.in.tum.de"
-doc: "https://goblint.github.io/analyzer"
+doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
-  "ocaml" {>= "4.04.1"}
+  "ocaml" {>= "4.09"}
   "dune"
   "zarith_stubs_js"
   "goblint-cil"
   "batteries" {>= "3.2.0"}
   "qcheck-core"
-  # "z3"
   "ppx_distr_guards" {>= "0.2"}
   "ppx_deriving"
   "ppx_deriving_yojson"
@@ -29,9 +34,7 @@ depends: [
   "ocamlbuild"
   "ocamlfind"
 ]
-depopts: [
-  "apron"
-]
+depopts: ["apron" "z3"]
 build: [
   ["dune" "subst"] {pinned}
   [
@@ -49,4 +52,7 @@ build: [
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 pin-depends: [
   [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#208d2a2f9e51a42ee0a036f4587624ac7ac23ccb" ]
+  [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
+  [ "zarith.1.12-gob0" "git+https://github.com/goblint/Zarith.git#goblint-release-1.12" ]
+  [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
 ]

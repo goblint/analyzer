@@ -6,3 +6,10 @@
   (action (copy src/goblint.exe goblint))
   (mode (promote (until-clean))) ; replace existing file in source tree
 )
+
+(rule
+  (target goblint.byte)
+  (deps src/goblint.bc)
+  (action (copy src/goblint.bc goblint.byte))
+  (mode (promote (until-clean))) ; replace existing file in source tree
+)

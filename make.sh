@@ -62,9 +62,10 @@ rule() {
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
       cp _build/$TARGET.native goblint
-    ;; debug)
-      ocb -tag debug $TARGET.d.byte &&
-      cp _build/$TARGET.d.byte goblint.byte
+    ;; byte)
+      eval $(opam config env)
+      dune build goblint.byte &&
+      cp _build/default/goblint.byte goblint.byte
     ;; profile)
       # gprof (run only generates gmon.out). use: gprof goblint
       ocb -tag profile $TARGET.p.native &&
@@ -148,7 +149,7 @@ rule() {
       ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
 
     ;; *)
-      echo "Unknown action '$1'. Try clean, opt, debug, profile, byte, or doc.";;
+      echo "Unknown action '$1'. Try clean, native, byte, profile or doc.";;
   esac;
 }
 

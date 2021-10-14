@@ -209,7 +209,7 @@ struct
     | Some base ->
       let pid, ctxh, pred = ctx.local in
       let module BaseMain = (val Base.get_main ()) in
-      let base_context = BaseMain.context_cpa @@ Obj.obj base in
+      let base_context = BaseMain.context_cpa f @@ Obj.obj base in
       let context_hash = Hashtbl.hash (base_context, pid) in
       pid, Ctx.of_int (Int64.of_int context_hash), pred
     | None -> ctx.local (* TODO when can this happen? *)
@@ -257,7 +257,7 @@ struct
           match ctx.ask (Queries.MayPointTo exp) with
           | x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
-            if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
+            if LS.mem top_elt x then M.debug "Query result for MayPointTo contains top!";
             let xs = LS.remove top_elt x |> LS.elements in
             List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
           | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
@@ -294,7 +294,7 @@ struct
           pid, ctx_hash, Pred.of_node node
         in
         match Pml.special_fun fname with
-        | None -> M.debug_each ("extract_osek: unhandled function "^fname); ctx.local
+        | None -> M.debug "extract_osek: unhandled function %s" fname; ctx.local
         | Some eval_args ->
           if M.tracing then M.trace "extract_osek" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
           let rec combine_opt f a b = match a, b with
@@ -321,9 +321,10 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 
-  let init () = (* registers which functions to extract and writes out their definitions *)
+  let init marshal = (* registers which functions to extract and writes out their definitions *)
+    init (); (* TODO: why wasn't this called before? *)
     Osek.Spec.parse_oil ();
-    let mainfuns = List.map Json.string (GobConfig.get_list "mainfun") in
+    let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.length mainfuns = 1); (* TODO? *)
