@@ -564,6 +564,18 @@ let print_summary () =
   ignore (Pretty.printf "\t-------------------\n");
   ignore (Pretty.printf "\ttotal:       %5d\n" ((!safe) + (!unsafe) + (!vulnerable)))
 
+let incr_summary' safe vulnerable unsafe v om =
+  OM.iter (fun o tm ->
+      TM.iter (fun ty pm ->
+          (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
+          let safety = PM.fold check_safe' pm None in
+          match safety with
+          | None -> incr safe
+          | Some n when n >= 100 -> incr unsafe
+          | Some n -> incr vulnerable
+        ) tm
+    ) om
+
 let print_accesses () =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in

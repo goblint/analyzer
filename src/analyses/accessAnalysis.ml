@@ -27,8 +27,15 @@ struct
 
   let none_varinfo = ref dummyFunDec.svar
 
+  let safe       = ref 0
+  let vulnerable = ref 0
+  let unsafe     = ref 0
+
   let init marshal =
-    none_varinfo := GU.create_var @@ makeGlobalVar "__NONE__" voidType
+    none_varinfo := GU.create_var @@ makeGlobalVar "__NONE__" voidType;
+    safe := 0;
+    vulnerable := 0;
+    unsafe := 0
 
   let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
     let (g, o) = lv_opt |? (!none_varinfo, `NoOffset) in
@@ -219,8 +226,18 @@ struct
           Some g
       in
       let om = ctx.global g in
-      Access.print_accesses' v om
+      Access.print_accesses' v om;
+      Access.incr_summary' safe vulnerable unsafe v om
     | _ -> Queries.Result.top q
+
+  let finalize () =
+    (* TODO: condition *)
+    ignore (Pretty.printf "\nSummary for all memory locations:\n");
+    ignore (Pretty.printf "\tsafe:        %5d\n" !safe);
+    ignore (Pretty.printf "\tvulnerable:  %5d\n" !vulnerable);
+    ignore (Pretty.printf "\tunsafe:      %5d\n" !unsafe);
+    ignore (Pretty.printf "\t-------------------\n");
+    ignore (Pretty.printf "\ttotal:       %5d\n" ((!safe) + (!unsafe) + (!vulnerable)))
 end
 
 let _ =
