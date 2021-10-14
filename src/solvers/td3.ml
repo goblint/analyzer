@@ -662,7 +662,11 @@ module WP =
           ) data.infl;
           data.infl <- infl';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
-          (* TODO: relift var_messages? *)
+          let var_messages' = HM.create (HM.length data.var_messages) in
+          HM.iter (fun k v ->
+              HM.add var_messages' (S.Var.relift k) v (* var_messages contains duplicate keys, so must add not replace! *)
+            ) data.var_messages;
+          data.var_messages <- var_messages';
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
