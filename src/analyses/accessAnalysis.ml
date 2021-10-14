@@ -182,6 +182,12 @@ struct
     ctx.local
 
   let body ctx f : D.t =
+    begin match f.svar.vname with
+    | "__goblint_dummy_init" ->
+      ctx.sideg !none_varinfo (G.bot ()) (* make one side effect to None, otherwise verify will always fail due to Lift2 bottom *)
+    | _ ->
+      ()
+    end;
     ctx.local
 
   let special ctx lv f arglist : D.t =
