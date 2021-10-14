@@ -387,6 +387,7 @@ let bot_partition ps _ =
   ps = None
 
 (* Access table as Lattice. *)
+(* (varinfo ->) offset -> type -> partition option -> (2^(confidence, write, loc, e, locks), locks_inter) *)
 module A =
 struct
   include Printable.Std
