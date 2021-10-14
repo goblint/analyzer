@@ -209,10 +209,8 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
     | _ -> get_type t e
   with _ -> get_type voidType e
 
-let some_accesses = ref false
 let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
-    some_accesses := true;
     let loc = !Tracing.current_loc in
     let add_part ls =
       side ty lv (Some ls) (conf, w, loc, e, lp)
