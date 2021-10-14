@@ -600,7 +600,7 @@ struct
         ; context = (fun () -> ctx_failwith "No context in query context.")
         ; edge    = MyCFG.Skip
         ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
-        ; global = GHT.find gh
+        ; global = (fun v -> try GHT.find gh v with Not_found -> EQSys.G.bot ())
         ; presub = []
         ; postsub= []
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
