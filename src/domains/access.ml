@@ -447,6 +447,54 @@ let common_resource ps (accs,ls) =
 let bot_partition ps _ =
   ps = None
 
+(* Access table as Lattice. *)
+module A =
+struct
+  include Printable.Std
+  type t = int * bool * CilType.Location.t * CilType.Exp.t * LSSet.t [@@deriving eq, ord]
+
+  let hash (conf, w, loc, e, lp) = 0 (* TODO: never hashed? *)
+
+  let pretty () (conf, w, loc, e, lp) =
+    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e LSSet.pretty lp
+
+  let show x = Pretty.sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+module AS = SetDomain.Make (A)
+module LS = SetDomain.Reverse (SetDomain.ToppedSet (LabeledString) (struct let topname = "top" end))
+module PM = MapDomain.MapBot (Printable.Option (LSSet) (struct let name = "None" end)) (Lattice.Prod (AS) (LS))
+module T =
+struct
+  include Printable.Std
+  include Acc_typHashable
+
+  let compare = [%ord: acc_typ]
+
+  let pretty = d_acct
+
+  let show x = Pretty.sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+module TM = MapDomain.MapBot (T) (PM)
+module O =
+struct
+  include Printable.Std
+  type t = offs [@@deriving eq, ord]
+
+  let hash _ = 0 (* TODO: not used? *)
+
+  let pretty = d_offs
+
+  let show x = Pretty.sprint ~width:max_int (pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+module OM = MapDomain.MapBot (O) (TM)
+
+
 let check_accs (prev_r,prev_lp,prev_w) (conf,w,loc,e,lp) =
   match prev_r with
   | None ->
