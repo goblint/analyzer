@@ -529,6 +529,8 @@ let check_safe' ls (accs, lp) prev_safe =
   let accs = Set.of_list (AS.elements accs) in (* TODO: avoid converting between sets *)
   check_safe ls (accs, lp) prev_safe
 
+let is_all_safe' = ref true
+
 let is_all_safe () =
   let safe = ref true in
   let h ty lv ht =
@@ -571,8 +573,8 @@ let incr_summary' safe vulnerable unsafe v om =
           let safety = PM.fold check_safe' pm None in
           match safety with
           | None -> incr safe
-          | Some n when n >= 100 -> incr unsafe
-          | Some n -> incr vulnerable
+          | Some n when n >= 100 -> is_all_safe' := false; incr unsafe
+          | Some n -> is_all_safe' := false; incr vulnerable
         ) tm
     ) om
 
