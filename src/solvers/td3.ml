@@ -339,6 +339,7 @@ module WP =
             VS.iter (fun y ->
                 if tracing then trace "sol2" "destabilize_with_side %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
                 HM.remove stable y;
+                HM.remove superstable y;
                 destabilize_with_side y
               ) w
           );
@@ -349,6 +350,7 @@ module WP =
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
               HM.remove stable y;
+              HM.remove superstable y;
               destabilize_with_side y
             ) w;
 
@@ -359,6 +361,7 @@ module WP =
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
               HM.remove stable y;
+              HM.remove superstable y;
               destabilize_with_side y
             ) w
         in
