@@ -5,6 +5,9 @@ sig
   include Printable.S
   include MapDomain.Groupable with type t := t
 
+  (** Mapping between t and varinfos *)
+  module VarinfoMap: RichVarinfo.VarinfoMap with type t := t
+
   val threadinit: varinfo -> multiple:bool -> t
   val to_varinfo: t -> varinfo
   val is_main: t -> bool
@@ -16,9 +19,8 @@ sig
   (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
   val is_must_parent: t -> t -> bool
 
-  type marshal
-  val marshal: unit -> marshal
-  val init: marshal -> unit
+  (** How the created varinfos should be namend. Returned strings should not contain [Cil.location]s, but may contain node ids. *)
+  val name_varinfo: t -> string
 end
 
 module type Stateless =
@@ -46,7 +48,7 @@ struct
   include M
 
   let show = function
-    | (f, Some n) -> f.vname ^ "@" ^ Node.show n
+    | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show  (Node.location n))
     | (f, None) -> f.vname
 
   include Printable.PrintSimple (
@@ -59,19 +61,16 @@ struct
   let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t = (v, Some l)
 
-  let describe_varinfo _ = function
-    | (_, Some n) -> CilType.Location.show (Node.location n)
-    | (_, None) -> ""
+  (* Defines how varinfos representing a FunLoc are named.
+    The varinfo-name contains node ids, but not their location (for compatibility with incremental analysis) *)
+  let name_varinfo = function
+    | (f, Some n) -> f.vname ^ "@" ^ Node.show n
+    | (f, None) -> f.vname
 
   module VarinfoMapBuilder = RichVarinfo.Make (M)
-  module VarinfoMap = (val VarinfoMapBuilder.map ~describe_varinfo ~name:show ())
+  module VarinfoMap = (val VarinfoMapBuilder.map ~name:name_varinfo ())
 
-  let to_varinfo =
-    VarinfoMap.to_varinfo
-  type marshal = VarinfoMap.marshal
-  let marshal () = VarinfoMap.marshal ()
-  let init m = VarinfoMap.unmarshal m
-
+  let to_varinfo = VarinfoMap.to_varinfo
   let is_main = function
     | ({vname = "main"; _}, None) -> true
     | _ -> false
@@ -157,13 +156,17 @@ struct
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs
 
+  (* Varinfos for histories are named using a string representation based on node ids,
+     not locations, for compatibilty with incremental analysis.*)
+  let name_varinfo ((l, s): t): string =
+    let list_name = String.concat "," (List.map Base.name_varinfo l) in
+    let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
+    list_name ^ ", {" ^ set_name ^ "}"
+
   module VarinfoBuilder = RichVarinfo.Make (M)
-  module VarinfoMap = (val VarinfoBuilder.map ~name:show ())
+  module VarinfoMap = (val VarinfoBuilder.map ~name:name_varinfo ())
   let to_varinfo: t -> varinfo =
     VarinfoMap.to_varinfo
-  type marshal = VarinfoMap.marshal
-  let marshal () = VarinfoMap.marshal ()
-  let init m = VarinfoMap.unmarshal m
 
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
@@ -178,9 +181,7 @@ module Lift (Thread: S) =
 struct
   include Lattice.Flat (Thread) (ThreadLiftNames)
   let name () = "Thread"
-  type marshal = Thread.marshal
-  let marshal = Thread.marshal
-  let init m = Thread.init m
+  module VarinfoMap = Thread.VarinfoMap
 end
 
 (* Since the thread ID module is extensively used statically, it cannot be dynamically switched via an option. *)
