@@ -372,19 +372,6 @@ let add side e w conf vo oo p =
         add_propagate side e w conf ty None p
   end
 
-let partition_race ps (accs,ls) =
-  let write (conf,w,loc,e,lp) = w in
-  ps <> None && LSSet.is_empty ls && Set.exists write accs
-
-let only_read ps (accs,ls) =
-  let read (conf,w,loc,e,lp) = not w in
-  Set.for_all read accs
-
-let common_resource ps (accs,ls) =
-  not (LSSet.is_empty ls)
-
-let bot_partition ps _ =
-  ps = None
 
 (* Access table as Lattice. *)
 (* (varinfo ->) offset -> type -> partition option -> 2^(confidence, write, loc, e, locks) *)
