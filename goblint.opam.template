@@ -1,3 +1,5 @@
+# on `dune build` goblint.opam will be generated from this and dune-project
+# also remember to generate/adjust goblint.opam.locked!
 pin-depends: [
   [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#c16dddf74f6053a8b3fac07ca2feff18d4d56964" ]
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
