@@ -221,7 +221,7 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal g ->
-      ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g);
+      (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
       let v =
         if CilType.Varinfo.equal g !none_varinfo then (
           None
