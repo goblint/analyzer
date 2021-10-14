@@ -37,12 +37,9 @@ jobs:
           uses: ocaml/setup-ocaml@v2
           with:
             ocaml-compiler: ${{ matrix.ocaml-compiler }}
-        - name: PWD
-          run: pwd
 
         - name: Install dependencies
-          run: |
-            pwd
+          run:
             opam install . --deps-only --locked
         - name: Build
           run: |

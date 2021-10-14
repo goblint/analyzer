@@ -6,10 +6,12 @@ let buff_size = 1024
 let comb_suffix = "_comb.c"
 
 let exec_command ?path (command: string) =
+  print_string ("command = "^command);
   let current_dir = Sys.getcwd () in
   (match path with
    | Some path ->
-     if Sys.file_exists path && Sys.is_directory path then Sys.chdir path
+      print_string ("path = "^path);
+      if Sys.file_exists path && Sys.is_directory path then Sys.chdir path
      else failwith ("Directory " ^ path ^ " does not exist!")
    | None -> ());
   if GobConfig.get_bool "dbg.verbose" then print_endline ("executing command `" ^ command ^ "` in " ^ Sys.getcwd ());
@@ -18,7 +20,7 @@ let exec_command ?path (command: string) =
   try
     while true do
       let line = input_char std_out in
-      Buffer.add_char output line
+      Buffer.add_char output line     
     done;
     assert false;
   with End_of_file ->
@@ -34,6 +36,9 @@ let string_of_process_status = function
 
 (* BFS for a file with a given suffix in a directory or any subdirectoy *)
 let find_file_by_suffix (dir: string) (file_name_suffix: string) =
+ 
+  (*print_string ("find_file_by_suffix dir "^dir^"\n");
+   print_string ("find_file_by_suffix file_name_suffix "^file_name_suffix^"\n");*)
   let list_files d = Array.to_list @@ Sys.readdir d in
   let dirs = Queue.create () in
   let rec search (dir: string) (files: string list) = match files with
@@ -47,11 +52,12 @@ let find_file_by_suffix (dir: string) (file_name_suffix: string) =
   in
   search dir (list_files dir)
 
-let run_cilly (path: string) =
+let run_cilly (path: string) =  
+       
   if Sys.file_exists path && Sys.is_directory path then (
     (* We need to `make clean` if `make` was run manually, otherwise it would say there is nothing to do and cilly would not be run and no combined C file would be created. *)
     let _ = exec_command ~path "make clean" in
-    (try
+   (try
        while true do
          let comb = find_file_by_suffix path comb_suffix in
          if GobConfig.get_bool "dbg.verbose" then print_endline ("deleting " ^ comb);
@@ -60,10 +66,14 @@ let run_cilly (path: string) =
      with Failure e -> ()); (* Deleted all *_comb.c files in the directory *)
     (* Combine source files with make using cilly as compiler *)
     let gcc_path = GobConfig.get_string "exp.gcc_path" in
+     let command = ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
+                                                  "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
+    print_string ("command = "^ command^"\n");
     let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
                                                   "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
-    print_string output;
+    
     (* fail if make failed *)
-    if exit_code <> WEXITED 0 then
+    if exit_code <> WEXITED  0 then
       failwith ("Failed combining files. Make " ^ (string_of_process_status exit_code) ^ ".")
+    
   )

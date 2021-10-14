@@ -1,0 +1,212 @@
+{
+ "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json",
+  "version": "2.1.0",
+  "runs": [
+  {
+  "tool": {
+     "driver": {
+       "name": "Goblint",
+       "fullName": "Goblint static analyser",
+       "informationUri": "https://goblint.in.tum.de/home",
+       "organization": "TUM - i2 and UTartu - SWS",
+       "version": "heads/integrationSarif-0-g8c1794b4-dirty",
+       "downloadUri": "https://github.com/goblint/analyzer",
+        "rules": [
+        {
+           "id": "GO001",
+           "name": "",
+           "helpUri": "https://goblint.in.tum.de/home",
+           "help": {
+               "text": "The category analyser describes ...."
+           },
+          "shortDescription": {
+               "text": ""
+           },
+           "fullDescription": {
+               "text": ""
+           }
+       },
+      {
+           "id": "GO002",
+           "name": "CWE119 ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/119.html",
+           "help": {
+               "text": "CWE 119:Improper Restriction of Operations within the Bounds of a Memory Buffer"
+           },
+          "shortDescription": {
+               "text": "CWE119 "
+           },
+           "fullDescription": {
+               "text": "The software performs operations on a memory buffer, but it can read from or write to a memory location that is outside of the intended boundary of the buffer."
+           }
+       },
+      {
+           "id": "GO003",
+           "name": "Integer Overflow or Wraparound",
+           "helpUri": "https://cwe.mitre.org/data/definitions/190.html",
+           "help": {
+               "text": "The software performs a calculation that can produce an integer overflow or wraparound, when the logic assumes that the resulting value will always be larger than the original value.This can introduce other weaknesses when the calculation is used for resource management or execution control. "
+           },
+          "shortDescription": {
+               "text": "Integer Overflow or Wraparound"
+           },
+           "fullDescription": {
+               "text": "An integer overflow or wraparound occurs when an integer value is incremented to a value that is too large to store in the associated representation. When this occurs, the value may wrap to become a very small or negative number. While this may be intended behavior in circumstances that rely on wrapping, it can have security consequences if the wrap is unexpected. This is especially the case if the integer overflow can be triggered using user-supplied inputs. This becomes security-critical when the result is used to control looping, make a security decision, or determine the offset or size in behaviors such as memory allocation, copying, concatenation, etc.  "
+           }
+       },
+      {
+           "id": "GO004",
+           "name": "The software does not handle or incorrectly handles when a particular element is not the expected type, e.g. it expects a digit (0-9) but is provided with a letter (A-Z). ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/241.html",
+           "help": {
+               "text": "CWE 241:Improper Handling of Unexpected Data Type"
+           },
+          "shortDescription": {
+               "text": "The software does not handle or incorrectly handles when a particular element is not the expected type, e.g. it expects a digit (0-9) but is provided with a letter (A-Z). "
+           },
+           "fullDescription": {
+               "text": ""
+           }
+       },
+      {
+           "id": "GO005",
+           "name": "The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/362.html",
+           "help": {
+               "text": "CWE 362: Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')"
+           },
+          "shortDescription": {
+               "text": "The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. "
+           },
+           "fullDescription": {
+               "text": ""
+           }
+       },
+      {
+           "id": "GO006",
+           "name": "The product divides a value by zero. ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/369.html",
+           "help": {
+               "text": "CWE 369: Divide By Zero"
+           },
+          "shortDescription": {
+               "text": "The product divides a value by zero. "
+           },
+           "fullDescription": {
+               "text": "This weakness typically occurs when an unexpected value is provided to the product, or if an error occurs that is not properly detected. It frequently occurs in calculations involving physical dimensions such as size, length, width, and height.   "
+           }
+       },
+      {
+           "id": "GO007",
+           "name": "Referencing memory after it has been freed can cause a program to crash, use unexpected values, or execute code. ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/416.html",
+           "help": {
+               "text": "CWE 416:Use After Free"
+           },
+          "shortDescription": {
+               "text": "Referencing memory after it has been freed can cause a program to crash, use unexpected values, or execute code. "
+           },
+           "fullDescription": {
+               "text": "The use of previously-freed memory can have any number of adverse consequences, ranging from the corruption of valid data to the execution of arbitrary code, depending on the instantiation and timing of the flaw. The simplest way data corruption may occur involves the system's reuse of the freed memory. Use-after-free errors have two common and sometimes overlapping causes:  Error conditions and other exceptional circumstances.  Confusion over which part of the program is responsible for freeing the memory.In this scenario, the memory in question is allocated to another pointer validly at some point after it has been freed. The original pointer to the freed memory is used again and points to somewhere within the new allocation. As the data is changed, it corrupts the validly used memory; this induces undefined behavior in the process.If the newly allocated data chances to hold a class, in C++ for example, various function pointers may be scattered within the heap data. If one of these function pointers is overwritten with an address to valid shellcode, execution of arbitrary code can be achieved. "
+           }
+       },
+      {
+           "id": "GO008",
+           "name": "A NULL pointer dereference occurs when the application dereferences a pointer that it expects to be valid, but is NULL, typically causing a crash or exit. ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/476.html",
+           "help": {
+               "text": "CWE 476:NULL Pointer Dereference"
+           },
+          "shortDescription": {
+               "text": "A NULL pointer dereference occurs when the application dereferences a pointer that it expects to be valid, but is NULL, typically causing a crash or exit. "
+           },
+           "fullDescription": {
+               "text": "NULL pointer dereference issues can occur through a number of flaws, including race conditions, and simple programming omissions. "
+           }
+       },
+      {
+           "id": "GO009",
+           "name": "The software contains dead code, which can never be executed.  ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/561.html",
+           "help": {
+               "text": "CWE 561:Dead Code"
+           },
+          "shortDescription": {
+               "text": "The software contains dead code, which can never be executed.  "
+           },
+           "fullDescription": {
+               "text": "Dead code is source code that can never be executed in a running program. The surrounding code makes it impossible for a section of code to ever be executed. "
+           }
+       },
+      {
+           "id": "GO0010",
+           "name": "The software contains an expression that will always evaluate to false. ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/570.html",
+           "help": {
+               "text": "CWE 570:Expression is Always False"
+           },
+          "shortDescription": {
+               "text": "The software contains an expression that will always evaluate to false. "
+           },
+           "fullDescription": {
+               "text": ""
+           }
+       },
+      {
+           "id": "GO0011",
+           "name": "The software contains an expression that will always evaluate to true.  ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/571.html",
+           "help": {
+               "text": "CWE 571:Expression is Always True"
+           },
+          "shortDescription": {
+               "text": "The software contains an expression that will always evaluate to true.  "
+           },
+           "fullDescription": {
+               "text": ""
+           }
+       },
+      {
+           "id": "GO012",
+           "name": "The software writes data past the end, or before the beginning, of the intended buffer. ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/787.html",
+           "help": {
+               "text": "CWE 787: Out-of-bounds Write"
+           },
+          "shortDescription": {
+               "text": "The software writes data past the end, or before the beginning, of the intended buffer. "
+           },
+           "fullDescription": {
+               "text": "Typically, this can result in corruption of data, a crash, or code execution. The software may modify an index or perform pointer arithmetic that references a memory location that is outside of the boundaries of the buffer.  A subsequent write operation then produces undefined or unexpected results. "
+           }
+       },
+      {
+           "id": "GO013",
+           "name": "The software reads or writes to a buffer using an index or pointer that references a memory location after the end of the buffer. ",
+           "helpUri": "https://cwe.mitre.org/data/definitions/788.html",
+           "help": {
+               "text": "CWE 788:Access of Memory Location After End of Buffer"
+           },
+          "shortDescription": {
+               "text": "The software reads or writes to a buffer using an index or pointer that references a memory location after the end of the buffer. "
+           },
+           "fullDescription": {
+               "text": "This typically occurs when a pointer or its index is decremented to a position before the buffer;when pointer arithmetic results in a position before the buffer; or when a negative index is used, which generates a position before the buffer.  "
+           }
+       }
+     ]
+     }
+  },
+   "invocations": [
+       {
+        "commandLine": "../goblint --sarif -o test.sarif ../tests/regression/02-base/02-simple_assignments.c",
+        "executionSuccessful": true
+       }
+   ],
+   "defaultSourceLanguage": "C",
+   "results": [
+
+   ]
+   }
+  ]
+}

@@ -83,10 +83,8 @@ let option_spec_list =
   let configure_sarif () =
     if (get_string "outfile" = "") then
       set_string "outfile" "test.sarif";
-    if (get_string "removePath" = "") then
-      set_string "removePath" "";
-    if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" exe_dir;
+    if get_string "makeFilePath" = "" then
+      set_string "makeFilePath" "";
     set_bool "dbg.print_dead_code" true;
     set_bool "exp.cfgdot" true;
     set_bool "g2html" false;
@@ -98,6 +96,7 @@ let option_spec_list =
   ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
   ; "-I"                   , Arg.String (set_string "includes[+]"), ""
   ; "-R"                   , Arg.String (set_string "removePath"), ""
+  ; "-C"                   , Arg.String (set_string "makeFilePath"), ""
   ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
   ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
@@ -214,13 +213,14 @@ let preprocess_files () =
 
   (* reverse the files again *)
   cFileNames := List.rev !cFileNames;
-
+  
   (* If the first file given is a Makefile, we use it to combine files *)
   if List.length !cFileNames >= 1 then (
     let firstFile = List.first !cFileNames in
     if Filename.basename firstFile = "Makefile" then (
       let makefile = firstFile in
       let path = Filename.dirname makefile in
+      printf "Path of makefile: %s\n\n%!" path;
       (* make sure the Makefile exists or try to generate it *)
       if not (Sys.file_exists makefile) then (
         print_endline ("Given " ^ makefile ^ " does not exist!");
@@ -233,6 +233,7 @@ let preprocess_files () =
         ) else failwith ("Could neither find given " ^ makefile ^ " nor " ^ configure ^ " - abort!")
       );
       let _ = MakefileUtil.run_cilly path in
+      
       let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
       cFileNames := file :: (List.drop 1 !cFileNames);
     );
