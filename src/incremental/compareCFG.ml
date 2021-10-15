@@ -204,10 +204,10 @@ let eqF' (a: Cil.fundec) (module Cfg1 : MyCFG.CfgForward) (b: Cil.fundec) (modul
   identical, unchangedHeader, diffOpt
 
 let eq_glob' (a: global) (module Cfg1 : MyCFG.CfgForward) (b: global) (module Cfg2 : MyCFG.CfgForward) = match a, b with
-| GFun (f,_), GFun (g,_) -> eqF' f (module Cfg1) g (module Cfg2)
-| GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-| GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y, false, None
-| _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false, false, None
+  | GFun (f,_), GFun (g,_) -> if GobConfig.get_bool "incremental.within_functions" then eqF' f (module Cfg1) g (module Cfg2) else eqF f g
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y, false, None
+  | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false, false, None
 
 let compareCilFiles (oldAST: file) (newAST: file) =
   let oldCfg, _ = CfgTools.getCFG oldAST in
@@ -223,6 +223,7 @@ let compareCilFiles (oldAST: file) (newAST: file) =
       e -> map
   in
   let changes = empty_change_info () in
+  global_typ_acc := [];
   let checkUnchanged map global =
     try
       let ident = identifier_of_global global in
@@ -234,8 +235,7 @@ let compareCilFiles (oldAST: file) (newAST: file) =
          then changes.unchanged <- global :: changes.unchanged
          else changes.changed <- {current = global; old = old_global; unchangedHeader = unchangedHeader; diff = diff} :: changes.changed
        with Not_found -> ())
-    with e -> () (* Global was no variable or function, it does not belong into the map *)
-  in
+    with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)  in
   let checkExists map global =
     let name = identifier_of_global global in
     GlobalMap.mem name map

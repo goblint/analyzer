@@ -243,7 +243,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) =
       eq_block (a.sbody, a) (b.sbody, b)
     with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
       false in
-  identical, unchangedHeader
+  identical, unchangedHeader, None
 
 let rec eq_init (a: init) (b: init) = match a, b with
   | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
@@ -254,50 +254,3 @@ let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
   | (Some init_a), (Some init_b) -> eq_init init_a init_b
   | None, None -> true
   | _, _ -> false
-
-let eq_glob (a: global) (b: global) = match a, b with
-  | GFun (f,_), GFun (g,_) -> eqF f g
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> (eq_varinfo x y, false) (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> (eq_varinfo x y, false)
-  | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); (false, false)
-
-(* Returns a list of changed functions *)
-let compareCilFiles (oldAST: Cil.file) (newAST: Cil.file) =
-  let addGlobal map global  =
-    try
-      GlobalMap.add (identifier_of_global global) global map
-    with
-      e -> map
-  in
-  let changes = empty_change_info () in
-  global_typ_acc := [];
-  let checkUnchanged map global =
-    try
-      let ident = identifier_of_global global in
-      (try
-         let old_global = GlobalMap.find ident map in
-         (* Do a (recursive) equal comparision ignoring location information *)
-         let identical, unchangedHeader = eq_glob old_global global in
-         if identical
-         then changes.unchanged <- global :: changes.unchanged
-         else changes.changed <- {current = global; old = old_global; unchangedHeader = unchangedHeader} :: changes.changed
-       with Not_found -> ())
-    with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)
-  in
-  let checkExists map global =
-    let name = identifier_of_global global in
-    GlobalMap.mem name map
-  in
-  (* Store a map from functionNames in the old file to the function definition*)
-  let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
-  let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
-  (*  For each function in the new file, check whether a function with the same name
-      already existed in the old version, and whether it is the same function. *)
-  let module StringSet = Set.Make (String) in
-  Cil.iterGlobals newAST
-    (fun glob -> checkUnchanged oldMap glob);
-
-  (* We check whether functions have been added or removed *)
-  Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with e -> ());
-  Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with e -> ());
-  changes
