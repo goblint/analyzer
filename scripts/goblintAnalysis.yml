@@ -7,9 +7,11 @@ on:
 jobs:
   generate-Sarif:
     env:
-      # ./analysisTarget/main.c needs to be replaced with ./analysisTarget/PATH_TO_MAIN
+      # ./analysisTarget/main.c needs to be replaced with ./analysisTarget/PATH_TO_FILE
+      #for each file that is supposed to be analyzed.
+      #This should be simplified to instead use the MakeFile of the repository.
       #the prefix  ./analysisTarget/ is removed in Goblint, so the location shows correctly in Github
-      MAIN_NAME: './testCRepo/main.c ./testCRepo/dumb.c'
+      MAIN_NAME: './analysisTarget/main.c
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +46,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
         with:
-          path:  testCRepo
+          path:  analysisTarget
       - name: Generate the Sarif output
         #cilly --gcc=/usr/bin/gcc-6 --merge main.c dumb.c -o merged --keepmerged
         # ./goblint --sarif -o GitHubSarif.sarif  ${{env.MAIN_NAME}} -R ./testCRepo/
