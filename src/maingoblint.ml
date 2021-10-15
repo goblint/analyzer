@@ -83,12 +83,8 @@ let option_spec_list =
   let configure_sarif () =
     if (get_string "outfile" = "") then
       set_string "outfile" "test.sarif";
-    if get_string "makeFilePath" = "" then
-      set_string "makeFilePath" "";
     set_bool "dbg.print_dead_code" true;
     set_bool "exp.cfgdot" true;
-    set_bool "g2html" false;
-    set_bool "dbg.verbose" true;
     set_string "result" "sarif"
   in
   let tmp_arg = ref "" in
@@ -96,7 +92,6 @@ let option_spec_list =
   ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
   ; "-I"                   , Arg.String (set_string "includes[+]"), ""
   ; "-R"                   , Arg.String (set_string "removePath"), ""
-  ; "-C"                   , Arg.String (set_string "makeFilePath"), ""
   ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
   ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
@@ -220,7 +215,6 @@ let preprocess_files () =
     if Filename.basename firstFile = "Makefile" then (
       let makefile = firstFile in
       let path = Filename.dirname makefile in
-      printf "Path of makefile: %s\n\n%!" path;
       (* make sure the Makefile exists or try to generate it *)
       if not (Sys.file_exists makefile) then (
         print_endline ("Given " ^ makefile ^ " does not exist!");
@@ -233,7 +227,6 @@ let preprocess_files () =
         ) else failwith ("Could neither find given " ^ makefile ^ " nor " ^ configure ^ " - abort!")
       );
       let _ = MakefileUtil.run_cilly path in
-      
       let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
       cFileNames := file :: (List.drop 1 !cFileNames);
     );
@@ -269,7 +262,6 @@ let merge_preprocessed cpp_file_names =
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
   let files_AST = List.rev_map Cilfacade.getAST cpp_file_names in
   remove_temp_dir ();
-
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in

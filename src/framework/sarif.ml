@@ -219,6 +219,7 @@ struct
 
 
 end 
+(*endColumn and endLine are not produced by Goblint yet, however the Github action uses these properties. *)
 module Region =
 struct
   type t = {
