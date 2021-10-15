@@ -9,7 +9,7 @@ jobs:
     env:
       # ./analysisTarget/main.c needs to be replaced with ./analysisTarget/PATH_TO_MAIN
       #the prefix  ./analysisTarget/ is removed in Goblint, so the location shows correctly in Github
-      MAIN_NAME: './analysisTarget/main.c'
+      MAIN_NAME: './testCRepo/main.c ./testCRepo/dumb.c'
     strategy:
       fail-fast: false
       matrix:
@@ -21,41 +21,37 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     permissions:
-       security-events: write
+      security-events: write
     steps:
-        - name: Checkout Goblint repository
-          uses: actions/checkout@v2
-          with:
-              repository: AlexanderEichler/analyzer
-              #this path needs to be changed to the main branch
-              ref: integrationSarif  
-        - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-          env:
-            # otherwise setup-ocaml pins non-locked dependencies
-            # https://github.com/ocaml/setup-ocaml/issues/166
-            OPAMLOCKED: locked
-          uses: ocaml/setup-ocaml@v2
-          with:
-            ocaml-compiler: ${{ matrix.ocaml-compiler }}
-
-        - name: Install dependencies
-          run:
-            opam install . --deps-only --locked
-        - name: Build
-          run: |
-            pwd
-            ./make.sh nat
-        - name: Checkout code
-          uses: actions/checkout@v2
-          with:
-              path: analysisTarget
-        - name: Generate the Sarif output
-          run: |
-              pwd
-              ls
-              ./goblint --sarif -o GitHubSarif.sarif  ${{env.MAIN_NAME}}
-        - name: Upload the generated Sarif File
-          uses: github/codeql-action/upload-sarif@v1
-          with:
-             # Path to SARIF file relative to the root of the repository
-            sarif_file: GitHubSarif.sarif
+      - name: Checkout Goblint repository
+        uses: actions/checkout@v2
+        with:
+          repository: goblint/analyzer
+          #this path needs to be changed to the main branch
+          ref: integrationSarif
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          # otherwise setup-ocaml pins non-locked dependencies
+          # https://github.com/ocaml/setup-ocaml/issues/166
+          OPAMLOCKED: locked
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+      - name: Install dependencies
+        run: opam install . --deps-only --locked
+      - name: Build
+        run: ./make.sh nat
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          path:  testCRepo
+      - name: Generate the Sarif output
+        #cilly --gcc=/usr/bin/gcc-6 --merge main.c dumb.c -o merged --keepmerged
+        # ./goblint --sarif -o GitHubSarif.sarif  ${{env.MAIN_NAME}} -R ./testCRepo/
+        run: |
+          ./goblint --sarif -o GitHubSarif.sarif ${{env.MAIN_NAME}}
+      - name: Upload the generated Sarif File
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          # Path to SARIF file relative to the root of the repository
+          sarif_file: GitHubSarif.sarif
