@@ -2,7 +2,7 @@
 #include<stdio.h>
 #include<assert.h>
 
-int main () __attribute__((precision("interval"))) {
+int main () __attribute__((goblint_precision("interval"))) {
   int i,j,k;
 
   i = k = 0; j = 7;

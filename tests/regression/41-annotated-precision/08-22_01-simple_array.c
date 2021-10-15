@@ -1,7 +1,7 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
 int global;
 
-int main(void) __attribute__((precision("def_exc","no-interval")))
+int main(void) __attribute__((goblint_precision("def_exc","no-interval")))
 {
     example1();
     example2();
@@ -11,6 +11,8 @@ int main(void) __attribute__((precision("def_exc","no-interval")))
     example6();
     example7();
     example8();
+    example9();
+    example10();
     return 0;
 }
 
@@ -156,7 +158,7 @@ void example7(void) {
     assert(a[top] == 0); // UNKNOWN
 }
 
-// Check that the global variable is not used for paritioning
+// Check that the global variable is not used for partitioning
 void example8() {
     int a[10];
 
@@ -172,4 +174,33 @@ void example8() {
     assert(a[2] == 42);
     assert(a[3] == 42);
     assert(a[global] == 42);
+}
+
+// Check that arrays of types different from int are handeled correctly
+void example9() {
+    char a[10];
+    int n;
+    assert(a[3] == 800); // FAIL
+
+    for(int i=0;i < 10; i++) {
+        a[i] = 7;
+    }
+
+    assert(a[0] == 7);
+    assert(a[3] == 7);
+
+    a[3] = (char) n;
+    assert(a[3] == 800); //FAIL
+    assert(a[3] == 127); //UNKNOWN
+    assert(a[3] == -128); //UNKNOWN
+    assert(a[3] == -129); //FAIL
+}
+
+void example10() {
+    int a[20];
+    a[5] = 3;
+
+    int i=5;
+    a[i] = 7;
+    assert(a[5] == 7);
 }

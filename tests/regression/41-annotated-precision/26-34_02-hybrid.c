@@ -3,7 +3,7 @@
 // Localized narrowing with restart policy should be able to prove that
 // 0 <= i <= 10 inside the inner loop.
 
-void main() __attribute__((precision("interval")))
+void main() __attribute__((goblint_precision("interval")))
 {
    int i = 0;
    while (1) {

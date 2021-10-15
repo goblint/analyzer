@@ -3,7 +3,7 @@
 int global_array[50];
 int global_array_multi[50][2][2];
 
-int main(void) __attribute__((precision("interval"))) {
+int main(void) __attribute__((goblint_precision("interval"))) {
   for(int i =0; i < 50; i++) {
       assert(global_array[i] == 0);
       assert(global_array_multi[i][1][1] == 0);

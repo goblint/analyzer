@@ -6,12 +6,12 @@ struct a {
   int i;
 };
 
-void f(struct a *in) __attribute__ ((precision("interval", "congruence"))) {
+void f(struct a *in) __attribute__ ((goblint_precision("interval", "congruence"))) {
   in->i += 4;
   return;
 }
 
-int main() __attribute__ ((precision("def_exc", "congruence"))) {
+int main() __attribute__ ((goblint_precision("def_exc", "congruence"))) {
   struct a a1, b1 = {"Jane", 3};
 
   a1.name = "John";

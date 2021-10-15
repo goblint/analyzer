@@ -3,7 +3,7 @@
 // Localized widening should be able to prove that i=10 at the end
 // of the nested loops.
 
-void main() __attribute__((precision("interval")))
+void main() __attribute__((goblint_precision("interval")))
 {
    int i = 0;
 

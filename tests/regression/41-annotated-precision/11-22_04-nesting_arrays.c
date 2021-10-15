@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
 struct kala {
   int i;
   int a[5];
@@ -22,7 +22,7 @@ union uStruct {
   struct kala k;
 };
 
-int main(void) __attribute__((precision("def_exc","no-interval"))) {
+int main(void) __attribute__((goblint_precision("def_exc","no-interval"))) {
   example1();
   example2();
   example3();

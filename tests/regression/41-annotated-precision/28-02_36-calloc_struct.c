@@ -10,7 +10,7 @@ typedef struct {
 
 data *d;
 
-int main(void) __attribute__((precision("interval"))) {
+int main(void) __attribute__((goblint_precision("interval"))) {
     d = calloc(1,sizeof(data));
     d -> x = 0;
     d -> y = 0;

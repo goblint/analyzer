@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open GobConfig
+open PrecisionUtil
 
 include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
@@ -33,7 +34,7 @@ sig
   val top_value: typ -> t
   val zero_init_value: typ -> t
 
-  val projection: (bool * bool * bool * bool) -> t -> t
+  val projection: precision -> t -> t
 end
 
 module type Blob =

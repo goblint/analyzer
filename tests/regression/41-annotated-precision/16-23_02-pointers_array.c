@@ -1,5 +1,5 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
-int main(void) __attribute__((precision("def_exc","no-interval"))) {
+// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+int main(void) __attribute__((goblint_precision("def_exc","no-interval"))) {
     example1();
     example2();
     example3();
@@ -7,10 +7,6 @@ int main(void) __attribute__((precision("def_exc","no-interval"))) {
     example5();
     example6();
     example7();
-    example8();
-    example9();
-    example10();
-    example11();
     return 0;
 }
 
@@ -100,7 +96,7 @@ void example4(void) {
     ptr++;
   }
 
-  // In an ideal world, I would like to have information about array1[0] and so on. For this the <= would need to improve, so that ptr is known to point to {array1[5,5]}
+  // In an ideal world, I would like to have information about array1[0] and so on. For this the <= would need yo improve
 }
 
 void example5(void) {
@@ -182,79 +178,4 @@ void example7(void) {
   assert(x == 4); // UNKNOWN
   assert(x == 9); // UNKNOWN
   assert(x == 10); // FAIL
-}
-
-void example8(void) {
-  int a[42][42];
-
-  for(int i = 0; i < 42; i++) {
-    for(int j=0;j < 42; j++) {
-      a[i][j] = 0;
-    }
-  }
-
-  a[14][0] = 3;
-
-  int* ptr = a[7];
-  int x = *(ptr+7);
-  assert(x == 3); //FAIL
-
-  int (*ptr2)[42];
-  ptr2 = a+7;
-  x = (*ptr2)[6];
-  assert(x == 3);  //FAIL
-  printf("x is %d\n", x);
-}
-
-struct a {
-  int x[42];
-  int y;
-};
-
-void example9() {
-  int a[42][42];
-  int (*ptr2)[42];
-  int *y;
-  int i, j, x;
-
-  for(i = 0; i < 42; i++) {
-    for(j=0;j < 42; j++) {
-      a[i][j] = 0;
-    }
-  }
-
-  a[14][0] = 3;
-  ptr2 = a+7;
-  y = (ptr2+1)[6];
-  assert(*y == 3);
-}
-
-int example10() {
-  struct a x[42];
-  int i, j, y, *ptr;
-
-  for(i = 0; i < 42; i++) {
-    for(j=0;j < 42; j++) {
-      x[i].x[j] = 0;
-    }
-  }
-  x[3].x[3] = 7;
-
-  ptr = x[3].x;
-  y = *(ptr + 3);
-  assert(y == 0); //FAIL
-  printf("y is %d", y);
-}
-
-void foo(int (*a)[40]){
-  int x = (*(a + 29))[7];
-  assert(x == 23); //UNKNOWN
-}
-
-void example11()
-{
-  int b[40][40];
-  b[7][7] = 23;
-
-  foo(b);
 }

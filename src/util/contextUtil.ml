@@ -4,16 +4,16 @@ open Cil
 
 type attribute =
   | GobContext
-  | Precision
+  | GobPrecision
 
 let attribute_to_string = function
   | GobContext -> "goblint_context"
-  | Precision -> "precision"
+  | GobPrecision -> "goblint_precision"
 
 let has_attribute s1 s2 al =
   List.exists (function
-      | Attr (s1, args) when List.exists (function
-          | AStr s' when s2 = s' -> true
+      | Attr (s1', args) when s1 = s1' && List.exists (function
+          | AStr s2' when s2 = s2' -> true
           | _ -> false
         ) args -> true
       | _ -> false

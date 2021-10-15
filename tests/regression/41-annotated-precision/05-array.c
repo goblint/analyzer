@@ -3,7 +3,7 @@
 #include<stdbool.h>
 #include<assert.h>
 
-void f(int in[], int len) __attribute__ ((precision("interval", "congruence"))) {
+void f(int in[], int len) __attribute__ ((goblint_precision("interval", "congruence"))) {
   assert(in[0]); // FAIL!
   int c[len];
   for (int i = 0; i < len; i++) {
@@ -13,14 +13,14 @@ void f(int in[], int len) __attribute__ ((precision("interval", "congruence"))) 
   return;
 }
 
-void g(bool in[], int len) __attribute__ ((precision("def_exc", "interval", "enums", "congruence"))) {
+void g(bool in[], int len) __attribute__ ((goblint_precision("def_exc", "interval", "enums", "congruence"))) {
   for (int i = 0; i < len; i++) {
     in[i] ^= true;
   }
   return;
 }
 
-int main() __attribute__ ((precision("def_exc", "interval"))) {
+int main() __attribute__ ((goblint_precision("def_exc", "interval"))) {
   int a[] = {0,0,0};
   bool b[] = {true, false};
   char s[][] = {"Edward","Tom","Julia"};

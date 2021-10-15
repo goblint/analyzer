@@ -10,7 +10,6 @@ module Q = Queries
 
 module GU = Goblintutil
 module ID = ValueDomain.ID
-module IDU = IntDomain.IntDomUtil
 module IdxDom = ValueDomain.IndexDomain
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
@@ -1131,7 +1130,7 @@ struct
 
         (* Projection to highest Precision *)
         let b = GobConfig.get_bool "exp.annotated.precision" in
-        let new_value' = if b then VD.projection (IDU.max_precision ()) new_value else new_value in
+        let new_value' = if b then VD.projection (PrecisionUtil.max_enabled_precision ()) new_value else new_value in
 
         let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value' in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
@@ -1914,7 +1913,7 @@ struct
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
     (* Projection to Precision of the Callee *)
-    let p = IDU.precision_from_fundec fundec in
+    let p = PrecisionUtil.precision_from_fundec fundec in
     let b = GobConfig.get_bool "exp.annotated.precision" in
     let new_cpa = if b then CPA.map (fun v -> VD.projection p v) new_cpa else new_cpa in
 
@@ -2281,7 +2280,7 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = IDU.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let b = GobConfig.get_bool "exp.annotated.precision" in
       let return_val = if b then VD.projection p return_val else return_val in
       let cpa' = if b then CPA.map (fun v -> VD.projection p v) nst.cpa else nst.cpa in
