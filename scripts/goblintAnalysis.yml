@@ -9,9 +9,8 @@ jobs:
     env:
       # ./analysisTarget/main.c needs to be replaced with ./analysisTarget/PATH_TO_FILE
       #for each file that is supposed to be analyzed.
-      #This should be simplified to instead use the MakeFile of the repository.
       #the prefix  ./analysisTarget/ is removed in Goblint, so the location shows correctly in Github
-      MAIN_NAME: './analysisTarget/main.c
+      MAIN_NAME: './analysisTarget/main.c'
     strategy:
       fail-fast: false
       matrix:
