@@ -6,11 +6,9 @@ let buff_size = 1024
 let comb_suffix = "_comb.c"
 
 let exec_command ?path (command: string) =
-  print_string ("command = "^command);
   let current_dir = Sys.getcwd () in
   (match path with
    | Some path ->
-      print_string ("path = "^path);
       if Sys.file_exists path && Sys.is_directory path then Sys.chdir path
      else failwith ("Directory " ^ path ^ " does not exist!")
    | None -> ());
@@ -35,10 +33,7 @@ let string_of_process_status = function
   | WSTOPPED n -> "was stopped by signal " ^ string_of_int n
 
 (* BFS for a file with a given suffix in a directory or any subdirectoy *)
-let find_file_by_suffix (dir: string) (file_name_suffix: string) =
- 
-  (*print_string ("find_file_by_suffix dir "^dir^"\n");
-   print_string ("find_file_by_suffix file_name_suffix "^file_name_suffix^"\n");*)
+let find_file_by_suffix (dir: string) (file_name_suffix: string) = 
   let list_files d = Array.to_list @@ Sys.readdir d in
   let dirs = Queue.create () in
   let rec search (dir: string) (files: string list) = match files with
@@ -65,10 +60,7 @@ let run_cilly (path: string) =
        done
      with Failure e -> ()); (* Deleted all *_comb.c files in the directory *)
     (* Combine source files with make using cilly as compiler *)
-    let gcc_path = GobConfig.get_string "exp.gcc_path" in
-     let command = ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
-                                                  "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
-    print_string ("command = "^ command^"\n");
+    let gcc_path = GobConfig.get_string "exp.gcc_path" in     
     let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
                                                   "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
     
