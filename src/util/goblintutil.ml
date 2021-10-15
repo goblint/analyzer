@@ -428,4 +428,4 @@ let dummy_obj = Obj.repr ()
 (*returns the first n elements of a list. *)
 let rec firstElems n li =   match li with 
   | [] -> [];
-  | x::xs -> if n=1 then [x] else firstElems (n-1) xs;
+  | x::xs -> if n=1 then [x] else x::firstElems (n-1) xs;
