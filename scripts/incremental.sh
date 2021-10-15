@@ -54,6 +54,7 @@ trap finish EXIT
 outp=$out/$(basename $repo_path)
 
 rm -rf "$outp"
+rm -rf "incremental_data"
 function log {
   echo "$*" | tee -a $outp/incremental.log
 }
@@ -65,7 +66,7 @@ loc=$(git -C $repo_path diff --shortstat 4b825dc642cb6eb9a060e54bf8d69288fbee490
 git -C $repo_path checkout $start_commit
 i=1
 prev_commit=''
-echo -e "index\tcommit\tl_ins\tl_del\tl_max\ttime\tvars\tevals\tchanged\tadded\tremoved\tchanged_start\tnew_start" >> $outp/incremental_runtime.log
+echo -e "index\tcommit\tl_ins\tl_del\tl_max\ttime\ttime(internally)\tvars\tevals\tchanged\tadded\tremoved\tchanged_start\tnew_start" >> $outp/incremental_runtime.log
 while
   commit=$(git -C $repo_path rev-parse HEAD)
   if [ "$commit" = "$prev_commit" ]; then
@@ -96,6 +97,7 @@ while
   end=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   runtime=$(echo "$end-$start" | bc)
   log "  Goblint ran $runtime seconds"
+  internal_runtime=$(grep 'TOTAL' $outc/analyzer.log | tr -s ' ' | cut -d" " -f2 | cut -d"s" -f1)
   vars=$(grep 'vars = ' $outc/analyzer.log | cut -d" " -f3)
   evals=$(grep 'evals = ' $outc/analyzer.log | cut -d" " -f9)
   changed=$(grep 'change_info = { ' $outc/analyzer.log | cut -d" " -f9 | cut -d";" -f1)
@@ -120,7 +122,7 @@ while
   else
     l_max=$l_ins
   fi
-  echo -e "$i\t$commit\t$l_ins\t$l_del\t$l_max\t$runtime\t$vars\t$evals\t$changed\t$added\t$removed\t$changed_start\t$new_start" >> $outp/incremental_runtime.log
+  echo -e "$i\t$commit\t$l_ins\t$l_del\t$l_max\t$runtime\t$internal_runtime\t$vars\t$evals\t$changed\t$added\t$removed\t$changed_start\t$new_start" >> $outp/incremental_runtime.log
   log "  $(grep 'evals = ' $outc/analyzer.log)"
   log "  $(grep 'change_info = ' $outc/analyzer.log)"
   log "  Obsolete functions: $(grep 'Obsolete function' $outc/analyzer.log | wc -l)"
