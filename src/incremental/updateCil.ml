@@ -76,16 +76,18 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
       | _ -> ()
     with Failure m -> ()
   in
-  let reset_changed_fun (f: fundec) (old_f: fundec) =
+  let reset_changed_fun (f: fundec) (old_f: fundec) unchangedHeader =
     f.svar.vid <- old_f.svar.vid;
     update_vid_max f.svar.vid;
     List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
-    List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
+    if unchangedHeader then
+      List.iter (fun (f,old_f) -> f.vid <- old_f.vid; update_vid_max f.vid) (List.combine f.sformals old_f.sformals)
+    else List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
     List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
   in
   let reset_changed_globals (changed: changed_global) =
     match (changed.current, changed.old) with
-    | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old
+    | GFun (nw, _), GFun (old, _) -> reset_changed_fun nw old changed.unchangedHeader
     | _ -> ()
   in
   let update_fun (f: fundec) =
