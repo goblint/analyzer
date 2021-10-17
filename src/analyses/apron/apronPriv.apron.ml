@@ -496,7 +496,7 @@ struct
   module D = Lattice.Prod3 (W) (LMust) (L)
   module GMutex = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(AD)
   module GThread = Lattice.Prod (LMust) (L)
-  module G = Lattice.Either(GMutex)(GThread)
+  module G = Lattice.Lift2(GMutex)(GThread)(struct let bot_name = "bot" let top_name = "top" end)
 
   module V = ApronDomain.V
   module TID = ThreadIdDomain.Thread
@@ -743,18 +743,18 @@ struct
   (* All that follows is stupid boilerplate to give each of these functions the getg and sideg that only deals with TIDs or Mutexes *)
 
   let sideg_mutex (sideg: varinfo -> G.t -> unit) (g:varinfo) (v:GMutex.t):unit =
-    sideg g (`Lifted (`Left v))
+    sideg g (`Lifted1 v)
 
   let sideg_tid (sideg:varinfo -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
-    sideg (TID.to_varinfo tid) (`Lifted (`Right v))
+    sideg (TID.to_varinfo tid) (`Lifted2 v)
 
   let getg_mutex getg g = match getg g with
-    | `Lifted (`Left v) -> v
+    | `Lifted1 v -> v
     | `Bot -> GMutex.bot ()
     | _ -> failwith "wrong either argument"
 
   let getg_tid getg tid = match getg (TID.to_varinfo tid) with
-    | `Lifted (`Right v) -> v
+    | `Lifted2 v -> v
     | `Bot -> GThread.bot ()
     | _ -> failwith "wrong either argument"
 

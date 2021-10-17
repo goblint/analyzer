@@ -407,41 +407,6 @@ end
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
 module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
 
-module EitherFail (Base1: S) (Base2: S) =
-struct
-  include Printable.Either (Base1) (Base2)
-
-  let is_top _ = failwith "no top/bot"
-  let top () = failwith "no top/bot"
-  let is_bot _ = failwith "no top/bot"
-  let bot () = failwith "no top/bot"
-
-  let op_scheme op1 op2 x y: t =
-    match x, y with
-    | `Left x, `Left y -> `Left (op1 x y)
-    | `Right x, `Right y -> `Right (op2 x y)
-    | _ -> failwith "either incompatible operation"
-
-  let join = op_scheme Base1.join Base2.join
-  let meet = op_scheme Base1.meet Base2.meet
-  let narrow = op_scheme Base1.narrow Base2.narrow
-  let widen = op_scheme Base1.widen Base2.widen
-
-  let leq x y =
-    match x, y with
-    | `Left x, `Left y -> Base1.leq x y
-    | `Right x, `Right y -> Base2.leq x y
-    | _ -> failwith "either incompatible operation"
-
-  let pretty_diff () ((x:t),(y:t)) =
-    match x, y with
-    | `Left x, `Left y -> Base1.pretty_diff () (x,y)
-    | `Right x, `Right y -> Base2.pretty_diff () (x,y)
-    | _ -> failwith "either incompatible operation"
-end
-
-module Either (Base1:S) (Base2:S) = Lift(EitherFail(Base1)(Base2))(struct let bot_name = "bot" let top_name = "top" end)
-
 module LexProd (Base1: S) (Base2: S) =
 struct
   include Prod (Base1) (Base2)
