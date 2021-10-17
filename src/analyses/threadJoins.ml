@@ -8,7 +8,7 @@ module MustTIDs = ConcDomain.MustThreadSet
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "threadJoins"
   module D = MustTIDs
@@ -16,9 +16,6 @@ struct
   module G = MustTIDs
 
   (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
-  let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
-  let body ctx (f:fundec) : D.t =  ctx.local
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (
       match ctx.ask CurrentThreadId with
@@ -26,8 +23,6 @@ struct
       | _ -> () (* correct? *)
     );
     ctx.local
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match LibraryFunctions.classify f.vname arglist with
@@ -53,8 +48,6 @@ struct
     | _ ->  Queries.Result.top q
 
   let startstate v = D.top ()
-  let threadenter ctx lval f args = [ctx.local]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 end
 
