@@ -247,40 +247,6 @@ module WP =
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
-        (* If a global changes because of some assignment inside a function, we reanalyze,
-         * but if it changes because of a different global initializer, then
-         *   if earlyglobs and new privatization: the contexts will be the same since they don't contain the global, but the globals will
-         *      be part of the start variables st. A change in the global initializer is propagated when calling side on the globals in st before solving.
-         *   if not exp.earlyglobs (or exp.earlyglobs + some old privatization):
-         *      if globals are part of the contexts of start functions, the context changes, we don't find the value in rho and reanalyze
-         *      if globals are not part of the contexts (for example because of ana.base.context.int=false) the context might be the same because they
-         *          don't contain the global, but the start state will be different! In this case start functions need to be destabilized and the old start state overwritten
-         *)
-        print_endline "Destabilizing start functions if their start state changed...";
-        (* record whether any function's start state changed. In that case do not use reluctant destabilization *)
-        let any_changed_start_state = ref false in
-        (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
-        (* st contains entry nodes of functions and globals, vs contains return nodes of functions. To compare functions from st with those in vs,
-         * we need to get the corresponding fundecs *)
-        let vs_funs = List.map (fun v -> Node.find_fundec (S.Var.node v)) vs in
-        let st_funs = List.map (fun (v,d) -> (v,d,Node.find_fundec (S.Var.node v))) st in
-        List.iter (fun (v,d,f) ->
-            (* st might also contain globals (with exp.earlyglobs on and some of the newer privatizations). Here we only need to check whether the
-             * start state of functions changed. *)
-            if List.mem f vs_funs then
-              match GU.assoc_eq v data.st S.Var.equal with
-              | Some d' ->
-                if S.Dom.equal d d' then
-                  (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
-                  ()
-                else (
-                  ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                  any_changed_start_state := true;
-                  destabilize v;
-                  set_start (v,d)
-                )
-              | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
-          ) st_funs;
 
         print_endline "Destabilizing changed functions...";
 
@@ -297,7 +263,7 @@ module WP =
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         let old_ret = Hashtbl.create 103 in
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+        if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
             let old_rho = HM.find rho k in
@@ -317,7 +283,7 @@ module WP =
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant.on"));
+        add_nodes_of_fun obsolete_funs marked_for_deletion (not (GobConfig.get_bool "incremental.reluctant.on"));
         add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
@@ -330,10 +296,11 @@ module WP =
 
         print_data data "Data after clean-up";
 
-        (* call side on all globals in the start variables to make sure that changes in the initializers are propagated *)
-        List.iter (fun (v,d,f) -> if not (List.mem f vs_funs) then side v d) st_funs;
+        (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
+         * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
+        List.iter (fun (v,d) -> side v d) st;
 
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+        if GobConfig.get_bool "incremental.reluctant.on" then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
