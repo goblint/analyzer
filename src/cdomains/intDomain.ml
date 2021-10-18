@@ -2831,11 +2831,11 @@ module IntDomTupleImpl = struct
   (* `map/opt_map` are used for `projection` *)
   let opt_map b f =
     curry @@ function None, true -> f | x, y when y || b -> x | _ -> None
-  let map ~keep:b r (i1, i2, i3, i4) (b1, b2, b3, b4) =
-    ( opt_map b (r.f3 (module I1)) i1 b1
-    , opt_map b (r.f3 (module I2)) i2 b2
-    , opt_map b (r.f3 (module I3)) i3 b3
-    , opt_map b (r.f3 (module I4)) i4 b4 )
+  let map ~keep r (i1, i2, i3, i4) (b1, b2, b3, b4) =
+    ( opt_map keep (r.f3 (module I1)) i1 b1
+    , opt_map keep (r.f3 (module I2)) i2 b2
+    , opt_map keep (r.f3 (module I3)) i3 b3
+    , opt_map keep (r.f3 (module I4)) i4 b4 )
 
   (** Project tuple t to precision p
    * We have to deactivate IntDomains after the refinement, since we might

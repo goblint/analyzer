@@ -217,6 +217,7 @@ let _ = ()
       ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
       ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
       ; reg Experimental "exp.annotated.precision" "false" "Enable manual annotation of functions with desired precision."
+      ; reg Experimental "exp.privglobs" "true" "Enables handeling of privatized globals when annotated.precision is enabled."
 
 (* {4 category [Debugging]} *)
 let _ = ()

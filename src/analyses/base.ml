@@ -17,6 +17,7 @@ module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
+module PU = PrecisionUtil
 
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
@@ -1129,16 +1130,27 @@ struct
         let new_value = update_offset (Priv.read_global a gs st x) in
 
         (* Projection to highest Precision *)
-        let b = GobConfig.get_bool "exp.annotated.precision" in
-        let new_value' = if b then VD.projection (PrecisionUtil.max_enabled_precision ()) new_value else new_value in
+        let new_value =
+          if GobConfig.get_bool "exp.annotated.precision"
+          then VD.projection (PU.max_enabled_precision ()) new_value
+          else new_value
+        in
 
-        let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value' in
+        let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
       end else begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let new_value = update_offset (CPA.find x st.cpa) in
+
+        (* Projection to highest Precision *)
+        let new_value =
+          if GobConfig.get_bool "exp.annotated.precision" && GobConfig.get_bool "exp.privglobs" && x.vglob
+          then VD.projection (PU.max_enabled_precision ()) new_value
+          else new_value
+        in
+
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -1913,9 +1925,16 @@ struct
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
     (* Projection to Precision of the Callee *)
-    let p = PrecisionUtil.precision_from_fundec fundec in
-    let b = GobConfig.get_bool "exp.annotated.precision" in
-    let new_cpa = if b then CPA.map (fun v -> VD.projection p v) new_cpa else new_cpa in
+    let p = PU.precision_from_fundec fundec in
+    let new_cpa =
+      if GobConfig.get_bool "exp.annotated.precision"
+      then CPA.mapi (fun v t -> VD.projection (
+          if GobConfig.get_bool "exp.privglobs" && v.vglob
+          then PU.max_enabled_precision ()
+          else p)
+          t) new_cpa
+      else new_cpa
+    in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2281,9 +2300,24 @@ struct
 
       (* Projection to Precision of the Caller *)
       let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let b = GobConfig.get_bool "exp.annotated.precision" in
-      let return_val = if b then VD.projection p return_val else return_val in
-      let cpa' = if b then CPA.map (fun v -> VD.projection p v) nst.cpa else nst.cpa in
+      let return_val =
+        if GobConfig.get_bool "exp.annotated.precision"
+        then VD.projection (
+            if GobConfig.get_bool "exp.privglobs" && (return_varinfo ()).vglob
+            then PU.max_enabled_precision ()
+            else p)
+            return_val
+        else return_val
+      in
+      let cpa' =
+        if GobConfig.get_bool "exp.annotated.precision"
+        then CPA.mapi (fun v t -> VD.projection (
+            if GobConfig.get_bool "exp.privglobs" && v.vglob
+            then PU.max_enabled_precision ()
+            else p)
+            t) nst.cpa
+        else nst.cpa
+      in
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
