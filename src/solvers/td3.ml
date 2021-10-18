@@ -99,9 +99,9 @@ module WP =
       let trace_called () =
         if tracing then (
           let called_pretty () called =
-            HM.fold (fun x _ acc -> Pretty.dprintf "%a, %a" S.Var.pretty_trace x Pretty.insert acc) called Pretty.nil
+            HM.fold (fun x _ acc -> Pretty.dprintf "%a\n  %a" S.Var.pretty_trace x Pretty.insert acc) called Pretty.nil
           in
-          trace "sol2" "called: %a\n" called_pretty called
+          trace "sol2" "called:\n  %a\n" called_pretty called
         )
       in
       let vs_pretty () vs =
@@ -181,6 +181,7 @@ module WP =
                       ignore (Pretty.eprintf "not changed did change: eval %a %a: \nold=%a\n new=%a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty prev_d S.Dom.pretty d)
                     ); *)
                     all_dep_x_unchanged_verify := false;
+                    if tracing then trace "sol2" "eval' %a asked %a abort %B verify\n  prev=%a\n   now=%a\n" S.Var.pretty_trace x S.Var.pretty_trace y (HM.mem prev_dep_vals_x y) S.Dom.pretty prev_d S.Dom.pretty d;
                   )
                 );
                 if VS.mem y !unasked_dep_x then (
@@ -331,6 +332,7 @@ module WP =
         if HM.mem called y then HM.replace wpoint y ();
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
+        if tracing then trace "sol2" "eval %a ## %a -> %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty (fst tmp);
         tmp
       and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
         if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
