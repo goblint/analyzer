@@ -121,13 +121,15 @@ module WP =
         if abort then (
           if front then (
             VS.iter (fun y ->
-                if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
+                if tracing then trace "sol2" "front add %a (infl)\n" S.Var.pretty_trace y;
                 HM.replace destab_front y ()
               ) w;
-            (* VS.iter (fun y ->
-                if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
+            (* Also add front via destab_infl in case infl has already been removed by previous destabilize.
+               This fixes 29-svcomp/27-td3-front-via-destab-infl. *)
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "front add %a (destab_infl)\n" S.Var.pretty_trace y;
                 HM.replace destab_front y ()
-              ) (HM.find_default destab_infl x VS.empty) *)
+              ) (HM.find_default destab_infl x VS.empty)
           )
           else (
             HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
