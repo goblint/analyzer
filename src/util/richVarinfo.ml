@@ -76,7 +76,7 @@ struct
   end
 
   (* Collection of all BiVarinfo mappings.
-     This collection is queried by functions that output varinfos that migh occur in such a mapping. *)
+     This collection is queried by functions that output varinfos that might occur in such a mapping. *)
   module Collection =
   struct
 
@@ -88,7 +88,7 @@ struct
     (** Provides a description to be printed with the varinfo *)
     let describe_varinfo (v: varinfo) =
       match List.find_opt (fun (module M: S) -> M.mem_varinfo v) !mappings with
-      | None -> failwith "Not a richt varinfo!"
+      | None -> failwith "Not a rich varinfo!"
       | Some m ->
         let module Map = (val m) in
         match Map.from_varinfo v with
