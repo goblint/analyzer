@@ -144,7 +144,7 @@ let handle_flags () =
     set_string "outfile" ""
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
-let preprocess_one_file cppflags includes fname =
+let preprocess_one_file cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
   if Sys.file_exists (get_string "tempDir") then
@@ -152,7 +152,7 @@ let preprocess_one_file cppflags includes fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " " ^ includes ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -258,9 +258,11 @@ let preprocess_files () =
     String.join " " (List.map (fun include_file -> "-include " ^ include_file) !include_files)
   in
 
+  let cppflags = !cppflags ^ " " ^ includes in
+
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  List.rev_map (preprocess_one_file !cppflags includes) !cFileNames
+  List.rev_map (preprocess_one_file cppflags) !cFileNames
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
