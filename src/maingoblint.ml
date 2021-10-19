@@ -170,7 +170,7 @@ let preprocess_files () =
 
   (* the base include directory *)
   let custom_include_dirs =
-    get_string "custom_incl" ::
+    get_string_list "custom_includes" @
     Filename.concat exe_dir "includes" ::
     Gobsites.Sites.includes
   in
