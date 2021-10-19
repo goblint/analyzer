@@ -235,8 +235,14 @@ let preprocess_files () =
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
-    (* Handy (almost) constants. *)
-    let kernel_root = Filename.concat exe_dir "linux-headers" in
+    let kernel_roots = [
+        get_string "kernel-root";
+        Filename.concat exe_dir "linux-headers";
+        (* linux-headers not installed with goblint package *)
+      ]
+    in
+    let kernel_root = List.find Sys.file_exists kernel_roots in
+
     let kernel_dir = kernel_root ^ "/include" in
     let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
 
@@ -249,7 +255,7 @@ let preprocess_files () =
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
     include_dirs := !include_dirs @ [
-        kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
+        kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi"; (* TODO: no / and duplicate include with kernel_dir is bug? *)
         arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
       ]
   );
