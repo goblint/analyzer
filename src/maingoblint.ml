@@ -192,17 +192,18 @@ let preprocess_files () =
   (* TODO: support multiple/no include dirs *)
 
   (* include flags*)
-  let includes = ref "" in
+  let include_dirs = ref [] in
+  let include_files = ref [] in
 
   (* fill include flags *)
-  let one_include_f f x = includes := "-I " ^ f x ^ " " ^ !includes in
-  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (Filename.concat !Goblintutil.tempDirName OilUtil.header) ^" "^ !includes;
-  (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
+  let one_include_f f x = include_dirs := f x :: !include_dirs in
+  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat !Goblintutil.tempDirName OilUtil.header :: !include_files;
+  (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
   get_string_list "includes" |> List.iter (one_include_f identity);
   get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
   if Sys.file_exists include_dir
-  then includes := "-I" ^ include_dir ^ " " ^ !includes
+  then include_dirs := include_dir :: !include_dirs
   else print_endline "Warning, cannot find goblint's custom include files.";
 
   (* reverse the files again *)
@@ -242,18 +243,24 @@ let preprocess_files () =
   if get_bool "kernel" then (
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
-    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
+    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags; (* TODO: include_files *)
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
-    includes := !includes ^ " -I" ^ String.concat " -I" [
+    include_dirs := !include_dirs @ [
         kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
         arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
       ]
   );
 
+  let includes =
+    String.join " " (List.map (fun include_dir -> "-I " ^ include_dir) !include_dirs) ^
+    " " ^
+    String.join " " (List.map (fun include_file -> "-include " ^ include_file) !include_files)
+  in
+
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  List.rev_map (preprocess_one_file !cppflags !includes) !cFileNames
+  List.rev_map (preprocess_one_file !cppflags includes) !cFileNames
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
