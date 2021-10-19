@@ -43,4 +43,5 @@
     apron
     z3
   )
+  (sites (share includes))
 )

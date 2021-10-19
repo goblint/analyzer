@@ -1,0 +1,8 @@
+
+(install
+  (section (site (goblint includes)))
+  (files
+    assert.h
+    ; TODO: all includes?
+  )
+)
