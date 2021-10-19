@@ -175,13 +175,21 @@ let preprocess_files () =
 
   (* the base include directory *)
   let include_dir =
-    let incl1 = Filename.concat exe_dir "includes" in
-    let incl2 = "/usr/share/goblint/includes" in
-    if get_string "custom_incl" <> "" then (get_string "custom_incl")
-    else if Sys.file_exists incl1 then incl1
-    else if Sys.file_exists incl2 then incl2
-    else "/usr/local/share/goblint/includes"
+    if get_string "custom_incl" <> "" then
+      get_string "custom_incl"
+    else (
+      let exe_includes = Filename.concat exe_dir "includes" in
+      if Sys.file_exists exe_includes then
+        exe_includes
+      else (
+        match Gobsites.Sites.includes with
+        | [site_includes] -> site_includes
+        | [] -> "__goblint_includes_not_found__"
+        | _ :: _ :: _ -> failwith "Multiple Goblint includes sites"
+      )
+    )
   in
+  (* TODO: support multiple/no include dirs *)
 
   (* include flags*)
   let includes = ref "" in
