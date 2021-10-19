@@ -126,6 +126,13 @@ rule() {
       cp g2html/g2html.jar .
     # ;; watch)
     #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
+    ;; install)
+      eval $(opam config env)
+      dune build @install
+      dune install
+    ;; uninstall)
+      eval $(opam config env)
+      dune uninstall
 
     # tests, CI
     ;; test)
