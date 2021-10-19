@@ -174,22 +174,24 @@ let preprocess_files () =
   let cppflags = ref (get_string "cppflags") in
 
   (* the base include directory *)
-  let include_dir =
-    if get_string "custom_incl" <> "" then
-      get_string "custom_incl"
-    else (
-      let exe_includes = Filename.concat exe_dir "includes" in
-      if Sys.file_exists exe_includes then
-        exe_includes
-      else (
-        match Gobsites.Sites.includes with
-        | [site_includes] -> site_includes
-        | [] -> "__goblint_includes_not_found__"
-        | _ :: _ :: _ -> failwith "Multiple Goblint includes sites"
-      )
-    )
+  let custom_include_dirs =
+    get_string "custom_incl" ::
+    Filename.concat exe_dir "includes" ::
+    Gobsites.Sites.includes
   in
-  (* TODO: support multiple/no include dirs *)
+  let custom_include_dirs = List.filter Sys.file_exists custom_include_dirs in
+  if custom_include_dirs = [] then
+    print_endline "Warning, cannot find goblint's custom include files.";
+
+  let find_custom_include subpath =
+    List.find_map (fun custom_include_dir ->
+        let path = Filename.concat custom_include_dir subpath in
+        if Sys.file_exists path then
+          Some path
+        else
+          None
+      ) custom_include_dirs
+  in
 
   (* include flags*)
   let include_dirs = ref [] in
@@ -202,9 +204,7 @@ let preprocess_files () =
   get_string_list "includes" |> List.iter (one_include_f identity);
   get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
-  if Sys.file_exists include_dir
-  then include_dirs := include_dir :: !include_dirs
-  else print_endline "Warning, cannot find goblint's custom include files.";
+  include_dirs := custom_include_dirs @ !include_dirs;
 
   (* reverse the files again *)
   cFileNames := List.rev !cFileNames;
@@ -234,14 +234,14 @@ let preprocess_files () =
 
   (* possibly add our lib.c to the files *)
   if get_bool "custom_libc" then
-    cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
+    cFileNames := find_custom_include "lib.c" :: !cFileNames;
 
   if get_bool "ana.sv-comp.functions" then
-    cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
+    cFileNames := find_custom_include "sv-comp.c" :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
-    let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
+    let preconf = find_custom_include "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
     cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ " ^ !cppflags;
     include_files := preconf :: autoconf :: !include_files;
