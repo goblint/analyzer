@@ -88,7 +88,7 @@ rule() {
 
     # setup, dependencies
     ;; deps)
-      opam update; OPAMCLI=2.0 opam install -y . --deps-only --locked --unlock-base
+      opam update; OPAMCLI=2.0 opam install -y . --deps-only --locked --unlock-base; opam upgrade $(opam list --pinned -s)
     ;; setup)
       echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
