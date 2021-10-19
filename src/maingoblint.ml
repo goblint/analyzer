@@ -165,11 +165,6 @@ let preprocess_one_file cppflags fname =
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
-  (* Handy (almost) constants. *)
-  let kernel_root = Filename.concat exe_dir "linux-headers" in
-  let kernel_dir = kernel_root ^ "/include" in
-  let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
-
   (* Preprocessor flags *)
   let cppflags = ref (get_string "cppflags") in
 
@@ -202,7 +197,6 @@ let preprocess_files () =
   if get_string "ana.osek.oil" <> "" then include_files := Filename.concat !Goblintutil.tempDirName OilUtil.header :: !include_files;
   (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
   get_string_list "includes" |> List.iter (one_include_f identity);
-  get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
   include_dirs := custom_include_dirs @ !include_dirs;
 
@@ -241,6 +235,13 @@ let preprocess_files () =
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
+    (* Handy (almost) constants. *)
+    let kernel_root = Filename.concat exe_dir "linux-headers" in
+    let kernel_dir = kernel_root ^ "/include" in
+    let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
+
+    get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
+
     let preconf = find_custom_include "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
     cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ " ^ !cppflags;
