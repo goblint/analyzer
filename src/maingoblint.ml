@@ -243,7 +243,8 @@ let preprocess_files () =
   if get_bool "kernel" then (
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
-    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags; (* TODO: include_files *)
+    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ " ^ !cppflags;
+    include_files := preconf :: autoconf :: !include_files;
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
     include_dirs := !include_dirs @ [
