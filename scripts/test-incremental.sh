@@ -22,4 +22,4 @@ patch -b $source $patch
 ./goblint --conf $conf --enable solverdiffs --compare_runs $base/$test-originalrun $base/$test-incrementalrun $source
 
 patch -b -R $source $patch
-rm -rf $base/$test-originalrun $base/$test-incrementalrun
+rm -r $base/$test-originalrun $base/$test-incrementalrun
