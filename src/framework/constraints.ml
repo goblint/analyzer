@@ -710,7 +710,9 @@ struct
         let tf' eu = tf (v,c) eu getl sidel getg sideg in
 
         match NodeH.find_option CfgTools.node_scc_global v with
-        | Some scc when NodeH.mem scc.prev v ->
+        | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
+          (* Limited to loops with only one entry node. Otherwise unsound as is. *)
+          (* TODO: Is it possible to do soundly for multi-entry loops? *)
           let stricts = NodeH.find_all scc.prev v in
           let xs_stricts = List.map tf' stricts in
           if List.for_all S.D.is_bot xs_stricts then
