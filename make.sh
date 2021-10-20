@@ -38,10 +38,12 @@ rule() {
       eval $(opam config env)
       dune build $TARGET.exe &&
       cp _build/default/$TARGET.exe goblint
+      chmod +w goblint
     ;; release)
       eval $(opam config env)
       dune build --profile release $TARGET.exe &&
       cp _build/default/$TARGET.exe goblint
+      chmod +w goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
     ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
       dune build $TARGET.bc.js &&
@@ -54,10 +56,12 @@ rule() {
       eval $(opam config env)
       dune build src/maindomaintest.exe &&
       cp _build/default/src/maindomaintest.exe goblint.domaintest
+      chmod +w goblint.domaintest
     ;; privPrecCompare)
       eval $(opam config env)
       dune build src/privPrecCompare.exe &&
       cp _build/default/src/privPrecCompare.exe privPrecCompare
+      chmod +w privPrecCompare
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
@@ -66,6 +70,7 @@ rule() {
       eval $(opam config env)
       dune build goblint.byte &&
       cp _build/default/goblint.byte goblint.byte
+      chmod +w goblint.byte
     ;; profile)
       # gprof (run only generates gmon.out). use: gprof goblint
       ocb -tag profile $TARGET.p.native &&
