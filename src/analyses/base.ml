@@ -17,6 +17,7 @@ module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
+module PU = PrecisionUtil
 
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
@@ -472,9 +473,9 @@ struct
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
     f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
 
   let context_cpa fd (st: store) = (context fd st).cpa
 
@@ -1127,6 +1128,14 @@ struct
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let new_value = update_offset (Priv.read_global a gs st x) in
+
+        (* Projection to highest Precision *)
+        let new_value =
+          if GobConfig.get_bool "exp.annotated.precision"
+          then VD.projection (PU.max_enabled_precision ()) new_value
+          else new_value
+        in
+
         let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
@@ -1134,6 +1143,14 @@ struct
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let new_value = update_offset (CPA.find x st.cpa) in
+
+        (* Projection to highest Precision *)
+        let new_value =
+          if GobConfig.get_bool "exp.annotated.precision" && GobConfig.get_bool "exp.privglobs" && x.vglob
+          then VD.projection (PU.max_enabled_precision ()) new_value
+          else new_value
+        in
+
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -1906,6 +1923,19 @@ struct
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+
+    (* Projection to Precision of the Callee *)
+    let p = PU.precision_from_fundec fundec in
+    let new_cpa =
+      if GobConfig.get_bool "exp.annotated.precision"
+      then CPA.mapi (fun v t -> VD.projection (
+          if GobConfig.get_bool "exp.privglobs" && v.vglob
+          then PU.max_enabled_precision ()
+          else p)
+          t) new_cpa
+      else new_cpa
+    in
+
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
     (* Add to the set of weakly updated variables *)
@@ -2267,7 +2297,29 @@ struct
         else VD.top ()
       in
       let nst = add_globals st fun_st in
-      let st = { nst with weak = st.weak } in (* keep weak from caller *)
+
+      (* Projection to Precision of the Caller *)
+      let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let return_val =
+        if GobConfig.get_bool "exp.annotated.precision"
+        then VD.projection (
+            if GobConfig.get_bool "exp.privglobs" && (return_varinfo ()).vglob
+            then PU.max_enabled_precision ()
+            else p)
+            return_val
+        else return_val
+      in
+      let cpa' =
+        if GobConfig.get_bool "exp.annotated.precision"
+        then CPA.mapi (fun v t -> VD.projection (
+            if GobConfig.get_bool "exp.privglobs" && v.vglob
+            then PU.max_enabled_precision ()
+            else p)
+            t) nst.cpa
+        else nst.cpa
+      in
+
+      let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
