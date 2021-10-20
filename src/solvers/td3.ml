@@ -664,6 +664,16 @@ module WP =
             HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
           ) data.infl;
           data.infl <- infl';
+          let side_infl' = HM.create (HM.length data.side_infl) in
+          HM.iter (fun k v ->
+            HM.replace side_infl' (S.Var.relift k) (VS.map S.Var.relift v)
+          ) data.side_infl;
+          data.side_infl <- side_infl';
+          let side_dep' = HM.create (HM.length data.side_dep) in
+          HM.iter (fun k v ->
+            HM.replace side_dep' (S.Var.relift k) (VS.map S.Var.relift v)
+          ) data.side_dep;
+          data.side_dep <- side_dep';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
           let var_messages' = HM.create (HM.length data.var_messages) in
           HM.iter (fun k v ->
