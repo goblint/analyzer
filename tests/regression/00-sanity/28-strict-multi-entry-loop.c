@@ -60,6 +60,24 @@ void loops_s3_min() {
   end:
 }
 
+int loop2() {
+  int r = 0; // variable to prevent CIL simplification
+  if (r)
+    goto loop2_entry1;
+  else
+    goto loop2_entry2;
+
+loop2_entry1:
+  assert(1); // reachable
+  assert(1); // reachable
+loop2_entry2:
+  assert(1); // reachable
+  assert(1); // reachable
+  goto loop2_entry1;
+
+  return 0;
+}
+
 int main() {
   int r;
   switch (r) {
@@ -71,6 +89,9 @@ int main() {
       break;
     case 2:
       loops_s3_min();
+      break;
+    case 3:
+      loop2();
       break;
   }
   return 0;
