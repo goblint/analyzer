@@ -122,7 +122,7 @@ module WP =
           let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) (side x) in
+          let tmp = eq x (eval l x) (side ~x) in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -171,7 +171,7 @@ module WP =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) (side x) in
+          let tmp = eq y (eval l x) (side ~x) in
           HM.remove called y;
           if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
@@ -183,14 +183,14 @@ module WP =
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
-      and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
+      and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
+        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if S.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (S.system y = None);
         init y;
-        if side_widen = "unstable_self" then add_infl x y;
+        (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let op =
           if HM.mem wpoint y then fun a b ->
             if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
@@ -204,8 +204,10 @@ module WP =
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
-          let sided = VS.mem x (HM.find_default sides y VS.empty) in
-          if not sided then add_sides y x;
+          let sided = match x with
+            | Some x -> VS.mem x (HM.find_default sides y VS.empty)
+            | _ -> false in
+          if not sided && Option.is_some x then add_sides y (Option.get x);
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
           if side_widen <> "cycle" then destabilize y;
@@ -250,28 +252,6 @@ module WP =
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
-        (* If a global changes because of some assignment inside a function, we reanalyze,
-         * but if it changes because of a different global initializer, then
-         *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
-         *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
-         *)
-        print_endline "Destabilizing start functions if their start state changed...";
-        (* record whether any function's start state changed. In that case do not use reluctant destabilization *)
-        let any_changed_start_state = ref false in
-        (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
-        List.iter (fun (v,d) ->
-          match GU.assoc_eq v data.st S.Var.equal with
-          | Some d' ->
-              if S.Dom.equal d d' then
-                (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
-                ()
-              else (
-                ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                any_changed_start_state := true;
-                destabilize v
-              )
-          | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
-        ) st;
 
         print_endline "Destabilizing changed functions...";
 
@@ -288,7 +268,7 @@ module WP =
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         let old_ret = Hashtbl.create 103 in
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+        if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
             let old_rho = HM.find rho k in
@@ -308,7 +288,7 @@ module WP =
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant.on"));
+        add_nodes_of_fun obsolete_funs marked_for_deletion (not (GobConfig.get_bool "incremental.reluctant.on"));
         add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
@@ -321,9 +301,11 @@ module WP =
 
         print_data data "Data after clean-up";
 
-        List.iter set_start st;
+        (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
+         * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
+        List.iter (fun (v,d) -> side v d) st;
 
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+        if GobConfig.get_bool "incremental.reluctant.on" then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in

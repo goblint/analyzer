@@ -24,6 +24,7 @@ depends: [
   "base-threads" {= "base"}
   "base-unix" {= "base"}
   "batteries" {= "3.3.0"}
+  "benchmark" {= "1.6"}
   "biniou" {= "1.2.1"}
   "camlidl" {= "1.09"}
   "conf-gmp" {= "3"}

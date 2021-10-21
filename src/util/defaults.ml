@@ -148,10 +148,11 @@ let _ = ()
 
 (* {4 category [Incremental]} *)
 let _ = ()
-      ; reg Incremental "incremental.load"   "false" "Load incremental analysis results, in case any exist."
-      ; reg Incremental "incremental.save"   "false" "Store incremental analysis results."
-      ; reg Incremental "incremental.stable" "true"  "Reuse the stable set and selectively destabilize it (recommended)."
-      ; reg Incremental "incremental.wpoint" "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
+      ; reg Incremental "incremental.load"        "false" "Load incremental analysis results, in case any exist."
+      ; reg Incremental "incremental.only-rename" "false" "Only reset IDs of unchanged objects in the AST. Do  not reuse solver results. This option is mainly useful for benchmarking purposes."
+      ; reg Incremental "incremental.save"        "false" "Store incremental analysis results."
+      ; reg Incremental "incremental.stable"      "true"  "Reuse the stable set and selectively destabilize it (recommended)."
+      ; reg Incremental "incremental.wpoint"      "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
       ; reg Incremental "incremental.reluctant.on" "true" "Destabilize nodes in changed functions reluctantly"
       ; reg Incremental "incremental.reluctant.compare" "'leq'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
 

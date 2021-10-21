@@ -35,6 +35,7 @@
     (ounit2 :with-test)
     (odoc :with-doc)
     dune-site
+    benchmark ; TODO: make this optional somehow, (optional) on bench executable doesn't work
     ; TODO still need the following after switch to dune?
     ocamlbuild
     ocamlfind
