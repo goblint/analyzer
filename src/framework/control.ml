@@ -608,7 +608,7 @@ struct
       in
       Spec.query ctx (WarnGlobal g)
     in
-    GHT.iter warn_global gh;
+    Stats.time "warn_global" (GHT.iter warn_global) gh;
 
     if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;
