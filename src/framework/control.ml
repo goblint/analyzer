@@ -582,11 +582,36 @@ struct
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
-    if get_bool "ana.sv-comp.enabled" then
-      WResult.write lh gh entrystates;
-
     if get_bool "exp.cfgdot" then
       CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
+
+    let warn_global g v =
+      (* ignore (Pretty.printf "warn_global %a %a\n" CilType.Varinfo.pretty g EQSys.G.pretty v); *)
+      (* build a ctx for using the query system *)
+      let rec ctx =
+        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+        ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+        ; context = (fun () -> ctx_failwith "No context in query context.")
+        ; edge    = MyCFG.Skip
+        ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
+        ; global = (fun v -> try GHT.find gh v with Not_found -> EQSys.G.bot ())
+        ; presub = []
+        ; postsub= []
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
+        }
+      in
+      Spec.query ctx (WarnGlobal g)
+    in
+    Stats.time "warn_global" (GHT.iter warn_global) gh;
+
+    if get_bool "ana.sv-comp.enabled" then
+      WResult.write lh gh entrystates;
 
     let marshal = Spec.finalize () in
     if get_string "save_run" <> "" then (
