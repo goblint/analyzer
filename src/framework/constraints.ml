@@ -454,7 +454,7 @@ module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
                            and module GVar = Basetype.Variables
                            and module D = S.D
                            and module G = S.G
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> D.t -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
   end
 =
 struct
@@ -689,12 +689,12 @@ struct
         d
       )
 
-  let tf (v,c) (edges, u) getl sidel getg sideg =
-    let pval = getl (u,c) in
+  let tf (v,c) (edges, u) pval getl sidel getg sideg =
+    (* let pval = getl (u,c) in *)
     let _, locs = List.fold_right (fun (f,e) (t,xs) -> f, (f,t)::xs) edges (Node.location v,[]) in
     List.fold_left2 (|>) pval (List.map (tf (v,Obj.repr (fun () -> c)) getl sidel getg sideg u) edges) locs
 
-  let tf (v,c) (e,u) getl sidel getg sideg =
+  let tf (v,c) (e,u) pval getl sidel getg sideg =
     let old_node = !current_node in
     let old_context = !M.current_context in
     current_node := Some u;
@@ -703,7 +703,7 @@ struct
         current_node := old_node;
         M.current_context := old_context
       ) (fun () ->
-        let d       = tf (v,c) (e,u) getl sidel getg sideg in
+        let d       = tf (v,c) (e,u) pval getl sidel getg sideg in
         d
       )
 
@@ -713,12 +713,14 @@ struct
       None
     | _ ->
       let tf getl sidel getg sideg =
-        let tf' eu = tf (v,c) eu getl sidel getg sideg in
+        let get_pval (_, u) = getl (u, c) in
+        let tf' eu pval = tf (v,c) eu pval getl sidel getg sideg in
 
         match NodeH.find_option CfgTools.node_scc_global v with
         | Some scc when NodeH.mem scc.prev v ->
           let stricts = NodeH.find_all scc.prev v in
-          let xs_stricts = List.map tf' stricts in
+          let pvals_stricts = List.map get_pval stricts in (* get pvals before executing any tf to maximize abort *)
+          let xs_stricts = List.map2 tf' stricts pvals_stricts in
           if List.for_all S.D.is_bot xs_stricts then
             S.D.bot ()
           else
@@ -726,10 +728,13 @@ struct
             let equal = [%eq: (CilType.Location.t * Edge.t) list * Node.t] in
             let is_strict eu = List.exists (equal eu) stricts in
             let non_stricts = List.filter (neg is_strict) (Cfg.prev v) in
-            let xs_non_stricts = List.map tf' non_stricts in
+            let pvals_non_stricts = List.map get_pval non_stricts in (* get pvals before executing any tf to maximize abort *)
+            let xs_non_stricts = List.map2 tf' non_stricts pvals_non_stricts in
             List.fold_left S.D.join xs_strict xs_non_stricts
         | _ ->
-          let xs = List.map tf' (Cfg.prev v) in
+          let prevs = Cfg.prev v in
+          let pvals = List.map get_pval prevs in (* get pvals before executing any tf to maximize abort *)
+          let xs = List.map2 tf' prevs pvals in
           List.fold_left S.D.join (S.D.bot ()) xs
       in
       Some tf
