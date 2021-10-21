@@ -33,6 +33,7 @@
     ocaml-monadic
     (ounit2 :with-test)
     (odoc :with-doc)
+    benchmark ; TODO: make this optional somehow, (optional) on bench executable doesn't work
     ; TODO still need the following after switch to dune?
     ocamlbuild
     ocamlfind
@@ -40,6 +41,5 @@
   (depopts
     apron
     z3
-    benchmark
   )
 )

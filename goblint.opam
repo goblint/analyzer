@@ -31,10 +31,11 @@ depends: [
   "ocaml-monadic"
   "ounit2" {with-test}
   "odoc" {with-doc}
+  "benchmark"
   "ocamlbuild"
   "ocamlfind"
 ]
-depopts: ["apron" "z3" "benchmark"]
+depopts: ["apron" "z3"]
 build: [
   ["dune" "subst"] {pinned}
   [
