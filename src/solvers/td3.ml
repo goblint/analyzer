@@ -140,16 +140,11 @@ module WP =
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty))
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
-      let rec destabilize x =
-        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
-        let w = HM.find_default infl x VS.empty in
-        HM.replace infl x VS.empty;
-        VS.iter (fun y ->
-            HM.remove stable y;
-            HM.remove superstable y;
-            if not (HM.mem called y) then destabilize y
-          ) w
-      and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
+
+      let destabilize_ref: (S.v -> unit) ref = ref (fun _ -> failwith "no destabilize yet") in
+      let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
+
+      let rec destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
@@ -312,6 +307,17 @@ module WP =
         (* solve x Widen *)
       in
 
+      let rec destabilize_normal x =
+        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
+        let w = HM.find_default infl x VS.empty in
+        HM.replace infl x VS.empty;
+        VS.iter (fun y ->
+            HM.remove stable y;
+            HM.remove superstable y;
+            if not (HM.mem called y) then destabilize_normal y
+          ) w
+      in
+
       start_event ();
 
       if GobConfig.get_bool "incremental.load" then (
@@ -366,12 +372,11 @@ module WP =
             ) w
         in
 
-        let destabilize_with_side =
+        destabilize_ref :=
           if restart_sided then
             destabilize_with_side
           else
-            destabilize
-        in
+            destabilize_normal;
 
         (* If a global changes because of some assignment inside a function, we reanalyze,
          * but if it changes because of a different global initializer, then
@@ -391,7 +396,7 @@ module WP =
               else (
                 ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
                 any_changed_start_state := true;
-                destabilize_with_side v
+                destabilize v
               )
           | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
         ) st;
@@ -418,7 +423,7 @@ module WP =
             let old_infl = HM.find_default infl k VS.empty in
             Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
         ) else (
-          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry then destabilize_with_side k) stable (* TODO: don't use string-based nodes *)
+          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry then destabilize k) stable (* TODO: don't use string-based nodes *)
         );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
@@ -452,6 +457,8 @@ module WP =
 
         List.iter set_start st;
 
+        (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
+
         if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
@@ -462,7 +469,7 @@ module WP =
               solve x Widen;
               if not (op (HM.find rho x) old_rho) then (
                 HM.replace infl x old_infl;
-                destabilize_with_side x;
+                destabilize x;
                 HM.replace stable x ()
               )
           ) old_ret;
@@ -472,6 +479,9 @@ module WP =
       ) else (
         List.iter set_start st;
       );
+
+      destabilize_ref := destabilize_normal; (* always use normal destabilize during actual solve *)
+
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
       let i = ref 0 in
