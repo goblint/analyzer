@@ -413,10 +413,17 @@ struct
             if d1 = d2 then print_endline "Beware that you are comparing a run with itself! There should be no differences.";
             let r1, r2 = Tuple2.mapn (fun d ->
                 let vh = Serialize.unmarshal (d ^ Filename.dir_sep ^ solver_file) in
-                (* TODO: no need to relift here? *)
                 (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
                 let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
-                Splitter.split_solution vh
+                let module S2 = Splitter.S2 in
+                let module VH = Splitter.VH in
+
+                let vh' = VH.create (VH.length vh) in
+                VH.iter (fun k v ->
+                    VH.replace vh' (S2.Var.relift k) (S2.Dom.relift v)
+                  ) vh;
+
+                Splitter.split_solution vh'
               ) (d1, d2)
             in
             Comp.compare (d1, d2) r1 r2;
