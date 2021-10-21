@@ -40,5 +40,6 @@
   (depopts
     apron
     z3
+    benchmark
   )
 )

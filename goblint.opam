@@ -34,7 +34,7 @@ depends: [
   "ocamlbuild"
   "ocamlfind"
 ]
-depopts: ["apron" "z3"]
+depopts: ["apron" "z3" "benchmark"]
 build: [
   ["dune" "subst"] {pinned}
   [
