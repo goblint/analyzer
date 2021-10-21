@@ -15,13 +15,20 @@ sig
 
   (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
   val is_must_parent: t -> t -> bool
+
+  type marshal
+  val init: marshal option -> unit
+  val finalize: unit -> marshal
+
+  (** How the created varinfos should be namend. Returned strings should not contain [Cil.location]s, but may contain node ids. *)
+  val name_varinfo: t -> string
 end
 
 module type Stateless =
 sig
   include S
 
-  val threadenter: location -> varinfo -> t
+  val threadenter: Node.t -> varinfo -> t
 end
 
 module type Stateful =
@@ -30,19 +37,27 @@ sig
 
   module D: Lattice.S
 
-  val threadenter: t * D.t -> location -> varinfo -> t
-  val threadspawn: D.t -> location -> varinfo -> D.t
+  val threadenter: t * D.t -> Node.t -> varinfo -> t
+  val threadspawn: D.t -> Node.t -> varinfo -> D.t
 end
 
 
 (** Type to represent an abstract thread ID. *)
 module FunLoc: Stateless =
 struct
-  module M = Printable.Prod (CilType.Varinfo) (Printable.Option (CilType.Location) (struct let name = "no location" end))
+  module M = struct
+    include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
+
+    (* Defines how varinfos representing a FunLoc are named.
+    The varinfo-name contains node ids, but not their location (for compatibility with incremental analysis) *)
+    let name_varinfo = function
+      | (f, Some n) -> f.vname ^ "@" ^ Node.show n
+      | (f, None) -> f.vname
+  end
   include M
 
   let show = function
-    | (f, Some l) -> f.vname ^ "@" ^ CilType.Location.show l
+    | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
     | (f, None) -> f.vname
 
   include Printable.PrintSimple (
@@ -55,10 +70,6 @@ struct
   let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t = (v, Some l)
 
-  let to_varinfo: t -> varinfo =
-    let module RichVarinfoM = RichVarinfo.Make (M) in
-    RichVarinfoM.map ~name:show ~size:113
-
   let is_main = function
     | ({vname = "main"; _}, None) -> true
     | _ -> false
@@ -66,6 +77,12 @@ struct
   let is_unique _ = false (* TODO: should this consider main unique? *)
   let may_create _ _ = true
   let is_must_parent _ _ = false
+
+  module VarinfoMap = RichVarinfo.Make (M)
+  let to_varinfo = VarinfoMap.to_varinfo
+  type marshal = VarinfoMap.marshal
+  let init m = VarinfoMap.unmarshal m
+  let finalize () = VarinfoMap.marshal ()
 end
 
 
@@ -92,7 +109,15 @@ struct
     include SetDomain.Make (Base)
     let name () = "set"
   end
-  module M = Printable.Prod (P) (S)
+  module M = struct
+    include Printable.Prod (P) (S)
+    (* Varinfos for histories are named using a string representation based on node ids,
+     not locations, for compatibilty with incremental analysis.*)
+    let name_varinfo ((l, s): t): string =
+      let list_name = String.concat "," (List.map Base.name_varinfo l) in
+      let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
+      list_name ^ ", {" ^ set_name ^ "}"
+  end
   include M
 
   module D =
@@ -133,8 +158,8 @@ struct
     else
       ([base_tid], S.empty ())
 
-  let threadenter ((p, _ ) as current, cs) l v =
-    let n = Base.threadenter l v in
+  let threadenter ((p, _ ) as current, cs) (n: Node.t) v =
+    let n = Base.threadenter n v in
     let ((p', s') as composed) = compose current n in
     if is_unique composed && S.mem n cs then
       (p, S.singleton n)
@@ -144,13 +169,16 @@ struct
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs
 
-  let to_varinfo: t -> varinfo =
-    let module RichVarinfoM = RichVarinfo.Make (M) in
-    RichVarinfoM.map ~name:show ~size:113
+  module VarinfoMap = RichVarinfo.Make (M)
+  let to_varinfo = VarinfoMap.to_varinfo
 
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
     | _ -> false
+
+  type marshal = VarinfoMap.marshal
+  let finalize () = VarinfoMap.marshal ()
+  let init m = VarinfoMap.unmarshal m
 end
 
 module ThreadLiftNames = struct
