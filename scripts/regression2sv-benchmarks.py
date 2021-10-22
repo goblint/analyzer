@@ -173,8 +173,12 @@ void __VERIFIER_assert(int cond) { if(!(cond)) { ERROR: {reach_error();abort();}
 
 """
 
+ASSERT_INCLUDE_PATTERN = re.compile(r"#include\s*<assert\.h>(\r\n|\r|\n)")
+
 def handle_asserts(properties, content, task_name, top_comment):
     print()
+
+    content = ASSERT_INCLUDE_PATTERN.sub("", content) # remove existing assert.h include to only keep the one we add from ASSERT_HEADER above
 
     # Split the file into parts by asserts
     codes = [] # type: List[str]
