@@ -103,44 +103,35 @@ let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 
   let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
   Queue.push (entryNode1,entryNode2) waitingList; compareNext (); (same, diff)
 
-let reexamine f1 f2 same diff (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) =
-  let module NodeSet = Set.Make(Node) in
-  let module NodeNodeSet = Set.Make (struct type t = node * node let compare = compare end) in
-  let diffNodes1 = Hashtbl.fold (fun n _ acc -> NodeSet.add n acc) diff NodeSet.empty in
-  let sameNodes =
-    let notInDiff = Hashtbl.fold (fun (n1,n2) _ acc -> if NodeSet.mem n1 diffNodes1 then acc else NodeNodeSet.add (n1,n2) acc) same NodeNodeSet.empty in
-    NodeNodeSet.add (FunctionEntry f1, FunctionEntry f2) notInDiff in
+let reexamine f1 f2 (same : ((node * node), unit) Hashtbl.t) (diffNodes1 : (node,unit) Hashtbl.t) (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) =
+  Hashtbl.iter (fun (n1,n2) _ -> if Hashtbl.mem diffNodes1 n1 then Hashtbl.remove same (n1,n2) else ()) same;
+  Hashtbl.add same (FunctionEntry f1, FunctionEntry f2) ();
 
-  let diffNodes2, _ =
-    let rec dfs2 node (diffNodes2, vis) =
-      let classify k (diffNodes2, vis) =
-        if NodeSet.mem k vis then (diffNodes2, vis)
-        else let vis' = NodeSet.add k vis in
-        if NodeNodeSet.exists (fun (_,n2) -> Node.equal n2 k) sameNodes then dfs2 k (diffNodes2, vis')
-        else (NodeSet.add k diffNodes2, vis') in
-      let succ = List.map snd (Cfg2.next node) in
-      List.fold_right classify succ (diffNodes2, vis) in
-    dfs2 (FunctionEntry f2) (NodeSet.empty, NodeSet.empty) in
+  let vis = Hashtbl.create 103 in
+  let diffNodes2 = Hashtbl.create 103 in
 
-  let sameNodes', diffNodes1', diffNodes2', _ =
-    let rec dfs2 node (sameNodes', diffNodes1', diffNodes2', vis) =
-      let classify k (sameNodes', diffNodes1', diffNodes2', vis) =
-        if NodeSet.mem k vis then (sameNodes', diffNodes1', diffNodes2', vis)
-        else let vis' = NodeSet.add k vis in
-        if NodeNodeSet.exists (fun (n1,n2) -> Node.equal n2 k) sameNodes
-        then let rsn, rd1, rd2 = NodeNodeSet.fold (fun (n1,n2) (rsn, rd1, rd2) -> if Node.equal n2 k then (NodeNodeSet.remove (n1,n2) rsn, NodeSet.add n1 rd1, NodeSet.add k rd2) else (rsn, rd1,rd2)) sameNodes (sameNodes', diffNodes1', diffNodes2') in
-         (rsn, rd1, rd2, vis')
-        else dfs2 k (sameNodes', diffNodes1', diffNodes2', vis') in
-      let succ = List.map snd (Cfg2.next node) in
-      List.fold_right classify succ (sameNodes', diffNodes1', diffNodes2', vis) in
-    NodeSet.fold dfs2 diffNodes2 (sameNodes, diffNodes1, diffNodes2, NodeSet.empty) in
-
-  (NodeNodeSet.elements sameNodes', NodeSet.elements diffNodes1', NodeSet.elements diffNodes2')
+  let rec refine_same k =
+    if Hashtbl.mem vis k then ()
+    else begin
+      Hashtbl.add vis k ();
+      let refined = Hashtbl.fold (fun (n1,n2) () acc -> if Node.equal n2 k then (Hashtbl.remove same (n1,n2); Hashtbl.replace diffNodes1 n1 (); Hashtbl.add diffNodes2 n2 (); true) else acc) same false in
+      if not refined then dfs2 k refine_same end
+  and classify_prim_new k =
+    if Hashtbl.mem vis k then ()
+    else begin
+      Hashtbl.replace vis k ();
+      if Hashtbl.fold (fun (_,n2) _ acc -> acc || Node.equal n2 k) same false then dfs2 k classify_prim_new
+      else (Hashtbl.add diffNodes2 k (); Hashtbl.clear vis; dfs2 k refine_same) end
+  and dfs2 node f =
+    let succ = List.map snd (Cfg2.next node) in
+    List.iter f succ in
+  dfs2 (FunctionEntry f2) classify_prim_new;
+  (Hashtbl.to_seq_keys same, Hashtbl.to_seq_keys diffNodes1, Hashtbl.to_seq_keys diffNodes2)
 
 let compareFun (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 =
   let same, diff = compareCfgs (module Cfg1) (module Cfg2) fun1 fun2 in
   let unchanged, diffNodes1, diffNodes2 = reexamine fun1 fun2 same diff (module Cfg1) (module Cfg2) in
-  unchanged, diffNodes1, diffNodes2
+  List.of_seq unchanged, List.of_seq diffNodes1, List.of_seq diffNodes2
 
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
   let unchangedHeader =
