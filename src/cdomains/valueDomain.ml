@@ -162,9 +162,67 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
-    let arg_value (map: TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
-      let ts (t: Cil.typ): Cil.typsig =
-        typeSigWithAttrs (fun _ -> []) t
+  (* Create the "canonical" argument value for a type,
+     and a list of addresses for which target objects have to be created.
+     For compound types, descend into the elements.
+     Do not descend into objects reachable via pointers;
+     another function will take care of that logic *)
+  let rec create_immediate_arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ) : t * address list =
+    let rec init_comp compinfo =
+      let nstruct = Structs.top ()
+      in
+      let init_field (nstru, adrs) fd =
+        let (v, adrs) = create_immediate_arg_value cast_map heap_var fd.ftype in
+        (Structs.replace nstruct fd v, adrs)
+      in
+      List.fold_left (init_field) (nstruct, []) compinfo.cfields
+    in
+    let typ = Cil.unrollTypeDeep typ in
+    match typ with
+    | TInt (ik, _) -> `Int (ID.top_of ik), []
+    | TPtr (t, _) ->
+      let heap_var = heap_var t in
+      let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
+      `Address heap_var_or_NULL, [heap_var]
+    | TComp ({cstruct=true; _} as ci,_) ->
+      let v, adrs = init_comp ci in `Struct (v), adrs
+    | TComp ({cstruct=false; _},_) ->
+      (* Redo handling of unions. Reachable objects have to be created and marked as reachable from the returned objects *)
+      `Union (Unions.top ()), []
+    | TArray (ai, None, _) ->
+      let v, adrs = create_immediate_arg_value cast_map heap_var ai in
+      `Array (CArrays.make (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) v ), adrs
+    | TArray (ai, Some exp, _) ->
+      let v, adrs = create_immediate_arg_value cast_map heap_var ai in
+      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+      (`Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) v)), adrs
+    | TNamed ({ttype=t; _}, _) -> create_immediate_arg_value cast_map heap_var t
+    | _ -> `Top, []
+
+  let rec arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (types: TypeSet.t) (map: (address * typ * t) list): (address * typ * t) list =
+    (* Maybe we can get this set more efficently? *)
+    let todos = List.fold_left (fun acc (_, typ, _) -> TypeSet.remove typ acc) types map in
+    match TypeSet.choose todos with
+    | typ ->
+
+      (* TODO Fix: does not work because create_immediate_value returns address list, not type lists *)
+          (*
+          let v, d' = create_immediate_arg_value cast_map heap_var typ in
+          let map = (typ, v) :: map in
+          let todos = TypeSet.union (TypeSet.of_list d') todos in
+          arg_value cast_map heap_var todos map
+          *)
+
+      map
+
+    | exception Not_found ->
+      (* Finished with todos :) *)
+      map
+
+
+  let arg_value (map: TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
+    let ts (t: Cil.typ): Cil.typsig =
+      typeSigWithAttrs (fun _ -> []) t
       in
       (* Record mapping from types to addresses created for blocks with corresponding type *)
       let type_to_symbolic_address = Hashtbl.create 113 in
