@@ -1068,8 +1068,13 @@ struct
         if get_bool "solverdiffs" then
           ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_gr ()
-      end else
+      end else begin
+        if get_bool "solverdiffs" then (
+          ignore (Pretty.printf "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
+          ignore (Pretty.printf "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
+        );
         f_uk ()
+      end
     in
     GH.iter f g1;
     Printf.printf "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
@@ -1091,8 +1096,13 @@ struct
           if get_bool "solverdiffs" then
             ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr gr
-        end else
+        end else begin
+          if get_bool "solverdiffs" then (
+            ignore (Pretty.printf "%a @@ %a is incomparable (diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
+          );
           incr uk
+        end
     in
     PP.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in
