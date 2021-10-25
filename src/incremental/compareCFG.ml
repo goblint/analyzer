@@ -47,7 +47,7 @@ let eq_edge x y = match x, y with
   | SelfLoop, SelfLoop -> true
   | _ -> false
 
-(* The order of the edges in the list is relevant. Therefor compare
+(* The order of the edges in the list is relevant. Therefore compare
 them one to one without sorting first*)
 let eq_edge_list xs ys = eq_list eq_edge xs ys
 
@@ -104,23 +104,24 @@ let compareCfgs (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) fun1 fun2 
   Queue.push (entryNode1,entryNode2) waitingList; compareNext (); (same, diff)
 
 let reexamine f1 f2 (same : ((node * node), unit) Hashtbl.t) (diffNodes1 : (node,unit) Hashtbl.t) (module Cfg1 : CfgForward) (module Cfg2 : CfgForward) =
-  Hashtbl.iter (fun (n1,n2) _ -> if Hashtbl.mem diffNodes1 n1 then Hashtbl.remove same (n1,n2) else ()) same;
+  Hashtbl.filter_map_inplace (fun (n1,n2) _ -> if Hashtbl.mem diffNodes1 n1 then None else Some ()) same;
   Hashtbl.add same (FunctionEntry f1, FunctionEntry f2) ();
-
   let vis = Hashtbl.create 103 in
   let diffNodes2 = Hashtbl.create 103 in
 
+  let asSndInSame k = Hashtbl.fold (fun (n1,n2) _ acc -> acc || Node.equal n2 k) same false in
   let rec refine_same k =
     if Hashtbl.mem vis k then ()
     else begin
       Hashtbl.add vis k ();
-      let refined = Hashtbl.fold (fun (n1,n2) () acc -> if Node.equal n2 k then (Hashtbl.remove same (n1,n2); Hashtbl.replace diffNodes1 n1 (); Hashtbl.add diffNodes2 n2 (); true) else acc) same false in
-      if not refined then dfs2 k refine_same end
+      if asSndInSame k then
+        Hashtbl.filter_map_inplace (fun (n1,n2) _ -> if Node.equal n2 k then (Hashtbl.replace diffNodes1 n1 (); Hashtbl.replace diffNodes2 n2 (); None) else Some ()) same
+      else dfs2 k refine_same end
   and classify_prim_new k =
     if Hashtbl.mem vis k then ()
     else begin
       Hashtbl.replace vis k ();
-      if Hashtbl.fold (fun (_,n2) _ acc -> acc || Node.equal n2 k) same false then dfs2 k classify_prim_new
+      if asSndInSame k then dfs2 k classify_prim_new
       else (Hashtbl.add diffNodes2 k (); Hashtbl.clear vis; dfs2 k refine_same) end
   and dfs2 node f =
     let succ = List.map snd (Cfg2.next node) in
