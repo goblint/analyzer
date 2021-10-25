@@ -167,29 +167,37 @@ struct
      For compound types, descend into the elements.
      Do not descend into objects reachable via pointers;
      another function will take care of that logic *)
-  let rec create_immediate_arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ) : t * typ list =
+  let rec create_immediate_arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ) : t * TypeSet.t =
+    let empty = TypeSet.empty () in
     let init_comp compinfo =
       let init_field (stru, adrs) fd =
         let (v, adrs) = create_immediate_arg_value cast_map heap_var fd.ftype in
         (Structs.replace stru fd v, adrs)
       in
       let stru = Structs.top () in
-      let stru, todos = List.fold_left (init_field) (stru, []) compinfo.cfields in
+      let stru, todos = List.fold_left (init_field) (stru, empty) compinfo.cfields in
       M.tracel "argvar" "Created struct %a \n" Structs.pretty stru;
       stru, todos
     in
     let typ = Cil.unrollTypeDeep typ in
     match typ with
-    | TInt (ik, _) -> `Int (ID.top_of ik), []
+    | TInt (ik, _) -> `Int (ID.top_of ik), empty
     | TPtr (t, _) ->
-      let heap_var = heap_var t in
-      let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
-      `Address heap_var_or_NULL, [t]
+      let types = TypeSet.singleton t in
+      let types = match TypeCastMap.find_opt (TPtr (t, [])) cast_map with
+        | Some casted_to_types ->
+          (* If there was a cast a* -> b*, b* will be in the casted_to_types; we now extract the b (i.e. remove the pointer type around it) *)
+          let casted_to_types = TypeSet.elements casted_to_types |> List.filter_map (fun t -> match t with TPtr (pt, a) -> Some pt | _ -> None) |> TypeSet.of_list in
+          TypeSet.join types casted_to_types
+        | None -> types
+      in
+      let heap_var = TypeSet.fold (fun t acc -> AD.join acc (heap_var t)) types AD.null_ptr in
+      `Address heap_var, types
     | TComp ({cstruct=true; _} as ci,_) ->
       let v, adrs = init_comp ci in `Struct (v), adrs
     | TComp ({cstruct=false; _},_) ->
       (* Redo handling of unions. Reachable objects have to be created and marked as reachable from the returned objects *)
-      `Union (Unions.top ()), []
+      `Union (Unions.top ()), empty
     | TArray (ai, None, _) ->
       let v, adrs = create_immediate_arg_value cast_map heap_var ai in
       `Array (CArrays.make (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) v ), adrs
@@ -198,28 +206,31 @@ struct
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
       (`Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) v)), adrs
     | TNamed ({ttype=t; _}, _) -> create_immediate_arg_value cast_map heap_var t
-    | _ -> `Top, []
+    | _ -> `Top, empty
 
   let arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ): t * (address * typ * t) list =
+    (* Create object for typ, and get a set of types the object points to *)
     let v, todos = create_immediate_arg_value cast_map heap_var typ in
     let already_exists typ map =
       List.exists (fun (_, t, _) -> Type.equal t typ) map
     in
-    let rec create_heap (todos: typ list) (map: (address * typ * t) list) =
-      match todos with
-      | typ::todos ->
+    (* Recursively create the heap of objects in todos and all types they depend upon *)
+    let rec create_heap (todos: TypeSet.t) (map: (address * typ * t) list) =
+      match TypeSet.choose todos with
+      | typ ->
+        let todos = TypeSet.remove typ todos in
         (* TODO: Make map a Map.t instead of a list. *)
         let todos, map = if not (already_exists typ map) then
           let v, d' = create_immediate_arg_value cast_map heap_var typ in
           let addr = heap_var typ in
           let map = (addr, typ, v) :: map in
-          let todos = d' @ todos in
+          let todos = TypeSet.union d' todos in
           todos, map
         else
           todos, map
         in
         create_heap todos map
-      | [] ->
+      | exception Not_found ->
         (* Finished with todos :) *)
         map
     in
