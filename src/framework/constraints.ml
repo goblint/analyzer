@@ -1126,15 +1126,20 @@ struct
         if b1 && b2 then
           f_eq ()
         else if b1 then begin
-          (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v2,v1)); *)
+          if get_bool "solverdiffs" then
+            ignore (Pretty.printf "%a is more precise using left:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
           f_le ()
         end else if b2 then begin
-          (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
+          if get_bool "solverdiffs" then
+            ignore (Pretty.printf "%a is more precise using right:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
           f_gr ()
-        end else
+        end else begin
+          if get_bool "solverdiffs" then (
+            ignore (Pretty.printf "%a is incomparable (diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
+          );
           f_uk ()
+        end
     in
     LH.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in *)
