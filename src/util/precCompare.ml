@@ -42,27 +42,36 @@ struct
     | Incomparable (m, l) -> (m, l)
 end
 
-module Make (K: Printable.S) (D: Lattice.S) (KH: Hashtbl.S with type key = K.t) =
+module Make (D: Lattice.S) =
 struct
+
+  let compare ?(name1="left") ?(name2="right") v1 v2 =
+    let c = match D.leq v1 v2, D.leq v2 v1 with
+      | true, true -> Comparison.Equal
+      | true, false -> Comparison.MorePrecise 1
+      | false, true -> Comparison.LessPrecise 1
+      | false, false -> Comparison.Incomparable (1, 1)
+    in
+    let diff () =
+      (if D.leq v1 v2 then nil else dprintf "diff: %a\n" D.pretty_diff (v1, v2))
+      ++
+      (if D.leq v2 v1 then nil else dprintf "reverse diff: %a\n" D.pretty_diff (v2, v1))
+    in
+    let msg = Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 D.pretty v1 (Comparison.to_string_infix c) name2 D.pretty v2 diff in
+    (c, msg)
+end
+
+module MakeHashtbl (K: Printable.S) (D: Lattice.S) (KH: Hashtbl.S with type key = K.t) =
+struct
+
+  module CompareD = Make (D)
 
   let compare ?(name1="left") ?(name2="right") kh1 kh2 =
     let kh = KH.merge (fun k v1 v2 -> Some (v1, v2)) kh1 kh2 in
     let compared = KH.map (fun k (v1, v2) ->
         let v1 = v1 |? D.bot () in
         let v2 = v2 |? D.bot () in
-        let c = match D.leq v1 v2, D.leq v2 v1 with
-          | true, true -> Comparison.Equal
-          | true, false -> Comparison.MorePrecise 1
-          | false, true -> Comparison.LessPrecise 1
-          | false, false -> Comparison.Incomparable (1, 1)
-        in
-        let diff () =
-          (if D.leq v1 v2 then nil else dprintf "diff: %a\n" D.pretty_diff (v1, v2))
-          ++
-          (if D.leq v2 v1 then nil else dprintf "reverse diff: %a\n" D.pretty_diff (v2, v1))
-        in
-        let msg = Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 D.pretty v1 (Comparison.to_string_infix c) name2 D.pretty v2 diff in
-        (c, msg)
+        CompareD.compare ~name1 ~name2 v1 v2
       ) kh
     in
     KH.iter (fun k (c, msg) ->

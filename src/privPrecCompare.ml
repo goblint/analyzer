@@ -13,7 +13,7 @@ let load filename =
   close_in_noerr f;
   dump
 
-module CompareDump = Make (LV) (VD) (LVH)
+module CompareDump = MakeHashtbl (LV) (VD) (LVH)
 
 let compare_dumps {name = name1; lvh = lvh1} {name = name2; lvh = lvh2} =
   CompareDump.compare ~name1 lvh1 ~name2 lvh2
