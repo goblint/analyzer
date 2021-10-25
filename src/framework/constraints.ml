@@ -1113,7 +1113,7 @@ struct
     Printf.printf "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
 
   let compare_locals_ctx h1 h2 =
-    let eq, le, gr, uk, no2 = ref 0, ref 0, ref 0, ref 0, ref 0 in
+    let eq, le, gr, uk, no2, no1 = ref 0, ref 0, ref 0, ref 0, ref 0, ref 0 in
     let f_eq () = incr eq in
     let f_le () = incr le in
     let f_gr () = incr gr in
@@ -1142,11 +1142,15 @@ struct
         end
     in
     LH.iter f h1;
+    let f k v2 =
+      if not (LH.mem h1 k) then incr no1
+    in
+    LH.iter f h2;
     (* let k1 = Set.of_enum @@ PP.keys h1 in *)
     (* let k2 = Set.of_enum @@ PP.keys h2 in *)
     (* let o1 = Set.cardinal @@ Set.diff k1 k2 in *)
     (* let o2 = Set.cardinal @@ Set.diff k2 k1 in *)
-    Printf.printf "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\n" !eq !le !gr !uk !no2
+    Printf.printf "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\tno_ctx_in_left = %d\n" !eq !le !gr !uk !no2 !no1
 
   let compare (name1,name2) (l1,g1) (l2,g2) =
     let one_ctx (n,_) v h =
