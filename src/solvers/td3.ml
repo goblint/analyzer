@@ -13,7 +13,7 @@ open Prelude
 open Analyses
 open Constraints
 open Messages
-open CompareCFG
+open CompareCIL
 open Cil
 
 module WP =

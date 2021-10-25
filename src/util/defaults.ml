@@ -155,7 +155,7 @@ let _ = ()
       ; reg Incremental "incremental.wpoint"      "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
       ; reg Incremental "incremental.reluctant.on" "true" "Destabilize nodes in changed functions reluctantly"
       ; reg Incremental "incremental.reluctant.compare" "'leq'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
-      ; reg Incremental "incremental.within_functions" "false" "Use Cfg comparison to differentiate between unchanged and changed nodes within functions"
+      ; reg Incremental "incremental.within_functions" "false" "Use CFG comparison to differentiate between unchanged and changed nodes within functions"
 
 (* {4 category [Semantics]} *)
 let _ = ()

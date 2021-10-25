@@ -1,5 +1,5 @@
 open Cil
-open CompareCFG
+open CompareCIL
 open VersionLookup
 open MyCFG
 
@@ -92,7 +92,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     if unchangedHeader then
       List.iter (fun (f,old_f) -> f.vid <- old_f.vid; update_vid_max f.vid) (List.combine f.sformals old_f.sformals)
     else List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
-    (* diff is None if the function header changed or locals and the cfg was not compared. In this case, preceed as before
+    (* diff is None if the function header changed or locals and the cfg was not compared. In this case, proceed as before
        and renew all ids of the function. Otherwise the function header and locals are unchanged and the cfg was compared.
        Then we can reset all ids of f's varinfo, its locals, formals and unchanged nodes and renew all ids of the remaining nodes*)
     match diff with

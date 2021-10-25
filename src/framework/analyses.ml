@@ -386,13 +386,13 @@ type analyzed_data = {
 type increment_data = {
   old_data: analyzed_data option;
   new_file: Cil.file;
-  changes: CompareCFG.change_info
+  changes: CompareCIL.change_info
 }
 
 let empty_increment_data file = {
   old_data = None;
   new_file = file;
-  changes = CompareCFG.empty_change_info ()
+  changes = CompareCIL.empty_change_info ()
 }
 
 (** A side-effecting system. *)
