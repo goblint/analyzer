@@ -6,6 +6,8 @@
 (wrapped_executables true) ; prefix compilation unit names; mentioned here: https://github.com/ocaml/ocaml/pull/2218#issuecomment-572043299; doc says it's the default since dune 2.0, but it somehow still fixes the clash
 
 ; https://dune.readthedocs.io/en/stable/dune-files.html#generate-opam-files
+; goblint.opam is generated on `dune build` (not normal make!) from this file and goblint.opam.template
+; also remember to generate/adjust goblint.opam.locked!
 (generate_opam_files true)
 
 (source (github goblint/analyzer))
@@ -31,6 +33,7 @@
     ocaml-monadic
     (ounit2 :with-test)
     (odoc :with-doc)
+    benchmark ; TODO: make this optional somehow, (optional) on bench executable doesn't work
     ; TODO still need the following after switch to dune?
     ocamlbuild
     ocamlfind

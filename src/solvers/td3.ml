@@ -17,9 +17,12 @@ open CompareAST
 open Cil
 
 module WP =
+  functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
+    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg))
+
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
@@ -31,6 +34,8 @@ module WP =
       mutable wpoint: unit HM.t;
       mutable stable: unit HM.t
     }
+
+    type marshal = solver_data
 
     let create_empty_data () = {
       st = [];
@@ -117,7 +122,7 @@ module WP =
           let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) (side x) in
+          let tmp = eq x (eval l x) (side ~x) in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -166,7 +171,7 @@ module WP =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) (side x) in
+          let tmp = eq y (eval l x) (side ~x) in
           HM.remove called y;
           if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
@@ -178,14 +183,14 @@ module WP =
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
-      and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
+      and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
+        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if S.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (S.system y = None);
         init y;
-        if side_widen = "unstable_self" then add_infl x y;
+        (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let op =
           if HM.mem wpoint y then fun a b ->
             if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
@@ -200,8 +205,10 @@ module WP =
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
           let old_sides = HM.find_default sides y VS.empty in
-          let sided = VS.mem x old_sides in
-          if not sided then add_sides y x;
+          let sided = match x with
+            | Some x -> VS.mem x old_sides
+            | _ -> false in
+          if not sided && Option.is_some x then add_sides y (Option.get x);
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
           if side_widen <> "cycle" then destabilize y;
@@ -215,9 +222,12 @@ module WP =
           | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
           | "sides-pp" ->
-            let n = S.Var.node x in
-            let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
-            wpoint_if sided
+            (match x with
+            | Some x ->
+              let n = S.Var.node x in
+              let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
+              wpoint_if sided
+            | None -> ())
           | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
             (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
             let destabilized_vs = destabilize_vs y in
@@ -250,28 +260,6 @@ module WP =
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
-        (* If a global changes because of some assignment inside a function, we reanalyze,
-         * but if it changes because of a different global initializer, then
-         *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
-         *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
-         *)
-        print_endline "Destabilizing start functions if their start state changed...";
-        (* record whether any function's start state changed. In that case do not use reluctant destabilization *)
-        let any_changed_start_state = ref false in
-        (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
-        List.iter (fun (v,d) ->
-          match GU.assoc_eq v data.st S.Var.equal with
-          | Some d' ->
-              if S.Dom.equal d d' then
-                (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
-                ()
-              else (
-                ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                any_changed_start_state := true;
-                destabilize v
-              )
-          | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
-        ) st;
 
         print_endline "Destabilizing changed functions...";
 
@@ -288,7 +276,7 @@ module WP =
         List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
 
         let old_ret = Hashtbl.create 103 in
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+        if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
               let old_rho = HM.find rho k in
@@ -308,11 +296,11 @@ module WP =
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant.on"));
+        add_nodes_of_fun obsolete_funs marked_for_deletion (not (GobConfig.get_bool "incremental.reluctant.on"));
         add_nodes_of_fun removed_funs marked_for_deletion true;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k v -> if Hashtbl.mem  marked_for_deletion (S.Var.var_id k) then HM.remove s k ) s in (* TODO: don't use string-based nodes *)
+        let delete_marked s = HM.filteri_inplace (fun k _ -> not (Hashtbl.mem  marked_for_deletion (S.Var.var_id k))) s in (* TODO: don't use string-based nodes *)
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
@@ -321,9 +309,11 @@ module WP =
 
         print_data data "Data after clean-up";
 
-        List.iter set_start st;
+        (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
+         * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
+        List.iter (fun (v,d) -> side v d) st;
 
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+        if GobConfig.get_bool "incremental.reluctant.on" then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
@@ -408,30 +398,13 @@ module WP =
             if tracing then trace "sol2" "restored var %a ## %a\n" S.Var.pretty_trace x S.Dom.pretty d
           in
           List.iter get vs;
-          HM.iter (fun x v -> if not (HM.mem visited x) then HM.remove rho x) rho
+          HM.filteri_inplace (fun x _ -> HM.mem visited x) rho
         in
         Stats.time "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
-
-      let reachability xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then (
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constraint x
-          )
-        and one_constraint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> ignore @@ Pretty.printf "reachability: one_constraint: could not find variable %a\n" S.Var.pretty_trace x; S.Dom.bot ()) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x v -> if not (HM.mem reachable x) then HM.remove rho x) rho;
-      in
-      reachability vs;
 
       stop_event ();
       print_data data "Data after solve completed";
@@ -441,6 +414,8 @@ module WP =
         HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
         print_newline ();
       );
+
+      Post.post st vs rho; (* TODO: add side_infl postsolver *)
 
       {st; infl; sides; rho; wpoint; stable}
 
@@ -468,26 +443,30 @@ module WP =
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
         if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
+          let rho' = HM.create (HM.length data.rho) in
           HM.iter (fun k v ->
-            HM.remove data.rho k; (* remove old values *)
             (* call hashcons on contexts and abstract values; results in new tags *)
             let k' = S.Var.relift k in
-            let v' = S.Dom.join (S.Dom.bot ()) v in
-            HM.replace data.rho k' v';
+            let v' = S.Dom.relift v in
+            HM.replace rho' k' v';
           ) data.rho;
+          data.rho <- rho';
+          let stable' = HM.create (HM.length data.stable) in
           HM.iter (fun k v ->
-            HM.remove data.stable k;
-            HM.replace data.stable (S.Var.relift k) v
+            HM.replace stable' (S.Var.relift k) v
           ) data.stable;
+          data.stable <- stable';
+          let wpoint' = HM.create (HM.length data.wpoint) in
           HM.iter (fun k v ->
-            HM.remove data.wpoint k;
-            HM.replace data.wpoint (S.Var.relift k) v
+            HM.replace wpoint' (S.Var.relift k) v
           ) data.wpoint;
+          data.wpoint <- wpoint';
+          let infl' = HM.create (HM.length data.infl) in
           HM.iter (fun k v ->
-            HM.remove data.infl k;
-            HM.replace data.infl (S.Var.relift k) (VS.map S.Var.relift v)
+            HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
           ) data.infl;
-          data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.join (S.Dom.bot ()) v) data.st;
+          data.infl <- infl';
+          data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
@@ -496,15 +475,14 @@ module WP =
         );
         if not reuse_wpoint then data.wpoint <- HM.create 10;
         let result = solve box st vs data in
-        result.rho, Obj.repr result
+        result.rho, result
       )
       else (
         let data = create_empty_data () in
         let result = solve box st vs data in
-        result.rho, Obj.repr result
+        result.rho, result
       )
   end
 
 let _ =
-  let module WP = GlobSolverFromEqSolver (WP) in
-  Selector.add_solver ("td3", (module WP : GenericGlobSolver));
+  Selector.add_solver ("td3", (module WP : GenericEqBoxIncrSolver));

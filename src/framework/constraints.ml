@@ -710,7 +710,9 @@ struct
         let tf' eu = tf (v,c) eu getl sidel getg sideg in
 
         match NodeH.find_option CfgTools.node_scc_global v with
-        | Some scc when NodeH.mem scc.prev v ->
+        | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
+          (* Limited to loops with only one entry node. Otherwise unsound as is. *)
+          (* TODO: Is it possible to do soundly for multi-entry loops? *)
           let stricts = NodeH.find_all scc.prev v in
           let xs_stricts = List.map tf' stricts in
           if List.for_all S.D.is_bot xs_stricts then
@@ -728,6 +730,22 @@ struct
       in
       Some tf
 end
+
+(** Convert a non-incremental solver into an "incremental" solver.
+    It will solve from scratch, perform standard postsolving and have no marshal data. *)
+module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolver =
+  functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    module Sol = Sol (S) (VH)
+    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
+
+    type marshal = unit
+
+    let solve box xs vs =
+      let vh = Sol.solve box xs vs in
+      Post.post xs vs vh;
+      (vh, ())
+  end
 
 (** Combined variables so that we can also use the more common [EqConstrSys]
     that uses only one kind of a variable. *)
@@ -810,50 +828,66 @@ struct
     | `L x -> Option.map conv (S.system x)
 end
 
+(** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)
+module GlobConstrSolFromEqConstrSolBase (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) (VH: Hashtbl.S with type key = Var2 (S.LVar) (S.GVar).t) =
+struct
+  let split_solution hm =
+    let l' = LH.create 113 in
+    let g' = GH.create 113 in
+    let split_vars x d = match x with
+      | `L x ->
+        begin match d with
+          | `Lifted2 d -> LH.replace l' x d
+          (* | `Bot -> () *)
+          (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
+            This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
+          | `Bot -> LH.replace l' x (S.D.bot ())
+          | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has top value"
+          | `Lifted1 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: local variable has global value"
+        end
+      | `G x ->
+        begin match d with
+          | `Lifted1 d -> GH.replace g' x d
+          | `Bot -> ()
+          | `Top -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: global variable has top value"
+          | `Lifted2 _ -> failwith "GlobConstrSolFromEqConstrSolBase.split_vars: global variable has local value"
+        end
+    in
+    VH.iter split_vars hm;
+    (l', g')
+end
 
-(** Transforms a [GenericEqBoxSolver] into a [GenericGlobSolver]. *)
-module GlobSolverFromEqSolver (Sol:GenericEqBoxSolver)
+(** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution. *)
+module GlobConstrSolFromEqConstrSol (S: GlobConstrSys) (LH: Hashtbl.S with type key = S.LVar.t) (GH: Hashtbl.S with type key = S.GVar.t) =
+struct
+  module S2 = EqConstrSysFromGlobConstrSys (S)
+  module VH = Hashtbl.Make (S2.Var)
+
+  include GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH)
+end
+
+(** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
+module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
   : GenericGlobSolver
   = functor (S:GlobConstrSys) ->
-    functor (LH:Hash.H with type key=S.LVar.t) ->
-    functor (GH:Hash.H with type key=S.GVar.t) ->
+    functor (LH:Hashtbl.S with type key=S.LVar.t) ->
+    functor (GH:Hashtbl.S with type key=S.GVar.t) ->
     struct
       module EqSys = EqConstrSysFromGlobConstrSys (S)
 
-      module VH : Hash.H with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
+      module VH : Hashtbl.S with type key=EqSys.v = Hashtbl.Make(EqSys.Var)
       module Sol' = Sol (EqSys) (VH)
 
-      let split_solution hm =
-        let l' = LH.create 113 in
-        let g' = GH.create 113 in
-        let split_vars x d = match x with
-          | `L x ->
-            begin match d with
-              | `Lifted2 d -> LH.replace l' x d
-              (* | `Bot -> () *)
-              (* Since Verify2 is broken and only checks existing keys, add it with local bottom value.
-                 This works around some cases, where Verify2 would not detect a problem due to completely missing variable. *)
-              | `Bot -> LH.replace l' x (S.D.bot ())
-              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: local variable has top value"
-              | `Lifted1 _ -> failwith "GlobSolverFromEqSolver.split_vars: local variable has global value"
-            end
-          | `G x ->
-            begin match d with
-              | `Lifted1 d -> GH.replace g' x d
-              | `Bot -> ()
-              | `Top -> failwith "GlobSolverFromEqSolver.split_vars: global variable has top value"
-              | `Lifted2 _ -> failwith "GlobSolverFromEqSolver.split_vars: global variable has local value"
-            end
-        in
-        VH.iter split_vars hm;
-        (l', g')
+      module Splitter = GlobConstrSolFromEqConstrSolBase (S) (LH) (GH) (VH) (* reuse EqSys and VH *)
+
+      type marshal = Sol'.marshal
 
       let solve ls gs l =
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
         let hm, solver_data = Sol'.solve EqSys.box vs sv in
-        split_solution hm, solver_data
+        Splitter.split_solution hm, solver_data
     end
 
 
@@ -1006,8 +1040,8 @@ module Compare
                         and module GVar = Basetype.Variables
                         and module D = S.D
                         and module G = S.G)
-    (LH:Hash.H with type key=Sys.LVar.t)
-    (GH:Hash.H with type key=Sys.GVar.t)
+    (LH:Hashtbl.S with type key=Sys.LVar.t)
+    (GH:Hashtbl.S with type key=Sys.GVar.t)
 =
 struct
   open S
@@ -1114,102 +1148,4 @@ struct
     compare_locals h1 h2;
     compare_locals_ctx l1 l2;
     print_newline ();
-end
-
-(** Verify if the hashmap pair is really a (partial) solution. *)
-module Verify2
-    (S:GlobConstrSys)
-    (LH:Hash.H with type key=S.LVar.t)
-    (GH:Hash.H with type key=S.GVar.t)
-=
-struct
-  open S
-
-  let verify (sigma:D.t LH.t) (theta:G.t GH.t) =
-    let should_verify = get_bool "verify" in
-    Goblintutil.in_verifying_stage := true;
-    (if should_verify then Goblintutil.verified := Some true);
-    let complain_l (v:LVar.t) lhs rhs =
-      Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a\n @[Solver computed:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
-                LVar.pretty_trace v D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
-    in
-    let complain_sidel v1 (v2:LVar.t) lhs rhs =
-      Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]"
-      LVar.pretty_trace v2
-      LVar.pretty_trace v1
-      D.pretty lhs D.pretty rhs D.pretty_diff (rhs,lhs))
-    in
-    let complain_sideg v (g:GVar.t) lhs rhs =
-      Goblintutil.verified := Some false;
-      ignore (Pretty.printf "Fixpoint not reached. Unsatisfied constraint for global %a at variable %a\n  @[Variable:\n%a\nRight-Hand-Side:\n%a\nDifference: %a\n@]"
-                GVar.pretty_trace g LVar.pretty_trace v
-                G.pretty lhs G.pretty rhs
-                G.pretty_diff (rhs,lhs))
-    in
-    (* For each variable v which has been assigned value d', would like to check
-     * that d' satisfied all constraints. *)
-    let verify_var v d' =
-      let verify_constraint rhs =
-        let sigma' x = try LH.find sigma x with Not_found -> D.bot () in
-        let theta' x = try GH.find theta x with Not_found -> G.bot () in
-        (* First check that each (global) delta is included in the (global)
-         * invariant. *)
-        let check_local l lv =
-          let lv' = sigma' l in
-          if should_verify && not (D.leq lv lv') then
-            complain_sidel v l lv' lv
-        in
-        let check_glob g gv =
-          let gv' = theta' g in
-          if should_verify && not (G.leq gv gv') then
-            complain_sideg v g gv' gv
-        in
-        let d = rhs sigma' check_local theta' check_glob in
-        (* Then we check that the local state satisfies this constraint. *)
-        if not (D.leq d d') then
-          complain_l v d' d
-      in
-      let rhs = system v in
-      Option.may verify_constraint rhs
-    in
-    LH.iter verify_var sigma;
-    Goblintutil.in_verifying_stage := false
-end
-
-module Reachability
-    (EQSys:GlobConstrSys)
-    (LH:Hashtbl.S with type key=EQSys.LVar.t)
-    (GH:Hashtbl.S with type key=EQSys.GVar.t)
-=
-struct
-  open EQSys
-
-  let prune (lh:D.t LH.t) (gh:G.t GH.t) (lvs:LVar.t list): unit =
-    let reachablel = LH.create (LH.length lh) in
-
-    let rec one_lvar x =
-      if not (LH.mem reachablel x) then begin
-        LH.replace reachablel x ();
-        Option.may one_constraint (system x)
-      end
-    and one_constraint rhs =
-      let getl y =
-        one_lvar y;
-        try LH.find lh y with Not_found -> D.bot ()
-      in
-      let getg y = try GH.find gh y with Not_found -> G.bot () in
-      let setl y yd = one_lvar y in
-      let setg y yd = () in
-      ignore (rhs getl setl getg setg)
-    in
-
-    List.iter one_lvar lvs;
-    LH.filteri_inplace (fun x _ ->
-        let r = LH.mem reachablel x in
-        if not r then
-          ignore (Pretty.printf "Unreachable lvar %a\n" LVar.pretty_trace x);
-        r
-      ) lh
 end

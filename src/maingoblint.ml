@@ -168,7 +168,7 @@ let preprocess_files () =
   (* Handy (almost) constants. *)
   let kernel_root = Filename.concat exe_dir "linux-headers" in
   let kernel_dir = kernel_root ^ "/include" in
-  let arch_dir = kernel_root ^ "/arch/x86/include" in
+  let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string "cppflags") in
@@ -234,7 +234,7 @@ let preprocess_files () =
   if get_bool "kernel" then (
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
-    cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
+    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
     includes := !includes ^ " -I" ^ String.concat " -I" [
@@ -355,8 +355,9 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   )
 
+let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
+
 let check_arguments () =
-  let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m) in
   (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
@@ -365,7 +366,7 @@ let check_arguments () =
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if (get_bool "incremental.save" || get_bool "incremental.load") && get_bool "ana.opt.hashcons" then (set_bool "ana.opt.hashcons" false; warn "Disabled option ana.opt.hashcons because incremental.save or incremental.load is enabled.")
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.rename-load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
@@ -375,17 +376,24 @@ let handle_extraspecials () =
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
-    let (changes, old_file, solver_data, version_map, max_ids) =
+    if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
+      let warn m = eprint_color ("{yellow}Warning: "^m) in
+      warn "incremental.load is activated but no data exists that can be loaded."
+    end;
+    let (changes, old_file, version_map, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         let old_file = Serialize.load_data Serialize.CilFile in
         let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
-        let solver_data = Serialize.load_data Serialize.SolverData in
-        (changes, Some old_file, Some solver_data, version_map, max_ids)
+        (changes, Some old_file, version_map, max_ids)
       end else begin
         let (version_map, max_ids) = VersionLookup.create_map current_file in
-        (CompareAST.empty_change_info (), None, None, version_map, max_ids)
+        (CompareAST.empty_change_info (), None, version_map, max_ids)
       end
+    in
+    let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")
+      then Some (Serialize.load_data Serialize.SolverData)
+      else None
     in
     if GobConfig.get_bool "incremental.save" then begin
       Serialize.store_data current_file Serialize.CilFile;

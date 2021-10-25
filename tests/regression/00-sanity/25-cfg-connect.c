@@ -28,6 +28,9 @@ int main()
     case 7:
       nested_both();
       break;
+    case 8:
+      nested_both_switch();
+      break;
   }
 
   return 0;
@@ -116,5 +119,19 @@ void nested_both()
   {
     while (1)
       assert(1);
+  }
+}
+
+void nested_both_switch()
+{
+  // simplified from sv-benchmarks/c/pthread-ext/41_FreeBSD_abd_kbd_sliced.c thr1
+  while (1)
+  {
+    switch (0)
+    {
+    case 0:
+      while (1)
+        assert(1);
+    }
   }
 }

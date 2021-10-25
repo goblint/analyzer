@@ -1,5 +1,6 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
+open Prelude
 open Cil
 open Pretty
 open GobConfig
@@ -121,7 +122,17 @@ end
 
 module Result (Range: Printable.S) (C: ResultConf) =
 struct
-  include Hash.Printable (ResultNode) (Range)
+  include Hashtbl.Make (ResultNode)
+  type nonrec t = Range.t t (* specialize polymorphic type for Range values *)
+
+  let pretty () mapping =
+    let f key st dok =
+      dok ++ dprintf "%a ->@?  @[%a@]\n" ResultNode.pretty key Range.pretty st
+    in
+    let content () = fold f mapping nil in
+    let defline () = dprintf "OTHERS -> Not available\n" in
+    dprintf "@[Mapping {\n  @[%t%t@]}@]" content defline
+
   include C
 
   let printXml f xs =
@@ -194,7 +205,7 @@ struct
         (* FIXME: This is a super ridiculous hack we needed because BatIO has no way to get the raw channel CIL expects here. *)
         let name, chn = Filename.open_temp_file "stat" "goblint" in
         Stats.print chn "";
-        close_out chn;
+        Stdlib.close_out chn;
         let f_in = BatFile.open_in name in
         let s = BatIO.read_all f_in in
         BatIO.close_in f_in;
@@ -422,27 +433,56 @@ sig
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
 end
 
+(** A solver is something that can translate a system into a solution (hash-table).
+    Incremental solver has data to be marshaled. *)
+module type GenericEqBoxIncrSolverBase =
+  functor (S:EqConstrSys) ->
+  functor (H:Hashtbl.S with type key=S.v) ->
+  sig
+    type marshal
+
+    (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
+        reached from starting values [xs].
+        As a second component the solver returns data structures for incremental serialization. *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * marshal
+  end
+
+(** (Incremental) solver argument, indicating which postsolving should be performed by the solver. *)
+module type IncrSolverArg =
+sig
+  val should_prune: bool
+  val should_verify: bool
+  val should_warn: bool
+  val should_save_run: bool
+end
+
+(** An incremental solver takes the argument about postsolving. *)
+module type GenericEqBoxIncrSolver =
+  functor (Arg: IncrSolverArg) ->
+    GenericEqBoxIncrSolverBase
+
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key=S.v) ->
+  functor (H:Hashtbl.S with type key=S.v) ->
   sig
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
-        for serialization or a dummy object. *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * Obj.t
+        reached from starting values [xs]. *)
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
   end
 
 (** A solver is something that can translate a system into a solution (hash-table) *)
 module type GenericGlobSolver =
   functor (S:GlobConstrSys) ->
-  functor (LH:Hash.H with type key=S.LVar.t) ->
-  functor (GH:Hash.H with type key=S.GVar.t) ->
+  functor (LH:Hashtbl.S with type key=S.LVar.t) ->
+  functor (GH:Hashtbl.S with type key=S.GVar.t) ->
   sig
+    type marshal
+
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
-        reached from starting values [xs]. As a second component, with type [Obj.t], a solver returns data structures
-        for serialization or a dummy object. *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * Obj.t
+        reached from starting values [xs].
+        As a second component the solver returns data structures for incremental serialization. *)
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * marshal
   end
 
 module ResultType2 (S:Spec) =

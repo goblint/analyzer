@@ -293,7 +293,7 @@ struct
   let equal x y = if x.ikind <> y.ikind then false else I.equal x.v y.v
 
   let hash x =
-    let ikind_to_int (ikind: ikind) = match ikind with
+    let ikind_to_int (ikind: ikind) = match ikind with (* TODO replace with `int_of_string % Batteries.dump` or derive *)
     | IChar 	-> 0
     | ISChar 	-> 1
     | IUChar 	-> 2
@@ -306,6 +306,8 @@ struct
     | IULong 	-> 9
     | ILongLong -> 10
     | IULongLong -> 11
+    | IInt128 -> 12
+    | IUInt128 -> 13
     in
     3 * (I.hash x.v) + 5 * (ikind_to_int x.ikind)
   let compare x y = let ik_c = compare x.ikind y.ikind in
@@ -530,7 +532,7 @@ struct
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
   let set_overflow_flag ik =
-    if Cil.isSigned ik && !GU.in_verifying_stage then (
+    if Cil.isSigned ik && !GU.postsolving then (
       Goblintutil.did_overflow := true;
       M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "Integer overflow"
     )
