@@ -1149,3 +1149,24 @@ struct
     compare_locals_ctx l1 l2;
     print_newline ();
 end
+
+module CompareEq (Sys: EqConstrSys) (VH: Hashtbl.S with type key = Sys.Var.t) =
+struct
+  module Var =
+  struct
+    include Printable.Std
+    include Sys.Var
+    let pretty = pretty_trace
+
+    let show x = Pretty.sprint ~width:max_int (pretty () x)
+    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+    let to_yojson x = `String (show x)
+  end
+  module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
+
+  let compare (name1, name2) vh1 vh2 =
+    Printf.printf "\nComparing precision of %s (left) with %s (right):\n" name1 name2;
+    let (_, msg) = Compare.compare ~name1 vh1 ~name2 vh2 in
+    ignore (Pretty.printf "%t\n" (fun () -> msg));
+    print_newline ();
+end
