@@ -1062,7 +1062,7 @@ struct
         f_eq ()
       else if b1 then begin
         if get_bool "solverdiffs" then
-          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
+          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
         f_le ()
       end else if b2 then begin
         if get_bool "solverdiffs" then
@@ -1085,7 +1085,7 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
           incr le
         end else if b2 then begin
           if get_bool "solverdiffs" then
@@ -1117,7 +1117,7 @@ struct
           f_eq ()
         else if b1 then begin
           (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
+          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v2,v1)); *)
           f_le ()
         end else if b2 then begin
           (* if get_bool "solverdiffs" then *)
