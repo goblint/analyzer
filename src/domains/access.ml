@@ -436,12 +436,10 @@ let check_safe ls accs prev_safe =
   if ls = None then
     prev_safe
   else
-    (* TODO: Access uses polymorphic Set? *)
-    let accs = Set.of_list (AS.elements accs) in (* TODO: avoid converting between sets *)
-    let ord_enum = Set.backwards accs in (* hope that it is not nil *)
-    let lp_start = (fun (_,_,_,_,lp) -> lp) (BatOption.get (BatEnum.peek ord_enum)) in
+    let accs = AS.elements accs in (* hope that it is not nil *)
+    let lp_start = (fun (_,_,_,_,lp) -> lp) (List.hd accs) in
     (* ignore(printf "starting with lockset %a\n" LSSet.pretty lp_start); *)
-    match BatEnum.fold check_accs (None, lp_start, false) (Set.backwards accs), prev_safe with
+    match List.fold_left check_accs (None, lp_start, false) accs, prev_safe with
     | (None, _,_), _ ->
       (* ignore(printf "this batch is safe\n"); *)
       prev_safe
