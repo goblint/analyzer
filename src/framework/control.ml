@@ -26,6 +26,7 @@ let get_spec () : (module Spec) =
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
+            |> lift (get_bool "exp.callgraph") (module CallGraph.Make)
           ) in
   (module S1)
 

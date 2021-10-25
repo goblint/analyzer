@@ -217,7 +217,11 @@ let _ = ()
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
       ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
-      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
+      ; reg Experimental "exp.incremental.mode"   "'off'" "Use incremental analysis in the TD3 solver. Values: off (default), incremental (analyze based on data from a previous commit or fresh if there is none), complete (discard loaded data and start fresh)."
+      ; reg Experimental "exp.incremental.stable" "true"  "Reuse the stable set and selectively destabilize it."
+      ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
+      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc-6'" "Location of gcc-6. Used to combine source files with cilly."
+      ; reg Experimental "exp.callgraph" "false" "Construct abstract call graph"
 
 (* {4 category [Debugging]} *)
 let _ = ()
