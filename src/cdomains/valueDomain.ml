@@ -167,15 +167,16 @@ struct
      For compound types, descend into the elements.
      Do not descend into objects reachable via pointers;
      another function will take care of that logic *)
-  let rec create_immediate_arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ) : t * address list =
-    let rec init_comp compinfo =
-      let nstruct = Structs.top ()
-      in
-      let init_field (nstru, adrs) fd =
+  let rec create_immediate_arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ) : t * typ list =
+    let init_comp compinfo =
+      let init_field (stru, adrs) fd =
         let (v, adrs) = create_immediate_arg_value cast_map heap_var fd.ftype in
-        (Structs.replace nstruct fd v, adrs)
+        (Structs.replace stru fd v, adrs)
       in
-      List.fold_left (init_field) (nstruct, []) compinfo.cfields
+      let stru = Structs.top () in
+      let stru, todos = List.fold_left (init_field) (stru, []) compinfo.cfields in
+      M.tracel "argvar" "Created struct %a \n" Structs.pretty stru;
+      stru, todos
     in
     let typ = Cil.unrollTypeDeep typ in
     match typ with
@@ -183,7 +184,7 @@ struct
     | TPtr (t, _) ->
       let heap_var = heap_var t in
       let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
-      `Address heap_var_or_NULL, [heap_var]
+      `Address heap_var_or_NULL, [t]
     | TComp ({cstruct=true; _} as ci,_) ->
       let v, adrs = init_comp ci in `Struct (v), adrs
     | TComp ({cstruct=false; _},_) ->
@@ -199,28 +200,33 @@ struct
     | TNamed ({ttype=t; _}, _) -> create_immediate_arg_value cast_map heap_var t
     | _ -> `Top, []
 
-  let rec arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (types: TypeSet.t) (map: (address * typ * t) list): (address * typ * t) list =
-    (* Maybe we can get this set more efficently? *)
-    let todos = List.fold_left (fun acc (_, typ, _) -> TypeSet.remove typ acc) types map in
-    match TypeSet.choose todos with
-    | typ ->
-
-      (* TODO Fix: does not work because create_immediate_value returns address list, not type lists *)
-          (*
+  let arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ): t * (address * typ * t) list =
+    let v, todos = create_immediate_arg_value cast_map heap_var typ in
+    let already_exists typ map =
+      List.exists (fun (_, t, _) -> Type.equal t typ) map
+    in
+    let rec create_heap (todos: typ list) (map: (address * typ * t) list) =
+      match todos with
+      | typ::todos ->
+        (* TODO: Make map a Map.t instead of a list. *)
+        let todos, map = if not (already_exists typ map) then
           let v, d' = create_immediate_arg_value cast_map heap_var typ in
-          let map = (typ, v) :: map in
-          let todos = TypeSet.union (TypeSet.of_list d') todos in
-          arg_value cast_map heap_var todos map
-          *)
+          let addr = heap_var typ in
+          let map = (addr, typ, v) :: map in
+          let todos = d' @ todos in
+          todos, map
+        else
+          todos, map
+        in
+        create_heap todos map
+      | [] ->
+        (* Finished with todos :) *)
+        map
+    in
+    let map = create_heap todos [] in
+    v, map
 
-      map
-
-    | exception Not_found ->
-      (* Finished with todos :) *)
-      map
-
-
-  let arg_value (map: TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
+  (* let arg_value (map: TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
     let ts (t: Cil.typ): Cil.typsig =
       typeSigWithAttrs (fun _ -> []) t
       in
@@ -278,7 +284,7 @@ struct
           (`Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) v)), adrs
         | TNamed ({ttype=t; _}, _) -> arg_val t l
         | _ -> `Top, l
-      in arg_val (Cil.unrollTypeDeep t) []
+      in arg_val (Cil.unrollTypeDeep t) [] *)
 
     let rec zero_init_value (t:typ): t =
       let zero_init_comp compinfo: Structs.t =

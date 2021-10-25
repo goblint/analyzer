@@ -2,8 +2,8 @@ module Type : MapDomain.Groupable with type t = Cil.typ =
 struct
   type t = Cil.typ
 
-  let compare = Stdlib.compare
-  let equal = (=)
+  let compare x y = Stdlib.compare (Cil.typeSig x) (Cil.typeSig y)
+  let equal x y = Cil.typeSig x = Cil.typeSig y
   let show x = Pretty.sprint ~width:80 (Cil.d_type () x)
   let to_yojson (x :t) = `String (show x)
   let hash = Hashtbl.hash
