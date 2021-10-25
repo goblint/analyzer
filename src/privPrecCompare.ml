@@ -16,7 +16,7 @@ let load filename =
 module CompareDump = Make (LV) (VD) (LVH)
 
 let compare_dumps {name = name1; lvh = lvh1} {name = name2; lvh = lvh2} =
-  CompareDump.compare ~name1 ~lvh1 ~name2 ~lvh2
+  CompareDump.compare ~name1 lvh1 ~name2 lvh2
 
 let count_locations dumps =
   let module LH = Hashtbl.Make (CilType.Location) in

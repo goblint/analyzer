@@ -42,39 +42,37 @@ struct
     | Incomparable (m, l) -> (m, l)
 end
 
-module Make (K: Printable.S) (VD: Lattice.S) (KH: Hashtbl.S with type key = K.t) =
+module Make (K: Printable.S) (D: Lattice.S) (KH: Hashtbl.S with type key = K.t) =
 struct
-  (* TODO: rename variables *)
-  module LVH = KH
 
-  let compare ?(name1="left") ~lvh1 ?(name2="right") ~lvh2 =
-    let lvh = LVH.merge (fun k v1 v2 -> Some (v1, v2)) lvh1 lvh2 in
-    let compared = LVH.map (fun k (v1, v2) ->
-        let v1 = v1 |? VD.bot () in
-        let v2 = v2 |? VD.bot () in
-        let c = match VD.leq v1 v2, VD.leq v2 v1 with
+  let compare ?(name1="left") ?(name2="right") kh1 kh2 =
+    let kh = KH.merge (fun k v1 v2 -> Some (v1, v2)) kh1 kh2 in
+    let compared = KH.map (fun k (v1, v2) ->
+        let v1 = v1 |? D.bot () in
+        let v2 = v2 |? D.bot () in
+        let c = match D.leq v1 v2, D.leq v2 v1 with
           | true, true -> Comparison.Equal
           | true, false -> Comparison.MorePrecise 1
           | false, true -> Comparison.LessPrecise 1
           | false, false -> Comparison.Incomparable (1, 1)
         in
         let diff () =
-          (if VD.leq v1 v2 then nil else dprintf "diff: %a\n" VD.pretty_diff (v1, v2))
+          (if D.leq v1 v2 then nil else dprintf "diff: %a\n" D.pretty_diff (v1, v2))
           ++
-          (if VD.leq v2 v1 then nil else dprintf "reverse diff: %a\n" VD.pretty_diff (v2, v1))
+          (if D.leq v2 v1 then nil else dprintf "reverse diff: %a\n" D.pretty_diff (v2, v1))
         in
-        let msg = Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 VD.pretty v1 (Comparison.to_string_infix c) name2 VD.pretty v2 diff in
+        let msg = Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 D.pretty v1 (Comparison.to_string_infix c) name2 D.pretty v2 diff in
         (c, msg)
-      ) lvh
+      ) kh
     in
-    LVH.iter (fun k (c, msg) ->
+    KH.iter (fun k (c, msg) ->
         match c with
         | Comparison.Equal -> ()
         | _ ->
           ignore (Pretty.printf "%a: %t\n" K.pretty k (fun () -> msg))
       ) compared;
-    let c = LVH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.Equal in
+    let c = KH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.Equal in
     let (m, l) = Comparison.counts c in
-    let msg = Pretty.dprintf "%s %s %s    (more precise: %d, less precise: %d, total: %d)" name1 (Comparison.to_string_infix c) name2 m l (LVH.length lvh) in
+    let msg = Pretty.dprintf "%s %s %s    (more precise: %d, less precise: %d, total: %d)" name1 (Comparison.to_string_infix c) name2 m l (KH.length kh) in
     (c, msg)
 end
