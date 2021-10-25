@@ -1,2 +1,10 @@
-15d14
-<     g = 0;
+--- a/tests/incremental/08-side-restart.c
++++ b/tests/incremental/08-side-restart.c
+@@ -10,7 +10,6 @@ void* t_fun1(void *arg) {
+ }
+ 
+ void* t_fun2(void *arg) {
+-    g = 0;
+     return NULL;
+ }
+ 
