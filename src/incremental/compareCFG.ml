@@ -5,11 +5,12 @@ include CompareAST
 
 let eq_node (x, fun1) (y, fun2) =
   match x,y with
-  | Statement s1, Statement s2 -> (try eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) with _ -> false)
+  | Statement s1, Statement s2 -> (try eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) with Invalid_argument _ -> false)
   | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar
   | FunctionEntry f1, FunctionEntry f2 -> eq_varinfo f1.svar f2.svar
   | _ -> false
 
+(* TODO: compare ASMs properly instead of simply always assuming that they are not the same *)
 let eq_edge x y = match x, y with
   | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 && eq_exp rv1 rv2
   | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 && eq_list eq_exp ars1 ars2
@@ -30,6 +31,14 @@ let eq_edge_list xs ys = eq_list eq_edge xs ys
 
 let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
 
+module NH = Hashtbl.Make(Node)
+module NTH = Hashtbl.Make(
+  struct
+    type t = node * node
+    let equal (n1,n2) (n1',n2') = Node.equal n1 n1' && Node.equal n2 n2'
+    let hash (n1,n2) = (Node.hash n1 * 13) + Node.hash n2
+  end)
+
 (* This function compares two CFGs by doing a breadth-first search on the old CFG. Matching node tuples are stored in same,
  * nodes from the old CFG for which no matching node can be found are added to diff. For each matching node tuple
  * (fromNode1, fromNode2) found, one iterates over the successors of fromNode1 from the old CFG and checks for a matching node
@@ -37,8 +46,8 @@ let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
  * process on their successors. If a node from the old CFG can not be matched, it is added to diff and no further
  * comparison is done for its successors. The two function entry nodes make up the tuple to start the comparison from. *)
 let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 fun2 =
-  let diff = Hashtbl.create 113 in
-  let same = Hashtbl.create 113 in
+  let diff = NH.create 113 in
+  let same = NTH.create 113 in
   let waitingList : (node * node) t = Queue.create () in
 
   let rec compareNext () =
@@ -52,20 +61,17 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
        * If successful, add the matching node tuple to same, else add toNode1 to the differing nodes. *)
       let findMatch (edgeList1, toNode1) =
         let rec aux remSuc = match remSuc with
-          | [] -> Hashtbl.replace diff toNode1 ()
+          | [] -> NH.replace diff toNode1 ()
           | (locEdgeList2, toNode2)::remSuc' ->
               let edgeList2 = to_edge_list locEdgeList2 in
               if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
                 begin
-                  let notInSame, matchedAlready =
-                    Hashtbl.fold (fun (toNode1', toNode2') v (ni, ma) ->
-                      let n1equal = Node.equal toNode1 toNode1' in
-                      let n2equal = Node.equal toNode2 toNode2' in
-                      (ni && not (n1equal && n2equal), ma || (n1equal && not n2equal))) same (true, false) in
-                  if matchedAlready then Hashtbl.replace diff toNode1 ()
-                  else Hashtbl.replace same (toNode1, toNode2) ();
-                  if notInSame then Queue.add (toNode1, toNode2) waitingList;
-                  Hashtbl.replace same (toNode1, toNode2) ()
+                  let notInSame = not (NTH.mem same (toNode1, toNode2)) in
+                  let matchedAlready = NTH.fold (fun (toNode1', toNode2') _ acc ->
+                      acc || (Node.equal toNode1 toNode1' && not (Node.equal toNode2 toNode2'))) same false in
+                  if matchedAlready then NH.replace diff toNode1 ()
+                  else NTH.replace same (toNode1, toNode2) ();
+                  if notInSame then Queue.add (toNode1, toNode2) waitingList
                 end
               else aux remSuc' in
         aux outList2 in
@@ -83,9 +89,8 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
         let posAmbigEdge edgeList = let findTestFalseEdge (ll,_) = testFalseEdge (snd (List.hd ll)) in
           let numDuplicates l = List.length (List.find_all findTestFalseEdge l) in
           testFalseEdge (List.hd edgeList) && (numDuplicates outList1 > 1 || numDuplicates outList2 > 1) in
-        if posAmbigEdge edgeList1
-          then Hashtbl.replace diff toNode1 ()
-          else findMatch (edgeList1, toNode1) in
+        if posAmbigEdge edgeList1 then NH.replace diff toNode1 ()
+        else findMatch (edgeList1, toNode1) in
     List.iter iterOuts outList1; compareNext () in
 
   let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
@@ -94,31 +99,31 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
 (* This is the second phase of the CFG comparison of functions. It removes the nodes from the matching node set 'same'
  * that have an incoming backedge in the new CFG that can be reached from a differing new node. This is important to
  * recognize new dependencies between unknowns that are not contained in the infl from the previous run. *)
-let reexamine f1 f2 (same : ((node * node), unit) Hashtbl.t) (diffNodes1 : (node,unit) Hashtbl.t) (module CfgOld : CfgForward) (module CfgNew : CfgForward) =
-  Hashtbl.filter_map_inplace (fun (n1,n2) _ -> if Hashtbl.mem diffNodes1 n1 then None else Some ()) same;
-  Hashtbl.add same (FunctionEntry f1, FunctionEntry f2) ();
-  let vis = Hashtbl.create 103 in
-  let diffNodes2 = Hashtbl.create 103 in
+let reexamine f1 f2 (same : unit NTH.t) (diffNodes1 : unit NH.t) (module CfgOld : CfgForward) (module CfgNew : CfgForward) =
+  NTH.filter_map_inplace (fun (n1,n2) _ -> if NH.mem diffNodes1 n1 then None else Some ()) same;
+  NTH.add same (FunctionEntry f1, FunctionEntry f2) ();
+  let vis = NH.create 103 in
+  let diffNodes2 = NH.create 103 in
 
-  let asSndInSame k = Hashtbl.fold (fun (n1,n2) _ acc -> acc || Node.equal n2 k) same false in
+  let asSndInSame k = NTH.fold (fun (n1,n2) _ acc -> acc || Node.equal n2 k) same false in
   let rec refine_same k =
-    if Hashtbl.mem vis k then ()
+    if NH.mem vis k then ()
     else begin
-      Hashtbl.add vis k ();
+      NH.add vis k ();
       if asSndInSame k then
-        Hashtbl.filter_map_inplace (fun (n1,n2) _ -> if Node.equal n2 k then (Hashtbl.replace diffNodes1 n1 (); Hashtbl.replace diffNodes2 n2 (); None) else Some ()) same
+        NTH.filter_map_inplace (fun (n1,n2) _ -> if Node.equal n2 k then (NH.replace diffNodes1 n1 (); NH.replace diffNodes2 n2 (); None) else Some ()) same
       else dfs2 k refine_same end
   and classify_prim_new k =
-    if Hashtbl.mem vis k then ()
+    if NH.mem vis k then ()
     else begin
-      Hashtbl.replace vis k ();
+      NH.replace vis k ();
       if asSndInSame k then dfs2 k classify_prim_new
-      else (Hashtbl.add diffNodes2 k (); Hashtbl.clear vis; dfs2 k refine_same) end
+      else (NH.add diffNodes2 k (); NH.clear vis; dfs2 k refine_same) end
   and dfs2 node f =
     let succ = List.map snd (CfgNew.next node) in
     List.iter f succ in
   dfs2 (FunctionEntry f2) classify_prim_new;
-  (Hashtbl.to_seq_keys same, Hashtbl.to_seq_keys diffNodes1, Hashtbl.to_seq_keys diffNodes2)
+  (NTH.to_seq_keys same, NH.to_seq_keys diffNodes1, NH.to_seq_keys diffNodes2)
 
 let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 fun2 =
   let same, diff = compareCfgs (module CfgOld) (module CfgNew) fun1 fun2 in

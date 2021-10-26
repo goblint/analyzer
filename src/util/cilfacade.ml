@@ -435,7 +435,7 @@ let pseudo_return_to_fun = StmtH.create 113
 (** Find [fundec] which the [stmt] is in. *)
 let find_stmt_fundec stmt =
   try StmtH.find pseudo_return_to_fun stmt
-  with _ -> StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+  with Not_found -> StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
 
 
 module VarinfoH = Hashtbl.Make (CilType.Varinfo)

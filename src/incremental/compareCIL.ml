@@ -5,8 +5,8 @@ include CompareCFG
 
 type nodes_diff = {
   unchangedNodes: (node * node) list;
-  primObsoleteNodes: node list;
-  primNewNodes: node list
+  primObsoleteNodes: node list; (** primary obsolete nodes -> all obsolete nodes are reachable from these *)
+  primNewNodes: node list (** primary new nodes -> all differing nodes in the new CFG are reachable from these *)
 }
 
 type changed_global = {
@@ -25,7 +25,7 @@ type change_info = {
 
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
-(* If some CFGs of the two functions to be compared are provided, a fine-grained CFG is done that also determines which
+(* If some CFGs of the two functions to be compared are provided, a fine-grained CFG comparison is done that also determines which
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
@@ -44,7 +44,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
         let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
         let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
         if not sameDef then (false, None)
-        else if List.length diffNodes1 = 0 && List.length diffNodes2 = 0 then (true, None)
+        else if diffNodes1 = [] && diffNodes2 = [] then (true, None)
         else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
     with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
       false, None in
@@ -54,10 +54,10 @@ let eq_glob (a: global) (b: global) (cfgs : (cfg * cfg) option) = match a, b wit
   | GFun (f,_), GFun (g,_) -> eqF f g cfgs
   | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y, false, None
-  | _ -> print_endline @@ "Not comparable: " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)) ^ " and " ^ (Pretty.sprint ~width:100 (Cil.d_global () a)); false, false, None
+  | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
 
 let compareCilFiles (oldAST: file) (newAST: file) =
-  let cfgs = if GobConfig.get_bool "incremental.within_functions"
+  let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
     then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST |> fst)
     else None in
 
@@ -65,7 +65,7 @@ let compareCilFiles (oldAST: file) (newAST: file) =
     try
       GlobalMap.add (identifier_of_global global) global map
     with
-      e -> map
+      NoGlobalIdentifier _ -> map
   in
   let changes = empty_change_info () in
   global_typ_acc := [];
@@ -94,6 +94,6 @@ let compareCilFiles (oldAST: file) (newAST: file) =
     (fun glob -> checkUnchanged oldMap glob);
 
   (* We check whether functions have been added or removed *)
-  Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with e -> ());
-  Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with e -> ());
+  Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with NoGlobalIdentifier _ -> ());
+  Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with NoGlobalIdentifier _ -> ());
   changes
