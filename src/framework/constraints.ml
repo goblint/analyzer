@@ -1167,6 +1167,6 @@ struct
   let compare (name1, name2) vh1 vh2 =
     Printf.printf "\nComparing precision of %s (left) with %s (right) as EqConstrSys:\n" name1 name2;
     let (_, msg) = Compare.compare ~name1 vh1 ~name2 vh2 in
-    ignore (Pretty.printf "%t\n" (fun () -> msg));
+    ignore (Pretty.printf "Comparison summary: %t\n" (fun () -> msg));
     print_newline ();
 end
