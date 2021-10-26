@@ -545,6 +545,20 @@ module WP =
         print_newline ();
       );
 
+      (* Prune other data structures than rho with reachable.
+         These matter for the incremental data. *)
+      let module IncrPrune: PostSolver.S with module S = S and module VH = HM =
+      struct
+        include PostSolver.Unit (S) (HM)
+
+        let finalize ~vh ~reachable =
+          VH.filteri_inplace (fun x _ ->
+              VH.mem reachable x
+            ) stable
+          (* TODO: prune other data structures? *)
+      end
+      in
+
       (* postsolver also populates side_dep and side_infl *)
       let module SideInfl: PostSolver.S with module S = S and module VH = HM =
       struct
@@ -592,7 +606,7 @@ module WP =
         end
         include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
 
-        let postsolvers = (module SideInfl: M) :: (module IncrWarn: M) :: postsolvers
+        let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWarn: M) :: postsolvers
 
         let init_reachable ~vh =
           if incr_verify then
