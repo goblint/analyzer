@@ -426,9 +426,14 @@ struct
                 (Splitter.split_solution vh', vh')
               ) (d1, d2)
             in
-            Comp.compare (d1, d2) r1 r2;
+
+            if get_bool "dbg.compare_runs.glob" then
+              Comp.compare (d1, d2) r1 r2;
+
             let module Compare2 = Constraints.CompareEq (S2) (VH) in
-            Compare2.compare (d1, d2) r1' r2';
+            if get_bool "dbg.compare_runs.eq" then
+              Compare2.compare (d1, d2) r1' r2';
+
             r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
           | _ -> failwith "Currently only two runs can be compared!";
         ) else (

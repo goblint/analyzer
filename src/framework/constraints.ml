@@ -1143,7 +1143,7 @@ struct
     let h2 = PP.create 113 in
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
-    Printf.printf "\nComparing precision of %s (left) with %s (right):\n" name1 name2;
+    Printf.printf "\nComparing precision of %s (left) with %s (right) as GlobConstrSys:\n" name1 name2;
     compare_globals g1 g2;
     compare_locals h1 h2;
     compare_locals_ctx l1 l2;
@@ -1165,7 +1165,7 @@ struct
   module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
 
   let compare (name1, name2) vh1 vh2 =
-    Printf.printf "\nComparing precision of %s (left) with %s (right):\n" name1 name2;
+    Printf.printf "\nComparing precision of %s (left) with %s (right) as EqConstrSys:\n" name1 name2;
     let (_, msg) = Compare.compare ~name1 vh1 ~name2 vh2 in
     ignore (Pretty.printf "%t\n" (fun () -> msg));
     print_newline ();

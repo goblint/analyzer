@@ -243,6 +243,8 @@ let _ = ()
       ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
       ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
+      ; reg Debugging "dbg.compare_runs.glob" "true" "Compare GlobConstrSys in compare_runs"
+      ; reg Debugging "dbg.compare_runs.eq" "true" "Compare EqConstrSys in compare_runs"
 
 (* {4 category [Warnings]} *)
 let _ = ()
