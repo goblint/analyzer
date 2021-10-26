@@ -58,6 +58,9 @@ module Prune: F =
     include Unit (S) (VH)
 
     let finalize ~vh ~reachable =
+      if get_bool "dbg.debug" then
+        print_endline "Pruning result";
+
       VH.filteri_inplace (fun x _ ->
           VH.mem reachable x
         ) vh

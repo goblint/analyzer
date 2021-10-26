@@ -411,15 +411,29 @@ struct
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
             if d1 = d2 then print_endline "Beware that you are comparing a run with itself! There should be no differences.";
-            let r1, r2 = Tuple2.mapn (fun d ->
+            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
+            let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
+            let module S2 = Splitter.S2 in
+            let module VH = Splitter.VH in
+            let (r1, r1'), (r2, r2') = Tuple2.mapn (fun d ->
                 let vh = Serialize.unmarshal (d ^ Filename.dir_sep ^ solver_file) in
-                (* TODO: no need to relift here? *)
-                (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
-                let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
-                Splitter.split_solution vh
+
+                let vh' = VH.create (VH.length vh) in
+                VH.iter (fun k v ->
+                    VH.replace vh' (S2.Var.relift k) (S2.Dom.relift v)
+                  ) vh;
+
+                (Splitter.split_solution vh', vh')
               ) (d1, d2)
             in
-            Comp.compare (d1, d2) r1 r2;
+
+            if get_bool "dbg.compare_runs.glob" then
+              Comp.compare (d1, d2) r1 r2;
+
+            let module Compare2 = Constraints.CompareEq (S2) (VH) in
+            if get_bool "dbg.compare_runs.eq" then
+              Compare2.compare (d1, d2) r1' r2';
+
             r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
           | _ -> failwith "Currently only two runs can be compared!";
         ) else (
