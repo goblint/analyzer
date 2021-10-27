@@ -20,7 +20,9 @@ let create_map (new_file: Cil.file) =
   let update_vid vid = if vid > !max_vid then max_vid := vid in
   let add_to_hashtbl tbl (global: Cil.global) =
     match global with
-    | GFun (fund, _) as f -> update_vid fund.svar.vid; update_sid fund.smaxid; Hashtbl.replace tbl (identifier_of_global f) f
+    | GFun (fund, _) as f -> (match fund.smaxstmtid with
+        | Some i -> update_vid fund.svar.vid; update_sid i; Hashtbl.replace tbl (identifier_of_global f) f
+        | None -> failwith "smaxstmtid should have been computed when calling Cil.computeCFGInfo")
     | GVar (var, _, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) v
     | GVarDecl (var, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) v
     | other -> ()
