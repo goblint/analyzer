@@ -177,7 +177,7 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.apron.privatization" "'mutex-meet-tid'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
+      ; reg Experimental "exp.apron.privatization" "'mutex-meet-tid-cluster12'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
       ; reg Experimental "exp.apron.priv.not-started" "true" "Exclude writes from threads that may not be started yet"
       ; reg Experimental "exp.apron.priv.must-joined" "true" "Exclude writes from threads that must have been joined"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"

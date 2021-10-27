@@ -518,6 +518,58 @@ struct
   end
 end
 
+module Cluster12: ClusterArg =
+struct
+  module VS =
+  struct
+    include Printable.Std
+    include SetDomain.Make (CilType.Varinfo)
+  end
+  module LAD = MapDomain.MapTop_LiftBot (VS) (AD)
+
+  (* TODO: remove GMutex functor? *)
+  module Make (GMutex: MapDomain.S with type key = ThreadIdDomain.ThreadLifted.t and type value = LAD.t) =
+  struct
+    open Protection
+    module V = ApronDomain.V
+
+    let keep_only_protected_globals ask m octs =
+      LAD.map (fun oct ->
+          let protected var = match V.find_metadata var with
+            | Some (Global g) -> is_protected_by ask m g
+            | _ -> false
+          in
+          AD.keep_filter oct protected
+        ) octs
+
+    let keep_global g octs =
+      LAD.map (fun oct ->
+          let g_var = V.global g in
+          AD.keep_vars oct [g_var]
+        ) octs
+
+    let lock local_m get_m =
+      let joined = LAD.join local_m get_m in
+      LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) (* bot is top with empty env *)
+
+    (* TODO: add W argument? *)
+    let unlock oct_side =
+      let vars = AD.vars oct_side in
+      let gs = List.map (fun var -> match V.find_metadata var with
+          | Some (Global g) -> g
+          | _ -> assert false
+        ) vars
+      in
+      let f gs =
+        AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
+      in
+      let lad = LAD.empty () in
+      let lad = LAD.add_list_fun (List.map (fun g -> VS.singleton g) gs) f lad in
+      let lad = LAD.add_list_fun (List.map (fun (g1, g2) -> VS.of_list [g1; g2]) (List.filter (fun (g1, g2) -> not (CilType.Varinfo.equal g1 g2)) (List.cartesian_product gs gs))) f lad in
+      lad
+  end
+end
+
 (** Per-mutex meet with TIDs. *)
 module PerMutexMeetPrivTID (Cluster: ClusterArg): S =
 struct
@@ -946,6 +998,7 @@ let priv_module: (module S) Lazy.t =
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)
          | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoCluster))
+         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (Cluster12))
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
     in
