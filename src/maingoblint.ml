@@ -174,6 +174,12 @@ let preprocess_files () =
     Filename.concat exe_dir "includes" ::
     Gobsites.Sites.includes
   in
+  if get_bool "dbg.verbose" then (
+    print_endline "Custom include dirs:";
+    List.iteri (fun i custom_include_dir ->
+        Printf.printf "  %d. %s (exists=%B)\n" (i + 1) custom_include_dir (Sys.file_exists custom_include_dir)
+      ) custom_include_dirs
+  );
   let custom_include_dirs = List.filter Sys.file_exists custom_include_dirs in
   if custom_include_dirs = [] then
     print_endline "Warning, cannot find goblint's custom include files.";
