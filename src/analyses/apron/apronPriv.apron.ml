@@ -474,6 +474,13 @@ struct
   let finalize () = ()
 end
 
+(* May written variables *)
+module W =
+struct
+  include MayVars
+  let name () = "W"
+end
+
 module type ClusterArg =
 sig
   module LAD: Lattice.S
@@ -484,7 +491,7 @@ sig
       val keep_global: varinfo -> LAD.t -> LAD.t
 
       val lock: LAD.t -> LAD.t -> AD.t
-      val unlock: AD.t -> LAD.t
+      val unlock: W.t -> AD.t -> LAD.t
     end
 end
 
@@ -512,8 +519,7 @@ struct
     let lock local_m get_m =
       AD.join local_m get_m
 
-    (* TODO: add W argument? *)
-    let unlock oct_side =
+    let unlock w oct_side =
       oct_side
   end
 end
@@ -566,8 +572,7 @@ struct
       if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
       r
 
-    (* TODO: add W argument? *)
-    let unlock oct_side =
+    let unlock w oct_side =
       let vars = AD.vars oct_side in
       let gs = List.map (fun var -> match V.find_metadata var with
           | Some (Global g) -> g
@@ -577,9 +582,14 @@ struct
       let f gs =
         AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
       in
+      let filter (gss: VS.t list) =
+        List.filter (fun gs ->
+            VS.exists (fun g -> W.mem g w) gs
+          ) gss
+      in
       let lad = LAD.empty () in
-      let lad = LAD.add_list_fun (List.map (fun g -> VS.singleton g) gs) f lad in
-      let lad = LAD.add_list_fun (List.map (fun (g1, g2) -> VS.of_list [g1; g2]) (List.filter (fun (g1, g2) -> not (CilType.Varinfo.equal g1 g2)) (List.cartesian_product gs gs))) f lad in
+      let lad = LAD.add_list_fun (filter @@ List.map (fun g -> VS.singleton g) gs) f lad in
+      let lad = LAD.add_list_fun (filter @@ List.map (fun (g1, g2) -> VS.of_list [g1; g2]) (List.filter (fun (g1, g2) -> not (CilType.Varinfo.equal g1 g2)) (List.cartesian_product gs gs))) f lad in
       lad
   end
 end
@@ -590,13 +600,6 @@ struct
   open CommonPerMutex
   open ExplicitMutexGlobals
   include ConfCheck.RequireThreadFlagPathSensInit
-
-  (* May written variables *)
-  module W =
-  struct
-    include MayVars
-    let name () = "W"
-  end
 
   module LAD = Cluster.LAD
 
@@ -750,7 +753,7 @@ struct
     let oct_local = AD.assign_var oct_local g_var x_var in
     (* unlock *)
     let oct_side = AD.keep_vars oct_local [g_var] in
-    let oct_side = Cluster.unlock oct_side in
+    let oct_side = Cluster.unlock (W.singleton g) oct_side in
     let tid = ask.f Queries.CurrentThreadId in
     let sidev = GMutex.singleton tid oct_side in
     sideg mg sidev;
@@ -788,7 +791,7 @@ struct
       {oct = oct_local; priv = (w',lmust,l)}
     else
       let oct_side = keep_only_protected_globals ask m oct in
-      let oct_side = Cluster.unlock oct_side in
+      let oct_side = Cluster.unlock w oct_side in
       let tid = ask.f Queries.CurrentThreadId in
       let sidev = GMutex.singleton tid oct_side in
       let vi = mutex_addr_to_varinfo m in
@@ -855,7 +858,7 @@ struct
       ) (AD.vars oct)
     in
     let oct_side = AD.keep_vars oct g_vars in
-    let oct_side = Cluster.unlock oct_side in
+    let oct_side = Cluster.unlock (W.top ()) oct_side in
     let tid = ask.f Queries.CurrentThreadId in
     let sidev = GMutex.singleton tid oct_side in
     let vi = mutex_inits () in
