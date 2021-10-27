@@ -525,7 +525,8 @@ struct
     include Printable.Std
     include SetDomain.Make (CilType.Varinfo)
   end
-  module LAD = MapDomain.MapTop_LiftBot (VS) (AD)
+  (* module LAD = MapDomain.MapTop_LiftBot (VS) (AD) *)
+  module LAD = MapDomain.MapBot (VS) (AD)
 
   (* TODO: remove GMutex functor? *)
   module Make (GMutex: MapDomain.S with type key = ThreadIdDomain.ThreadLifted.t and type value = LAD.t) =
@@ -543,14 +544,21 @@ struct
         ) octs
 
     let keep_global g octs =
-      LAD.map (fun oct ->
+      let g' = VS.singleton g in
+      let oct = LAD.find g' octs in
+      let g_var = V.global g in
+      LAD.singleton g' (AD.keep_vars oct [g_var])
+      (* LAD.map (fun oct ->
           let g_var = V.global g in
           AD.keep_vars oct [g_var]
-        ) octs
+        ) octs *)
 
     let lock local_m get_m =
       let joined = LAD.join local_m get_m in
-      LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) (* bot is top with empty env *)
+      if M.tracing then M.traceli "apronpriv" "cluster12 lock:\n  local=%a\n  get=%a\n  joined=%a\n" LAD.pretty local_m LAD.pretty get_m LAD.pretty joined;
+      let r = LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
+      if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+      r
 
     (* TODO: add W argument? *)
     let unlock oct_side =
@@ -666,22 +674,34 @@ struct
   let get_m_with_mutex_inits inits ask getg_mutex m =
     let vi = mutex_addr_to_varinfo m in
     let get_m = get_relevant_writes ask m (getg_mutex vi) in
+    if M.tracing then M.traceli "apronpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LAD.pretty get_m;
+    let r =
     if not inits then
       get_m
     else
       let get_mutex_inits = merge_all @@ getg_mutex (mutex_inits ()) in
       let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
+      if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
       LAD.join get_m get_mutex_inits'
+    in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pretty r;
+    r
 
   let get_mutex_global_g_with_mutex_inits inits ask getg_mutex g =
     let vi = mutex_global g in
     let get_mutex_global_g = get_relevant_writes_nofilter ask @@ getg_mutex vi in
+    if M.tracing then M.traceli "apronpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LAD.pretty get_mutex_global_g;
+    let r =
     if not inits then
       get_mutex_global_g
     else
       let get_mutex_inits = merge_all @@ getg_mutex (mutex_inits ()) in
       let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
+      if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
       LAD.join get_mutex_global_g get_mutex_inits'
+    in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pretty r;
+    r
 
   let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
     let _,lmust,l = st.priv in
