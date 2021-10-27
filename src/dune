@@ -3,12 +3,17 @@
 
 (include_subdirs unqualified)
 
+(generate_sites_module
+  (module gobsites)
+  (sites goblint)
+)
+
 (library
   (name goblint_lib)
   (public_name goblint.lib)
   (wrapped false)
   (modules :standard \ goblint mainarinc maindomaintest mainspec privPrecCompare)
-  (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js qcheck-core.runner
+  (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js qcheck-core.runner dune-site
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.

@@ -62,8 +62,8 @@ let _ = ()
       ; reg Std "includes"        "[]"           "List of directories to include."
       ; reg Std "kernel_includes" "[]"           "List of kernel directories to include."
       ; reg Std "custom_includes" "[]"           "List of custom directories to include."
-      ; reg Std "custom_incl"     "''"           "Use custom includes"
       ; reg Std "custom_libc"     "false"        "Use goblints custom libc."
+      ; reg Std "kernel-root"     "''"           "Root directory for Linux kernel (linux-headers)"
       ; reg Std "justcil"         "false"        "Just parse and output the CIL."
       ; reg Std "justcfg"         "false"        "Only output the CFG in cfg.dot ."
       ; reg Std "printstats"      "false"        "Outputs timing information."
@@ -265,7 +265,7 @@ let _ = ()
 let default_schema = {schema|
 { "id"              : "root"
 , "type"            : "object"
-, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_libc", "kernel-root", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
 , "additionalProps" : false
 , "properties" :
   { "ana" :
@@ -294,8 +294,8 @@ let default_schema = {schema|
   , "includes"        : {}
   , "kernel_includes" : {}
   , "custom_includes" : {}
-  , "custom_incl"     : {}
   , "custom_libc"     : {}
+  , "kernel-root"     : {}
   , "justcil"         : {}
   , "justcfg"         : {}
   , "printstats"      : {}
