@@ -24,20 +24,42 @@ struct
 end
 
 
-module Man =
+
+(** Manager for the Polka domain, i.e. a polyhedra domain.
+For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
+module OctagonManager =
 struct
-  (* Manager type, parameter for the command below *)
+
   type mt = Oct.t
-  (* type mt = Polka.equalities Polka.t *)
-  (* type mt = Polka.loose Polka.t *)
-  (* A type of manager allocated by the underlying octagon domain *)
+
+  (* Type of the manager *)
   type t = mt Manager.t
 
-  (* Allocate a new manager to manipulate octagons *)
-  let mgr = Oct.manager_alloc ()
-  (* let mgr = Polka.manager_alloc_equalities () *)
-  (* let mgr = Polka.manager_alloc_loose () *)
+  (* Create the manager *)
+  let mgr =  Oct.manager_alloc ()
 end
+
+(** Manager for the Polka domain, i.e. a polyhedra domain.
+For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Polka.html *)
+module PolyhedraManager =
+struct
+  (** We chose a the loose polyhedra here, i.e. with polyhedra with no strict inequalities *)
+  type mt = Polka.loose Polka.t
+  type t = mt Manager.t
+  (* Create manager that fits to loose polyhedra *)
+  let mgr = Polka.manager_alloc_loose
+end
+
+(** Manager for the Box domain, i.e. an interval domain.
+For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Box.html*)
+module BoxManager =
+struct
+  type mt = Box.t
+  type t = mt Manager.t
+  let mgr = Box.manager_alloc ()
+end
+
+module Man = OctagonManager
 
 module type Tracked =
 sig
