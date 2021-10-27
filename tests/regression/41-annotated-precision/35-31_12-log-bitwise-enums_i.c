@@ -1,9 +1,9 @@
-//PARAM: --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+//PARAM: --enable precision.annotation --set ana.int.refinement fixpoint
 
 #include<assert.h>
 #include<stdio.h>
 
-int main() __attribute__((goblint_precision("interval"))) {
+int main() __attribute__((goblint_precision("no-def_exc","interval"))) {
     int x = 2;
     int y = 3;
     int n = 0;

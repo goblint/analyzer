@@ -1,5 +1,6 @@
 open GobConfig
 open Pretty
+open PrecisionUtil
 
 module GU = Goblintutil
 module M = Messages
@@ -153,7 +154,7 @@ sig
   val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
-  val projection: Cil.ikind -> PrecisionUtil.precision -> t -> t
+  val projection: Cil.ikind -> precision -> t -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -171,7 +172,7 @@ sig
   val ending     : Cil.ikind -> int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
 
-  val projection: PrecisionUtil.precision -> t -> t
+  val projection: precision -> t -> t
 end
 
 module type Z = Y with type int_t = BI.t
@@ -2583,22 +2584,30 @@ module IntDomTupleImpl = struct
   type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
   type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
   type 'b poly3 = { f3: 'a. 'a m -> 'a option } (* used for projection to given precision *)
+  let create r x ((p1, p2, p3, p4): precision) =
+    let f b g = if b then Some (g x) else None in
+    f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4)
   let create r x = (* use where values are introduced *)
-    if GobConfig.get_bool "exp.annotated.precision" then
-      let (b1, b2, b3, b4) = PrecisionUtil.precision_from_node () in
-      let f b g = if b then Some (g x) else None in
-      f b1 @@ r.fi (module I1), f b2 @@ r.fi (module I2), f b3 @@ r.fi (module I3), f b4 @@ r.fi (module I4)
-    else
-      let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-      f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3), f "congruence" @@ r.fi (module I4)
+    let p =
+      if GobConfig.get_bool "precision.annotation" then
+        precision_from_node ()
+      else
+        let f n = get_bool ("ana.int."^n) in
+        (f "def_exc", f "interval", f "enums", f "congruence")
+    in
+    create r x p
+  let create2 r x ((p1, p2, p3, p4): precision) =
+    let f b g = if b then Some (g x) else None in
+    f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4)
   let create2 r x = (* use where values are introduced *)
-    if GobConfig.get_bool "exp.annotated.precision" then
-      let (b1, b2, b3, b4) = PrecisionUtil.precision_from_node () in
-      let f b g = if b then Some (g x) else None in
-      f b1 @@ r.fi2 (module I1), f b2 @@ r.fi2 (module I2), f b3 @@ r.fi2 (module I3), f b4 @@ r.fi2 (module I4)
-    else
-      let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-      f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3), f "congruence" @@ r.fi2 (module I4)
+    let p =
+      if GobConfig.get_bool "precision.annotation" then
+        precision_from_node ()
+      else
+        let f n = get_bool ("ana.int."^n) in
+        (f "def_exc", f "interval", f "enums", f "congruence")
+    in
+    create2 r x p
 
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
@@ -2853,7 +2862,7 @@ module IntDomTupleImpl = struct
    * ~keep:true will keep elements that are `Some x` but should be set to `None` by p.
    *  This way we won't loose any information for the refinement.
    * ~keep:false will set the elements to `None` as defined by p *)
-  let projection ik (p: PrecisionUtil.precision) t =
+  let projection ik (p: precision) t =
     let t_padded = map ~keep:true { f3 = fun (type a) (module I:S with type t = a) -> Some (I.top_of ik) } t p in
     let t_refined = refine ik t_padded in
     map ~keep:false { f3 = fun (type a) (module I:S with type t = a) -> None } t_refined p

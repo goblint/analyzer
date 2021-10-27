@@ -1,4 +1,4 @@
-// PARAM: --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM: --enable precision.annotation --set ana.int.refinement fixpoint
 #include<stdio.h>
 #include<assert.h>
 

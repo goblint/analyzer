@@ -1,8 +1,8 @@
-// PARAM: --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM: --enable precision.annotation --set ana.int.refinement fixpoint
 #include<stdio.h>
 #include<assert.h>
 
-int main () __attribute__((goblint_precision("interval"))) {
+int main () __attribute__((goblint_precision("no-def_exc","interval"))) {
   int i,j,k;
 
   i = k = 0; j = 7;

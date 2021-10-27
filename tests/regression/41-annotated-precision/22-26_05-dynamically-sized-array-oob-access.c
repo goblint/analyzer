@@ -1,10 +1,10 @@
-// PARAM:  --set dbg.debug true --enable ana.arrayoob --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM:  --set dbg.debug true --enable ana.arrayoob --enable precision.annotation --set ana.int.refinement fixpoint
 
 // Variable sized array: oob access
 
 #include <stdio.h>
 #include <stdlib.h>
-int main() __attribute__((goblint_precision("interval"))) {
+int main() __attribute__((goblint_precision("no-def_exc","interval"))) {
   int top;
   int N;
 // The if statement is needed, so the size is actually dynamic

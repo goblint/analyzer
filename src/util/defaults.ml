@@ -12,6 +12,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Incremental     (** Incremental features                          *)
               | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
+              | Precision       (** Features for annotated precision              *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
               | Warnings        (** Filtering warnings                            *)
@@ -25,6 +26,7 @@ let catDescription = function
   | Analyses        -> "Options for analyses"
   | Semantics       -> "Options for semantics"
   | Transformations -> "Options for transformations"
+  | Precision       -> "Options for annotated precision"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
   | Incremental     -> "Incremental analysis options"
@@ -169,6 +171,11 @@ let _ = ()
       ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
       ; reg Transformations "trans.expeval.query_file_name" "''" "Path to the JSON file containing an expression evaluation query."
 
+(* {4 category [Precision]} *)
+let _ = ()
+      ; reg Precision "precision.annotation"  "false" "Enable manual annotation of functions with desired precision."
+      ; reg Precision "precision.privglobs"   "true"  "Enables handeling of privatized globals, by setting the precision to the heighest value, when precision.annotation is enabled."
+
 (* {4 category [Experimental]} *)
 let _ = ()
       ; reg Experimental "exp.lower-constants"   "true"  "Use Cil.lowerConstants to simplify some constant? (assumes wrap-around for signed int)"
@@ -216,8 +223,6 @@ let _ = ()
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
       ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
       ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
-      ; reg Experimental "exp.annotated.precision" "false" "Enable manual annotation of functions with desired precision."
-      ; reg Experimental "exp.privglobs" "true" "Enables handeling of privatized globals when annotated.precision is enabled."
 
 (* {4 category [Debugging]} *)
 let _ = ()
@@ -275,6 +280,11 @@ let default_schema = {schema|
   , "incremental"       : {}
   , "trans"             : {}
   , "phases"            : {}
+  , "precision" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
+    }
   , "exp" :
     { "type"            : "object"
     , "additionalProps" : true

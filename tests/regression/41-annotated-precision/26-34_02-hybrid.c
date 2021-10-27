@@ -1,9 +1,9 @@
-// PARAM: --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint --set solver slr4
+// PARAM: --enable precision.annotation --set ana.int.refinement fixpoint --set solver slr4
 // Example from Amato-Scozzari, SAS 2013
 // Localized narrowing with restart policy should be able to prove that
 // 0 <= i <= 10 inside the inner loop.
 
-void main() __attribute__((goblint_precision("interval")))
+void main() __attribute__((goblint_precision("no-def_exc","interval")))
 {
    int i = 0;
    while (1) {

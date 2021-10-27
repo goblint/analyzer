@@ -1,4 +1,4 @@
-// PARAM: --enable exp.partition-arrays.enabled --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM: --enable exp.partition-arrays.enabled --enable precision.annotation --set ana.int.refinement fixpoint
 
 #include<stdlib.h>
 #include<assert.h>
@@ -10,7 +10,7 @@ typedef struct {
 
 data *d;
 
-int main(void) __attribute__((goblint_precision("interval","enums"))) {
+int main(void) __attribute__((goblint_precision("no-def_exc","interval","enums"))) {
     d = calloc(1,sizeof(data));
     d -> x = 0;
     d -> y = 0;

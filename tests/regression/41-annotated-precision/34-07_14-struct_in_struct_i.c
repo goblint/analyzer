@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"  --set exp.privatization none --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"  --set exp.privatization none --enable precision.annotation --set ana.int.refinement fixpoint
 typedef struct {
 	int i;
 } S;
@@ -30,7 +30,7 @@ void mod_S31(S *z) __attribute__((goblint_precision("def_exc"))) {
 	z->i = z->i + 1; //WARN
 }
 
-void mod_S32(S *z) __attribute__((goblint_precision("interval"))) {
+void mod_S32(S *z) __attribute__((goblint_precision("no-def_exc","interval"))) {
 	z->i = z->i + 1; //WARN
 }
 

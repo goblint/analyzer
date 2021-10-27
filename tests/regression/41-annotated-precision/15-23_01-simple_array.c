@@ -1,7 +1,7 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --enable precision.annotation --set ana.int.refinement fixpoint
 int global;
 
-int main(void) __attribute__((goblint_precision("def_exc","no-interval")))
+int main(void) __attribute__((goblint_precision("no-interval")))
 {
     example1();
     example2();
@@ -15,7 +15,7 @@ int main(void) __attribute__((goblint_precision("def_exc","no-interval")))
 }
 
 // Simple example
-void example1(void)
+void example1(void) __attribute__((goblint_precision("no-def_exc")))
 {
     int a[42];
     int i = 0;
@@ -35,7 +35,7 @@ void example1(void)
 }
 
 // More complicated expression to index rather than just a variable
-void example2(void) {
+void example2(void) __attribute__((goblint_precision("no-def_exc"))) {
     int a[42];
     int i = 1;
 
@@ -52,7 +52,7 @@ void example2(void) {
 }
 
 // Two values initialized in one loop
-void example3(void) {
+void example3(void) __attribute__((goblint_precision("no-def_exc"))) {
     int a[42];
     int i = 0;
 
@@ -70,7 +70,7 @@ void example3(void) {
 }
 
 // Example where initialization proceeds backwards
-void example4(void) {
+void example4(void) __attribute__((goblint_precision("no-def_exc"))) {
     int a[42];
     int i = 41;
 
@@ -86,7 +86,7 @@ void example4(void) {
 }
 
 // Example having two arrays partitioned according to one expression
-void example5(void) {
+void example5(void) __attribute__((goblint_precision("no-def_exc"))) {
     int a[42];
     int b[42];
     int i = 0;
@@ -107,7 +107,7 @@ void example5(void) {
 }
 
 // Example showing array becoming partitioned according to different expressions
-void example6(void) {
+void example6(void) __attribute__((goblint_precision("no-def_exc"))) {
     int a[42];
     int i = 0;
     int j = 0;
@@ -137,7 +137,7 @@ void example6(void) {
 }
 
 // This was the case where we thought we needed path-splitting
-void example7(void) {
+void example7(void) __attribute__((goblint_precision("no-def_exc"))) {
     int a[42];
     int i = 0;
     int top;
@@ -157,7 +157,7 @@ void example7(void) {
 }
 
 // Check that the global variable is not used for paritioning
-void example8() {
+void example8() __attribute__((goblint_precision("no-def_exc"))) {
     int a[10];
 
     a[global] = 4;

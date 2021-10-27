@@ -1,9 +1,9 @@
-// PARAM: --disable ana.int.def_exc --enable exp.annotated.precision --set ana.int.refinement fixpoint --set solver slr3
+// PARAM: --enable precision.annotation --set ana.int.refinement fixpoint --set solver slr3
 // Example from Amato-Scozzari, SAS 2013
 // Localized widening should be able to prove that i=10 at the end
 // of the nested loops.
 
-void main() __attribute__((goblint_precision("interval")))
+void main() __attribute__((goblint_precision("no-def_exc","interval")))
 {
    int i = 0;
 

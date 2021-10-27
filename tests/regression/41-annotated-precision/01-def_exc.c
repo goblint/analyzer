@@ -1,4 +1,4 @@
-// PARAM: --enable exp.annotated.precision --set ana.int.refinement fixpoint
+// PARAM: --enable precision.annotation --set ana.int.refinement fixpoint
 #include<assert.h>
 
 int f(int in) __attribute__ ((goblint_precision("def_exc", "interval"))) {

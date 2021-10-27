@@ -1,10 +1,10 @@
-// PARAM: --enable exp.annotated.precision --enable exp.earlyglobs --set ana.int.refinement fixpoint
+// PARAM: --enable precision.annotation --enable exp.earlyglobs --set ana.int.refinement fixpoint
 #include<assert.h>
 
 int g1 = 0;
 int g2 = 0;
 
-int inc(int in) __attribute__ ((goblint_precision("def_exc", "interval"))) {
+int inc(int in) __attribute__ ((goblint_precision("no-def_exc", "interval"))) {
     int b = in + 1;
     assert(b);
     g2 = 1;

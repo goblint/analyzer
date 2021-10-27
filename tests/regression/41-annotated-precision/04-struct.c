@@ -1,4 +1,4 @@
-// PARAM: --enable exp.annotated.precision --set ana.int.refinement fixpoint --set ana.int.def_exc false
+// PARAM: --enable precision.annotation --set ana.int.refinement fixpoint
 #include<assert.h>
 
 struct a {
@@ -6,12 +6,12 @@ struct a {
   int i;
 };
 
-void f(struct a *in) __attribute__ ((goblint_precision("interval", "congruence"))) {
+void f(struct a *in) __attribute__ ((goblint_precision("no-def_exc","interval", "congruence"))) {
   in->i += 4;
   return;
 }
 
-int main() __attribute__ ((goblint_precision("def_exc", "congruence"))) {
+int main() __attribute__ ((goblint_precision("congruence"))) {
   struct a a1, b1 = {"Jane", 3};
 
   a1.name = "John";
