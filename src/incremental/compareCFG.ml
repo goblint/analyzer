@@ -106,19 +106,23 @@ let reexamine f1 f2 (same : unit NTH.t) (diffNodes1 : unit NH.t) (module CfgOld 
   let diffNodes2 = NH.create 103 in
 
   let asSndInSame k = NTH.fold (fun (n1,n2) _ acc -> acc || Node.equal n2 k) same false in
-  let rec refine_same k =
+  (* remove all nodes that are affected by a primary new node from same, add the first reached tuple to the primary differing node sets *)
+  let rec refine_same firstReached k =
     if NH.mem vis k then ()
     else begin
       NH.add vis k ();
-      if asSndInSame k then
-        NTH.filter_map_inplace (fun (n1,n2) _ -> if Node.equal n2 k then (NH.replace diffNodes1 n1 (); NH.replace diffNodes2 n2 (); None) else Some ()) same
-      else dfs2 k refine_same end
+      if asSndInSame k then begin
+        NTH.filter_map_inplace (fun (n1,n2) _ -> if Node.equal n2 k then (if not firstReached then (NH.replace diffNodes1 n1 (); NH.replace diffNodes2 n2 ()); None) else Some ()) same;
+        dfs2 k (refine_same true) end
+      else if firstReached || NH.mem diffNodes2 k then ()
+      else dfs2 k (refine_same firstReached) end
+  (* find the primary new nodes, the first non-classified nodes in the new cfg (correspond to the primary obsolete nodes) *)
   and classify_prim_new k =
     if NH.mem vis k then ()
     else begin
       NH.replace vis k ();
       if asSndInSame k then dfs2 k classify_prim_new
-      else (NH.add diffNodes2 k (); NH.clear vis; dfs2 k refine_same) end
+      else (NH.add diffNodes2 k (); NH.clear vis; dfs2 k (refine_same false)) end
   and dfs2 node f =
     let succ = List.map snd (CfgNew.next node) in
     List.iter f succ in
