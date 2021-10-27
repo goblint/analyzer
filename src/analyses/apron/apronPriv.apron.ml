@@ -535,6 +535,12 @@ struct
     module V = ApronDomain.V
 
     let keep_only_protected_globals ask m octs =
+      let octs =
+        (* must filter by protection to avoid later meeting with non-protecting *)
+        LAD.filter (fun gs _ ->
+            VS.for_all (is_protected_by ask m) gs
+          ) octs
+      in
       LAD.map (fun oct ->
           let protected var = match V.find_metadata var with
             | Some (Global g) -> is_protected_by ask m g
