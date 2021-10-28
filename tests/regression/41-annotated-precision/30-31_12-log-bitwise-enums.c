@@ -1,4 +1,4 @@
-//PARAM: --enable precision.annotation --set ana.int.refinement fixpoint
+//PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint
 
 #include<assert.h>
 #include<stdio.h>

@@ -2587,7 +2587,7 @@ module IntDomTupleImpl = struct
     f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4)
   let create r x = (* use where values are introduced *)
     let p =
-      if GobConfig.get_bool "precision.annotation" then
+      if GobConfig.get_bool "annotation.int.enabled" then
         precision_from_node ()
       else
         let f n = get_bool ("ana.int."^n) in
@@ -2599,7 +2599,7 @@ module IntDomTupleImpl = struct
     f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4)
   let create2 r x = (* use where values are introduced *)
     let p =
-      if GobConfig.get_bool "precision.annotation" then
+      if GobConfig.get_bool "annotation.int.enabled" then
         precision_from_node ()
       else
         let f n = get_bool ("ana.int."^n) in

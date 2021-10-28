@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --enable precision.annotation --set ana.int.refinement fixpoint
+// PARAM: --set solver td3 --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
 int global_array[50];
 
 int main(void) __attribute__((goblint_precision("no-def_exc","interval"))) {

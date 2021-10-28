@@ -12,7 +12,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Incremental     (** Incremental features                          *)
               | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
-              | Precision       (** Features for annotated precision              *)
+              | Annotation      (** Features for annotations                       *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
               | Warnings        (** Filtering warnings                            *)
@@ -26,7 +26,7 @@ let catDescription = function
   | Analyses        -> "Options for analyses"
   | Semantics       -> "Options for semantics"
   | Transformations -> "Options for transformations"
-  | Precision       -> "Options for annotated precision"
+  | Annotation      -> "Options for annotations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
   | Incremental     -> "Incremental analysis options"
@@ -171,10 +171,10 @@ let _ = ()
       ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
       ; reg Transformations "trans.expeval.query_file_name" "''" "Path to the JSON file containing an expression evaluation query."
 
-(* {4 category [Precision]} *)
+(* {4 category [Annotation]} *)
 let _ = ()
-      ; reg Precision "precision.annotation"  "false" "Enable manual annotation of functions with desired precision."
-      ; reg Precision "precision.privglobs"   "true"  "Enables handeling of privatized globals, by setting the precision to the heighest value, when precision.annotation is enabled."
+      ; reg Annotation "annotation.int.enabled"   "false" "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains."
+      ; reg Annotation "annotation.int.privglobs" "true"  "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true."
 
 (* {4 category [Experimental]} *)
 let _ = ()
@@ -280,7 +280,7 @@ let default_schema = {schema|
   , "incremental"       : {}
   , "trans"             : {}
   , "phases"            : {}
-  , "precision" :
+  , "annotation" :
     { "type"            : "object"
     , "additionalProps" : true
     , "required"        : []

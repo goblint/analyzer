@@ -1,4 +1,4 @@
-// PARAM: --enable precision.annotation --set ana.int.refinement fixpoint --set solver slr4
+// PARAM: --enable annotation.int.enabled --set ana.int.refinement fixpoint --set solver slr4
 // Example from Amato-Scozzari, SAS 2013
 // Localized narrowing with restart policy should be able to prove that
 // 0 <= i <= 10 inside the inner loop.

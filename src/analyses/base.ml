@@ -1131,8 +1131,8 @@ struct
 
         (* Projection to highest Precision *)
         let new_value =
-          if GobConfig.get_bool "precision.annotation"
-          then VD.projection (PU.max_enabled_precision ()) new_value
+          if GobConfig.get_bool "annotation.int.enabled"
+          then VD.projection (PU.max_precision ()) new_value
           else new_value
         in
 
@@ -1146,8 +1146,8 @@ struct
 
         (* Projection to highest Precision *)
         let new_value =
-          if GobConfig.get_bool "precision.annotation" && GobConfig.get_bool "precision.privglobs" && x.vglob
-          then VD.projection (PU.max_enabled_precision ()) new_value
+          if GobConfig.get_bool "annotation.int.enabled" && GobConfig.get_bool "annotation.int.privglobs" && x.vglob
+          then VD.projection (PU.max_precision ()) new_value
           else new_value
         in
 
@@ -1927,10 +1927,10 @@ struct
     (* Projection to Precision of the Callee *)
     let p = PU.precision_from_fundec fundec in
     let new_cpa =
-      if GobConfig.get_bool "precision.annotation"
+      if GobConfig.get_bool "annotation.int.enabled"
       then CPA.mapi (fun v t -> VD.projection (
-          if GobConfig.get_bool "precision.privglobs" && v.vglob
-          then PU.max_enabled_precision ()
+          if GobConfig.get_bool "annotation.int.privglobs" && v.vglob
+          then PU.max_precision ()
           else p)
           t) new_cpa
       else new_cpa
@@ -2301,19 +2301,19 @@ struct
       (* Projection to Precision of the Caller *)
       let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let return_val =
-        if GobConfig.get_bool "precision.annotation"
+        if GobConfig.get_bool "annotation.int.enabled"
         then VD.projection (
-            if GobConfig.get_bool "precision.privglobs" && (return_varinfo ()).vglob
-            then PU.max_enabled_precision ()
+            if GobConfig.get_bool "annotation.int.privglobs" && (return_varinfo ()).vglob
+            then PU.max_precision ()
             else p)
             return_val
         else return_val
       in
       let cpa' =
-        if GobConfig.get_bool "precision.annotation"
+        if GobConfig.get_bool "annotation.int.enabled"
         then CPA.mapi (fun v t -> VD.projection (
-            if GobConfig.get_bool "precision.privglobs" && v.vglob
-            then PU.max_enabled_precision ()
+            if GobConfig.get_bool "annotation.int.privglobs" && v.vglob
+            then PU.max_precision ()
             else p)
             t) nst.cpa
         else nst.cpa
