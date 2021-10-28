@@ -489,8 +489,9 @@ struct
   end
 
   (* Map from locks to last written values thread-locally *)
-  module L = MapDomain.MapBot_LiftTop(Basetype.Variables)(AD)
+  module L = MapDomain.MapBot_LiftTop(Locksets.Lock)(AD)
 
+  (* TODO: use Lock for LMust *)
   module LMust = struct include MustVars let name () = "LMust" end
 
   module D = Lattice.Prod3 (W) (LMust) (L)
@@ -588,9 +589,10 @@ struct
     let _,lmust,l = st.priv in
     let oct = st.oct in
     let mg = mutex_global g in
+    let m = Locksets.Lock.from_var mg in
     (* lock *)
     let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem mg lmust)) ask getg g) in
-    let local_m = BatOption.default (AD.bot ()) (L.find_opt (mg) l) in
+    let local_m = BatOption.default (AD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let tmp = AD.join local_m tmp in
     let oct = AD.meet oct tmp in
@@ -611,6 +613,7 @@ struct
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
     let w,lmust,l = st.priv in
     let mg = mutex_global g in
+    let m = Locksets.Lock.from_var mg in
     let oct = st.oct in
     (* lock *)
     let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits (not (LMust.mem mg lmust)) ask getg g) in
@@ -624,7 +627,7 @@ struct
     let tid = ask.f Queries.CurrentThreadId in
     let sidev = GMutex.singleton tid oct_side in
     sideg mg sidev;
-    let l' = L.add mg oct_side l in
+    let l' = L.add m oct_side l in
     let oct_local' =
       if is_unprotected ask g then
         AD.remove_vars oct_local [g_var]
@@ -638,7 +641,7 @@ struct
     let _,lmust,l = st.priv in
     let m_v = (mutex_addr_to_varinfo m) in
     let get_m = get_m_with_mutex_inits (not (LMust.mem m_v lmust)) ask getg m in
-    let local_m = BatOption.default (AD.bot ()) (L.find_opt m_v l) in
+    let local_m = BatOption.default (AD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let local_m = keep_only_protected_globals ask m local_m in
     let r = (AD.join local_m get_m) in
@@ -661,9 +664,9 @@ struct
       let tid = ask.f Queries.CurrentThreadId in
       let sidev = GMutex.singleton tid oct_side in
       let vi = mutex_addr_to_varinfo m in
-      sideg (mutex_addr_to_varinfo m) sidev;
-      let l' = L.add vi oct_side l in
-      {oct = oct_local; priv = (w',LMust.add (mutex_addr_to_varinfo m) lmust,l')}
+      sideg vi sidev;
+      let l' = L.add m oct_side l in
+      {oct = oct_local; priv = (w',LMust.add vi lmust,l')}
 
   let thread_join (ask:Q.ask) getg exp (st: ApronComponents (D).t) =
     let w,lmust,l = st.priv in
