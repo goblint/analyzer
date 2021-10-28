@@ -528,7 +528,7 @@ struct
     | _ -> true
 
   let get_relevant_writes (ask:Q.ask) m v =
-    let current = ask.f Queries.CurrentThreadId in
+    let current = ThreadId.get_current ask in
     let must_joined = ask.f Queries.MustJoinedThreads in
     GMutex.fold (fun k v acc ->
         if compatible ask current must_joined k then
@@ -538,7 +538,7 @@ struct
       ) v (AD.bot ())
 
   let get_relevant_writes_nofilter (ask:Q.ask) v =
-    let current = ask.f Queries.CurrentThreadId in
+    let current = ThreadId.get_current ask in
     let must_joined = ask.f Queries.MustJoinedThreads in
     GMutex.fold (fun k v acc ->
         if compatible ask current must_joined k then
@@ -618,7 +618,7 @@ struct
     let oct_local = AD.assign_var oct_local g_var x_var in
     (* unlock *)
     let oct_side = AD.keep_vars oct_local [g_var] in
-    let tid = ask.f Queries.CurrentThreadId in
+    let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid oct_side in
     sideg mg sidev;
     let l' = L.add m oct_side l in
@@ -654,7 +654,7 @@ struct
       {oct = oct_local; priv = (w',lmust,l)}
     else
       let oct_side = keep_only_protected_globals ask m oct in
-      let tid = ask.f Queries.CurrentThreadId in
+      let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid oct_side in
       sideg (mutex_addr_to_varinfo m) sidev;
       let l' = L.add m oct_side l in
@@ -714,7 +714,7 @@ struct
       ) (AD.vars oct)
     in
     let oct_side = AD.keep_vars oct g_vars in
-    let tid = ask.f Queries.CurrentThreadId in
+    let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid oct_side in
     let vi = mutex_inits () in
     sideg vi sidev;
