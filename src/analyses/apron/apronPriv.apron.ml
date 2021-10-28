@@ -530,18 +530,25 @@ struct
   let get_relevant_writes (ask:Q.ask) m v =
     let current = ask.f Queries.CurrentThreadId in
     let must_joined = ask.f Queries.MustJoinedThreads in
-    let compats = List.filter (fun (k,v) -> compatible ask current must_joined k) (GMutex.bindings v) in
-    List.fold_left (fun acc (k,v) -> AD.join acc (keep_only_protected_globals ask m v)) (AD.bot ()) compats
+    GMutex.fold (fun k v acc ->
+        if compatible ask current must_joined k then
+          AD.join acc (keep_only_protected_globals ask m v)
+        else
+          acc
+      ) v (AD.bot ())
 
   let get_relevant_writes_nofilter (ask:Q.ask) v =
     let current = ask.f Queries.CurrentThreadId in
     let must_joined = ask.f Queries.MustJoinedThreads in
-    let compats = List.filter (fun (k,v) -> compatible ask current must_joined k) (GMutex.bindings v) in
-    List.fold_left (fun acc (k,v) -> AD.join acc v) (AD.bot ()) compats
+    GMutex.fold (fun k v acc ->
+        if compatible ask current must_joined k then
+          AD.join acc v
+        else
+          acc
+      ) v (AD.bot ())
 
   let merge_all v =
-    let bs = List.map snd (GMutex.bindings v) in
-    List.fold_left AD.join (AD.bot ()) bs
+    GMutex.fold (fun _ v acc -> AD.join acc v) v (AD.bot ())
 
   let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
