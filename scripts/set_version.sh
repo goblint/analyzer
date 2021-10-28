@@ -13,7 +13,6 @@ if [ ! -f src/config.ml ]; then
   {
     echo "let tracing = false"
     echo "let cpp = \"cpp\""
-    echo "let mach = \"$(uname -m)\""
   } >> src/config.ml
 fi
 

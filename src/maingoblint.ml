@@ -168,7 +168,7 @@ let preprocess_files () =
   (* Handy (almost) constants. *)
   let kernel_root = Filename.concat exe_dir "linux-headers" in
   let kernel_dir = kernel_root ^ "/include" in
-  let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
+  let arch_dir = kernel_root ^ "/arch/x86/include" in
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string "cppflags") in
@@ -234,7 +234,7 @@ let preprocess_files () =
   if get_bool "kernel" then (
     let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
-    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
+    cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
     includes := !includes ^ " -I" ^ String.concat " -I" [
