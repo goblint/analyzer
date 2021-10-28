@@ -144,6 +144,7 @@ let _ = ()
       ; reg Analyses "ana.base.context.int"    "true" "Integer values in function contexts."
       ; reg Analyses "ana.base.context.interval" "true" "Integer values of the Interval domain in function contexts."
       ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
+      ; reg Analyses "ana.apron.domain" "'octagon'" "Which domain should be used for the APRON analysis. Can be 'octagon', 'interval' or 'polyhedra'"
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
 
 (* {4 category [Incremental]} *)

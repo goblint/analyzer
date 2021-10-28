@@ -12,11 +12,12 @@ struct
 
   let name () = "apron"
 
-  module D = ApronComponents (Priv.D)
+  module D = ApronComponents (Priv.AD) (Priv.D)
   module G = Priv.G
   module C = D
 
-  module AD = ApronDomain.D2
+  module AD = Priv.AD
+  open AD
 
   let should_join = Priv.should_join
 

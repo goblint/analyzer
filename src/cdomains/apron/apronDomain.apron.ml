@@ -23,13 +23,18 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
-
+module type Manager =
+  sig
+    type mt
+    type t = mt Apron.Manager.t
+    val mgr : mt Apron.Manager.t
+    val name : string
+  end
 
 (** Manager for the Polka domain, i.e. a polyhedra domain.
 For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
 module OctagonManager =
 struct
-
   type mt = Oct.t
 
   (* Type of the manager *)
@@ -37,6 +42,7 @@ struct
 
   (* Create the manager *)
   let mgr =  Oct.manager_alloc ()
+  let name = "Octagon manager"
 end
 
 (** Manager for the Polka domain, i.e. a polyhedra domain.
@@ -47,19 +53,33 @@ struct
   type mt = Polka.loose Polka.t
   type t = mt Manager.t
   (* Create manager that fits to loose polyhedra *)
-  let mgr = Polka.manager_alloc_loose
+  let mgr = Polka.manager_alloc_loose ()
+  let name = "Polyhedra Manager"
 end
 
 (** Manager for the Box domain, i.e. an interval domain.
 For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Box.html*)
-module BoxManager =
+module IntervalManager =
 struct
   type mt = Box.t
   type t = mt Manager.t
   let mgr = Box.manager_alloc ()
+  let name = "Interval Manager"
 end
 
-module Man = OctagonManager
+let get_manager () =
+  let options =
+    ["octagon", (module OctagonManager: Manager);
+     "interval", (module IntervalManager: Manager);
+     "polyhedra", (module PolyhedraManager: Manager)]
+  in
+  let domain = (GobConfig.get_string "ana.apron.domain") in
+  print_endline "checking optionS!!!!";
+  match List.assoc_opt domain options with
+  | Some man -> man
+  | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting."
+
+module Man_ = (val get_manager ())
 
 module type Tracked =
 sig
@@ -92,18 +112,21 @@ let int_of_scalar ?round (scalar: Scalar.t) =
     | _ ->
       failwith ("int_of_scalar: not rational: " ^ Scalar.to_string scalar)
 
-let bound_texpr d texpr1 =
-  let bounds = A.bound_texpr Man.mgr d texpr1 in
-  let min = int_of_scalar ~round:`Ceil bounds.inf in
-  let max = int_of_scalar ~round:`Floor bounds.sup in
-  (min, max)
+module Bounds (Man: Manager) =
+struct
+  let bound_texpr d texpr1 =
+    let bounds = A.bound_texpr Man.mgr d texpr1 in
+    let min = int_of_scalar ~round:`Ceil bounds.inf in
+    let max = int_of_scalar ~round:`Floor bounds.sup in
+    (min, max)
+end
 
 (** Conversion from CIL expressions to Apron. *)
-module Convert (Tracked: Tracked) =
+module Convert (Tracked: Tracked) (Man: Manager)=
 struct
   open Texpr1
   open Tcons1
-
+  module Bounds = Bounds(Man)
   exception Unsupported_CilExp
 
   (* TODO: move this into some general place *)
@@ -154,7 +177,7 @@ struct
         if not (IntDomain.should_ignore_overflow ik) then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
           let texpr1 = Texpr1.of_expr env expr in
-          match bound_texpr d texpr1 with
+          match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
           | _ ->
             (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
@@ -206,9 +229,9 @@ end
 
 
 (** Convenience operations on A. *)
-module AOps (Tracked: Tracked) =
+module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = Convert (Tracked)
+  module Convert = Convert (Tracked) (Man)
 
   type t = Man.mt A.t
 
@@ -445,8 +468,7 @@ end
 
 module type SPrintable =
 sig
-  include Printable.S with type t = Man.mt A.t
-
+  include Printable.S
   (* Functions for bot and top for particular environment. *)
   val top_env: Environment.t -> t
   val bot_env: Environment.t -> t
@@ -454,7 +476,7 @@ sig
   val is_bot_env: t -> bool
 end
 
-module DBase: SPrintable =
+module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
 struct
   type t = Man.mt A.t
 
@@ -497,9 +519,10 @@ sig
   include Lattice.S with type t := t
 end
 
-module DWithOps (D: SLattice) =
+module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
+  module Bounds = Bounds (Man)
 
   module Tracked =
   struct
@@ -511,7 +534,7 @@ struct
       type_tracked vi.vtype && not vi.vaddrof
   end
 
-  include AOps (Tracked)
+  include AOps (Tracked) (Man)
 
   include Tracked
 
@@ -565,7 +588,7 @@ struct
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (A.env d) e with
     | texpr1 ->
-      bound_texpr d texpr1
+      Bounds.bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp ->
       (None, None)
 
@@ -587,9 +610,9 @@ struct
 end
 
 
-module DLift: SLattice =
+module DLift (Man: Manager): SLattice with type t = Man.mt A.t =
 struct
-  include DBase
+  include DBase (Man)
 
   let lift_var = Var.of_string "##LIFT##"
 
@@ -648,13 +671,13 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module D = DWithOps (DLift)
+module D (Man: Manager) = DWithOps (Man) (DLift (Man))
 
 
 (** With heterogeneous environments. *)
-module DHetero: SLattice =
+module DHetero (Man: Manager): SLattice with type t = Man.mt A.t =
 struct
-  include DBase
+  include DBase (Man)
 
   let gce (x: Environment.t) (y: Environment.t): Environment.t =
     let (xi, xf) = Environment.vars x in
@@ -790,61 +813,175 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module D2 = DWithOps (DHetero)
+module D2 (Man: Manager) =
+struct
+  include DWithOps (Man) (DHetero (Man))
+  module Man = Man
+  (* Copy-paste from BaseDomain... *)
+  type 'a aproncomponents_t = {
+    oct: t; (* TODO: rename not to be just "oct" *)
+    priv: 'a;
+  } [@@deriving eq, ord, to_yojson]
+end
 
-
-(* Copy-paste from BaseDomain... *)
-type 'a aproncomponents_t = {
-  oct: D2.t; (* TODO: rename not to be just "oct" *)
-  priv: 'a;
-} [@@deriving eq, ord, to_yojson]
-
-module ApronComponents (PrivD: Lattice.S):
+module type S2 =
 sig
-  include Lattice.S with type t = PrivD.t aproncomponents_t
+  module Man: Manager
+  type t = Man.mt A.t
+  val top_env : Environment.t -> t
+  val bot_env : Environment.t -> t
+  val is_top_env : t -> bool
+  val is_bot_env : t -> bool
+  val equal : t -> t -> bool
+  val hash : t -> int
+  val compare : t -> t -> int
+  val show : t -> string
+  val pretty : unit -> t -> doc
+  val printXml : 'a BatInnerIO.output -> t -> unit
+  val name : unit -> string
+  val to_yojson : t -> Printable.json
+  val invariant : Invariant.context -> t -> Invariant.t
+  val tag : t -> int
+  val arbitrary : unit -> t QCheck.arbitrary
+  val relift : t -> t
+  val leq : t -> t -> bool
+  val join : t -> t -> t
+  val meet : t -> t -> t
+  val widen : t -> t -> t
+  val narrow : t -> t -> t
+  val pretty_diff : unit -> t * t -> doc
+  val bot : unit -> t
+  val is_bot : t -> bool
+  val top : unit -> t
+  val is_top : t -> bool
+  module Bounds :
+    sig
+      val bound_texpr : t -> Texpr1.t -> Z.t option * Z.t option
+    end
+  module Tracked :
+    sig
+      val type_tracked : typ -> bool
+      val varinfo_tracked : varinfo -> bool
+    end
+  module Convert :
+    sig
+      module Bounds :
+        sig
+          val bound_texpr :
+            t -> Texpr1.t -> Z.t option * Z.t option
+        end
+      exception Unsupported_CilExp
+      val is_cast_injective : typ -> typ -> bool
+      val texpr1_expr_of_cil_exp :
+        t -> Environment.t -> exp -> Texpr1.expr
+      val texpr1_of_cil_exp :
+        t -> Environment.t -> exp -> Texpr1.t
+      val tcons1_of_cil_exp :
+        t -> Environment.t -> exp -> bool -> Tcons1.t
+    end
+  val copy : t -> t
+  val vars : 'a A.t -> Var.t list
+  val mem_var : 'a A.t -> Var.t -> bool
+  val add_vars_with : t -> Var.t list -> unit
+  val add_vars : t -> Var.t list -> t
+  val remove_vars_with : t -> Var.t list -> unit
+  val remove_vars : t -> Var.t list -> t
+  val remove_filter_with : t -> (Var.t -> bool) -> unit
+  val remove_filter : t -> (Var.t -> bool) -> t
+  val keep_vars_with : t -> Var.t list -> unit
+  val keep_vars : t -> Var.t list -> t
+  val keep_filter_with : t -> (Var.t -> bool) -> unit
+  val keep_filter : t -> (Var.t -> bool) -> t
+  val forget_vars_with : t -> Var.t list -> unit
+  val forget_vars : t -> Var.t list -> t
+  val assign_exp_with : t -> Var.t -> exp -> unit
+  val assign_exp : t -> Var.t -> exp -> t
+  val assign_exp_parallel_with : t -> (Var.t * exp) list -> unit
+  val assign_var_with : t -> Var.t -> Var.t -> unit
+  val assign_var : t -> Var.t -> Var.t -> t
+  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
+  val assign_var_parallel' :
+    t -> Var.t list -> Var.t list -> t
+  val substitute_exp_with : t -> Var.t -> exp -> unit
+  val substitute_exp : t -> Var.t -> exp -> t
+  val substitute_exp_parallel_with :
+    t -> (Var.t * exp) list -> unit
+  val substitute_var_with : t -> Var.t -> Var.t -> unit
+  val meet_tcons : t -> Tcons1.t -> t
+  val type_tracked : typ -> bool
+  val varinfo_tracked : varinfo -> bool
+  val exp_is_cons : exp -> bool
+  val assert_cons : t -> exp -> bool -> t
+  val assert_inv : t -> exp -> bool -> t
+  val check_assert : t -> exp -> [> `False | `Top | `True ]
+  val eval_interval_expr : t -> exp -> Z.t option * Z.t option
+  val eval_int : t -> exp -> IntDomain.IntDomTuple.t
+  type 'a aproncomponents_t = { oct : t; priv : 'a; }
+  val equal_aproncomponents_t :
+    ('a -> 'a -> bool) ->
+    'a aproncomponents_t -> 'a aproncomponents_t -> bool
+  val compare_aproncomponents_t :
+    ('a -> 'a -> int) ->
+    'a aproncomponents_t -> 'a aproncomponents_t -> int
+  val aproncomponents_t_to_yojson :
+    ('a -> Printable.json) -> 'a aproncomponents_t -> Printable.json
+end
+
+module type ApronComponentsS =
+sig
+  module D2: S2
+  type priv_t
+  include Lattice.S with type t = priv_t D2.aproncomponents_t
+end
+
+module ApronComponents (D2: S2) (PrivD: Lattice.S):
+sig
+  module AD: S2 with type Man.mt = D2.Man.mt
+  include Lattice.S with type t = PrivD.t D2.aproncomponents_t
+  (* include ApronComponentsS with type priv_t = PrivD.t and type t = PrivD.t D2.aproncomponents_t and type D2.t = D2.t *)
   val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t aproncomponents_t [@@deriving eq, ord, to_yojson]
+  module AD = D2
+  type t = PrivD.t D2.aproncomponents_t [@@deriving eq, ord, to_yojson]
 
   include Printable.Std
   open Pretty
-  let hash r  = D2.hash r.oct + PrivD.hash r.priv * 33
-
+  let hash (r: t)  = D2.hash r.oct + PrivD.hash r.priv * 33
 
   let show r =
-    let first  = D2.show r.oct in
-    let third  = PrivD.show r.priv in
+    let first  = D2.show r.D2.oct in
+    let third  = PrivD.show r.D2.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
-    D2.pretty () r.oct
+    D2.pretty () r.D2.oct
     ++ text ", " ++
-    PrivD.pretty () r.priv
+    PrivD.pretty () r.D2.priv
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.oct (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.D2.oct (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.D2.priv
 
   let name () = D2.name () ^ " * " ^ PrivD.name ()
 
-  let invariant c {oct; priv} =
+  let invariant c {D2.oct; priv} =
     Invariant.(D2.invariant c oct && PrivD.invariant c priv)
 
   let of_tuple(oct, priv):t = {oct; priv}
-  let to_tuple r = (r.oct, r.priv)
+  let to_tuple r = (r.D2.oct, r.D2.priv)
 
   let arbitrary () =
     let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = { oct = D2.bot (); priv = PrivD.bot ()}
-  let is_bot {oct; priv} = D2.is_bot oct && PrivD.is_bot priv
-  let top () = {oct = D2.top (); priv = PrivD.bot ()}
-  let is_top {oct; priv} = D2.is_top oct && PrivD.is_top priv
+  let bot () = { D2.oct = D2.bot (); priv = PrivD.bot ()}
+  let is_bot {D2.oct; priv} = D2.is_bot oct && PrivD.is_bot priv
+  let top () = {D2.oct = D2.top (); priv = PrivD.bot ()}
+  let is_top {D2.oct; priv} = D2.is_top oct && PrivD.is_top priv
 
-  let leq {oct=x1; priv=x3 } {oct=y1; priv=y3} =
+  let leq {D2.oct=x1; priv=x3 } {D2.oct=y1; priv=y3} =
     D2.leq x1 y1 && PrivD.leq x3 y3
 
   let pretty_diff () (({oct=x1; priv=x3}:t),({oct=y1; priv=y3}:t)): Pretty.doc =
@@ -853,7 +990,7 @@ struct
     else
       PrivD.pretty_diff () (x3,y3)
 
-  let op_scheme op1 op3 {oct=x1; priv=x3} {oct=y1; priv=y3}: t =
+  let op_scheme op1 op3 {D2.oct=x1; priv=x3} {D2.oct=y1; priv=y3}: t =
     {oct = op1 x1 y1; priv = op3 x3 y3 }
   let join = op_scheme D2.join PrivD.join
   let meet = op_scheme D2.meet PrivD.meet
