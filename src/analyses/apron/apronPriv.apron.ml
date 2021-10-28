@@ -494,17 +494,11 @@ end
 
 module NoCluster: ClusterArg =
 struct
+  open CommonPerMutex
+
   module LAD = AD
 
-  open Protection
-  module V = ApronDomain.V
-
-  let keep_only_protected_globals ask m oct =
-    let protected var =  match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g
-      | _ -> false
-    in
-    AD.keep_filter oct protected
+  let keep_only_protected_globals = keep_only_protected_globals
 
   let keep_global g oct =
     let g_var = V.global g in
@@ -519,16 +513,14 @@ end
 
 module Cluster12: ClusterArg =
 struct
+  open CommonPerMutex
+
   module VS =
   struct
     include Printable.Std
     include SetDomain.Make (CilType.Varinfo)
   end
-  (* module LAD = MapDomain.MapTop_LiftBot (VS) (AD) *)
   module LAD = MapDomain.MapBot (VS) (AD)
-
-  open Protection
-  module V = ApronDomain.V
 
   let keep_only_protected_globals ask m octs =
     let octs =
@@ -537,23 +529,13 @@ struct
           VS.for_all (is_protected_by ask m) gs
         ) octs
     in
-    LAD.map (fun oct ->
-        let protected var = match V.find_metadata var with
-          | Some (Global g) -> is_protected_by ask m g
-          | _ -> false
-        in
-        AD.keep_filter oct protected
-      ) octs
+    LAD.map (keep_only_protected_globals ask m) octs
 
   let keep_global g octs =
     let g' = VS.singleton g in
     let oct = LAD.find g' octs in
     let g_var = V.global g in
     LAD.singleton g' (AD.keep_vars oct [g_var])
-    (* LAD.map (fun oct ->
-        let g_var = V.global g in
-        AD.keep_vars oct [g_var]
-      ) octs *)
 
   let lock local_m get_m =
     let joined = LAD.join local_m get_m in
