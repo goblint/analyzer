@@ -323,7 +323,7 @@ struct
     AD.remove_filter oct newly_unprot
 
   let keep_only_protected_globals ask m oct =
-    let protected var =  match V.find_metadata var with
+    let protected var = match V.find_metadata var with
       | Some (Global g) -> is_protected_by ask m g
       | _ -> false
     in
@@ -542,20 +542,6 @@ struct
   let merge_all v =
     let bs = List.map snd (GMutex.bindings v) in
     List.fold_left AD.join (AD.bot ()) bs
-
-  let remove_globals_unprotected_after_unlock ask m oct =
-    let newly_unprot var = match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
-      | _ -> false
-    in
-    AD.remove_filter oct newly_unprot
-
-  let keep_only_protected_globals ask m oct =
-    let protected var =  match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g
-      | _ -> false
-    in
-    AD.keep_filter oct protected
 
   let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
