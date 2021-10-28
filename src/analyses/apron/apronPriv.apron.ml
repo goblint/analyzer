@@ -485,43 +485,36 @@ module type ClusterArg =
 sig
   module LAD: Lattice.S
 
-  module Make: functor (GMutex: MapDomain.S with type key = ThreadIdDomain.ThreadLifted.t and type value = LAD.t) ->
-    sig
-      val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LAD.t -> LAD.t
-      val keep_global: varinfo -> LAD.t -> LAD.t
+  val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LAD.t -> LAD.t
+  val keep_global: varinfo -> LAD.t -> LAD.t
 
-      val lock: LAD.t -> LAD.t -> AD.t
-      val unlock: W.t -> AD.t -> LAD.t
-    end
+  val lock: LAD.t -> LAD.t -> AD.t
+  val unlock: W.t -> AD.t -> LAD.t
 end
 
 module NoCluster: ClusterArg =
 struct
   module LAD = AD
 
-  (* TODO: remove GMutex functor? *)
-  module Make (GMutex: MapDomain.S with type key = ThreadIdDomain.ThreadLifted.t and type value = LAD.t) =
-  struct
-    open Protection
-    module V = ApronDomain.V
+  open Protection
+  module V = ApronDomain.V
 
-    let keep_only_protected_globals ask m oct =
-      let protected var =  match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      in
-      AD.keep_filter oct protected
+  let keep_only_protected_globals ask m oct =
+    let protected var =  match V.find_metadata var with
+      | Some (Global g) -> is_protected_by ask m g
+      | _ -> false
+    in
+    AD.keep_filter oct protected
 
-    let keep_global g oct =
-      let g_var = V.global g in
-      AD.keep_vars oct [g_var]
+  let keep_global g oct =
+    let g_var = V.global g in
+    AD.keep_vars oct [g_var]
 
-    let lock local_m get_m =
-      AD.join local_m get_m
+  let lock local_m get_m =
+    AD.join local_m get_m
 
-    let unlock w oct_side =
-      oct_side
-  end
+  let unlock w oct_side =
+    oct_side
 end
 
 module Cluster12: ClusterArg =
@@ -534,64 +527,60 @@ struct
   (* module LAD = MapDomain.MapTop_LiftBot (VS) (AD) *)
   module LAD = MapDomain.MapBot (VS) (AD)
 
-  (* TODO: remove GMutex functor? *)
-  module Make (GMutex: MapDomain.S with type key = ThreadIdDomain.ThreadLifted.t and type value = LAD.t) =
-  struct
-    open Protection
-    module V = ApronDomain.V
+  open Protection
+  module V = ApronDomain.V
 
-    let keep_only_protected_globals ask m octs =
-      let octs =
-        (* must filter by protection to avoid later meeting with non-protecting *)
-        LAD.filter (fun gs _ ->
-            VS.for_all (is_protected_by ask m) gs
-          ) octs
-      in
-      LAD.map (fun oct ->
-          let protected var = match V.find_metadata var with
-            | Some (Global g) -> is_protected_by ask m g
-            | _ -> false
-          in
-          AD.keep_filter oct protected
+  let keep_only_protected_globals ask m octs =
+    let octs =
+      (* must filter by protection to avoid later meeting with non-protecting *)
+      LAD.filter (fun gs _ ->
+          VS.for_all (is_protected_by ask m) gs
         ) octs
+    in
+    LAD.map (fun oct ->
+        let protected var = match V.find_metadata var with
+          | Some (Global g) -> is_protected_by ask m g
+          | _ -> false
+        in
+        AD.keep_filter oct protected
+      ) octs
 
-    let keep_global g octs =
-      let g' = VS.singleton g in
-      let oct = LAD.find g' octs in
-      let g_var = V.global g in
-      LAD.singleton g' (AD.keep_vars oct [g_var])
-      (* LAD.map (fun oct ->
-          let g_var = V.global g in
-          AD.keep_vars oct [g_var]
-        ) octs *)
+  let keep_global g octs =
+    let g' = VS.singleton g in
+    let oct = LAD.find g' octs in
+    let g_var = V.global g in
+    LAD.singleton g' (AD.keep_vars oct [g_var])
+    (* LAD.map (fun oct ->
+        let g_var = V.global g in
+        AD.keep_vars oct [g_var]
+      ) octs *)
 
-    let lock local_m get_m =
-      let joined = LAD.join local_m get_m in
-      if M.tracing then M.traceli "apronpriv" "cluster12 lock:\n  local=%a\n  get=%a\n  joined=%a\n" LAD.pretty local_m LAD.pretty get_m LAD.pretty joined;
-      let r = LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
-      if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
-      r
+  let lock local_m get_m =
+    let joined = LAD.join local_m get_m in
+    if M.tracing then M.traceli "apronpriv" "cluster12 lock:\n  local=%a\n  get=%a\n  joined=%a\n" LAD.pretty local_m LAD.pretty get_m LAD.pretty joined;
+    let r = LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    r
 
-    let unlock w oct_side =
-      let vars = AD.vars oct_side in
-      let gs = List.map (fun var -> match V.find_metadata var with
-          | Some (Global g) -> g
-          | _ -> assert false
-        ) vars
-      in
-      let f gs =
-        AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
-      in
-      let filter (gss: VS.t list) =
-        List.filter (fun gs ->
-            VS.exists (fun g -> W.mem g w) gs
-          ) gss
-      in
-      let lad = LAD.empty () in
-      let lad = LAD.add_list_fun (filter @@ List.map (fun g -> VS.singleton g) gs) f lad in
-      let lad = LAD.add_list_fun (filter @@ List.map (fun (g1, g2) -> VS.of_list [g1; g2]) (List.filter (fun (g1, g2) -> not (CilType.Varinfo.equal g1 g2)) (List.cartesian_product gs gs))) f lad in
-      lad
-  end
+  let unlock w oct_side =
+    let vars = AD.vars oct_side in
+    let gs = List.map (fun var -> match V.find_metadata var with
+        | Some (Global g) -> g
+        | _ -> assert false
+      ) vars
+    in
+    let f gs =
+      AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
+    in
+    let filter (gss: VS.t list) =
+      List.filter (fun gs ->
+          VS.exists (fun g -> W.mem g w) gs
+        ) gss
+    in
+    let lad = LAD.empty () in
+    let lad = LAD.add_list_fun (filter @@ List.map (fun g -> VS.singleton g) gs) f lad in
+    let lad = LAD.add_list_fun (filter @@ List.map (fun (g1, g2) -> VS.of_list [g1; g2]) (List.filter (fun (g1, g2) -> not (CilType.Varinfo.equal g1 g2)) (List.cartesian_product gs gs))) f lad in
+    lad
 end
 
 (** Per-mutex meet with TIDs. *)
@@ -615,8 +604,6 @@ struct
 
   module V = ApronDomain.V
   module TID = ThreadIdDomain.Thread
-
-  module Cluster = Cluster.Make (GMutex)
 
   let compatible (ask:Q.ask) current must_joined other =
     match current, other with
