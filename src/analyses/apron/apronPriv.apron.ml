@@ -526,10 +526,11 @@ struct
     let octs =
       (* must filter by protection to avoid later meeting with non-protecting *)
       LAD.filter (fun gs _ ->
-          VS.for_all (is_protected_by ask m) gs
+          VS.for_all (is_protected_by ask m) gs (* TODO: is this subset check right? *)
         ) octs
     in
-    LAD.map (keep_only_protected_globals ask m) octs
+    LAD.map (keep_only_protected_globals ask m) octs (* TODO: is this even necessary if keys are filtered above? *)
+    (* octs *)
 
   let keep_global g octs =
     let g' = VS.singleton g in
@@ -548,21 +549,19 @@ struct
     let vars = AD.vars oct_side in
     let gs = List.map (fun var -> match V.find_metadata var with
         | Some (Global g) -> g
-        | _ -> assert false
+        | _ -> assert false (* oct_side should only contain (protected) globals *)
       ) vars
     in
-    let f gs =
+    let clusters =
+      List.cartesian_product gs gs
+      |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 <= 0) (* filter flipped ordering, keep equals for next step *)
+      |> List.map (fun (g1, g2) -> VS.of_list [g1; g2]) (* if g1 = g2, then we get a singleton cluster *)
+      |> List.filter (VS.exists (fun g -> W.mem g w)) (* cluster intersection w is non-empty *)
+    in
+    let oct_side_cluster gs =
       AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
     in
-    let filter (gss: VS.t list) =
-      List.filter (fun gs ->
-          VS.exists (fun g -> W.mem g w) gs
-        ) gss
-    in
-    let lad = LAD.empty () in
-    let lad = LAD.add_list_fun (filter @@ List.map (fun g -> VS.singleton g) gs) f lad in
-    let lad = LAD.add_list_fun (filter @@ List.map (fun (g1, g2) -> VS.of_list [g1; g2]) (List.filter (fun (g1, g2) -> not (CilType.Varinfo.equal g1 g2)) (List.cartesian_product gs gs))) f lad in
-    lad
+    LAD.add_list_fun clusters oct_side_cluster (LAD.empty ())
 end
 
 (** Per-mutex meet with TIDs. *)
