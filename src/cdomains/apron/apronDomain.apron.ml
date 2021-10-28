@@ -1,7 +1,7 @@
 open Prelude
 open Cil
 open Pretty
-(* For Apron implementation of octagons *)
+(* A binding to a selection of Apron-Domains *)
 open Apron
 
 module BI = IntOps.BigIntOps
@@ -821,7 +821,7 @@ struct
   module Man = Man
   (* Copy-paste from BaseDomain... *)
   type 'a aproncomponents_t = {
-    oct: t; (* TODO: rename not to be just "oct" *)
+    apr: t;
     priv: 'a;
   } [@@deriving eq, ord, to_yojson]
 end
@@ -918,7 +918,7 @@ sig
   val check_assert : t -> exp -> [> `False | `Top | `True ]
   val eval_interval_expr : t -> exp -> Z.t option * Z.t option
   val eval_int : t -> exp -> IntDomain.IntDomTuple.t
-  type 'a aproncomponents_t = { oct : t; priv : 'a; }
+  type 'a aproncomponents_t = { apr : t; priv : 'a; }
   val equal_aproncomponents_t :
     ('a -> 'a -> bool) ->
     'a aproncomponents_t -> 'a aproncomponents_t -> bool
@@ -949,51 +949,51 @@ struct
 
   include Printable.Std
   open Pretty
-  let hash (r: t)  = D2.hash r.oct + PrivD.hash r.priv * 33
+  let hash (r: t)  = D2.hash r.apr + PrivD.hash r.priv * 33
 
   let show r =
-    let first  = D2.show r.D2.oct in
+    let first  = D2.show r.D2.apr in
     let third  = PrivD.show r.D2.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
-    D2.pretty () r.D2.oct
+    D2.pretty () r.D2.apr
     ++ text ", " ++
     PrivD.pretty () r.D2.priv
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.D2.oct (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.D2.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.D2.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.D2.priv
 
   let name () = D2.name () ^ " * " ^ PrivD.name ()
 
-  let invariant c {D2.oct; priv} =
-    Invariant.(D2.invariant c oct && PrivD.invariant c priv)
+  let invariant c {D2.apr; priv} =
+    Invariant.(D2.invariant c apr && PrivD.invariant c priv)
 
-  let of_tuple(oct, priv):t = {oct; priv}
-  let to_tuple r = (r.D2.oct, r.D2.priv)
+  let of_tuple(apr, priv):t = {apr; priv}
+  let to_tuple r = (r.D2.apr, r.D2.priv)
 
   let arbitrary () =
     let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = { D2.oct = D2.bot (); priv = PrivD.bot ()}
-  let is_bot {D2.oct; priv} = D2.is_bot oct && PrivD.is_bot priv
-  let top () = {D2.oct = D2.top (); priv = PrivD.bot ()}
-  let is_top {D2.oct; priv} = D2.is_top oct && PrivD.is_top priv
+  let bot () = { D2.apr = D2.bot (); priv = PrivD.bot ()}
+  let is_bot {D2.apr; priv} = D2.is_bot apr && PrivD.is_bot priv
+  let top () = {D2.apr = D2.top (); priv = PrivD.bot ()}
+  let is_top {D2.apr; priv} = D2.is_top apr && PrivD.is_top priv
 
-  let leq {D2.oct=x1; priv=x3 } {D2.oct=y1; priv=y3} =
+  let leq {D2.apr=x1; priv=x3 } {D2.apr=y1; priv=y3} =
     D2.leq x1 y1 && PrivD.leq x3 y3
 
-  let pretty_diff () (({oct=x1; priv=x3}:t),({oct=y1; priv=y3}:t)): Pretty.doc =
+  let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
     if not (D2.leq x1 y1) then
       D2.pretty_diff () (x1,y1)
     else
       PrivD.pretty_diff () (x3,y3)
 
-  let op_scheme op1 op3 {D2.oct=x1; priv=x3} {D2.oct=y1; priv=y3}: t =
-    {oct = op1 x1 y1; priv = op3 x3 y3 }
+  let op_scheme op1 op3 {D2.apr=x1; priv=x3} {D2.apr=y1; priv=y3}: t =
+    {apr = op1 x1 y1; priv = op3 x3 y3 }
   let join = op_scheme D2.join PrivD.join
   let meet = op_scheme D2.meet PrivD.meet
   let widen = op_scheme D2.widen PrivD.widen
