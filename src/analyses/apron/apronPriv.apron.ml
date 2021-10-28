@@ -828,7 +828,7 @@ struct
       ) (AD.vars oct)
     in
     let oct_side = AD.keep_vars oct g_vars in
-    let oct_side = Cluster.unlock (W.top ()) oct_side in
+    let oct_side = Cluster.unlock (W.top ()) oct_side in (* top W to avoid any filtering *)
     let tid = ask.f Queries.CurrentThreadId in
     let sidev = GMutex.singleton tid oct_side in
     let vi = mutex_inits () in
