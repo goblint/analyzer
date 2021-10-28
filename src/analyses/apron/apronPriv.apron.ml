@@ -637,9 +637,9 @@ struct
     let local_m = BatOption.default (AD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let local_m = keep_only_protected_globals ask m local_m in
-    let r = (AD.join local_m get_m) in
+    let r = AD.join local_m get_m in
     if not (AD.is_bot r) then
-      let oct' = AD.meet oct (AD.join local_m get_m) in
+      let oct' = AD.meet oct r in
       {st with oct = oct'}
     else
       st
