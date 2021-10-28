@@ -474,7 +474,7 @@ struct
   let finalize () = ()
 end
 
-(* May written variables *)
+(** May written variables. *)
 module W =
 struct
   include MayVars
@@ -492,6 +492,7 @@ sig
   val unlock: W.t -> AD.t -> LAD.t
 end
 
+(** No clustering. *)
 module NoCluster: ClusterArg =
 struct
   open CommonPerMutex
@@ -511,6 +512,7 @@ struct
     oct_side
 end
 
+(** All clusters of size 1 and 2. *)
 module Cluster12: ClusterArg =
 struct
   open CommonPerMutex
