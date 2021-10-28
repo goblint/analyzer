@@ -31,7 +31,7 @@ sig
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
 
   val thread_join: Q.ask -> (varinfo -> G.t) -> exp -> ApronComponents (D).t -> ApronComponents (D).t
-  val thread_return: Q.ask -> (varinfo -> G.t) ->  (varinfo -> G.t -> unit) -> ApronComponents (D).t -> ApronComponents (D).t
+  val thread_return: Q.ask -> (varinfo -> G.t) ->  (varinfo -> G.t -> unit) -> ThreadIdDomain.Thread.t -> ApronComponents (D).t -> ApronComponents (D).t
 
   val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> ApronComponents (D).t
 
@@ -58,7 +58,7 @@ struct
   let unlock ask getg sideg st m = st
 
   let thread_join ask getg exp st = st
-  let thread_return ask getg sideg st = st
+  let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg st reason = st
 
@@ -262,7 +262,7 @@ struct
     {oct = oct_local'; priv = (p', w')}
 
   let thread_join ask getg exp st = st
-  let thread_return ask getg sideg st = st
+  let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
@@ -416,7 +416,7 @@ struct
     {st with oct = oct_local}
 
   let thread_join ask getg exp st = st
-  let thread_return ask getg sideg st = st
+  let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
@@ -681,14 +681,9 @@ struct
     with
     | _ -> st
 
-  let thread_return ask getg sideg (st: ApronComponents (D).t) =
-    (
-      match ThreadId.get_current ask with
-      | `Lifted tid when ThreadReturn.is_current ask ->
-        let _,lmust,l = st.priv in
-        sideg tid (lmust,l)
-      | _ -> ()
-    );
+  let thread_return ask getg sideg tid (st: ApronComponents (D).t) =
+    let _,lmust,l = st.priv in
+    sideg tid (lmust,l);
     st
 
   let sync (ask:Q.ask) getg sideg (st: ApronComponents (D).t) reason =
