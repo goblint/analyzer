@@ -117,7 +117,7 @@ struct
   module M = struct
     include Printable.Prod (P) (S)
     (* Varinfos for histories are named using a string representation based on node ids,
-     not locations, for compatibilty with incremental analysis.*)
+     not locations, for compatibility with incremental analysis.*)
     let name_varinfo ((l, s): t): string =
       let list_name = String.concat "," (List.map Base.name_varinfo l) in
       let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in

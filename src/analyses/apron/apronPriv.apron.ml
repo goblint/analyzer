@@ -31,7 +31,7 @@ sig
   val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
 
   val thread_join: Q.ask -> (varinfo -> G.t) -> exp -> ApronComponents (D).t -> ApronComponents (D).t
-  val thread_return: Q.ask -> (varinfo -> G.t) ->  (varinfo -> G.t -> unit) -> ApronComponents (D).t -> ApronComponents (D).t
+  val thread_return: Q.ask -> (varinfo -> G.t) ->  (varinfo -> G.t -> unit) -> ThreadIdDomain.Thread.t -> ApronComponents (D).t -> ApronComponents (D).t
 
   val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> ApronComponents (D).t
 
@@ -58,7 +58,7 @@ struct
   let unlock ask getg sideg st m = st
 
   let thread_join ask getg exp st = st
-  let thread_return ask getg sideg st = st
+  let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg st reason = st
 
@@ -262,7 +262,7 @@ struct
     {oct = oct_local'; priv = (p', w')}
 
   let thread_join ask getg exp st = st
-  let thread_return ask getg sideg st = st
+  let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
@@ -323,7 +323,7 @@ struct
     AD.remove_filter oct newly_unprot
 
   let keep_only_protected_globals ask m oct =
-    let protected var =  match V.find_metadata var with
+    let protected var = match V.find_metadata var with
       | Some (Global g) -> is_protected_by ask m g
       | _ -> false
     in
@@ -416,7 +416,7 @@ struct
     {st with oct = oct_local}
 
   let thread_join ask getg exp st = st
-  let thread_return ask getg sideg st = st
+  let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: ApronComponents (D).t) reason =
     match reason with
@@ -576,9 +576,12 @@ struct
   module LAD = Cluster.LAD
 
   (* Map from locks to last written values thread-locally *)
-  module L = MapDomain.MapBot_LiftTop(Basetype.Variables)(LAD)
+  module L = MapDomain.MapBot_LiftTop(Locksets.Lock)(LAD)
 
-  module LMust = struct include MustVars let name () = "LMust" end
+  module LMust = struct
+    include Locksets.MustLockset
+    let name () = "LMust"
+  end
 
   module D = Lattice.Prod3 (W) (LMust) (L)
   module GMutex = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(LAD)
@@ -612,34 +615,27 @@ struct
     | _ -> true
 
   let get_relevant_writes (ask:Q.ask) m v =
-    let current = ask.f Queries.CurrentThreadId in
+    let current = ThreadId.get_current ask in
     let must_joined = ask.f Queries.MustJoinedThreads in
-    let compats = List.filter (fun (k,v) -> compatible ask current must_joined k) (GMutex.bindings v) in
-    List.fold_left (fun acc (k,v) -> LAD.join acc (Cluster.keep_only_protected_globals ask m v)) (LAD.bot ()) compats
+    GMutex.fold (fun k v acc ->
+        if compatible ask current must_joined k then
+          LAD.join acc (Cluster.keep_only_protected_globals ask m v)
+        else
+          acc
+      ) v (LAD.bot ())
 
   let get_relevant_writes_nofilter (ask:Q.ask) v =
-    let current = ask.f Queries.CurrentThreadId in
+    let current = ThreadId.get_current ask in
     let must_joined = ask.f Queries.MustJoinedThreads in
-    let compats = List.filter (fun (k,v) -> compatible ask current must_joined k) (GMutex.bindings v) in
-    List.fold_left (fun acc (k,v) -> LAD.join acc v) (LAD.bot ()) compats
+    GMutex.fold (fun k v acc ->
+        if compatible ask current must_joined k then
+          LAD.join acc v
+        else
+          acc
+      ) v (LAD.bot ())
 
   let merge_all v =
-    let bs = List.map snd (GMutex.bindings v) in
-    List.fold_left LAD.join (LAD.bot ()) bs
-
-  let remove_globals_unprotected_after_unlock ask m oct =
-    let newly_unprot var = match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
-      | _ -> false
-    in
-    AD.remove_filter oct newly_unprot
-
-  let keep_only_protected_globals ask m oct =
-    let protected var =  match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g
-      | _ -> false
-    in
-    AD.keep_filter oct protected
+    GMutex.fold (fun _ v acc -> LAD.join acc v) v (LAD.bot ())
 
   let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
@@ -685,10 +681,10 @@ struct
   let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
     let _,lmust,l = st.priv in
     let oct = st.oct in
-    let mg = mutex_global g in
+    let m = Locksets.Lock.from_var (mutex_global g) in
     (* lock *)
-    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem mg lmust)) ask getg g) in
-    let local_m = BatOption.default (LAD.bot ()) (L.find_opt (mg) l) in
+    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
+    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let tmp = Cluster.lock local_m tmp in
     let oct = AD.meet oct tmp in
@@ -709,10 +705,11 @@ struct
   let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
     let w,lmust,l = st.priv in
     let mg = mutex_global g in
+    let m = Locksets.Lock.from_var mg in
     let oct = st.oct in
     (* lock *)
-    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem mg lmust)) ask getg g) in
-    let local_m = BatOption.default (LAD.bot ()) (L.find_opt (mg) l) in
+    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
+    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let tmp = Cluster.lock local_m tmp in
     let oct = AD.meet oct tmp in
@@ -724,24 +721,23 @@ struct
     (* unlock *)
     let oct_side = AD.keep_vars oct_local [g_var] in
     let oct_side = Cluster.unlock (W.singleton g) oct_side in
-    let tid = ask.f Queries.CurrentThreadId in
+    let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid oct_side in
     sideg mg sidev;
-    let l' = L.add mg oct_side l in
+    let l' = L.add m oct_side l in
     let oct_local' =
       if is_unprotected ask g then
         AD.remove_vars oct_local [g_var]
       else
         oct_local
     in
-    {oct = oct_local'; priv = (W.add g w,LMust.add mg lmust,l')}
+    {oct = oct_local'; priv = (W.add g w,LMust.add m lmust,l')}
 
   let lock ask getg (st: ApronComponents (D).t) m =
     let oct = st.oct in
     let _,lmust,l = st.priv in
-    let m_v = (mutex_addr_to_varinfo m) in
-    let get_m = get_m_with_mutex_inits (not (LMust.mem m_v lmust)) ask getg m in
-    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m_v l) in
+    let get_m = get_m_with_mutex_inits (not (LMust.mem m lmust)) ask getg m in
+    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let local_m = Cluster.keep_only_protected_globals ask m local_m in
     let r = Cluster.lock local_m get_m in
@@ -762,18 +758,20 @@ struct
     else
       let oct_side = keep_only_protected_globals ask m oct in
       let oct_side = Cluster.unlock w oct_side in
-      let tid = ask.f Queries.CurrentThreadId in
+      let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid oct_side in
-      let vi = mutex_addr_to_varinfo m in
       sideg (mutex_addr_to_varinfo m) sidev;
-      let l' = L.add vi oct_side l in
-      {oct = oct_local; priv = (w',LMust.add (mutex_addr_to_varinfo m) lmust,l')}
+      let l' = L.add m oct_side l in
+      {oct = oct_local; priv = (w',LMust.add m lmust,l')}
 
   let thread_join (ask:Q.ask) getg exp (st: ApronComponents (D).t) =
     let w,lmust,l = st.priv in
-    try
+    let tids = ask.f (Q.EvalThread exp) in
+    if ConcDomain.ThreadSet.is_top tids then
+      st (* TODO: why needed? *)
+    else (
       (* elements throws if the thread set is top *)
-      let tids = ConcDomain.ThreadSet.elements (ask.f (Q.EvalThread exp)) in
+      let tids = ConcDomain.ThreadSet.elements tids in
       match tids with
       | [tid] ->
         let lmust',l' = getg tid in
@@ -782,17 +780,11 @@ struct
         (* To match the paper more closely, one would have to join in the non-definite case too *)
         (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
         st
-    with
-    | _ -> st
+    )
 
-  let thread_return ask getg sideg (st: ApronComponents (D).t) =
-    (
-      match ThreadId.get_current ask with
-      | `Lifted tid when ThreadReturn.is_current ask ->
-        let _,lmust,l = st.priv in
-        sideg tid (lmust,l)
-      | _ -> ()
-    );
+  let thread_return ask getg sideg tid (st: ApronComponents (D).t) =
+    let _,lmust,l = st.priv in
+    sideg tid (lmust,l);
     st
 
   let sync (ask:Q.ask) getg sideg (st: ApronComponents (D).t) reason =
@@ -829,7 +821,7 @@ struct
     in
     let oct_side = AD.keep_vars oct g_vars in
     let oct_side = Cluster.unlock (W.top ()) oct_side in (* top W to avoid any filtering *)
-    let tid = ask.f Queries.CurrentThreadId in
+    let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid oct_side in
     let vi = mutex_inits () in
     sideg vi sidev;

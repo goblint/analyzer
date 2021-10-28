@@ -28,16 +28,23 @@ struct
   module C = D
   module G = Lattice.Unit
 
+  let tids = Hashtbl.create 20
+
   let name () = "threadid"
 
   let startstate v = (ThreadLifted.bot (), TD.bot ())
   let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
 
-  let morphstate v _ = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
+  let morphstate v _ =
+    let tid = Thread.threadinit v ~multiple:false in
+    Hashtbl.replace tids tid ();
+    (`Lifted (tid), TD.bot ())
 
   let create_tid (current, td) (node: Node.t) v =
     match current with
     | `Lifted current ->
+      let tid = Thread.threadenter (current, td) node v in
+      Hashtbl.replace tids tid ();
       `Lifted (Thread.threadenter (current, td) node v)
     | _ ->
       `Lifted (Thread.threadinit v ~multiple:true)
@@ -107,6 +114,17 @@ struct
     Thread.init m
 
   let finalize () =
+    let tids = Hashtbl.to_list tids in
+    let uniques = List.filter_map (fun (a,b) -> if Thread.is_unique a then Some a else None) tids in
+    let non_uniques = List.filter_map (fun (a,b) -> if not (Thread.is_unique a) then Some a else None) tids in
+    let uc = List.length uniques in
+    let nc = List.length non_uniques in
+    Printf.printf "Encountered number of thread IDs (unique): %i (%i)\n" (uc+nc) uc;
+    Printf.printf "unique: ";
+    List.iter (fun tid -> Printf.printf " %s " (Thread.show tid)) uniques;
+    Printf.printf "\nnon-unique: ";
+    List.iter (fun tid -> Printf.printf " %s " (Thread.show tid)) non_uniques;
+    Printf.printf "\n";
     Thread.finalize ()
 end
 

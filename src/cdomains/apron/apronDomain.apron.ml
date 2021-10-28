@@ -733,6 +733,7 @@ struct
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a\n" pretty j;
+      (* TODO: optimize strengthening, currently disabled because relational traces doesn't join different environments *)
       (* let j = strengthening j x y in *)
       if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
       j

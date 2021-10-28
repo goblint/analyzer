@@ -210,6 +210,7 @@ struct
 
   let return ctx e f =
     let st = ctx.local in
+    let ask = Analyses.ask_of_ctx ctx in
     let new_oct =
       if AD.type_tracked (Cilfacade.fundec_return_type f) then (
         let oct' = AD.add_vars st.oct [V.return] in
@@ -231,7 +232,12 @@ struct
     in
     AD.remove_vars_with new_oct local_vars;
     let st' = {st with oct = new_oct} in
-    Priv.thread_return (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st'
+    begin match ThreadId.get_current ask with
+      | `Lifted tid when ThreadReturn.is_current ask ->
+        Priv.thread_return ask ctx.global ctx.sideg tid st'
+      | _ ->
+        st'
+    end
 
 
   let combine ctx r fe f args fc fun_st =
