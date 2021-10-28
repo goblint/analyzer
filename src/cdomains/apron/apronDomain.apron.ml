@@ -67,19 +67,21 @@ struct
   let name = "Interval Manager"
 end
 
-let get_manager () =
-  let options =
-    ["octagon", (module OctagonManager: Manager);
-     "interval", (module IntervalManager: Manager);
-     "polyhedra", (module PolyhedraManager: Manager)]
-  in
-  let domain = (GobConfig.get_string "ana.apron.domain") in
-  print_endline "checking optionS!!!!";
-  match List.assoc_opt domain options with
-  | Some man -> man
-  | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting."
+let priv_manager =
+  lazy (
+    let options =
+      ["octagon", (module OctagonManager: Manager);
+       "interval", (module IntervalManager: Manager);
+       "polyhedra", (module PolyhedraManager: Manager)]
+    in
+    let domain = (GobConfig.get_string "ana.apron.domain") in
+    match List.assoc_opt domain options with
+    | Some man -> man
+    | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting."
+  )
 
-module Man_ = (val get_manager ())
+let get_manager (): (module Manager) =
+  Lazy.force priv_manager
 
 module type Tracked =
 sig
