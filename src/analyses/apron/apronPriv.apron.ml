@@ -662,9 +662,12 @@ struct
 
   let thread_join (ask:Q.ask) getg exp (st: ApronComponents (D).t) =
     let w,lmust,l = st.priv in
-    try
+    let tids = ask.f (Q.EvalThread exp) in
+    if ConcDomain.ThreadSet.is_top tids then
+      st (* TODO: why needed? *)
+    else (
       (* elements throws if the thread set is top *)
-      let tids = ConcDomain.ThreadSet.elements (ask.f (Q.EvalThread exp)) in
+      let tids = ConcDomain.ThreadSet.elements tids in
       match tids with
       | [tid] ->
         let lmust',l' = getg tid in
@@ -673,8 +676,7 @@ struct
         (* To match the paper more closely, one would have to join in the non-definite case too *)
         (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
         st
-    with
-    | _ -> st
+    )
 
   let thread_return ask getg sideg tid (st: ApronComponents (D).t) =
     let _,lmust,l = st.priv in
