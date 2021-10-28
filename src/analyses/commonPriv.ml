@@ -87,6 +87,8 @@ struct
     let disjoint s t = is_empty (inter s t)
   end
 
+  module MustLockset = SetDomain.Reverse (Lockset)
+
   let rec conv_offset = function
     | `NoOffset -> `NoOffset
     | `Field (f, o) -> `Field (f, conv_offset o)
@@ -104,7 +106,7 @@ struct
         ) ls (Lockset.empty ())
 
   (* TODO: reversed SetDomain.Hoare *)
-  module MinLocksets = HoareDomain.Set_LiftTop (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
+  module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
 end
 
 module WriteCenteredD =
