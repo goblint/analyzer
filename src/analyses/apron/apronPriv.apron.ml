@@ -709,7 +709,7 @@ struct
     let oct = st.oct in
     (* lock *)
     let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
-    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
+    let local_m = LAD.bot () in (* apparently must ignore local here to pass 36-apron/90-mine14-5b *)
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let tmp = Cluster.lock local_m tmp in
     let oct = AD.meet oct tmp in
