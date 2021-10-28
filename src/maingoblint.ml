@@ -242,10 +242,10 @@ let preprocess_files () =
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
     let kernel_roots = [
-        get_string "kernel-root";
-        Filename.concat exe_dir "linux-headers";
-        (* linux-headers not installed with goblint package *)
-      ]
+      get_string "kernel-root";
+      Filename.concat exe_dir "linux-headers";
+      (* linux-headers not installed with goblint package *)
+    ]
     in
     let kernel_root = List.find Sys.file_exists kernel_roots in
 
