@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --sets exp.apron.privatization mutex-meet-tid --set ana.activated[-] threadJoins
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins
 // Fig 5a from Miné 2014
 // Adding additional constant 100 does not help :(
 #include <pthread.h>
