@@ -448,7 +448,8 @@ struct
             | `Top -> st
             | v    -> ValueDomain.Structs.replace st fl v
           in
-          `Struct (ValueDomain.Structs.fold one_field (ValueDomain.Structs.top ()) s)
+          let ci = (List.hd (ValueDomain.Structs.keys s)).fcomp in
+          `Struct (ValueDomain.Structs.fold one_field (ValueDomain.Structs.create ci) s)
         | _ -> `Top
       in
       CPA.map replace_val st
@@ -1586,6 +1587,24 @@ struct
           | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
+        let _ = if get_bool "exp.structs.meet-condition" then match x with
+            | (Var(h), Field(f, o)) -> begin
+                if M.tracing then M.tracel "inv" "meeting a struct value in condition; %a, %s, %a\n" d_lval x f.fname d_varinfo h;
+                let offs = convert_offset a gs st (Field(f, o)) in
+                let old_v = eval (Lval x) st in
+                let old_s = get_var a gs st h in
+                let new_s = VD.update_offset a old_s offs c' (Some exp) x (h.vtype) in
+                let meet_s = VD.meet old_s new_s in
+                let meet_v = VD.eval_offset a (fun x -> get a gs st x (Some exp)) meet_s offs (Some exp) (Some x) (Cilfacade.typeOfLval x) in
+                if M.tracing then M.tracel "inv" "condition meet %a (value %a)\n and %a (value %a)\n to %a (value %a)\n" VD.pretty old_s VD.pretty old_v VD.pretty new_s VD.pretty c' VD.pretty meet_s VD.pretty meet_v;
+                if not (is_some_bot old_v) && not (is_some_bot c') && (is_some_bot meet_s || is_some_bot meet_v) then (
+                  if M.tracing then M.tracel "inv" "dead branch through struct condition meet\n";
+                  raise Deadcode
+                )
+                else ();
+              end
+            | _ -> ()
+          else () in
         let oldv = eval (Lval x) st in
         let v = VD.meet oldv c' in
         if is_some_bot v then raise Deadcode
