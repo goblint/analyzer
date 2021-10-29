@@ -31,7 +31,7 @@ module type Manager =
     val name : string
   end
 
-(** Manager for the Polka domain, i.e. a polyhedra domain.
+(** Manager for the Oct domain, i.e. an octagon domain.
 For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
 module OctagonManager =
 struct
