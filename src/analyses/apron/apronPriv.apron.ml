@@ -610,7 +610,11 @@ struct
     let m = Locksets.Lock.from_var mg in
     let oct = st.oct in
     (* lock *)
-    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
+    let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g in
+    let local_m = BatOption.default (AD.bot ()) (L.find_opt m l) in
+    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+    let tmp = AD.join local_m tmp in
+    let oct = AD.meet oct tmp in
     (* write *)
     let g_var = V.global g in
     let x_var = Var.of_string x.vname in
@@ -721,7 +725,7 @@ struct
     let vi = mutex_inits () in
     sideg vi sidev;
     (* Introduction into local state not needed, will be read via initializer *)
-    (* Also no side-effetc to mutex globals needed, the value here will either by read via the initializer, *)
+    (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
     let oct_local = AD.remove_vars oct g_vars in
     {st with oct = oct_local}

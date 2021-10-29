@@ -1,5 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins
 // Fig 5 from Miné 2014
+// This only succeeds if we use a different widening strategy (no widening :())
 #include <pthread.h>
 #include <stdio.h>
 
@@ -44,7 +45,7 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_create(&id2, NULL, t_fun2, NULL);
   pthread_mutex_lock(&mutex);
-  assert(x==y);
+  assert(x==y); //TODO
   pthread_mutex_unlock(&mutex);
   return 0;
 }
