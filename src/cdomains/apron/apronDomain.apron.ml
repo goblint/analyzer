@@ -833,30 +833,30 @@ sig
   type 'a aproncomponents_t = { apr : t; priv : 'a; }
 
   module Bounds :
-    sig
-      val bound_texpr : t -> Texpr1.t -> Z.t option * Z.t option
-    end
+  sig
+    val bound_texpr : t -> Texpr1.t -> Z.t option * Z.t option
+  end
   module Tracked :
-    sig
-      val type_tracked : typ -> bool
-      val varinfo_tracked : varinfo -> bool
-    end
+  sig
+    val type_tracked : typ -> bool
+    val varinfo_tracked : varinfo -> bool
+  end
   module Convert :
+  sig
+    module Bounds :
     sig
-      module Bounds :
-        sig
-          val bound_texpr :
-            t -> Texpr1.t -> Z.t option * Z.t option
-        end
-      exception Unsupported_CilExp
-      val is_cast_injective : typ -> typ -> bool
-      val texpr1_expr_of_cil_exp :
-        t -> Environment.t -> exp -> Texpr1.expr
-      val texpr1_of_cil_exp :
-        t -> Environment.t -> exp -> Texpr1.t
-      val tcons1_of_cil_exp :
-        t -> Environment.t -> exp -> bool -> Tcons1.t
+      val bound_texpr :
+        t -> Texpr1.t -> Z.t option * Z.t option
     end
+    exception Unsupported_CilExp
+    val is_cast_injective : typ -> typ -> bool
+    val texpr1_expr_of_cil_exp :
+      t -> Environment.t -> exp -> Texpr1.expr
+    val texpr1_of_cil_exp :
+      t -> Environment.t -> exp -> Texpr1.t
+    val tcons1_of_cil_exp :
+      t -> Environment.t -> exp -> bool -> Tcons1.t
+  end
   val copy : t -> t
   val vars : 'a A.t -> Var.t list
   val mem_var : 'a A.t -> Var.t -> bool
