@@ -23,6 +23,8 @@ FROM dev AS relocatable
 
 RUN sudo apt-get install chrpath
 RUN eval $(opam env) && dune build @install && dune install --relocatable --prefix prefix && chrpath -r '$ORIGIN/../share/apron/lib' prefix/bin/goblint
+RUN rm -r prefix/lib
+RUN mkdir -p prefix/share/apron/lib/ && cp _opam/share/apron/lib/libapron.so prefix/share/apron/lib/ && cp _opam/share/apron/lib/liboctMPQ.so prefix/share/apron/lib/
 
 
 FROM ubuntu:21.04
@@ -30,7 +32,7 @@ FROM ubuntu:21.04
 RUN apt-get update && apt-get install -yq libgmp-dev libmpfr-dev && rm -rf /var/lib/apt/lists/*
 
 COPY --from=relocatable /home/opam/analyzer/prefix /opt/goblint/analyzer
-COPY --from=relocatable /home/opam/analyzer/_opam/share/apron /opt/goblint/analyzer/share/apron
+# COPY --from=relocatable /home/opam/analyzer/_opam/share/apron /opt/goblint/analyzer/share/apron
 
 # ENV LD_LIBRARY_PATH=/opt/goblint/analyzer/share/apron/lib:$LD_LIBRARY_PATH
 ENTRYPOINT ["/opt/goblint/analyzer/bin/goblint"]
