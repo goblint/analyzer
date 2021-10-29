@@ -836,11 +836,7 @@ sig
   sig
     val bound_texpr : t -> Texpr1.t -> Z.t option * Z.t option
   end
-  module Tracked :
-  sig
-    val type_tracked : typ -> bool
-    val varinfo_tracked : varinfo -> bool
-  end
+  module Tracked : Tracked
   module Convert :
   sig
     module Bounds :
