@@ -905,18 +905,10 @@ sig
     ('a -> Printable.json) -> 'a aproncomponents_t -> Printable.json
 end
 
-module type ApronComponentsS =
-sig
-  module D2: S2
-  type priv_t
-  include Lattice.S with type t = priv_t D2.aproncomponents_t
-end
-
 module ApronComponents (D2: S2) (PrivD: Lattice.S):
 sig
   module AD: S2 with type Man.mt = D2.Man.mt
   include Lattice.S with type t = PrivD.t D2.aproncomponents_t
-  (* include ApronComponentsS with type priv_t = PrivD.t and type t = PrivD.t D2.aproncomponents_t and type D2.t = D2.t *)
   val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
