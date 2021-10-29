@@ -34,8 +34,8 @@ let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
 module NH = Hashtbl.Make(Node)
 module NTH = Hashtbl.Make(
   struct
-    type t = node * node
-    let equal (n1,n2) (n1',n2') = Node.equal n1 n1' && Node.equal n2 n2'
+    type t = Node.t * Node.t
+    [@@deriving eq]
     let hash (n1,n2) = (Node.hash n1 * 13) + Node.hash n2
   end)
 

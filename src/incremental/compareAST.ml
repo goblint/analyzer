@@ -191,7 +191,9 @@ let eq_stmt_with_location ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
   let offsetB = b.sid - (List.hd bf.sallstmts).sid in
   eq_list eq_label a.labels b.labels && offsetA = offsetB
 
-(* cfg_comp: blocks need only be compared in the AST comparison. For cfg comparison of functions one instead walks through the cfg and only compares the currently visited node,
+(* cfg_comp: blocks need only be compared in the AST comparison. For cfg comparison of functions one instead walks
+   through the cfg and only compares the currently visited node (The cil blocks inside an if statement should not be
+   compared together with its condition to avoid a to early and not precise detection of a changed node inside).
    Switch, break and continue statements are removed during cfg preparation and therefore need not to be handeled *)
 let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): stmtkind * fundec) =
   let eq_block' = fun x y -> if cfg_comp then true else eq_block (x, af) (y, bf) in
