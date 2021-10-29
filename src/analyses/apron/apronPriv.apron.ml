@@ -512,8 +512,56 @@ struct
     oct_side
 end
 
+module type ClusteringArg =
+sig
+  val generate: varinfo list -> varinfo list list
+end
+
 (** All clusters of size 1 and 2. *)
-module Cluster12: ClusterArg =
+module Clustering12: ClusteringArg =
+struct
+  let generate gs =
+    List.cartesian_product gs gs
+    |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 <= 0) (* filter flipped ordering, keep equals for next step *)
+    |> List.map (fun (g1, g2) -> [g1; g2]) (* if g1 = g2, then we get a singleton cluster *)
+end
+
+(** All clusters of size 2. *)
+module Clustering2: ClusteringArg =
+struct
+  let generate gs =
+    List.cartesian_product gs gs
+    |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 < 0) (* filter flipped ordering, forbid equals for just clusters of size 2 *)
+    |> List.map (fun (g1, g2) -> [g1; g2])
+end
+
+(** All subset clusters. *)
+module ClusteringPower: ClusteringArg =
+struct
+  let generate gs =
+    gs
+    |> List.map (fun _ -> [true; false])
+    |> List.n_cartesian_product (* TODO: exponential! *)
+    |> List.map (fun bs ->
+      (* list globals where omega is true *)
+      List.fold_left2 (fun acc g b ->
+          if b then
+            g :: acc
+          else
+            acc
+        ) [] gs bs
+    )
+end
+
+(** One maximum cluster. *)
+module ClusteringMax: ClusteringArg =
+struct
+  let generate gs =
+    [gs]
+end
+
+
+module Cluster (ClusteringArg: ClusteringArg): ClusterArg =
 struct
   open CommonPerMutex
 
@@ -555,9 +603,8 @@ struct
       ) vars
     in
     let clusters =
-      List.cartesian_product gs gs
-      |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 <= 0) (* filter flipped ordering, keep equals for next step *)
-      |> List.map (fun (g1, g2) -> VS.of_list [g1; g2]) (* if g1 = g2, then we get a singleton cluster *)
+      ClusteringArg.generate gs
+      |> List.map VS.of_list
       |> List.filter (VS.exists (fun g -> W.mem g w)) (* cluster intersection w is non-empty *)
     in
     let oct_side_cluster gs =
@@ -989,7 +1036,10 @@ let priv_module: (module S) Lazy.t =
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)
          | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoCluster))
-         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (Cluster12))
+         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (Cluster (Clustering12)))
+         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (Cluster (Clustering2)))
+         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (Cluster (ClusteringMax)))
+         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (Cluster (ClusteringPower)))
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
     in
