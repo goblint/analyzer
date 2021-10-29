@@ -829,33 +829,9 @@ end
 module type S2 =
 sig
   module Man: Manager
-  type t = Man.mt A.t
-  val top_env : Environment.t -> t
-  val bot_env : Environment.t -> t
-  val is_top_env : t -> bool
-  val is_bot_env : t -> bool
-  val equal : t -> t -> bool
-  val hash : t -> int
-  val compare : t -> t -> int
-  val show : t -> string
-  val pretty : unit -> t -> doc
-  val printXml : 'a BatInnerIO.output -> t -> unit
-  val name : unit -> string
-  val to_yojson : t -> Printable.json
-  val invariant : Invariant.context -> t -> Invariant.t
-  val tag : t -> int
-  val arbitrary : unit -> t QCheck.arbitrary
-  val relift : t -> t
-  val leq : t -> t -> bool
-  val join : t -> t -> t
-  val meet : t -> t -> t
-  val widen : t -> t -> t
-  val narrow : t -> t -> t
-  val pretty_diff : unit -> t * t -> doc
-  val bot : unit -> t
-  val is_bot : t -> bool
-  val top : unit -> t
-  val is_top : t -> bool
+  include SLattice with type t = Man.mt A.t
+  type 'a aproncomponents_t = { apr : t; priv : 'a; }
+
   module Bounds :
     sig
       val bound_texpr : t -> Texpr1.t -> Z.t option * Z.t option
@@ -918,7 +894,7 @@ sig
   val check_assert : t -> exp -> [> `False | `Top | `True ]
   val eval_interval_expr : t -> exp -> Z.t option * Z.t option
   val eval_int : t -> exp -> IntDomain.IntDomTuple.t
-  type 'a aproncomponents_t = { apr : t; priv : 'a; }
+
   val equal_aproncomponents_t :
     ('a -> 'a -> bool) ->
     'a aproncomponents_t -> 'a aproncomponents_t -> bool
