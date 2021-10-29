@@ -29,7 +29,7 @@ RUN mkdir -p prefix/share/apron/lib/ && cp _opam/share/apron/lib/libapron.so pre
 
 FROM ubuntu:21.04
 
-RUN apt-get update && apt-get install -yq libgmp-dev libmpfr-dev cpp libc6-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -yq libgmp-dev libmpfr-dev cpp libc6-dev libgcc-10-dev && rm -rf /var/lib/apt/lists/*
 
 COPY --from=relocatable /home/opam/analyzer/prefix /opt/goblint/analyzer
 # COPY --from=relocatable /home/opam/analyzer/_opam/share/apron /opt/goblint/analyzer/share/apron
