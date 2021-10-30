@@ -1,12 +1,10 @@
 open Prelude.Ana
 open Analyses
-open GobConfig
+open RelationDomain
 (* open BaseUtil *)
 module Q = Queries
 
-module A = ApronDomain.A
-module ApronComponents = ApronDomain.ApronComponents
-open Apron
+(* module ApronComponents = ApronDomain.ApronComponents *)
 
 open CommonPriv
 
@@ -39,13 +37,53 @@ module type S =
 
     val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
+(* module type S =
+sig
+  module D: Lattice.S
+  module G: Lattice.S
+  val startstate: unit -> D.t
+  val should_join: ApronComponents (D).t -> ApronComponents (D).t -> bool
+  val read_global: Q.ask -> (varinfo -> G.t) -> ApronComponents (D).t -> varinfo -> varinfo -> AD.t
+  (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
+   * the state when following conditional guards. *)
+  val write_global: ?invariant:bool -> Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> varinfo -> varinfo -> ApronComponents (D).t
+  val lock: Q.ask -> (varinfo -> G.t) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
+  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> LockDomain.Addr.t -> ApronComponents (D).t
+  val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> ApronComponents (D).t
+  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ApronComponents (D).t -> ApronComponents (D).t
+  val threadenter: Q.ask -> (varinfo -> G.t) -> ApronComponents (D).t -> ApronComponents (D).t
+  val init: unit -> unit
+  val finalize: unit -> unit
+end *)
 
-    val init: unit -> unit
-    val finalize: unit -> unit
-  end
+module type SharedS =
+functor (RD: RelationDomain.RD) ->
+sig
+  module D: Lattice.S
+  module G: Lattice.S
+  val startstate: unit -> D.t
+  val should_join: RelationDomain.RelComponent (RD.D2) (D).t -> RelationDomain.RelComponent (RD.D2) (D).t -> bool
+
+  val read_global: Q.ask -> (varinfo -> G.t) -> RelationDomain.RelComponent (RD.D2) (D).t -> varinfo -> varinfo -> RD.D2.t
+
+  (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
+   * the state when following conditional guards. *)
+  val write_global: ?invariant:bool -> Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> RelationDomain.RelComponent (RD.D2) (D).t -> varinfo -> varinfo -> RelationDomain.RelComponent (RD.D2) (D).t
+
+  val lock: Q.ask -> (varinfo -> G.t) -> RelationDomain.RelComponent (RD.D2) (D).t -> LockDomain.Addr.t -> RelationDomain.RelComponent (RD.D2) (D).t
+  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> RelationDomain.RelComponent (RD.D2) (D).t -> LockDomain.Addr.t -> RelationDomain.RelComponent (RD.D2) (D).t
+
+  val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> RelationDomain.RelComponent (RD.D2) (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> RelationDomain.RelComponent (RD.D2) (D).t
+
+  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> RelationDomain.RelComponent (RD.D2) (D).t -> RelationDomain.RelComponent (RD.D2) (D).t
+  val threadenter: Q.ask -> (varinfo -> G.t) -> RelationDomain.RelComponent (RD.D2) (D).t -> RelationDomain.RelComponent (RD.D2) (D).t
+
+  val init: unit -> unit
+  val finalize: unit -> unit
+end
 
 
-module Dummy: S = functor (AD: ApronDomain.S2) ->
+(* module Dummy: S =
 struct
   module D = Lattice.Unit
   module G = Lattice.Unit
@@ -54,8 +92,26 @@ struct
   let name () = "Dummy"
   let startstate () = ()
   let should_join _ _ = true
+  let read_global ask getg st g x = st.oct
+  let write_global ?(invariant=false) ask getg sideg st g x = st
+  let lock ask getg st m = st
+  let unlock ask getg sideg st m = st
+  let sync ask getg sideg st reason = st
+  let enter_multithreaded ask getg sideg st = st
+  let threadenter ask getg st = st
+  let init () = ()
+  let finalize () = ()
+end *)
 
-  let read_global ask getg st g x = st.ApronDomain.apr
+module SharedDummy : SharedS  =
+  functor (RD: RelationDomain.RD) ->
+struct
+  module D = Lattice.Unit
+  module G = Lattice.Unit
+  let startstate () = ()
+  let should_join _ _ = true
+
+  let read_global ask getg st g x = st.apr
   let write_global ?(invariant=false) ask getg sideg st g x = st
 
   let lock ask getg st m = st
@@ -73,25 +129,22 @@ struct
   let finalize () = ()
 end
 
-module type ProtectionBasedPrivParam =
+ module type ProtectionBasedPrivParam =
 sig
   (** Whether to be path-sensitive w.r.t. locally written protected globals that have been continuously protected since writing. *)
   val path_sensitive: bool
 end
-
 (** Protection-Based Reading. *)
-module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S = functor (AD: ApronDomain.S2) ->
+module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
 struct
   include ConfCheck.RequireMutexActivatedInit
   open Protection
-
   (** Locally must-written protected globals that have been continuously protected since writing. *)
   module P =
   struct
     include MustVars
     let name () = "P"
   end
-
   (** Locally may-written protected globals that have been continuously protected since writing. *)
   (* TODO: is this right? *)
   module W =
@@ -112,7 +165,6 @@ struct
       | Local of varinfo
       | Unprot of varinfo
       | Prot of varinfo
-
     let var_name = function
       | Local g -> g.vname
       | Unprot g -> g.vname ^ "#unprot"
@@ -120,9 +172,8 @@ struct
   end
   module AV =
   struct
-    include ApronDomain.VarMetadataTbl (VM)
+    include RelationDomain.VarMetadataTbl (VM)
     open VM
-
     let local g = make_var (Local g)
     let unprot g = make_var (Unprot g)
     let prot g = make_var (Prot g)
@@ -137,7 +188,6 @@ struct
         | Some (Unprot _ | Prot _) -> false
         | _ -> true
       )
-
   (** Restrict environment to local variables and still-protected global variables. *)
   let restrict_local is_unprot apr w_remove =
     let remove_local_vars = List.map AV.local (W.elements w_remove) in
@@ -148,10 +198,8 @@ struct
         | Some (Unprot g | Prot g) -> is_unprot g
         | _ -> false
       )
-
   let startstate () = (P.empty (), W.empty ())
-
-  let should_join (st1: apron_components_t) (st2: apron_components_t) =
+  let should_join (st1: ApronComponents (D).t) (st2: ApronComponents (D).t) =
     if Param.path_sensitive then (
       let (p1, _) = st1.priv in
       let (p2, _) = st2.priv in
@@ -159,21 +207,20 @@ struct
     )
     else
       true
-
-  let read_global ask getg (st: apron_components_t) g x =
-    let apr = st.apr in
+  let read_global ask getg (st: ApronComponents (D).t) g x =
+    let oct = st.oct in
     let (p, w) = st.priv in
     let g_local_var = AV.local g in
     let x_var = Var.of_string x.vname in
-    let apr_local =
+    let oct_local =
       if W.mem g w then
-        AD.assign_var apr x_var g_local_var
+        AD.assign_var oct x_var g_local_var
       else
         AD.bot ()
     in
-    let apr_local' =
+    let oct_local' =
       if P.mem g p then
-        apr_local
+        oct_local
       else if is_unprotected ask g then (
         let g_unprot_var = AV.unprot g in
         let apr_unprot = AD.add_vars apr [g_unprot_var] in
@@ -184,7 +231,7 @@ struct
            (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
            (* TODO: why removing g_unprot_var? *)
            oct_unprot' *)
-        AD.join apr_local apr_unprot
+        AD.join oct_local oct_unprot
       )
       else (
         let g_prot_var = AV.prot g in
@@ -217,11 +264,11 @@ struct
          (* restricting g#unprot-s out from oct' gives oct_local *)
          {oct = oct_local; priv = (P.add g p, W.add g w)} *)
       if is_unprotected ask g then
-        {st with apr = restrict_local (is_unprotected ask) apr' (W.singleton g)}
+        {st with oct = restrict_local (is_unprotected ask) oct' (W.singleton g)}
       else (
         let p' = P.add g p in
         let w' = W.add g w in
-        {apr = restrict_local (is_unprotected ask) apr' (W.empty ()); priv = (p', w')}
+        {oct = restrict_local (is_unprotected ask) oct' (W.empty ()); priv = (p', w')}
       )
     in
     let apr_local' = AD.meet st'.apr (getg ()) in
@@ -314,11 +361,10 @@ struct
     | `Init
     | `Thread ->
       st
-
-  let enter_multithreaded ask getg sideg (st: apron_components_t): apron_components_t =
-    let apr = st.apr in
+  let enter_multithreaded ask getg sideg (st: ApronComponents (D).t): ApronComponents (D).t =
+    let oct = st.oct in
     let (g_vars, gs) =
-      AD.vars apr
+      AD.vars oct
       |> List.enum
       |> Enum.filter_map (fun var ->
           match ApronDomain.V.find_metadata var with
@@ -368,7 +414,7 @@ struct
 end
 
 (** Per-mutex meet. *)
-module PerMutexMeetPriv : S = functor (AD: ApronDomain.S2) ->
+module PerMutexMeetPriv: S =
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
@@ -383,57 +429,52 @@ struct
   let name () = "PerMutexMeetPriv"
 
   let startstate () = ()
-
   let should_join _ _ = true
-
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (V.mutex m) in
     let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
     AD.join get_m get_mutex_inits'
-
   let get_mutex_global_g_with_mutex_inits ask getg g =
     let get_mutex_global_g = getg (V.global g) in
     let get_mutex_inits = getg V.mutex_inits in
     let g_var = AV.global g in
     let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
     AD.join get_mutex_global_g get_mutex_inits'
-
-  let read_global ask getg (st: apron_components_t) g x: AD.t =
-    let apr = st.apr in
+  let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
+    let oct = st.oct in
     (* lock *)
-    let apr = AD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* read *)
     let g_var = AV.global g in
     let x_var = Var.of_string x.vname in
-    let apr_local = AD.add_vars apr [g_var] in
-    let apr_local = AD.assign_var apr_local x_var g_var in
+    let oct_local = AD.add_vars oct [g_var] in
+    let oct_local = AD.assign_var oct_local x_var g_var in
     (* unlock *)
-    let apr_local' =
+    let oct_local' =
       if is_unprotected ask g then
-        AD.remove_vars apr_local [g_var]
+        AD.remove_vars oct_local [g_var]
       else
-        apr_local
+        oct_local
     in
-    apr_local'
-
-  let write_global ?(invariant=false) ask getg sideg (st: apron_components_t) g x: apron_components_t =
-    let apr = st.apr in
+    oct_local'
+  let write_global ?(invariant=false) ask getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
+    let oct = st.oct in
     (* lock *)
-    let apr = AD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* write *)
     let g_var = AV.global g in
     let x_var = Var.of_string x.vname in
-    let apr_local = AD.add_vars apr [g_var] in
-    let apr_local = AD.assign_var apr_local g_var x_var in
+    let oct_local = AD.add_vars oct [g_var] in
+    let oct_local = AD.assign_var oct_local g_var x_var in
     (* unlock *)
     let apr_side = AD.keep_vars apr_local [g_var] in
     sideg (V.global g) apr_side;
     let apr_local' =
       if is_unprotected ask g then
-        AD.remove_vars apr_local [g_var]
+        AD.remove_vars oct_local [g_var]
       else
-        apr_local
+        oct_local
     in
     {st with apr = apr_local'}
 
@@ -474,12 +515,12 @@ struct
       if (ask.f Q.MustBeSingleThreaded) then
         st
       else
-        let apr = st.apr in
+        let oct = st.oct in
         let g_vars = List.filter (fun var ->
             match AV.find_metadata var with
             | Some (Global _) -> true
             | _ -> false
-          ) (AD.vars apr)
+          ) (AD.vars oct)
         in
         let apr_side = AD.keep_vars apr g_vars in
         sideg V.mutex_inits apr_side;
@@ -489,20 +530,19 @@ struct
             | _ -> false
           )
         in
-        {st with apr = apr_local}
+        {st with oct = oct_local}
     | `Normal
     | `Init
     | `Thread ->
       st
-
-  let enter_multithreaded ask getg sideg (st: apron_components_t): apron_components_t =
-    let apr = st.apr in
+  let enter_multithreaded ask getg sideg (st: ApronComponents (D).t): ApronComponents (D).t =
+    let oct = st.oct in
     (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
     let g_vars = List.filter (fun var ->
         match AV.find_metadata var with
         | Some (Global _) -> true
         | _ -> false
-      ) (AD.vars apr)
+      ) (AD.vars oct)
     in
     let apr_side = AD.keep_vars apr g_vars in
     sideg V.mutex_inits apr_side;
@@ -1054,12 +1094,8 @@ end
 
 module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
 struct
-  module Priv = Priv (AD)
   include Priv
-
-  module D = Priv.D
-  module ApronComponents = ApronDomain.ApronComponents (AD) (D)
-
+  module ApronComponents = ApronComponents (D)
   let read_global ask getg st g x =
     if M.tracing then M.traceli "apronpriv" "read_global %a %a\n" d_varinfo g d_varinfo x;
     if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
@@ -1071,7 +1107,6 @@ struct
     let r = Priv.read_global ask getg st g x in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
     r
-
   let write_global ?invariant ask getg sideg st g x =
     if M.tracing then M.traceli "apronpriv" "write_global %a %a\n" d_varinfo g d_varinfo x;
     if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
@@ -1087,7 +1122,6 @@ struct
     let r = write_global ?invariant ask getg sideg st g x in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
-
   let lock ask getg st m =
     if M.tracing then M.traceli "apronpriv" "lock %a\n" LockDomain.Addr.pretty m;
     if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
@@ -1099,7 +1133,6 @@ struct
     let r = lock ask getg st m in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
-
   let unlock ask getg sideg st m =
     if M.tracing then M.traceli "apronpriv" "unlock %a\n" LockDomain.Addr.pretty m;
     if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
@@ -1115,7 +1148,6 @@ struct
     let r = unlock ask getg sideg st m in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
-
   let enter_multithreaded ask getg sideg st =
     if M.tracing then M.traceli "apronpriv" "enter_multithreaded\n";
     if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
@@ -1131,7 +1163,6 @@ struct
     let r = enter_multithreaded ask getg sideg st in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
-
   let threadenter ask getg st =
     if M.tracing then M.traceli "apronpriv" "threadenter\n";
     if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
@@ -1143,7 +1174,6 @@ struct
     let r = threadenter ask getg st in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
-
   let sync ask getg sideg st reason =
     if M.tracing then M.traceli "apronpriv" "sync\n";
     if M.tracing then M.trace "apronpriv" "st: %a\n" ApronComponents.pretty st;
@@ -1159,10 +1189,10 @@ struct
     let r = sync ask getg sideg st reason in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" ApronComponents.pretty r;
     r
-end
+end *)
 
 
-let priv_module: (module S) Lazy.t =
+(* let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
       (val match get_string "ana.apron.privatization" with
@@ -1178,9 +1208,13 @@ let priv_module: (module S) Lazy.t =
          | _ -> failwith "ana.apron.privatization: illegal value"
       )
     in
-    let module Priv = TracingPriv (Priv)  in
+    let module Priv = TracingPriv (Priv) in
     (module Priv)
-  )
+  ) *)
 
-let get_priv (): (module S) =
+  (* TODO Change this again! *)
+let priv_module: (module SharedS) Lazy.t =
+    lazy (module SharedDummy: SharedS)
+
+let get_priv (): (module SharedS) =
   Lazy.force priv_module

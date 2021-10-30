@@ -1,19 +1,19 @@
 (** Analysis using Apron for integer variables. *)
-
 open Prelude.Ana
 open Analyses
-open ApronDomain
+open RelationDomain
 
 module M = Messages
 
-module SpecFunctor (AD: ApronDomain.S2) (Priv: ApronPriv.S) : Analyses.MCPSpec =
+module SpecFunctor (CPriv: ApronPriv.SharedS) (RD: RelationDomain.RD) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "apron"
 
-  module Priv = Priv(AD)
-  module D = ApronComponents (AD) (Priv.D)
+  module AD = RD.D2
+  module Priv = CPriv (RD)
+  module D = RelationDomain.RelComponent (AD) (Priv.D)
   module G = Priv.G
   module C = D
   module V = Priv.V
@@ -33,8 +33,8 @@ struct
     else
       D.bot () (* just like startstate, heterogeneous AD.bot () means top over empty set of variables *)
 
-  let exitstate  _ = { apr = AD.bot (); priv = Priv.startstate () }
-  let startstate _ = { apr = AD.bot (); priv = Priv.startstate () }
+  let exitstate  _ = { RelationDomain.apr = AD.bot (); RelationDomain.priv = Priv.startstate () }
+  let startstate _ = { RelationDomain.apr = AD.bot (); RelationDomain.priv = Priv.startstate () }
 
   (* Functions for manipulating globals as temporary locals. *)
 
@@ -42,7 +42,7 @@ struct
     if ThreadFlag.is_multi ask then
       Priv.read_global ask getg st g x
     else (
-      let apr = st.apr in
+      let apr = st.RelationDomain.apr in
       let g_var = V.global g in
       let x_var = V.local x in
       let apr' = AD.add_vars apr [g_var] in
@@ -73,10 +73,10 @@ struct
     end
     in
     let e' = visitCilExpr visitor e in
-    let apr = AD.add_vars st.apr (List.map V.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
+    let apr = AD.add_vars st.RelationDomain.apr (List.map V.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
     let apr' = VH.fold (fun v v_in apr ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
-        read_global ask getg {st with apr = apr} v v_in (* g#in = g; *)
+        read_global ask getg {st with RelationDomain.apr = apr} v v_in (* g#in = g; *)
       ) v_ins apr
     in
     (apr', e', v_ins)
@@ -96,12 +96,12 @@ struct
     if ThreadFlag.is_multi ask then
       Priv.write_global ask getg sideg st g x
     else (
-      let apr = st.apr in
+      let apr = st.RelationDomain.apr in
       let g_var = V.global g in
       let x_var = V.local x in
       let apr' = AD.add_vars apr [g_var] in
       let apr' = AD.assign_var apr' g_var x_var in
-      {st with apr = apr'}
+      {st with RelationDomain.apr = apr'}
     )
 
   let assign_to_global_wrapper ask getg sideg st lv f =
@@ -183,7 +183,7 @@ struct
     in
     let arg_vars = List.map fst arg_assigns in
     let new_apr = AD.add_vars st.apr arg_vars in
-    (* AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
+    (* AD.assign_exp_parallel_with new_apr arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
     let ask = Analyses.ask_of_ctx ctx in
     let new_apr = List.fold_left (fun new_apr (var, e) ->
@@ -195,7 +195,7 @@ struct
     AD.remove_filter_with new_apr (fun var ->
         match V.find_metadata var with
         | Some Local -> true (* remove caller locals *)
-        | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
+        | Some Arg when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
     if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty new_apr;
@@ -258,7 +258,7 @@ struct
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
-    (* AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
+    (* AD.substitute_exp_parallel_with new_fun_apr arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
     let ask = Analyses.ask_of_ctx ctx in
     let new_fun_apr = List.fold_left (fun new_fun_apr (var, e) ->
@@ -269,7 +269,7 @@ struct
       ) new_fun_apr arg_substitutes
     in
     let arg_vars = List.map fst arg_substitutes in
-    if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
+    if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_apr arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
         match V.find_metadata var with
@@ -278,7 +278,7 @@ struct
         | _ -> false (* remove everything else (globals, global privs) *)
       )
     in
-    let unify_apr = ApronDomain.A.unify Man.mgr new_apr new_fun_apr in (* TODO: unify_with *)
+    let unify_apr = AD.unify new_apr new_fun_apr in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_apr AD.pretty new_fun_apr AD.pretty unify_apr;
     let unify_st = {fun_st with apr = unify_apr} in
     if AD.type_tracked (Cilfacade.fundec_return_type f) then (
@@ -466,13 +466,18 @@ struct
     Priv.finalize ()
 end
 
-
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
+    let open ApronDomain in
     let module Man = (val ApronDomain.get_manager ()) in
     let module AD = ApronDomain.D2 (Man) in
+    let module RD: RelationDomain.RD =
+      struct
+        module Var = ApronDomain.Var
+        module D2 = AD
+      end in
     let module Priv = (val ApronPriv.get_priv ()) in
-    let module Spec = SpecFunctor (AD) (Priv) in
+    let module Spec = SpecFunctor (Priv) (RD) in
     (module Spec)
   )
 

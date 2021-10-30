@@ -3,6 +3,7 @@ open Cil
 open Pretty
 (* A binding to a selection of Apron-Domains *)
 open Apron
+open RelationDomain
 
 module BI = IntOps.BigIntOps
 
@@ -27,7 +28,6 @@ let reset_lazy () =
 module Var =
 struct
   include Var
-
   let equal x y = Var.compare x y = 0
 end
 
@@ -257,7 +257,7 @@ struct
 
   let texpr1_of_cil_exp d env e =
     let e = Cil.constFold false e in
-    Texpr1.of_expr env (texpr1_expr_of_cil_exp d env e)
+    of_expr env (texpr1_expr_of_cil_exp d env e)
 
   let tcons1_of_cil_exp d env e negate =
     let e = Cil.constFold false e in
@@ -608,6 +608,7 @@ struct
 
   let of_lincons_array (a: Apron.Lincons1.earray) =
     A.of_lincons_array Man.mgr a.array_env a
+    let unify (a:t) (b:t) = A.unify Man.mgr a b
 end
 
 
@@ -1015,8 +1016,10 @@ type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, 
 
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
+  type var = Var.t
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
+<<<<<<< HEAD
 end
 
 module ApronComponents (D2: S2) (PrivD: Lattice.S):
@@ -1079,3 +1082,58 @@ struct
   let widen = op_scheme D2.widen PrivD.widen
   let narrow = op_scheme D2.narrow PrivD.narrow
 end
+<<<<<<< HEAD
+=======
+
+
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
+
+module VarMetadataTbl (VM: VarMetadata) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var ?name metadata =
+    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+    let var = Var.of_string name in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata var =
+    VH.find_option vh var
+end
+
+module VM =
+struct
+  type t =
+    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
+    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Return (** Var for function return value. *)
+    | Global of varinfo
+
+  let var_name = function
+    | Local -> failwith "var_name of Local"
+    | Arg -> failwith "var_name of Arg"
+    | Return -> "#ret"
+    | Global g -> g.vname
+end
+
+module V =
+struct
+  include VarMetadataTbl (VM)
+  open VM
+
+  let local x = make_var ~name:x.vname Local
+  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let return = make_var Return
+  let global g = make_var (Global g)
+end
+=======
+end
+>>>>>>> Add common interface for apron + new domain
+>>>>>>> 4da71d5e1 (Add common interface for apron + new domain)
