@@ -765,7 +765,7 @@ struct
     let y_env = A.env y in
     if Environment.equal x_env y_env then
       (* widen if env didn't increase *)
-      if GobConfig.get_bool "ana.apron.threshhold_widening" then
+      if GobConfig.get_bool "ana.apron.threshold_widening" then
         let ts = Lazy.force widening_thresholds_apron in
         let r = Oct.widening_thresholds Man.mgr (Abstract1.abstract0 x) (Abstract1.abstract0 y) ts in
         {x with abstract0 = r}

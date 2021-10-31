@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins --enable ana.apron.threshhold_widening
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins --enable ana.apron.threshold_widening
 // Fig 5a from Miné 2014
 // Fig 5a from Miné 2014
 #include <pthread.h>
