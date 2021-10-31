@@ -15,6 +15,12 @@ module M = Messages
     - C API docs PDF (alternative mathematical descriptions): https://antoinemine.github.io/Apron/doc/api/c/apron.pdf
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
+let widening_thresholds_apron = lazy (
+  (* Adding double value of all constants so that we can establish for single variables that they are <= const*)
+  let t = List.append (!Cilfacade.widening_thresholds) (List.map (fun x-> 2*x) (!Cilfacade.widening_thresholds)) in
+  let ts = List.sort_uniq compare t in
+  Array.of_list (List.map (fun x -> Printf.printf "one is: %i" x; Apron.Scalar.of_int x) ts)
+)
 
 module Var =
 struct
@@ -758,7 +764,13 @@ struct
     let x_env = A.env x in
     let y_env = A.env y in
     if Environment.equal x_env y_env then
-      A.widening Man.mgr x y (* widen if env didn't increase *)
+      (* widen if env didn't increase *)
+      if GobConfig.get_bool "ana.apron.threshhold_widening" then
+        let ts = Lazy.force widening_thresholds_apron in
+        let r = Oct.widening_thresholds Man.mgr (Abstract1.abstract0 x) (Abstract1.abstract0 y) ts in
+        {x with abstract0 = r}
+      else
+        A.widening Man.mgr x y
     else
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 

@@ -81,13 +81,15 @@ end
 class extractConstantsVisitor(list) = object
   inherit nopCilVisitor
 
-
-  method! vexpr e = 
+  method! vexpr e =
     match e with
     | Const (CInt64(i,ik,_)) ->
-      let r = Cilint.cilint_of_int64 i in 
-      list := r::!list;
-      SkipChildren
+      (if (Int64.compare i (Int64.of_int min_int) >= 0) && (Int64.compare i (Int64.of_int max_int)) <= 0 then
+         let r = Int64.to_int i in
+         if not (List.mem r !list) then
+           list := r::!list;
+      );
+      DoChildren
     | _ -> DoChildren
 end
 
@@ -120,6 +122,7 @@ let createCFG (fileAST: file) =
   (* Since we want the output of justcil to compile, we do not run allBB visitor if justcil is enable, regardless of  *)
   (* exp.basic-blocks. This does not matter, as we will not run any analysis anyway, when justcil is enabled.         *)
   if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
+  if get_bool "ana.apron.threshhold_widening" then compute_widening_threshholds fileAST;
 
   (* We used to renumber vids but CIL already generates them fresh, so no need.
    * Renumbering is problematic for using [Cabs2cil.environment], e.g. in witness invariant generation to use original variable names.
