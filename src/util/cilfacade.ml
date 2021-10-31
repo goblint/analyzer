@@ -43,6 +43,7 @@ let init () =
 let current_statement = ref dummyStmt
 let current_file = ref dummyFile
 let showtemps = ref false
+let widening_thresholds = ref []
 
 let parse fileName =
   Frontc.parse fileName ()
@@ -77,8 +78,25 @@ class allBBVisitor = object (* puts every instruction into its own basic block *
   method! vtype _ = SkipChildren
 end
 
+class extractConstantsVisitor(list) = object
+  inherit nopCilVisitor
+
+
+  method! vexpr e = 
+    match e with
+    | Const (CInt64(i,ik,_)) ->
+      let r = Cilint.cilint_of_int64 i in 
+      list := r::!list;
+      SkipChildren
+    | _ -> DoChildren
+end
+
 let end_basic_blocks f =
   let thisVisitor = new allBBVisitor in
+  visitCilFileSameGlobals thisVisitor f
+
+let compute_widening_threshholds f =
+  let thisVisitor = new extractConstantsVisitor(widening_thresholds) in
   visitCilFileSameGlobals thisVisitor f
 
 let visitors = ref []
