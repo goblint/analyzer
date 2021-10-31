@@ -19,7 +19,7 @@ let widening_thresholds_apron = lazy (
   (* Adding double value of all constants so that we can establish for single variables that they are <= const*)
   let t = List.append (!Cilfacade.widening_thresholds) (List.map (fun x-> 2*x) (!Cilfacade.widening_thresholds)) in
   let ts = List.sort_uniq compare t in
-  Array.of_list (List.map (fun x -> Printf.printf "one is: %i" x; Apron.Scalar.of_int x) ts)
+  Array.of_list (List.map (Apron.Scalar.of_int) ts)
 )
 
 module Var =
