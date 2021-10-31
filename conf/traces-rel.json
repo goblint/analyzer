@@ -43,5 +43,8 @@
         "ldv_calloc"
       ]
     }
+  },
+  "dbg" : {
+    "print_tids" : true
   }
 }

@@ -28,7 +28,7 @@ struct
   module C = D
   module G = Lattice.Unit
 
-  let tids = Hashtbl.create 20
+  let tids = ref (Hashtbl.create 20)
 
   let name () = "threadid"
 
@@ -37,15 +37,17 @@ struct
 
   let morphstate v _ =
     let tid = Thread.threadinit v ~multiple:false in
-    Hashtbl.replace tids tid ();
+    if GobConfig.get_bool "dbg.print_tids" then
+      Hashtbl.replace !tids tid ();
     (`Lifted (tid), TD.bot ())
 
   let create_tid (current, td) (node: Node.t) v =
     match current with
     | `Lifted current ->
       let tid = Thread.threadenter (current, td) node v in
-      Hashtbl.replace tids tid ();
-      `Lifted (Thread.threadenter (current, td) node v)
+      if GobConfig.get_bool "dbg.print_tids" then
+        Hashtbl.replace !tids tid ();
+      `Lifted (tid)
     | _ ->
       `Lifted (Thread.threadinit v ~multiple:true)
 
@@ -109,12 +111,15 @@ struct
     let (current, td) = ctx.local in
     (current, Thread.threadspawn td ctx.node f)
 
-  type marshal = Thread.marshal
-  let init m =
-    Thread.init m
+  type marshal = Thread.marshal * ((Thread.t,unit) Hashtbl.t)
+  let init (m:marshal option): unit =
+    match m with
+    | Some (x,y) -> Thread.init (Some x); tids := y
+    | None ->  Thread.init None
 
-  let finalize () =
-    let tids = Hashtbl.to_list tids in
+
+  let print_tid_info () =
+    let tids = Hashtbl.to_list !tids in
     let uniques = List.filter_map (fun (a,b) -> if Thread.is_unique a then Some a else None) tids in
     let non_uniques = List.filter_map (fun (a,b) -> if not (Thread.is_unique a) then Some a else None) tids in
     let uc = List.length uniques in
@@ -124,8 +129,11 @@ struct
     List.iter (fun tid -> Printf.printf " %s " (Thread.show tid)) uniques;
     Printf.printf "\nnon-unique: ";
     List.iter (fun tid -> Printf.printf " %s " (Thread.show tid)) non_uniques;
-    Printf.printf "\n";
-    Thread.finalize ()
+    Printf.printf "\n"
+
+  let finalize () =
+    if GobConfig.get_bool "dbg.print_tids" then print_tid_info ();
+    Thread.finalize (),!tids
 end
 
 let _ =

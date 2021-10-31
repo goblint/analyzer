@@ -247,6 +247,7 @@ let _ = ()
       ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
       ; reg Debugging "dbg.compare_runs.glob" "true" "Compare GlobConstrSys in compare_runs"
       ; reg Debugging "dbg.compare_runs.eq" "true" "Compare EqConstrSys in compare_runs"
+      ; reg Debugging "dbg.print_tids"      "false" "Should the analysis print information on the encountered TIDs"
 
 (* {4 category [Warnings]} *)
 let _ = ()
