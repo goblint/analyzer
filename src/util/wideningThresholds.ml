@@ -20,11 +20,11 @@ class extractConstantsVisitor(widening_thresholds) = object
     | _ -> DoChildren
 end
 
-let thresholds () =
+let widening_thresholds = lazy (
   let set = ref Thresholds.empty in
-  let widening_thresholds = lazy (
-    let thisVisitor = new extractConstantsVisitor(set) in
-    visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-    Thresholds.elements !set)
-  in
+  let thisVisitor = new extractConstantsVisitor(set) in
+  visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
+  Thresholds.elements !set)
+
+let thresholds () =
   Lazy.force widening_thresholds
