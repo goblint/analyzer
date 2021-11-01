@@ -43,7 +43,6 @@ let init () =
 let current_statement = ref dummyStmt
 let current_file = ref dummyFile
 let showtemps = ref false
-let widening_thresholds = ref []
 
 let parse fileName =
   Frontc.parse fileName ()
@@ -78,28 +77,10 @@ class allBBVisitor = object (* puts every instruction into its own basic block *
   method! vtype _ = SkipChildren
 end
 
-class extractConstantsVisitor(list) = object
-  inherit nopCilVisitor
-
-  method! vexpr e =
-    match e with
-    | Const (CInt64(i,ik,_)) ->
-      (if (Int64.compare i (Int64.of_int min_int) >= 0) && (Int64.compare i (Int64.of_int max_int)) <= 0 then
-         let r = Int64.to_int i in
-         if not (List.mem r !list) then
-           list := r::!list;
-      );
-      DoChildren
-    | _ -> DoChildren
-end
-
 let end_basic_blocks f =
   let thisVisitor = new allBBVisitor in
   visitCilFileSameGlobals thisVisitor f
 
-let compute_widening_thresholds f =
-  let thisVisitor = new extractConstantsVisitor(widening_thresholds) in
-  visitCilFileSameGlobals thisVisitor f
 
 let visitors = ref []
 let register_preprocess name visitor_fun =
@@ -122,7 +103,6 @@ let createCFG (fileAST: file) =
   (* Since we want the output of justcil to compile, we do not run allBB visitor if justcil is enable, regardless of  *)
   (* exp.basic-blocks. This does not matter, as we will not run any analysis anyway, when justcil is enabled.         *)
   if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
-  if get_bool "ana.apron.threshold_widening" then compute_widening_thresholds fileAST;
 
   (* We used to renumber vids but CIL already generates them fresh, so no need.
    * Renumbering is problematic for using [Cabs2cil.environment], e.g. in witness invariant generation to use original variable names.

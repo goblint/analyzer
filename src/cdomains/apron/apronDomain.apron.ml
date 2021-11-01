@@ -16,10 +16,9 @@ module M = Messages
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
 let widening_thresholds_apron = lazy (
-  (* Adding double value of all constants so that we can establish for single variables that they are <= const*)
-  let t = List.append (!Cilfacade.widening_thresholds) (List.map (fun x-> 2*x) (!Cilfacade.widening_thresholds)) in
-  let ts = List.sort_uniq compare t in
-  Array.of_list (List.map (Apron.Scalar.of_int) ts)
+  let t = WideningThresholds.thresholds () in
+  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_string @@ Z.to_string x) t in
+  Array.of_list r
 )
 
 module Var =
