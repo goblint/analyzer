@@ -27,7 +27,8 @@ _The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very
 2. Continue using Linux instructions in WSL.
 
 ### Other
-* **Docker.** Clone and run `make docker`.
+* **[Docker (GitHub Container Registry)](https://github.com/goblint/analyzer/pkgs/container/analyzer)**. Run `docker pull ghcr.io/goblint/analyzer:latest`.
+* **Docker (repository).** Clone and run `docker build -t goblint .`.
 * **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
 * **[Docker Hub](https://hub.docker.com/r/voglerr/goblint)** (outdated). Run `docker run -it voglerr/goblint bash`.
 * **[opam](https://opam.ocaml.org/packages/goblint/)** (very outdated). Run `opam install goblint`.
@@ -42,5 +43,10 @@ To confirm that installation into the opam switch worked, you can try running Go
 ```
 goblint tests/regression/04-mutex/01-simple_rc.c
 ```
+To confirm that the Docker container worked, you can try running Goblint as follows:
+```
+docker run -it --rm -v $(pwd):/data goblint /data/tests/regression/04-mutex/01-simple_rc.c
+```
+If pulled from GitHub Container Registry, use the container name `ghcr.io/goblint/analyzer:latest` instead.
 
 For further information, see [documentation](https://goblint.readthedocs.io/en/latest/user-guide/running/).
