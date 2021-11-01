@@ -772,7 +772,7 @@ struct
     let oct = st.oct in
     (* lock *)
     let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
-    let local_m = LAD.bot () in (* apparently must ignore local here to pass 36-apron/90-mine14-5b *)
+    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let tmp = Cluster.lock local_m tmp in
     let oct = AD.meet oct tmp in
@@ -889,7 +889,7 @@ struct
     let vi = mutex_inits () in
     sideg vi sidev;
     (* Introduction into local state not needed, will be read via initializer *)
-    (* Also no side-effetc to mutex globals needed, the value here will either by read via the initializer, *)
+    (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
     let oct_local = AD.remove_vars oct g_vars in
     {st with oct = oct_local}
