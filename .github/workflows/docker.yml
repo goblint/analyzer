@@ -8,6 +8,9 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+concurrency:
+  group: docker # prevent multiple simultaneous jobs publishing (e.g. out of order)
+
 jobs:
   build-push:
     runs-on: ubuntu-latest
