@@ -124,6 +124,9 @@ rule() {
       fi
       cd g2html && ant jar && cd .. &&
       cp g2html/g2html.jar .
+    ;; setup_gobview )
+      [[ -f gobview/gobview.opam ]] || git submodule update --init gobview
+      opam install --deps-only gobview/gobview.opam
     # ;; watch)
     #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
 
