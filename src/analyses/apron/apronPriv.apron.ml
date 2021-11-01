@@ -530,9 +530,12 @@ end
 module Clustering2: ClusteringArg =
 struct
   let generate gs =
-    List.cartesian_product gs gs
-    |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 < 0) (* filter flipped ordering, forbid equals for just clusters of size 2 *)
-    |> List.map (fun (g1, g2) -> [g1; g2])
+    match gs with
+    | [_] -> [gs] (* use clusters of size 1 if only 1 variable *)
+    | _ ->
+      List.cartesian_product gs gs
+      |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 < 0) (* filter flipped ordering, forbid equals for just clusters of size 2 *)
+      |> List.map (fun (g1, g2) -> [g1; g2])
 end
 
 (** All subset clusters. *)
