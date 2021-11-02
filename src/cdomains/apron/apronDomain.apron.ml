@@ -815,17 +815,6 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module D2 (Man: Manager) =
-struct
-  include DWithOps (Man) (DHetero (Man))
-  module Man = Man
-  (* Copy-paste from BaseDomain... *)
-  type 'a aproncomponents_t = {
-    apr: t;
-    priv: 'a;
-  } [@@deriving eq, ord, to_yojson]
-end
-
 module type S2 =
 sig
   module Man: Manager
@@ -899,6 +888,17 @@ sig
     'a aproncomponents_t -> 'a aproncomponents_t -> int
   val aproncomponents_t_to_yojson :
     ('a -> Printable.json) -> 'a aproncomponents_t -> Printable.json
+end
+
+module D2 (Man: Manager) : S2 =
+struct
+  include DWithOps (Man) (DHetero (Man))
+  module Man = Man
+  (* Copy-paste from BaseDomain... *)
+  type 'a aproncomponents_t = {
+    apr: t;
+    priv: 'a;
+  } [@@deriving eq, ord, to_yojson]
 end
 
 module ApronComponents (D2: S2) (PrivD: Lattice.S):
