@@ -145,6 +145,7 @@ let _ = ()
       ; reg Analyses "ana.base.context.interval" "true" "Integer values of the Interval domain in function contexts."
       ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
+      ; reg Analyses "ana.apron.threshold_widening" "false" "Use constants appearing in program as threshold for widening"
 
 (* {4 category [Incremental]} *)
 let _ = ()
