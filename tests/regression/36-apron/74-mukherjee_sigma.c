@@ -1,10 +1,7 @@
-extern void __VERIFIER_error() __attribute__ ((__noreturn__));
-
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
-
-void __VERIFIER_assert(int expression) { if (!expression) { ERROR: __VERIFIER_error();}; return; }
+#include "assert.h"
 
 const int SIGMA = 4;
 
@@ -15,7 +12,7 @@ pthread_mutex_t mut_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void *thread1(void * arg)
 {
-    __VERIFIER_assert(array_index <= 4);
+    assert(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
         case 0: 
@@ -37,7 +34,7 @@ void *thread1(void * arg)
 
 void *thread2(void * arg)
 {
-    __VERIFIER_assert(array_index <= 4);
+    assert(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
         case 0: 
@@ -59,7 +56,7 @@ void *thread2(void * arg)
 
 void *thread3(void * arg)
 {
-    __VERIFIER_assert(array_index <= 4);
+    assert(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
         case 0: 
@@ -81,7 +78,7 @@ void *thread3(void * arg)
 
 void *thread4(void * arg)
 {
-    __VERIFIER_assert(array_index <= 4);
+    assert(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
         case 0: 
@@ -138,7 +135,7 @@ int main()
 
 	sum = array_0 + array_1 + array_2 + array_3;
 
-	__VERIFIER_assert(sum == SIGMA);  // <-- wrong, different threads might use the same array offset when writing
+	assert(sum == SIGMA);  // <-- wrong, different threads might use the same array offset when writing
 
 	return 0;
 }
