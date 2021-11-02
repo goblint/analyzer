@@ -57,27 +57,23 @@ struct
   include Lattice.Liszt (E)
   module B = E
 
-  let rec map2 ?(widening=false) keep f x y =
+  let rec map2 keep f x y =
     let concat elt ls = if keep then elt::ls else ls in
     match x, y with
     | [], [] -> []
     | hd::tl, [] | [], hd::tl ->
-      concat hd (map2 ~widening keep f [] tl)
+      concat hd (map2 keep f [] tl)
     | ((xhsign,xhvar,_ ) as xh) :: xs, ((yhsign,yhvar,_ ) as yh) :: ys when (B.compare_sign_and_var (xhsign,xhvar) (yhsign,yhvar)) = 0 ->
-      if not widening || B.leq xh yh then ( (* must be leq to apply widen *)
-        let res = f xh yh in
-        if B.is_top res then
-          (map2 ~widening keep f xs ys)
-        else
-          res :: (map2 ~widening keep f xs ys)
-      )
+      let res = f xh yh in
+      if B.is_top res then
+        (map2 keep f xs ys)
       else
-        (map2 ~widening keep f xs ys) (* TODO: is the non-leq case correct? *)
+        res :: (map2 keep f xs ys)
     | ((xhsign,xhvar,_ ) as xh) :: xs, ((yhsign,yhvar,_ ) as yh) :: ys ->
       if (B.compare_sign_and_var (xhsign,xhvar) (yhsign,yhvar)) < 0 then
-        concat xh (map2 ~widening keep f xs y)
+        concat xh (map2 keep f xs y)
       else
-        concat yh (map2 ~widening keep f x ys)
+        concat yh (map2 keep f x ys)
 
   (* on meets we want to preserve the value of one octagon if *)
   (* the other octagon does not have a value at that position *)
@@ -85,7 +81,7 @@ struct
   let meet a b = map2 true B.meet a b
   let join a b = map2 false B.join a b
   let narrow a b = map2 true B.narrow a b
-  let widen a b = map2 ~widening:true false B.widen a b
+  let widen a b = map2 false B.widen a b
 
   let rec filter f x =
     match x with
