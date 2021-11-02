@@ -527,7 +527,7 @@ struct
 end
 
 (** All clusters of size 2. *)
-(** Caution: It is questionable if this works 100%, see comment https://github.com/goblint/analyzer/pull/417/files#diff-58830344d2e5f5b8023333061fe1170c8a94a5e1ba32b98ccf6739eaf20d9123 *)
+(* Caution: It is questionable if this works 100%, see comment https://github.com/goblint/analyzer/pull/417/files#diff-58830344d2e5f5b8023333061fe1170c8a94a5e1ba32b98ccf6739eaf20d9123 *)
 module Clustering2: ClusteringArg =
 struct
   let generate gs =
