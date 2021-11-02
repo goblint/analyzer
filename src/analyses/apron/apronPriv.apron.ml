@@ -49,7 +49,7 @@ struct
   let startstate () = ()
   let should_join _ _ = true
 
-  let read_global ask getg st g x = st.AD.apr
+  let read_global ask getg st g x = st.ApronDomain.apr
   let write_global ?(invariant=false) ask getg sideg st g x = st
 
   let lock ask getg st m = st
