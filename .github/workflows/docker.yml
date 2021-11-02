@@ -1,8 +1,13 @@
 name: docker
 
 on:
-  push: # TODO: remove
-  # TODO: add from unlocked
+  # not on push or pull_request
+  workflow_dispatch:
+
+  schedule:
+    # nightly
+    - cron: '31 1 * * *' # 01:31 UTC, 02:31/03:31 Munich, 03:31/04:31 Tartu
+    # GitHub Actions load is high at minute 0, so avoid that
 
 env:
   REGISTRY: ghcr.io
