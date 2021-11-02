@@ -24,8 +24,8 @@ RUN make relocatable
 # final stage: minimal run environment for small docker image
 FROM ubuntu:21.04
 
-# TODO: use opam depext
-# cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
+# cannot use opam depext because no opam here, also additional preprocessing/header dependencies
+# libgmp for zarith, libmpfr for apron, cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
 RUN apt-get update \
     && apt-get install -y libgmp-dev libmpfr-dev cpp libc6-dev libgcc-10-dev \
     && rm -rf /var/lib/apt/lists/*
