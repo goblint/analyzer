@@ -18,7 +18,7 @@
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
     (select apronDomain.ml from
-      (apron apron.octMPQ -> apronDomain.apron.ml)
+      (apron apron.octMPQ apron.boxMPQ apron.polkaMPQ -> apronDomain.apron.ml)
       (-> apronDomain.no-apron.ml)
     )
     (select apronAnalysis.ml from

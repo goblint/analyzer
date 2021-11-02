@@ -144,6 +144,7 @@ let _ = ()
       ; reg Analyses "ana.base.context.int"    "true" "Integer values in function contexts."
       ; reg Analyses "ana.base.context.interval" "true" "Integer values of the Interval domain in function contexts."
       ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
+      ; reg Analyses "ana.apron.domain" "'octagon'" "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'"
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
 
 (* {4 category [Incremental]} *)
@@ -177,7 +178,7 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
+      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which Apron privatization to use? dummy/protection/protection-path/mutex-meet"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."

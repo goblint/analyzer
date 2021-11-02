@@ -152,6 +152,8 @@ rule() {
       mkdir -p $PREFIX/share/apron/lib/
       cp _opam/share/apron/lib/libapron.so $PREFIX/share/apron/lib/
       cp _opam/share/apron/lib/liboctMPQ.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libboxMPQ.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libpolkaMPQ.so $PREFIX/share/apron/lib/
 
     # tests, CI
     ;; test)
