@@ -18,18 +18,7 @@ RUN make
 FROM dev AS relocatable
 
 RUN sudo apt-get install -y chrpath
-# TODO: move into make
-# must replace absolute apron runpath to C library with relative
-RUN eval $(opam env) \
-    && dune build @install \
-    && dune install --relocatable --prefix prefix \
-    && chrpath -r '$ORIGIN/../share/apron/lib' prefix/bin/goblint
-# remove goblint.lib ocaml library
-RUN rm -r prefix/lib
-# copy just necessary apron C libraries
-RUN mkdir -p prefix/share/apron/lib/ \
-    && cp _opam/share/apron/lib/libapron.so prefix/share/apron/lib/ \
-    && cp _opam/share/apron/lib/liboctMPQ.so prefix/share/apron/lib/
+RUN make relocatable
 
 
 # final stage: minimal run environment for small docker image
