@@ -733,11 +733,21 @@ struct
     let oct = st.oct in
     let m = Locksets.Lock.from_var (mutex_global g) in
     (* lock *)
-    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
+    let get_m = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
     let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let tmp = Cluster.lock local_m tmp in
-    let oct = AD.meet oct tmp in
+    let r = Cluster.lock local_m get_m in
+    let oct_r = AD.meet oct r in
+    let oct =
+      (* If protecting lockset decreased, then smaller clusters might not yet have received all side effects.
+         This can cause meet to be bottom, which crashes Apron operations.
+         In that case pretend to continue unchanged.
+         Changed lockset will eventually retrigger side effects to new clusters. *)
+      if AD.is_bot_env oct_r then
+        oct (* TODO: Is this right? Might be less precise than if previous meet. *)
+      else
+        oct_r
+    in
     (* read *)
     let g_var = V.global g in
     let x_var = Var.of_string x.vname in
@@ -758,11 +768,21 @@ struct
     let m = Locksets.Lock.from_var mg in
     let oct = st.oct in
     (* lock *)
-    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
+    let get_m = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
     let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let tmp = Cluster.lock local_m tmp in
-    let oct = AD.meet oct tmp in
+    let r = Cluster.lock local_m get_m in
+    let oct_r = AD.meet oct r in
+    let oct =
+      (* If protecting lockset decreased, then smaller clusters might not yet have received all side effects.
+         This can cause meet to be bottom, which crashes Apron operations.
+         In that case pretend to continue unchanged.
+         Changed lockset will eventually retrigger side effects to new clusters. *)
+      if AD.is_bot_env oct_r then
+        oct (* TODO: Is this right? Might be less precise than if previous meet. *)
+      else
+        oct_r
+    in
     (* write *)
     let g_var = V.global g in
     let x_var = Var.of_string x.vname in
@@ -791,11 +811,18 @@ struct
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let local_m = Cluster.keep_only_protected_globals ask m local_m in
     let r = Cluster.lock local_m get_m in
-    if not (AD.is_bot r) then
-      let oct' = AD.meet oct r in
-      {st with oct = oct'}
-    else
-      st
+    let oct_r = AD.meet oct r in
+    let oct =
+      (* If protecting lockset decreased, then smaller clusters might not yet have received all side effects.
+         This can cause meet to be bottom, which crashes Apron operations.
+         In that case pretend to continue unchanged.
+         Changed lockset will eventually retrigger side effects to new clusters. *)
+      if AD.is_bot_env oct_r then
+        oct (* TODO: Is this right? Might be less precise than if previous meet. *)
+      else
+        oct_r
+    in
+    {st with oct}
 
   let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
     let oct = st.oct in
