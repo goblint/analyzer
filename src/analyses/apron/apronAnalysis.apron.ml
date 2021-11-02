@@ -6,17 +6,17 @@ open ApronDomain
 
 module M = Messages
 
-module SpecFunctor (Priv: ApronPriv.S) : Analyses.MCPSpec =
+module SpecFunctor (AD: ApronDomain.S2) (Priv: ApronPriv.S) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "apron"
 
-  module D = ApronComponents (Priv.AD) (Priv.D)
+  module Priv = Priv(AD)
+  module D = ApronComponents (AD) (Priv.D)
   module G = Priv.G
   module C = D
 
-  module AD = Priv.AD
   open AD
 
   let should_join = Priv.should_join
@@ -390,8 +390,10 @@ end
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
+    let module Man = (val ApronDomain.get_manager ()) in
+    let module AD = ApronDomain.D2 (Man) in
     let module Priv = (val ApronPriv.get_priv ()) in
-    let module Spec = SpecFunctor (Priv) in
+    let module Spec = SpecFunctor (AD) (Priv) in
     (module Spec)
   )
 

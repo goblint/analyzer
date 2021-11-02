@@ -12,35 +12,35 @@ open CommonPriv
 
 
 module type S =
-sig
-  module AD: ApronDomain.S2
-  module D: Lattice.S
-  module G: Lattice.S
+  functor (AD: ApronDomain.S2) ->
+  sig
+    module D: Lattice.S
+    module G: Lattice.S
 
-  type apron_components_t := ApronDomain.ApronComponents (AD) (D).t
-  val startstate: unit -> D.t
-  val should_join: apron_components_t -> apron_components_t -> bool
+    type apron_components_t := ApronDomain.ApronComponents (AD) (D).t
+    val startstate: unit -> D.t
+    val should_join: apron_components_t -> apron_components_t -> bool
 
-  val read_global: Q.ask -> (varinfo -> G.t) -> apron_components_t -> varinfo -> varinfo -> AD.t
+    val read_global: Q.ask -> (varinfo -> G.t) -> apron_components_t -> varinfo -> varinfo -> AD.t
 
-  (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
-   * the state when following conditional guards. *)
-  val write_global: ?invariant:bool -> Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> varinfo -> varinfo -> apron_components_t
+    (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
+     * the state when following conditional guards. *)
+    val write_global: ?invariant:bool -> Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> varinfo -> varinfo -> apron_components_t
 
-  val lock: Q.ask -> (varinfo -> G.t) -> apron_components_t -> LockDomain.Addr.t -> apron_components_t
-  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> LockDomain.Addr.t -> apron_components_t
+    val lock: Q.ask -> (varinfo -> G.t) -> apron_components_t -> LockDomain.Addr.t -> apron_components_t
+    val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> LockDomain.Addr.t -> apron_components_t
 
-  val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> [`Normal | `Join | `Return | `Init | `Thread] -> apron_components_t
+    val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> [`Normal | `Join | `Return | `Init | `Thread] -> apron_components_t
 
-  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> apron_components_t
-  val threadenter: Q.ask -> (varinfo -> G.t) -> apron_components_t -> apron_components_t
+    val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> apron_components_t
+    val threadenter: Q.ask -> (varinfo -> G.t) -> apron_components_t -> apron_components_t
 
-  val init: unit -> unit
-  val finalize: unit -> unit
-end
+    val init: unit -> unit
+    val finalize: unit -> unit
+  end
 
 
-module Dummy (AD: ApronDomain.S2): S =
+module Dummy: S = functor (AD: ApronDomain.S2) ->
 struct
   module AD = AD
   module D = Lattice.Unit
@@ -71,7 +71,7 @@ sig
 end
 
 (** Protection-Based Reading. *)
-module ProtectionBasedPriv (AD: ApronDomain.S2) (Param: ProtectionBasedPrivParam): S =
+module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S = functor (AD: ApronDomain.S2) ->
 struct
   include ConfCheck.RequireMutexActivatedInit
   open Protection
@@ -304,7 +304,7 @@ struct
 end
 
 (** Per-mutex meet. *)
-module PerMutexMeetPriv (AD: ApronDomain.S2): S =
+module PerMutexMeetPriv : S = functor (AD: ApronDomain.S2) ->
 struct
   open Protection
   open ExplicitMutexGlobals
@@ -468,7 +468,7 @@ end
 
 (** Write-Centered Reading. *)
 (* TODO: uncompleted, only W, P components from basePriv *)
-module WriteCenteredPriv (AD: ApronDomain.S2): S =
+module WriteCenteredPriv: S = functor (AD: ApronDomain.S2) ->
 struct
   open Locksets
   open WriteCenteredD
@@ -569,11 +569,11 @@ struct
 end
 
 
-module TracingPriv (Priv: S): S with module D = Priv.D =
+module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
 struct
+  module Priv = Priv (AD)
   include Priv
 
-  module AD = Priv.AD
   module D = Priv.D
   module ApronComponents = ApronDomain.ApronComponents (AD) (D)
 
@@ -681,14 +681,12 @@ end
 
 let priv_module: (module S) Lazy.t =
   lazy (
-    let module Man = (val ApronDomain.get_manager ()) in
-    let module AD: ApronDomain.S2 = ApronDomain.D2 (Man) in
     let module Priv: S =
       (val match get_string "exp.apron.privatization" with
-         | "dummy" -> (module Dummy (AD): S)
-         | "protection" -> (module ProtectionBasedPriv (AD) (struct let path_sensitive = false end))
-         | "protection-path" -> (module ProtectionBasedPriv (AD) (struct let path_sensitive = true end))
-         | "mutex-meet" -> (module PerMutexMeetPriv (AD))
+         | "dummy" -> (module Dummy : S)
+         | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
+         | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
+         | "mutex-meet" -> (module PerMutexMeetPriv )
          (* | "write" -> (module WriteCenteredPriv) *)
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
