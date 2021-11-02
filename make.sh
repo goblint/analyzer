@@ -138,6 +138,22 @@ rule() {
     ;; uninstall)
       eval $(opam config env)
       dune uninstall
+    ;; relocatable)
+      PREFIX=relocatable
+      # requires chrpath
+      eval $(opam env)
+      dune build @install
+      dune install --relocatable --prefix $PREFIX
+      # must replace absolute apron runpath to C library with relative
+      chrpath -r '$ORIGIN/../share/apron/lib' $PREFIX/bin/goblint
+      # remove goblint.lib ocaml library
+      rm -r $PREFIX/lib
+      # copy just necessary apron C libraries
+      mkdir -p $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libapron.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/liboctMPQ.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libboxMPQ.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libpolkaMPQ.so $PREFIX/share/apron/lib/
 
     # tests, CI
     ;; test)
@@ -153,9 +169,6 @@ rule() {
       echo "copy cwd w/o git-ignored files: changes in container won't affect host's cwd."
       # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
       docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
-    ;; docker) # build and run a docker image
-      docker build --pull -t goblint . | ts -i
-      docker run -it goblint bash
     ;; server)
       rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
       ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'
