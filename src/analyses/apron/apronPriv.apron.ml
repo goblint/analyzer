@@ -488,7 +488,7 @@ sig
   val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LAD.t -> LAD.t
   val keep_global: varinfo -> LAD.t -> LAD.t
 
-  val lock: LAD.t -> LAD.t -> AD.t
+  val lock: AD.t -> LAD.t -> LAD.t -> AD.t
   val unlock: W.t -> AD.t -> LAD.t
 end
 
@@ -505,8 +505,8 @@ struct
     let g_var = V.global g in
     AD.keep_vars oct [g_var]
 
-  let lock local_m get_m =
-    AD.join local_m get_m
+  let lock oct local_m get_m =
+    AD.meet oct (AD.join local_m get_m)
 
   let unlock w oct_side =
     oct_side
@@ -573,19 +573,33 @@ struct
     include Printable.Std
     include SetDomain.Make (CilType.Varinfo)
   end
-  module LAD = MapDomain.MapBot (VS) (AD)
+  module LAD1 = MapDomain.MapBot (VS) (AD)
+  module LAD = Lattice.Prod (LAD1) (LAD1) (* second component is only used between keep_* and lock for additional weak mapping *)
 
   let filter_map' f m =
-    LAD.fold (fun k v acc ->
+    LAD1.fold (fun k v acc ->
         match f k v with
         | Some (k', v') ->
-          LAD.add k' (AD.join (LAD.find k' acc) v') acc
+          LAD1.add k' (AD.join (LAD1.find k' acc) v') acc
         | None ->
           acc
-      ) m (LAD.empty ())
+      ) m (LAD1.empty ())
 
-  let keep_only_protected_globals ask m octs =
-    filter_map' (fun gs oct ->
+  let keep_only_protected_globals ask m (octs, _) =
+    let lad =
+      (* normal (strong) mapping: contains only still fully protected *)
+      let octs =
+        (* must filter by protection to avoid later meeting with non-protecting *)
+        LAD1.filter (fun gs _ ->
+            VS.for_all (is_protected_by ask m) gs (* TODO: is this subset check right? *)
+          ) octs
+      in
+      LAD1.map (keep_only_protected_globals ask m) octs (* TODO: is this even necessary if keys are filtered above? *)
+      (* octs *)
+    in
+    let lad_weak =
+      (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
+      filter_map' (fun gs oct ->
         (* must filter by protection to avoid later meeting with non-protecting *)
         let gs' = VS.filter (is_protected_by ask m) gs in
         if VS.is_empty gs' then
@@ -594,23 +608,53 @@ struct
           (* must restrict cluster down to protected (join) *)
           Some (gs', keep_only_protected_globals ask m oct)
       ) octs
+    in
+    (lad, lad_weak)
 
-  let keep_global g octs =
-    filter_map' (fun gs oct ->
+  let keep_global g (octs, _) =
+    let g_var = V.global g in
+    let lad =
+      (* normal (strong) mapping: contains only still fully protected *)
+      let g' = VS.singleton g in
+      let oct = LAD1.find g' octs in
+      LAD1.singleton g' (AD.keep_vars oct [g_var])
+    in
+    let lad_weak =
+      (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
+      filter_map' (fun gs oct ->
         (* must filter by protection to avoid later meeting with non-protecting *)
-        if VS.mem g gs then (
-          let g_var = V.global g in
+        if VS.mem g gs then
           (* must restrict cluster down to m_g (join) *)
           Some (VS.singleton g, AD.keep_vars oct [g_var])
-        )
         else
           None
       ) octs
+    in
+    (lad, lad_weak)
 
-  let lock local_m get_m =
-    let joined = LAD.join local_m get_m in
-    if M.tracing then M.traceli "apronpriv" "cluster12 lock:\n  local=%a\n  get=%a\n  joined=%a\n" LAD.pretty local_m LAD.pretty get_m LAD.pretty joined;
-    let r = LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
+  let lock oct (local_m, _) (get_m, get_m') =
+    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD1.pretty local_m;
+    let lock_get_m get_m =
+      let joined = LAD1.join local_m get_m in
+      if M.tracing then M.traceli "apronpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LAD1.pretty get_m LAD1.pretty joined;
+      let r = LAD1.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
+      if M.tracing then M.trace "apronpriv" "meet=%a\n" AD.pretty r;
+      let r = AD.meet oct r in
+      if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+      r
+    in
+    let r =
+      let locked = lock_get_m get_m in
+      if AD.is_bot_env locked then (
+        let locked' = lock_get_m get_m' in
+        if AD.is_bot_env locked' then
+          raise Deadcode
+        else
+          locked'
+      )
+      else
+        locked
+    in
     if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
     r
 
@@ -629,7 +673,7 @@ struct
     let oct_side_cluster gs =
       AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
     in
-    LAD.add_list_fun clusters oct_side_cluster (LAD.empty ())
+    (LAD1.add_list_fun clusters oct_side_cluster (LAD1.empty ()), LAD1.bot ())
 end
 
 (** Per-mutex meet with TIDs. *)
@@ -752,8 +796,7 @@ struct
     let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
     let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let tmp = Cluster.lock local_m tmp in
-    let oct = AD.meet oct tmp in
+    let oct = Cluster.lock oct local_m tmp in
     (* read *)
     let g_var = V.global g in
     let x_var = Var.of_string x.vname in
@@ -777,8 +820,7 @@ struct
     let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
     let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let tmp = Cluster.lock local_m tmp in
-    let oct = AD.meet oct tmp in
+    let oct = Cluster.lock oct local_m tmp in
     (* write *)
     let g_var = V.global g in
     let x_var = Var.of_string x.vname in
@@ -806,12 +848,8 @@ struct
     let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let local_m = Cluster.keep_only_protected_globals ask m local_m in
-    let r = Cluster.lock local_m get_m in
-    if not (AD.is_bot r) then
-      let oct' = AD.meet oct r in
-      {st with oct = oct'}
-    else
-      st
+    let oct = Cluster.lock oct local_m get_m in
+    {st with oct}
 
   let unlock ask getg sideg (st: ApronComponents (D).t) m: ApronComponents (D).t =
     let oct = st.oct in
