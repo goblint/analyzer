@@ -156,6 +156,7 @@ let _ = ()
       ; reg Incremental "incremental.wpoint"      "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
       ; reg Incremental "incremental.reluctant.on" "true" "Destabilize nodes in changed functions reluctantly"
       ; reg Incremental "incremental.reluctant.compare" "'leq'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
+      ; reg Incremental "incremental.compare" "'ast'" "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)"
 
 (* {4 category [Semantics]} *)
 let _ = ()
