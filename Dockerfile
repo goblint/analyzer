@@ -29,5 +29,5 @@ FROM ubuntu:21.04
 RUN apt-get update \
     && apt-get install -y libgmp-dev libmpfr-dev cpp libc6-dev libgcc-10-dev \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=relocatable /home/opam/analyzer/prefix /opt/goblint/analyzer
+COPY --from=relocatable /home/opam/analyzer/relocatable /opt/goblint/analyzer
 ENTRYPOINT ["/opt/goblint/analyzer/bin/goblint"]

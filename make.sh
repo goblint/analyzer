@@ -139,18 +139,19 @@ rule() {
       eval $(opam config env)
       dune uninstall
     ;; relocatable)
+      PREFIX=relocatable
       # requires chrpath
       eval $(opam env)
       dune build @install
-      dune install --relocatable --prefix prefix
+      dune install --relocatable --prefix $PREFIX
       # must replace absolute apron runpath to C library with relative
-      chrpath -r '$ORIGIN/../share/apron/lib' prefix/bin/goblint
+      chrpath -r '$ORIGIN/../share/apron/lib' $PREFIX/bin/goblint
       # remove goblint.lib ocaml library
-      rm -r prefix/lib
+      rm -r $PREFIX/lib
       # copy just necessary apron C libraries
-      mkdir -p prefix/share/apron/lib/
-      cp _opam/share/apron/lib/libapron.so prefix/share/apron/lib/
-      cp _opam/share/apron/lib/liboctMPQ.so prefix/share/apron/lib/
+      mkdir -p $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libapron.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/liboctMPQ.so $PREFIX/share/apron/lib/
 
     # tests, CI
     ;; test)
