@@ -24,15 +24,15 @@ struct
 end
 
 module type Manager =
-  sig
-    type mt
-    type t = mt Apron.Manager.t
-    val mgr : mt Apron.Manager.t
-    val name : string
-  end
+sig
+  type mt
+  type t = mt Apron.Manager.t
+  val mgr : mt Apron.Manager.t
+  val name : string
+end
 
 (** Manager for the Oct domain, i.e. an octagon domain.
-For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
+    For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
 module OctagonManager =
 struct
   type mt = Oct.t
@@ -46,7 +46,7 @@ struct
 end
 
 (** Manager for the Polka domain, i.e. a polyhedra domain.
-For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Polka.html *)
+    For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Polka.html *)
 module PolyhedraManager =
 struct
   (** We chose a the loose polyhedra here, i.e. with polyhedra with no strict inequalities *)
@@ -58,7 +58,7 @@ struct
 end
 
 (** Manager for the Box domain, i.e. an interval domain.
-For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Box.html*)
+    For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Box.html*)
 module IntervalManager =
 struct
   type mt = Box.t
