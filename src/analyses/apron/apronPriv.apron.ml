@@ -683,7 +683,6 @@ let priv_module: (module S) Lazy.t =
   lazy (
     let module Man = (val ApronDomain.get_manager ()) in
     let module AD: ApronDomain.S2 = ApronDomain.D2 (Man) in
-    let module ApronComponents = ApronDomain.ApronComponents (AD) in
     let module Priv: S =
       (val match get_string "exp.apron.privatization" with
          | "dummy" -> (module Dummy (AD): S)
