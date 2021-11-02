@@ -818,61 +818,14 @@ end
 module type S2 =
 sig
   module Man: Manager
+  module Tracked : Tracked
+  module Bounds : module type of Bounds (Man)
+  include module type of AOps (Tracked) (Man)
+  include Tracked
   include SLattice with type t = Man.mt A.t
+
   type 'a aproncomponents_t = { apr : t; priv : 'a; }
 
-  module Bounds :
-  sig
-    val bound_texpr : t -> Texpr1.t -> Z.t option * Z.t option
-  end
-  module Tracked : Tracked
-  module Convert :
-  sig
-    module Bounds :
-    sig
-      val bound_texpr :
-        t -> Texpr1.t -> Z.t option * Z.t option
-    end
-    exception Unsupported_CilExp
-    val is_cast_injective : typ -> typ -> bool
-    val texpr1_expr_of_cil_exp :
-      t -> Environment.t -> exp -> Texpr1.expr
-    val texpr1_of_cil_exp :
-      t -> Environment.t -> exp -> Texpr1.t
-    val tcons1_of_cil_exp :
-      t -> Environment.t -> exp -> bool -> Tcons1.t
-  end
-  val copy : t -> t
-  val vars : 'a A.t -> Var.t list
-  val mem_var : 'a A.t -> Var.t -> bool
-  val add_vars_with : t -> Var.t list -> unit
-  val add_vars : t -> Var.t list -> t
-  val remove_vars_with : t -> Var.t list -> unit
-  val remove_vars : t -> Var.t list -> t
-  val remove_filter_with : t -> (Var.t -> bool) -> unit
-  val remove_filter : t -> (Var.t -> bool) -> t
-  val keep_vars_with : t -> Var.t list -> unit
-  val keep_vars : t -> Var.t list -> t
-  val keep_filter_with : t -> (Var.t -> bool) -> unit
-  val keep_filter : t -> (Var.t -> bool) -> t
-  val forget_vars_with : t -> Var.t list -> unit
-  val forget_vars : t -> Var.t list -> t
-  val assign_exp_with : t -> Var.t -> exp -> unit
-  val assign_exp : t -> Var.t -> exp -> t
-  val assign_exp_parallel_with : t -> (Var.t * exp) list -> unit
-  val assign_var_with : t -> Var.t -> Var.t -> unit
-  val assign_var : t -> Var.t -> Var.t -> t
-  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
-  val assign_var_parallel' :
-    t -> Var.t list -> Var.t list -> t
-  val substitute_exp_with : t -> Var.t -> exp -> unit
-  val substitute_exp : t -> Var.t -> exp -> t
-  val substitute_exp_parallel_with :
-    t -> (Var.t * exp) list -> unit
-  val substitute_var_with : t -> Var.t -> Var.t -> unit
-  val meet_tcons : t -> Tcons1.t -> t
-  val type_tracked : typ -> bool
-  val varinfo_tracked : varinfo -> bool
   val exp_is_cons : exp -> bool
   val assert_cons : t -> exp -> bool -> t
   val assert_inv : t -> exp -> bool -> t
