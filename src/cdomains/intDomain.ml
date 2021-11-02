@@ -634,7 +634,8 @@ struct
       norm ik @@ Some (l2,u2)
   let widen ik x y =
     let r = widen ik x y in
-    if M.tracing then M.trace "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    if M.tracing then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
   let narrow ik x y =
