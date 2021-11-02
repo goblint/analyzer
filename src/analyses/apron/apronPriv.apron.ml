@@ -575,37 +575,21 @@ struct
   end
   module LAD = MapDomain.MapBot (VS) (AD)
 
-  let filter_map' f m =
-    LAD.fold (fun k v acc ->
-        match f k v with
-        | Some (k', v') ->
-          LAD.add k' (AD.join (LAD.find k' acc) v') acc
-        | None ->
-          acc
-      ) m (LAD.empty ())
-
   let keep_only_protected_globals ask m octs =
-    filter_map' (fun gs oct ->
-        (* must filter by protection to avoid later meeting with non-protecting *)
-        let gs' = VS.filter (is_protected_by ask m) gs in
-        if VS.is_empty gs' then
-          None
-        else
-          (* must restrict cluster down to protected (join) *)
-          Some (gs', keep_only_protected_globals ask m oct)
-      ) octs
+    let octs =
+      (* must filter by protection to avoid later meeting with non-protecting *)
+      LAD.filter (fun gs _ ->
+          VS.for_all (is_protected_by ask m) gs (* TODO: is this subset check right? *)
+        ) octs
+    in
+    LAD.map (keep_only_protected_globals ask m) octs (* TODO: is this even necessary if keys are filtered above? *)
+    (* octs *)
 
   let keep_global g octs =
-    filter_map' (fun gs oct ->
-        (* must filter by protection to avoid later meeting with non-protecting *)
-        if VS.mem g gs then (
-          let g_var = V.global g in
-          (* must restrict cluster down to m_g (join) *)
-          Some (VS.singleton g, AD.keep_vars oct [g_var])
-        )
-        else
-          None
-      ) octs
+    let g' = VS.singleton g in
+    let oct = LAD.find g' octs in
+    let g_var = V.global g in
+    LAD.singleton g' (AD.keep_vars oct [g_var])
 
   let lock local_m get_m =
     let joined = LAD.join local_m get_m in
