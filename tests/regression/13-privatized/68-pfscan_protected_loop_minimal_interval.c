@@ -1,3 +1,4 @@
+// PARAM: --enable ana.int.interval
 #include <pthread.h>
 #include <assert.h>
 
@@ -19,7 +20,8 @@ int pqueue_init(PQUEUE *qp)
 int pqueue_put(PQUEUE *qp)
 {
   pthread_mutex_lock(& qp->mtx);
-  (qp->occupied) ++; // overflow gives < 0 values!
+  if (qp->occupied < 1000)
+    (qp->occupied) ++;
   pthread_mutex_unlock(& qp->mtx);
   return (1);
 }
@@ -29,11 +31,8 @@ int pqueue_get(PQUEUE *qp)
   int got = 0;
   pthread_mutex_lock(& qp->mtx);
   while (qp->occupied <= 0) {
-    // qp->occupied should not be just 0, unsoundness in old
-    assert(qp->occupied == 0); // UNKNOWN (no interval, with overflow)
-    // this assert should not refine!
+    assert(qp->occupied == 0);
   }
-  // qp->occupied should not be Error int, unsoundness in global
   assert(qp->occupied != 0);
   if (qp->occupied > 0) {
     (qp->occupied) --;
@@ -45,16 +44,10 @@ int pqueue_get(PQUEUE *qp)
   return (got);
 }
 
-
-pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
-
 void *worker(void *arg )
 {
   while (1) {
     pqueue_get(& pqb);
-    // extra mutex makes mine-W more precise than lock
-    pthread_mutex_lock(& print_lock);
-    pthread_mutex_unlock(& print_lock);
   }
   return NULL;
 }
