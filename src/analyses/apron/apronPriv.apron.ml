@@ -564,7 +564,15 @@ struct
 end
 
 
-module Cluster (ClusteringArg: ClusteringArg): ClusterArg =
+(** Clusters when clustering is downward-closed. *)
+module DownwardClosedCluster (ClusteringArg: ClusteringArg):
+sig
+  (* expose internals for ArbitraryCluster below *)
+  module VS: SetDomain.S with type elt = varinfo
+  module LAD: MapDomain.S with type key = VS.t and type value = AD.t
+  include ClusterArg with module LAD := LAD
+  val lock_get_m: AD.t -> LAD.t -> LAD.t -> AD.t
+end =
 struct
   open CommonPerMutex
 
@@ -573,88 +581,40 @@ struct
     include Printable.Std
     include SetDomain.Make (CilType.Varinfo)
   end
-  module LAD1 = MapDomain.MapBot (VS) (AD)
-  module LAD = Lattice.Prod (LAD1) (LAD1) (* second component is only used between keep_* and lock for additional weak mapping *)
+  module LAD = MapDomain.MapBot (VS) (AD)
 
-  let filter_map' f m =
-    LAD1.fold (fun k v acc ->
-        match f k v with
-        | Some (k', v') ->
-          LAD1.add k' (AD.join (LAD1.find k' acc) v') acc
-        | None ->
-          acc
-      ) m (LAD1.empty ())
-
-  let keep_only_protected_globals ask m (octs, _) =
-    let lad =
-      (* normal (strong) mapping: contains only still fully protected *)
-      let octs =
-        (* must filter by protection to avoid later meeting with non-protecting *)
-        LAD1.filter (fun gs _ ->
-            VS.for_all (is_protected_by ask m) gs (* TODO: is this subset check right? *)
-          ) octs
-      in
-      LAD1.map (keep_only_protected_globals ask m) octs (* TODO: is this even necessary if keys are filtered above? *)
-      (* octs *)
+  let keep_only_protected_globals ask m octs =
+    (* normal (strong) mapping: contains only still fully protected *)
+    let octs =
+      (* must filter by protection to avoid later meeting with non-protecting *)
+      LAD.filter (fun gs _ ->
+          VS.for_all (is_protected_by ask m) gs (* TODO: is this subset check right? *)
+        ) octs
     in
-    let lad_weak =
-      (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
-      filter_map' (fun gs oct ->
-        (* must filter by protection to avoid later meeting with non-protecting *)
-        let gs' = VS.filter (is_protected_by ask m) gs in
-        if VS.is_empty gs' then
-          None
-        else
-          (* must restrict cluster down to protected (join) *)
-          Some (gs', keep_only_protected_globals ask m oct)
-      ) octs
-    in
-    (lad, lad_weak)
+    LAD.map (keep_only_protected_globals ask m) octs (* TODO: is this even necessary if keys are filtered above? *)
+    (* octs *)
 
-  let keep_global g (octs, _) =
+  let keep_global g octs =
     let g_var = V.global g in
-    let lad =
-      (* normal (strong) mapping: contains only still fully protected *)
-      let g' = VS.singleton g in
-      let oct = LAD1.find g' octs in
-      LAD1.singleton g' (AD.keep_vars oct [g_var])
-    in
-    let lad_weak =
-      (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
-      filter_map' (fun gs oct ->
-        (* must filter by protection to avoid later meeting with non-protecting *)
-        if VS.mem g gs then
-          (* must restrict cluster down to m_g (join) *)
-          Some (VS.singleton g, AD.keep_vars oct [g_var])
-        else
-          None
-      ) octs
-    in
-    (lad, lad_weak)
+    (* normal (strong) mapping: contains only still fully protected *)
+    let g' = VS.singleton g in
+    let oct = LAD.find g' octs in
+    LAD.singleton g' (AD.keep_vars oct [g_var])
 
-  let lock oct (local_m, _) (get_m, get_m') =
-    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD1.pretty local_m;
-    let lock_get_m get_m =
-      let joined = LAD1.join local_m get_m in
-      if M.tracing then M.traceli "apronpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LAD1.pretty get_m LAD1.pretty joined;
-      let r = LAD1.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
-      if M.tracing then M.trace "apronpriv" "meet=%a\n" AD.pretty r;
-      let r = AD.meet oct r in
-      if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
-      r
-    in
-    let r =
-      let locked = lock_get_m get_m in
-      if AD.is_bot_env locked then (
-        let locked' = lock_get_m get_m' in
-        if AD.is_bot_env locked' then
-          raise Deadcode
-        else
-          locked'
-      )
-      else
-        locked
-    in
+  let lock_get_m oct local_m get_m =
+    let joined = LAD.join local_m get_m in
+    if M.tracing then M.traceli "apronpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LAD.pretty get_m LAD.pretty joined;
+    let r = LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
+    if M.tracing then M.trace "apronpriv" "meet=%a\n" AD.pretty r;
+    let r = AD.meet oct r in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    r
+
+  let lock oct local_m get_m =
+    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD.pretty local_m;
+    let r = lock_get_m oct local_m get_m in
+    if AD.is_bot_env r then
+      failwith "DownwardClosedCluster.lock: not downward closed?";
     if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
     r
 
@@ -673,7 +633,80 @@ struct
     let oct_side_cluster gs =
       AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
     in
-    (LAD1.add_list_fun clusters oct_side_cluster (LAD1.empty ()), LAD1.bot ())
+    LAD.add_list_fun clusters oct_side_cluster (LAD.empty ())
+end
+
+(** Clusters when clustering is arbitrary (not necessarily downward-closed). *)
+module ArbitraryCluster (ClusteringArg: ClusteringArg): ClusterArg =
+struct
+  module DCCluster = DownwardClosedCluster (ClusteringArg)
+
+  open CommonPerMutex
+
+  module VS = DCCluster.VS
+  module LAD1 = DCCluster.LAD
+  module LAD = Lattice.Prod (LAD1) (LAD1) (* second component is only used between keep_* and lock for additional weak mapping *)
+
+  let filter_map' f m =
+    LAD1.fold (fun k v acc ->
+        match f k v with
+        | Some (k', v') ->
+          LAD1.add k' (AD.join (LAD1.find k' acc) v') acc
+        | None ->
+          acc
+      ) m (LAD1.empty ())
+
+  let keep_only_protected_globals ask m (octs, _) =
+    let lad = DCCluster.keep_only_protected_globals ask m octs in
+    let lad_weak =
+      (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
+      filter_map' (fun gs oct ->
+        (* must filter by protection to avoid later meeting with non-protecting *)
+        let gs' = VS.filter (is_protected_by ask m) gs in
+        if VS.is_empty gs' then
+          None
+        else
+          (* must restrict cluster down to protected (join) *)
+          Some (gs', keep_only_protected_globals ask m oct)
+      ) octs
+    in
+    (lad, lad_weak)
+
+  let keep_global g (octs, _) =
+    let g_var = V.global g in
+    let lad = DCCluster.keep_global g octs in
+    let lad_weak =
+      (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
+      filter_map' (fun gs oct ->
+        (* must filter by protection to avoid later meeting with non-protecting *)
+        if VS.mem g gs then
+          (* must restrict cluster down to m_g (join) *)
+          Some (VS.singleton g, AD.keep_vars oct [g_var])
+        else
+          None
+      ) octs
+    in
+    (lad, lad_weak)
+
+  let lock oct (local_m, _) (get_m, get_m') =
+    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD1.pretty local_m;
+    let r =
+      let locked = DCCluster.lock_get_m oct local_m get_m in
+      if AD.is_bot_env locked then (
+        let locked' = DCCluster.lock_get_m oct local_m get_m' in
+        if AD.is_bot_env locked' then
+          raise Deadcode
+        else
+          locked'
+      )
+      else
+        locked
+    in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    r
+
+  let unlock w oct_side =
+    (DCCluster.unlock w oct_side, LAD1.bot ())
 end
 
 (** Per-mutex meet with TIDs. *)
@@ -1093,10 +1126,10 @@ let priv_module: (module S) Lazy.t =
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)
          | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoCluster))
-         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (Cluster (Clustering12)))
-         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (Cluster (Clustering2)))
-         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (Cluster (ClusteringMax)))
-         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (Cluster (ClusteringPower)))
+         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (Clustering12)))
+         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (ArbitraryCluster (Clustering2)))
+         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (ArbitraryCluster (ClusteringMax)))
+         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (ClusteringPower)))
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
     in
