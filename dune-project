@@ -1,4 +1,5 @@
-(lang dune 2.3)
+(lang dune 2.8)
+(using dune_site 0.1)
 (name goblint)
 ; build failed with: Files src/.maingoblint.eobjs/native/mutex.cmx and _opam/lib/ocaml/threads/threads.cmxa both define a module named Mutex
 ; maybe related: https://github.com/ocaml/dune/issues/1727, https://github.com/ocaml/dune/issues/597
@@ -33,6 +34,8 @@
     ocaml-monadic
     (ounit2 :with-test)
     (odoc :with-doc)
+    dune-site
+    benchmark ; TODO: make this optional somehow, (optional) on bench executable doesn't work
     ; TODO still need the following after switch to dune?
     ocamlbuild
     ocamlfind
@@ -41,4 +44,5 @@
     apron
     z3
   )
+  (sites (share includes))
 )

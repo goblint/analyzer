@@ -16,7 +16,6 @@ struct
   let to_yojson x = `String (show x)
 end
 
-
 module Variables =
 struct
   include CilType.Varinfo
@@ -24,10 +23,9 @@ struct
   let is_global v = v.vglob
   let copy x = x
   let show x =
-    if PreMallocWrapperAnalysis.is_heap_var x then
-      let node = PreMallocWrapperAnalysis.get_node x in
-      let loc = UpdateCil.getLoc node in
-      GU.demangle "(" ^ x.vname ^ ", " ^ CilType.Location.show loc ^ ")"
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
+      GU.demangle "(" ^ x.vname ^ ", " ^ description ^ ")"
     else GU.demangle x.vname
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
@@ -47,7 +45,6 @@ struct
 
   let arbitrary () = MyCheck.Arbitrary.varinfo
 end
-
 
 module RawStrings: Printable.S with type t = string =
 struct

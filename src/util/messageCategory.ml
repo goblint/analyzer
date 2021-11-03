@@ -179,6 +179,31 @@ let path_show e =
 
 let show x = String.concat " > " (path_show x)
 
+let behaviorName = function 
+  |Machine -> "Machine";
+  |Implementation -> "Implementation"
+  |Undefined u -> match u with 
+    |NullPointerDereference -> "NullPointerDereference"
+    |UseAfterFree -> "UseAfterFree"
+    | ArrayOutOfBounds aob -> match aob with 
+      | PastEnd -> "PastEnd"
+      | BeforeStart -> "BeforeStart" 
+      | Unknown -> "Unknown Aob"
+let categoryName = function 
+  | Assert -> "Assert" 
+
+  | Race -> "Race"
+  | Cast x -> "Cast" 
+  | Deadcode -> "Deadcode"
+  | Unknown -> "Unknown"
+  | Analyzer -> "Analyzer"
+
+  | Behavior x -> behaviorName x 
+  | Integer x -> match x with 
+    | Overflow -> "Overflow";
+    | DivByZero -> "DivByZero"
+
+
 let from_string_list (s: string list) =
   match s with
   | [] -> Unknown

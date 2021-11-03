@@ -390,7 +390,7 @@ struct
       let lvar = WitnessUtil.find_main_entry entrystates in
       let main_indices = ask_indices lvar in
       (* TODO: get rid of this hack for getting index of entry state *)
-      assert (List.length main_indices = 1);
+      assert (List.compare_length_with main_indices 1 = 0);
       let main_index = List.hd main_indices in
       (fst lvar, snd lvar, main_index)
     in
@@ -597,8 +597,11 @@ struct
     let module TaskResult = (val (Stats.time "determine" (determine_result lh gh entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
-    let witness_path = get_string "exp.witness.path" in
-    Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+
+    if TaskResult.result <> Result.Unknown || get_bool "exp.witness.unknown" then (
+      let witness_path = get_string "exp.witness.path" in
+      Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+    )
 
   let write lh gh entrystates =
     match !Goblintutil.verified with
