@@ -11,7 +11,7 @@ type categoryInformation = {
   shortDescription:string;
   helpUri:string;
   longDescription:string;
-} 
+}
 let unknownRule = {
   name="Unknown";
   ruleId="GO000";
@@ -69,7 +69,7 @@ let rules = [
     shortDescription="Result of arithmetic operation might be outside of the valid range. ";
     helpUri="https://en.wikipedia.org/wiki/Integer_overflow";
     longDescription="";
-  };  
+  };
   {
     name="DivByZero";
     ruleId="GO0007";
@@ -126,7 +126,7 @@ let rules = [
     shortDescription="TODO ";
     helpUri="https://goblint.in.tum.de/home";
     longDescription="";
-  };  
+  };
   {
     name="Unknown Aob";
     ruleId="GO0014";
@@ -187,15 +187,15 @@ let rules = [
     name="788";
     ruleId="GO0021";
     helpText="Access of Memory Location After End of Buffer";
-    shortDescription="The software reads or writes to a buffer using an index or pointer that references a memory location after the end of the buffer. ";              
+    shortDescription="The software reads or writes to a buffer using an index or pointer that references a memory location after the end of the buffer. ";
     helpUri="https://cwe.mitre.org/data/definitions/788.html";
     longDescription="";
   }
 ]
 
 (*Returns the information about a Rule. If the rule is not found, a default rule will be returned. *)
-let getRuleInformation (searchName:string) = 
-  match List.find_opt (fun rule -> rule.name=searchName) rules with 
+let getRuleInformation (searchName:string) =
+  match List.find_opt (fun rule -> rule.name=searchName) rules with
   | None ->unknownRule ;
   | Some rule -> rule
 
@@ -215,10 +215,10 @@ struct
     commandLine:string;
     executionSuccessful:bool;
 
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
 
-end 
+end
 (*endColumn and endLine are not produced by Goblint yet, however the Github action uses these properties. *)
 module Region =
 struct
@@ -227,36 +227,36 @@ struct
     startColumn:int;
     endColumn:int;
     endLine:int;
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
 
-end 
+end
 module ArtifactLocation =
 struct
   type t = {
     uri:string;
 
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
 
-end 
+end
 module PhysicalLocation =
 struct
   type t = {
     artifactLocation:ArtifactLocation.t;
     region:Region.t;
 
-  } [@@deriving  to_yojson]    
-end 
+  } [@@deriving  to_yojson]
+end
 
-(*This type represents the Sarif locationProperty. 
+(*This type represents the Sarif locationProperty.
   It is needed twice, since Sarif requires differen keys names, depending on where it is used.*)
 module LocationObject =
 struct  type t = {
     location:ArtifactLocation.t;
 
-  } [@@deriving  to_yojson]    
-end 
+  } [@@deriving  to_yojson]
+end
 
 
 module Locations =
@@ -265,18 +265,18 @@ struct
 
     physicalLocation:PhysicalLocation.t;
 
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
-end 
+end
 module SairfMessageObject =
 struct
   type t = {
     text:string;
 
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
 
-end 
+end
 module ReportingDescriptor =
 struct
   type t = {
@@ -287,10 +287,10 @@ struct
     shortDescription:SairfMessageObject.t;
     fullDescription:SairfMessageObject.t;
 
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
 
-end 
+end
 
 module Driver =
 struct
@@ -301,18 +301,18 @@ struct
     organization:string;
     version:string;
     rules:ReportingDescriptor.t list
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
 
-end 
+end
 module Tool =
 struct
   type t = {
-    driver:Driver.t;   
-  } [@@deriving  to_yojson] 
+    driver:Driver.t;
+  } [@@deriving  to_yojson]
 
 
-end 
+end
 
 
 module ResultObject =
@@ -322,10 +322,10 @@ struct
     level:string;
     message:SairfMessageObject.t;
     locations:Locations.t list;
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
 
-end 
+end
 
 module Run =
 struct
@@ -335,32 +335,32 @@ struct
     invocations:InvocationObject.t list;
     artifacts:LocationObject.t list;
     results:ResultObject.t list
-  }[@@deriving  to_yojson] 
+  }[@@deriving  to_yojson]
 
 
-end 
+end
 
 
 
-let createMessageObject (text:String.t) = 
+let createMessageObject (text:String.t) =
   {
     SairfMessageObject.text=text;
   }
 (*A reportingDescriptor offers a lot of information about a Goblint rule *)
-let createReportingDescriptor categoryInformation =   
+let createReportingDescriptor categoryInformation =
   {
-    ReportingDescriptor.ruleId=categoryInformation.ruleId;   
-    ReportingDescriptor.ruleName=categoryInformation.name;  
+    ReportingDescriptor.ruleId=categoryInformation.ruleId;
+    ReportingDescriptor.ruleName=categoryInformation.name;
     ReportingDescriptor.helpUri=categoryInformation.helpUri;
     ReportingDescriptor.help=(createMessageObject categoryInformation.helpText);
     ReportingDescriptor.shortDescription=(createMessageObject categoryInformation.shortDescription);
     ReportingDescriptor.fullDescription=(createMessageObject categoryInformation.longDescription);
-  }  
+  }
 
-let transformToReportingDescriptor (id:String.t)=  
+let transformToReportingDescriptor (id:String.t)=
   createReportingDescriptor  (getRuleInformation id)
 
-let (driverObject:Driver.t) =       
+let (driverObject:Driver.t) =
   {
     Driver.name="Goblint";
     Driver.fullName= "Goblint static analyser";
@@ -369,32 +369,32 @@ let (driverObject:Driver.t) =
     Driver.version=Version.goblint;
     Driver.rules=List.map transformToReportingDescriptor (List.map (fun rule -> rule.name) rules)
   }
-let (toolObject:Tool.t) = 
+let (toolObject:Tool.t) =
   {
-    Tool.driver=driverObject;     
+    Tool.driver=driverObject;
   }
 
 
 (*returns the Rule corresponding to a message entry *)
-let getCategoryInformationID (tags:Messages.Tags.t) = 
-  let getCWE (tag:Messages.Tag.t) = match tag with 
+let getCategoryInformationID (tags:Messages.Tags.t) =
+  let getCWE (tag:Messages.Tag.t) = match tag with
     | CWE cwe-> Some cwe;
     | Category cat -> None;
-  in          
-  (* if a CWE is present only the CWE is used, since using multiple ones for the same result doesn' make sense. 
+  in
+  (* if a CWE is present only the CWE is used, since using multiple ones for the same result doesn' make sense.
      If only Categorys are present, all of them are displayed.*)
-  match List.find_map getCWE tags with 
-  | Some cwe ->  string_of_int cwe; 
+  match List.find_map getCWE tags with
+  | Some cwe ->  string_of_int cwe;
   | None -> match tags with
     | [] -> ""
-    | x::xs -> match x with 
+    | x::xs -> match x with
       |Category cat-> MessageCategory.categoryName cat
       | CWE c-> "" (*this case should not be reachable *)
 
 (* for the github action. Removes leading directory.*)
 let trimFile (path:string) =
   let lengthRemove = (String.length (get_string "removePath"))
-  in  
+  in
   if get_string "removePath" == "" then path else
   "./"^(String.sub path lengthRemove  ((String.length path)-lengthRemove) )
 
@@ -412,11 +412,11 @@ let hasLocation (piece:Messages.Piece.t) = match  piece.loc with
   |Some loc -> true
   |None -> false
 (*should only be called after hasLocation*)
-let deOptionalizeLocation (piece:Messages.Piece.t)= match piece.loc with 
+let deOptionalizeLocation (piece:Messages.Piece.t)= match piece.loc with
   | Some loc ->loc
   | None -> assert false
 
-let createPhysicalLocationObject (piece:Messages.Piece.t) = 
+let createPhysicalLocationObject (piece:Messages.Piece.t) =
   let createRegionObject (line,column)=
     {
       Region.startLine=line;
@@ -433,14 +433,14 @@ let createPhysicalLocationObject (piece:Messages.Piece.t) =
   }
 
 
-let createLocationsObject (multiPiece:Messages.MultiPiece.t) = match multiPiece with 
+let createLocationsObject (multiPiece:Messages.MultiPiece.t) = match multiPiece with
   | Single piece ->List.map createPhysicalLocationObject (List.filter hasLocation  [piece]);
   | Group {group_text = n; pieces = e} ->List.map createPhysicalLocationObject  (GU.firstElems 10 (List.filter hasLocation e))
 
 
 
-let createResult (message:Messages.Message.t) = 
-  let getMessage (multiPiece:Messages.MultiPiece.t)=  match multiPiece with 
+let createResult (message:Messages.Message.t) =
+  let getMessage (multiPiece:Messages.MultiPiece.t)=  match multiPiece with
     | Single piece ->piece.text;
     | Group {group_text = n; pieces = e} ->n
   in
@@ -449,28 +449,28 @@ let createResult (message:Messages.Message.t) =
     ResultObject.level=severityToLevel message.severity;
     ResultObject.message=createMessageObject (getMessage message.multipiece);
     ResultObject.locations=createLocationsObject message.multipiece;
-  }   
+  }
 
-let getFileLocation (multipiece:Messages.MultiPiece.t)= 
+let getFileLocation (multipiece:Messages.MultiPiece.t)=
   let getFile (loc:Cil.location) =
     loc.file
   in
-  let toLocation = match multipiece with 
+  let toLocation = match multipiece with
 
     | Single piece ->[deOptionalizeLocation piece];
     | Group {group_text = n; pieces = e} ->
       List.map deOptionalizeLocation  (List.filter hasLocation e);
-  in 
-  List.map getFile toLocation 
+  in
+  List.map getFile toLocation
 
 let collectAllFileLocations (msgList:Messages.Message.t list)=
   let getUris=
     List.flatten (List.map (fun (msg:Messages.Message.t)-> getFileLocation msg.multipiece) msgList)
-  in 
+  in
   let uniques x xs = if List.mem x xs then xs else x::xs;
   in
   List.fold_right uniques getUris []
-let runObject msgList= 
+let runObject msgList=
   {
     Run.invocations=[{
         InvocationObject.commandLine=String.concat  ", " (BatArray.to_list BatSys.argv)  ;
@@ -478,9 +478,9 @@ let runObject msgList=
       }];
     Run.artifacts= List.map createArtifactLocationObject (collectAllFileLocations   msgList);
     Run.tool=toolObject;
-    Run.defaultSourceLanguage="C";    
+    Run.defaultSourceLanguage="C";
     Run.results=List.map createResult (GU.firstElems 5000 msgList);
-  }  
+  }
 module SarifLog =
 struct
   type t = {
@@ -488,9 +488,9 @@ struct
     version:string;
     schema :string [@key "$schema"];
     runs:Run.t list  ;
-  } [@@deriving  to_yojson] 
+  } [@@deriving  to_yojson]
 
-end 
+end
 
 
 module Sarif =
@@ -498,15 +498,15 @@ struct
 
   type t =
     | SarifLog   (*[@name "sarifLog"]*)
-  [@@deriving yojson] 
+  [@@deriving yojson]
   let sarifObject msgList={SarifLog.version="2.1.0";
                            SarifLog.schema="https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
                            SarifLog.runs=[runObject msgList] };
 
-end 
+end
 
 
-let to_yojson  msgList=   [%to_yojson: SarifLog.t]  (Sarif.sarifObject msgList) 
+let to_yojson  msgList=   [%to_yojson: SarifLog.t]  (Sarif.sarifObject msgList)
 
 
 
