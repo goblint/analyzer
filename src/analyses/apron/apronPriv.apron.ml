@@ -658,14 +658,14 @@ struct
     let lad_weak =
       (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
       filter_map' (fun gs oct ->
-        (* must filter by protection to avoid later meeting with non-protecting *)
-        let gs' = VS.filter (is_protected_by ask m) gs in
-        if VS.is_empty gs' then
-          None
-        else
-          (* must restrict cluster down to protected (join) *)
-          Some (gs', keep_only_protected_globals ask m oct)
-      ) octs
+          (* must filter by protection to avoid later meeting with non-protecting *)
+          let gs' = VS.filter (is_protected_by ask m) gs in
+          if VS.is_empty gs' then
+            None
+          else
+            (* must restrict cluster down to protected (join) *)
+            Some (gs', keep_only_protected_globals ask m oct)
+        ) octs
     in
     (lad, lad_weak)
 
@@ -675,13 +675,13 @@ struct
     let lad_weak =
       (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
       filter_map' (fun gs oct ->
-        (* must filter by protection to avoid later meeting with non-protecting *)
-        if VS.mem g gs then
-          (* must restrict cluster down to m_g (join) *)
-          Some (VS.singleton g, AD.keep_vars oct [g_var])
-        else
-          None
-      ) octs
+          (* must filter by protection to avoid later meeting with non-protecting *)
+          if VS.mem g gs then
+            (* must restrict cluster down to m_g (join) *)
+            Some (VS.singleton g, AD.keep_vars oct [g_var])
+          else
+            None
+        ) octs
     in
     (lad, lad_weak)
 
