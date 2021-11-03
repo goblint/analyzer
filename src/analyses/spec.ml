@@ -61,7 +61,6 @@ struct
         if not change_state then m
         else if may then D.may_goto key loc state m else D.goto key loc state m
 
-    (* match spec_exp, cil_exp *)
     let equal_exp ctx spec_exp cil_exp = match spec_exp, cil_exp with
       (* TODO match constants right away to avoid queries? *)
       | `String a, Const(CStr b) -> M.debug "EQUAL String Const: %s = %s" a b; a=b
