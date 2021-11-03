@@ -294,6 +294,11 @@ struct
     remove_filter_with nd f;
     nd
 
+  let serialize nd =
+    let file = "apron.save" in
+    let value = A.abstract0 nd in
+    Serialize.marshal value file
+
   let keep_vars_with nd vs =
     let env = A.env nd in
     (* Instead of iterating over all vars in env and doing a linear lookup in vs just to remove them,
