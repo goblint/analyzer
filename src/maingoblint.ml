@@ -210,7 +210,7 @@ let preprocess_files () =
   cFileNames := List.rev !cFileNames;
 
   (* If the first file given is a Makefile, we use it to combine files *)
-  if List.length !cFileNames >= 1 then (
+  if !cFileNames <> [] then (
     let firstFile = List.first !cFileNames in
     if Filename.basename firstFile = "Makefile" then (
       let makefile = firstFile in

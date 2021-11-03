@@ -468,9 +468,9 @@ let createCFG (file: file) =
 let minimizeCFG (fw,bw) =
   let keep = H.create 113 in
   let comp_keep t (_,f) =
-    if (List.length (H.find_all bw t)<>1) || (List.length (H.find_all fw t)<>1) then
+    if (List.compare_length_with (H.find_all bw t) 1 <> 0) || (List.compare_length_with (H.find_all fw t) 1 <> 0) then
       H.replace keep t ();
-    if (List.length (H.find_all bw f)<>1) || (List.length (H.find_all fw f)<>1) then
+    if (List.compare_length_with (H.find_all bw f) 1 <> 0) || (List.compare_length_with (H.find_all fw f) 1 <> 0) then
       H.replace keep f ()
   in
   H.iter comp_keep bw;

@@ -205,9 +205,12 @@ module WP =
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
           let sided = match x with
-            | Some x -> VS.mem x (HM.find_default sides y VS.empty)
-            | _ -> false in
-          if not sided && Option.is_some x then add_sides y (Option.get x);
+            | Some x ->
+              let sided = VS.mem x (HM.find_default sides y VS.empty) in
+              if not sided then add_sides y x;
+              sided
+            | None -> false
+          in
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
           if side_widen <> "cycle" then destabilize y;

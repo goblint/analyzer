@@ -48,9 +48,9 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   in
   let reset_fun (f: fundec) (old_f: fundec) =
     f.svar.vid <- old_f.svar.vid;
-    List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
-    List.iter (fun (lo, o_f) -> lo.vid <- o_f.vid) (List.combine f.sformals old_f.sformals);
-    List.iter (fun (s, o_s) -> s.sid <- o_s.sid) (List.combine f.sallstmts old_f.sallstmts);
+    List.iter2 (fun l o_l -> l.vid <- o_l.vid) f.slocals old_f.slocals;
+    List.iter2 (fun lo o_f -> lo.vid <- o_f.vid) f.sformals old_f.sformals;
+    List.iter2 (fun s o_s -> s.sid <- o_s.sid) f.sallstmts old_f.sallstmts;
     List.iter (fun s -> store_node_location (Statement s) (Cilfacade.get_stmtLoc s)) f.sallstmts;
 
     store_node_location (Function f) f.svar.vdecl;
@@ -88,7 +88,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     f.svar.vid <- old_f.svar.vid;
     update_vid_max f.svar.vid;
     if unchangedHeader then
-      List.iter (fun (f,old_f) -> f.vid <- old_f.vid; update_vid_max f.vid) (List.combine f.sformals old_f.sformals)
+      List.iter2 (fun f old_f -> f.vid <- old_f.vid; update_vid_max f.vid) f.sformals old_f.sformals
     else List.iter (fun f -> f.vid <- make_vid ()) f.sformals;
     (* diff is None if the function header changed or locals and the cfg was not compared. In this case, proceed as before
        and renew all ids of the function. Otherwise the function header and locals are unchanged and the cfg was compared.
@@ -96,7 +96,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     match diff with
     | None -> List.iter (fun l -> l.vid <- make_vid ()) f.slocals;
       List.iter (fun s -> s.sid <- make_sid ()) f.sallstmts;
-    | Some d -> List.iter (fun (l, o_l) -> l.vid <- o_l.vid) (List.combine f.slocals old_f.slocals);
+    | Some d -> List.iter2 (fun l o_l -> l.vid <- o_l.vid) f.slocals old_f.slocals;
       List.iter (fun l -> update_vid_max l.vid) f.slocals;
       (* Keeping this order when updating ids is very important since Node.equal in assign_same_id tests only
          for id equality. Otherwise some new nodes might not receive a new id and lead to duplicate ids in the

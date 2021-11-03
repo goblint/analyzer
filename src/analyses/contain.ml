@@ -542,7 +542,7 @@ struct
 
                     let res = List.fold_left (fun y x -> try ignore(Cilfacade.find_varinfo_fundec x);x::y with _ -> y) [] vars in
                     begin
-                      if List.length res = 0 then
+                      if res = [] then
                         begin
                           begin
                             D.report(" (6) unresolved function pointer in "^sprint 160 (d_exp () fval)^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));
