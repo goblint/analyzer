@@ -75,9 +75,15 @@ let priv_manager =
        "polyhedra", (module PolyhedraManager: Manager)]
     in
     let domain = (GobConfig.get_string "ana.apron.domain") in
-    match List.assoc_opt domain options with
-    | Some man -> man
-    | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting."
+    let man = (match List.assoc_opt domain options with
+        | Some man -> man
+        | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting.")
+    in
+    (* Set the manager for deserialization (this step is required when apron results are loaded) *)
+    (* As of now, serialization/deserialization only works for octagons *)
+    let module Man = (val man: Manager) in
+    Manager.set_deserialize Man.mgr;
+    man
   )
 
 let get_manager (): (module Manager) =
@@ -260,11 +266,6 @@ struct
   let marshal (x: t): marshal =
     let vars = Array.map Var.to_string (vars_as_array x) in
     x.abstract0, vars
-
-  let serialize nd =
-    let file = "apron.save" in
-    let (value, _) = marshal nd in
-    Serialize.marshal value file
 
   let mem_var d v = Environment.mem_var (A.env d) v
 

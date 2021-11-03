@@ -136,9 +136,6 @@ struct
   (* Basic transfer functions. *)
 
   let assign ctx (lv:lval) e =
-    (* Following line is for testing purposes only: *)
-    AD.serialize ctx.local.apr;
-
     let st = ctx.local in
     if !GU.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so the apron env is empty... *)
