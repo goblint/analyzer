@@ -1,7 +1,0 @@
-{
-  "command":
-    "../goblint --sarif -o /home/alex/Documents/git/analyzer/testResults/99-tutorials/02-first-extend.sarif /home/alex/Documents/git/analyzer/tests/regression/99-tutorials/02-first-extend.c",
-  "version": "heads/integrationSarif-0-g8c1794b4-dirty",
-  "timestamp": 1633641073.0,
-  "localtime": "2021-10-07 23:11:13"
-}
