@@ -8,7 +8,6 @@ module GU = Goblintutil
 module M  = Messages
 module S = Sarif
 
-module SarifLog = Sarif.SarifLog
 
 (** Analysis starts from lists of functions: start functions, exit functions, and
   * other functions. *)
@@ -215,7 +214,7 @@ struct
         BatFile.with_temporary_out ~mode:[`create;`text;`delete_on_exit] write_file
       else
         let f = BatIO.output_channel out in
-        write_file f (get_string "outfile")    
+        write_file f (get_string "outfile")
     | "json" ->
       let open BatPrintf in
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
@@ -262,10 +261,10 @@ struct
        Printf.printf "Done in %fs!\n" t1 *)
     | "sarif" ->
       let open BatPrintf in
-      let debugMessage=       
+      let debugMessage=
         printf "Writing sarif to temp. file: %s\n%!" (get_string "outfile");
       in
-      debugMessage;           
+      debugMessage;
       Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
       Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
