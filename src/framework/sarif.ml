@@ -1,4 +1,5 @@
 (** The Sarif format is a standardised output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
+open Prelude
 open GobConfig
 module Category = MessageCategory
 module GU = Goblintutil
@@ -383,7 +384,7 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
   in
   (* if a CWE is present only the CWE is used, since using multiple ones for the same result doesn' make sense.
      If only Categorys are present, all of them are displayed.*)
-  match List.find_map getCWE tags with
+  match List.find_map_opt getCWE tags with
   | Some cwe ->  string_of_int cwe;
   | None -> match tags with
     | [] -> ""
@@ -435,7 +436,7 @@ let createPhysicalLocationObject (piece:Messages.Piece.t) =
 
 let createLocationsObject (multiPiece:Messages.MultiPiece.t) = match multiPiece with
   | Single piece ->List.map createPhysicalLocationObject (List.filter hasLocation  [piece]);
-  | Group {group_text = n; pieces = e} ->List.map createPhysicalLocationObject  (GU.firstElems 10 (List.filter hasLocation e))
+  | Group {group_text = n; pieces = e} ->List.map createPhysicalLocationObject  (List.take 10 (List.filter hasLocation e))
 
 
 
@@ -479,7 +480,7 @@ let runObject msgList=
     Run.artifacts= List.map createArtifactLocationObject (collectAllFileLocations   msgList);
     Run.tool=toolObject;
     Run.defaultSourceLanguage="C";
-    Run.results=List.map createResult (GU.firstElems 5000 msgList);
+    Run.results=List.map createResult (List.take 5000 msgList);
   }
 module SarifLog =
 struct
