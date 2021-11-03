@@ -686,7 +686,7 @@ module MapOctagon : S
   let use_matrix_closure = true
 
   let remove_empty = filter (fun var (const, consts) ->
-      not (INV.is_top_of (ikind ()) const) || not ((List.length consts) = 0))
+      not (INV.is_top_of (ikind ()) const) || consts <> [])
 
   let strong_closure oct =
     if use_matrix_closure then

@@ -130,7 +130,7 @@ struct
           (* everything matches the constraint -> go to new state and increase counter *)
           else
             (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
-            let may = (List.length keys > 1) in
+            let may = (List.compare_length_with keys 1 > 0) in
             (* do not change state for reflexive edges where the key is not assigned to (e.g. *$p = _) *)
             let change_state = not (old_a=b && SC.get_lval c <> Some `Var) in
             M.debug "GOTO ~may:%B ~change_state:%B. %s -> %s: %s" may change_state a b (SC.stmt_to_string c);
@@ -230,7 +230,7 @@ struct
       match lval, SC.get_lval c with
       | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c, rval) ->
         let keys = D.keys_from_lval x (Analyses.ask_of_ctx ctx) in
-        if List.length keys <> 1 then failwith "not implemented"
+        if List.compare_length_with keys 1 <> 0 then failwith "not implemented"
         else true
       | _ -> false (* nothing to do *)
     in
@@ -332,14 +332,14 @@ struct
           (* filter those edges that are branches, start with a state from states and have the same branch expression and the same tv *)
           let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem a states && branch_exp_eq c exp tv) !edges in
           (* there should be only one such edge or none *)
-          if List.length branch_edges <> 1 then ( (* call of branch for an actual branch *)
+          if List.compare_length_with branch_edges 1 <> 0 then ( (* call of branch for an actual branch *)
             M.debug "branch: branch_edges length is not 1! -> actual branch";
             M.debug "%s -> branch_edges1: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun () x -> Pretty.text (SC.def_to_string (SC.Edge x)))) branch_edges;
             (* filter those edges that are branches, end with a state from states have the same branch expression and the same tv *)
             (* TODO they should end with any predecessor of the current state, not only the direct predecessor *)
             let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem b states && branch_exp_eq c exp tv) !edges in
             M.debug "%s -> branch_edges2: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun () x -> Pretty.text (SC.def_to_string (SC.Edge x)))) branch_edges;
-            if List.length branch_edges <> 1 then m else
+            if List.compare_length_with branch_edges 1 <> 0 then m else
               (* meet current value with the target state. this is tricky: we can not simply take the target state, since there might have been more than one element already before the branching.
                  -> find out what the alternative branch target was and remove it *)
               let (a,ws,fwd,b,c) = List.hd branch_edges in
@@ -471,9 +471,9 @@ struct
     in
     let matches (a,ws,fwd,b,c) =
       let equal_args spec_args cil_args =
-        if List.length spec_args = 1 && List.hd spec_args = `Free then
+        if List.compare_length_with spec_args 1 = 0 && List.hd spec_args = `Free then
           true (* wildcard as an argument matches everything *)
-        else if List.length arglist <> List.length spec_args then (
+        else if List.compare_lengths arglist spec_args <> 0 then (
           M.debug "SKIP the number of arguments doesn't match the specification!";
           false
         )else

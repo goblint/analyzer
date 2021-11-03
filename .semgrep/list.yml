@@ -4,6 +4,7 @@ rules:
       - pattern: List.length $L = 0
       - pattern: List.length $L <> 0
       - pattern: List.length $L > 0
+      - pattern: List.length $L >= 1
       # doesn't find in ValueDomain: List.length ci.cfields > 0
       # doesn't find in MyLiveness: List.length s.labels = 0
     message: computing list length is inefficient for emptiness checking, compare with [] instead
