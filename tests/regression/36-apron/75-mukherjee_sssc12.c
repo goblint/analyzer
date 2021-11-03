@@ -1,3 +1,5 @@
+// SKIP
+
 #include <pthread.h>
 #include "assert.h"
 
@@ -50,7 +52,7 @@ void* thr2(void* arg) {
     return NULL;
 }
 
-void main(int argc, char* argv[]) {
+int main(int argc, char* argv[]) {
     pthread_t t1;
     pthread_t t2;
     next = 0;
@@ -60,4 +62,5 @@ void main(int argc, char* argv[]) {
         pthread_join(t1, 0);
         pthread_join(t2, 0);
     }
+    return 0;
 }

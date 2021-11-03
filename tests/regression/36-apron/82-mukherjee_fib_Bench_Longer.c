@@ -1,3 +1,5 @@
+// SKIP
+
 #include <pthread.h>
 #include "assert.h"
 
@@ -39,4 +41,6 @@ int main() {
     
     assert(i < 377);
     assert(j < 377);
+
+    return 0;
 }
