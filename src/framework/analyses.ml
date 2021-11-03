@@ -7,8 +7,6 @@ open GobConfig
 
 module GU = Goblintutil
 module M  = Messages
-module S = Sarif
-
 
 (** Analysis starts from lists of functions: start functions, exit functions, and
   * other functions. *)
@@ -272,10 +270,7 @@ struct
        Printf.printf "Done in %fs!\n" t1 *)
     | "sarif" ->
       let open BatPrintf in
-      let debugMessage=
-        printf "Writing sarif to temp. file: %s\n%!" (get_string "outfile");
-      in
-      debugMessage;
+      printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
       Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
       Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
