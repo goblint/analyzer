@@ -74,3 +74,5 @@ incremental_data/
 
 # make relocatable
 relocatable/
+
+*.sarif

@@ -301,7 +301,7 @@ let default_schema = {schema|
   , "justcil"         : {}
   , "justcfg"         : {}
   , "printstats"      : {}
-  , "verify"        : {}
+  , "verify"          : {}
   , "mainfun"         : {}
   , "exitfun"         : {}
   , "otherfun"        : {}

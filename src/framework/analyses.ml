@@ -268,6 +268,10 @@ struct
        iter insert (Lazy.force table);
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
+    | "sarif" ->
+      let open BatPrintf in
+      printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
+      Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
       Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
     | "none" -> ()
