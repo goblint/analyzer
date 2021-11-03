@@ -239,10 +239,32 @@ struct
 
   let copy = A.copy Man.mgr
 
-  let vars d =
+  let vars_as_array d =
     let ivs, fvs = Environment.vars (A.env d) in
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    ivs
+
+  let vars d =
+    let ivs = vars_as_array d in
     List.of_enum (Array.enum ivs)
+
+  (* marshal type: Abstract0.t and an array of var names *)
+  type marshal = Man.mt Abstract0.t * string array
+
+  let unmarshal ((abstract0, vs): marshal): t =
+    let vars = Array.map Var.of_string vs in
+    (* We do not have real-valued vars, so we pass an empty array in their place. *)
+    let env = Environment.make vars [||] in
+    {abstract0; env}
+
+  let marshal (x: t): marshal =
+    let vars = Array.map Var.to_string (vars_as_array x) in
+    x.abstract0, vars
+
+  let serialize nd =
+    let file = "apron.save" in
+    let (value, _) = marshal nd in
+    Serialize.marshal value file
 
   let mem_var d v = Environment.mem_var (A.env d) v
 
@@ -293,11 +315,6 @@ struct
     let nd = copy d in
     remove_filter_with nd f;
     nd
-
-  let serialize nd =
-    let file = "apron.save" in
-    let value = A.abstract0 nd in
-    Serialize.marshal value file
 
   let keep_vars_with nd vs =
     let env = A.env nd in
@@ -685,6 +702,8 @@ module D (Man: Manager) = DWithOps (Man) (DLift (Man))
 module DHetero (Man: Manager): SLattice with type t = Man.mt A.t =
 struct
   include DBase (Man)
+
+
 
   let gce (x: Environment.t) (y: Environment.t): Environment.t =
     let (xi, xf) = Environment.vars x in
