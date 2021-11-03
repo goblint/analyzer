@@ -1,4 +1,4 @@
-// SKIP
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 
 #include <pthread.h>
 #include "assert.h"
@@ -28,7 +28,7 @@ int main() {
     pthread_create(&t2, 0, T2_Singleton_With_Uninit, 0);
     pthread_join(t1, 0);
     pthread_join(t2, 0);
-	
+
 	assert(x <= 5);
 	return 0;
 }

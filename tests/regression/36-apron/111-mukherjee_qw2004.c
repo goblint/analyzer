@@ -1,4 +1,4 @@
-// SKIP
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 
 #include <pthread.h>
 #include "assert.h"
@@ -18,7 +18,7 @@ void* T1_QW2004(void* arg) {
     }
     else
         stopped--;
-    
+
     assert(pendingIo == stopped);
     pthread_mutex_unlock(&m);
     return NULL;
@@ -59,7 +59,7 @@ int main() {
     pending = pendingIo;
     if (pending == 0)
         stoppingEvent = 1;
-    
+
     assert(pendingIo == stopped);
     pthread_mutex_unlock(&m);
     return 0;

@@ -1,4 +1,4 @@
-// SKIP
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 
 #include <pthread.h>
 #include "assert.h"
@@ -9,7 +9,7 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 void* T1_SL(void* arg){
     int i = 0, j = 0, k = 0;
-		
+
     for(i = 0; i < x; i++) {
         for(j = i + 1; j < y; j++) {
             for(k = j; k < z; k++) {
@@ -24,7 +24,7 @@ void* T1_SL(void* arg){
 
 void* T2_SL(void* arg){
     int i = 0, j = 0, k = 0;
-		
+
     for(i = 0; i < x; i++) {
         for(j = i + 1; j < y; j++) {
             for(k = j; k < z; k++) {

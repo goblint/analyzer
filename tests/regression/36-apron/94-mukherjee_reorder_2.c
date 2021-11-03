@@ -1,4 +1,4 @@
-// SKIP
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,11 +32,11 @@ int main(int argc, char *argv[]) {
     pthread_join(t2, NULL);
     pthread_join(t3, NULL);
     pthread_join(t4, NULL);
-   
+
 
     return 0;
 }
-        
+
 void *iSet_1(void *param) {
     pthread_mutex_lock(&mut_lock);
     a = 1;

@@ -1,4 +1,4 @@
-// SKIP
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 
 #include <pthread.h>
 #include "assert.h"
@@ -14,14 +14,14 @@ void* thr1(void* arg) {
     end = 0;
     pthread_mutex_lock(&lock);
     temp = len;
-    
+
     if(next + 10 <= len) {
         c = next;
         end = next + 10;
         next = next + 10;
     }
     pthread_mutex_unlock(&lock);
-    
+
     while(c < end) {
         assert(c >= 0);
         assert(c <= temp);
@@ -36,14 +36,14 @@ void* thr2(void* arg) {
     end = 0;
     pthread_mutex_lock(&lock);
     temp = len;
-    
+
     if(next + 10 <= len) {
         c = next;
         end = next + 10;
         next = next + 10;
     }
     pthread_mutex_unlock(&lock);
-    
+
     while(c < end) {
         assert(c >= 0);
         assert(c <= temp);

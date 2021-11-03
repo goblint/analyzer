@@ -1,4 +1,4 @@
-// SKIP
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -17,17 +17,17 @@ void *thread1(void * arg)
     assert(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
-        case 0: 
-            array_0 = 1; 
+        case 0:
+            array_0 = 1;
             break;
-        case 1: 
-            array_1 = 1; 
+        case 1:
+            array_1 = 1;
             break;
-        case 2: 
-            array_2 = 1; 
+        case 2:
+            array_2 = 1;
             break;
-        case 3: 
-            array_3 = 1; 
+        case 3:
+            array_3 = 1;
             break;
     }
     pthread_mutex_unlock(&mut_lock);
@@ -39,17 +39,17 @@ void *thread2(void * arg)
     assert(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
-        case 0: 
-            array_0 = 1; 
+        case 0:
+            array_0 = 1;
             break;
-        case 1: 
-            array_1 = 1; 
+        case 1:
+            array_1 = 1;
             break;
-        case 2: 
-            array_2 = 1; 
+        case 2:
+            array_2 = 1;
             break;
-        case 3: 
-            array_3 = 1; 
+        case 3:
+            array_3 = 1;
             break;
     }
     pthread_mutex_unlock(&mut_lock);
@@ -61,17 +61,17 @@ void *thread3(void * arg)
     assert(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
-        case 0: 
-            array_0 = 1; 
+        case 0:
+            array_0 = 1;
             break;
-        case 1: 
-            array_1 = 1; 
+        case 1:
+            array_1 = 1;
             break;
-        case 2: 
-            array_2 = 1; 
+        case 2:
+            array_2 = 1;
             break;
-        case 3: 
-            array_3 = 1; 
+        case 3:
+            array_3 = 1;
             break;
     }
     pthread_mutex_unlock(&mut_lock);
@@ -83,17 +83,17 @@ void *thread4(void * arg)
     assert(array_index <= 4);
     pthread_mutex_lock(&mut_lock);
 	switch (array_index) {
-        case 0: 
-            array_0 = 1; 
+        case 0:
+            array_0 = 1;
             break;
-        case 1: 
-            array_1 = 1; 
+        case 1:
+            array_1 = 1;
             break;
-        case 2: 
-            array_2 = 1; 
+        case 2:
+            array_2 = 1;
             break;
-        case 3: 
-            array_3 = 1; 
+        case 3:
+            array_3 = 1;
             break;
     }
     pthread_mutex_unlock(&mut_lock);

@@ -1,4 +1,4 @@
-// SKIP
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
 
 #include <pthread.h>
 #include "assert.h"
@@ -11,16 +11,16 @@ void* W1_Indexer(void* arg){
     int m = 0;
     int w = 0;
     int h = 0, rv = 0;
-    
+
     while(m < MAX) {
         w = (++m) * 12;
         h = (w*7) % SIZE;
-        
+
         assert(h>=0);
-        
+
         rv = 0;
         h = rv + 1;
-        
+
         while(rv == 0) {
             pthread_mutex_lock(&lock);
             if(array == 0) {
@@ -39,16 +39,16 @@ void* W2_Indexer(void* arg){
     int m = 0;
     int w = 0;
     int h = 0, rv = 0;
-    
+
     while(m < MAX) {
         w = (++m) * 12;
         h = (w*7) % SIZE;
-        
+
         assert(h>=0);
-        
+
         rv = 0;
         h = rv + 1;
-        
+
         while(rv == 0) {
             pthread_mutex_lock(&lock);
             if(array == 0) {
@@ -60,7 +60,7 @@ void* W2_Indexer(void* arg){
             pthread_mutex_unlock(&lock);
         }
     }
-    return 0;   
+    return 0;
 }
 
 int main() {
