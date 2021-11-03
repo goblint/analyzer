@@ -585,14 +585,10 @@ struct
 
   let keep_only_protected_globals ask m octs =
     (* normal (strong) mapping: contains only still fully protected *)
-    let octs =
-      (* must filter by protection to avoid later meeting with non-protecting *)
-      LAD.filter (fun gs _ ->
-          VS.for_all (is_protected_by ask m) gs (* TODO: is this subset check right? *)
-        ) octs
-    in
-    LAD.map (keep_only_protected_globals ask m) octs (* TODO: is this even necessary if keys are filtered above? *)
-    (* octs *)
+    (* must filter by protection to avoid later meeting with non-protecting *)
+    LAD.filter (fun gs _ ->
+        VS.for_all (is_protected_by ask m) gs
+      ) octs
 
   let keep_global g octs =
     let g_var = V.global g in
