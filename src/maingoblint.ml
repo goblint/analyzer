@@ -291,6 +291,7 @@ let merge_preprocessed cpp_file_names =
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
   let files_AST = List.rev_map Cilfacade.getAST cpp_file_names in
   remove_temp_dir ();
+
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
