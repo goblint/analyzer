@@ -59,7 +59,6 @@ let printAllCategories ch =
 (* {4 category [Std]} *)
 let _ = ()
       ; reg Std "outfile"         ""             "File to print output to."
-      ; reg Std "removePath"         ""          "For the Sarif Github action. This removes the leading path of the Uri. This is needed, because the Github action runs in a subdirectory."
       ; reg Std "includes"        "[]"           "List of directories to include."
       ; reg Std "kernel_includes" "[]"           "List of kernel directories to include."
       ; reg Std "custom_includes" "[]"           "List of custom directories to include."
@@ -286,7 +285,6 @@ let default_schema = {schema|
     { "file"            : ""
     }
   , "outfile"         : {}
-  , "removePath"      : {} 
   , "includes"        : {}
   , "kernel_includes" : {}
   , "custom_includes" : {}

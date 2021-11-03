@@ -1,8 +1,5 @@
 (** The Sarif format is a standardised output format for static analysis tools. https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html *)
 open Prelude
-open GobConfig
-module Category = MessageCategory
-module GU = Goblintutil
 
 open SarifType
 open SarifRules
@@ -68,17 +65,11 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
       |Category cat-> MessageCategory.categoryName cat
       | CWE c-> "" (*this case should not be reachable *)
 
-(* for the github action. Removes leading directory.*)
-let trimFile (path:string) =
-  let lengthRemove = (String.length (get_string "removePath"))
-  in
-  if get_string "removePath" == "" then path else
-  "./"^(String.sub path lengthRemove  ((String.length path)-lengthRemove) )
 
 let createArtifact (uri:string) =
   {
     Artifact.location={
-      ArtifactLocation.uri=trimFile uri;
+      ArtifactLocation.uri=uri;
     }
   }
 let createArtifactObject (uri:string) =
@@ -104,7 +95,7 @@ let createPhysicalLocationObject (piece:Messages.Piece.t) =
   in
   {
     Location.physicalLocation={
-      PhysicalLocation.artifactLocation=  createArtifactObject (trimFile (deOptionalizeLocation piece).file);
+      PhysicalLocation.artifactLocation=  createArtifactObject  (deOptionalizeLocation piece).file;
       PhysicalLocation.region=createRegionObject ((deOptionalizeLocation piece).line,(deOptionalizeLocation piece).column);
     }
   }

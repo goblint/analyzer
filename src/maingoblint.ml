@@ -90,7 +90,6 @@ let option_spec_list =
   [ "-o"                   , Arg.String (set_string "outfile"), ""
   ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
   ; "-I"                   , Arg.String (set_string "includes[+]"), ""
-  ; "-R"                   , Arg.String (set_string "removePath"), ""
   ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
   ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
