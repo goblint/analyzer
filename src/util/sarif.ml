@@ -21,7 +21,7 @@ let severityToLevel (severity:Messages.Severity.t)= match severity with
 
 let createMessageObject (text:String.t) =
   {
-    SairfMessageObject.text=text;
+    Message.text=text;
   }
 (*A reportingDescriptor offers a lot of information about a Goblint rule *)
 let createReportingDescriptor categoryInformation =
@@ -37,14 +37,14 @@ let createReportingDescriptor categoryInformation =
 let transformToReportingDescriptor (id:String.t)=
   createReportingDescriptor  (getRuleInformation id)
 
-let (driverObject:Driver.t) =
+let (driverObject:ToolComponent.t) =
   {
-    Driver.name="Goblint";
-    Driver.fullName= "Goblint static analyser";
-    Driver.informationUri="https://goblint.in.tum.de/home";
-    Driver.organization="TUM - i2 and UTartu - SWS";
-    Driver.version=Version.goblint;
-    Driver.rules=List.map transformToReportingDescriptor (List.map (fun rule -> rule.name) rules)
+    ToolComponent.name="Goblint";
+    ToolComponent.fullName= "Goblint static analyser";
+    ToolComponent.informationUri="https://goblint.in.tum.de/home";
+    ToolComponent.organization="TUM - i2 and UTartu - SWS";
+    ToolComponent.version=Version.goblint;
+    ToolComponent.rules=List.map transformToReportingDescriptor (List.map (fun rule -> rule.name) rules)
   }
 let (toolObject:Tool.t) =
   {
@@ -75,9 +75,9 @@ let trimFile (path:string) =
   if get_string "removePath" == "" then path else
   "./"^(String.sub path lengthRemove  ((String.length path)-lengthRemove) )
 
-let createArtifactLocationObject (uri:string) =
+let createArtifact (uri:string) =
   {
-    LocationObject.location={
+    Artifact.location={
       ArtifactLocation.uri=trimFile uri;
     }
   }
@@ -103,7 +103,7 @@ let createPhysicalLocationObject (piece:Messages.Piece.t) =
     }
   in
   {
-    Locations.physicalLocation={
+    Location.physicalLocation={
       PhysicalLocation.artifactLocation=  createArtifactObject (trimFile (deOptionalizeLocation piece).file);
       PhysicalLocation.region=createRegionObject ((deOptionalizeLocation piece).line,(deOptionalizeLocation piece).column);
     }
@@ -122,10 +122,10 @@ let createResult (message:Messages.Message.t) =
     | Group {group_text = n; pieces = e} ->n
   in
   {
-    ResultObject.ruleId=(getRuleInformation (getCategoryInformationID message.tags)).ruleId;
-    ResultObject.level=severityToLevel message.severity;
-    ResultObject.message=createMessageObject (getMessage message.multipiece);
-    ResultObject.locations=createLocationsObject message.multipiece;
+    Result.ruleId=(getRuleInformation (getCategoryInformationID message.tags)).ruleId;
+    Result.level=severityToLevel message.severity;
+    Result.message=createMessageObject (getMessage message.multipiece);
+    Result.locations=createLocationsObject message.multipiece;
   }
 
 let getFileLocation (multipiece:Messages.MultiPiece.t)=
@@ -150,10 +150,10 @@ let collectAllFileLocations (msgList:Messages.Message.t list)=
 let runObject msgList=
   {
     Run.invocations=[{
-        InvocationObject.commandLine=String.concat  ", " (BatArray.to_list BatSys.argv)  ;
-        InvocationObject.executionSuccessful=true;
+        Invocation.commandLine=String.concat  ", " (BatArray.to_list BatSys.argv)  ;
+        Invocation.executionSuccessful=true;
       }];
-    Run.artifacts= List.map createArtifactLocationObject (collectAllFileLocations   msgList);
+    Run.artifacts= List.map createArtifact (collectAllFileLocations   msgList);
     Run.tool=toolObject;
     Run.defaultSourceLanguage="C";
     Run.results=List.map createResult (List.take 5000 msgList);
