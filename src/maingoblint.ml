@@ -82,9 +82,8 @@ let option_spec_list =
   in
   let configure_sarif () =
     if (get_string "outfile" = "") then
-      set_string "outfile" "test.sarif";
+      set_string "outfile" "goblint.sarif";
     set_bool "dbg.print_dead_code" true;
-    set_bool "exp.cfgdot" true;
     set_string "result" "sarif"
   in
   let tmp_arg = ref "" in
@@ -208,7 +207,7 @@ let preprocess_files () =
 
   (* reverse the files again *)
   cFileNames := List.rev !cFileNames;
-  
+
   (* If the first file given is a Makefile, we use it to combine files *)
   if List.length !cFileNames >= 1 then (
     let firstFile = List.first !cFileNames in
