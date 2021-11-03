@@ -1,4 +1,5 @@
-(lang dune 2.3)
+(lang dune 2.8)
+(using dune_site 0.1)
 (name goblint)
 ; build failed with: Files src/.maingoblint.eobjs/native/mutex.cmx and _opam/lib/ocaml/threads/threads.cmxa both define a module named Mutex
 ; maybe related: https://github.com/ocaml/dune/issues/1727, https://github.com/ocaml/dune/issues/597
@@ -6,6 +7,8 @@
 (wrapped_executables true) ; prefix compilation unit names; mentioned here: https://github.com/ocaml/ocaml/pull/2218#issuecomment-572043299; doc says it's the default since dune 2.0, but it somehow still fixes the clash
 
 ; https://dune.readthedocs.io/en/stable/dune-files.html#generate-opam-files
+; goblint.opam is generated on `dune build` (not normal make!) from this file and goblint.opam.template
+; also remember to generate/adjust goblint.opam.locked!
 (generate_opam_files true)
 
 (source (github goblint/analyzer))
@@ -31,6 +34,8 @@
     ocaml-monadic
     (ounit2 :with-test)
     (odoc :with-doc)
+    dune-site
+    benchmark ; TODO: make this optional somehow, (optional) on bench executable doesn't work
     ; TODO still need the following after switch to dune?
     ocamlbuild
     ocamlfind
@@ -39,4 +44,5 @@
     apron
     z3
   )
+  (sites (share includes))
 )

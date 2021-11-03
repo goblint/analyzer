@@ -49,8 +49,8 @@ struct
     let must_true = BatList.filter_map (f (`Must true)) xs in
     let may_true  = BatList.filter_map (f (`May true)) xs in
     (* output first must and first may *)
-    if List.length must_true > 0 then (List.hd must_true) ();
-    if List.length may_true  > 0 then (List.hd may_true) ()
+    if must_true <> [] then (List.hd must_true) ();
+    if may_true <> [] then (List.hd may_true) ()
 
   (* handling state *)
   let opened   r = V.state r |> Val.opened

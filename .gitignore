@@ -72,4 +72,7 @@ incremental_data/
 # test-incremental.sh
 *.log
 
+# make relocatable
+relocatable/
+
 *.sarif

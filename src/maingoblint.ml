@@ -151,7 +151,7 @@ let handle_flags () =
     set_string "outfile" ""
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
-let preprocess_one_file cppflags includes fname =
+let preprocess_one_file cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
   if Sys.file_exists (get_string "tempDir") then
@@ -159,7 +159,7 @@ let preprocess_one_file cppflags includes fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " " ^ includes ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -172,43 +172,52 @@ let preprocess_one_file cppflags includes fname =
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
-  (* Handy (almost) constants. *)
-  let kernel_root = Filename.concat exe_dir "linux-headers" in
-  let kernel_dir = kernel_root ^ "/include" in
-  let arch_dir = kernel_root ^ "/arch/x86/include" in
-
   (* Preprocessor flags *)
   let cppflags = ref (get_string "cppflags") in
 
   (* the base include directory *)
-  let include_dir =
-    let incl1 = Filename.concat exe_dir "includes" in
-    let incl2 = "/usr/share/goblint/includes" in
-    if get_string "custom_incl" <> "" then (get_string "custom_incl")
-    else if Sys.file_exists incl1 then incl1
-    else if Sys.file_exists incl2 then incl2
-    else "/usr/local/share/goblint/includes"
+  let custom_include_dirs =
+    get_string_list "custom_includes" @
+    Filename.concat exe_dir "includes" ::
+    Gobsites.Sites.includes
+  in
+  if get_bool "dbg.verbose" then (
+    print_endline "Custom include dirs:";
+    List.iteri (fun i custom_include_dir ->
+        Printf.printf "  %d. %s (exists=%B)\n" (i + 1) custom_include_dir (Sys.file_exists custom_include_dir)
+      ) custom_include_dirs
+  );
+  let custom_include_dirs = List.filter Sys.file_exists custom_include_dirs in
+  if custom_include_dirs = [] then
+    print_endline "Warning, cannot find goblint's custom include files.";
+
+  let find_custom_include subpath =
+    List.find_map (fun custom_include_dir ->
+        let path = Filename.concat custom_include_dir subpath in
+        if Sys.file_exists path then
+          Some path
+        else
+          None
+      ) custom_include_dirs
   in
 
   (* include flags*)
-  let includes = ref "" in
+  let include_dirs = ref [] in
+  let include_files = ref [] in
 
   (* fill include flags *)
-  let one_include_f f x = includes := "-I " ^ f x ^ " " ^ !includes in
-  if get_string "ana.osek.oil" <> "" then includes := "-include " ^ (Filename.concat !Goblintutil.tempDirName OilUtil.header) ^" "^ !includes;
-  (*   if get_string "ana.osek.tramp" <> "" then includes := "-include " ^ get_string "ana.osek.tramp" ^" "^ !includes; *)
+  let one_include_f f x = include_dirs := f x :: !include_dirs in
+  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat !Goblintutil.tempDirName OilUtil.header :: !include_files;
+  (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
   get_string_list "includes" |> List.iter (one_include_f identity);
-  get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
-  if Sys.file_exists include_dir
-  then includes := "-I" ^ include_dir ^ " " ^ !includes
-  else print_endline "Warning, cannot find goblint's custom include files.";
+  include_dirs := custom_include_dirs @ !include_dirs;
 
   (* reverse the files again *)
   cFileNames := List.rev !cFileNames;
 
   (* If the first file given is a Makefile, we use it to combine files *)
-  if List.length !cFileNames >= 1 then (
+  if !cFileNames <> [] then (
     let firstFile = List.first !cFileNames in
     if Filename.basename firstFile = "Makefile" then (
       let makefile = firstFile in
@@ -232,27 +241,49 @@ let preprocess_files () =
 
   (* possibly add our lib.c to the files *)
   if get_bool "custom_libc" then
-    cFileNames := (Filename.concat include_dir "lib.c") :: !cFileNames;
+    cFileNames := find_custom_include "lib.c" :: !cFileNames;
 
   if get_bool "ana.sv-comp.functions" then
-    cFileNames := (Filename.concat include_dir "sv-comp.c") :: !cFileNames;
+    cFileNames := find_custom_include "sv-comp.c" :: !cFileNames;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
-    let preconf = Filename.concat include_dir "linux/goblint_preconf.h" in
+    let kernel_roots = [
+      get_string "kernel-root";
+      Filename.concat exe_dir "linux-headers";
+      (* linux-headers not installed with goblint package *)
+    ]
+    in
+    let kernel_root = List.find Sys.file_exists kernel_roots in
+
+    let kernel_dir = kernel_root ^ "/include" in
+    let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
+
+    get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
+
+    let preconf = find_custom_include "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
-    cppflags := "-D__KERNEL__ -U__i386__ -include " ^ preconf ^ " -include " ^ autoconf ^ " " ^ !cppflags;
+    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ " ^ !cppflags;
+    include_files := preconf :: autoconf :: !include_files;
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
-    includes := !includes ^ " -I" ^ String.concat " -I" [
-        kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi";
+    include_dirs := !include_dirs @ [
+        kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi"; (* TODO: no / and duplicate include with kernel_dir is bug? *)
         arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
       ]
   );
 
+  let includes =
+    String.join " " (List.map (fun include_dir -> "-I " ^ include_dir) !include_dirs) ^
+    " " ^
+    String.join " " (List.map (fun include_file -> "-include " ^ include_file) !include_files)
+  in
+
+  let cppflags = !cppflags ^ " " ^ includes in
+
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  List.rev_map (preprocess_one_file !cppflags !includes) !cFileNames
+  List.rev_map (preprocess_one_file cppflags) !cFileNames
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
@@ -361,8 +392,9 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   )
 
+let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
+
 let check_arguments () =
-  let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m) in
   (* let fail m = let m = "Option failure: " ^ m in eprint_color ("{red}"^m); failwith m in *) (* unused now, but might be useful for future checks here *)
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
@@ -371,7 +403,7 @@ let check_arguments () =
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if (get_bool "incremental.save" || get_bool "incremental.load") && get_bool "ana.opt.hashcons" then (set_bool "ana.opt.hashcons" false; warn "Disabled option ana.opt.hashcons because incremental.save or incremental.load is enabled.")
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.rename-load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
@@ -381,17 +413,24 @@ let handle_extraspecials () =
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
-    let (changes, old_file, solver_data, version_map, max_ids) =
+    if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
+      let warn m = eprint_color ("{yellow}Warning: "^m) in
+      warn "incremental.load is activated but no data exists that can be loaded."
+    end;
+    let (changes, old_file, version_map, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         let old_file = Serialize.load_data Serialize.CilFile in
         let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
-        let solver_data = Serialize.load_data Serialize.SolverData in
-        (changes, Some old_file, Some solver_data, version_map, max_ids)
+        (changes, Some old_file, version_map, max_ids)
       end else begin
         let (version_map, max_ids) = VersionLookup.create_map current_file in
-        (CompareAST.empty_change_info (), None, None, version_map, max_ids)
+        (CompareCIL.empty_change_info (), None, version_map, max_ids)
       end
+    in
+    let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")
+      then Some (Serialize.load_data Serialize.SolverData)
+      else None
     in
     if GobConfig.get_bool "incremental.save" then begin
       Serialize.store_data current_file Serialize.CilFile;

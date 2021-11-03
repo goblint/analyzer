@@ -293,7 +293,7 @@ struct
   let equal x y = if x.ikind <> y.ikind then false else I.equal x.v y.v
 
   let hash x =
-    let ikind_to_int (ikind: ikind) = match ikind with
+    let ikind_to_int (ikind: ikind) = match ikind with (* TODO replace with `int_of_string % Batteries.dump` or derive *)
     | IChar 	-> 0
     | ISChar 	-> 1
     | IUChar 	-> 2
@@ -306,6 +306,8 @@ struct
     | IULong 	-> 9
     | ILongLong -> 10
     | IULongLong -> 11
+    | IInt128 -> 12
+    | IUInt128 -> 13
     in
     3 * (I.hash x.v) + 5 * (ikind_to_int x.ikind)
   let compare x y = let ik_c = compare x.ikind y.ikind in
@@ -530,7 +532,7 @@ struct
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
   let set_overflow_flag ik =
-    if Cil.isSigned ik && !GU.in_verifying_stage then (
+    if Cil.isSigned ik && !GU.postsolving then (
       Goblintutil.did_overflow := true;
       M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "Integer overflow"
     )
@@ -632,7 +634,8 @@ struct
       norm ik @@ Some (l2,u2)
   let widen ik x y =
     let r = widen ik x y in
-    if M.tracing then M.trace "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    if M.tracing then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
   let narrow ik x y =
@@ -1974,25 +1977,25 @@ module Enums : S with type int_t = BigInt.t = struct
   let maximal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.max_elt xs)
     | Exc (excl,r) ->
-      let range_max = Exclusion.max_of_range r in
-      let rec decrement_while_contained v s =
-        if BISet.mem range_max s
-        then decrement_while_contained (BI.sub v (BI.one)) s
+      let rec decrement_while_contained v =
+        if BISet.mem v excl
+        then decrement_while_contained (BI.sub v (BI.one))
         else v
       in
-      Some (decrement_while_contained range_max excl)
+      let range_max = Exclusion.max_of_range r in
+      Some (decrement_while_contained range_max)
     | _ (* bottom case *) -> None
 
   let minimal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.min_elt xs)
     | Exc (excl,r) ->
-      let range_min = Exclusion.min_of_range r in
-      let rec increment_while_contained v s =
-        if BISet.mem range_min s
-        then increment_while_contained (BI.add v (BI.one)) s
+      let rec increment_while_contained v =
+        if BISet.mem v excl
+        then increment_while_contained (BI.add v (BI.one))
         else v
       in
-      Some (increment_while_contained range_min excl)
+      let range_min = Exclusion.min_of_range r in
+      Some (increment_while_contained range_min)
     | _ (* bottom case *) -> None
 
   let lt ik x y =

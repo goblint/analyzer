@@ -4,7 +4,7 @@ open Constraints
 
 module Make =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)
@@ -56,10 +56,9 @@ module Make =
         set x (eq x (eval x) set)
       done;
       stop_event ();
-      rho, Goblintutil.dummy_obj
+      rho
   end
 
 
 let _ =
-  let module S = GlobSolverFromEqSolver (Make) in
-  Selector.add_solver ("WL",  (module S : GenericGlobSolver));
+  Selector.add_solver ("WL",  (module EqIncrSolverFromEqSolver (Make)));

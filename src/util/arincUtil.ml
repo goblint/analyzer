@@ -345,7 +345,7 @@ let save_promela_model () =
       let walk_edges (a, out_edges) =
         let edges = Set.elements out_edges |> List.map str_edge in
         (label a ^ ":") ::
-        if List.length edges > 1 then
+        if List.compare_length_with edges 1 > 0 then
           "if" :: (choice edges) @ ["fi"]
         else
           edges

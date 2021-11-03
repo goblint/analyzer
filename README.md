@@ -1,8 +1,8 @@
 # Goblint
 [![locked workflow status](https://github.com/goblint/analyzer/actions/workflows/locked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/locked.yml)
 [![unlocked workflow status](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/unlocked.yml)
+[![docker workflow status](https://github.com/goblint/analyzer/actions/workflows/docker.yml/badge.svg)](https://github.com/goblint/analyzer/actions/workflows/docker.yml)
 [![Documentation Status](https://readthedocs.org/projects/goblint/badge/?version=latest)](https://goblint.readthedocs.io/en/latest/?badge=latest)
-[![Docker Build Status](https://img.shields.io/docker/cloud/build/voglerr/goblint)](https://hub.docker.com/r/voglerr/goblint)
 
 Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/en/latest/) or [GitHub](./docs/).
 
@@ -16,6 +16,7 @@ _The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very
 2. Make sure the following are installed: `git patch m4 autoconf libgmp-dev libmpfr-dev`.
 3. Run `make setup` to install OCaml and dependencies via opam.
 4. Run `make` to build Goblint itself.
+5. Run `make install` to install Goblint into the opam switch for usage via switch's `PATH`.
 
 ### MacOS
 1. Install GCC with `brew install gcc` (first run `xcode-select --install` if you don't want to build it from source). Goblint requires GCC while macOS's default `cpp` is Clang, which will not work.
@@ -26,16 +27,25 @@ _The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very
 2. Continue using Linux instructions in WSL.
 
 ### Other
-* **Docker.** Clone and run `make docker`.
+* **[Docker (GitHub Container Registry)](https://github.com/goblint/analyzer/pkgs/container/analyzer)**. Run `docker pull ghcr.io/goblint/analyzer:latest`.
+* **Docker (repository).** Clone and run `docker build -t goblint .`.
 * **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
-* **[Docker Hub](https://hub.docker.com/r/voglerr/goblint)** (outdated). Run `docker run -it voglerr/goblint bash`.
 * **[opam](https://opam.ocaml.org/packages/goblint/)** (very outdated). Run `opam install goblint`.
 
 
 ## Running
-To confirm that the installation worked, you can try running Goblint as follows:
+To confirm that building worked, you can try running Goblint as follows:
 ```
 ./goblint tests/regression/04-mutex/01-simple_rc.c
 ```
+To confirm that installation into the opam switch worked, you can try running Goblint as follows:
+```
+goblint tests/regression/04-mutex/01-simple_rc.c
+```
+To confirm that the Docker container worked, you can try running Goblint as follows:
+```
+docker run -it --rm -v $(pwd):/data goblint /data/tests/regression/04-mutex/01-simple_rc.c
+```
+If pulled from GitHub Container Registry, use the container name `ghcr.io/goblint/analyzer:latest` instead.
 
 For further information, see [documentation](https://goblint.readthedocs.io/en/latest/user-guide/running/).
