@@ -20,6 +20,8 @@ module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hash.H with type key = S.v) ->
   struct
+    module S = Constraints.CachingEqConstrSys (S) (* TODO: don't hardcode into just TD3 *)
+
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 

@@ -1224,3 +1224,65 @@ struct
         r
       ) lh
 end
+
+
+module CachingEqConstrSys (S: EqConstrSys): EqConstrSys with type v = S.v and type d = S.d =
+struct
+  include S
+
+  module VH = Hashtbl.Make (S.Var)
+
+  let prevs = VH.create 10
+
+  exception AbortF
+
+  let system x =
+    match S.system x with
+    | None -> None
+    | Some f when not !Goblintutil.in_verifying_stage ->
+      let f' get set =
+        match VH.find_option prevs x with
+        | None ->
+          let new_dep_vals = VH.create 0 in
+          let get' y =
+            let d = get y in
+            VH.replace new_dep_vals y d;
+            d
+          in
+          let d = f get' set in
+          VH.replace prevs x (new_dep_vals, d);
+          d
+        | Some (prev_dep_vals, prev_val) ->
+          try
+            let unasked_dep = VH.map (fun _ _ -> ()) prev_dep_vals in
+            let all_dep_unchanged = ref true in
+            let get' y =
+              let d = get y in
+              begin match VH.find_option prev_dep_vals y with
+                | Some prev_d ->
+                  if not (S.Dom.equal prev_d d) then
+                    all_dep_unchanged := false;
+                  VH.remove unasked_dep y;
+                  if !all_dep_unchanged && VH.is_empty unasked_dep then
+                    raise AbortF
+                | _ -> ()
+              end;
+              d
+            in
+            let new_dep_vals = VH.create (VH.length prev_dep_vals) in
+            let get' y =
+              let d = get' y in
+              VH.replace new_dep_vals y d;
+              d
+            in
+            let d = f get' set in
+            VH.replace prevs x (new_dep_vals, d);
+            d
+          with AbortF ->
+            (* prevs remain the same *)
+            prev_val
+      in
+      Some f'
+    | Some _ as f_opt ->
+      f_opt
+end
