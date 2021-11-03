@@ -71,3 +71,5 @@ incremental_data/
 
 # test-incremental.sh
 *.log
+
+*.sarif
