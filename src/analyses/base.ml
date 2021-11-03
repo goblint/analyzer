@@ -63,6 +63,17 @@ struct
   let hash    (x,_)             = Hashtbl.hash x
   let leq     (x1,_) (y1,_) = CPA.leq   x1 y1
 
+  let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
+
+  let project_val p_opt value is_glob =
+    match GobConfig.get_bool "annotation.int.enabled", is_glob, p_opt with
+    | true, true, _ -> VD.project PU.max_precision value
+    | true, false, Some p -> VD.project p value
+    | _ -> value
+
+  let project p_opt cpa =
+    CPA.mapi (fun varinfo value -> project_val p_opt value (is_privglob varinfo)) cpa
+
 
   (**************************************************************************
    * Initializing my variables
@@ -1105,7 +1116,9 @@ struct
               lval_type
       in
       let update_offset old_value =
-        let new_value = VD.update_offset a old_value offs value lval_raw ((Var x), cil_offset) t in
+        (* Projection to highest Precision *)
+        let projected_value = project_val None value (is_global a x) in
+        let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
         else if invariant then
@@ -1128,14 +1141,6 @@ struct
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let new_value = update_offset (Priv.read_global a gs st x) in
-
-        (* Projection to highest Precision *)
-        let new_value =
-          if GobConfig.get_bool "annotation.int.enabled"
-          then VD.projection (PU.max_precision ()) new_value
-          else new_value
-        in
-
         let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
@@ -1143,14 +1148,6 @@ struct
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let new_value = update_offset (CPA.find x st.cpa) in
-
-        (* Projection to highest Precision *)
-        let new_value =
-          if GobConfig.get_bool "annotation.int.enabled" && GobConfig.get_bool "annotation.int.privglobs" && x.vglob
-          then VD.projection (PU.max_precision ()) new_value
-          else new_value
-        in
-
         (* what effect does changing this local variable have on arrays -
            we only need to do this here since globals are not allowed in the
            expressions for partitioning *)
@@ -1926,15 +1923,7 @@ struct
 
     (* Projection to Precision of the Callee *)
     let p = PU.precision_from_fundec fundec in
-    let new_cpa =
-      if GobConfig.get_bool "annotation.int.enabled"
-      then CPA.mapi (fun v t -> VD.projection (
-          if GobConfig.get_bool "annotation.int.privglobs" && v.vglob
-          then PU.max_precision ()
-          else p)
-          t) new_cpa
-      else new_cpa
-    in
+    let new_cpa = project (Some p) new_cpa in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
@@ -2300,24 +2289,8 @@ struct
 
       (* Projection to Precision of the Caller *)
       let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let return_val =
-        if GobConfig.get_bool "annotation.int.enabled"
-        then VD.projection (
-            if GobConfig.get_bool "annotation.int.privglobs" && (return_varinfo ()).vglob
-            then PU.max_precision ()
-            else p)
-            return_val
-        else return_val
-      in
-      let cpa' =
-        if GobConfig.get_bool "annotation.int.enabled"
-        then CPA.mapi (fun v t -> VD.projection (
-            if GobConfig.get_bool "annotation.int.privglobs" && v.vglob
-            then PU.max_precision ()
-            else p)
-            t) nst.cpa
-        else nst.cpa
-      in
+      let return_val = project_val (Some p) return_val (is_privglob (return_varinfo ())) in
+      let cpa' = project (Some p) nst.cpa in
 
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with

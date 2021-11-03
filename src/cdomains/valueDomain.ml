@@ -34,7 +34,7 @@ sig
   val top_value: typ -> t
   val zero_init_value: typ -> t
 
-  val projection: precision -> t -> t
+  val project: precision -> t -> t
 end
 
 module type Blob =
@@ -1101,14 +1101,14 @@ struct
 
   let arbitrary () = QCheck.always `Bot (* S TODO: other elements *)
 
-  let rec projection p (v: t): t =
+  let rec project p (v: t): t =
     match v with
-    | `Int n ->  `Int (ID.projection p n)
+    | `Int n ->  `Int (ID.project p n)
     | `Address n -> `Address (project_addr p n)
-    | `Struct n -> `Struct (Structs.map (fun (x: t) -> projection p x) n)
-    | `Union (f, v) -> `Union (f, projection p v)
+    | `Struct n -> `Struct (Structs.map (fun (x: t) -> project p x) n)
+    | `Union (f, v) -> `Union (f, project p v)
     | `Array n -> `Array (project_arr p n)
-    | `Blob (v, s, z) -> `Blob (projection p v, ID.projection p s, z)
+    | `Blob (v, s, z) -> `Blob (project p v, ID.project p s, z)
     | `List n -> `List (project_list p n (Lists.bot ()))
     | `Thread n -> `Thread n
     | `Bot -> `Bot
@@ -1122,12 +1122,12 @@ struct
     match offs with
     | `NoOffset -> `NoOffset
     | `Field (field, offs') -> `Field (field, project_offs p offs')
-    | `Index (idx, offs') -> `Index (ID.projection p idx, project_offs p offs')
+    | `Index (idx, offs') -> `Index (ID.project p idx, project_offs p offs')
   and project_arr p n =
-    let n' = CArrays.map (fun (x: t) -> projection p x) n in
+    let n' = CArrays.map (fun (x: t) -> project p x) n in
     match CArrays.length n with
     | None -> n'
-    | Some l -> CArrays.update_length (ID.projection p l) n'
+    | Some l -> CArrays.update_length (ID.project p l) n'
   and project_list p (acc: Lists.t) (l: Lists.t) =
     match Lists.list_empty l with
     | Some true -> acc

@@ -154,7 +154,7 @@ sig
   val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
-  val projection: Cil.ikind -> precision -> t -> t
+  val project: Cil.ikind -> precision -> t -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -172,7 +172,7 @@ sig
   val ending     : Cil.ikind -> int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
 
-  val projection: precision -> t -> t
+  val project: precision -> t -> t
 end
 
 module type Z = Y with type int_t = BI.t
@@ -265,7 +265,7 @@ struct
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
 
-  let projection ik p t = t
+  let project ik p t = t
 end
 
 
@@ -375,7 +375,7 @@ struct
 
   let relift x = { v = I.relift x.v; ikind = x.ikind }
 
-  let projection p v =  { v = I.projection v.ikind p v.v; ikind = v.ikind }
+  let project p v =  { v = I.project v.ikind p v.v; ikind = v.ikind }
 end
 
 module type Ikind =
@@ -907,7 +907,7 @@ struct
         | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (Some (m1, m2))
         | _, _-> intv
 
-  let projection ik p t = t
+  let project ik p t = t
 end
 
 
@@ -1646,7 +1646,7 @@ struct
   | _ -> a
   let refine_with_incl_list ik a b = a
 
-  let projection ik p t = t
+  let project ik p t = t
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -2087,7 +2087,7 @@ module Enums : S with type int_t = BigInt.t = struct
     | Inc x, Some (ls) -> meet ik (Inc x) (Inc (BISet.of_list ls))
     | _ -> a
 
-  let projection ik p t = t
+  let project ik p t = t
 end
 
 module Congruence : S with type int_t = BI.t and type t = (BI.t * BI.t) option =
@@ -2547,7 +2547,7 @@ struct
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
 
-  let projection ik p t = t
+  let project ik p t = t
 end
 
 (* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I3 below to see where you need to extend. *)
@@ -2586,26 +2586,12 @@ module IntDomTupleImpl = struct
     let f b g = if b then Some (g x) else None in
     f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4)
   let create r x = (* use where values are introduced *)
-    let p =
-      if GobConfig.get_bool "annotation.int.enabled" then
-        precision_from_node ()
-      else
-        let f n = get_bool ("ana.int."^n) in
-        (f "def_exc", f "interval", f "enums", f "congruence")
-    in
-    create r x p
+    create r x (precision_from_node_or_config ())
   let create2 r x ((p1, p2, p3, p4): precision) =
     let f b g = if b then Some (g x) else None in
     f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4)
   let create2 r x = (* use where values are introduced *)
-    let p =
-      if GobConfig.get_bool "annotation.int.enabled" then
-        precision_from_node ()
-      else
-        let f n = get_bool ("ana.int."^n) in
-        (f "def_exc", f "interval", f "enums", f "congruence")
-    in
-    create2 r x p
+    create2 r x (precision_from_node_or_config ())
 
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
@@ -2835,7 +2821,7 @@ module IntDomTupleImpl = struct
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.to_yojson x }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
 
-  (* `map/opt_map` are used for `projection` *)
+  (* `map/opt_map` are used by `project` *)
   let opt_map b f =
     curry @@ function None, true -> f | x, y when y || b -> x | _ -> None
   let map ~keep r (i1, i2, i3, i4) (b1, b2, b3, b4) =
@@ -2860,7 +2846,7 @@ module IntDomTupleImpl = struct
    * ~keep:true will keep elements that are `Some x` but should be set to `None` by p.
    *  This way we won't loose any information for the refinement.
    * ~keep:false will set the elements to `None` as defined by p *)
-  let projection ik (p: precision) t =
+  let project ik (p: precision) t =
     let t_padded = map ~keep:true { f3 = fun (type a) (module I:S with type t = a) -> Some (I.top_of ik) } t p in
     let t_refined = refine ik t_padded in
     map ~keep:false { f3 = fun (type a) (module I:S with type t = a) -> None } t_refined p
