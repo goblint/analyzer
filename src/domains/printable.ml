@@ -611,7 +611,7 @@ let get_short_list begin_str end_str list =
   let cut_str_list_rev = List.map fst cut_str_pair_list_rev in
 
   let cut_str_list =
-    if ((List.length cut_str_list_rev) < (List.length list)) then
+    if List.compare_lengths cut_str_list_rev list < 0 then
       List.rev (continues::cut_str_list_rev)
     else
       List.rev cut_str_list_rev in

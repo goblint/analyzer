@@ -1,0 +1,10 @@
+rules:
+  - id: option-is-some-get
+    patterns:
+      - pattern: Option.get $O
+      - pattern-either:
+        - pattern-inside: if Option.is_some $O then ...
+        - pattern-inside: if ... && Option.is_some $O then ...
+    message: use match instead
+    languages: [ocaml]
+    severity: WARNING

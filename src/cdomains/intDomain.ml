@@ -634,7 +634,8 @@ struct
       norm ik @@ Some (l2,u2)
   let widen ik x y =
     let r = widen ik x y in
-    if M.tracing then M.trace "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    if M.tracing then M.tracel "int" "interval widen %a %a -> %a\n" pretty x pretty y pretty r;
+    assert (leq x y); (* TODO: remove for performance reasons? *)
     r
 
   let narrow ik x y =
@@ -1976,25 +1977,25 @@ module Enums : S with type int_t = BigInt.t = struct
   let maximal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.max_elt xs)
     | Exc (excl,r) ->
-      let range_max = Exclusion.max_of_range r in
-      let rec decrement_while_contained v s =
-        if BISet.mem range_max s
-        then decrement_while_contained (BI.sub v (BI.one)) s
+      let rec decrement_while_contained v =
+        if BISet.mem v excl
+        then decrement_while_contained (BI.sub v (BI.one))
         else v
       in
-      Some (decrement_while_contained range_max excl)
+      let range_max = Exclusion.max_of_range r in
+      Some (decrement_while_contained range_max)
     | _ (* bottom case *) -> None
 
   let minimal = function
     | Inc xs when not (BISet.is_empty xs) -> Some (BISet.min_elt xs)
     | Exc (excl,r) ->
-      let range_min = Exclusion.min_of_range r in
-      let rec increment_while_contained v s =
-        if BISet.mem range_min s
-        then increment_while_contained (BI.add v (BI.one)) s
+      let rec increment_while_contained v =
+        if BISet.mem v excl
+        then increment_while_contained (BI.add v (BI.one))
         else v
       in
-      Some (increment_while_contained range_min excl)
+      let range_min = Exclusion.min_of_range r in
+      Some (increment_while_contained range_min)
     | _ (* bottom case *) -> None
 
   let lt ik x y =

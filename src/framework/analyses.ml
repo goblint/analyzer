@@ -268,6 +268,10 @@ struct
        iter insert (Lazy.force table);
        let t1 = Unix.gettimeofday () -. t in
        Printf.printf "Done in %fs!\n" t1 *)
+    | "sarif" ->
+      let open BatPrintf in
+      printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
+      Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
       Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
     | "none" -> ()
@@ -386,13 +390,13 @@ type analyzed_data = {
 type increment_data = {
   old_data: analyzed_data option;
   new_file: Cil.file;
-  changes: CompareAST.change_info
+  changes: CompareCIL.change_info
 }
 
 let empty_increment_data file = {
   old_data = None;
   new_file = file;
-  changes = CompareAST.empty_change_info ()
+  changes = CompareCIL.empty_change_info ()
 }
 
 (** A side-effecting system. *)

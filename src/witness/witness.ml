@@ -390,7 +390,7 @@ struct
       let lvar = WitnessUtil.find_main_entry entrystates in
       let main_indices = ask_indices lvar in
       (* TODO: get rid of this hack for getting index of entry state *)
-      assert (List.length main_indices = 1);
+      assert (List.compare_length_with main_indices 1 = 0);
       let main_index = List.hd main_indices in
       (fst lvar, snd lvar, main_index)
     in

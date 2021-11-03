@@ -686,7 +686,7 @@ module MapOctagon : S
   let use_matrix_closure = true
 
   let remove_empty = filter (fun var (const, consts) ->
-      not (INV.is_top_of (ikind ()) const) || not ((List.length consts) = 0))
+      not (INV.is_top_of (ikind ()) const) || consts <> [])
 
   let strong_closure oct =
     if use_matrix_closure then
@@ -702,7 +702,9 @@ module MapOctagon : S
     let filter_constraints (inv, consts) = (inv, List.filter (fun (_,v,_) -> List.mem v vars) consts) in
     map filter_constraints oct_keys_filtered
 
-  let widen a b = widen a (strong_closure b) (* strong closure must not(!) be called for the result (https://arxiv.org/pdf/cs/0703084.pdf)  *)
+  (* TODO: why was strong_closure on b necessary at all? b should be joined already *)
+  (* TODO: strong_closure is not idempotent, somehow breaks valid widen use *)
+  let widen a b = widen a b (* strong closure must not(!) be called for the result (https://arxiv.org/pdf/cs/0703084.pdf)  *)
 
   let narrow a b =
     (* Some constraints may involve a variable that is not there in the result. These need to be removed *)
