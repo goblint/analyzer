@@ -1,3 +1,5 @@
+// SKIP
+
 #include <pthread.h>
 #include "assert.h"
 
@@ -25,18 +27,20 @@ void* W2_Fib_Bench_False_Unreach_Call(void* arg){
 
 
 int main() {
-		i = 1;
-		j = 1;
-		
-		NUM = 5;
-		
-		pthread_t t1;
-        pthread_t t2;
-        pthread_create(&t1, 0, W1_Fib_Bench_False_Unreach_Call, 0);
-        pthread_create(&t2, 0, W2_Fib_Bench_False_Unreach_Call, 0);
-        pthread_join(t1, 0);
-        pthread_join(t2, 0);
-		
-		assert(i < 144);
-		assert(j < 144);
+    i = 1;
+    j = 1;
+    
+    NUM = 5;
+    
+    pthread_t t1;
+    pthread_t t2;
+    pthread_create(&t1, 0, W1_Fib_Bench_False_Unreach_Call, 0);
+    pthread_create(&t2, 0, W2_Fib_Bench_False_Unreach_Call, 0);
+    pthread_join(t1, 0);
+    pthread_join(t2, 0);
+    
+    assert(i < 144);
+    assert(j < 144);
+    
+    return 0;
 }

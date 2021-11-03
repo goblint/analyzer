@@ -1,3 +1,5 @@
+// SKIP
+
 #include <pthread.h>
 #include "assert.h"
 
@@ -42,4 +44,5 @@ int main(){
     pthread_create(&t2, 0, T2_SL, 0);
     pthread_join(t1, 0);
     pthread_join(t2, 0);
+    return 0;
 }
