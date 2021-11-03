@@ -132,7 +132,7 @@ regs.sort.each do |d|
     next if File.basename(f)[0] == ?.
     next if f =~ /goblin_temp/
     next unless f =~ /^[0-9]+-.*\.c$/
-    id = gid + "/" + f[0..1]
+    id = gid + "/" + f[0..2]
     if project_ids.member?(id) then
       puts "Duplicate test ID #{id}"
       exit 1
