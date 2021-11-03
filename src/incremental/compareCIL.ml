@@ -32,11 +32,11 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
   let unchangedHeader =
     try
       eq_varinfo a.svar b.svar &&
-      List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.sformals b.sformals)
+      List.for_all2 eq_varinfo a.sformals b.sformals
     with Invalid_argument _ -> false in
   let identical, diffOpt =
     try
-      let sameDef = unchangedHeader && List.for_all (fun (x, y) -> eq_varinfo x y) (List.combine a.slocals b.slocals) in
+      let sameDef = unchangedHeader && List.for_all2 eq_varinfo a.slocals b.slocals in
       match cfgs with
       | None -> sameDef && eq_block (a.sbody, a) (b.sbody, b), None
       | Some (cfgOld, cfgNew) ->

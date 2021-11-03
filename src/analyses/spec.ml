@@ -62,7 +62,7 @@ struct
         else if may then D.may_goto key loc state m else D.goto key loc state m
 
     (* match spec_exp, cil_exp *)
-    let equal_exp ctx = function
+    let equal_exp ctx spec_exp cil_exp = match spec_exp, cil_exp with
       (* TODO match constants right away to avoid queries? *)
       | `String a, Const(CStr b) -> M.debug "EQUAL String Const: %s = %s" a b; a=b
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
@@ -228,7 +228,7 @@ struct
       SC.equal_form (Some lval) c &&
       (* check for constraints *p = _ where p is the key *)
       match lval, SC.get_lval c with
-      | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c, rval) ->
+      | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c) rval ->
         let keys = D.keys_from_lval x (Analyses.ask_of_ctx ctx) in
         if List.compare_length_with keys 1 <> 0 then failwith "not implemented"
         else true
@@ -477,7 +477,7 @@ struct
           M.debug "SKIP the number of arguments doesn't match the specification!";
           false
         )else
-          List.for_all (SpecCheck.equal_exp ctx) (List.combine spec_args cil_args) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
+          List.for_all2 (SpecCheck.equal_exp ctx) spec_args cil_args (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
       in
       (* function name must fit the constraint *)
       SC.fname_is f.vname c &&
