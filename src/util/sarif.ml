@@ -57,9 +57,9 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
   in
   (* if a CWE is present only the CWE is used, since using multiple ones for the same result doesn' make sense.
      If only Categorys are present, all of them are displayed.*)
-  match List.find_map_opt getCWE tags with
-  | Some cwe ->  string_of_int cwe;
-  | None -> match tags with
+  match List.filter_map getCWE tags with
+  | cwe :: _ ->  string_of_int cwe;
+  | [] -> match tags with
     | [] -> ""
     | x::xs -> match x with
       |Category cat-> MessageCategory.categoryName cat
