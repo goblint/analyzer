@@ -860,7 +860,7 @@ end
 
 type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, to_yojson]
 
-module D2 (Man: Manager) : S2 =
+module D2 (Man: Manager) : S2 with module Man = Man =
 struct
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
