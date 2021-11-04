@@ -26,7 +26,7 @@ void* T1_Stack(void* arg) {
             top++;
         }
         flag = 1;
-        pthread_mutex_lock(&m);
+        pthread_mutex_unlock(&m);
     }
     return NULL;
 }
