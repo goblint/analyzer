@@ -1241,7 +1241,7 @@ struct
   let system x =
     match S.system x with
     | None -> None
-    | Some f when caching && not !Goblintutil.in_verifying_stage ->
+    | Some f when caching && !Goblintutil.allow_caching && not !Goblintutil.in_verifying_stage ->
       let f' get set =
         match VH.find_option prevs x with
         | None ->
@@ -1265,8 +1265,14 @@ struct
                   if not (S.Dom.equal prev_d d) then
                     all_dep_unchanged := false;
                   VH.remove unasked_dep y;
-                  if !all_dep_unchanged && VH.is_empty unasked_dep then
+                  if !all_dep_unchanged && VH.is_empty unasked_dep then (
+                    if M.tracing then M.trace "abort" "caching abort %a\n" S.Var.pretty_trace x;
+                    (* let d = f get set in
+                    if M.tracing then M.trace "abort" "caching abort (%B) %a prev_val=%a d=%a\n" (S.Dom.equal prev_val d) S.Var.pretty_trace x S.Dom.pretty prev_val S.Dom.pretty d;
+                    if not (S.Dom.equal prev_val d) then
+                      failwith "cache fail"; *)
                     raise AbortF
+                  )
                 | _ -> ()
               end;
               d
@@ -1281,6 +1287,7 @@ struct
             VH.replace prevs x (new_dep_vals, d);
             d
           with AbortF ->
+            incr Goblintutil.aborts;
             (* prevs remain the same *)
             prev_val
       in

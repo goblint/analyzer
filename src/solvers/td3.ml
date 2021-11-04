@@ -540,6 +540,8 @@ module WP =
         if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
 
+      GU.allow_caching := false;
+
       let reachability xs =
         let reachable = HM.create (HM.length rho) in
         let rec one_var x =
