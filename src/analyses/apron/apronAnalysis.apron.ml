@@ -417,7 +417,7 @@ struct
     (* TODO: Do we have to check for postsolving, or is finalize only called then? *)
     (* if !GU.postsolving then begin *)
       let results = post_process results in
-      let name = name () ^ "(domain: " ^ AD.Man.name ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
+      let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
       let results: (OctApron.marshal RH.t) PrivPrecCompareUtil.dump_gen = {marshalled = results; name } in
       Serialize.marshal results results_file;
     (* end; *)

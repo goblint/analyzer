@@ -28,7 +28,7 @@ sig
   type mt
   type t = mt Apron.Manager.t
   val mgr : mt Apron.Manager.t
-  val name : string
+  val name : unit -> string
 end
 
 (** Manager for the Oct domain, i.e. an octagon domain.
@@ -42,7 +42,7 @@ struct
 
   (* Create the manager *)
   let mgr =  Oct.manager_alloc ()
-  let name = "Octagon manager"
+  let name () = "Octagon"
 end
 
 (** Manager for the Polka domain, i.e. a polyhedra domain.
@@ -54,7 +54,7 @@ struct
   type t = mt Manager.t
   (* Create manager that fits to loose polyhedra *)
   let mgr = Polka.manager_alloc_loose ()
-  let name = "Polyhedra Manager"
+  let name () = "Polyhedra"
 end
 
 (** Manager for the Box domain, i.e. an interval domain.
@@ -64,7 +64,7 @@ struct
   type mt = Box.t
   type t = mt Manager.t
   let mgr = Box.manager_alloc ()
-  let name = "Interval Manager"
+  let name () = "Interval"
 end
 
 let priv_manager =
