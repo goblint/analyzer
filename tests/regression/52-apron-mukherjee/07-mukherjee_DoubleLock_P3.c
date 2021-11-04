@@ -3,7 +3,7 @@
 #include <pthread.h>
 #include "assert.h"
 
-unsigned int count;
+int count;
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
