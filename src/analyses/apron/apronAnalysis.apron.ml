@@ -398,16 +398,27 @@ struct
   let init marshal =
     Priv.init ()
 
+  module OctApron = PrivPrecCompareUtil.ApronD
   let finalize () =
+    let convert (m: AD.t RH.t): OctApron.t RH.t =
+      let convert_single (a: AD.t): OctApron.t =
+        let generator = AD.to_lincons_array a in
+        let oct = OctApron.of_lincons_array generator in
+        ignore @@ Pretty.printf "%a\n" OctApron.pretty oct;
+        oct
+      in
+      RH.map (fun _ -> convert_single) m
+    in
     let post_process m =
-      RH.map (fun _ v -> AD.marshal v) m
+      let m = convert m in
+      RH.map (fun _ v -> OctApron.marshal v) m
     in
 
     (* TODO: Do we have to check for postsolving, or is finalize only called then? *)
     (* if !GU.postsolving then begin *)
       let results = post_process results in
-
-      let results: (AD.marshal RH.t) PrivPrecCompareUtil.dump_gen = {marshalled = results; name = (name ()) ^ ", priv: " ^ (Priv.name ())} in
+      let name = name () ^ "(domain: " ^ AD.Man.name ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
+      let results: (OctApron.marshal RH.t) PrivPrecCompareUtil.dump_gen = {marshalled = results; name } in
       Serialize.marshal results results_file;
     (* end; *)
     Priv.finalize ()

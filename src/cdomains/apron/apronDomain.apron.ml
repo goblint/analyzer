@@ -488,6 +488,12 @@ struct
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     A.meet_tcons_array Man.mgr d earray
+
+  let to_lincons_array d =
+    A.to_lincons_array Man.mgr d
+
+  let of_lincons_array (a: Apron.Lincons1.earray) =
+    A.of_lincons_array Man.mgr a.array_env a
 end
 
 
