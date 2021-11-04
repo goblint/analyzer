@@ -5,7 +5,7 @@ struct
   include Printable.Prod (CilType.Location) (Basetype.Variables)
   let pretty () (l, v) = Pretty.dprintf "%a %a" CilType.Location.pretty l Basetype.Variables.pretty v
 end
-module LVH = Hashtbl.Make (Printable.Prod (CilType.Location) (Basetype.Variables))
+module LVH = Hashtbl.Make (LV)
 module VD = BaseDomain.VD
 
 type dump = {
