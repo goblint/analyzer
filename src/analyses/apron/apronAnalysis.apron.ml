@@ -23,7 +23,6 @@ struct
   open PrivPrecCompareUtil.ApronUtil
   (* Result map used for comparison of results *)
   let results = RH.create 103
-  let results_file = "apron_analysis_results.save"
 
   let should_join = Priv.should_join
 
@@ -398,8 +397,10 @@ struct
   let init marshal =
     Priv.init ()
 
+
   module OctApron = PrivPrecCompareUtil.ApronD
-  let finalize () =
+
+  let store_data file =
     let convert (m: AD.t RH.t): OctApron.t RH.t =
       let convert_single (a: AD.t): OctApron.t =
         let generator = AD.to_lincons_array a in
@@ -411,14 +412,16 @@ struct
       let m = convert m in
       RH.map (fun _ v -> OctApron.marshal v) m
     in
+    let results = post_process results in
+    let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
+    let results: (OctApron.marshal RH.t) PrivPrecCompareUtil.dump_gen = {marshalled = results; name } in
+    Serialize.marshal results file
 
-    (* TODO: Do we have to check for postsolving, or is finalize only called then? *)
-    (* if !GU.postsolving then begin *)
-      let results = post_process results in
-      let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
-      let results: (OctApron.marshal RH.t) PrivPrecCompareUtil.dump_gen = {marshalled = results; name } in
-      Serialize.marshal results results_file;
-    (* end; *)
+  let finalize () =
+    let file = GobConfig.get_string "exp.apron-prec-dump" in
+    if file <> "" then begin
+      store_data file
+    end;
     Priv.finalize ()
 end
 

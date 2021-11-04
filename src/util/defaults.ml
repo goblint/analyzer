@@ -178,6 +178,7 @@ let _ = ()
       (* TODO: priv subobject *)
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
+      ; reg Experimental "exp.apron-prec-dump"    "''"    "File to dump apron precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
       ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which Apron privatization to use? dummy/protection/protection-path/mutex-meet"
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
