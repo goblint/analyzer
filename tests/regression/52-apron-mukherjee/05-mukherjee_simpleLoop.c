@@ -38,6 +38,10 @@ void* T2_SL(void* arg){
 }
 
 int main(){
+    int top1, top2, top3;
+    x = top1;
+    y = top2;
+    z = top3;
     pthread_t t1;
     pthread_t t2;
     pthread_create(&t1, 0, T1_SL, 0);
