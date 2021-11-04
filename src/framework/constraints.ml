@@ -1236,10 +1236,12 @@ struct
 
   exception AbortF
 
+  let caching = get_bool "exp.caching-constrsys"
+
   let system x =
     match S.system x with
     | None -> None
-    | Some f when not !Goblintutil.in_verifying_stage ->
+    | Some f when caching && not !Goblintutil.in_verifying_stage ->
       let f' get set =
         match VH.find_option prevs x with
         | None ->
