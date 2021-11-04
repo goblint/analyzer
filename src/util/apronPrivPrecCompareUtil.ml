@@ -17,5 +17,5 @@ module VD = BaseDomain.VD
 
 type dump = {
   name: string;
-  lvh: Man.mt Apron.Abstract1.t LVH.t;
+  lvh: D2.t LVH.t;
 }
