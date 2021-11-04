@@ -384,14 +384,14 @@ struct
 
   let sync ctx reason =
     (* After the solver is finished, store the results (for later comparison) *)
-    (* if !GU.postsolving then begin *)
+    if !GU.postsolving then begin
       let old_value = match RH.find_option results ctx.node with
         | Some v -> v
         | None -> AD.bot ()
       in
       let new_value = AD.join old_value ctx.local.apr in
       RH.replace results ctx.node new_value;
-    (* end; *)
+    end;
     Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
 
   let init marshal =
