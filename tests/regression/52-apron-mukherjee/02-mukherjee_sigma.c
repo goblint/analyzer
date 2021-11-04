@@ -137,7 +137,7 @@ int main()
 
 	sum = array_0 + array_1 + array_2 + array_3;
 
-	assert(sum == SIGMA);  // <-- wrong, different threads might use the same array offset when writing
+	assert(sum == SIGMA);  //UNKNOWN! <-- wrong, different threads might use the same array offset when writing
 
 	return 0;
 }
