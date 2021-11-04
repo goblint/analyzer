@@ -403,9 +403,7 @@ struct
     let convert (m: AD.t RH.t): OctApron.t RH.t =
       let convert_single (a: AD.t): OctApron.t =
         let generator = AD.to_lincons_array a in
-        let oct = OctApron.of_lincons_array generator in
-        ignore @@ Pretty.printf "%a\n" OctApron.pretty oct;
-        oct
+        OctApron.of_lincons_array generator
       in
       RH.map (fun _ -> convert_single) m
     in
