@@ -10,7 +10,7 @@ pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 void* T1_Sync01(void* arg) {
     pthread_mutex_lock(&m);
     while(num > 0)
-        num++;
+        num++; // Here num overflows
     pthread_mutex_unlock(&m);
     return NULL;
 }
@@ -18,7 +18,7 @@ void* T1_Sync01(void* arg) {
 void* T2_Sync01(void* arg) {
     pthread_mutex_lock(&m);
     while(num == 0)
-        num--;
+        num--; // This never happens
     pthread_mutex_unlock(&m);
     return NULL;
 }
@@ -31,9 +31,9 @@ int main() {
     pthread_join(t1, 0);
     pthread_join(t2, 0);
 
-    assert(num >= 0);
+    assert(num >= 0); // UNKNOWN!
 
-    assert(num <= 1);
+    assert(num <= 1); // UNKNOWN!
 
     return 0;
 }
