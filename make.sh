@@ -62,6 +62,11 @@ rule() {
       dune build src/privPrecCompare.exe &&
       cp _build/default/src/privPrecCompare.exe privPrecCompare
       chmod +w privPrecCompare
+    ;; apronPrivPrecCompare)
+      eval $(opam config env)
+      dune build src/apronPrivPrecCompare.exe &&
+      cp _build/default/src/apronPrivPrecCompare.exe apronPrivPrecCompare
+      chmod +w apronPrivPrecCompare
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&

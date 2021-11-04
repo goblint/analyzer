@@ -12,7 +12,7 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (wrapped false)
-  (modules :standard \ goblint mainarinc maindomaintest mainspec privPrecCompare)
+  (modules :standard \ goblint mainarinc maindomaintest mainspec privPrecCompare apronPrivPrecCompare)
   (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js qcheck-core.runner dune-site
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
@@ -59,6 +59,14 @@
 (executable
   (name privPrecCompare)
   (modules privPrecCompare)
+  (libraries goblint.lib)
+  (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (flags :standard -linkall)
+)
+
+(executable
+  (name apronPrivPrecCompare)
+  (modules apronPrivPrecCompare)
   (libraries goblint.lib)
   (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
   (flags :standard -linkall)
