@@ -31,6 +31,9 @@
     (select relationDomain.ml from
       (apron -> relationDomain.apron.ml)
     )
+    (select envDomain.ml from
+      (apron -> envDomain.apron.ml)
+    )
     (select violationZ3.ml from
       (z3 !js_of_ocaml -> violationZ3.z3.ml) ; disable in js because no z3 js stubs
       (-> violationZ3.no-z3.ml)

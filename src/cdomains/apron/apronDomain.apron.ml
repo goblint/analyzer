@@ -189,6 +189,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
 
 module Bounds (Man: Manager) =
 struct
+  type d = Man.mt A.t
   let bound_texpr d texpr1 =
     let bounds = A.bound_texpr Man.mgr d texpr1 in
     let min = int_of_scalar ~round:`Ceil bounds.inf in
@@ -353,7 +354,8 @@ end
 (** Convenience operations on A. *)
 module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = Convert (Tracked) (Man)
+  module Bounds = Bounds (Man)
+  module Convert = EnvDomain.Convert (Tracked) (Bounds)
 
   type t = Man.mt A.t
 
@@ -666,7 +668,6 @@ end
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
-  module Bounds = Bounds (Man)
 
   module Tracked =
   struct
@@ -1019,8 +1020,8 @@ struct
   type var = Var.t
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
-<<<<<<< HEAD
 end
+<<<<<<< HEAD
 
 module ApronComponents (D2: S2) (PrivD: Lattice.S):
 sig
@@ -1137,3 +1138,5 @@ end
 end
 >>>>>>> Add common interface for apron + new domain
 >>>>>>> 4da71d5e1 (Add common interface for apron + new domain)
+=======
+>>>>>>> f0a0ae216 (Move convert module to new domain)
