@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins  --enable ana.apron.threshold_widening
 
 #include <pthread.h>
 #include "assert.h"
@@ -20,7 +20,7 @@ void* T1_Stack(void* arg) {
     pthread_mutex_unlock(&m);
     for(i=0; i<j; i++) {
         pthread_mutex_lock(&m);
-        assert(top < SIZE);
+        assert(top < SIZE); //TODO
 
         if (top < SIZE) {
             top++;

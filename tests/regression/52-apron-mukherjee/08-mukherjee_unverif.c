@@ -18,7 +18,7 @@ void* thr1(void* arg){
     if(r == 1){
         s = s + 1;
         l = l + 1;
-        assert(s == l);
+        assert(s == l); // TODO
     }
     pthread_mutex_unlock(&lock);
 
@@ -35,7 +35,7 @@ void* thr2(void* arg){
     if(r == 1){
         s = s + 1;
         l = l + 1;
-        assert(s == l);
+        assert(s == l);  // TODO 
     }
     pthread_mutex_unlock(&lock);
 

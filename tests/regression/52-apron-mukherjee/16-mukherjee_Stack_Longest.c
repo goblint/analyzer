@@ -16,7 +16,7 @@ void* T1_Stack_Longest(void* arg) {
     int i;
     for(i=0; i<SIZE; i++) {
         pthread_mutex_lock(&m);
-        assert(top != SIZE);
+        assert(top != SIZE); //TODO
 
         if (top != SIZE) {
             top++;
@@ -32,7 +32,7 @@ void* T2_Stack_Longest(void* arg) {
     for(i=0; i<SIZE; i++) {
         pthread_mutex_lock(&m);
         if (flag == 1) {
-            assert(top != 0);
+            assert(top != 0); //TODO
             if (top != 0)
                 top--;
         }
