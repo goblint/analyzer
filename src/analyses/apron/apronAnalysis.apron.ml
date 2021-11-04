@@ -20,9 +20,9 @@ struct
 
   open AD
 
-  (* For the result map used for comparison *)
-  module ResultMap = Hashtbl.Make(Node)
-  let results = ResultMap.create 103
+  open PrivPrecCompareUtil.ApronUtil
+  (* Result map used for comparison of results *)
+  let results = RH.create 103
   let results_file = "apron_analysis_results.save"
 
   let should_join = Priv.should_join
@@ -386,12 +386,12 @@ struct
   let sync ctx reason =
     (* After the solver is finished, store the results (for later comparison) *)
     (* if !GU.postsolving then begin *)
-      let old_value = match ResultMap.find_option results ctx.node with
+      let old_value = match RH.find_option results ctx.node with
         | Some v -> v
         | None -> AD.bot ()
       in
       let new_value = AD.join old_value ctx.local.apr in
-      ResultMap.replace results ctx.node new_value;
+      RH.replace results ctx.node new_value;
     (* end; *)
     Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
 
@@ -400,11 +400,14 @@ struct
 
   let finalize () =
     let post_process m =
-      ResultMap.map (fun _ v -> AD.marshal v) m
+      RH.map (fun _ v -> AD.marshal v) m
     in
+
     (* TODO: Do we have to check for postsolving, or is finalize only called then? *)
     (* if !GU.postsolving then begin *)
       let results = post_process results in
+
+      let results: (AD.marshal RH.t) PrivPrecCompareUtil.dump_gen = {marshalled = results; name = (name ()) ^ ", priv: " ^ (Priv.name ())} in
       Serialize.marshal results results_file;
     (* end; *)
     Priv.finalize ()

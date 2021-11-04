@@ -1417,7 +1417,8 @@ module PrecisionDumpPriv (Priv: S): S with module D = Priv.D =
 struct
   include Priv
 
-  open PrivPrecCompareUtil
+  open PrivPrecCompareUtil.LVUtil
+  module LVH = RH
 
   let is_dumping = ref false
   let lvh = LVH.create 113
@@ -1438,7 +1439,7 @@ struct
     (* LVH.iter (fun (l, x) v ->
         ignore (Pretty.printf "%a %a = %a\n" CilType.Location.pretty l d_varinfo x VD.pretty v)
       ) lvh; *)
-    Marshal.output f {name = get_string "exp.privatization"; lvh};
+    Marshal.output f ({name = get_string "exp.privatization"; results = lvh}: result);
     close_out_noerr f
 
   let finalize () =
