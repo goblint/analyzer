@@ -56,6 +56,8 @@ int main(int argc, char* argv[]) {
     pthread_t t1;
     pthread_t t2;
     next = 0;
+    int t;
+    len = t;
     if (len > 0) {
 	    pthread_create(&t1, 0, thr1, 0);
 	    pthread_create(&t2, 0, thr2, 0);
