@@ -21,6 +21,10 @@
       (apron apron.octMPQ apron.boxMPQ apron.polkaMPQ -> apronDomain.apron.ml)
       (-> apronDomain.no-apron.ml)
     )
+    (select apronPrecCompareUtil.ml from
+      (apron -> apronPrecCompareUtil.apron.ml)
+      (-> apronPrecCompareUtil.no-apron.ml)
+    )
     (select apronAnalysis.ml from
       (apron -> apronAnalysis.apron.ml)
       (-> apronAnalysis.no-apron.ml)
@@ -44,6 +48,7 @@
 ; TODO: Remove workaround with dune 3.0, where this should get fixed.
 (copy_files cdomains/apron/*.ml)
 (copy_files analyses/apron/*.ml)
+(copy_files util/apron/*.ml)
 (copy_files witness/z3/*.ml)
 
 (executables
