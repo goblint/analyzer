@@ -13,7 +13,7 @@ void *foo(void *arg) {
 
   pthread_mutex_lock(&s->mymutex);
   unlock(s);
-  s->myint=0; // TODO RACE
+  s->myint=0; // RACE
 
   return NULL;
 }
