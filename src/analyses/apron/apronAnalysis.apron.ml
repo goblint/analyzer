@@ -385,10 +385,7 @@ struct
   let sync ctx reason =
     (* After the solver is finished, store the results (for later comparison) *)
     if !GU.postsolving then begin
-      let old_value = match RH.find_option results ctx.node with
-        | Some v -> v
-        | None -> AD.bot ()
-      in
+      let old_value = RH.find_default results ctx.node (AD.bot ()) in
       let new_value = AD.join old_value ctx.local.apr in
       RH.replace results ctx.node new_value;
     end;
