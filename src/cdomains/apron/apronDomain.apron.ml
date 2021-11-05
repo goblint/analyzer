@@ -67,7 +67,7 @@ struct
   let name () = "Interval"
 end
 
-let priv_manager =
+let manager =
   lazy (
     let options =
       ["octagon", (module OctagonManager: Manager);
@@ -75,19 +75,13 @@ let priv_manager =
        "polyhedra", (module PolyhedraManager: Manager)]
     in
     let domain = (GobConfig.get_string "ana.apron.domain") in
-    let man = (match List.assoc_opt domain options with
-        | Some man -> man
-        | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting.")
-    in
-    (* Set the manager for deserialization (this step is required when apron results are loaded) *)
-    (* As of now, serialization/deserialization only works for octagons *)
-    let module Man = (val man: Manager) in
-    Manager.set_deserialize Man.mgr;
-    man
+    match List.assoc_opt domain options with
+    | Some man -> man
+    | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting."
   )
 
 let get_manager (): (module Manager) =
-  Lazy.force priv_manager
+  Lazy.force manager
 
 module type Tracked =
 sig
