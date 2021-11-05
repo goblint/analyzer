@@ -179,7 +179,7 @@ let preprocess_files () =
   let custom_include_dirs =
     get_string_list "custom_includes" @
     Filename.concat exe_dir "includes" ::
-    Gobsites.Sites.includes
+    Goblint_sites.includes
   in
   if get_bool "dbg.verbose" then (
     print_endline "Custom include dirs:";
