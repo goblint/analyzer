@@ -31,7 +31,7 @@ struct
       ) dumps;
     (LH.length locations, RH.length location_vars)
 
-  let () =
+  let main () =
     Util.init ();
     let filenames = List.tl (Array.to_list Sys.argv) in
     let dumps = List.map load filenames in
