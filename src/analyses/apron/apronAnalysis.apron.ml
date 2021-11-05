@@ -418,7 +418,7 @@ struct
     Serialize.marshal results file
 
   let finalize () =
-    let file = GobConfig.get_string "exp.apron-prec-dump" in
+    let file = GobConfig.get_string "exp.apron.prec-dump" in
     if file <> "" then begin
       store_data file
     end;
