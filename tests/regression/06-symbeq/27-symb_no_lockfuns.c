@@ -1,4 +1,5 @@
 // PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+#include <stdlib.h>
 #include <pthread.h>
 
 typedef struct { int myint; pthread_mutex_t mymutex; } mystruct;
