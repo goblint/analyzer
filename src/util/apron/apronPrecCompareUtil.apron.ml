@@ -7,7 +7,7 @@ module D = ApronDomain.D2 (Man)
 module Node =
 struct
   include Node
-  (* Override the name to "nodes", as plural fits better in the output format of PrePrecCompare *)
+  (* Override the name to "nodes", as plural fits better in the output format of PrePrivPrecCompare *)
   let name () = "nodes"
   let to_location n = Node.location n
 end
