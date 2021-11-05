@@ -10,7 +10,7 @@
     "remoteUser": "opam",
     "postCreateCommand": "make setup; make dev",
 
-    "runArgs": ["--init"], // TODO: why added by default?
+    "runArgs": ["--init", "--env-file", ".devcontainer/devcontainer.env"], // TODO: why --init added by default?
 
     "extensions": [
 		"ocamllabs.ocaml-platform",
