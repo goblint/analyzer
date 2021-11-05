@@ -1417,7 +1417,7 @@ module PrecisionDumpPriv (Priv: S): S with module D = Priv.D =
 struct
   include Priv
 
-  open PrivPrecCompareUtil.Util
+  open PrivPrecCompareUtil
   module LVH = RH
 
   let is_dumping = ref false

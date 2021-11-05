@@ -16,3 +16,5 @@ struct
   let init () =
     Cil.initCIL (); (* ValueDomain.Compound.leq depends on ptrdiffType initialization *)
 end
+
+include Util
