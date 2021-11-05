@@ -2,6 +2,7 @@
 
 # just -opam tag because make setup will install ocaml compiler
 FROM ocaml/opam:ubuntu-21.04-opam AS dev
+
 # copy only files for make setup to cache docker layers without code changes
 COPY --chown=opam Makefile make.sh goblint.opam goblint.opam.locked /home/opam/analyzer/
 WORKDIR /home/opam/analyzer/
