@@ -20,7 +20,7 @@ struct
 
   open AD
 
-  open PrivPrecCompareUtil.ApronUtil
+  open ApronPrecCompareUtil.Util
   (* Result map used for comparison of results *)
   let results = RH.create 103
 
@@ -398,7 +398,7 @@ struct
     Priv.init ()
 
 
-  module OctApron = PrivPrecCompareUtil.ApronD
+  module OctApron = ApronPrecCompareUtil.D
 
   let store_data file =
     let convert (m: AD.t RH.t): OctApron.t RH.t =
@@ -414,7 +414,7 @@ struct
     in
     let results = post_process results in
     let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
-    let results: (OctApron.marshal RH.t) PrivPrecCompareUtil.dump_gen = {marshalled = results; name } in
+    let results: ApronPrecCompareUtil.Util.dump = {marshalled = results; name } in
     Serialize.marshal results file
 
   let finalize () =

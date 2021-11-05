@@ -4,7 +4,7 @@ open Prelude
 open Ana
 open PrecCompare
 
-module ComparePrec (Util: PrivPrecCompareUtil.S) =
+module ComparePrec (Util: PrecCompareUtil.S) =
 struct
   open Util
   let load filename =
