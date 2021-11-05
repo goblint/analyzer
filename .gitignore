@@ -58,6 +58,7 @@ goblint.bc.js
 sv-comp/goblint.zip
 
 privPrecCompare*
+apronPrecCompare
 tests/regression/*/run
 
 # csmith
