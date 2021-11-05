@@ -23,11 +23,20 @@ module type R =
 sig
   module Key: LocalizedPrintable
   module Dom: Lattice.S
+
+  (** Module for the result hash map *)
   module RH : Hashtbl.S with type key = Key.t
-  (* There should be two dump types: for the first it should be rh: marshal*)
+
+  (** Type to which the result hashmap is actually convered before storing it to disc *)
   type marshal
+
+  (** Wrapper of marhshal type, together with a name for the analysis + privatization combination *)
   type dump = marshal dump_gen
+
+  (** Type of the actually usable result. To be obtained from the dump via the unmarshal function below  *)
   type result = Dom.t RH.t result_gen
+
+  (** Maps the marshalled version of the result hashmap back to a usable version *)
   val unmarshal: marshal -> Dom.t RH.t
 end
 
