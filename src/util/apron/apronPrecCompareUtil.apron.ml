@@ -4,6 +4,14 @@ open PrecCompareUtil
 module Man = ApronDomain.OctagonManager
 module D = ApronDomain.D2 (Man)
 
+module Node =
+struct
+  include Node
+  (* Override the name to "nodes", as plural fits better in the output format of PrePrecCompare *)
+  let name () = "nodes"
+  let to_location n = Node.location n
+end
+
 module Util =
 struct
   include Util (Node) (D)

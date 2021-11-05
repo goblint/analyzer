@@ -60,11 +60,3 @@ struct
   (* Leave loaded value untouched by default *)
   let unmarshal x = x
 end
-
-
-module Node =
-struct
-  include Node
-  let name () = "nodes"
-  let to_location n = Node.location n
-end
