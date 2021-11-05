@@ -94,6 +94,7 @@ type _ t =
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
+  | Parent: LS.t t
 
 type 'a result = 'a
 
@@ -143,6 +144,7 @@ struct
     | PartAccess _ -> (module PartAccessResult)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
+    | Parent -> (module LS)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -191,7 +193,8 @@ struct
     | PartAccess _ -> PartAccessResult.top ()
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
-end
+    | Parent -> LS.top ()
+  end
 
 (* The type any_query can't be directly defined in Any as t,
    because it also refers to the t from the outer scope. *)
@@ -237,6 +240,7 @@ struct
       | Any (IsHeapVar _) -> 30
       | Any (IsMultiple _) -> 31
       | Any (EvalThread _) -> 32
+      | Any Parent -> 33
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
