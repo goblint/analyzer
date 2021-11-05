@@ -1,4 +1,4 @@
-// PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
+// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'"
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -13,7 +13,7 @@ void *foo(void *arg) {
 
   pthread_mutex_lock(&s->mymutex);
   unlock(s);
-  s->myint=0; // RACE
+  s->myint=0; // TODO RACE
 
   return NULL;
 }
