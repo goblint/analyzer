@@ -10,6 +10,7 @@ module SpecFunctor (AD: ApronDomain.S2) (Priv: ApronPriv.S) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
+
   let name () = "apron"
 
   module Priv = Priv(AD)
@@ -18,6 +19,10 @@ struct
   module C = D
 
   open AD
+
+  open ApronPrecCompareUtil
+  (* Result map used for comparison of results *)
+  let results = RH.create 103
 
   let should_join = Priv.should_join
 
@@ -378,12 +383,40 @@ struct
       st
 
   let sync ctx reason =
+    (* After the solver is finished, store the results (for later comparison) *)
+    if !GU.postsolving then begin
+      let old_value = RH.find_default results ctx.node (AD.bot ()) in
+      let new_value = AD.join old_value ctx.local.apr in
+      RH.replace results ctx.node new_value;
+    end;
     Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
 
   let init marshal =
     Priv.init ()
 
+  module OctApron = ApronPrecCompareUtil.OctagonD
+  let store_data file =
+    let convert (m: AD.t RH.t): OctApron.t RH.t =
+      let convert_single (a: AD.t): OctApron.t =
+        let generator = AD.to_lincons_array a in
+        OctApron.of_lincons_array generator
+      in
+      RH.map (fun _ -> convert_single) m
+    in
+    let post_process m =
+      let m = convert m in
+      RH.map (fun _ v -> OctApron.marshal v) m
+    in
+    let results = post_process results in
+    let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
+    let results: ApronPrecCompareUtil.dump = {marshalled = results; name } in
+    Serialize.marshal results file
+
   let finalize () =
+    let file = GobConfig.get_string "exp.apron.prec-dump" in
+    if file <> "" then begin
+      store_data file
+    end;
     Priv.finalize ()
 end
 

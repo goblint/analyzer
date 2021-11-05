@@ -28,7 +28,7 @@ sig
   type mt
   type t = mt Apron.Manager.t
   val mgr : mt Apron.Manager.t
-  val name : string
+  val name : unit -> string
 end
 
 (** Manager for the Oct domain, i.e. an octagon domain.
@@ -42,7 +42,7 @@ struct
 
   (* Create the manager *)
   let mgr =  Oct.manager_alloc ()
-  let name = "Octagon manager"
+  let name () = "Octagon"
 end
 
 (** Manager for the Polka domain, i.e. a polyhedra domain.
@@ -54,7 +54,7 @@ struct
   type t = mt Manager.t
   (* Create manager that fits to loose polyhedra *)
   let mgr = Polka.manager_alloc_loose ()
-  let name = "Polyhedra Manager"
+  let name () = "Polyhedra"
 end
 
 (** Manager for the Box domain, i.e. an interval domain.
@@ -64,10 +64,10 @@ struct
   type mt = Box.t
   type t = mt Manager.t
   let mgr = Box.manager_alloc ()
-  let name = "Interval Manager"
+  let name () = "Interval"
 end
 
-let priv_manager =
+let manager =
   lazy (
     let options =
       ["octagon", (module OctagonManager: Manager);
@@ -81,7 +81,7 @@ let priv_manager =
   )
 
 let get_manager (): (module Manager) =
-  Lazy.force priv_manager
+  Lazy.force manager
 
 module type Tracked =
 sig
@@ -239,10 +239,27 @@ struct
 
   let copy = A.copy Man.mgr
 
-  let vars d =
+  let vars_as_array d =
     let ivs, fvs = Environment.vars (A.env d) in
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    ivs
+
+  let vars d =
+    let ivs = vars_as_array d in
     List.of_enum (Array.enum ivs)
+
+  (* marshal type: Abstract0.t and an array of var names *)
+  type marshal = Man.mt Abstract0.t * string array
+
+  let unmarshal ((abstract0, vs): marshal): t =
+    let vars = Array.map Var.of_string vs in
+    (* We do not have real-valued vars, so we pass an empty array in their place. *)
+    let env = Environment.make vars [||] in
+    {abstract0; env}
+
+  let marshal (x: t): marshal =
+    let vars = Array.map Var.to_string (vars_as_array x) in
+    x.abstract0, vars
 
   let mem_var d v = Environment.mem_var (A.env d) v
 
@@ -465,6 +482,12 @@ struct
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     A.meet_tcons_array Man.mgr d earray
+
+  let to_lincons_array d =
+    A.to_lincons_array Man.mgr d
+
+  let of_lincons_array (a: Apron.Lincons1.earray) =
+    A.of_lincons_array Man.mgr a.array_env a
 end
 
 
@@ -681,6 +704,8 @@ module DHetero (Man: Manager): SLattice with type t = Man.mt A.t =
 struct
   include DBase (Man)
 
+
+
   let gce (x: Environment.t) (y: Environment.t): Environment.t =
     let (xi, xf) = Environment.vars x in
     (* TODO: check type compatibility *)
@@ -835,7 +860,7 @@ end
 
 type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, to_yojson]
 
-module D2 (Man: Manager) : S2 =
+module D2 (Man: Manager) : S2 with module Man = Man =
 struct
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
