@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open GobConfig
+open PrecisionUtil
 
 include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
@@ -32,6 +33,8 @@ sig
   val init_value: typ -> t
   val top_value: typ -> t
   val zero_init_value: typ -> t
+
+  val projection: precision -> t -> t
 end
 
 module type Blob =
@@ -1097,6 +1100,44 @@ struct
     | _ -> None (* TODO *)
 
   let arbitrary () = QCheck.always `Bot (* S TODO: other elements *)
+
+  let rec projection p (v: t): t =
+    match v with
+    | `Int n ->  `Int (ID.projection p n)
+    | `Address n -> `Address (project_addr p n)
+    | `Struct n -> `Struct (Structs.map (fun (x: t) -> projection p x) n)
+    | `Union (f, v) -> `Union (f, projection p v)
+    | `Array n -> `Array (project_arr p n)
+    | `Blob (v, s, z) -> `Blob (projection p v, ID.projection p s, z)
+    | `List n -> `List (project_list p n (Lists.bot ()))
+    | `Thread n -> `Thread n
+    | `Bot -> `Bot
+    | `Top -> `Top
+  and project_addr p a =
+    AD.map (fun addr ->
+        match addr with
+        | Addr.Addr (v, o) -> Addr.Addr (v, project_offs p o)
+        | ptr -> ptr) a
+  and project_offs p offs =
+    match offs with
+    | `NoOffset -> `NoOffset
+    | `Field (field, offs') -> `Field (field, project_offs p offs')
+    | `Index (idx, offs') -> `Index (ID.projection p idx, project_offs p offs')
+  and project_arr p n =
+    let n' = CArrays.map (fun (x: t) -> projection p x) n in
+    match CArrays.length n with
+    | None -> n'
+    | Some l -> CArrays.update_length (ID.projection p l) n'
+  and project_list p (acc: Lists.t) (l: Lists.t) =
+    match Lists.list_empty l with
+    | Some true -> acc
+    | _ ->
+      begin
+        let e = Lists.entry l in
+        let acc' = Lists.add (project_addr p e) acc in
+        let l' = Lists.del e l in
+        project_list p acc' l'
+      end
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
