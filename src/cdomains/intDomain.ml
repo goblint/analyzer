@@ -533,7 +533,7 @@ struct
 
   let set_overflow_flag ik =
     if Cil.isSigned ik && !GU.postsolving then (
-      Goblintutil.did_overflow := true;
+      Goblintutil.svcomp_may_overflow := true;
       M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "Integer overflow"
     )
 

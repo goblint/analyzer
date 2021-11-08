@@ -567,7 +567,7 @@ struct
         let next _ = []
       end
       in
-      if not !Goblintutil.did_overflow then
+      if not !Goblintutil.svcomp_may_overflow then
         let module TaskResult =
         struct
           module Arg = Arg
