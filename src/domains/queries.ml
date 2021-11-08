@@ -96,6 +96,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | WarnGlobal: CilType.Varinfo.t -> Unit.t t
 
 type 'a result = 'a
 
@@ -147,6 +148,7 @@ struct
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | WarnGlobal _ -> (module Unit)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -197,6 +199,7 @@ struct
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | WarnGlobal _ -> Unit.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -245,6 +248,7 @@ struct
       | Any (EvalThread _) -> 32
       | Any CreatedThreads -> 33
       | Any MustJoinedThreads -> 34
+      | Any (WarnGlobal _) -> 35
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -279,6 +283,7 @@ struct
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
+      | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> CilType.Varinfo.compare vi1 vi2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end

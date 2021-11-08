@@ -408,11 +408,6 @@ struct
       in
       List.map (fun (n,d) -> n, spec_assign n d) xs
 
-  let finalize () =
-    let r = finalize () in
-    Access.print_result ();
-    r
-
   let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
     let split_one n (d,emits) =
       let nv = assoc_replace (n,d) pv in

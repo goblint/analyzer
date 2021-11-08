@@ -1073,14 +1073,19 @@ struct
         f_eq ()
       else if b1 then begin
         if get_bool "solverdiffs" then
-          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
+          ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
         f_le ()
       end else if b2 then begin
         if get_bool "solverdiffs" then
           ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_gr ()
-      end else
+      end else begin
+        if get_bool "solverdiffs" then (
+          ignore (Pretty.printf "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
+          ignore (Pretty.printf "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
+        );
         f_uk ()
+      end
     in
     GH.iter f g1;
     Printf.printf "globals:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
@@ -1096,14 +1101,19 @@ struct
           incr eq
         else if b1 then begin
           if get_bool "solverdiffs" then
-            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
           incr le
         end else if b2 then begin
           if get_bool "solverdiffs" then
             ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr gr
-        end else
+        end else begin
+          if get_bool "solverdiffs" then (
+            ignore (Pretty.printf "%a @@ %a is incomparable (diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
+          );
           incr uk
+        end
     in
     PP.iter f h1;
     (* let k1 = Set.of_enum @@ PP.keys h1 in
@@ -1114,7 +1124,7 @@ struct
     Printf.printf "locals: \tequal = %d\tleft = %d\tright = %d\tincomparable = %d\n" !eq !le !gr !uk
 
   let compare_locals_ctx h1 h2 =
-    let eq, le, gr, uk, no2 = ref 0, ref 0, ref 0, ref 0, ref 0 in
+    let eq, le, gr, uk, no2, no1 = ref 0, ref 0, ref 0, ref 0, ref 0, ref 0 in
     let f_eq () = incr eq in
     let f_le () = incr le in
     let f_gr () = incr gr in
@@ -1127,22 +1137,31 @@ struct
         if b1 && b2 then
           f_eq ()
         else if b1 then begin
-          (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
+          if get_bool "solverdiffs" then
+            ignore (Pretty.printf "%a is more precise using left:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
           f_le ()
         end else if b2 then begin
-          (* if get_bool "solverdiffs" then *)
-          (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
+          if get_bool "solverdiffs" then
+            ignore (Pretty.printf "%a is more precise using right:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
           f_gr ()
-        end else
+        end else begin
+          if get_bool "solverdiffs" then (
+            ignore (Pretty.printf "%a is incomparable (diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
+            ignore (Pretty.printf "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
+          );
           f_uk ()
+        end
     in
     LH.iter f h1;
+    let f k v2 =
+      if not (LH.mem h1 k) then incr no1
+    in
+    LH.iter f h2;
     (* let k1 = Set.of_enum @@ PP.keys h1 in *)
     (* let k2 = Set.of_enum @@ PP.keys h2 in *)
     (* let o1 = Set.cardinal @@ Set.diff k1 k2 in *)
     (* let o2 = Set.cardinal @@ Set.diff k2 k1 in *)
-    Printf.printf "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\n" !eq !le !gr !uk !no2
+    Printf.printf "locals_ctx:\tequal = %d\tleft = %d\tright = %d\tincomparable = %d\tno_ctx_in_right = %d\tno_ctx_in_left = %d\n" !eq !le !gr !uk !no2 !no1
 
   let compare (name1,name2) (l1,g1) (l2,g2) =
     let one_ctx (n,_) v h =

@@ -1,0 +1,10 @@
+--- tests/incremental/05-local-wpoint.c	2021-09-29 16:30:17.199899879 +0300
++++ "tests/incremental/05-local-wpoint copy.c"	2021-09-29 16:30:30.231977751 +0300
+@@ -4,7 +4,6 @@
+ int g = 1;
+ 
+ void* t_fun(void *arg) {
+-    g = 0;
+     return NULL;
+ }
+ 

@@ -97,7 +97,7 @@ let _ = ()
 
 (* {4 category [Analyses]} *)
 let _ = ()
-      ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','threadreturn','escape','mutex','mallocWrapper']"  "Lists of activated analyses in this phase."
+      ; reg Analyses "ana.activated"  "['expRelation','base','threadid','threadflag','threadreturn','escape','mutex','access','mallocWrapper']"  "Lists of activated analyses in this phase."
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       (* apron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
@@ -154,9 +154,14 @@ let _ = ()
       ; reg Incremental "incremental.save"        "false" "Store incremental analysis results."
       ; reg Incremental "incremental.stable"      "true"  "Reuse the stable set and selectively destabilize it (recommended)."
       ; reg Incremental "incremental.wpoint"      "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
-      ; reg Incremental "incremental.reluctant.on" "true" "Destabilize nodes in changed functions reluctantly"
-      ; reg Incremental "incremental.reluctant.compare" "'leq'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
+      ; reg Incremental "incremental.reluctant.on" "false" "Destabilize nodes in changed functions reluctantly"
+      ; reg Incremental "incremental.reluctant.compare" "'equal'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
       ; reg Incremental "incremental.compare" "'ast'" "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)"
+      ; reg Incremental "incremental.restart.sided.enabled" "true" "TODO"
+      ; reg Incremental "incremental.restart.sided.only-global" "false" "TODO"
+      ; reg Incremental "incremental.restart.wpoint.enabled" "true" "TODO"
+      ; reg Incremental "incremental.restart.wpoint.once" "true" "TODO"
+      ; reg Incremental "incremental.verify" "true" "TODO"
 
 (* {4 category [Semantics]} *)
 let _ = ()

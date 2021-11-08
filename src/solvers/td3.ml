@@ -21,8 +21,6 @@ module WP =
   functor (S:EqConstrSys) ->
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
-    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg))
-
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
 
@@ -32,7 +30,10 @@ module WP =
       mutable sides: VS.t HM.t;
       mutable rho: S.Dom.t HM.t;
       mutable wpoint: unit HM.t;
-      mutable stable: unit HM.t
+      mutable stable: unit HM.t;
+      mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
+      mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
+      mutable var_messages: Message.t HM.t;
     }
 
     type marshal = solver_data
@@ -43,17 +44,16 @@ module WP =
       sides = HM.create 10;
       rho = HM.create 10;
       wpoint = HM.create 10;
-      stable = HM.create 10
+      stable = HM.create 10;
+      side_dep = HM.create 10;
+      side_infl = HM.create 10;
+      var_messages = HM.create 10;
     }
-
-    let clear_data data =
-      HM.clear data.infl;
-      HM.clear data.stable
 
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint)
+        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
+          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl)
 
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
@@ -66,6 +66,28 @@ module WP =
     module HPM = Hashtbl.Make (P)
 
     type phase = Widen | Narrow
+
+    let current_var = ref None
+
+    module S =
+    struct
+      include S
+
+      let system x =
+        match S.system x with
+        | None -> None
+        | Some f ->
+          let f' get set =
+            let old_current_var = !current_var in
+            current_var := Some x;
+            Fun.protect ~finally:(fun () ->
+                current_var := old_current_var
+              ) (fun () ->
+                f get set
+              )
+          in
+          Some f'
+    end
 
     exception AbortEq
 
@@ -83,6 +105,29 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
+      let side_dep = data.side_dep in
+      let side_infl = data.side_infl in
+      (* If true, incremental destabilized side-effected vars will be restarted.
+         If false, they are not. *)
+      let restart_sided = GobConfig.get_bool "incremental.restart.sided.enabled" in
+      (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
+         If false, it will restart all destabilized side-effected vars. *)
+      let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
+      (* If true, wpoint will be restarted to bot when added.
+         This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
+      let restart_wpoint = GobConfig.get_bool "incremental.restart.wpoint.enabled" in
+      (* If true, each wpoint will be restarted once when added.
+         If false, it will be restarted each time it is added again (wpoints are removed after Narrow). *)
+      let restart_once = GobConfig.get_bool "incremental.restart.wpoint.once" in
+      let restarted_wpoint = HM.create 10 in
+
+      let incr_verify = GobConfig.get_bool "incremental.verify" in
+      (* In incremental load, initially stable nodes, which are never destabilized.
+         These don't have to be re-verified and warnings can be reused. *)
+      let superstable = HM.copy stable in
+
+      let var_messages = data.var_messages in
+
       let abort = GobConfig.get_bool "exp.solver.td3.abort" in
       let destab_infl = HM.create 10 in
       let destab_front = HM.create 10 in
@@ -92,8 +137,8 @@ module WP =
       let prev_dep_vals = HM.create 10 in
 
       let () = print_solver_stats := fun () ->
-        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
-          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint);
+        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
+          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl);
         print_context_stats rho
       in
 
@@ -118,43 +163,18 @@ module WP =
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
-      let rec destabilize ?(front=true) x =
-        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
-        trace_called ();
-        let w = HM.find_default infl x VS.empty in
-        HM.replace infl x VS.empty;
-        if abort then (
-          if front then (
-            VS.iter (fun y ->
-                if tracing then trace "sol2" "front add %a (infl)\n" S.Var.pretty_trace y;
-                HM.replace destab_front y ()
-              ) w;
-            (* Also add front via destab_infl in case infl has already been removed by previous destabilize.
-               This fixes 29-svcomp/27-td3-front-via-destab-infl. *)
-            VS.iter (fun y ->
-                if tracing then trace "sol2" "front add %a (destab_infl)\n" S.Var.pretty_trace y;
-                HM.replace destab_front y ()
-              ) (HM.find_default destab_infl x VS.empty)
-          )
-          else (
-            HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
-            VS.iter (fun y ->
-                HM.replace destab_dep y (VS.add x (try HM.find destab_dep y with Not_found -> VS.empty))
-              ) w
-          )
-        );
-        VS.iter (fun y ->
-            if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
-            HM.remove stable y;
-            if not (HM.mem called y) then destabilize ~front:false y
-          ) w
-      and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
+
+      let destabilize_ref: (?front:bool -> S.v -> unit) ref = ref (fun ?front _ -> failwith "no destabilize yet") in
+      let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
+
+      let rec destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
         VS.fold (fun y b ->
             let was_stable = HM.mem stable y in
             HM.remove stable y;
+            HM.remove superstable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
       and solve ?(abortable=true) x phase (changed: bool): bool =
@@ -166,8 +186,12 @@ module WP =
           if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace x;
           HM.replace stable x ();
           HM.replace called x ();
+          (* Here we cache HM.mem wpoint x before eq. If during eq eval makes x wpoint, then be still don't apply widening the first time, but just overwrite.
+             It means that the first iteration at wpoint is still precise.
+             This doesn't matter during normal solving (?), because old would be bot.
+             This matters during incremental loading, when wpoints have been removed (or not marshaled) and are redetected.
+             Then the previous local wpoint value is discarded automagically and not joined/widened, providing limited restarting of local wpoints. (See eval for more complete restarting.) *)
           let wp = HM.mem wpoint x in
-          let old = HM.find rho x in
           let l = HM.create 10 in
           let prev_dep_vals_x = HM.find_default prev_dep_vals x (HM.create 0) in (* used by abort_verify *)
           let eval' =
@@ -233,13 +257,14 @@ module WP =
               if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
               HM.remove destab_dep x; (* TODO: safe to remove here? doesn't prevent some aborts? *)
               (* prev_dep_vals remain the same *)
-              old
+              HM.find rho x (* old *)
           in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
           HM.remove called_changed x;
+          let old = HM.find rho x in (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
           let tmp =
             if not wp then tmp
             else
@@ -296,6 +321,7 @@ module WP =
                 if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
                 HM.remove stable x;
+                HM.remove superstable x;
                 (solve[@tailcall]) ~abortable:false x Narrow changed
               ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
@@ -336,7 +362,21 @@ module WP =
       and eval l x y: S.d * bool =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
-        if HM.mem called y then HM.replace wpoint y ();
+        if HM.mem called y then (
+          if restart_wpoint && not (HM.mem wpoint y) then (
+            (* Even though solve cleverly restarts redetected wpoints during incremental load, the loop body would be calculated based on the old wpoint value.
+               The loop body might then side effect the old value, see tests/incremental/06-local-wpoint-read.
+               Here we avoid this, by setting it to bottom for the loop body eval. *)
+            if not (restart_once && HM.mem restarted_wpoint y) then (
+              if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
+              HM.replace rho y (S.Dom.bot ());
+              (* destabilize y *) (* TODO: would this do anything on called? *)
+              if restart_once then (* avoid populating hashtable unnecessarily *)
+                HM.replace restarted_wpoint y ();
+            )
+          );
+          HM.replace wpoint y ();
+        );
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         if tracing then trace "sol2" "eval %a ## %a -> %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty (fst tmp);
@@ -409,11 +449,106 @@ module WP =
         (* solve x Widen *)
       in
 
+      let destabilize_front ~front x w =
+        if abort then (
+          if front then (
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "front add %a (infl)\n" S.Var.pretty_trace y;
+                HM.replace destab_front y ()
+              ) w;
+            (* Also add front via destab_infl in case infl has already been removed by previous destabilize.
+               This fixes 29-svcomp/27-td3-front-via-destab-infl. *)
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "front add %a (destab_infl)\n" S.Var.pretty_trace y;
+                HM.replace destab_front y ()
+              ) (HM.find_default destab_infl x VS.empty)
+          )
+          else (
+            HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
+            VS.iter (fun y ->
+                HM.replace destab_dep y (VS.add x (try HM.find destab_dep y with Not_found -> VS.empty))
+              ) w
+          )
+        )
+      in
+
+      let rec destabilize_normal ?(front=true) x =
+        if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
+        trace_called ();
+        let w = HM.find_default infl x VS.empty in
+        HM.replace infl x VS.empty;
+        destabilize_front ~front x w;
+        VS.iter (fun y ->
+            if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+            HM.remove stable y;
+            HM.remove superstable y;
+            if not (HM.mem called y) then destabilize_normal ~front:false y
+          ) w
+      in
+
       start_event ();
 
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
+
+        (* destabilize which restarts side-effected vars *)
+        let rec destabilize_with_side ?(front=true) x =
+          if tracing then trace "sol2" "destabilize_with_side %a\n" S.Var.pretty_trace x;
+
+          (* is side-effected var (global/function entry)? *)
+          let w = HM.find_default side_dep x VS.empty in
+          HM.remove side_dep x;
+
+          if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) then (
+            (* restart side-effected var *)
+            if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
+            ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pretty_trace x);
+            HM.replace rho x (S.Dom.bot ());
+            (* HM.remove rho x; *)
+            HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
+            HM.remove sides x; (* just in case *)
+
+            (* destabilize side dep to redo side effects *)
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "destabilize_with_side %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+                HM.remove stable y;
+                HM.remove superstable y;
+                destabilize_with_side ~front:false y
+              ) w
+          );
+
+          (* destabilize eval infl *)
+          let w = HM.find_default infl x VS.empty in
+          HM.replace infl x VS.empty;
+          destabilize_front ~front x w;
+          VS.iter (fun y ->
+              if tracing then trace "sol2" "destabilize_with_side %a infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+              if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+              HM.remove stable y;
+              HM.remove superstable y;
+              destabilize_with_side ~front:false y
+            ) w;
+
+          (* destabilize side infl *)
+          let w = HM.find_default side_infl x VS.empty in
+          HM.remove side_infl x;
+          (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
+          VS.iter (fun y ->
+              if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+              if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+              HM.remove stable y;
+              HM.remove superstable y;
+              destabilize_with_side ~front:false y
+            ) w
+        in
+
+        destabilize_ref :=
+          if restart_sided then
+            destabilize_with_side
+          else
+            destabilize_normal;
 
         let filter_map f l =
           List.fold_left (fun acc el -> match f el with Some x -> x::acc | _ -> acc) [] l
@@ -429,6 +564,7 @@ module WP =
 
         List.iter (fun a -> print_endline ("Completely changed function: " ^ a.svar.vname)) changed_funs;
         List.iter (fun (f,_,_) -> print_endline ("Partially changed function: " ^ (f.svar.vname))) part_changed_funs;
+        List.iter (fun f -> print_endline ("Removed function: " ^ (f.svar.vname))) removed_funs;
 
         let old_ret = Hashtbl.create 103 in
         if GobConfig.get_bool "incremental.reluctant.on" then (
@@ -441,7 +577,7 @@ module WP =
           (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
              and the primary obsolete nodes of partly changed functions *)
           print_endline "Destabilizing changed functions and primary old nodes ...";
-          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry || Set.mem (S.Var.var_id k) prim_old_nodes_ids then destabilize k) stable;
+          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry || Set.mem (S.Var.var_id k) prim_old_nodes_ids then destabilize k) stable; (* TODO: don't use string-based nodes *)
         );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
@@ -469,14 +605,29 @@ module WP =
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
-        delete_marked stable;
 
-
-        print_data data "Data after clean-up";
+        (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
+        if restart_sided then (
+          (* restarts old copies of functions and their (removed) side effects *)
+          print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
+          let stable_copy = HM.copy stable in (* use copy because destabilize modifies stable *)
+          HM.iter (fun k _ -> if Hashtbl.mem marked_for_deletion (S.Var.var_id k) then (ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k); destabilize k)) stable_copy; (* TODO: don't use string-based nodes *)
+        );
 
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
-        List.iter (fun (v,d) -> side v d) st;
+        List.iter (fun (v,d) ->
+            if restart_sided then
+              destabilize v; (* restart side effect from start *)
+            side v d
+          ) st;
+
+        delete_marked stable;
+        delete_marked side_dep;
+        delete_marked side_infl;
+        print_data data "Data after clean-up";
+
+        (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
 
         if GobConfig.get_bool "incremental.reluctant.on" then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
@@ -495,10 +646,17 @@ module WP =
           ) old_ret;
 
           print_endline "Final solve..."
-        )
+        );
+
+        (* reachability will populate these tables for incremental global restarting *)
+        HM.clear side_dep;
+        HM.clear side_infl;
       ) else (
         List.iter set_start st;
       );
+
+      destabilize_ref := destabilize_normal; (* always use normal destabilize during actual solve *)
+
       List.iter init vs;
       (* If we have multiple start variables vs, we might solve v1, then while solving v2 we side some global which v1 depends on with a new value. Then v1 is no longer stable and we have to solve it again. *)
       let i = ref 0 in
@@ -581,9 +739,82 @@ module WP =
         print_newline ();
       );
 
-      Post.post st vs rho; (* TODO: add side_infl postsolver *)
+      (* Prune other data structures than rho with reachable.
+         These matter for the incremental data. *)
+      let module IncrPrune: PostSolver.S with module S = S and module VH = HM =
+      struct
+        include PostSolver.Unit (S) (HM)
 
-      {st; infl; sides; rho; wpoint; stable}
+        let finalize ~vh ~reachable =
+          VH.filteri_inplace (fun x _ ->
+              VH.mem reachable x
+            ) stable
+          (* TODO: prune other data structures? *)
+      end
+      in
+
+      (* postsolver also populates side_dep and side_infl *)
+      let module SideInfl: PostSolver.S with module S = S and module VH = HM =
+      struct
+        include PostSolver.Unit (S) (HM)
+
+        let one_side ~vh ~x ~y ~d =
+          HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
+          HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
+      end
+      in
+
+      if incr_verify then
+        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages
+      else
+        HM.clear var_messages;
+
+      let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
+      struct
+        include PostSolver.Warn (S) (HM)
+
+        let init () =
+          init (); (* enable warning like standard Warn *)
+
+          (* replay superstable messages *)
+          if incr_verify then (
+            HM.iter (fun _ m ->
+                Messages.add m
+              ) var_messages;
+          );
+
+          (* hook to collect new messages *)
+          Messages.Table.add_hook := (fun m ->
+            match !current_var with
+            | Some x -> HM.add var_messages x m
+            | None -> ()
+          );
+      end
+      in
+      let module MakeIncrListArg =
+      struct
+        module Arg =
+        struct
+          include Arg
+          let should_warn = false (* disable standard Warn in favor of IncrWarn *)
+        end
+        include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
+
+        let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWarn: M) :: postsolvers
+
+        let init_reachable ~vh =
+          if incr_verify then
+            HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
+          else
+            HM.create (HM.length vh)
+      end
+      in
+
+      let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
+
+      Post.post st vs rho;
+
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages}
 
     let solve box st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
@@ -632,7 +863,22 @@ module WP =
             HM.replace infl' (S.Var.relift k) (VS.map S.Var.relift v)
           ) data.infl;
           data.infl <- infl';
+          let side_infl' = HM.create (HM.length data.side_infl) in
+          HM.iter (fun k v ->
+            HM.replace side_infl' (S.Var.relift k) (VS.map S.Var.relift v)
+          ) data.side_infl;
+          data.side_infl <- side_infl';
+          let side_dep' = HM.create (HM.length data.side_dep) in
+          HM.iter (fun k v ->
+            HM.replace side_dep' (S.Var.relift k) (VS.map S.Var.relift v)
+          ) data.side_dep;
+          data.side_dep <- side_dep';
           data.st <- List.map (fun (k, v) -> S.Var.relift k, S.Dom.relift v) data.st;
+          let var_messages' = HM.create (HM.length data.var_messages) in
+          HM.iter (fun k v ->
+              HM.add var_messages' (S.Var.relift k) v (* var_messages contains duplicate keys, so must add not replace! *)
+            ) data.var_messages;
+          data.var_messages <- var_messages';
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
