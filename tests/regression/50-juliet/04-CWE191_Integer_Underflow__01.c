@@ -6,7 +6,7 @@ void main()
     char data;
     fscanf(stdin, "%c", &data);
     {
-        data--; // TODO WARN: potential underflow
+        data--; // WARN: potential underflow
         char result = data;
         printf("%hhd\n", result);
     }

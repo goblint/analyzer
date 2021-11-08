@@ -8,7 +8,7 @@ static void badSink(unsigned int data)
     if (badStatic)
     {
         {
-            int result = data * data; // TODO WARN: potential overflow
+            int result = data * data; // WARN: potential overflow
             printf("%hhd\n", result);
         }
     }

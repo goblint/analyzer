@@ -615,15 +615,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to ?torg ?no_ov t = function
-    | None -> None
-    | Some (x,y) ->
-      try
-        let a = Ints_t.of_bigint @@ Size.cast_big_int t (Ints_t.to_bigint x) in
-        let b = Ints_t.of_bigint @@ Size.cast_big_int t (Ints_t.to_bigint y) in
-        let a,b = if Ints_t.compare x a <> 0 || Ints_t.compare y b <> 0 then Size.range_big_int t |> (fun (a, b) -> (Ints_t.of_bigint a, Ints_t.of_bigint b)) else a,b in
-        norm t @@ Some (a, b)
-      with Size.Not_in_int64 -> top_of t
+  let cast_to ?torg ?no_ov t = norm t (* norm does all overflow handling *)
 
   let widen ik x y =
     match x, y with
