@@ -397,6 +397,7 @@ module WP =
 
         List.iter (fun a -> print_endline ("Completely changed function: " ^ a.svar.vname)) changed_funs;
         List.iter (fun (f,_,_) -> print_endline ("Partially changed function: " ^ (f.svar.vname))) part_changed_funs;
+        List.iter (fun f -> print_endline ("Removed function: " ^ (f.svar.vname))) removed_funs;
 
         let old_ret = Hashtbl.create 103 in
         if GobConfig.get_bool "incremental.reluctant.on" then (
@@ -437,20 +438,27 @@ module WP =
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
-        delete_marked stable;
-        delete_marked side_dep;
-        delete_marked side_infl;
 
-
-        print_data data "Data after clean-up";
-
-        (* reachability will populate these tables for incremental global restarting *)
-        HM.clear side_dep;
-        HM.clear side_infl;
+        (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
+        if restart_sided then (
+          (* restarts old copies of functions and their (removed) side effects *)
+          print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
+          let stable_copy = HM.copy stable in (* use copy because destabilize modifies stable *)
+          HM.iter (fun k _ -> if Hashtbl.mem marked_for_deletion (S.Var.var_id k) then (ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k); destabilize k)) stable_copy; (* TODO: don't use string-based nodes *)
+        );
 
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
-        List.iter (fun (v,d) -> side v d) st;
+        List.iter (fun (v,d) ->
+            if restart_sided then
+              destabilize v; (* restart side effect from start *)
+            side v d
+          ) st;
+
+        delete_marked stable;
+        delete_marked side_dep;
+        delete_marked side_infl;
+        print_data data "Data after clean-up";
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
 
@@ -471,7 +479,11 @@ module WP =
           ) old_ret;
 
           print_endline "Final solve..."
-        )
+        );
+
+        (* reachability will populate these tables for incremental global restarting *)
+        HM.clear side_dep;
+        HM.clear side_infl;
       ) else (
         List.iter set_start st;
       );
