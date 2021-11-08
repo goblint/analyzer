@@ -353,7 +353,11 @@ struct
   *)
   let cast ?torg t v =
     (*if v = `Bot || (match torg with Some x -> is_safe_cast t x | None -> false) then v else*)
-    if v = `Bot then v else
+    match v with
+    | `Bot
+    | `Thread _ ->
+      v
+    | _ ->
       let log_top (_,l,_,_) = Messages.tracel "cast" "log_top at %d: %a to %a is top!\n" l pretty v d_type t in
       let t = unrollType t in
       let v' = match t with
@@ -408,7 +412,7 @@ struct
           if ci.cstruct then
             `Struct (match v with
                 | `Struct x when same_struct x -> x
-                | `Struct x when List.length ci.cfields > 0 ->
+                | `Struct x when ci.cfields <> [] ->
                   let first = List.hd ci.cfields in
                   Structs.(replace (top ()) first (get x first))
                 | _ -> log_top __POS__; Structs.top ()
@@ -450,6 +454,8 @@ struct
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
     | (`Thread x, `Thread y) -> Threads.leq x y
+    | (`Int x, `Thread y) -> true
+    | (`Address x, `Thread y) -> true
     | _ -> warn_type "leq" x y; false
 
   let rec join x y =
@@ -475,6 +481,12 @@ struct
     | `Blob (x,s,o), y
     | y, `Blob (x,s,o) -> `Blob (join (x:t) y, s, o)
     | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
+    | (`Int x, `Thread y)
+    | (`Thread y, `Int x) ->
+      `Thread y (* TODO: ignores int! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Thread y (* TODO: ignores address! *)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -504,6 +516,12 @@ struct
     | y, `Blob (x,s,o) ->
       `Blob (join (x:t) y, s, o)
     | (`Thread x, `Thread y) -> `Thread (Threads.join x y)
+    | (`Int x, `Thread y)
+    | (`Thread y, `Int x) ->
+      `Thread y (* TODO: ignores int! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Thread y (* TODO: ignores address! *)
     | _ ->
       warn_type "join" x y;
       `Top
@@ -530,6 +548,12 @@ struct
     | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
     | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
+    | (`Int x, `Thread y)
+    | (`Thread y, `Int x) ->
+      `Thread y (* TODO: ignores int! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Thread y (* TODO: ignores address! *)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -555,6 +579,8 @@ struct
     | (`List x, `List y) -> Lists.leq x y (* `List can not contain array -> normal leq  *)
     | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
     | (`Thread x, `Thread y) -> Threads.leq x y
+    | (`Int x, `Thread y) -> true
+    | (`Address x, `Thread y) -> true
     | _ -> warn_type "leq" x y; false
 
   let rec meet x y =
@@ -573,6 +599,12 @@ struct
     | (`List x, `List y) -> `List (Lists.meet x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
+    | (`Int x, `Thread y)
+    | (`Thread y, `Int x) ->
+      `Int x (* TODO: ignores thread! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Address x (* TODO: ignores thread! *)
     | _ ->
       warn_type "meet" x y;
       `Bot
@@ -598,6 +630,12 @@ struct
     | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
+    | (`Int x, `Thread y)
+    | (`Thread y, `Int x) ->
+      `Thread y (* TODO: ignores int! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Thread y (* TODO: ignores address! *)
     | _ ->
       warn_type "widen" x y;
       `Top
@@ -614,6 +652,12 @@ struct
     | (`List x, `List y) -> `List (Lists.narrow x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.narrow x y)
+    | (`Int x, `Thread y)
+    | (`Thread y, `Int x) ->
+      `Int x (* TODO: ignores thread! *)
+    | (`Address x, `Thread y)
+    | (`Thread y, `Address x) ->
+      `Address x (* TODO: ignores thread! *)
     | x, `Top | `Top, x -> x
     | x, `Bot | `Bot, x -> `Bot
     | _ ->
@@ -643,6 +687,7 @@ struct
       `Array (CArrays.set ask n (array_idx_top) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
+    |                 _ , `Thread _     -> state (* TODO: no top thread ID set! *)
     |                 t , _             -> top_value t
 
 
@@ -829,7 +874,9 @@ struct
 
   let update_offset (ask: Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (v:lval) (t:typ): t =
     let rec do_update_offset (ask:Q.ask) (x:t) (offs:offs) (value:t) (exp:exp option) (l:lval option) (o:offset option) (v:lval) (t:typ):t =
+      if M.tracing then M.traceli "update_offset" "do_update_offset %a %a %a\n" pretty x Offs.pretty offs pretty value;
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
+      let r =
       match x, offs with
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
@@ -952,6 +999,9 @@ struct
             | _ -> M.warn "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
       in mu result
+      in
+      if M.tracing then M.traceu "update_offset" "do_update_offset -> %a\n" pretty r;
+      r
     in
     let l, o = match exp with
       | Some(Lval (x,o)) -> Some ((x, NoOffset)), Some(o)

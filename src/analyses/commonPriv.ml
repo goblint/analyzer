@@ -48,7 +48,16 @@ end
 module ExplicitMutexGlobals =
 struct
   include MutexGlobalsBase
-  let mutex_global: varinfo -> varinfo = RichVarinfo.Variables.map ~name:(fun x -> "MUTEX_GLOBAL_" ^ x.vname) (* explicit type to force call without ?size *)
+  let mutex_global: varinfo -> varinfo =
+    let module Variables = struct
+        include Basetype.Variables
+        let name_varinfo x = "MUTEX_GLOBAL_" ^ x.vname
+      end
+    in
+    (* TODO: Use marshal/unmarshal of VarinfoMap *)
+    let module VarinfoMap = RichVarinfo.Make (Variables) in
+    VarinfoMap.to_varinfo
+
   let mutex_global x =
     let r = mutex_global x in
     if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x d_varinfo r;

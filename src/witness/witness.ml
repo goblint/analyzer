@@ -111,7 +111,6 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   (* GML.write_key g "node" "sourcecode" "string" None; *)
   GML.write_key g "edge" "goblintEdge" "string" None;
   GML.write_key g "edge" "goblintLine" "string" None;
-  GML.write_key g "edge" "goblintControl" "string" None;
   (* TODO: remove *)
   (* GML.write_key g "edge" "enterFunction2" "string" None;
   GML.write_key g "edge" "returnFromFunction2" "string" None; *)
@@ -222,13 +221,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         begin match edge with
           (* control actually only allowed in violation witness *)
           | MyARG.CFGEdge (Test (_, b)) ->
-            begin match TaskResult.result with
-              | Result.True ->
-                [("goblintControl", "condition-" ^ string_of_bool b)]
-              | Result.False _
-              | Result.Unknown ->
-                [("control", "condition-" ^ string_of_bool b)]
-            end
+            [("control", "condition-" ^ string_of_bool b)]
           (* enter and return on other side of nodes,
              more correct loc (startline) but had some scope problem? *)
           (* | MyARG.CFGEdge (Entry f) ->
@@ -397,7 +390,7 @@ struct
       let lvar = WitnessUtil.find_main_entry entrystates in
       let main_indices = ask_indices lvar in
       (* TODO: get rid of this hack for getting index of entry state *)
-      assert (List.length main_indices = 1);
+      assert (List.compare_length_with main_indices 1 = 0);
       let main_index = List.hd main_indices in
       (fst lvar, snd lvar, main_index)
     in
@@ -604,8 +597,11 @@ struct
     let module TaskResult = (val (Stats.time "determine" (determine_result lh gh entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
-    let witness_path = get_string "exp.witness.path" in
-    Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+
+    if TaskResult.result <> Result.Unknown || get_bool "exp.witness.unknown" then (
+      let witness_path = get_string "exp.witness.path" in
+      Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+    )
 
   let write lh gh entrystates =
     match !Goblintutil.verified with

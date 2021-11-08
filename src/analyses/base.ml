@@ -218,7 +218,7 @@ struct
                 Some true
               else (
                 (* If the address id definite, it should be one or no variables *)
-                assert (List.length v = 1);
+                assert (List.compare_length_with v 1 = 0);
                 if a.f (Q.IsMultiple (List.hd v)) then
                   None
                 else
@@ -936,7 +936,9 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.EvalThread e -> begin
-      match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+      let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+      (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
+      match v with
         | `Thread a -> a
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
@@ -966,14 +968,14 @@ struct
     | Q.EvalStr e -> begin
         match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         (* exactly one string in the set (works for assignments of string constants) *)
-        | `Address a when List.length (AD.to_string a) = 1 -> (* exactly one string *)
+        | `Address a when List.compare_length_with (AD.to_string a) 1 = 0 -> (* exactly one string *)
           `Lifted (List.hd (AD.to_string a))
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
-        | `Address a when List.length (AD.to_string a) > 1 -> (* oh oh *)
+        | `Address a when List.compare_length_with (AD.to_string a) 1 > 0 -> (* oh oh *)
           M.debug "EvalStr (%a) returned %a" d_exp e AD.pretty a;
           Queries.Result.top q
-        | `Address a when List.length (AD.to_var_may a) = 1 -> (* some other address *)
+        | `Address a when List.compare_length_with (AD.to_var_may a) 1 = 0 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
           (* ignore @@ printf "EvalStr `Address: %a -> %s (must %i, may %i)\n" d_plainexp e (VD.short 80 (`Address a)) (List.length @@ AD.to_var_must a) (List.length @@ AD.to_var_may a); *)
           begin match unrollType (Cilfacade.typeOf e) with
@@ -1761,7 +1763,7 @@ struct
       (* to suppress pattern matching warnings: *)
       let fromJust x = match x with Some x -> x | None -> assert false in
       let v = fromJust (ID.to_bool value) in
-      if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin
+      if !GU.postsolving && get_bool "dbg.print_dead_code" then begin
         if v=tv then
           Locmap.replace (dead_branches tv) !Tracing.next_loc false
         else
@@ -1775,13 +1777,13 @@ struct
     | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
       if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
-      if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then begin
+      if !GU.postsolving && get_bool "dbg.print_dead_code" then begin
         locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv)
       end;
       raise Deadcode
     (* Otherwise we try to impose an invariant: *)
     | _ ->
-      if !GU.in_verifying_stage then
+      if !GU.postsolving then
         Locmap.replace (dead_branches tv) !Tracing.next_loc false;
       refine ()
 
@@ -2123,7 +2125,7 @@ struct
       end
     | `Unknown "__builtin" ->
       begin match args with
-        | Const (CStr "invariant") :: args when List.length args > 0 ->
+        | Const (CStr "invariant") :: ((_ :: _) as args) ->
           List.fold_left (fun d e -> invariant ctx (Analyses.ask_of_ctx ctx) ctx.global d e true) ctx.local args
         | _ -> failwith "Unknown __builtin."
       end
@@ -2277,7 +2279,7 @@ struct
       match x.vtype, CPA.find x st.cpa with
       | TPtr (t, attr), `Address a
         when (not (AD.is_top a))
-          && List.length (AD.to_var_may a) = 1
+          && List.compare_length_with (AD.to_var_may a) 1 = 0
           && not (VD.is_immediate_type t)
         ->
         let cv = List.hd (AD.to_var_may a) in

@@ -6,6 +6,9 @@ module M = Messages
 module A = Array
 module Q = Queries
 module BI = IntOps.BigIntOps
+
+module LiftExp = Printable.Lift (CilType.Exp) (Printable.DefaultNames)
+
 module type S =
 sig
   include Lattice.S
@@ -294,6 +297,7 @@ struct
   let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pretty x LiftExp.pretty i Val.pretty a;
     if i = `Lifted MyCFG.all_array_index_exp then
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
       let r =  Val.join xm a in
@@ -458,6 +462,7 @@ struct
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | `Lifted e1e, `Lifted e2e ->
       if get_string "exp.partition-arrays.keep-expr" = "last" || get_bool "exp.partition-arrays.smart-join" then
+        let op = Val.join in (* widen between different components isn't called validly *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
         let e1e_in_state_of_x2 = x2_eval_int e1e in

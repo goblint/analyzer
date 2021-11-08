@@ -58,8 +58,8 @@ let global_initialization = ref false
 (** Another hack to see if earlyglobs is enabled *)
 let earlyglobs = ref false
 
-(** true if in verifying stage *)
-let in_verifying_stage = ref false
+(** Whether currently in postsolver evaluations (e.g. verify, warn) *)
+let postsolving = ref false
 
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None

@@ -218,8 +218,8 @@ struct
     (* fold possible keys on domain *)
     let ret_all f lval =
       let xs = D.keys_from_lval lval (Analyses.ask_of_ctx ctx) in (* get all possible keys for a given lval *)
-      if List.length xs = 0 then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
-      else if List.length xs = 1 then f (List.hd xs) m true
+      if xs = [] then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
+      else if List.compare_length_with xs 1 = 0 then f (List.hd xs) m true
       (* else List.fold_left (fun m k -> D.join m (f k m)) m xs *)
       else
         (* if there is more than one key, join all values and do warnings on the result *)

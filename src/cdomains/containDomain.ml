@@ -40,7 +40,7 @@ let gen_class s =
 let report x =
   let loc = !Tracing.current_loc in
   if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) &&
-     !Goblintutil.in_verifying_stage then (*filter noise*)
+     !Goblintutil.postsolving then (*filter noise*)
     Messages.warn "CW: %s" x
 
 module FieldVars =
@@ -172,7 +172,7 @@ struct
   let report x =
     let loc = !Tracing.current_loc in
     if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1)) &&
-       (!Goblintutil.in_verifying_stage|| !final) then (*filter noise*)
+       (!Goblintutil.postsolving|| !final) then (*filter noise*)
       Messages.warn "CW: %s" x
 
   module Danger =
@@ -262,7 +262,7 @@ struct
 
   let error x =
     let loc = !Tracing.current_loc in
-    if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1))&& !Goblintutil.in_verifying_stage  then (*filter noise*)
+    if (not (loc.file ="LLVM INTERNAL") || not (loc.line=1))&& !Goblintutil.postsolving  then (*filter noise*)
       Messages.warn ~category:Analyzer "CW: %s" x (* TODO: used to call report_error, add error severity *)
 
   let taintedFunDec = (emptyFunction "@tainted_fields").svar

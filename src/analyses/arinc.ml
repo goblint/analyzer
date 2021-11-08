@@ -163,7 +163,7 @@ struct
       M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
-  let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
+  let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.compare_length_with xs 1 = 0 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
   let debugMayPointTo ctx exp = M.debug "%a mayPointTo %a" d_exp exp (Pretty.d_list ", " Lval.CilLval.pretty) (mayPointTo ctx exp)
 
@@ -224,7 +224,7 @@ struct
                let else_stmts = if List.is_empty bf.bstmts then stmt.succs else bf.bstmts in
                let else_node = NodeTbl.get @@ Branch (List.hd else_stmts) in
                let dst_node = if tv then then_node else else_node in
-               let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
+               let d_if = if List.compare_length_with stmt.preds 1 > 0 then ( (* seems like this never happens *)
                    M.debug "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
                    add_edges env ArincUtil.Nop;
                    { ctx.local with pred = Pred.of_node env.node }

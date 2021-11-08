@@ -1418,6 +1418,7 @@ struct
   include Priv
 
   open PrivPrecCompareUtil
+  module LVH = RH
 
   let is_dumping = ref false
   let lvh = LVH.create 113
@@ -1429,7 +1430,7 @@ struct
 
   let read_global ask getg st x =
     let v = Priv.read_global ask getg st x in
-    if !GU.in_verifying_stage && !is_dumping then
+    if !GU.postsolving && !is_dumping then
       LVH.modify_def (VD.bot ()) (!Tracing.current_loc, x) (VD.join v) lvh;
     v
 
@@ -1438,7 +1439,7 @@ struct
     (* LVH.iter (fun (l, x) v ->
         ignore (Pretty.printf "%a %a = %a\n" CilType.Location.pretty l d_varinfo x VD.pretty v)
       ) lvh; *)
-    Marshal.output f {name = get_string "exp.privatization"; lvh};
+    Marshal.output f ({name = get_string "exp.privatization"; results = lvh}: result);
     close_out_noerr f
 
   let finalize () =
