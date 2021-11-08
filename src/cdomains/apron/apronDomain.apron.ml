@@ -356,6 +356,7 @@ module AOps (Tracked: Tracked) (Man: Manager) =
 struct
   module Bounds = Bounds (Man)
   module Convert = EnvDomain.Convert (Tracked) (Bounds)
+  include EnvDomain.EnvOps
 
   type t = Man.mt A.t
 
@@ -386,15 +387,8 @@ struct
   let mem_var d v = Environment.mem_var (A.env d) v
 
   let add_vars_with nd vs =
-    let env = A.env nd in
-    let vs' =
-      vs
-      |> List.enum
-      |> Enum.filter (fun v -> not (Environment.mem_var env v))
-      |> Array.of_enum
-    in
-    let env' = Environment.add env vs' [||] in
-    A.change_environment_with Man.mgr nd env' false
+    let env = add_vars_with (A.env nd) vs in
+    A.change_environment_with Man.mgr nd env false
 
   let add_vars d vs =
     let nd = copy d in
@@ -402,15 +396,8 @@ struct
     nd
 
   let remove_vars_with nd vs =
-    let env = A.env nd in
-    let vs' =
-      vs
-      |> List.enum
-      |> Enum.filter (fun v -> Environment.mem_var env v)
-      |> Array.of_enum
-    in
-    let env' = Environment.remove env vs' in
-    A.change_environment_with Man.mgr nd env' false
+    let env = remove_vars_with (A.env nd) vs in
+    A.change_environment_with Man.mgr nd env false
 
   let remove_vars d vs =
     let nd = copy d in
@@ -418,15 +405,8 @@ struct
     nd
 
   let remove_filter_with nd f =
-    let env = A.env nd in
-    let vs' =
-      vars nd
-      |> List.enum
-      |> Enum.filter f
-      |> Array.of_enum
-    in
-    let env' = Environment.remove env vs' in
-    A.change_environment_with Man.mgr nd env' false
+    let env = remove_filter_with (A.env nd) f in
+    A.change_environment_with Man.mgr nd env false
 
   let remove_filter d f =
     let nd = copy d in
@@ -434,17 +414,8 @@ struct
     nd
 
   let keep_vars_with nd vs =
-    let env = A.env nd in
-    (* Instead of iterating over all vars in env and doing a linear lookup in vs just to remove them,
-       make a new env with just the desired vs. *)
-    let vs' =
-      vs
-      |> List.enum
-      |> Enum.filter (fun v -> Environment.mem_var env v)
-      |> Array.of_enum
-    in
-    let env' = Environment.make vs' [||] in
-    A.change_environment_with Man.mgr nd env' false
+    let env = keep_vars_with (A.env nd) vs in
+    A.change_environment_with Man.mgr nd env false
 
   let keep_vars d vs =
     let nd = copy d in
@@ -452,16 +423,8 @@ struct
     nd
 
   let keep_filter_with nd f =
-    (* Instead of removing undesired vars,
-       make a new env with just the desired vars. *)
-    let vs' =
-      vars nd
-      |> List.enum
-      |> Enum.filter f
-      |> Array.of_enum
-    in
-    let env' = Environment.make vs' [||] in
-    A.change_environment_with Man.mgr nd env' false
+    let env = keep_filter_with (A.env nd) f in
+    A.change_environment_with Man.mgr nd env false
 
   let keep_filter d f =
     let nd = copy d in
@@ -610,7 +573,7 @@ struct
 
   let of_lincons_array (a: Apron.Lincons1.earray) =
     A.of_lincons_array Man.mgr a.array_env a
-    let unify (a:t) (b:t) = A.unify Man.mgr a b
+  let unify (a:t) (b:t) = A.unify Man.mgr a b
 end
 
 
@@ -1004,7 +967,6 @@ sig
   module Man: Manager
   module Tracked : Tracked
   module Bounds : module type of Bounds (Man)
-  include module type of AOps (Tracked) (Man)
   include Tracked
   include SLattice with type t = Man.mt A.t
 
@@ -1013,9 +975,13 @@ sig
   val eval_int : t -> exp -> Queries.ID.t
 end
 
+<<<<<<< HEAD
 type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, hash, to_yojson]
 
 module D2 (Man: Manager) : S2 with module Man = Man =
+=======
+module D2 (Man: Manager) : RelD2 with type var = Var.t =
+>>>>>>> Move environment modifying code to envDomain + add new Karr domain
 struct
   type var = Var.t
   include DWithOps (Man) (DHetero (Man))

@@ -4,7 +4,6 @@ open Apron
 open Pretty
 
 module BI = IntOps.BigIntOps
-
 module type Tracked =
 sig
   val type_tracked: typ -> bool
@@ -17,7 +16,7 @@ sig
   val bound_texpr: d -> Texpr1.t -> Z.t option * Z.t option
 end
 
-module Convert (Tracked: Tracked) (Bounds: ConvBounds)=
+module Convert (Tracked: Tracked) (Bounds: ConvBounds) =
 struct
   open Texpr1
   open Tcons1
@@ -121,3 +120,65 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     make (of_expr env texpr1') typ
 end
+
+module EnvOps =
+struct
+  let vars env =
+    let ivs, fvs = Environment.vars env in
+      assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+      List.of_enum (Array.enum ivs)
+
+  let mem_var env v = Environment.mem_var env v
+
+  let add_vars_with env vs =
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> not (Environment.mem_var env v))
+      |> Array.of_enum
+    in
+    Environment.add env vs' [||]
+
+  let remove_vars_with env vs =
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+      in
+        Environment.remove env vs'
+
+
+  let remove_filter_with env f =
+    let vs' =
+     vars env
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+    in
+    Environment.remove env vs'
+
+  let keep_vars_with env vs =
+      let vs' =
+        vs
+        |> List.enum
+        |> Enum.filter (fun v -> Environment.mem_var env v)
+        |> Array.of_enum
+      in
+      Environment.make vs' [||]
+
+  let keep_filter_with env f =
+        (* Instead of removing undesired vars,
+           make a new env with just the desired vars. *)
+        let vs' =
+          vars env
+          |> List.enum
+          |> Enum.filter f
+          |> Array.of_enum
+        in
+        Environment.make vs' [||]
+end
+
+
+
+

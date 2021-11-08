@@ -31,6 +31,9 @@
     (select relationDomain.ml from
       (apron -> relationDomain.apron.ml)
     )
+    (select myDomain.ml from
+      (apron -> myDomain.apron.ml)
+    )
     (select envDomain.ml from
       (apron -> envDomain.apron.ml)
     )
