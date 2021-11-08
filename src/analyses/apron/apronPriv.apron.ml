@@ -18,6 +18,7 @@ module type S =
     module G: Lattice.S
 
     type apron_components_t := ApronDomain.ApronComponents (AD) (D).t
+    val name: unit -> string
     val startstate: unit -> D.t
     val should_join: apron_components_t -> apron_components_t -> bool
 
@@ -46,6 +47,7 @@ struct
   module D = Lattice.Unit
   module G = Lattice.Unit
 
+  let name () = "Dummy"
   let startstate () = ()
   let should_join _ _ = true
 
@@ -119,6 +121,8 @@ struct
     let unprot g = make_var (Unprot g)
     let prot g = make_var (Prot g)
   end
+
+  let name () = "ProtectionBasedPriv"
 
   (** Restrict environment to global invariant variables. *)
   let restrict_global apr =
@@ -318,6 +322,8 @@ struct
 
   module V = ApronDomain.V
 
+  let name () = "PerMutexMeetPriv"
+
   let startstate () = ()
 
   let should_join _ _ = true
@@ -479,6 +485,8 @@ struct
 
   type apron_components_t =  ApronDomain.ApronComponents (AD) (D).t
   let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
+
+  let name () = "WriteCenteredPriv"
 
   let startstate () = (W.bot (), P.top ())
 
