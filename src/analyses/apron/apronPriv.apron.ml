@@ -495,7 +495,6 @@ end
 module type ClusterArg = functor (AD: ApronDomain.S2) ->
 sig
   module LAD: Lattice.S
-  (* module AD: ApronDomain.S2 *)
 
   val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LAD.t -> LAD.t
   val keep_global: varinfo -> LAD.t -> LAD.t
