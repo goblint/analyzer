@@ -462,6 +462,7 @@ struct
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | `Lifted e1e, `Lifted e2e ->
       if get_string "exp.partition-arrays.keep-expr" = "last" || get_bool "exp.partition-arrays.smart-join" then
+        let op = Val.join in (* widen between different components isn't called validly *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
         let e1e_in_state_of_x2 = x2_eval_int e1e in

@@ -38,10 +38,12 @@ rule() {
       eval $(opam config env)
       dune build $TARGET.exe &&
       cp _build/default/$TARGET.exe goblint
+      chmod +w goblint
     ;; release)
       eval $(opam config env)
       dune build --profile release $TARGET.exe &&
       cp _build/default/$TARGET.exe goblint
+      chmod +w goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
     ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
       dune build $TARGET.bc.js &&
@@ -54,10 +56,17 @@ rule() {
       eval $(opam config env)
       dune build src/maindomaintest.exe &&
       cp _build/default/src/maindomaintest.exe goblint.domaintest
+      chmod +w goblint.domaintest
     ;; privPrecCompare)
       eval $(opam config env)
       dune build src/privPrecCompare.exe &&
       cp _build/default/src/privPrecCompare.exe privPrecCompare
+      chmod +w privPrecCompare
+    ;; apronPrecCompare)
+      eval $(opam config env)
+      dune build src/apronPrecCompare.exe &&
+      cp _build/default/src/apronPrecCompare.exe apronPrecCompare
+      chmod +w apronPrecCompare
     # old rules using ocamlbuild
     ;; ocbnat*)
       ocb -no-plugin $TARGET.native &&
@@ -66,6 +75,7 @@ rule() {
       eval $(opam config env)
       dune build goblint.byte &&
       cp _build/default/goblint.byte goblint.byte
+      chmod +w goblint.byte
     ;; profile)
       # gprof (run only generates gmon.out). use: gprof goblint
       ocb -tag profile $TARGET.p.native &&
@@ -126,6 +136,29 @@ rule() {
       cp g2html/g2html.jar .
     # ;; watch)
     #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
+    ;; install)
+      eval $(opam config env)
+      dune build @install
+      dune install
+    ;; uninstall)
+      eval $(opam config env)
+      dune uninstall
+    ;; relocatable)
+      PREFIX=relocatable
+      # requires chrpath
+      eval $(opam env)
+      dune build @install
+      dune install --relocatable --prefix $PREFIX
+      # must replace absolute apron runpath to C library with relative
+      chrpath -r '$ORIGIN/../share/apron/lib' $PREFIX/bin/goblint
+      # remove goblint.lib ocaml library
+      rm -r $PREFIX/lib
+      # copy just necessary apron C libraries
+      mkdir -p $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libapron.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/liboctMPQ.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libboxMPQ.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libpolkaMPQ.so $PREFIX/share/apron/lib/
 
     # tests, CI
     ;; test)
@@ -141,9 +174,6 @@ rule() {
       echo "copy cwd w/o git-ignored files: changes in container won't affect host's cwd."
       # cp cwd (with .git, _opam, _build): 1m51s, cp ls-files: 0.5s
       docker run -it -u travis -v `pwd`:/analyzer:ro,delegated -w /home/travis travisci/ci-garnet:packer-1515445631-7dfb2e1 bash -c 'cd /analyzer; mkdir ~/a; cp --parents $(git ls-files) ~/a; cd ~/a; bash'
-    ;; docker) # build and run a docker image
-      docker build --pull -t goblint . | ts -i
-      docker run -it goblint bash
     ;; server)
       rsync -avz --delete --exclude='/.git' --exclude='server.sh' --exclude-from="$(git ls-files --exclude-standard -oi --directory > /tmp/excludes; echo /tmp/excludes)" . serverseidl6.informatik.tu-muenchen.de:~/analyzer2
       ssh serverseidl6.informatik.tu-muenchen.de 'cd ~/analyzer2; make nat && make test'

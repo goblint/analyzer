@@ -62,8 +62,8 @@ let _ = ()
       ; reg Std "includes"        "[]"           "List of directories to include."
       ; reg Std "kernel_includes" "[]"           "List of kernel directories to include."
       ; reg Std "custom_includes" "[]"           "List of custom directories to include."
-      ; reg Std "custom_incl"     "''"           "Use custom includes"
       ; reg Std "custom_libc"     "false"        "Use goblints custom libc."
+      ; reg Std "kernel-root"     "''"           "Root directory for Linux kernel (linux-headers)"
       ; reg Std "justcil"         "false"        "Just parse and output the CIL."
       ; reg Std "justcfg"         "false"        "Only output the CFG in cfg.dot ."
       ; reg Std "printstats"      "false"        "Outputs timing information."
@@ -144,6 +144,7 @@ let _ = ()
       ; reg Analyses "ana.base.context.int"    "true" "Integer values in function contexts."
       ; reg Analyses "ana.base.context.interval" "true" "Integer values of the Interval domain in function contexts."
       ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
+      ; reg Analyses "ana.apron.domain" "'octagon'" "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'"
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
       ; reg Analyses "ana.apron.threshold_widening" "false" "Use constants appearing in program as threshold for widening"
 
@@ -156,6 +157,7 @@ let _ = ()
       ; reg Incremental "incremental.wpoint"      "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
       ; reg Incremental "incremental.reluctant.on" "true" "Destabilize nodes in changed functions reluctantly"
       ; reg Incremental "incremental.reluctant.compare" "'leq'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
+      ; reg Incremental "incremental.compare" "'ast'" "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)"
 
 (* {4 category [Semantics]} *)
 let _ = ()
@@ -181,6 +183,7 @@ let _ = ()
       ; reg Experimental "exp.apron.privatization" "'mutex-meet-tid-cluster12'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
       ; reg Experimental "exp.apron.priv.not-started" "true" "Exclude writes from threads that may not be started yet"
       ; reg Experimental "exp.apron.priv.must-joined" "true" "Exclude writes from threads that must have been joined"
+      ; reg Experimental "exp.apron.prec-dump"    "''"    "File to dump apron precision data to."
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
@@ -269,7 +272,7 @@ let _ = ()
 let default_schema = {schema|
 { "id"              : "root"
 , "type"            : "object"
-, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_libc", "kernel-root", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
 , "additionalProps" : false
 , "properties" :
   { "ana" :
@@ -298,12 +301,12 @@ let default_schema = {schema|
   , "includes"        : {}
   , "kernel_includes" : {}
   , "custom_includes" : {}
-  , "custom_incl"     : {}
   , "custom_libc"     : {}
+  , "kernel-root"     : {}
   , "justcil"         : {}
   , "justcfg"         : {}
   , "printstats"      : {}
-  , "verify"        : {}
+  , "verify"          : {}
   , "mainfun"         : {}
   , "exitfun"         : {}
   , "otherfun"        : {}

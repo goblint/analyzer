@@ -37,7 +37,7 @@ struct
   let bot () : t = times (Var.bot ()) n
 
   let leq (x:t) (y:t) =
-    if List.length x < List.length y then false else
+    if List.compare_lengths x y < 0 then false else
       let f acc x y = Var.leq x y && acc in
       fold_left2 f true false x y
 
