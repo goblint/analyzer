@@ -25,7 +25,8 @@ module Dep    = BaseDomain.PartDeps
 module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
 
-
+(* to store the functions where asserts fail and wwe might want to improve precision *)
+let failing_asserts : (fundec, Obj.t) Hashtbl.t = Hashtbl.create 500
 
 module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
 struct
@@ -62,7 +63,6 @@ struct
 
   let hash    (x,_)             = Hashtbl.hash x
   let leq     (x1,_) (y1,_) = CPA.leq   x1 y1
-
 
   (**************************************************************************
    * Initializing my variables
@@ -2035,6 +2035,17 @@ struct
     (* TODO: use format instead of %s for the following messages *)
     match check_assert e ctx.local with
     | `Lifted false ->
+      let parent = if should_warn then (ctx.ask Q.Parent) else `Top in 
+      let prev_node = ctx.prev_node in
+      let failing_node_name = match prev_node with
+        | Statement s -> CilType.Stmt.show s
+        | FunctionEntry fdec
+        | Function fdec ->
+          CilType.Fundec.show fdec
+      in
+      let fundec = Node.find_fundec prev_node in
+      Hashtbl.replace failing_asserts fundec (Obj.repr (ctx.context ()));
+      let () = Printf.printf "<<<< Failing in %s (%s) >>>>\n" (CilType.Fundec.show fundec) failing_node_name in 
       warn (M.error ~category:Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
       if change then raise Analyses.Deadcode else ctx.local
     | `Lifted true ->
