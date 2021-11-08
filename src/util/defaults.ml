@@ -159,7 +159,7 @@ let _ = ()
       ; reg Incremental "incremental.compare" "'ast'" "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)"
       ; reg Incremental "incremental.restart.sided.enabled" "true" "TODO"
       ; reg Incremental "incremental.restart.sided.only-global" "false" "TODO"
-      ; reg Incremental "incremental.restart.wpoint.enabled" "true" "TODO"
+      ; reg Incremental "incremental.restart.wpoint.enabled" "false" "TODO"
       ; reg Incremental "incremental.restart.wpoint.once" "true" "TODO"
       ; reg Incremental "incremental.verify" "true" "TODO"
 
