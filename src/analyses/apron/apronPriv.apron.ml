@@ -46,7 +46,6 @@ module type S =
 
 module Dummy: S = functor (AD: ApronDomain.S2) ->
 struct
-  module AD = AD
   module D = Lattice.Unit
   module G = Lattice.Unit
 
@@ -99,7 +98,6 @@ struct
     let name () = "W"
   end
 
-  module AD = AD
   module D = Lattice.Prod (P) (W)
   module G = AD
 
@@ -343,7 +341,6 @@ struct
   open CommonPerMutex(AD)
   open ExplicitMutexGlobals
 
-  module AD = AD
   module D = Lattice.Unit
   module G = AD
 
