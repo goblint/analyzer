@@ -370,7 +370,7 @@ module WP =
             if not (restart_once && HM.mem restarted_wpoint y) then (
               if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
               HM.replace rho y (S.Dom.bot ());
-              (* destabilize y *) (* TODO: would this do anything on called? *)
+              destabilize y; (* required for abort (front) *)
               if restart_once then (* avoid populating hashtable unnecessarily *)
                 HM.replace restarted_wpoint y ();
             )
