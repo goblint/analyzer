@@ -498,6 +498,8 @@ sig
 
   val lock: AD.t -> LAD.t -> LAD.t -> AD.t
   val unlock: W.t -> AD.t -> LAD.t
+
+  val name: unit -> string
 end
 
 (** No clustering. *)
@@ -518,11 +520,14 @@ struct
 
   let unlock w oct_side =
     oct_side
+
+  let name () = ""
 end
 
 module type ClusteringArg =
 sig
   val generate: varinfo list -> varinfo list list
+  val name: unit -> string
 end
 
 (** All clusters of size 1 and 2. *)
@@ -532,6 +537,8 @@ struct
     List.cartesian_product gs gs
     |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 <= 0) (* filter flipped ordering, keep equals for next step *)
     |> List.map (fun (g1, g2) -> [g1; g2]) (* if g1 = g2, then we get a singleton cluster *)
+
+  let name () = "cluster12"
 end
 
 (** All clusters of size 2. *)
@@ -545,6 +552,8 @@ struct
       List.cartesian_product gs gs
       |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 < 0) (* filter flipped ordering, forbid equals for just clusters of size 2 *)
       |> List.map (fun (g1, g2) -> [g1; g2])
+
+  let name () = "cluster2"
 end
 
 (** All subset clusters. *)
@@ -563,6 +572,8 @@ struct
             acc
         ) [] gs bs
     )
+
+  let name () = "clusterPow"
 end
 
 (** One maximum cluster. *)
@@ -570,6 +581,8 @@ module ClusteringMax: ClusteringArg =
 struct
   let generate gs =
     [gs]
+
+  let name () = "clusterMax"
 end
 
 
@@ -633,6 +646,8 @@ struct
       AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
     in
     LAD.add_list_fun clusters oct_side_cluster (LAD.empty ())
+
+  let name = ClusteringArg.name
 end
 
 (** Clusters when clustering is arbitrary (not necessarily downward-closed). *)
@@ -646,6 +661,8 @@ struct
   module VS = DCCluster.VS
   module LAD1 = DCCluster.LAD
   module LAD = Lattice.Prod (LAD1) (LAD1) (* second component is only used between keep_* and lock for additional weak mapping *)
+
+  let name = ClusteringArg.name
 
   let filter_map' f m =
     LAD1.fold (fun k v acc ->
@@ -736,7 +753,7 @@ struct
   module V = ApronDomain.V
   module TID = ThreadIdDomain.Thread
 
-  let name () = "PerMutexMeetPrivTID"
+  let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
   let compatible (ask:Q.ask) current must_joined other =
     match current, other with
