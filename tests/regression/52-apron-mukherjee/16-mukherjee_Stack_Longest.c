@@ -4,11 +4,8 @@
 #include "assert.h"
 
 int SIZE = 800;
-int OVERFLOW  = -1;
 int top = 0;
 int flag = 0;
-int arr1;
-int arr2;
 
 pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 
