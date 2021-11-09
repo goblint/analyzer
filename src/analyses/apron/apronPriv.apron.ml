@@ -22,10 +22,6 @@ module type S =
     val startstate: unit -> D.t
     val should_join: apron_components_t -> apron_components_t -> bool
 
-    (** function that takes a sideg and a function that transforms abstract values (soundly) and returns a sideg that performs this transformation on
-    any *)
-    val project_sideg: (varinfo -> G.t -> unit) -> (AD.t -> AD.t) -> (varinfo -> G.t -> unit)
-
     val read_global: Q.ask -> (varinfo -> G.t) -> apron_components_t -> varinfo -> varinfo -> AD.t
 
     (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
@@ -45,6 +41,9 @@ module type S =
 
     val init: unit -> unit
     val finalize: unit -> unit
+
+    (** maps a function on the contained abstract values *)
+    val map_g: (AD.t -> AD.t) -> G.t -> G.t
   end
 
 
@@ -54,9 +53,7 @@ struct
   module G = Lattice.Unit
 
   let name () = "Dummy"
-
-
-  let project_sideg x _ = x
+  let map_g f () = ()
   let startstate () = ()
   let should_join _ _ = true
 
@@ -135,8 +132,7 @@ struct
 
   let name () = "ProtectionBasedPriv"
 
-  let project_sideg (sideg: varinfo -> G.t -> unit) (project: AD.t -> AD.t) v g =
-    sideg v (project g)
+  let map_g f = f
 
   (** Restrict environment to global invariant variables. *)
   let restrict_global apr =
@@ -361,8 +357,7 @@ struct
 
   let name () = "PerMutexMeetPriv"
 
-  let project_sideg (sideg: varinfo -> G.t -> unit) (project: AD.t -> AD.t) v g =
-    sideg v (project g)
+  let map_g f = f
 
   let startstate () = ()
 
@@ -777,7 +772,7 @@ struct
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
-  let map_g (g: G.t) (f: AD.t -> AD.t): G.t =
+  let map_g (f: AD.t -> AD.t) (g: G.t): G.t =
     match g with
     | `Lifted1 gm ->
       let gm = GMutex.map (NC.map_g f) gm in
@@ -787,9 +782,6 @@ struct
       `Lifted2 (ml, l)
     | `Bot
     | `Top -> g
-
-  let project_sideg (sideg: varinfo -> G.t -> unit) (project: AD.t -> AD.t) v g =
-    sideg v (map_g g project)
 
   let compatible (ask:Q.ask) current must_joined other =
     match current, other with
@@ -1067,17 +1059,20 @@ struct
   let threadenter = patch_get_mutex threadenter
 end
 
+
+module type SF = functor (Priv: S) -> S
+
 (** To only have interval information about globals, this functor
   projects the side-effects to intervals.*)
-module IntervalGlobsPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
+module IntervalGlobsPriv: SF = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
 struct
   module Priv = Priv (AD)
   include Priv
 
   let project (ad: AD.t) =
     AD.project_to_interval ad
-  let project_sideg' sideg =
-    Priv.project_sideg sideg project
+  let project_sideg' sideg (v: varinfo) (g: G.t) =
+     sideg v (Priv.map_g project g)
   let write_global ?(invariant=false) ask getg sideg st g x =
     Priv.write_global ~invariant ask getg (project_sideg' sideg) st g x
   let unlock ask getg sideg st m =
@@ -1090,7 +1085,7 @@ struct
     Priv.thread_return ask getg (project_sideg' sideg) tid st
 end
 
-module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
+module TracingPriv: SF = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
 struct
   module Priv = Priv (AD)
   include Priv
