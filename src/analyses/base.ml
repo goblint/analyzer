@@ -1305,7 +1305,7 @@ struct
             end
           | `Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
-              match eval_rv a gs st (Lval x) with
+              match eval_rv_address a gs st (Lval x) with
               | `Address a when AD.is_definite n ->
                 Some (x, `Address (AD.diff a n))
               | `Top when AD.is_null n ->
