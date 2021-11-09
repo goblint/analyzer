@@ -14,7 +14,7 @@ int f() {
 void callme(void)  {
   x = 5;
   int y = f() + x;
-  assert(y != 32);
+  assert(y == 32);
 }
 
 void callfun(void (*fun)()) {
