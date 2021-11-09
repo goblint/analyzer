@@ -625,8 +625,9 @@ struct
   let lock oct local_m get_m =
     if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD.pretty local_m;
     let r = lock_get_m oct local_m get_m in
-    if AD.is_bot_env r then
-      failwith "DownwardClosedCluster.lock: not downward closed?";
+    (* is_bot check commented out because it's unnecessarily expensive *)
+    (* if AD.is_bot_env r then
+      failwith "DownwardClosedCluster.lock: not downward closed?"; *)
     if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
     r
 
