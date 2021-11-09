@@ -45,7 +45,7 @@ end
 module Make (D: Lattice.S) =
 struct
 
-  let compare ?(name1="left") ?(name2="right") v1 v2 =
+  let compare ?(verbose=false) ?(name1="left") ?(name2="right") v1 v2 =
     let c = match D.leq v1 v2, D.leq v2 v1 with
       | true, true -> Comparison.Equal
       | true, false -> Comparison.MorePrecise 1
@@ -57,7 +57,8 @@ struct
       ++
       (if D.leq v2 v1 then nil else dprintf "reverse diff: %a\n" D.pretty_diff (v2, v1))
     in
-    let msg = Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 D.pretty v1 (Comparison.to_string_infix c) name2 D.pretty v2 diff in
+    let msg = if verbose then Pretty.dprintf "%s %s %s\n  @[%s: %a\n%s\n%s: %a\n%t@]" name1 (Comparison.to_string_infix c) name2 name1 D.pretty v1 (Comparison.to_string_infix c) name2 D.pretty v2 diff
+      else Pretty.nil in
     (c, msg)
 end
 
@@ -66,7 +67,7 @@ struct
 
   module CompareD = Make (D)
 
-  let compare ?(name1="left") ?(name2="right") kh1 kh2 =
+  let compare ?(verbose=false) ?(name1="left") ?(name2="right") kh1 kh2 =
     let kh = KH.merge (fun k v1 v2 -> Some (v1, v2)) kh1 kh2 in
     let compared = KH.map (fun k (v1, v2) ->
         let v1 = v1 |? D.bot () in
@@ -78,7 +79,7 @@ struct
         match c with
         | Comparison.Equal -> ()
         | _ ->
-          ignore (Pretty.printf "%a: %t\n" K.pretty k (fun () -> msg))
+          if verbose then ignore (Pretty.printf "%a: %t\n" K.pretty k (fun () -> msg))
       ) compared;
     let c = KH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.Equal in
     let (m, l) = Comparison.counts c in
