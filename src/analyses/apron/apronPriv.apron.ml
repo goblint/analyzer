@@ -1195,6 +1195,15 @@ let priv_module: (module S) Lazy.t =
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
     in
+    let module Priv: S =
+      (val
+        if get_bool "exp.apron.priv.only-interval" then
+          (* Restrict global invariant to intervals *)
+          (module IntervalGlobsPriv (Priv): S)
+        else
+          (module Priv)
+      )
+    in
     let module Priv = TracingPriv (Priv)  in
     (module Priv)
   )
