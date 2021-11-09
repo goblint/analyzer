@@ -74,17 +74,26 @@ struct
     | Parent -> let () = Printf.printf "<<<< ??? Queried ??? >>>>\n" in Result.top q
     | _ -> query ctx q
 
-  let update_config a b =
-    Printf.printf "<<<< Should do something about function %s >>>>\n" (CilType.Fundec.show a)
+  let update_config fundec context =
+    let performed_update = 
+        match Hashtbl.find_opt PrecisionUtil.function_config fundec with
+        | Some p -> p != (true, true, true, true)
+        | None -> true in
+    Hashtbl.replace PrecisionUtil.function_config fundec (true, true, true, true);
+    PrecisionUtil.changed_configs := performed_update;
+    Printf.printf "<<<< Should do something about function %s >>>>\n" (CilType.Fundec.show fundec)
 
   let finalize () =
     let marsh = S.finalize () in
+    PrecisionUtil.changed_configs := false;
     (* Look in a hastbl(poorman set, fundec and context) if there are any asserts that base wants to be refined *)
-    let s = Base.failing_asserts in
-    Hashtbl.iter update_config s;
+    Hashtbl.iter update_config Base.failing_asserts;
     (* if yes, propagate(update some config hashtable - should have fundec -> activated int domains) them up the call graph using *)
     (* reanalyze - exception! *)
-    write_dot ();
+    if !PrecisionUtil.changed_configs then
+      raise Refinement.RestartAnalysis
+    else
+      write_dot ();
     marsh
 
 end

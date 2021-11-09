@@ -25,7 +25,7 @@ module Dep    = BaseDomain.PartDeps
 module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
 
-(* to store the functions where asserts fail and wwe might want to improve precision *)
+(* to store the functions where asserts fail and we might want to improve precision *)
 let failing_asserts : (fundec, Obj.t) Hashtbl.t = Hashtbl.create 500
 
 module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
