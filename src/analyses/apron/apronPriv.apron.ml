@@ -513,6 +513,9 @@ sig
   val unlock: W.t -> AD.t -> LAD.t
 
   val name: unit -> string
+
+  (** maps a function on the contrained abstract values *)
+  val map_g: (AD.t -> AD.t) -> LAD.t -> LAD.t
 end
 
 (** No clustering. *)
@@ -534,6 +537,8 @@ struct
   let unlock w oct_side =
     oct_side
 
+  let map_g f = f
+
   let name () = ""
 end
 
@@ -552,6 +557,7 @@ struct
     |> List.map (fun (g1, g2) -> [g1; g2]) (* if g1 = g2, then we get a singleton cluster *)
 
   let name () = "cluster12"
+  let map_g f = f
 end
 
 (** All clusters of size 2. *)
@@ -661,6 +667,7 @@ struct
     LAD.add_list_fun clusters oct_side_cluster (LAD.empty ())
 
   let name = ClusteringArg.name
+  let map_g _ _ = failwith "map_g not implemented for downward closed cluster"
 end
 
 (** Clusters when clustering is arbitrary (not necessarily downward-closed). *)
@@ -737,6 +744,8 @@ struct
 
   let unlock w oct_side =
     (DCCluster.unlock w oct_side, LAD1.bot ())
+
+  let map_g _ _ = failwith "map_g not implemented for downward arbitrary cluster"
 end
 
 (** Per-mutex meet with TIDs. *)
@@ -768,7 +777,19 @@ struct
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
-  let project_sideg sideg _ = failwith @@ "project_sideg not implemented for " ^ (name ())
+  let map_g (g: G.t) (f: AD.t -> AD.t): G.t =
+    match g with
+    | `Lifted1 gm ->
+      let gm = GMutex.map (NC.map_g f) gm in
+      `Lifted1 gm
+    | `Lifted2 (ml, l) ->
+      let l = L.map (NC.map_g f) l in
+      `Lifted2 (ml, l)
+    | `Bot
+    | `Top -> g
+
+  let project_sideg (sideg: varinfo -> G.t -> unit) (project: AD.t -> AD.t) v g =
+    sideg v (map_g g project)
 
   let compatible (ask:Q.ask) current must_joined other =
     match current, other with
