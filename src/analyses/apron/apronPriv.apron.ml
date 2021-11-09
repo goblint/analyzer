@@ -22,6 +22,10 @@ module type S =
     val startstate: unit -> D.t
     val should_join: apron_components_t -> apron_components_t -> bool
 
+    (** function that takes a sideg and a function that transforms abstract values (soundly) and returns a sideg that performs this transformation on
+    any *)
+    val project_sideg: (varinfo -> G.t -> unit) -> (AD.t -> AD.t) -> (varinfo -> G.t -> unit)
+
     val read_global: Q.ask -> (varinfo -> G.t) -> apron_components_t -> varinfo -> varinfo -> AD.t
 
     (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
@@ -50,6 +54,9 @@ struct
   module G = Lattice.Unit
 
   let name () = "Dummy"
+
+
+  let project_sideg x _ = x
   let startstate () = ()
   let should_join _ _ = true
 
@@ -127,6 +134,9 @@ struct
   end
 
   let name () = "ProtectionBasedPriv"
+
+  let project_sideg (sideg: varinfo -> G.t -> unit) (project: AD.t -> AD.t) v g =
+    sideg v (project g)
 
   (** Restrict environment to global invariant variables. *)
   let restrict_global apr =
@@ -350,6 +360,9 @@ struct
   module V = ApronDomain.V
 
   let name () = "PerMutexMeetPriv"
+
+  let project_sideg (sideg: varinfo -> G.t -> unit) (project: AD.t -> AD.t) v g =
+    sideg v (project g)
 
   let startstate () = ()
 
@@ -755,6 +768,8 @@ struct
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
+  let project_sideg sideg _ = failwith @@ "project_sideg not implemented for " ^ (name ())
+
   let compatible (ask:Q.ask) current must_joined other =
     match current, other with
     | `Lifted current, `Lifted other ->
@@ -1029,6 +1044,29 @@ struct
   let sync = patch_getside_mutex sync
   let enter_multithreaded = patch_getside_mutex enter_multithreaded
   let threadenter = patch_get_mutex threadenter
+end
+
+(** To only have interval information about globals, this functor
+  projects the side-effects to intervals.*)
+module IntervalGlobsPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
+struct
+  module Priv = Priv (AD)
+  include Priv
+
+  let project (ad: AD.t) =
+    AD.project_to_interval ad
+  let project_sideg' sideg =
+    Priv.project_sideg sideg project
+  let write_global ?(invariant=false) ask getg sideg st g x =
+    Priv.write_global ~invariant ask getg (project_sideg' sideg) st g x
+  let unlock ask getg sideg st m =
+    Priv.unlock ask getg (project_sideg' sideg) st m
+  let sync ask getg sideg st reason =
+    Priv.sync ask getg (project_sideg' sideg) st reason
+  let enter_multithreaded ask getg sideg st =
+    Priv.enter_multithreaded ask getg (project_sideg' sideg) st
+  let thread_return ask getg sideg tid st =
+    Priv.thread_return ask getg (project_sideg' sideg) tid st
 end
 
 module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->

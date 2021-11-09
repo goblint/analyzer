@@ -436,6 +436,12 @@ struct
     in
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
+  let project_to_interval d =
+    let box = A.to_box Man.mgr d in
+    let env = d.env in
+    let vars, _ = Environment.vars env in
+    A.of_box Man.mgr env vars box.interval_array
+
   let substitute_exp_with nd v e =
     match Convert.texpr1_of_cil_exp nd (A.env nd) e with
     | texpr1 ->
