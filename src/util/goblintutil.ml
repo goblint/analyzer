@@ -14,7 +14,8 @@ let jsonFiles : string list ref = ref []
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
 
-let did_overflow = ref false
+(** Whether signed overflow or underflow happened *)
+let svcomp_may_overflow = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
