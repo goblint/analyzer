@@ -1,0 +1,14 @@
+{
+    "ana": {
+        "int": {
+            "interval": true
+        }
+    },
+    "incremental": {
+        "restart": {
+            "wpoint": {
+                "enabled": false
+            }
+        }
+    }
+}
