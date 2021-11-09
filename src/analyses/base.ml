@@ -2035,7 +2035,6 @@ struct
     (* TODO: use format instead of %s for the following messages *)
     match check_assert e ctx.local with
     | `Lifted false ->
-      let parent = if should_warn then (ctx.ask Q.Parent) else `Top in 
       let prev_node = ctx.prev_node in
       let failing_node_name = match prev_node with
         | Statement s -> CilType.Stmt.show s

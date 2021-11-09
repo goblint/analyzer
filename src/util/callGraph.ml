@@ -68,12 +68,6 @@ struct
 
     close_out_noerr out
 
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let open Queries in
-    match q with
-    | Parent -> let () = Printf.printf "<<<< ??? Queried ??? >>>>\n" in Result.top q
-    | _ -> query ctx q
-
   let update_config fundec context =
     let performed_update = 
         match Hashtbl.find_opt PrecisionUtil.function_config fundec with
