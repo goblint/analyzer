@@ -531,38 +531,53 @@ struct
     | Some (a, b) ->
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
-  let set_overflow_flag ik =
-    if Cil.isSigned ik && !GU.postsolving then (
-      Goblintutil.did_overflow := true;
-      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "Integer overflow"
-    )
+  let set_overflow_flag ~underflow ~overflow ik =
+    let signed = Cil.isSigned ik in
+    if !GU.postsolving && signed then
+      Goblintutil.svcomp_may_overflow := true;
+
+    let sign = if signed then "Signed" else "Unsigned" in
+    match underflow, overflow with
+    | true, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190; CWE 191] "%s integer overflow and underflow" sign
+    | true, false ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 191] "%s integer underflow" sign
+    | false, true ->
+      M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
+    | false, false -> assert false
 
   let norm ik = function None -> None | Some (x,y) ->
     if Ints_t.compare x y > 0 then None
-    else if Ints_t.compare (min_int ik) x > 0 || Ints_t.compare (max_int ik) y < 0 then (
-      set_overflow_flag ik;
-      if should_wrap ik then
-        (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
-        (* on Z will not safely contain the minimal and maximal elements after the cast *)
-        let diff = Ints_t.abs (Ints_t.sub (max_int ik) (min_int ik)) in
-        let resdiff = Ints_t.abs (Ints_t.sub y x) in
-        if Ints_t.compare resdiff diff > 0 then
-          top_of ik
-        else
-          let l = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint x) in
-          let u = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint y) in
-          if Ints_t.compare l u <= 0 then
-            Some (l, u)
-          else
-            (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
+    else (
+      let min_ik = min_int ik in
+      let max_ik = max_int ik in
+      let underflow = Ints_t.compare min_ik x > 0 in
+      let overflow = Ints_t.compare max_ik y < 0 in
+      if underflow || overflow then (
+        set_overflow_flag ~underflow ~overflow ik;
+        if should_wrap ik then
+          (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
+          (* on Z will not safely contain the minimal and maximal elements after the cast *)
+          let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
+          let resdiff = Ints_t.abs (Ints_t.sub y x) in
+          if Ints_t.compare resdiff diff > 0 then
             top_of ik
-      else if should_ignore_overflow ik then
-        let tl, tu = BatOption.get @@ top_of ik in
-        Some (max tl x, min tu y)
-      else
-        top_of ik
+          else
+            let l = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint x) in
+            let u = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint y) in
+            if Ints_t.compare l u <= 0 then
+              Some (l, u)
+            else
+              (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
+              top_of ik
+        else if should_ignore_overflow ik then
+          let tl, tu = BatOption.get @@ top_of ik in
+          Some (max tl x, min tu y)
+        else
+          top_of ik
+      )
+      else Some (x,y)
     )
-    else Some (x,y)
 
   let leq (x:t) (y:t) =
     match x, y with
@@ -615,15 +630,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to ?torg ?no_ov t = function
-    | None -> None
-    | Some (x,y) ->
-      try
-        let a = Ints_t.of_bigint @@ Size.cast_big_int t (Ints_t.to_bigint x) in
-        let b = Ints_t.of_bigint @@ Size.cast_big_int t (Ints_t.to_bigint y) in
-        let a,b = if Ints_t.compare x a <> 0 || Ints_t.compare y b <> 0 then Size.range_big_int t |> (fun (a, b) -> (Ints_t.of_bigint a, Ints_t.of_bigint b)) else a,b in
-        norm t @@ Some (a, b)
-      with Size.Not_in_int64 -> top_of t
+  let cast_to ?torg ?no_ov t = norm t (* norm does all overflow handling *)
 
   let widen ik x y =
     match x, y with
@@ -687,7 +694,7 @@ struct
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
-      | _              -> (set_overflow_flag ik;  top_of ik)
+      | _              -> (set_overflow_flag ~underflow:true ~overflow:true ik;  top_of ik)
 
   let bitxor = bit (fun _ik -> Ints_t.bitxor)
   let bitand = bit (fun _ik -> Ints_t.bitand)

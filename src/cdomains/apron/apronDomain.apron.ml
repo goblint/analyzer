@@ -97,7 +97,15 @@ let int_of_scalar ?round (scalar: Scalar.t) =
     None
   else
     match scalar with
-    | Mpqf scalar ->
+    | Float f -> (* octD, boxD *)
+      (* bound_texpr on bottom also gives Float even with MPQ *)
+      let f_opt = match round with
+        | Some `Floor -> Some (Float.floor f)
+        | Some `Ceil -> Some (Float.ceil f)
+        | None -> None
+      in
+      Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
+    | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
       let z_opt =
@@ -112,7 +120,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
       in
       Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
     | _ ->
-      failwith ("int_of_scalar: not rational: " ^ Scalar.to_string scalar)
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
 module Bounds (Man: Manager) =
 struct

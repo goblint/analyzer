@@ -27,6 +27,7 @@ _The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very
 2. Continue using Linux instructions in WSL.
 
 ### Other
+* **[devcontainer](./.devcontainer/).** Select "Reopen in Container" in VS Code and continue with `make` using Linux instructions in devcontainer.
 * **[Docker (GitHub Container Registry)](https://github.com/goblint/analyzer/pkgs/container/analyzer)**. Run `docker pull ghcr.io/goblint/analyzer:latest`.
 * **Docker (repository).** Clone and run `docker build -t goblint .`.
 * **Vagrant.** Clone and run `vagrant up && vagrant ssh`.

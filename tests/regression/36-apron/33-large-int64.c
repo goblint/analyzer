@@ -10,9 +10,9 @@ void main() {
     assert(x < z);
 
     if (9223372036854775805 <= x && z <= 9223372036854775807) {
-      assert(x == 9223372036854775805);
-      assert(y == 9223372036854775806);
-      assert(z == 9223372036854775807);
+      assert(x == 9223372036854775805); // TODO (unknown with D, success with MPQ)
+      assert(y == 9223372036854775806); // TODO (unknown with D, success with MPQ)
+      assert(z == 9223372036854775807); // TODO (unknown with D, success with MPQ)
 
       assert(x != -3);
       assert(y != -2);

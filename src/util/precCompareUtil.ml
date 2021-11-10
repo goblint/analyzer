@@ -2,7 +2,7 @@ open Prelude
 
 
 (** A printable, where each element is related to one location.
- Multiple elements might be related to the same location. *)
+    Multiple elements might be related to the same location. *)
 module type LocalizedPrintable =
 sig
   include Printable.S
