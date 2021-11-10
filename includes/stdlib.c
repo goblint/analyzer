@@ -27,3 +27,16 @@ void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const 
 
   // array isn't actually sorted! just pretent calls for Goblint
 }
+
+
+void* bsearch(const void *key, void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
+  // linear search for simplicity
+  for (size_t i = 0; i < count; i++) {
+    const void *a = ptr + i * size;
+    if (comp(key, a) == 0) {
+      return a;
+    }
+  }
+
+  return NULL;
+}
