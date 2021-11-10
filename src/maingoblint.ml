@@ -243,6 +243,8 @@ let preprocess_files () =
   if get_bool "custom_libc" then
     cFileNames := find_custom_include "lib.c" :: !cFileNames;
 
+  cFileNames := find_custom_include "stdlib.c" :: !cFileNames;
+
   if get_bool "ana.sv-comp.functions" then
     cFileNames := find_custom_include "sv-comp.c" :: !cFileNames;
 
