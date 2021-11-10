@@ -35,7 +35,7 @@ jobs:
           key: opam-ocp-indent-${{ runner.os }}-${{ matrix.ocaml-compiler }}
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v1 # intentionally use v1 instead of v2 because it's faster with manual caching: https://github.com/goblint/analyzer/pull/308#issuecomment-887805857
+        uses: ocaml/setup-ocaml@v2 # intentionally use v1 instead of v2 because it's faster with manual caching: https://github.com/goblint/analyzer/pull/308#issuecomment-887805857
         with:
           ocaml-version: ${{ matrix.ocaml-compiler }}
 
