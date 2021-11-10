@@ -7,7 +7,7 @@ void main()
     fscanf(stdin, "%c", &data);
     if(-data < 0) // avoid potential overflow
     {
-        char result = -data * 2; // TODO WARN: potential underflow
+        char result = -data * 2; // WARN: potential underflow
         printf("%hhd\n", result);
     }
 }

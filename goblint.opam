@@ -32,6 +32,7 @@ depends: [
   "ounit2" {with-test}
   "odoc" {with-doc}
   "dune-site"
+  "sha"
   "benchmark"
   "ocamlbuild"
   "ocamlfind"
@@ -57,6 +58,7 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 pin-depends: [
   [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#c16dddf74f6053a8b3fac07ca2feff18d4d56964" ]
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
+  [ "ppx_deriving_yojson.3.6.1" "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd" ]
   [ "zarith.1.12-gob0" "git+https://github.com/goblint/Zarith.git#goblint-release-1.12" ]
   [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
 ]

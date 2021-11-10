@@ -886,6 +886,17 @@ struct
       M.warn "Unknown call to function %a." d_exp fval;
       [dummyFunDec.svar]
 
+  (** Evaluate expression as address.
+      Avoids expensive Apron EvalInt if the `Int result would be useless to us anyway. *)
+  let eval_rv_address ask gs st e =
+    (* no way to do eval_rv with expected type, so filter expression beforehand *)
+    match Cilfacade.typeOf e with
+    | t when Cil.isArithmeticType t -> (* definitely not address *)
+      VD.top_value t
+    | exception Cilfacade.TypeOfError _ (* something weird, might be address *)
+    | _ ->
+      eval_rv ask gs st e
+
   (* interpreter end *)
 
   let query ctx (type a) (q: a Q.t): a Q.result =
@@ -899,7 +910,7 @@ struct
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.EvalLength e -> begin
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
           let slen = List.map String.length (AD.to_string a) in
           let lenOf = function
@@ -914,7 +925,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.BlobSize e -> begin
-        let p = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+        let p = eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         (* ignore @@ printf "BlobSize %a MayPointTo %a\n" d_plainexp e VD.pretty p; *)
         match p with
         | `Address a ->
@@ -926,7 +937,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.MayPointTo e -> begin
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Address a ->
           let s = addrToLvalSet a in
           if AD.mem Addr.UnknownPtr a
@@ -944,7 +955,7 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.ReachableFrom e -> begin
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Queries.Result.top q
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
@@ -956,7 +967,7 @@ struct
         | _ -> Q.LS.empty ()
       end
     | Q.ReachableUkTypes e -> begin
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Queries.Result.top q
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
@@ -966,7 +977,7 @@ struct
         | _ -> Q.TS.empty ()
       end
     | Q.EvalStr e -> begin
-        match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
+        match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         (* exactly one string in the set (works for assignments of string constants) *)
         | `Address a when List.compare_length_with (AD.to_string a) 1 = 0 -> (* exactly one string *)
           `Lifted (List.hd (AD.to_string a))
@@ -1294,7 +1305,7 @@ struct
             end
           | `Address n -> begin
               if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
-              match eval_rv a gs st (Lval x) with
+              match eval_rv_address a gs st (Lval x) with
               | `Address a when AD.is_definite n ->
                 Some (x, `Address (AD.diff a n))
               | `Top when AD.is_null n ->

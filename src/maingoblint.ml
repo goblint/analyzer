@@ -179,7 +179,7 @@ let preprocess_files () =
   let custom_include_dirs =
     get_string_list "custom_includes" @
     Filename.concat exe_dir "includes" ::
-    Gobsites.Sites.includes
+    Goblint_sites.includes
   in
   if get_bool "dbg.verbose" then (
     print_endline "Custom include dirs:";
@@ -393,6 +393,35 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   )
 
+let do_gobview () =
+  let create_symlink target link =
+    if not (Sys.file_exists link) then Unix.symlink target link
+  in
+  let gobview = GobConfig.get_bool "gobview" in
+  let goblint_root =
+    Filename.concat (Unix.getcwd ()) (Filename.dirname Sys.argv.(0))
+  in
+  let dist_dir = Filename.concat goblint_root "_build/default/gobview/dist" in
+  let js_file = Filename.concat dist_dir "main.js" in
+  if gobview then (
+    if Sys.file_exists js_file then (
+      let save_run = GobConfig.get_string "save_run" in
+      let run_dir = if save_run <> "" then save_run else "run" in
+      let dist_files =
+        Sys.files_of dist_dir
+        |> Enum.filter (fun n -> n <> "dune")
+        |> List.of_enum
+      in
+      List.iter (fun n ->
+          create_symlink
+            (Filename.concat dist_dir n)
+            (Filename.concat run_dir n)
+        ) dist_files
+    )
+    else
+      eprintf "Warning: Cannot locate Gobview.\n"
+  )
+
 let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 
 let check_arguments () =
@@ -478,6 +507,7 @@ let main () =
     file|> do_analyze changeInfo;
     do_stats ();
     do_html_output ();
+    do_gobview ();
     if !verified = Some false then exit 3;  (* verifier failed! *)
   with
     | Exit ->
