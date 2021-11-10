@@ -2,27 +2,22 @@ open Prelude
 open Pretty
 open Cil
 
-module MyVar : RelationDomain.RelVar =
-struct
-  type t
-  let compare a b = 0
-  let of_string a = failwith "unimplemented"
-  let to_string a = ""
-  let hash a = 0
-  let equal a b = false
-end
-
-
 module MyD2: RelationDomain.RelD2 =
 struct
-  type var
+
+  include EnvDomain.EnvOps
+
+  type var = EnvDomain.Var.t
   type t = {
-    (* ToDo Use Matrix tuple *)
-    (* d : int * int Option.t; *)
-    env : Apron.Environment.t
+    mutable d : (((var, (int) Array.t) BatHashtbl.t) * ((int) Array.t)) Option.t;
+    mutable env : Apron.Environment.t
   }
-  let is_bot_env a = false
-  let equal a b = false
+  let is_bot_env a =
+    match a.d with
+    | None -> true
+    | _ -> false
+
+  let equal a b = Apron.Environment.equal (a.env) (b.env) (* ToDo Check for d equality *)
   let hash a = 0
   let compare a b = 0
   let show a = ""
@@ -31,7 +26,7 @@ struct
   let name () = ""
   let to_yojson a = failwith "unimplemented"
   let invariant a b = failwith "unimplemented"
-  let arbitrary () = failwith "unimplemented"
+  let arbitrary () = failwith "no arbitrary"
   let leq a b = false
   let join a b = a
   let meet a b = a
@@ -44,10 +39,25 @@ struct
   let top () = failwith "unimplemented"
   let is_top a = false
   let copy a = a
-  let vars a = []
-  let add_vars a b = a
+  let vars a = vars a.env
+
+  let add_vars a vars =
+    let vs' = get_filtered_vars (a.env) vars in
+      let env' = Apron.Environment.add a.env vs' [||] in
+        let d' = (match a.d with
+          | None -> None
+          | Some (hst, c) -> Some (hst, c))
+  in {d = d'; env = env'}
+
+  let remove_vars a vars =
+    let vs' = get_filtered_vars (a.env) vars in
+      let env' = Apron.Environment.add a.env vs' [||] in
+        let d' = (match a.d with
+          | None -> None
+          | Some (hst, c) -> Some (hst, c))
+  in {d = d'; env = env'}
+
   let remove_vars_with a b = ()
-  let remove_vars a b = a
   let remove_filter_with a f = failwith "unimplemented"
 
   let keep_filter a f = failwith "unimplemented"

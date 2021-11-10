@@ -983,7 +983,7 @@ module D2 (Man: Manager) : S2 with module Man = Man =
 module D2 (Man: Manager) : RelD2 with type var = Var.t =
 >>>>>>> Move environment modifying code to envDomain + add new Karr domain
 struct
-  type var = Var.t
+  type var = EnvDomain.Var.t
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
 end

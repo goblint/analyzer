@@ -10,6 +10,12 @@ sig
   val varinfo_tracked: varinfo -> bool
 end
 
+module Var =
+struct
+  include Var
+  let equal x y = Var.compare x y = 0
+end
+
 module type ConvBounds =
 sig
   type d
@@ -148,6 +154,11 @@ struct
       in
         Environment.remove env vs'
 
+  let get_filtered_vars env vs =
+    vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
 
   let remove_filter_with env f =
     let vs' =
