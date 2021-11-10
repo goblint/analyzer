@@ -512,7 +512,7 @@ struct
         not (Set.Int.mem fn.vid calledFuns) &&
         not (Str.last_chars loc.file 2 = ".h") &&
         not (LibraryFunctions.is_safe_uncalled fn.vname) &&
-        not (Cil.hasAttribute "goblint_uncalled_ignore" fn.vattr)
+        not (Cil.hasAttribute "goblint_stub" fn.vattr)
       in
       let print_and_calculate_uncalled = function
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->

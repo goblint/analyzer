@@ -1,6 +1,6 @@
 #include <stddef.h>
 
-void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) __attribute__((goblint_uncalled_ignore));
+void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) __attribute__((goblint_stub));
 void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
   // call all possible compares first, before invalidating array elements
   for (size_t i = 0; i < count; i++) {
@@ -30,7 +30,7 @@ void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const 
 }
 
 
-void* bsearch(const void *key, void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*))  __attribute__((goblint_uncalled_ignore));
+void* bsearch(const void *key, void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*))  __attribute__((goblint_stub));
 void* bsearch(const void *key, void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
   // linear search for simplicity
   for (size_t i = 0; i < count; i++) {
