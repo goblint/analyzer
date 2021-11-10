@@ -403,7 +403,7 @@ let do_gobview () =
   in
   let dist_dir = Filename.concat goblint_root "_build/default/gobview/dist" in
   let js_file = Filename.concat dist_dir "main.js" in
-  if gobview then
+  if gobview then (
     if Sys.file_exists js_file then (
       let save_run = GobConfig.get_string "save_run" in
       let run_dir = if save_run <> "" then save_run else "run" in
@@ -412,14 +412,15 @@ let do_gobview () =
         |> Enum.filter (fun n -> n <> "dune")
         |> List.of_enum
       in
-      List.iter
-        (fun n ->
+      List.iter (fun n ->
           create_symlink
             (Filename.concat dist_dir n)
-            (Filename.concat run_dir n) )
-        dist_files ;
-      () )
-    else eprintf "Warning: Cannot locate Gobview.\n"
+            (Filename.concat run_dir n)
+        ) dist_files
+    )
+    else
+      eprintf "Warning: Cannot locate Gobview.\n"
+  )
 
 let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 
