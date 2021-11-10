@@ -106,8 +106,9 @@ rule() {
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)
+      eval $(opam env)
       echo "Installing opam packages for development..."
-      opam install utop ocaml-lsp-server ocp-indent ocamlformat ounit2 earlybird
+      opam install -y utop ocaml-lsp-server ocp-indent ocamlformat ounit2 earlybird
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
