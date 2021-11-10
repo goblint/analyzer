@@ -32,6 +32,7 @@ depends: [
   "ounit2" {with-test}
   "odoc" {with-doc}
   "dune-site"
+  "sha"
   "benchmark"
   "ocamlbuild"
   "ocamlfind"

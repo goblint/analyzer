@@ -55,6 +55,7 @@ depends: [
   "qcheck-core" {= "0.17"}
   "result" {= "1.5"}
   "sexplib0" {= "v0.14.0"}
+  "sha" {= "1.15.1"}
   "stdlib-shims" {= "0.3.0"}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.12-gob0"}
