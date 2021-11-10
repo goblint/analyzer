@@ -17,8 +17,6 @@ struct
   module G = Priv.G
   module C = D
 
-  open AD
-
   open ApronPrecCompareUtil
   (* Result map used for comparison of results *)
   let results = RH.create 103
@@ -276,7 +274,7 @@ struct
         | _ -> false (* remove everything else (globals, global privs) *)
       )
     in
-    let unify_apr = A.unify Man.mgr new_apr new_fun_apr in (* TODO: unify_with *)
+    let unify_apr = A.unify AD.Man.mgr new_apr new_fun_apr in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_apr AD.pretty new_fun_apr AD.pretty unify_apr;
     let unify_st = {fun_st with apr = unify_apr} in
     if AD.type_tracked (Cilfacade.fundec_return_type f) then (
