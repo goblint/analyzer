@@ -91,6 +91,10 @@ pin-depends: [
     "git+https://github.com/goblint/Zarith.git#goblint-release-1.12"
   ]
   [
+    "ppx_deriving_yojson.3.6.1"
+    "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd"
+  ]
+  [
     "ppx_deriving.5.2.1"
     "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
   ]
