@@ -2,6 +2,42 @@ open Prelude
 open Pretty
 open Cil
 
+module Matrix =
+struct
+  type t = int list list
+
+  let rec add_column (m : t) col pos =
+    match m with
+    | [] -> if pos > 0 then [] else [col]
+    | x :: xs -> if pos > 0 then (x :: (add_column xs col (pos - 1)))
+                  else col :: m
+
+  let rec remove_column (m : t) pos =
+    match m with
+    | [] -> []
+    | x :: xs -> if pos > 0 then (x :: (remove_column xs (pos - 1)))
+                  else m
+
+  let rec append_zero_row m =
+    match m with
+    | [] -> []
+    | x :: xs -> (List.append x [0]) :: (append_zero_row xs)
+
+  let dim_x (m : t) = List.length m
+
+  let dim_y (m : t) =
+    match m with
+    | [] -> 0
+    | x :: _ -> List.length x
+
+  let create_zero_col (m : t) =
+    let rec create_zero_list l n =
+      if n > 0 then create_zero_list (List.append [0] l) (n-1)
+      else l
+    in
+    create_zero_list [] (dim_y m)
+end
+
 module MyD2: RelationDomain.RelD2 =
 struct
 
@@ -9,9 +45,10 @@ struct
 
   type var = EnvDomain.Var.t
   type t = {
-    mutable d : (((var, (int) Array.t) BatHashtbl.t) * ((int) Array.t)) Option.t;
-    mutable env : Apron.Environment.t
+    d :  Matrix.t Option.t;
+    env : Apron.Environment.t
   }
+
   let is_bot_env a =
     match a.d with
     | None -> true
@@ -46,7 +83,7 @@ struct
       let env' = Apron.Environment.add a.env vs' [||] in
         let d' = (match a.d with
           | None -> None
-          | Some (hst, c) -> Some (hst, c))
+          | Some (m) -> Some (m))
   in {d = d'; env = env'}
 
   let remove_vars a vars =
@@ -54,7 +91,7 @@ struct
       let env' = Apron.Environment.add a.env vs' [||] in
         let d' = (match a.d with
           | None -> None
-          | Some (hst, c) -> Some (hst, c))
+          | Some (m) -> Some (m))
   in {d = d'; env = env'}
 
   let remove_vars_with a b = ()
