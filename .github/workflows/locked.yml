@@ -34,10 +34,6 @@ jobs:
       - name: Install dependencies
         run: opam install . --deps-only --locked
 
-      - name: Install sha256sum (macOS) # https://github.com/actions/virtual-environments/issues/90#issuecomment-553279378
-        if: ${{ matrix.os == 'macos-latest' }}
-        run: brew install coreutils
-
       - name: Build
         run: ./make.sh nat
 
