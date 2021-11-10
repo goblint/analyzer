@@ -55,6 +55,7 @@ depends: [
   "qcheck-core" {= "0.17"}
   "result" {= "1.5"}
   "sexplib0" {= "v0.14.0"}
+  "sha" {= "1.15.1"}
   "stdlib-shims" {= "0.3.0"}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.12-gob0"}
@@ -89,6 +90,10 @@ pin-depends: [
   [
     "zarith.1.12-gob0"
     "git+https://github.com/goblint/Zarith.git#goblint-release-1.12"
+  ]
+  [
+    "ppx_deriving_yojson.3.6.1"
+    "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd"
   ]
   [
     "ppx_deriving.5.2.1"

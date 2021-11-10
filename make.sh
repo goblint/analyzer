@@ -98,7 +98,7 @@ rule() {
 
     # setup, dependencies
     ;; deps)
-      opam update; OPAMCLI=2.0 opam install -y . --deps-only --locked --unlock-base; opam upgrade $(opam list --pinned -s)
+      opam update; OPAMCLI=2.0 opam install -y . --deps-only --locked --unlock-base; opam upgrade -y $(opam list --pinned -s)
     ;; setup)
       echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
@@ -106,8 +106,9 @@ rule() {
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"
       opam_setup
     ;; dev)
+      eval $(opam env)
       echo "Installing opam packages for development..."
-      opam install utop ocaml-lsp-server ocp-indent ocamlformat ounit2 earlybird
+      opam install -y utop ocaml-lsp-server ocp-indent ocamlformat ounit2 earlybird
       # ocaml-lsp-server is needed for https://github.com/ocamllabs/vscode-ocaml-platform
       echo "Be sure to adjust your vim/emacs config!"
       echo "Installing Pre-commit hook..."
@@ -134,6 +135,9 @@ rule() {
       fi
       cd g2html && ant jar && cd .. &&
       cp g2html/g2html.jar .
+    ;; setup_gobview )
+      [[ -f gobview/gobview.opam ]] || git submodule update --init gobview
+      opam install --deps-only gobview/gobview.opam
     # ;; watch)
     #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; install)
@@ -156,8 +160,8 @@ rule() {
       # copy just necessary apron C libraries
       mkdir -p $PREFIX/share/apron/lib/
       cp _opam/share/apron/lib/libapron.so $PREFIX/share/apron/lib/
-      cp _opam/share/apron/lib/liboctMPQ.so $PREFIX/share/apron/lib/
-      cp _opam/share/apron/lib/libboxMPQ.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/liboctD.so $PREFIX/share/apron/lib/
+      cp _opam/share/apron/lib/libboxD.so $PREFIX/share/apron/lib/
       cp _opam/share/apron/lib/libpolkaMPQ.so $PREFIX/share/apron/lib/
 
     # tests, CI
