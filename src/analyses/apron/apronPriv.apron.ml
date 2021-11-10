@@ -1069,10 +1069,8 @@ struct
   module Priv = Priv (AD)
   include Priv
 
-  let project (ad: AD.t) =
-    AD.project_to_interval ad
   let project_sideg' sideg (v: varinfo) (g: G.t) =
-     sideg v (Priv.map_g project g)
+    sideg v (Priv.map_g AD.project_to_interval g)
   let write_global ?(invariant=false) ask getg sideg st g x =
     Priv.write_global ~invariant ask getg (project_sideg' sideg) st g x
   let unlock ask getg sideg st m =
