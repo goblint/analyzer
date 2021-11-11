@@ -732,7 +732,6 @@ struct
 
   (** performs join by projecting the operands to intervals and joining those. *)
   let join_interval x y =
-    print_endline "join interval dl";
     let x = to_interval x in
     let y = to_interval y in
     let r = if DLiftInterval.is_bot x then
@@ -740,7 +739,7 @@ struct
       else if DLiftInterval.is_bot y then
         x
       else (
-        if M.tracing then M.tracel "apron" "join %a %a\n" DLiftInterval.pretty x DLiftInterval.pretty y;
+        if M.tracing then M.tracel "apron" "join_interval %a %a\n" DLiftInterval.pretty x DLiftInterval.pretty y;
         DLiftInterval.join x  y
         (* TODO: return lifted top if different environments? and warn? *)
       ) in
