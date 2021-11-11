@@ -24,6 +24,12 @@
       (apron -> apronAnalysis.apron.ml)
       (-> apronAnalysis.no-apron.ml)
     )
+    (select relationAnalysis.ml from
+      (apron -> relationAnalysis.apron.ml)
+    )
+    (select affineEqAnalysis.ml from
+      (apron -> affineEqAnalysis.apron.ml)
+    )
     (select apronPriv.ml from
       (apron -> apronPriv.apron.ml)
       (-> apronPriv.no-apron.ml)

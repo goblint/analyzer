@@ -6,7 +6,7 @@ module Matrix =
 struct
   type t = int list list
 
-  let rec add_column (m : t) col pos =
+  let rec add_column (m : t) col pos : t =
     match m with
     | [] -> if pos > 0 then [] else [col]
     | x :: xs -> if pos > 0 then (x :: (add_column xs col (pos - 1)))
@@ -18,7 +18,7 @@ struct
     | x :: xs -> if pos > 0 then (x :: (remove_column xs (pos - 1)))
                   else m
 
-  let rec append_zero_row m =
+  let rec append_zero_row (m :t) :t =
     match m with
     | [] -> []
     | x :: xs -> (List.append x [0]) :: (append_zero_row xs)
@@ -38,7 +38,7 @@ struct
     create_zero_list [] (dim_y m)
 end
 
-module MyD2: RelationDomain.RelD2 =
+module MyD2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
 struct
 
   include EnvDomain.EnvOps
@@ -60,7 +60,7 @@ struct
   let show a = ""
   let pretty () (x:t) = text (show x)
   let printXml a b = ()
-  let name () = ""
+  let name () = "affeq"
   let to_yojson a = failwith "unimplemented"
   let invariant a b = failwith "unimplemented"
   let arbitrary () = failwith "no arbitrary"
@@ -78,12 +78,30 @@ struct
   let copy a = a
   let vars a = vars a.env
 
+  open Apron.Dim
+
+  let dim_add (ch: Apron.Dim.change) m =
+    let rec add_cols pos =
+      match pos with
+      | [] -> m
+      | x :: xs -> Matrix.add_column m (Matrix.create_zero_col m) x
+    in
+     add_cols (Array.to_list ch.dim)
+
+  let dim_remove (ch: Apron.Dim.change) m =
+    let rec remove_cols pos =
+      match pos with
+      | [] -> m
+      | x :: xs -> Matrix.remove_column m  x
+    in
+     remove_cols (Array.to_list ch.dim)
+
   let add_vars a vars =
     let vs' = get_filtered_vars (a.env) vars in
       let env' = Apron.Environment.add a.env vs' [||] in
         let d' = (match a.d with
           | None -> None
-          | Some (m) -> Some (m))
+          | Some (m) -> Some (dim_add (Apron.Environment.dimchange a.env env') m))
   in {d = d'; env = env'}
 
   let remove_vars a vars =
@@ -91,7 +109,7 @@ struct
       let env' = Apron.Environment.add a.env vs' [||] in
         let d' = (match a.d with
           | None -> None
-          | Some (m) -> Some (m))
+          | Some (m) -> Some (dim_remove (Apron.Environment.dimchange a.env env') m))
   in {d = d'; env = env'}
 
   let remove_vars_with a b = ()

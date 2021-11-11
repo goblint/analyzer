@@ -16,6 +16,8 @@ module type RelD2  =
 sig
   type var
   type t
+
+  val name : unit -> string
   val is_bot_env : t -> bool
   val equal : t -> t -> bool
   val hash : t -> int
