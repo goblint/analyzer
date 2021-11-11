@@ -283,7 +283,25 @@ let preprocess_files () =
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  List.rev_map (preprocess_one_file cppflags) !cFileNames
+  (* List.rev_map (preprocess_one_file cppflags) !cFileNames *)
+  if !jsonFiles = ["compile_commands.json"] then (
+    let cd = Yojson.Safe.from_file "compile_commands.json" in
+    let open Yojson.Safe.Util in
+    let i = ref 0 in
+    convert_each (fun entry ->
+        let file = entry |> member "file" |> to_string in
+        let command = entry |> member "command" |> to_string in
+        let o_re = Str.regexp "-o +[^ ]+" in
+        let file' = Printf.sprintf "%d.i" !i in
+        let command' = Str.replace_first o_re (cppflags ^ " -E -o " ^ file') command in
+        Printf.printf "CD: %s: %s\n" file command';
+        ignore (Sys.command command');
+        incr i;
+        file'
+      ) cd
+  )
+  else
+    failwith "no compilation database"
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
