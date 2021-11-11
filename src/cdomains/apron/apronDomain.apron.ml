@@ -506,7 +506,14 @@ sig
   val is_bot_env: t -> bool
 end
 
-module DBase (Man: Manager) (*: SPrintable with type t = Man.mt A.t *) =
+module type SPrintableExt =
+sig
+  include SPrintable
+  val to_interval: t -> Box.t A.t
+  val from_interval: Box.t A.t -> t
+end
+
+module DBase (Man: Manager) : SPrintableExt with type t = Man.mt A.t  =
 struct
   type t = Man.mt A.t
 
@@ -541,7 +548,7 @@ struct
 
   let pretty_diff () (x,y) = text "pretty_diff"
 
-  let project_to_interval d =
+  let to_interval d =
     let box = A.to_box Man.mgr d in
     let env = d.env in
     let vars, _ = Environment.vars env in
@@ -726,8 +733,8 @@ struct
   (** performs join by projecting the operands to intervals and joining those. *)
   let join_interval x y =
     print_endline "join interval dl";
-    let x = project_to_interval x in
-    let y = project_to_interval y in
+    let x = to_interval x in
+    let y = to_interval y in
     let r = if DLiftInterval.is_bot x then
         y
       else if DLiftInterval.is_bot y then
@@ -770,8 +777,8 @@ struct
 
   (* TODO: Deduplicate code shared with join *)
   let join_interval x y =
-    let x = project_to_interval x in
-    let y = project_to_interval y in
+    let x = to_interval x in
+    let y = to_interval y in
     let r = if DLiftInterval.is_bot x then
       y
     else if DLiftInterval.is_bot y then
