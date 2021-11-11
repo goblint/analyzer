@@ -656,8 +656,8 @@ struct
       | (None, None) -> ID.top ()
 end
 
-
-module DLiftPre (Man: Manager) (*: SLattice with type t = Man.mt A.t *) =
+(** Almost an [SLattice with type t = Man.mt A.t], but without join_interval, which is defined in [DLift], reusing this module. *)
+module DLiftPre (Man: Manager) =
 struct
   include DBase (Man)
 
