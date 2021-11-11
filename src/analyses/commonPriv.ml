@@ -6,6 +6,28 @@ module Q = Queries
 module IdxDom = ValueDomain.IndexDomain
 module VD     = BaseDomain.VD
 
+module ProtectionLogging =
+struct
+  module GM = Hashtbl.Make(ValueDomain.Addr)
+  module VarSet = SetDomain.Make(Basetype.Variables)
+  let gm = GM.create 10
+
+  let record m x =
+    if !GU.postsolving && GobConfig.get_bool "dbg.print_protection" then
+      let old = GM.find_default gm m (VarSet.empty ()) in
+      let n = VarSet.add x old in
+      GM.replace gm m n
+
+  let dump () =
+    if GobConfig.get_bool "dbg.print_protection" then (
+      let max_cluster = ref 0 in
+      Printf.printf "\n\nProtecting mutexes:\n";
+      GM.iter (fun m vs -> max_cluster := max !max_cluster (VarSet.cardinal vs); Printf.printf "%s -> %s\n" (ValueDomain.Addr.show m) (VarSet.show vs) ) gm;
+      Printf.printf "\nMax number of protected: %i\n" !max_cluster
+    )
+
+end
+
 module Protection =
 struct
   let is_unprotected ask x: bool =
@@ -24,6 +46,11 @@ struct
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true})
+
+  let is_protected_by ask m x =
+    let r = is_protected_by ask m x in
+    if r then ProtectionLogging.record m x;
+    r
 
   let is_atomic ask: bool =
     ask Q.MustBeAtomic

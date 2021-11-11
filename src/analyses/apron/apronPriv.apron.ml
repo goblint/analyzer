@@ -333,6 +333,8 @@ struct
       | _ -> false
     in
     AD.keep_filter oct protected
+
+  let finalize () = ProtectionLogging.dump ()
 end
 
 (** Per-mutex meet. *)
@@ -479,7 +481,7 @@ struct
     {apr = AD.bot (); priv = startstate ()}
 
   let init () = ()
-  let finalize () = ()
+  let finalize () = finalize ()
 end
 
 (** May written variables. *)
@@ -995,7 +997,7 @@ struct
     let _,lmust,l = st.priv in
     {apr = AD.bot (); priv = (W.bot (),lmust,l)}
 
-  let finalize () = ()
+  let finalize () = finalize ()
 
   (* All that follows is stupid boilerplate to give each of these functions the getg and sideg that only deals with TIDs or Mutexes *)
 

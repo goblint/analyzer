@@ -45,6 +45,8 @@
     }
   },
   "dbg" : {
-    "print_tids" : true
+    "print_tids" : true,
+    "print_wpoints" : true,
+    "print_protection": true
   }
 }

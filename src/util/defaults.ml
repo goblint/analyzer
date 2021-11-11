@@ -250,8 +250,9 @@ let _ = ()
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
       ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
       ; reg Debugging "dbg.compare_runs.glob" "true" "Compare GlobConstrSys in compare_runs"
-      ; reg Debugging "dbg.compare_runs.eq" "true" "Compare EqConstrSys in compare_runs"
-      ; reg Debugging "dbg.print_tids"      "false" "Should the analysis print information on the encountered TIDs"
+      ; reg Debugging "dbg.compare_runs.eq"  "true" "Compare EqConstrSys in compare_runs"
+      ; reg Debugging "dbg.print_tids"       "false" "Should the analysis print information on the encountered TIDs"
+      ; reg Debugging "dbg.print_protection" "false" "Should the analysis print information on which globals are protected by which mutex?"
 
 (* {4 category [Warnings]} *)
 let _ = ()
