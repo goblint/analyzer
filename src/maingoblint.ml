@@ -119,7 +119,7 @@ let cFileNames = ref []
 let parse_arguments () =
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname =
-    if Str.string_match jsonRegex fname 0
+    if Str.string_match jsonRegex fname 0 && Filename.basename fname <> CompDBUtil.comp_db_filename
     then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles
     else cFileNames := fname :: !cFileNames
   in
@@ -226,7 +226,7 @@ let preprocess_files () =
       let _ = MakefileUtil.run_cilly path in
       let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
       cFileNames := file :: (List.drop 1 !cFileNames);
-    ) else if Filename.basename firstFile = "compile_commands.json" then (
+    ) else if Filename.basename firstFile = CompDBUtil.comp_db_filename then (
       let compdb = firstFile in
       let path = Filename.dirname compdb in
       if Sys.file_exists compdb then (
