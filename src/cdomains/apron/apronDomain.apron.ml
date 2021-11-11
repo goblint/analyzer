@@ -768,6 +768,7 @@ struct
     let j_env = Environment.lce x_env y_env in
     A.change_environment Man.mgr join_c j_env false
 
+  (* TODO: Deduplicate code shared with join *)
   let join_interval x y =
     let x = project_to_interval x in
     let y = project_to_interval y in
@@ -787,7 +788,6 @@ struct
       r
     ) in
     from_interval r
-
 
   (* TODO: move to AOps *)
   let meet_lincons d lincons1 =
