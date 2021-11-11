@@ -738,8 +738,19 @@ struct
   module LAD = NC.LAD
 
   (* Map from locks to last written values thread-locally *)
-  module L = MapDomain.MapBot_LiftTop(Locksets.Lock)(LAD)
-
+  module L = struct
+    include MapDomain.MapBot_LiftTop(Locksets.Lock)(LAD)
+    let add k (v: value) m =
+      let v = if get_bool "ana.apron.priv.only-interval" then
+          (* In case the above option is activated, we join the value with bottom.
+             The join then projects the operands to intervals, joins them, and converts them back.
+             Relational information in v that is not implied by interval information is removed this way. *)
+          LAD.join (LAD.bot ()) v
+        else
+          v
+      in
+      add k v m
+  end
   module LMust = struct
     include Locksets.MustLockset
     let name () = "LMust"
