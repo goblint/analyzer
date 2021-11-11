@@ -1140,6 +1140,13 @@ struct
     r
 end
 
+(** Makes the Apron domain AD use the less precise join_interval function,
+    where we only keep interval information on globals *)
+module InterJoinPriv (Base: S) (AD: ApronDomain.S2) =
+struct
+  module AD = ApronDomain.IntervalJoin (AD)
+  include Base (AD)
+end
 
 let priv_module: (module S) Lazy.t =
   lazy (
@@ -1158,6 +1165,7 @@ let priv_module: (module S) Lazy.t =
       )
     in
     let module Priv = TracingPriv (Priv)  in
+    let module Priv = (val if get_bool "exp.apron.priv.only-interval" then (module InterJoinPriv (Priv): S) else (module Priv)) in
     (module Priv)
   )
 

@@ -506,7 +506,7 @@ sig
   val is_bot_env: t -> bool
 end
 
-module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
+module DBase (Man: Manager) (*: SPrintable with type t = Man.mt A.t *) =
 struct
   type t = Man.mt A.t
 
@@ -540,6 +540,19 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
 
   let pretty_diff () (x,y) = text "pretty_diff"
+
+  let project_to_interval d =
+    let box = A.to_box Man.mgr d in
+    let env = d.env in
+    let vars, _ = Environment.vars env in
+    A.of_box IntervalManager.mgr env vars box.interval_array
+
+  (** TODO: Deduplicate? *)
+  let from_interval (d: Box.t A.t) =
+    let box = A.to_box IntervalManager.mgr d in
+    let env = d.env in
+    let vars, _ = Environment.vars env in
+    A.of_box Man.mgr env vars box.interval_array
 end
 
 
@@ -547,6 +560,10 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
+
+  (** Imprecise join that projects operands to intervals before joining.
+      Intended for benchmarking where we want global invariants to only have interval information. *)
+  val join_interval: t -> t -> t
 end
 
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
@@ -640,7 +657,7 @@ struct
 end
 
 
-module DLift (Man: Manager): SLattice with type t = Man.mt A.t =
+module DLiftPre (Man: Manager) (*: SLattice with type t = Man.mt A.t *) =
 struct
   include DBase (Man)
 
@@ -701,6 +718,29 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
+module DLift (Man: Manager): SLattice with type t = Man.mt A.t =
+struct
+  include DLiftPre (Man)
+  module DLiftInterval = DLiftPre(IntervalManager)
+
+  (** performs join by projecting the operands to intervals and joining those. *)
+  let join_interval x y =
+    print_endline "join interval dl";
+    let x = project_to_interval x in
+    let y = project_to_interval y in
+    let r = if DLiftInterval.is_bot x then
+        y
+      else if DLiftInterval.is_bot y then
+        x
+      else (
+        if M.tracing then M.tracel "apron" "join %a %a\n" DLiftInterval.pretty x DLiftInterval.pretty y;
+        DLiftInterval.join x  y
+        (* TODO: return lifted top if different environments? and warn? *)
+      ) in
+    from_interval r
+
+end
+
 module D (Man: Manager) = DWithOps (Man) (DLift (Man))
 
 
@@ -709,7 +749,7 @@ module DHetero (Man: Manager): SLattice with type t = Man.mt A.t =
 struct
   include DBase (Man)
 
-
+  module DLiftInterval = DLiftPre (IntervalManager)
 
   let gce (x: Environment.t) (y: Environment.t): Environment.t =
     let (xi, xf) = Environment.vars x in
@@ -727,6 +767,27 @@ struct
     let join_c = A.join Man.mgr x_c y_c in
     let j_env = Environment.lce x_env y_env in
     A.change_environment Man.mgr join_c j_env false
+
+  let join_interval x y =
+    let x = project_to_interval x in
+    let y = project_to_interval y in
+    let r = if DLiftInterval.is_bot x then
+      y
+    else if DLiftInterval.is_bot y then
+      x
+    else (
+      let x_env = A.env x in
+      let y_env = A.env y in
+      let c_env = gce x_env y_env in
+      let x_c = A.change_environment IntervalManager.mgr x c_env false in
+      let y_c = A.change_environment IntervalManager.mgr y c_env false in
+      let join_c = A.join IntervalManager.mgr x_c y_c in
+      let j_env = Environment.lce x_env y_env in
+      let r = A.change_environment IntervalManager.mgr join_c j_env false in
+      r
+    ) in
+    from_interval r
+
 
   (* TODO: move to AOps *)
   let meet_lincons d lincons1 =
@@ -878,6 +939,13 @@ module D2 (Man: Manager) : S2 with module Man = Man =
 struct
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
+end
+
+(** Sets the join function to join_interval.
+    Intended for benchmarking where we want global invariants to only have interval information *)
+module IntervalJoin (AD: S2) = struct
+  include AD
+  let join = AD.join_interval
 end
 
 module ApronComponents (D2: S2) (PrivD: Lattice.S):
