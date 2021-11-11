@@ -521,7 +521,7 @@ struct
   let unlock w oct_side =
     oct_side
 
-  let name () = ""
+  let name () = "no-clusters"
 end
 
 module type ClusteringArg =
