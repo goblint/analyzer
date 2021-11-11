@@ -21,10 +21,20 @@ struct
   let dump () =
     if GobConfig.get_bool "dbg.print_protection" then (
       let max_cluster = ref 0 in
+      let num_mutexes = ref 0 in
+      let sum_protected = ref 0 in
       Printf.printf "\n\nProtecting mutexes:\n";
-      GM.iter (fun m vs -> max_cluster := max !max_cluster (VarSet.cardinal vs); Printf.printf "%s -> %s\n" (ValueDomain.Addr.show m) (VarSet.show vs) ) gm;
-      Printf.printf "\nMax number of protected: %i\n" !max_cluster
-    )
+      GM.iter (fun m vs ->
+          let s = VarSet.cardinal vs in
+          max_cluster := max !max_cluster s;
+          sum_protected := !sum_protected + s;
+          incr num_mutexes;
+          Printf.printf "%s -> %s\n" (ValueDomain.Addr.show m) (VarSet.show vs) ) gm;
+      Printf.printf "\nMax number of protected: %i\n" !max_cluster;
+      Printf.printf "Num mutexes: %i\n" !num_mutexes;
+      Printf.printf "Sum protected: %i\n" !sum_protected
+    );
+
 
 end
 
