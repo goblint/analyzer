@@ -754,8 +754,7 @@ module D (Man: Manager) = DWithOps (Man) (DLift (Man))
 module DHetero (Man: Manager): SLattice with type t = Man.mt A.t =
 struct
   include DBase (Man)
-
-  module DLiftInterval = DLiftPre (IntervalManager)
+  module DLift = DLift (Man)
 
   let gce (x: Environment.t) (y: Environment.t): Environment.t =
     let (xi, xf) = Environment.vars x in
@@ -776,24 +775,14 @@ struct
 
   (* TODO: Deduplicate code shared with join *)
   let join_interval x y =
-    let x = to_interval x in
-    let y = to_interval y in
-    let r = if DLiftInterval.is_bot x then
-      y
-    else if DLiftInterval.is_bot y then
-      x
-    else (
-      let x_env = A.env x in
-      let y_env = A.env y in
-      let c_env = gce x_env y_env in
-      let x_c = A.change_environment IntervalManager.mgr x c_env false in
-      let y_c = A.change_environment IntervalManager.mgr y c_env false in
-      let join_c = A.join IntervalManager.mgr x_c y_c in
-      let j_env = Environment.lce x_env y_env in
-      let r = A.change_environment IntervalManager.mgr join_c j_env false in
-      r
-    ) in
-    of_interval r
+    let x_env = A.env x in
+    let y_env = A.env y in
+    let c_env = gce x_env y_env in
+    let x_c = A.change_environment Man.mgr x c_env false in
+    let y_c = A.change_environment Man.mgr y c_env false in
+    let join_c = DLift.join_interval x_c y_c in
+    let j_env = Environment.lce x_env y_env in
+    A.change_environment Man.mgr join_c j_env false
 
   (* TODO: move to AOps *)
   let meet_lincons d lincons1 =
