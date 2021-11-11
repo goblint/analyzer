@@ -59,7 +59,7 @@
 (executable
   (name privPrecCompare)
   (modules privPrecCompare)
-  (libraries goblint.lib)
+  (libraries goblint.lib goblint.sites.dune)
   (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
   (flags :standard -linkall)
 )
@@ -67,7 +67,7 @@
 (executable
   (name apronPrecCompare)
   (modules apronPrecCompare)
-  (libraries goblint.lib)
+  (libraries goblint.lib goblint.sites.dune)
   (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
   (flags :standard -linkall)
 )
