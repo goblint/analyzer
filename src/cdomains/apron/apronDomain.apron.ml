@@ -510,7 +510,7 @@ module type SPrintableExt =
 sig
   include SPrintable
   val to_interval: t -> Box.t A.t
-  val from_interval: Box.t A.t -> t
+  val of_interval: Box.t A.t -> t
 end
 
 module DBase (Man: Manager) : SPrintableExt with type t = Man.mt A.t  =
@@ -554,8 +554,8 @@ struct
     let vars, _ = Environment.vars env in
     A.of_box IntervalManager.mgr env vars box.interval_array
 
-  (** TODO: Deduplicate? *)
-  let from_interval (d: Box.t A.t) =
+  (** TODO: Deduplicate code shared with to_interval? *)
+  let of_interval (d: Box.t A.t) =
     let box = A.to_box IntervalManager.mgr d in
     let env = d.env in
     let vars, _ = Environment.vars env in
@@ -744,7 +744,7 @@ struct
         DLiftInterval.join x  y
         (* TODO: return lifted top if different environments? and warn? *)
       ) in
-    from_interval r
+    of_interval r
 
 end
 
@@ -794,7 +794,7 @@ struct
       let r = A.change_environment IntervalManager.mgr join_c j_env false in
       r
     ) in
-    from_interval r
+    of_interval r
 
   (* TODO: move to AOps *)
   let meet_lincons d lincons1 =
