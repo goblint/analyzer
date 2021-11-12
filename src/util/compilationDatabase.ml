@@ -21,7 +21,7 @@ let preprocess ~include_args filename =
   parse_file filename
   |> List.mapi (fun i obj ->
       let file = obj.file in
-      let preprocessed_file = Printf.sprintf "%d.i" i in
+      let preprocessed_file = Printf.sprintf "%d.i" i in (* TODO: better filenames and parent directory *)
       let preprocess_command = match obj.command, obj.arguments with
         | Some command, None ->
           (* TODO: extract o_file *)
@@ -49,6 +49,7 @@ let preprocess ~include_args filename =
           failwith "CompilationDatabase.preprocess: neither command nor arguments specified for " ^ file
       in
       Printf.printf "CD: %s: %s\n" file preprocess_command;
-      ignore (Sys.command preprocess_command);
+      (* TODO: run command relative to obj.directory *)
+      ignore (Sys.command preprocess_command); (* TODO: command failure handling *)
       preprocessed_file
     )
