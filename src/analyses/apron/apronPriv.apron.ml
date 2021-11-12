@@ -17,7 +17,7 @@ module type S =
     module D: Lattice.S
     module G: Lattice.S
 
-    type apron_components_t := ApronDomain.ApronComponents (AD) (D).t
+    type apron_components_t = ApronDomain.ApronComponents (AD) (D).t
     val name: unit -> string
     val startstate: unit -> D.t
     val should_join: apron_components_t -> apron_components_t -> bool
@@ -48,6 +48,7 @@ module Dummy: S = functor (AD: ApronDomain.S2) ->
 struct
   module D = Lattice.Unit
   module G = Lattice.Unit
+  type apron_components_t = ApronComponents (AD) (D).t
 
   let name () = "Dummy"
   let startstate () = ()
