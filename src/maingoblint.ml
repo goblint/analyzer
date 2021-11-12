@@ -294,7 +294,7 @@ let preprocess_files () =
   let preprocessed_files =
     match !jsonFiles with
     | [filename] when Filename.basename filename = CompilationDatabase.basename ->
-      CompilationDatabase.preprocess ~include_args filename
+      CompilationDatabase.load_and_preprocess ~include_args filename
     | _ ->
       []
   in
