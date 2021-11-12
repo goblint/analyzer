@@ -10,14 +10,13 @@ open Apron
 
 open CommonPriv
 
-
 module type S =
   functor (AD: ApronDomain.S2) ->
   sig
     module D: Lattice.S
     module G: Lattice.S
 
-    type apron_components_t = ApronDomain.ApronComponents (AD) (D).t
+    type apron_components_t := ApronDomain.ApronComponents (AD) (D).t
     val name: unit -> string
     val startstate: unit -> D.t
     val should_join: apron_components_t -> apron_components_t -> bool
@@ -43,12 +42,73 @@ module type S =
     val finalize: unit -> unit
   end
 
+module type Converter =
+  functor (ADGlobal: ApronDomain.S2) -> functor (Priv: S) -> S
+
+(** Takes [ADGlobal], an apron-domain-module to be used for global invariants, a privatizataion [Priv], and returns a privatization that
+    internally uses [ADGlobal] to keep global invariants, while complying to the privatzation interface fitting to [ADLocal].
+    This is achieved by internally converting back and forth between representations of the different domains. *)
+module Converter: Converter = functor (ADGlobal: ApronDomain.S2) -> functor (Priv: S) -> functor (ADLocal: ApronDomain.S2) ->
+struct
+  module Priv = Priv(ADGlobal)
+  module D = Priv.D
+  module G = Priv.G
+
+  type t = ADLocal.t
+  type global_act = (ADGlobal.t, D.t) ApronDomain.aproncomponents_t
+  type apron_components_t = (t, D.t) ApronDomain.aproncomponents_t
+
+  let to_local apr = ADLocal.of_other_dom (module ADGlobal.Man) apr
+  let to_global apr = ADGlobal.of_other_dom (module ADLocal.Man) apr
+
+  let to_local_components (comp: global_act): apron_components_t = { apr = to_local comp.apr; priv = comp.priv}
+  let to_global_components (comp: apron_components_t): global_act = { apr = to_global comp.apr; priv = comp.priv}
+
+  let name () = "Converter " ^ "(Privatization: " ^ (Priv.name ()) ^ ", local domain: " ^ (ADLocal.Man.name ()) ^ ", global domain: " ^ (ADGlobal.Man.name ()) ^ ")"
+  let startstate () = Priv.startstate ()
+  let should_join a b = Priv.should_join (to_global_components a) (to_global_components b)
+
+  let read_global ask getg st g x =
+    let r = Priv.read_global ask getg (to_global_components st) g x in
+    to_local r
+
+  let write_global ?(invariant=false) ask getg sideg st g x =
+    let r = Priv.write_global ask getg sideg (to_global_components st) g x in
+    to_local_components r
+
+  let lock ask getg st m =
+    let r = Priv.lock ask getg (to_global_components st) m in
+    to_local_components r
+
+  let unlock ask getg sideg st m =
+    let r = Priv.unlock ask getg sideg (to_global_components st) m in
+    to_local_components r
+
+  let thread_join ask getg exp st =
+    let r = Priv.thread_join ask getg exp (to_global_components st) in
+    to_local_components r
+  let thread_return ask getg sideg tid st =
+    let r = Priv.thread_return ask getg sideg tid (to_global_components st) in
+    to_local_components r
+
+  let sync ask getg sideg st reason =
+    let r = Priv.sync ask getg sideg (to_global_components st) reason in
+    to_local_components r
+
+  let enter_multithreaded ask getg sideg st =
+    let r = Priv.enter_multithreaded ask getg sideg (to_global_components st) in
+    to_local_components r
+  let threadenter ask getg st =
+    let r = Priv.threadenter ask getg (to_global_components st) in
+    to_local_components r
+  let init () = Priv.init ()
+  let finalize () = Priv.finalize ()
+end
 
 module Dummy: S = functor (AD: ApronDomain.S2) ->
 struct
   module D = Lattice.Unit
   module G = Lattice.Unit
-  type apron_components_t = ApronComponents (AD) (D).t
 
   let name () = "Dummy"
   let startstate () = ()
@@ -1161,7 +1221,14 @@ let priv_module: (module S) Lazy.t =
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
     in
-    let module Priv = TracingPriv (Priv)  in
+    let module Priv =
+      (val if get_bool "exp.apron.priv.only-interval" then
+          let module IntervalAD = ApronDomain.D2 (ApronDomain.IntervalManager) in
+          (module (Converter (IntervalAD) (Priv)): S)
+        else
+          (module Priv))
+    in
+    let module Priv = TracingPriv (Priv) in
     (module Priv)
   )
 
