@@ -246,15 +246,6 @@ let preprocess_files () =
       let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
       cFileNames := file :: (List.drop 1 !cFileNames);
     )
-    (* TODO: remove *)
-    (* else if Filename.basename firstFile = CompDBUtil.comp_db_filename then (
-      let compdb = firstFile in
-      let path = Filename.dirname compdb in
-      if Sys.file_exists compdb then (
-        let preprocessed_files = CompDBUtil.preprocess path in
-        cFileNames := preprocessed_files @ (List.drop 1 !cFileNames);
-      ) else failwith ("Could not find given " ^ compdb ^ " - abort!")
-    );*)
   );
 
   (* possibly add our lib.c to the files *)
