@@ -741,7 +741,7 @@ struct
   module L = struct
     include MapDomain.MapBot_LiftTop(Locksets.Lock)(LAD)
     let add k (v: value) m =
-      let v = if get_bool "ana.apron.priv.only-interval" then
+      let v = if get_bool "exp.apron.priv.only-interval" then
           (* In case the above option is activated, we join the value with bottom.
              The join then projects the operands to intervals, joins them, and converts them back.
              Relational information in v that is not implied by interval information is removed this way. *)
