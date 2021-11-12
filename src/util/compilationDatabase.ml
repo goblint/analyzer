@@ -17,6 +17,17 @@ let parse_file filename =
 
 let command_o_regexp = Str.regexp "-o +[^ ]+"
 
+let system ~cwd command =
+  let old_cwd = Sys.getcwd () in
+  Fun.protect ~finally:(fun () ->
+      Sys.chdir old_cwd
+    ) (fun () ->
+      Sys.chdir cwd;
+      match Unix.system command with
+      | WEXITED 0 -> ()
+      | process_status -> failwith (MakefileUtil.string_of_process_status process_status)
+    )
+
 let load_and_preprocess ~include_args filename =
   let database_dir = Filename.dirname (GobFilename.absolute filename) in (* absolute before dirname to avoid . *)
   (* TODO: generalize .goblint for everything *)
@@ -54,15 +65,8 @@ let load_and_preprocess ~include_args filename =
     in
     if GobConfig.get_bool "dbg.verbose" then
       Printf.printf "Preprocessing %s\n  to %s\n  using %s\n  in %s\n" file preprocessed_file preprocess_command obj.directory;
-    let old_cwd = Sys.getcwd () in
-    Fun.protect ~finally:(fun () ->
-        Sys.chdir old_cwd
-      ) (fun () ->
-        Sys.chdir obj.directory; (* command/arguments might have paths relative to directory *)
-        match Unix.system preprocess_command with
-        | WEXITED 0 -> preprocessed_file
-        | process_status -> failwith (MakefileUtil.string_of_process_status process_status)
-      )
+    system ~cwd:obj.directory preprocess_command; (* command/arguments might have paths relative to directory *)
+    preprocessed_file
   in
   parse_file filename
   |> List.map preprocess
