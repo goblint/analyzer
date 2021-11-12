@@ -39,7 +39,6 @@ sig
   val is_bot : t -> bool
   val top : unit -> t
   val is_top : t -> bool
-  val copy : t -> t
   val vars : t -> var list
   val add_vars : t -> var list -> t
   val remove_vars : t -> var list -> t

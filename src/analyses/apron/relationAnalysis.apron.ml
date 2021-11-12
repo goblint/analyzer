@@ -229,7 +229,7 @@ struct
           apr' (* leaves V.return unconstrained *)
       )
       else
-        AD.copy st.apr
+        st.apr
     in
     let local_vars =
       f.sformals @ f.slocals

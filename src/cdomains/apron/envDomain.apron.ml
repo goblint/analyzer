@@ -169,6 +169,12 @@ struct
     in
     Environment.remove env vs'
 
+  let filter_vars env f =
+      vars env
+      |> List.enum
+      |> Enum.filter f
+      |> Array.of_enum
+
   let keep_vars_with env vs =
       let vs' =
         vs
