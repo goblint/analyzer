@@ -65,7 +65,7 @@ struct
   let to_global_components (comp: apron_components_t): global_act = { apr = to_global comp.apr; priv = comp.priv}
 
   let name () = "Converter " ^ "(Privatization: " ^ (Priv.name ()) ^ ", local domain: " ^ (ADLocal.Man.name ()) ^ ", global domain: " ^ (ADGlobal.Man.name ()) ^ ")"
-  
+
   let startstate () = Priv.startstate ()
 
   let should_join a b = Priv.should_join (to_global_components a) (to_global_components b)
