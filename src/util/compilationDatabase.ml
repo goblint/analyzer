@@ -55,6 +55,7 @@ let preprocess ~include_args filename =
       in
       Printf.printf "CD: %s: %s\n" file preprocess_command;
       (* TODO: run command relative to obj.directory *)
-      ignore (Sys.command preprocess_command); (* TODO: command failure handling *)
-      preprocessed_file
+      match Unix.system preprocess_command with
+      | WEXITED 0 -> preprocessed_file
+      | process_status -> failwith (MakefileUtil.string_of_process_status process_status)
     )
