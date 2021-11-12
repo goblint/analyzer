@@ -25,7 +25,7 @@ let system ~cwd command =
       Sys.chdir cwd;
       match Unix.system command with
       | WEXITED 0 -> ()
-      | process_status -> failwith (MakefileUtil.string_of_process_status process_status)
+      | process_status -> failwith (GobUnix.string_of_process_status process_status)
     )
 
 let load_and_preprocess ~include_args filename =

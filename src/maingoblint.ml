@@ -234,7 +234,7 @@ let preprocess_files () =
         let generate_makefile_with (name, command, file) = if Sys.file_exists file then (
             print_endline ("Trying to run " ^ name ^ " to generate Makefile");
             let exit_code, output = MakefileUtil.exec_command ~path command in
-            print_endline (command ^ MakefileUtil.string_of_process_status exit_code ^ ". Output: " ^ output);
+            print_endline (command ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
             if not (Sys.file_exists makefile) then raise MakefileNotGenerated
           ); raise MakefileNotGenerated in
         try generate_makefile_with configure

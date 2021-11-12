@@ -27,10 +27,6 @@ let exec_command ?path (command: string) =
     Sys.chdir current_dir;
     (exit_code, output)
 
-let string_of_process_status = function
-  | WEXITED n -> "terminated with exit code " ^ string_of_int n
-  | WSIGNALED n -> "was killed by signal " ^ string_of_int n
-  | WSTOPPED n -> "was stopped by signal " ^ string_of_int n
 
 (* BFS for a file with a given suffix in a directory or any subdirectoy *)
 let find_file_by_suffix (dir: string) (file_name_suffix: string) =
@@ -69,5 +65,5 @@ let run_cilly (path: string) =
     print_string output;
     (* fail if make failed *)
     if exit_code <> WEXITED 0 then
-      failwith ("Failed combining files. Make " ^ (string_of_process_status exit_code) ^ ".")
+      failwith ("Failed combining files. Make was " ^ (GobUnix.string_of_process_status exit_code) ^ ".")
   )
