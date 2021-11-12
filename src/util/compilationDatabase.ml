@@ -16,6 +16,7 @@ let parse_file filename =
   Result.get_ok (of_yojson (Yojson.Safe.from_file filename))
 
 let command_o_regexp = Str.regexp "-o +[^ ]+"
+let command_program_regexp = Str.regexp "^ *\\([^ ]+\\)"
 
 let system ~cwd command =
   let old_cwd = Sys.getcwd () in
@@ -40,7 +41,8 @@ let load_and_preprocess ~include_args filename =
     let preprocess_command = match obj.command, obj.arguments with
       | Some command, None ->
         (* TODO: extract o_file *)
-        let preprocess_command = Str.replace_first command_o_regexp (String.join " " include_args ^ " -E -o " ^ preprocessed_file) command (* TODO: cppflags *) in
+        let preprocess_command = Str.replace_first command_program_regexp ("\\1 " ^ String.join " " include_args ^ " -E") command in
+        let preprocess_command = Str.replace_first command_o_regexp ("-o " ^ preprocessed_file) preprocess_command (* TODO: cppflags *) in
         if preprocess_command = command then (* easier way to check if match was found (and replaced) *)
           failwith "CompilationDatabase.preprocess: no -o argument found for " ^ file
         else
@@ -49,8 +51,8 @@ let load_and_preprocess ~include_args filename =
         begin match List.findi (fun i e -> e = "-o") arguments with
           | (o_i, _) ->
             begin match List.split_at o_i arguments with
-              | (arguments_init, _ :: o_file :: arguments_tl) ->
-                let preprocess_arguments = arguments_init @ include_args @ "-E" :: "-o" :: preprocessed_file :: arguments_tl in (* TODO: cppflags *)
+              | (arguments_program :: arguments_init, _ :: o_file :: arguments_tl) ->
+                let preprocess_arguments = arguments_program :: include_args @ "-E" :: arguments_init @ "-o" :: preprocessed_file :: arguments_tl in (* TODO: cppflags *)
                 Filename.quote_command (List.hd preprocess_arguments) (List.tl preprocess_arguments)
               | _ ->
                 failwith "CompilationDatabase.preprocess: no -o argument value found for " ^ file
