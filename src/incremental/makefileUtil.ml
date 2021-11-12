@@ -47,17 +47,21 @@ let find_file_by_suffix (dir: string) (file_name_suffix: string) =
   in
   search dir (list_files dir)
 
+(* Delete all *_comb.c files in the directory *)
+let remove_comb_files path =
+  try
+    while true do
+      let comb = find_file_by_suffix path comb_suffix in
+      if GobConfig.get_bool "dbg.verbose" then print_endline ("deleting " ^ comb);
+      Sys.remove comb;
+    done
+  with Failure e -> ()
+
 let run_cilly (path: string) =
   if Sys.file_exists path && Sys.is_directory path then (
     (* We need to `make clean` if `make` was run manually, otherwise it would say there is nothing to do and cilly would not be run and no combined C file would be created. *)
     let _ = exec_command ~path "make clean" in
-    (try
-       while true do
-         let comb = find_file_by_suffix path comb_suffix in
-         if GobConfig.get_bool "dbg.verbose" then print_endline ("deleting " ^ comb);
-         Sys.remove comb;
-       done
-     with Failure e -> ()); (* Deleted all *_comb.c files in the directory *)
+    remove_comb_files path;
     (* Combine source files with make using cilly as compiler *)
     let gcc_path = GobConfig.get_string "exp.gcc_path" in
     let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^

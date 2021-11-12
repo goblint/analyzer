@@ -126,7 +126,7 @@ let cFileNames = ref []
 let parse_arguments () =
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname =
-    if Str.string_match jsonRegex fname 0
+    if Str.string_match jsonRegex fname 0 && Filename.basename fname <> CompDBUtil.comp_db_filename
     then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles
     else cFileNames := fname :: !cFileNames
   in
@@ -224,18 +224,31 @@ let preprocess_files () =
       let path = Filename.dirname makefile in
       (* make sure the Makefile exists or try to generate it *)
       if not (Sys.file_exists makefile) then (
-        print_endline ("Given " ^ makefile ^ " does not exist!");
-        let configure = Filename.concat path "configure" in
-        if Sys.file_exists configure then (
-          print_endline ("Trying to run " ^ configure ^ " to generate Makefile");
-          let exit_code, output = MakefileUtil.exec_command ~path "./configure" in
-          print_endline (configure ^ MakefileUtil.string_of_process_status exit_code ^ ". Output: " ^ output);
-          if not (Sys.file_exists makefile) then failwith ("Running " ^ configure ^ " did not generate a Makefile - abort!")
-        ) else failwith ("Could neither find given " ^ makefile ^ " nor " ^ configure ^ " - abort!")
+        print_endline ("Given " ^ makefile ^ " does not exist! Try to generate it.");
+        let configure = ("configure", "./configure", Filename.concat path "configure") in
+        let autogen = ("autogen", "sh autogen.sh && ./configure", Filename.concat path "autogen.sh") in
+        let exception MakefileNotGenerated in
+        let generate_makefile_with (name, command, file) = if Sys.file_exists file then (
+            print_endline ("Trying to run " ^ name ^ " to generate Makefile");
+            let exit_code, output = MakefileUtil.exec_command ~path command in
+            print_endline (command ^ MakefileUtil.string_of_process_status exit_code ^ ". Output: " ^ output);
+            if not (Sys.file_exists makefile) then raise MakefileNotGenerated
+          ); raise MakefileNotGenerated in
+        try generate_makefile_with configure
+        with MakefileNotGenerated ->
+        try generate_makefile_with autogen
+        with MakefileNotGenerated -> failwith ("Could neither find given " ^ makefile ^ " nor generate it - abort!");
       );
       let _ = MakefileUtil.run_cilly path in
       let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
       cFileNames := file :: (List.drop 1 !cFileNames);
+    ) else if Filename.basename firstFile = CompDBUtil.comp_db_filename then (
+      let compdb = firstFile in
+      let path = Filename.dirname compdb in
+      if Sys.file_exists compdb then (
+        let preprocessed_files = CompDBUtil.preprocess path in
+        cFileNames := preprocessed_files @ (List.drop 1 !cFileNames);
+      ) else failwith ("Could not find given " ^ compdb ^ " - abort!")
     );
   );
 
