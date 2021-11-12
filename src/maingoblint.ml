@@ -159,7 +159,7 @@ let preprocess_one_file cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ String.join " " cppflags ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -176,7 +176,7 @@ let basic_preprocess ~all_cppflags files =
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
   (* Preprocessor flags *)
-  let cppflags = ref (get_string "cppflags") in
+  let cppflags = ref (get_string_list "cppflags") in
 
   (* the base include directory *)
   let custom_include_dirs =
@@ -272,7 +272,7 @@ let preprocess_files () =
 
     let preconf = find_custom_include "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
-    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ " ^ !cppflags;
+    cppflags := "-D__KERNEL__" :: "-U__i386__" :: "-D__x86_64__" :: !cppflags;
     include_files := preconf :: autoconf :: !include_files;
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
@@ -287,14 +287,14 @@ let preprocess_files () =
     List.flatten (List.map (fun include_file -> ["-include"; include_file]) !include_files)
   in
 
-  let all_cppflags = !cppflags ^ " " ^ (String.join " " include_args) in
+  let all_cppflags = !cppflags @ include_args in
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
   let preprocessed_files =
     match !jsonFiles with
     | [filename] when Filename.basename filename = CompilationDatabase.basename ->
-      CompilationDatabase.load_and_preprocess ~include_args filename
+      CompilationDatabase.load_and_preprocess ~all_cppflags filename
     | _ ->
       []
   in
