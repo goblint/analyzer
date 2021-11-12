@@ -53,7 +53,8 @@ let preprocess ~include_args filename =
         | None, None ->
           failwith "CompilationDatabase.preprocess: neither command nor arguments specified for " ^ file
       in
-      Printf.printf "CD: %s: %s\n" file preprocess_command;
+      if GobConfig.get_bool "dbg.verbose" then
+        Printf.printf "Preprocessing %s\n  to %s\n  using %s\n  in %s\n" file preprocessed_file preprocess_command obj.directory;
       let old_cwd = Sys.getcwd () in
       Fun.protect ~finally:(fun () ->
           Sys.chdir old_cwd
