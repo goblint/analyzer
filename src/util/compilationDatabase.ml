@@ -5,9 +5,9 @@ let basename = "compile_commands.json"
 type command_object = {
   directory: string;
   file: string;
-  command: string option;
-  arguments: string list option;
-  output: string option;
+  command: string option [@default None];
+  arguments: string list option [@default None];
+  output: string option [@default None];
 } [@@deriving yojson]
 
 type t = command_object list [@@deriving yojson]
