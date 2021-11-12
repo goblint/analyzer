@@ -41,7 +41,7 @@ let load_and_preprocess ~all_cppflags filename =
     let preprocess_command = match obj.command, obj.arguments with
       | Some command, None ->
         (* TODO: extract o_file *)
-        let preprocess_command = Str.replace_first command_program_regexp ("\\1 " ^ String.join " " all_cppflags ^ " -E") command in
+        let preprocess_command = Str.replace_first command_program_regexp ("\\1 " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -E") command in
         let preprocess_command = Str.replace_first command_o_regexp ("-o " ^ preprocessed_file) preprocess_command in
         if preprocess_command = command then (* easier way to check if match was found (and replaced) *)
           failwith "CompilationDatabase.preprocess: no -o argument found for " ^ file
@@ -53,7 +53,7 @@ let load_and_preprocess ~all_cppflags filename =
             begin match List.split_at o_i arguments with
               | (arguments_program :: arguments_init, _ :: o_file :: arguments_tl) ->
                 let preprocess_arguments = arguments_program :: all_cppflags @ "-E" :: arguments_init @ "-o" :: preprocessed_file :: arguments_tl in
-                Filename.quote_command (List.hd preprocess_arguments) (List.tl preprocess_arguments)
+                String.join " " (List.map Filename.quote preprocess_arguments) (* TODO: use quote_command after OCaml 4.10 *)
               | _ ->
                 failwith "CompilationDatabase.preprocess: no -o argument value found for " ^ file
             end

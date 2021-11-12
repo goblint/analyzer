@@ -159,7 +159,7 @@ let preprocess_one_file cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ String.join " " cppflags ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
