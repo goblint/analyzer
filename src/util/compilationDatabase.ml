@@ -15,6 +15,8 @@ type t = command_object list [@@deriving yojson]
 let parse_file filename =
   Result.get_ok (of_yojson (Yojson.Safe.from_file filename))
 
+let command_o_regexp = Str.regexp "-o +[^ ]+"
+
 let preprocess ~include_args filename =
   parse_file filename
   |> List.mapi (fun i obj ->
@@ -22,13 +24,25 @@ let preprocess ~include_args filename =
       let preprocessed_file = Printf.sprintf "%d.i" i in
       let preprocess_command = match obj.command, obj.arguments with
         | Some command, None ->
-          let o_re = Str.regexp "-o +[^ ]+" in (* TODO: include args *)
-          Str.replace_first o_re (String.join " " include_args ^ " -E -o " ^ preprocessed_file) command
+          (* TODO: extract o_file *)
+          let preprocess_command = Str.replace_first command_o_regexp (String.join " " include_args ^ " -E -o " ^ preprocessed_file) command (* TODO: cppflags *) in
+          if preprocess_command = command then (* easier way to check if match was found (and replaced) *)
+            failwith "CompilationDatabase.preprocess: no -o argument found for " ^ file
+          else
+            preprocess_command
         | None, Some arguments ->
-          let (o_i, _) = List.findi (fun i e -> e = "-o") arguments in
-          let (arguments_init, _ :: _ :: arguments_tl) = List.split_at o_i arguments in
-          let arguments' = arguments_init @ include_args @ "-E" :: "-o" :: preprocessed_file :: arguments_tl in (* TODO: custom includes, cppflags *)
-          Filename.quote_command (List.hd arguments') (List.tl arguments')
+          begin match List.findi (fun i e -> e = "-o") arguments with
+            | (o_i, _) ->
+              begin match List.split_at o_i arguments with
+                | (arguments_init, _ :: o_file :: arguments_tl) ->
+                  let preprocess_arguments = arguments_init @ include_args @ "-E" :: "-o" :: preprocessed_file :: arguments_tl in (* TODO: cppflags *)
+                  Filename.quote_command (List.hd preprocess_arguments) (List.tl preprocess_arguments)
+                | _ ->
+                  failwith "CompilationDatabase.preprocess: no -o argument value found for " ^ file
+              end
+            | exception Not_found ->
+              failwith "CompilationDatabase.preprocess: no -o argument found for " ^ file
+          end
         | Some _, Some _ ->
           failwith "CompilationDatabase.preprocess: both command and arguments specified for " ^ file
         | None, None ->
