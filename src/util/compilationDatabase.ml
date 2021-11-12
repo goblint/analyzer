@@ -54,8 +54,13 @@ let preprocess ~include_args filename =
           failwith "CompilationDatabase.preprocess: neither command nor arguments specified for " ^ file
       in
       Printf.printf "CD: %s: %s\n" file preprocess_command;
-      (* TODO: run command relative to obj.directory *)
-      match Unix.system preprocess_command with
-      | WEXITED 0 -> preprocessed_file
-      | process_status -> failwith (MakefileUtil.string_of_process_status process_status)
+      let old_cwd = Sys.getcwd () in
+      Fun.protect ~finally:(fun () ->
+          Sys.chdir old_cwd
+        ) (fun () ->
+          Sys.chdir obj.directory; (* command/arguments might have paths relative to directory *)
+          match Unix.system preprocess_command with
+          | WEXITED 0 -> preprocessed_file
+          | process_status -> failwith (MakefileUtil.string_of_process_status process_status)
+        )
     )
