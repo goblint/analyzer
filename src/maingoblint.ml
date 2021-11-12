@@ -170,6 +170,9 @@ let preprocess_one_file cppflags fname =
     with Unix.Unix_error (e, f, a) ->
       eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
 
+let basic_preprocess ~all_cppflags files =
+  List.rev_map (preprocess_one_file all_cppflags) files
+
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
   (* Preprocessor flags *)
@@ -295,11 +298,14 @@ let preprocess_files () =
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  (* List.rev_map (preprocess_one_file all_cppflags) !cFileNames *)
-  if !jsonFiles = ["compile_commands.json"] then
-    CompilationDatabase.preprocess ~include_args ()
-  else
-    failwith "no compilation database"
+  let preprocessed_files =
+    if !jsonFiles = ["compile_commands.json"] then
+      CompilationDatabase.preprocess ~include_args ()
+    else
+      []
+  in
+  let preprocessed_files = basic_preprocess ~all_cppflags !cFileNames @ preprocessed_files in
+  preprocessed_files
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
