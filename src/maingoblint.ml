@@ -286,19 +286,18 @@ let preprocess_files () =
       ]
   );
 
-  let includes =
-    String.join " " (List.map (fun include_dir -> "-I " ^ include_dir) !include_dirs) ^
-    " " ^
-    String.join " " (List.map (fun include_file -> "-include " ^ include_file) !include_files)
+  let include_args =
+    List.flatten (List.map (fun include_dir -> ["-I"; include_dir]) !include_dirs) @
+    List.flatten (List.map (fun include_file -> ["-include"; include_file]) !include_files)
   in
 
-  let cppflags = !cppflags ^ " " ^ includes in
+  let all_cppflags = !cppflags ^ " " ^ (String.join " " include_args) in
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  (* List.rev_map (preprocess_one_file cppflags) !cFileNames *)
+  (* List.rev_map (preprocess_one_file all_cppflags) !cFileNames *)
   if !jsonFiles = ["compile_commands.json"] then
-    CompilationDatabase.preprocess ~custom_include_dirs ()
+    CompilationDatabase.preprocess ~include_args ()
   else
     failwith "no compilation database"
 
