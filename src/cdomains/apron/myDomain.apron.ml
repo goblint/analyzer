@@ -36,17 +36,30 @@ struct
       else l
     in
     create_zero_list [] (dim_y m)
+
+  let show (x:t) =
+    let rec list_str l =
+      match l with
+      | [] -> ""
+      | x :: xs -> (Format.asprintf "%i " x) ^(list_str xs)
+    in
+    let str_lists = List.map list_str x in
+   let conc_with_sep a b = a ^ "\n" ^ b in
+   List.fold_left conc_with_sep "" str_lists
+
+
 end
 
 module MyD2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
 struct
 
   include EnvDomain.EnvOps
+  open Apron
 
   type var = EnvDomain.Var.t
   type t = {
     d :  Matrix.t Option.t;
-    env : Apron.Environment.t
+    env : Environment.t
   }
 
   let is_bot_env a =
@@ -54,10 +67,16 @@ struct
     | None -> true
     | _ -> false
 
-  let equal a b = Apron.Environment.equal (a.env) (b.env) (* ToDo Check for d equality *)
+  let equal a b = Environment.equal (a.env) (b.env) (* ToDo Check for d equality *)
   let hash a = 0
   let compare a b = 0
-  let show a = ""
+  let show a =
+    let d_str = (match a.d with
+    | None -> "⟂"
+    | Some (m) -> Matrix.show m)
+    in
+   Format.asprintf "%s (env: %a)" d_str (Environment.print:Format.formatter -> Environment.t -> unit) a.env
+
   let pretty () (x:t) = text (show x)
   let printXml a b = ()
   let name () = "affeq"
@@ -98,29 +117,29 @@ struct
 
   let add_vars a vars =
     let vs' = get_filtered_vars (a.env) vars in
-      let env' = Apron.Environment.add a.env vs' [||] in
+      let env' = Environment.add a.env vs' [||] in
         let d' = (match a.d with
           | None -> None
-          | Some (m) -> Some (dim_add (Apron.Environment.dimchange a.env env') m))
+          | Some (m) -> Some (dim_add (Environment.dimchange a.env env') m))
   in {d = d'; env = env'}
 
   let remove_vars a vars =
     let vs' = get_filtered_vars (a.env) vars in
-      let env' = Apron.Environment.add a.env vs' [||] in
+      let env' = Environment.add a.env vs' [||] in
         let d' = (match a.d with
           | None -> None
-          | Some (m) -> Some (dim_remove (Apron.Environment.dimchange a.env env') m))
+          | Some (m) -> Some (dim_remove (Environment.dimchange a.env env') m))
   in {d = d'; env = env'}
 
-  let remove_vars_with a b = ()
-  let remove_filter_with a f = failwith "unimplemented"
+  let remove_vars a b = a
+  let remove_filter a f = a
 
   let keep_filter a f = failwith "unimplemented"
   let forget_vars a l = failwith "unimplemented"
 
   let assign_exp a b c = failwith "unimplemented"
   let assign_var a b c = failwith "unimplemented"
-  let assign_var_parallel_with a b = ()
+  let assign_var_parallel a b = a
   let substitute_exp a b c = failwith "unimplemented"
   let type_tracked a = false
   let varinfo_tracked a = false

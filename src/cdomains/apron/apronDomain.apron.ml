@@ -504,6 +504,12 @@ struct
     in
     A.assign_texpr_array_with Man.mgr nd vs texpr1s None
 
+    let assign_var_parallel d vv's =
+      (* TODO: non-_with version? *)
+      let nd = copy d in
+      assign_var_parallel_with nd vv's;
+      nd
+
   let assign_var_parallel' d vs v's = (* unpaired parallel assigns *)
     (* TODO: _with version? *)
     let env = A.env d in

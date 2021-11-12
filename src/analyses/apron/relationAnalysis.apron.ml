@@ -191,14 +191,15 @@ struct
           )
       ) new_apr arg_assigns
     in
-    AD.remove_filter_with new_apr (fun var ->
+    let filtered_new_apr = AD.remove_filter new_apr (fun var ->
         match V.find_metadata var with
         | Some Local -> true (* remove caller locals *)
         | Some Arg when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
-      );
-    if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty new_apr;
-    [st, {st with apr = new_apr}]
+      )
+    in
+    if M.tracing then M.tracel "combine" "apron enter newd: %a\n" AD.pretty filtered_new_apr;
+    [st, {st with apr = filtered_new_apr}]
 
   let body ctx f =
     let st = ctx.local in
@@ -211,8 +212,8 @@ struct
       ) new_apr (formals @ locals)
     in
     let local_assigns = List.map (fun x -> (V.local x, V.arg x)) formals in
-    AD.assign_var_parallel_with new_apr local_assigns; (* doesn't need to be parallel since arg vars aren't local vars *)
-    {st with apr = new_apr}
+    let assigned_new_apr = AD.assign_var_parallel new_apr local_assigns in (* doesn't need to be parallel since arg vars aren't local vars *)
+    {st with apr = assigned_new_apr}
 
   let return ctx e f =
     let st = ctx.local in
@@ -235,8 +236,8 @@ struct
       |> List.filter AD.varinfo_tracked
       |> List.map V.local
     in
-    AD.remove_vars_with new_apr local_vars;
-    {st with apr = new_apr}
+    let rem_new_apr = AD.remove_vars new_apr local_vars in
+    {st with apr = rem_new_apr}
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
@@ -261,7 +262,7 @@ struct
     in
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
-    AD.remove_vars_with new_fun_apr arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
+    let new_fun_apr = AD.remove_vars new_fun_apr arg_vars in (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
         match V.find_metadata var with
         | Some Local -> true (* keep caller locals *)
@@ -281,8 +282,8 @@ struct
         | None ->
           unify_st
       in
-      AD.remove_vars_with unify_st'.apr [V.return]; (* mutates! *)
-      unify_st'
+      let new_unify_st_apr = AD.remove_vars unify_st'.apr [V.return] in (* mutates! *)
+      {RelationDomain.apr = new_unify_st_apr; RelationDomain.priv = unify_st'.priv}
     )
     else
       unify_st
