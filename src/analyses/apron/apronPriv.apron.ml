@@ -65,7 +65,9 @@ struct
   let to_global_components (comp: apron_components_t): global_act = { apr = to_global comp.apr; priv = comp.priv}
 
   let name () = "Converter " ^ "(Privatization: " ^ (Priv.name ()) ^ ", local domain: " ^ (ADLocal.Man.name ()) ^ ", global domain: " ^ (ADGlobal.Man.name ()) ^ ")"
+  
   let startstate () = Priv.startstate ()
+
   let should_join a b = Priv.should_join (to_global_components a) (to_global_components b)
 
   let read_global ask getg st g x =
@@ -87,6 +89,7 @@ struct
   let thread_join ask getg exp st =
     let r = Priv.thread_join ask getg exp (to_global_components st) in
     to_local_components r
+
   let thread_return ask getg sideg tid st =
     let r = Priv.thread_return ask getg sideg tid (to_global_components st) in
     to_local_components r
@@ -98,10 +101,13 @@ struct
   let enter_multithreaded ask getg sideg st =
     let r = Priv.enter_multithreaded ask getg sideg (to_global_components st) in
     to_local_components r
+
   let threadenter ask getg st =
     let r = Priv.threadenter ask getg (to_global_components st) in
     to_local_components r
+
   let init () = Priv.init ()
+
   let finalize () = Priv.finalize ()
 end
 
