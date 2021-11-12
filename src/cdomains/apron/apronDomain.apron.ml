@@ -501,6 +501,11 @@ struct
 
   let of_lincons_array (a: Apron.Lincons1.earray) =
     A.of_lincons_array Man.mgr a.array_env a
+
+  (** Construct an element of this module from an element with a different domain, i.e. manager. *)
+  let of_other_dom (type a) (module Man2: Manager with type mt = a) (v: Man2.mt A.t) =
+    let lincons = A.to_lincons_array Man2.mgr v in
+    A.of_lincons_array Man.mgr v.env lincons
 end
 
 
