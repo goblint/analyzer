@@ -1,7 +1,9 @@
 open Prelude
 
-let preprocess ~include_args () =
-  let cd = Yojson.Safe.from_file "compile_commands.json" in
+let basename = "compile_commands.json"
+
+let preprocess ~include_args filename =
+  let cd = Yojson.Safe.from_file filename in
   let open Yojson.Safe.Util in
   let i = ref 0 in
   convert_each (fun entry ->

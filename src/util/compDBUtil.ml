@@ -1,8 +1,6 @@
 (* module for serializing the command objects of a compilation database *)
 open MakefileUtil
 
-let comp_db_filename = "compile_commands.json"
-
 (* TODO command objects might also have the optional field "output" or the field "arguments" (either "command" or "arguments" is required) *)
 type command_object = {
   directory   : string;
@@ -21,7 +19,7 @@ let preprocess (path: string) : string list =
   if Sys.file_exists path && Sys.is_directory path then (
     print_endline "Preprocessing files with commands from compilation database.";
     remove_comb_files path;
-    let comp_file = Filename.concat path comp_db_filename in
+    let comp_file = Filename.concat path CompilationDatabase.basename in
     let command_objs = compDB comp_file in
     let exec_command_obj obj =
       let outfile = (Filename.basename obj.file) ^ ".i" in

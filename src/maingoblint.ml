@@ -126,7 +126,7 @@ let cFileNames = ref []
 let parse_arguments () =
   let jsonRegex = Str.regexp ".+\\.json$" in
   let recordFile fname =
-    if Str.string_match jsonRegex fname 0 && Filename.basename fname <> CompDBUtil.comp_db_filename
+    if Str.string_match jsonRegex fname 0
     then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles
     else cFileNames := fname :: !cFileNames
   in
@@ -301,9 +301,10 @@ let preprocess_files () =
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
   let preprocessed_files =
-    if !jsonFiles = ["compile_commands.json"] then
-      CompilationDatabase.preprocess ~include_args ()
-    else
+    match !jsonFiles with
+    | [filename] when Filename.basename filename = CompilationDatabase.basename ->
+      CompilationDatabase.preprocess ~include_args filename
+    | _ ->
       []
   in
   let preprocessed_files = basic_preprocess ~all_cppflags !cFileNames @ preprocessed_files in
