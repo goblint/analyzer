@@ -18,10 +18,15 @@ let parse_file filename =
 let command_o_regexp = Str.regexp "-o +[^ ]+"
 
 let preprocess ~include_args filename =
+  let database_dir = Filename.dirname (GobFilename.absolute filename) in (* absolute before dirname to avoid . *)
+  (* TODO: generalize .goblint for everything *)
+  ignore (Goblintutil.create_dir ".goblint");
+  let preprocessed_dir = Goblintutil.create_dir (Filename.concat ".goblint" "preprocessed") in
   parse_file filename
   |> List.mapi (fun i obj ->
       let file = obj.file in
-      let preprocessed_file = Printf.sprintf "%d.i" i in (* TODO: better filenames and parent directory *)
+      let preprocessed_file = Filename.concat preprocessed_dir (Filename.chop_extension (GobFilename.chop_common_prefix database_dir file) ^ ".i") in
+      GobSys.mkdir_parents preprocessed_file;
       let preprocess_command = match obj.command, obj.arguments with
         | Some command, None ->
           (* TODO: extract o_file *)
