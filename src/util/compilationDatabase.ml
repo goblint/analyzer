@@ -2,6 +2,19 @@ open Prelude
 
 let basename = "compile_commands.json"
 
+type command_object = {
+  directory: string;
+  file: string;
+  command: string option;
+  arguments: string list option;
+  output: string option;
+} [@@deriving yojson]
+
+type t = command_object list [@@deriving yojson]
+
+let parse_file filename =
+  Result.get_ok (of_yojson (Yojson.Safe.from_file filename))
+
 let preprocess ~include_args filename =
   let cd = Yojson.Safe.from_file filename in
   let open Yojson.Safe.Util in
