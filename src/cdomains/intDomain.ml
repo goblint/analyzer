@@ -531,9 +531,9 @@ struct
     | Some (a, b) ->
       if a = b && b = i then `Eq else if Ints_t.compare a i <= 0 && Ints_t.compare i b <=0 then `Top else `Neq
 
-  let set_overflow_flag ~underflow ~overflow ik =
+  let set_overflow_flag ~cast ~underflow ~overflow ik =
     let signed = Cil.isSigned ik in
-    if !GU.postsolving && signed then
+    if !GU.postsolving && signed && not cast then
       Goblintutil.svcomp_may_overflow := true;
 
     let sign = if signed then "Signed" else "Unsigned" in
@@ -546,7 +546,7 @@ struct
       M.warn ~category:M.Category.Integer.overflow ~tags:[CWE 190] "%s integer overflow" sign
     | false, false -> assert false
 
-  let norm ik = function None -> None | Some (x,y) ->
+  let norm ?(cast=false) ik = function None -> None | Some (x,y) ->
     if Ints_t.compare x y > 0 then None
     else (
       let min_ik = min_int ik in
@@ -554,8 +554,8 @@ struct
       let underflow = Ints_t.compare min_ik x > 0 in
       let overflow = Ints_t.compare max_ik y < 0 in
       if underflow || overflow then (
-        set_overflow_flag ~underflow ~overflow ik;
-        if should_wrap ik then
+        set_overflow_flag ~cast ~underflow ~overflow ik;
+        if should_wrap ik then (* could add [|| cast], but that's GCC implementation-defined behavior: https://gcc.gnu.org/onlinedocs/gcc/Integers-implementation.html#Integers-implementation *)
           (* We can only soundly wrap if at most one overflow occurred, otherwise the minimal and maximal values of the interval *)
           (* on Z will not safely contain the minimal and maximal elements after the cast *)
           let diff = Ints_t.abs (Ints_t.sub max_ik min_ik) in
@@ -570,7 +570,7 @@ struct
             else
               (* Interval that wraps around (begins to the right of its end). We can not represent such intervals *)
               top_of ik
-        else if should_ignore_overflow ik then
+        else if not cast && should_ignore_overflow ik then
           let tl, tu = BatOption.get @@ top_of ik in
           Some (max tl x, min tu y)
         else
@@ -630,7 +630,7 @@ struct
   let maximal = function None -> None | Some (x,y) -> Some y
   let minimal = function None -> None | Some (x,y) -> Some x
 
-  let cast_to ?torg ?no_ov t = norm t (* norm does all overflow handling *)
+  let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
   let widen ik x y =
     match x, y with
@@ -694,7 +694,7 @@ struct
     | _ ->
       match to_int i1, to_int i2 with
       | Some x, Some y -> (try norm ik (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
-      | _              -> (set_overflow_flag ~underflow:true ~overflow:true ik;  top_of ik)
+      | _              -> (set_overflow_flag ~cast:false ~underflow:true ~overflow:true ik;  top_of ik)
 
   let bitxor = bit (fun _ik -> Ints_t.bitxor)
   let bitand = bit (fun _ik -> Ints_t.bitand)
