@@ -119,18 +119,14 @@ let option_spec_list =
   ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
   ]
 
-(** List of C files to consider. *)
-let cFileNames = ref []
 
 (** Parse arguments and fill [cFileNames] and [jsonFiles]. Print help if needed. *)
 let parse_arguments () =
-  let jsonRegex = Str.regexp ".+\\.json$" in
-  let recordFile fname =
-    if Str.string_match jsonRegex fname 0
-    then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles
-    else cFileNames := fname :: !cFileNames
+  let anon_arg filename =
+    arg_files := filename :: !arg_files
   in
-  Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
+  Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
+  arg_files := List.rev !arg_files; (* reverse files to get given order *)
   if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
 
 (** Initialize some globals in other modules. *)
@@ -216,45 +212,6 @@ let preprocess_files () =
 
   include_dirs := custom_include_dirs @ !include_dirs;
 
-  (* reverse the files again *)
-  cFileNames := List.rev !cFileNames;
-
-  (* If the first file given is a Makefile, we use it to combine files *)
-  if !cFileNames <> [] then (
-    let firstFile = List.first !cFileNames in
-    if Filename.basename firstFile = "Makefile" then (
-      let makefile = firstFile in
-      let path = Filename.dirname makefile in
-      (* make sure the Makefile exists or try to generate it *)
-      if not (Sys.file_exists makefile) then (
-        print_endline ("Given " ^ makefile ^ " does not exist! Try to generate it.");
-        let configure = ("configure", "./configure", Filename.concat path "configure") in
-        let autogen = ("autogen", "sh autogen.sh && ./configure", Filename.concat path "autogen.sh") in
-        let exception MakefileNotGenerated in
-        let generate_makefile_with (name, command, file) = if Sys.file_exists file then (
-            print_endline ("Trying to run " ^ name ^ " to generate Makefile");
-            let exit_code, output = MakefileUtil.exec_command ~path command in
-            print_endline (command ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
-            if not (Sys.file_exists makefile) then raise MakefileNotGenerated
-          ); raise MakefileNotGenerated in
-        try generate_makefile_with configure
-        with MakefileNotGenerated ->
-        try generate_makefile_with autogen
-        with MakefileNotGenerated -> failwith ("Could neither find given " ^ makefile ^ " nor generate it - abort!");
-      );
-      let _ = MakefileUtil.run_cilly path in
-      let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
-      cFileNames := file :: (List.drop 1 !cFileNames);
-    )
-  );
-
-  (* possibly add our lib.c to the files *)
-  if get_bool "custom_libc" then
-    cFileNames := find_custom_include "lib.c" :: !cFileNames;
-
-  if get_bool "ana.sv-comp.functions" then
-    cFileNames := find_custom_include "sv-comp.c" :: !cFileNames;
-
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
     let kernel_roots = [
@@ -291,15 +248,52 @@ let preprocess_files () =
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  let preprocessed_files =
-    match !jsonFiles with
-    | [filename] when Filename.basename filename = CompilationDatabase.basename ->
+
+  let preprocess_arg_file = function
+    | filename when Filename.basename filename = "Makefile" ->
+      let makefile = filename in
+      let path = Filename.dirname makefile in
+      (* make sure the Makefile exists or try to generate it *)
+      if not (Sys.file_exists makefile) then (
+        print_endline ("Given " ^ makefile ^ " does not exist! Try to generate it.");
+        let configure = ("configure", "./configure", Filename.concat path "configure") in
+        let autogen = ("autogen", "sh autogen.sh && ./configure", Filename.concat path "autogen.sh") in
+        let exception MakefileNotGenerated in
+        let generate_makefile_with (name, command, file) = if Sys.file_exists file then (
+            print_endline ("Trying to run " ^ name ^ " to generate Makefile");
+            let exit_code, output = MakefileUtil.exec_command ~path command in
+            print_endline (command ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
+            if not (Sys.file_exists makefile) then raise MakefileNotGenerated
+          ); raise MakefileNotGenerated in
+        try generate_makefile_with configure
+        with MakefileNotGenerated ->
+        try generate_makefile_with autogen
+        with MakefileNotGenerated -> failwith ("Could neither find given " ^ makefile ^ " nor generate it - abort!");
+      );
+      MakefileUtil.run_cilly path;
+      let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
+      [preprocess_one_file all_cppflags file]
+
+    | filename when Filename.basename filename = CompilationDatabase.basename ->
       CompilationDatabase.load_and_preprocess ~all_cppflags filename
-    | _ ->
-      []
+
+    | filename when Filename.extension filename = ".json" ->
+      [] (* ignore other JSON files for contain analysis *)
+
+    | filename ->
+      [preprocess_one_file all_cppflags filename]
   in
-  let preprocessed_files = basic_preprocess ~all_cppflags !cFileNames @ preprocessed_files in
-  preprocessed_files
+
+  let extra_arg_files = ref [] in
+
+  (* possibly add our lib.c to the files *)
+  if get_bool "custom_libc" then
+    extra_arg_files := find_custom_include "lib.c" :: !extra_arg_files;
+
+  if get_bool "ana.sv-comp.functions" then
+    extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
+
+  List.flatten (List.map preprocess_arg_file (!extra_arg_files @ !arg_files))
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
