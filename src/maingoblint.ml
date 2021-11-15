@@ -246,13 +246,22 @@ let preprocess_files () =
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
 
-  let preprocess_arg_file = function
+  let rec preprocess_arg_file = function
     | filename when Filename.basename filename = "Makefile" ->
       let comb_file = MakefileUtil.generate_and_combine filename in
       [basic_preprocess ~all_cppflags comb_file]
 
     | filename when Filename.basename filename = CompilationDatabase.basename ->
       CompilationDatabase.load_and_preprocess ~all_cppflags filename
+
+    | filename when Sys.is_directory filename ->
+      let dir_files = Sys.readdir filename in
+      if Array.mem CompilationDatabase.basename dir_files then (* prefer compilation database to Makefile in case both exist, because compilation database is more robust *)
+        preprocess_arg_file (Filename.concat filename CompilationDatabase.basename)
+      else if Array.mem "Makefile" dir_files then
+        preprocess_arg_file (Filename.concat filename "Makefile")
+      else
+        [] (* don't recurse for anything else *)
 
     | filename when Filename.extension filename = ".json" ->
       [] (* ignore other JSON files for contain analysis *)
