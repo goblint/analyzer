@@ -120,7 +120,7 @@ let option_spec_list =
   ]
 
 
-(** Parse arguments and fill [cFileNames] and [jsonFiles]. Print help if needed. *)
+(** Parse arguments and fill [arg_files]. Print help if needed. *)
 let parse_arguments () =
   let anon_arg filename =
     arg_files := filename :: !arg_files
