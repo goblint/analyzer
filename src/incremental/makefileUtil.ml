@@ -67,3 +67,25 @@ let run_cilly (path: string) =
     if exit_code <> WEXITED 0 then
       failwith ("Failed combining files. Make was " ^ (GobUnix.string_of_process_status exit_code) ^ ".")
   )
+
+let generate_and_combine makefile =
+  let path = Filename.dirname makefile in
+  (* make sure the Makefile exists or try to generate it *)
+  if not (Sys.file_exists makefile) then (
+    print_endline ("Given " ^ makefile ^ " does not exist! Try to generate it.");
+    let configure = ("configure", "./configure", Filename.concat path "configure") in
+    let autogen = ("autogen", "sh autogen.sh && ./configure", Filename.concat path "autogen.sh") in
+    let exception MakefileNotGenerated in
+    let generate_makefile_with (name, command, file) = if Sys.file_exists file then (
+        print_endline ("Trying to run " ^ name ^ " to generate Makefile");
+        let exit_code, output = exec_command ~path command in
+        print_endline (command ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
+        if not (Sys.file_exists makefile) then raise MakefileNotGenerated
+      ); raise MakefileNotGenerated in
+    try generate_makefile_with configure
+    with MakefileNotGenerated ->
+    try generate_makefile_with autogen
+    with MakefileNotGenerated -> failwith ("Could neither find given " ^ makefile ^ " nor generate it - abort!");
+  );
+  run_cilly path;
+  find_file_by_suffix path comb_suffix

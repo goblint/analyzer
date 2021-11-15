@@ -251,28 +251,8 @@ let preprocess_files () =
 
   let preprocess_arg_file = function
     | filename when Filename.basename filename = "Makefile" ->
-      let makefile = filename in
-      let path = Filename.dirname makefile in
-      (* make sure the Makefile exists or try to generate it *)
-      if not (Sys.file_exists makefile) then (
-        print_endline ("Given " ^ makefile ^ " does not exist! Try to generate it.");
-        let configure = ("configure", "./configure", Filename.concat path "configure") in
-        let autogen = ("autogen", "sh autogen.sh && ./configure", Filename.concat path "autogen.sh") in
-        let exception MakefileNotGenerated in
-        let generate_makefile_with (name, command, file) = if Sys.file_exists file then (
-            print_endline ("Trying to run " ^ name ^ " to generate Makefile");
-            let exit_code, output = MakefileUtil.exec_command ~path command in
-            print_endline (command ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
-            if not (Sys.file_exists makefile) then raise MakefileNotGenerated
-          ); raise MakefileNotGenerated in
-        try generate_makefile_with configure
-        with MakefileNotGenerated ->
-        try generate_makefile_with autogen
-        with MakefileNotGenerated -> failwith ("Could neither find given " ^ makefile ^ " nor generate it - abort!");
-      );
-      MakefileUtil.run_cilly path;
-      let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
-      [preprocess_one_file all_cppflags file]
+      let comb_file = MakefileUtil.generate_and_combine filename in
+      [preprocess_one_file all_cppflags comb_file]
 
     | filename when Filename.basename filename = CompilationDatabase.basename ->
       CompilationDatabase.load_and_preprocess ~all_cppflags filename
