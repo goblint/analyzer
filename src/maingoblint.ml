@@ -147,7 +147,7 @@ let handle_flags () =
     set_string "outfile" ""
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
-let preprocess_one_file cppflags fname =
+let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
   if Sys.file_exists (get_string "tempDir") then
@@ -155,7 +155,7 @@ let preprocess_one_file cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -165,9 +165,6 @@ let preprocess_one_file cppflags fname =
       | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
     with Unix.Unix_error (e, f, a) ->
       eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
-
-let basic_preprocess ~all_cppflags files =
-  List.rev_map (preprocess_one_file all_cppflags) files
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -252,7 +249,7 @@ let preprocess_files () =
   let preprocess_arg_file = function
     | filename when Filename.basename filename = "Makefile" ->
       let comb_file = MakefileUtil.generate_and_combine filename in
-      [preprocess_one_file all_cppflags comb_file]
+      [basic_preprocess ~all_cppflags comb_file]
 
     | filename when Filename.basename filename = CompilationDatabase.basename ->
       CompilationDatabase.load_and_preprocess ~all_cppflags filename
@@ -261,7 +258,7 @@ let preprocess_files () =
       [] (* ignore other JSON files for contain analysis *)
 
     | filename ->
-      [preprocess_one_file all_cppflags filename]
+      [basic_preprocess ~all_cppflags filename]
   in
 
   let extra_arg_files = ref [] in
