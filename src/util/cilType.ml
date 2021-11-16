@@ -42,14 +42,21 @@ struct
 
   let pretty () x = Pretty.text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `Assoc [
-      ("file", `String x.file);
-      ("line", `Int x.line);
-      ("column", `Int x.column);
-      (* TODO: make end optional? *)
-      ("endLine", `Int x.endLine);
-      ("endColumn", `Int x.endColumn);
-    ]
+  let to_yojson x = `Assoc (
+      [
+        ("file", `String x.file);
+        ("line", `Int x.line);
+        ("column", `Int x.column);
+      ]
+      @
+      if x.endByte >= 0 then
+        [
+          ("endLine", `Int x.endLine);
+          ("endColumn", `Int x.endColumn);
+        ]
+      else
+        []
+    )
   let pp fmt x = Format.fprintf fmt "%s" (show x) (* for Messages *)
 end
 
