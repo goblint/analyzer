@@ -90,11 +90,11 @@ struct
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
-    [(create_tid ctx.local ctx.node f, TD.bot ())] (* TODO: use prev node location instead *)
+    [(create_tid ctx.local ctx.prev_node f, TD.bot ())]
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
-    (current, Thread.threadspawn td ctx.node f)
+    (current, Thread.threadspawn td ctx.prev_node f)
 
   type marshal = Thread.marshal
   let init m =
