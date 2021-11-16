@@ -90,7 +90,7 @@ struct
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
-    [(create_tid ctx.local ctx.node f, TD.bot ())]
+    [(create_tid ctx.local ctx.node f, TD.bot ())] (* TODO: use prev node location instead *)
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
