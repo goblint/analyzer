@@ -33,7 +33,6 @@ struct
   let show x =
     (* TODO: add special output for locUnknown *)
     x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column ^ (
-      (* TODO: fix unknown starts as well *)
       if x.endByte >= 0 then
         "-" ^ string_of_int x.endLine ^ ":" ^ string_of_int x.endColumn
       else
