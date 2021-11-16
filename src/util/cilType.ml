@@ -36,7 +36,10 @@ struct
       if x.endByte >= 0 then
         "-" ^ string_of_int x.endLine ^ ":" ^ string_of_int x.endColumn
       else
-        ""
+        if x.byte >= 0 then
+          failwith @@ "no end at " ^ x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column (* TODO: remove failwith *)
+        else (* TODO: fix unknown starts as well *)
+          ""
     )
 
   let pretty () x = Pretty.text (show x)
