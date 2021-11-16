@@ -32,7 +32,12 @@ struct
   (* Output *)
   let show x =
     (* TODO: add special output for locUnknown *)
-    x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column
+    x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column ^ (
+      if x.endByte >= 0 then
+        "-" ^ string_of_int x.endLine ^ ":" ^ string_of_int x.endColumn
+      else
+        ""
+    )
 
   let pretty () x = Pretty.text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
@@ -40,6 +45,9 @@ struct
       ("file", `String x.file);
       ("line", `Int x.line);
       ("column", `Int x.column);
+      (* TODO: make end optional? *)
+      ("endLine", `Int x.endLine);
+      ("endColumn", `Int x.endColumn);
     ]
   let pp fmt x = Format.fprintf fmt "%s" (show x) (* for Messages *)
 end

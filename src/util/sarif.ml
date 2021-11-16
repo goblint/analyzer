@@ -85,18 +85,18 @@ let deOptionalizeLocation (piece:Messages.Piece.t)= match piece.loc with
   | None -> assert false
 
 let createPhysicalLocationObject (piece:Messages.Piece.t) =
-  let createRegionObject (line,column)=
+  let createRegionObject {Cil.line; column; endLine; endColumn; _} =
     {
       Region.startLine=line;
       Region.startColumn=column;
-      Region.endLine=line+4;
-      Region.endColumn=column+4;
+      Region.endLine;
+      Region.endColumn;
     }
   in
   {
     Location.physicalLocation={
       PhysicalLocation.artifactLocation=  createArtifactObject  (deOptionalizeLocation piece).file;
-      PhysicalLocation.region=createRegionObject ((deOptionalizeLocation piece).line,(deOptionalizeLocation piece).column);
+      PhysicalLocation.region=createRegionObject (deOptionalizeLocation piece);
     }
   }
 
