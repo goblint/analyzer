@@ -34,8 +34,6 @@ depends: [
   "dune-site"
   "sha"
   "benchmark"
-  "ocamlbuild"
-  "ocamlfind"
 ]
 depopts: ["apron" "z3"]
 build: [
