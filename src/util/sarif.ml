@@ -4,7 +4,6 @@ open Prelude
 open SarifType
 open SarifRules
 
-module Region = SarifType.Region (* TODO: why is this needed if SarifType is opened? *)
 
 (*A reportingDescriptor offers a lot of information about a Goblint rule *)
 let createReportingDescriptor categoryInformation: ReportingDescriptor.t = {
