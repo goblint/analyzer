@@ -48,19 +48,6 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
       | CWE c-> "" (*this case should not be reachable *)
 
 
-let createArtifact (uri:string) = {
-  Artifact.location={
-    ArtifactLocation.uri=uri;
-  }
-}
-
-let hasLocation (piece:Messages.Piece.t) = match  piece.loc with
-  |Some loc -> true
-  |None -> false
-(*should only be called after hasLocation*)
-let deOptionalizeLocation (piece:Messages.Piece.t)= match piece.loc with
-  | Some loc ->loc
-  | None -> assert false
 
 let location_of_cil_location ({file; line; column; endLine; endColumn; _}: Cil.location): Location.t = {
   physicalLocation = {
@@ -117,31 +104,32 @@ let result_of_message (message: Messages.Message.t): Result.t list =
         result
       ) pieces piece_locations
 
-
-let getFileLocation (multipiece:Messages.MultiPiece.t)=
-  let getFile (loc:Cil.location) =
-    loc.file
+let files_of_message (message: Messages.Message.t): string list =
+  let piece_file (piece: Messages.Piece.t) = match piece.loc with
+    | Some loc -> Some loc.file
+    | None -> None
   in
-  let toLocation = match multipiece with
-
-    | Single piece ->[deOptionalizeLocation piece];
-    | Group {group_text = n; pieces = e} ->
-      List.map deOptionalizeLocation  (List.filter hasLocation e);
-  in
-  List.map getFile toLocation
+  match message.multipiece with
+  | Single piece ->
+    Option.map_default List.singleton [] (piece_file piece)
+  | Group {pieces; _} ->
+    List.filter_map piece_file pieces
 
 (* TODO: just get all files from AST? *)
-let collectAllFileLocations (msgList:Messages.Message.t list)=
-  let getUris=
-    List.flatten (List.map (fun (msg:Messages.Message.t)-> getFileLocation msg.multipiece) msgList)
-  in
-  (* TODO: don't reimplement unique *)
-  let uniques x xs = if List.mem x xs then xs else x::xs;
-  in
-  List.fold_right uniques getUris []
+let artifacts_of_messages (messages: Messages.Message.t list): Artifact.t list =
+  messages
+  |> List.enum
+  |> Enum.map files_of_message
+  |> Enum.map List.enum
+  |> Enum.flatten
+  |> Enum.uniq (* polymorphic equality fine on string *)
+  |> Enum.map (fun file -> {
+        Artifact.location = { uri = file };
+      }
+    )
+  |> List.of_enum
 
-
-let to_yojson msgList =
+let to_yojson messages =
   SarifLog.to_yojson {
     version = "2.1.0";
     schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
@@ -150,9 +138,9 @@ let to_yojson msgList =
             commandLine = String.concat ", " (Array.to_list Sys.argv); (* TODO: remove commas, quote *)
             executionSuccessful = true;
           }];
-        artifacts = List.map createArtifact (collectAllFileLocations msgList);
+        artifacts = artifacts_of_messages messages;
         tool = goblintTool;
         defaultSourceLanguage = "C";
-        results = List.flatten (List.map result_of_message (List.take 5000 msgList)); (* TODO: why limit? *)
+        results = List.flatten (List.map result_of_message (List.take 5000 messages)); (* TODO: why limit? *)
       }]
   }
