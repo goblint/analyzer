@@ -15,38 +15,29 @@ let severityToLevel (severity:Messages.Severity.t)= match severity with
   | Debug -> "none"
   | Success -> "none"
 
-
-let createMessageObject (text:String.t) =
-  {
-    Message.text=text;
-  }
 (*A reportingDescriptor offers a lot of information about a Goblint rule *)
-let createReportingDescriptor categoryInformation =
-  {
-    ReportingDescriptor.ruleId=categoryInformation.ruleId;
-    ReportingDescriptor.ruleName=categoryInformation.name;
-    ReportingDescriptor.helpUri=categoryInformation.helpUri;
-    ReportingDescriptor.help=(createMessageObject categoryInformation.helpText);
-    ReportingDescriptor.shortDescription=(createMessageObject categoryInformation.shortDescription);
-    ReportingDescriptor.fullDescription=(createMessageObject categoryInformation.longDescription);
-  }
+let createReportingDescriptor categoryInformation: ReportingDescriptor.t = {
+  ruleId = categoryInformation.ruleId;
+  ruleName = categoryInformation.name;
+  helpUri = categoryInformation.helpUri;
+  help = { text = categoryInformation.helpText };
+  shortDescription = { text = categoryInformation.shortDescription };
+  fullDescription = { text = categoryInformation.longDescription };
+}
 
 let transformToReportingDescriptor (id:String.t)=
   createReportingDescriptor  (getRuleInformation id)
 
-let (driverObject:ToolComponent.t) =
-  {
-    ToolComponent.name="Goblint";
-    ToolComponent.fullName= "Goblint static analyser";
-    ToolComponent.informationUri="https://goblint.in.tum.de/home";
-    ToolComponent.organization="TUM - i2 and UTartu - SWS";
-    ToolComponent.version=Version.goblint;
-    ToolComponent.rules=List.map transformToReportingDescriptor (List.map (fun rule -> rule.name) rules)
-  }
-let (toolObject:Tool.t) =
-  {
-    Tool.driver=driverObject;
-  }
+let goblintTool: Tool.t = {
+  driver = {
+    name = "Goblint";
+    fullName = "Goblint static analyser";
+    informationUri = "https://goblint.in.tum.de/home";
+    organization = "TUM - i2 and UTartu - SWS";
+    version = Version.goblint;
+    rules = List.map transformToReportingDescriptor (List.map (fun rule -> rule.name) rules)
+  };
+}
 
 
 (*returns the Rule corresponding to a message entry *)
@@ -115,7 +106,7 @@ let createResult (message:Messages.Message.t) =
   {
     Result.ruleId=(getRuleInformation (getCategoryInformationID message.tags)).ruleId;
     Result.level=severityToLevel message.severity;
-    Result.message=createMessageObject (getMessage message.multipiece);
+    Result.message={ text = getMessage message.multipiece };
     Result.locations=createLocationsObject message.multipiece;
   }
 
@@ -131,27 +122,29 @@ let getFileLocation (multipiece:Messages.MultiPiece.t)=
   in
   List.map getFile toLocation
 
+(* TODO: just get all files from AST? *)
 let collectAllFileLocations (msgList:Messages.Message.t list)=
   let getUris=
     List.flatten (List.map (fun (msg:Messages.Message.t)-> getFileLocation msg.multipiece) msgList)
   in
+  (* TODO: don't reimplement unique *)
   let uniques x xs = if List.mem x xs then xs else x::xs;
   in
   List.fold_right uniques getUris []
-let runObject msgList=
-  {
-    Run.invocations=[{
-        Invocation.commandLine=String.concat  ", " (BatArray.to_list BatSys.argv)  ;
-        Invocation.executionSuccessful=true;
-      }];
-    Run.artifacts= List.map createArtifact (collectAllFileLocations   msgList);
-    Run.tool=toolObject;
-    Run.defaultSourceLanguage="C";
-    Run.results=List.map createResult (List.take 5000 msgList);
+
+
+let to_yojson msgList =
+  SarifLog.to_yojson {
+    version = "2.1.0";
+    schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
+    runs = [{
+        invocations = [{
+            commandLine = String.concat ", " (Array.to_list Sys.argv); (* TODO: remove commas, quote *)
+            executionSuccessful = true;
+          }];
+        artifacts = List.map createArtifact (collectAllFileLocations msgList);
+        tool = goblintTool;
+        defaultSourceLanguage = "C";
+        results = List.map createResult (List.take 5000 msgList); (* TODO: why limit? *)
+      }]
   }
-
-let sarifObject msgList={SarifLog.version="2.1.0";
-                         SarifLog.schema="https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
-                         SarifLog.runs=[runObject msgList] }
-
-let to_yojson  msgList=   [%to_yojson: SarifLog.t]  (sarifObject msgList)
