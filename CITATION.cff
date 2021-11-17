@@ -1,25 +1,32 @@
 cff-version: 1.2.0
 
-preferred-citation:
-  type: conference-paper # this corresponds to inproceedings in BibTex: https://github.com/citation-file-format/ruby-cff/blob/d5b8dac597946d01e52967cf160325bf6218f9f6/lib/cff/formatter/bibtex_formatter.rb#L86-L87
-  authors:
-    - given-names: Vesal
-      family-names: Vojdani
-    - given-names: Kalmer
-      family-names: Apinis
-    - given-names: Vootele
-      family-names: Rõtov
-    - given-names: Helmut
-      family-names: Seidl
-    - given-names: Varmo
-      family-names: Vene
-    - given-names: Ralf
-      family-names: Vogler
-  title: "Static race detection for device drivers: the Goblint approach"
-  collection-title: "Proceedings of the 31st IEEE/ACM International Conference on Automated Software Engineering, ASE 2016" # not used by GitHub
-  start: 391
-  end: 402
-  publisher:
-    name: ACM # not used by GitHub
-  year: 2016 # not used by GitHub
-  doi: 10.1145/2970276.2970337
+message: "If you use this software, please cite it using the metadata from this file." # message required
+
+title: "Goblint"
+abstract: "Static analysis framework for C"
+authors: # same authors as in dune-project
+  - given-names: Vesal
+    family-names: Vojdani
+    affiliation: "University of Tartu"
+  - given-names: Kalmer
+    family-names: Apinis
+    affiliation: "University of Tartu"
+  - given-names: Ralf
+    family-names: Vogler
+    affiliation: "Technische Universität München"
+  - given-names: Michael
+    family-names: Schwarz
+    affiliation: "Technische Universität München"
+  - given-names: Julian
+    family-names: Erhard
+    affiliation: "Technische Universität München"
+  - given-names: Simmo
+    family-names: Saan
+    orcid: "https://orcid.org/0000-0003-4553-1350"
+    affiliation: "University of Tartu"
+
+license: MIT
+repository-code: "https://github.com/goblint/analyzer"
+url: "https://goblint.in.tum.de"
+
+# TODO: concept doi after publishing on Zenodo

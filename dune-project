@@ -14,13 +14,13 @@
 (source (github goblint/analyzer))
 (homepage "https://goblint.in.tum.de")
 (documentation "https://goblint.readthedocs.io/en/latest/")
-(authors "Vesal Vojdani" "Kalmer Apinis" "Ralf Vogler" "Michael Schwarz" "Julian Erhard" "Simmo Saan")
+(authors "Vesal Vojdani" "Kalmer Apinis" "Ralf Vogler" "Michael Schwarz" "Julian Erhard" "Simmo Saan") ; same authors as in CITATION.cff
 (maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Simmo Saan <simmo.saan@gmail.com>" "Ralf Vogler <ralf.vogler@gmail.com>")
 (license MIT)
 
 (package
   (name goblint)
-  (synopsis "Static analysis framework for concurrent C")
+  (synopsis "Static analysis framework for C")
   (depends
     (ocaml (>= 4.09))
     dune
