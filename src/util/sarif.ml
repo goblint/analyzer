@@ -6,15 +6,6 @@ open SarifRules
 
 module Region = SarifType.Region (* TODO: why is this needed if SarifType is opened? *)
 
-
-(*matches the Goblint severity to the Sarif property level.*)
-let severityToLevel (severity:Messages.Severity.t)= match severity with
-  | Error -> "error"
-  | Warning -> "warning"
-  | Info -> "note"
-  | Debug -> "none"
-  | Success -> "none"
-
 (*A reportingDescriptor offers a lot of information about a Goblint rule *)
 let createReportingDescriptor categoryInformation: ReportingDescriptor.t = {
   ruleId = categoryInformation.ruleId;
@@ -85,7 +76,13 @@ let location_of_cil_location ({file; line; column; endLine; endColumn; _}: Cil.l
 
 let result_of_message (message: Messages.Message.t): Result.t list =
   let ruleId = (getRuleInformation (getCategoryInformationID message.tags)).ruleId in
-  let level = severityToLevel message.severity in
+  let (kind, level) = match message.severity with
+    | Error -> ("fail", "error")
+    | Warning -> ("fail", "warning")
+    | Info -> ("informational", "none")
+    | Debug -> ("informational", "none")
+    | Success -> ("pass", "none")
+  in
   let piece_location (piece: Messages.Piece.t) = match piece.loc with
     | Some loc -> [location_of_cil_location loc]
     | None -> []
@@ -94,6 +91,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
   | Single piece ->
     let result: Result.t = {
       ruleId;
+      kind;
       level;
       message = { text = piece.text };
       locations = piece_location piece;
@@ -109,6 +107,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
         let relatedLocations = List.flatten (List.remove_at i piece_locations) in
         let result: Result.t = {
           ruleId;
+          kind;
           level;
           message = { text };
           locations;

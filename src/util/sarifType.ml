@@ -89,6 +89,7 @@ module Result =
 struct
   type t = {
     ruleId: string;
+    kind: string;
     level: string;
     message: Message.t;
     locations: Location.t list [@default []];
