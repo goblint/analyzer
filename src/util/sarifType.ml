@@ -91,7 +91,8 @@ struct
     ruleId: string;
     level: string;
     message: Message.t;
-    locations: Location.t list;
+    locations: Location.t list [@default []];
+    relatedLocations: Location.t list [@default []]; (* VSCode SARIF plugin doesn't show these *)
   } [@@deriving to_yojson]
 end
 

@@ -57,16 +57,12 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
       | CWE c-> "" (*this case should not be reachable *)
 
 
-let createArtifact (uri:string) =
-  {
-    Artifact.location={
-      ArtifactLocation.uri=uri;
-    }
-  }
-let createArtifactObject (uri:string) =
-  {
+let createArtifact (uri:string) = {
+  Artifact.location={
     ArtifactLocation.uri=uri;
   }
+}
+
 let hasLocation (piece:Messages.Piece.t) = match  piece.loc with
   |Some loc -> true
   |None -> false
@@ -75,40 +71,53 @@ let deOptionalizeLocation (piece:Messages.Piece.t)= match piece.loc with
   | Some loc ->loc
   | None -> assert false
 
-let createPhysicalLocationObject (piece:Messages.Piece.t) =
-  let createRegionObject {Cil.line; column; endLine; endColumn; _} =
-    {
-      Region.startLine=line;
-      Region.startColumn=column;
-      Region.endLine;
-      Region.endColumn;
-    }
-  in
-  {
-    Location.physicalLocation={
-      PhysicalLocation.artifactLocation=  createArtifactObject  (deOptionalizeLocation piece).file;
-      PhysicalLocation.region=createRegionObject (deOptionalizeLocation piece);
-    }
+let location_of_cil_location ({file; line; column; endLine; endColumn; _}: Cil.location): Location.t = {
+  physicalLocation = {
+    artifactLocation = { uri = file };
+    region = {
+      startLine = line;
+      startColumn = column;
+      endLine;
+      endColumn;
+    };
   }
+}
 
-
-let createLocationsObject (multiPiece:Messages.MultiPiece.t) = match multiPiece with
-  | Single piece ->List.map createPhysicalLocationObject (List.filter hasLocation  [piece]);
-  | Group {group_text = n; pieces = e} ->List.map createPhysicalLocationObject  (List.take 10 (List.filter hasLocation e))
-
-
-
-let createResult (message:Messages.Message.t) =
-  let getMessage (multiPiece:Messages.MultiPiece.t)=  match multiPiece with
-    | Single piece ->piece.text;
-    | Group {group_text = n; pieces = e} ->n
+let result_of_message (message: Messages.Message.t): Result.t list =
+  let ruleId = (getRuleInformation (getCategoryInformationID message.tags)).ruleId in
+  let level = severityToLevel message.severity in
+  let piece_location (piece: Messages.Piece.t) = match piece.loc with
+    | Some loc -> [location_of_cil_location loc]
+    | None -> []
   in
-  {
-    Result.ruleId=(getRuleInformation (getCategoryInformationID message.tags)).ruleId;
-    Result.level=severityToLevel message.severity;
-    Result.message={ text = getMessage message.multipiece };
-    Result.locations=createLocationsObject message.multipiece;
-  }
+  match message.multipiece with
+  | Single piece ->
+    let result: Result.t = {
+      ruleId;
+      level;
+      message = { text = piece.text };
+      locations = piece_location piece;
+      relatedLocations = [];
+    }
+    in
+    [result]
+  | Group {group_text; pieces} ->
+    (* each grouped piece becomes a separate result with the other locations as related *)
+    let piece_locations = List.map piece_location pieces in
+    List.map2i (fun i piece locations ->
+        let text = group_text ^ "\n" ^ piece.Messages.Piece.text in
+        let relatedLocations = List.flatten (List.remove_at i piece_locations) in
+        let result: Result.t = {
+          ruleId;
+          level;
+          message = { text };
+          locations;
+          relatedLocations;
+        }
+        in
+        result
+      ) pieces piece_locations
+
 
 let getFileLocation (multipiece:Messages.MultiPiece.t)=
   let getFile (loc:Cil.location) =
@@ -145,6 +154,6 @@ let to_yojson msgList =
         artifacts = List.map createArtifact (collectAllFileLocations msgList);
         tool = goblintTool;
         defaultSourceLanguage = "C";
-        results = List.map createResult (List.take 5000 msgList); (* TODO: why limit? *)
+        results = List.flatten (List.map result_of_message (List.take 5000 msgList)); (* TODO: why limit? *)
       }]
   }
