@@ -135,7 +135,7 @@ let to_yojson messages =
     schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
     runs = [{
         invocations = [{
-            commandLine = String.concat ", " (Array.to_list Sys.argv); (* TODO: remove commas, quote *)
+            commandLine = String.join " " (List.map Filename.quote (Array.to_list Sys.argv)); (* TODO: use quote_command after OCaml 4.10 *)
             executionSuccessful = true;
           }];
         artifacts = artifacts_of_messages messages;
