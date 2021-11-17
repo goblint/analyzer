@@ -9,6 +9,7 @@ on:
   push:
     # not on push branch
     tags:
+      - '**'
 
   # not on push or pull_request
   workflow_dispatch:
