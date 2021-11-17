@@ -140,6 +140,6 @@ let to_yojson messages =
         artifacts = artifacts_of_messages messages;
         tool = goblintTool;
         defaultSourceLanguage = "C";
-        results = List.flatten (List.map result_of_message (List.take 5000 messages)); (* TODO: why limit? *)
+        results = List.flatten (List.map result_of_message messages);
       }]
   }
