@@ -301,7 +301,7 @@ let createCFG (file: file) =
               | _ -> failwith "MyCFG.createCFG: >1 non-empty Instr succ"
             end
 
-          | If (exp, _, _, loc) ->
+          | If (exp, _, _, loc, eloc) ->
             (* Cannot use true and false blocks from If constructor, because blocks don't have succs (stmts do).
                Cannot use first stmt in block either, because block may be empty (e.g. missing branch). *)
             (* Hence we rely on implementation detail of the If case in CIL's succpred_stmt.
@@ -313,10 +313,10 @@ let createCFG (file: file) =
               | [same_stmt] -> (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
-            addEdge (Statement stmt) (loc, Test (exp, true )) (Statement true_stmt);
-            addEdge (Statement stmt) (loc, Test (exp, false)) (Statement false_stmt)
+            addEdge (Statement stmt) (eloc, Test (exp, true )) (Statement true_stmt);
+            addEdge (Statement stmt) (eloc, Test (exp, false)) (Statement false_stmt)
 
-          | Loop (_, loc, Some cont, Some brk) -> (* TODO: use loc for something? *)
+          | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
             (* CIL already converts Loop logic to Gotos and If. *)
             (* CIL eliminates the constant true If corresponding to constant true Loop.
                Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
@@ -336,7 +336,7 @@ let createCFG (file: file) =
                 ()
             end
 
-          | Loop (_, _, _, _) ->
+          | Loop (_, _, _, _, _) ->
             (* CIL's xform_switch_stmt (via prepareCFG) always adds both continue and break statements to all Loops. *)
             failwith "MyCFG.createCFG: unprepared Loop"
 
@@ -532,7 +532,7 @@ struct
       | _ -> ["label=\"" ^ String.escaped (Node.show_cfg n) ^ "\""]
     in
     let shape = match n with
-      | Statement {skind=If (_,_,_,_); _}  -> ["shape=diamond"]
+      | Statement {skind=If (_,_,_,_,_); _}  -> ["shape=diamond"]
       | Statement _     -> [] (* use default shape *)
       | Function _
       | FunctionEntry _ -> ["shape=box"]

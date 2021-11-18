@@ -19,7 +19,7 @@ class loopCounterVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
   method! vstmt s =
     let action s = match s.skind with
-      | Loop (b, loc, _, _) ->
+      | Loop (b, loc, eloc, _, _) -> (* TODO: use eloc? *)
         (* insert loop counter variable *)
         let name = "term"^show_location_id loc in
         let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
@@ -41,7 +41,7 @@ class loopBreaksVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
   method! vstmt s =
     (match s.skind with
-     | Loop (b, loc, Some continue, Some break) -> Hashtbl.add loopBreaks break.sid loc
+     | Loop (b, loc, eloc, Some continue, Some break) -> Hashtbl.add loopBreaks break.sid loc (* TODO: use eloc? *)
      | Loop _ -> failwith "Termination.preprocess: every loop should have a break and continue stmt after prepareCFG"
      | _ -> ());
     DoChildren
@@ -71,7 +71,7 @@ class loopVarsVisitor (fd : fundec) = object
       | _ -> ()
     in
     (match s.skind with
-     | If (e, tb, fb, loc) -> Option.map_default (add_exit_cond e) () (exits tb ||? exits fb)
+     | If (e, tb, fb, loc, eloc) -> Option.map_default (add_exit_cond e) () (exits tb ||? exits fb)
      | _ -> ());
     DoChildren
 end
@@ -97,20 +97,21 @@ let f_check  = Lval (var (emptyFunction "__goblint_check").svar)
 class loopInstrVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
   method! vstmt s =
+    (* TODO: use Loop eloc? *)
     (match s.skind with
-     | Loop (_, loc, _, _) ->
+     | Loop (_, loc, eloc, _, _) ->
        cur_loop' := !cur_loop;
        cur_loop := Some loc
      | _ -> ());
     let action s =
       (* first, restore old cur_loop *)
       (match s.skind with
-       | Loop (_, loc, _, _) ->
+       | Loop (_, loc, eloc, _, _) ->
          cur_loop := !cur_loop';
        | _ -> ());
       let in_loop () = Option.is_some !cur_loop && Hashtbl.mem loopVars (Option.get !cur_loop) in
       match s.skind with
-      | Loop (b, loc, Some continue, Some break) when Hashtbl.mem loopVars loc ->
+      | Loop (b, loc, eloc, Some continue, Some break) when Hashtbl.mem loopVars loc ->
         (* find loop var for current loop *)
         let x = Hashtbl.find loopVars loc in
         (* insert loop counter and diff to loop var *)
@@ -138,7 +139,7 @@ class loopInstrVisitor (fd : fundec) = object(self)
            s.skind <- Block nb;
          | _ -> ());
         s
-      | Loop (b, loc, Some continue, Some break) ->
+      | Loop (b, loc, eloc, Some continue, Some break) ->
         print_endline @@ "WARN: Could not determine loop variable for loop at " ^ CilType.Location.show loc;
         s
       | _ when Hashtbl.mem loopBreaks s.sid -> (* after a loop, we check that t is bounded/positive (no overflow happened) *)

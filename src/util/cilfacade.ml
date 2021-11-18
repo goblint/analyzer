@@ -8,9 +8,9 @@ module GU = Goblintutil
 
 let get_labelLoc = function
   | Label (_, loc, _) -> loc
-  | Case (_, loc) -> loc
-  | CaseRange (_, _, loc) -> loc
-  | Default loc -> loc
+  | Case (_, loc, _) -> loc
+  | CaseRange (_, _, loc, _) -> loc
+  | Default (loc, _) -> loc
 
 let rec get_labelsLoc = function
   | [] -> Cil.locUnknown
@@ -375,9 +375,9 @@ class countFnVisitor = object
       | ComputedGoto (_, loc)
       | Break loc
       | Continue loc
-      | If (_,_,_,loc)
-      | Switch (_,_,_,loc)
-      | Loop (_,loc,_,_)
+      | If (_,_,_,loc,_)
+      | Switch (_,_,_,loc,_)
+      | Loop (_,loc,_,_,_)
       | TryFinally (_,_,loc)
       | TryExcept (_,_,_,loc)
         -> Hashtbl.replace locs loc.line (); DoChildren
@@ -541,5 +541,5 @@ let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* 
 let stmt_pretty_short () x =
   match x.skind with
   | Instr (y::ys) -> dn_instr () y
-  | If (exp,_,_,_) -> dn_exp () exp
+  | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
