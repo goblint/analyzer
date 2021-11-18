@@ -33,7 +33,7 @@ depends: [
   "odoc" {with-doc}
   "dune-site"
   "sha"
-  "benchmark"
+  "benchmark" {with-test}
   "ocamlbuild"
   "ocamlfind"
 ]
