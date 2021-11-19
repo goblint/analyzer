@@ -172,9 +172,9 @@ and eq_lval (a: lval) (b: lval) = match a, b with
     (host1, off1), (host2, off2) -> eq_lhost host1 host2 && eq_offset off1 off2
 
 let eq_instr (a: instr) (b: instr) = match a, b with
-  | Set (lv1, exp1, _l1), Set (lv2, exp2, _l2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
-  | Call (Some lv1, f1, args1, _l1), Call (Some lv2, f2, args2, _l2) -> eq_lval lv1 lv2 && eq_exp f1 f2 && eq_list eq_exp args1 args2
-  | Call (None, f1, args1, _l1), Call (None, f2, args2, _l2) -> eq_exp f1 f2 && eq_list eq_exp args1 args2
+  | Set (lv1, exp1, _l1, _el1), Set (lv2, exp2, _l2, _el2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
+  | Call (Some lv1, f1, args1, _l1, _el1), Call (Some lv2, f2, args2, _l2, _el2) -> eq_lval lv1 lv2 && eq_exp f1 f2 && eq_list eq_exp args1 args2
+  | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) -> eq_exp f1 f2 && eq_list eq_exp args1 args2
   | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) -> eq_list String.equal tmp1 tmp2 && eq_list(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval z1 z2) ci1 ci2 && eq_list(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp z1 z2) dj1 dj2 && eq_list String.equal rk1 rk2(* ignore attributes and locations *)
   | VarDecl (v1, _l1), VarDecl (v2, _l2) -> eq_varinfo v1 v2
   | _, _ -> false

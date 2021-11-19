@@ -132,7 +132,7 @@ class addConstructors cons = object
         | s :: _ -> get_stmtLoc s
         | [] -> locUnknown
       in
-      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
+      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc,locUnknown)]) in (* TODO: fd declaration loc for eloc? *)
       let call_cons = List.map f cons1 in
       let body = mkBlock (call_cons @ fd.sbody.bstmts) in
       fd.sbody <- body;
@@ -385,8 +385,8 @@ class countFnVisitor = object
         DoChildren
 
     method! vinst = function
-      | Set (_,_,loc)
-      | Call (_,_,_,loc)
+      | Set (_,_,loc,_)
+      | Call (_,_,_,loc,_)
       | Asm (_,_,_,_,_,loc)
         -> Hashtbl.replace locs loc.line (); SkipChildren
       | _ -> SkipChildren

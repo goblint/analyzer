@@ -19,15 +19,15 @@ class loopCounterVisitor (fd : fundec) = object(self)
   inherit nopCilVisitor
   method! vstmt s =
     let action s = match s.skind with
-      | Loop (b, loc, eloc, _, _) -> (* TODO: use eloc? *)
+      | Loop (b, loc, eloc, _, _) ->
         (* insert loop counter variable *)
         let name = "term"^show_location_id loc in
         let typ = intType in (* TODO the type should be the same as the one of the original loop counter *)
         let v = Goblintutil.create_var (makeLocalVar fd name ~init:(SingleInit zero) typ) in
         (* make an init stmt since the init above is apparently ignored *)
-        let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc) in
+        let init_stmt = mkStmtOneInstr @@ Set (var v, zero, loc, eloc) in
         (* increment it every iteration *)
-        let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc) in
+        let inc_stmt = mkStmtOneInstr @@ Set (var v, increm (Lval (var v)) 1, loc, eloc) in
         b.bstmts <- inc_stmt :: b.bstmts;
         let nb = mkBlock [init_stmt; mkStmt s.skind] in
         s.skind <- Block nb;
@@ -119,18 +119,18 @@ class loopInstrVisitor (fd : fundec) = object(self)
         let d1 = var @@ makeVar fd loc "d1" in
         let d2 = var @@ makeVar fd loc "d2" in
         (* make init stmts *)
-        let t_init = mkStmtOneInstr @@ Set (t, zero, loc) in
-        let d1_init = mkStmtOneInstr @@ Set (d1, Lval x, loc) in
-        let d2_init = mkStmtOneInstr @@ Set (d2, Lval x, loc) in
+        let t_init = mkStmtOneInstr @@ Set (t, zero, loc, eloc) in
+        let d1_init = mkStmtOneInstr @@ Set (d1, Lval x, loc, eloc) in
+        let d2_init = mkStmtOneInstr @@ Set (d2, Lval x, loc, eloc) in
         (* increment/decrement in every iteration *)
-        let t_inc = mkStmtOneInstr @@ Set (t, increm (Lval t) 1, loc) in
-        let d1_inc = mkStmtOneInstr @@ Set (d1, increm (Lval d1) (-1), loc) in
-        let d2_inc = mkStmtOneInstr @@ Set (d2, increm (Lval d2)   1 , loc) in
+        let t_inc = mkStmtOneInstr @@ Set (t, increm (Lval t) 1, loc, eloc) in
+        let d1_inc = mkStmtOneInstr @@ Set (d1, increm (Lval d1) (-1), loc, eloc) in
+        let d2_inc = mkStmtOneInstr @@ Set (d2, increm (Lval d2)   1 , loc, eloc) in
         let typ = intType in
         let e1 = BinOp (Eq, Lval t, BinOp (MinusA, Lval x, Lval d1, typ), typ) in
         let e2 = BinOp (Eq, Lval t, BinOp (MinusA, Lval d2, Lval x, typ), typ) in
-        let inv1 = mkStmtOneInstr @@ Call (None, f_commit, [e1], loc) in
-        let inv2 = mkStmtOneInstr @@ Call (None, f_commit, [e2], loc) in
+        let inv1 = mkStmtOneInstr @@ Call (None, f_commit, [e1], loc, eloc) in
+        let inv2 = mkStmtOneInstr @@ Call (None, f_commit, [e2], loc, eloc) in
         (match b.bstmts with
          | cont :: cond :: ss ->
            (* changing succs/preds directly doesn't work -> need to replace whole stmts  *)
@@ -146,11 +146,11 @@ class loopInstrVisitor (fd : fundec) = object(self)
         let loc = Hashtbl.find loopBreaks s.sid in
         let t = var @@ makeVar fd loc "t" in
         let e3 = BinOp (Ge, Lval t, zero, intType) in
-        let inv3 = mkStmtOneInstr @@ Call (None, f_check, [e3], loc) in
+        let inv3 = mkStmtOneInstr @@ Call (None, f_check, [e3], loc, locUnknown) in
         let nb = mkBlock [mkStmt s.skind; inv3] in
         s.skind <- Block nb;
         s
-      | Instr [Set (lval, e, loc)] when in_loop () ->
+      | Instr [Set (lval, e, loc, eloc)] when in_loop () ->
         (* find loop var for current loop *)
         let cur_loop = Option.get !cur_loop in
         let x = Hashtbl.find loopVars cur_loop in
@@ -162,8 +162,8 @@ class loopInstrVisitor (fd : fundec) = object(self)
           (match stripCastsDeep e with
            | BinOp (op, Lval x', e2, typ) when (op = PlusA || op = MinusA) && x' = x && isArithmeticType typ -> (* TODO x = 1 + x, MinusA! *)
              (* increase diff by same expr *)
-             let d1_inc = mkStmtOneInstr @@ Set (var d1, BinOp (PlusA, Lval (var d1), e2, typ), loc) in
-             let d2_inc = mkStmtOneInstr @@ Set (var d2, BinOp (PlusA, Lval (var d2), e2, typ), loc) in
+             let d1_inc = mkStmtOneInstr @@ Set (var d1, BinOp (PlusA, Lval (var d1), e2, typ), loc, eloc) in
+             let d2_inc = mkStmtOneInstr @@ Set (var d2, BinOp (PlusA, Lval (var d2), e2, typ), loc, eloc) in
              let nb = mkBlock [d1_inc; d2_inc; mkStmt s.skind] in
              s.skind <- Block nb;
              s
@@ -171,8 +171,8 @@ class loopInstrVisitor (fd : fundec) = object(self)
              (* otherwise diff is e - counter *)
              let t = makeVar fd cur_loop "t" in
              let te = Cilfacade.typeOf e in
-             let dt1 = mkStmtOneInstr @@ Set (var d1, BinOp (MinusA, Lval x, Lval (var t), te), loc) in
-             let dt2 = mkStmtOneInstr @@ Set (var d2, BinOp (MinusA, Lval x, Lval (var t), te), loc) in
+             let dt1 = mkStmtOneInstr @@ Set (var d1, BinOp (MinusA, Lval x, Lval (var t), te), loc, eloc) in
+             let dt2 = mkStmtOneInstr @@ Set (var d2, BinOp (MinusA, Lval x, Lval (var t), te), loc, eloc) in
              let nb = mkBlock [mkStmt s.skind; dt1; dt2] in
              s.skind <- Block nb;
              s
