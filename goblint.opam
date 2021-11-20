@@ -21,7 +21,6 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "ocaml" {>= "4.09"}
   "dune" {>= "2.8"}
-  "zarith_stubs_js"
   "goblint-cil"
   "batteries" {>= "3.2.0"}
   "qcheck-core"

@@ -59,7 +59,6 @@ depends: [
   "stdlib-shims" {= "0.3.0"}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.12-gob0"}
-  "zarith_stubs_js" {= "v0.14.0"}
 ]
 build: [
   ["dune" "subst"] {dev}
