@@ -62,6 +62,8 @@ jobs:
           load: true # load into docker instead of immediately pushing
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max # max mode caches all layers for multi-stage image
 
       - name: Check Docker image
         run: docker run --rm -v $(pwd):/data ${{ steps.build.outputs.digest }} /data/tests/regression/04-mutex/01-simple_rc.c # run image by digest in case multiple tags
