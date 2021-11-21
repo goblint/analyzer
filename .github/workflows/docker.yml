@@ -69,7 +69,7 @@ jobs:
           cache-to: type=gha,mode=max # max mode caches all layers for multi-stage image
 
       - name: Check Docker image
-        run: docker run --rm -v $(pwd):/data ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.build.outputs.digest }} /data/tests/regression/04-mutex/01-simple_rc.c # run image by digest in case multiple tags
+        run: docker run --rm -v $(pwd):/data ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }} /data/tests/regression/04-mutex/01-simple_rc.c # run image by digest in case multiple tags
 
       - name: Push Docker image
         uses: docker/build-push-action@v2
