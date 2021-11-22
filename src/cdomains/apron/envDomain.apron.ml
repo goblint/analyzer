@@ -3,6 +3,9 @@ open Prelude
 open Apron
 open Pretty
 
+module M = Messages
+
+
 module BI = IntOps.BigIntOps
 module type Tracked =
 sig
@@ -43,8 +46,9 @@ struct
           let var = Var.of_string v.vname in
           if Environment.mem_var env var then
             Var var
-          else
-            raise Unsupported_CilExp
+          else(
+            if M.tracing then M.tracel "affineEq" "yep\n";
+            raise Unsupported_CilExp)
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
       | Const (CInt64 (i, _, s)) ->
@@ -125,6 +129,15 @@ struct
     in
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     make (of_expr env texpr1') typ
+
+    let int_of_cst cst =
+      let open Coeff in
+      match cst with
+      | Interval _ -> failwith "Not a constant"
+      | Scalar x -> (match x with
+                     | Float x -> int_of_float x
+                     | Mpqf x -> int_of_float(Mpqf.to_float x)
+                     | Mpfrf x -> int_of_float(Mpfr.to_float x))
 end
 
 module EnvOps =
@@ -154,7 +167,13 @@ struct
       in
         Environment.remove env vs'
 
-  let get_filtered_vars env vs =
+  let get_filtered_vars_add env vs =
+    vs
+      |> List.enum
+      |> Enum.filter (fun v -> not (Environment.mem_var env v))
+      |> Array.of_enum
+
+  let get_filtered_vars_remove env vs =
     vs
       |> List.enum
       |> Enum.filter (fun v -> Environment.mem_var env v)
