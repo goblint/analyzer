@@ -81,7 +81,7 @@
 
 (rule
   (alias runtest)
-  (deps ../goblint ../scripts/update_suite.rb ../Makefile (source_tree ../tests) (source_tree ../includes))
+  (deps ../goblint ../scripts/update_suite.rb ../Makefile ../make.sh (source_tree ../tests/regression) (source_tree ../includes) (source_tree ../linux-headers))
   (action (chdir .. (run ./make.sh test)))
 )
 

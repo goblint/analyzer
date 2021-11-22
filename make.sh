@@ -166,6 +166,7 @@ rule() {
 
     # tests, CI
     ;; test)
+      chmod -R +w ./tests/ # dune runtest normally has everything read-only, but update_suite wants to write a lot of things
       ./scripts/update_suite.rb # run regression tests
     ;; unit)
       ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native
