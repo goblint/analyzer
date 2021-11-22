@@ -21,14 +21,19 @@ open Apron
   let neg v =
     List.map (function x -> (-1) * x) v
 
-  let rec sub_vecs t1 t2 =
+  let sub_vecs t1 t2 =
     List.map2 (function x -> function y -> x - y) t1 t2
 
-  let rec mul_vecs t1 t2 =
+  let mul_vecs t1 t2 =
     List.map2 (function x -> function y -> x * y) t1 t2
 
-  let rec add_vecs t1 t2 =
+  let add_vecs t1 t2 =
     List.map2 (function x -> function y -> x + y) t1 t2
+
+  let is_only_zero v =
+    match List.find_opt (function x -> x != 0) v with
+    | None -> true
+    | _ -> false
 
   let rec remove_val n (v:t) =
     match v with
@@ -103,13 +108,17 @@ struct
     | [] -> List.map (function x -> [x]) col
     | x -> List.map2 (function y -> function z -> Vector.add_val pos z y) x col
 
+
   let append_row (m : t) row =
     List.append m [row]
 
-  let rec get_col (a:t) n : Vector.t =
+  let get_col (a:t) n : Vector.t =
     List.map (function x -> List.nth x n) a
-  let rec remove_column (m : t) pos =
+  let remove_column (m : t) pos =
     List.map (Vector.remove_val pos) m
+
+  let append_matrices (a:t) (b:t) : t =
+    List.append a b
 
   let dim_x (m : t) =
     match m with
@@ -144,10 +153,53 @@ struct
   let subtract_rows row1 row2 =
     List.map2 (function x -> function y -> x - y) row1 row2
 
+  let subtract_rows_c row1 row2 col_val =
+    let subtr_vec = Vector.mul_by_constant col_val row2
+      in Vector.sub_vecs row1 subtr_vec
+
+
   let reduce_row_to_zero t row_n =
     let red_row = List.nth t row_n
           in List.map (function x -> subtract_rows x red_row) t
 
+  let find_opt_with_index f row =
+    (*Extended List.opt with index*)
+    let rec find_opt_i row i =
+      match row with
+      | [] -> None
+      | x :: xs -> if f x then Some ((i, x)) else find_opt_i xs (i + 1)
+    in find_opt_i row 0
+
+  let obtain_pivot row =
+    let non_zero = find_opt_with_index (function x -> x != 0) row in
+    match non_zero with
+    | None -> None
+    | Some (i, p) -> Some (i, List.map (function x -> x / p) row)
+
+  let rec remove_zero_rows t =
+    match t with
+    | [] -> []
+    | x :: xs -> if Vector.is_only_zero x then xs else x :: (remove_zero_rows xs)
+
+   (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref)*)
+  let normalize t =
+    let rec create_rref t interm_t curr_row =
+      match t with
+      | [] -> interm_t
+      | row :: xs -> let pivot_row = obtain_pivot row in
+          match pivot_row with
+          | None -> create_rref xs interm_t (curr_row +1)
+          | Some (i, p) ->
+            let col = get_col interm_t i in
+                            let res = List.map2i (function row_i -> function y -> function z ->
+                              if row_i != curr_row then subtract_rows_c y p z else p)
+                              interm_t col in
+                              create_rref xs res (curr_row +1)
+    in remove_zero_rows (create_rref t t 0) (*ToDo reorder!*)
+
+  let normalize t =
+    let res = normalize t in
+    if M.tracing then M.tracel "norm" "normalize %s -> %s" (show t) (show res); res
 end
 
 module VarManagement =
@@ -298,11 +350,16 @@ struct
       if M.tracing then M.tracel "ops" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
       res
 
-  let meet a b = b
-
+  let meet a b =
+    let new_env = Environment.lce a.env b.env in (*ToDo Watch out for dimchange here!*)
+    match (a.d, b.d) with
+    | Some([]), y -> {d = y; env = new_env}
+    | x , Some([])  -> {d = x; env = new_env}
+    | Some(x), Some(y) -> {d = Some (Matrix.normalize (Matrix.append_matrices x y)); env = new_env}
+    | _, _ -> {d = None; env = new_env}
   let meet a b =
     let res = meet a b in
-      if M.tracing then M.tracel "ops" "meet a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+      if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
       res
   let widen a b = join a b
   let narrow a b = meet a b
@@ -358,7 +415,6 @@ struct
       ;res
 
   let assign_invertible_rels x var b env=
-  if M.tracing then M.tracel "affEq" "Assigning:\n %s <- %s \n" (Matrix.show x) (Vector.show b);
       let j0 = Environment.dim_of_var env var in
         let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
          let b0 = (Vector.get_val j0 b) in
@@ -376,17 +432,15 @@ struct
   let assign_uninvertible_rel x var b env =
     let neg_vec = List.mapi (function i -> function z -> if i < (List.length b) - 1 then (-1) * z else z) b
         in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) 1
-            in {d = Some (Matrix.append_row x var_vec); env = env}
+            in {d = Some (Matrix.normalize (Matrix.append_row x var_vec)); env = env}
 
   let remove_rels_with_var x var env =
-    if M.tracing then M.tracel "affEq" "Removing rel\n";
     let j0 = Environment.dim_of_var env var
       in let n = Vector.get_colnum_not_zero (Matrix.get_col x j0)
           in if n > (-1) then Matrix.reduce_row_to_zero x n (*ToDo normalize rows*)
               else x (*Nothing to remove*)
 
   let assign_texpr t var texp =
-    if M.tracing then M.tracel "affEq" "trying to assign texpr \n:\n";
     let is_invertible = function v -> Vector.get_val (Environment.dim_of_var t.env var) v != 0
     in
     let affineEq_vec = create_affineEq_vec t.env texp in
