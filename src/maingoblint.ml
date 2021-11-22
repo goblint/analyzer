@@ -12,7 +12,7 @@ let writeconffile = ref ""
 let print_version ch =
   let open Version in
   printf "Goblint version: %s\n" goblint;
-  printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
+  printf "Cil version:     %s\n" Cil.cilVersion;
   printf "Profile:         %s\n" ConfigProfile.profile;
   exit 0
 
