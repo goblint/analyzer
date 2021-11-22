@@ -1,6 +1,5 @@
 open OUnit
 open Pretty
-open Cil
 
 (* variables are strings *)
 module StringVar =
