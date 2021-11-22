@@ -54,6 +54,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=schedule
+            type=semver,pattern={{version}}
             type=ref,event=tag
             type=raw,enable=${{ github.event_name == 'workflow_dispatch' }},value=${{ github.event.inputs.tag }}
 
