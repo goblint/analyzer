@@ -12,7 +12,7 @@ let writeconffile = ref ""
 let print_version ch =
   let open Version in let open Config in
   let f ch b = if b then fprintf ch "enabled" else fprintf ch "disabled" in
-  printf "Goblint version: %s\n" goblint;
+  printf "Goblint version: %%VERSION_NUM%% (%s)\n" goblint;
   printf "Cil version:     %s\n" Cil.cilVersion;
   printf "Configuration:   tracing %a\n" f tracing;
   exit 0
