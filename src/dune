@@ -47,8 +47,8 @@
 (copy_files witness/z3/*.ml)
 
 (executables
-  (names goblint maindomaintest) ; TODO: separate domaintest executable?
-  (public_names goblint -)
+  (names goblint maindomaintest mainarinc mainspec) ; TODO: separate domaintest executable?
+  (public_names goblint - - -)
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules goblint mainarinc maindomaintest mainspec)
   (libraries goblint.lib goblint.sites.dune)
