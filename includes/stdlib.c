@@ -26,7 +26,7 @@ void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const 
     }
   }
 
-  // array isn't actually sorted! just pretent calls for Goblint
+  // array isn't actually sorted! just pretend calls for Goblint
 }
 
 
