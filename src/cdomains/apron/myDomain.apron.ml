@@ -318,7 +318,7 @@ struct
     let zero_vec = Vector.create_zero_vec ((Environment.size env) + 1) in
     let rec convert_texpr env texp =
     (match texp with
-    | Cst x ->  Some (Vector.set_val zero_vec ((List.length zero_vec) - 1) ((-1) * Convert.int_of_cst x))
+    | Cst x ->  Some (Vector.set_val zero_vec ((List.length zero_vec) - 1) (Convert.int_of_cst x))
     | Var x ->  Some (Vector.set_val zero_vec (Environment.dim_of_var env x) 1)
     | Unop (u, e, _, _) -> (
       match u with
@@ -353,6 +353,7 @@ struct
       ;res
 
   let assign_invertible_rels x var b env=
+  if M.tracing then M.tracel "affEq" "Assigning:\n %s <- %s \n" (Matrix.show x) (Vector.show b);
       let j0 = Environment.dim_of_var env var in
         let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
          let b0 = (Vector.get_val j0 b) in
@@ -368,7 +369,7 @@ struct
                             in {d = Some (recalc_entries x reduced_a); env = env}
 
   let assign_uninvertible_rel x var b env =
-    let neg_vec = Vector.mul_by_constant (-1) b
+    let neg_vec = List.mapi (function i -> function z -> if i < (List.length b) - 1 then (-1) * z else z) b
         in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) 1
             in {d = Some (Matrix.append_row x var_vec); env = env}
 
