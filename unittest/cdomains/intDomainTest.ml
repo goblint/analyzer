@@ -73,7 +73,7 @@ struct
     assert_equal ~printer:I.show ione (I.div i5 i5);
     assert_equal ~printer:I.show i5   (I.div i5 ione);
     assert_equal ~printer:I.show in5  (I.div i5 iminus_one);
-    assert_bool "div_by_0" (try I.is_bot (I.div i5 izero) with Division_by_zero -> true)
+    assert_bool "div_by_0" (try I.is_top (I.div i5 izero) with Division_by_zero -> true)
 
 
   let test_rem () =
