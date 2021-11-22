@@ -46,9 +46,8 @@ struct
           let var = Var.of_string v.vname in
           if Environment.mem_var env var then
             Var var
-          else(
-            if M.tracing then M.tracel "affineEq" "yep\n";
-            raise Unsupported_CilExp)
+          else
+            raise Unsupported_CilExp
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
       | Const (CInt64 (i, _, s)) ->

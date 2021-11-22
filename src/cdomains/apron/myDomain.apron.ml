@@ -189,7 +189,7 @@ struct
       let env' = Environment.remove a.env vs' in
         let d' = (match a.d with
           | None -> None
-          | Some (m) -> Some (dim_remove (Environment.dimchange a.env env') m))
+          | Some (m) -> Some (dim_remove (Environment.dimchange env' a.env) m))
   in {d = d'; env = env'}
 
   let remove_filter a f =
@@ -299,6 +299,11 @@ struct
       res
 
   let meet a b = b
+
+  let meet a b =
+    let res = meet a b in
+      if M.tracing then M.tracel "ops" "meet a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+      res
   let widen a b = join a b
   let narrow a b = meet a b
   let pretty_diff () (x, y) =
@@ -402,7 +407,18 @@ struct
   let texpr1 = Texpr1.of_expr (t.env) (Var v') in
   assign_texpr t v (Apron.Texpr1.to_expr texpr1)
 
+  let assign_var t v v' =
+    let res = assign_var t v v' in
+      if M.tracing then M.tracel "ops" "assign_var\n";
+      res
+
   let assign_var_parallel a b = a
+
+  let assign_var_parallel a b =
+    let res = assign_var_parallel a b in
+      if M.tracing then M.tracel "ops" "assign_var parallel\n";
+      res
+
   let substitute_exp t var exp = assign_exp t var exp (*This is not correct!*)
 
   let assert_inv a b c = a
@@ -410,4 +426,9 @@ struct
     let module ID = Queries.ID in
       ID.top ()
   let unify a b = a
+
+  let unify a b =
+    let res = unify a b in
+      if M.tracing then M.tracel "ops" "unify\n";
+      res
 end
