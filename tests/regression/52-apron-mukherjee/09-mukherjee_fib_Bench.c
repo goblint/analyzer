@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --enable ana.apron.threshold_widening
 
 #include <pthread.h>
-#include "assert.h"
+#include <assert.h>
 
 int i, j, NUM;
 
@@ -40,7 +40,7 @@ int main() {
     pthread_join(t2, 0);
 
     assert(i < 144); //TODO
-    assert(j < 144); //TODO 
+    assert(j < 144); //TODO
 
     return 0;
 }

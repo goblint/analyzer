@@ -1,7 +1,7 @@
 // SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --enable ana.apron.threshold_widening
 
 #include <pthread.h>
-#include "assert.h"
+#include <assert.h>
 
 unsigned int r = 0;
 unsigned int s = 0;
@@ -35,7 +35,7 @@ void* thr2(void* arg){
     if(r == 1){
         s = s + 1;
         l = l + 1;
-        assert(s == l);  // TODO 
+        assert(s == l);  // TODO
     }
     pthread_mutex_unlock(&lock);
 
