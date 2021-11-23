@@ -517,7 +517,3 @@ let main () =
     | Timeout ->
       eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
       exit 124
-
-(* The actual entry point is in the auto-generated goblint.ml module, and is defined as: *)
-(* let _ = at_exit main *)
-(* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)
