@@ -288,8 +288,8 @@ let createCFG (file: file) =
 
           | Instr instrs -> (* non-empty Instr *)
             let edge_of_instr = function
-              | Set (lval,exp,loc) -> loc, Assign (lval, exp)
-              | Call (lval,func,args,loc) -> loc, Proc (lval,func,args)
+              | Set (lval,exp,loc,eloc) -> eloc, Assign (lval, exp) (* TODO: eloc loc fallback if unknown here and If *)
+              | Call (lval,func,args,loc,eloc) -> eloc, Proc (lval,func,args)
               | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
               | VarDecl (v, loc) -> loc, VDecl(v)
             in
@@ -301,7 +301,7 @@ let createCFG (file: file) =
               | _ -> failwith "MyCFG.createCFG: >1 non-empty Instr succ"
             end
 
-          | If (exp, _, _, loc) ->
+          | If (exp, _, _, loc, eloc) ->
             (* Cannot use true and false blocks from If constructor, because blocks don't have succs (stmts do).
                Cannot use first stmt in block either, because block may be empty (e.g. missing branch). *)
             (* Hence we rely on implementation detail of the If case in CIL's succpred_stmt.
@@ -313,10 +313,10 @@ let createCFG (file: file) =
               | [same_stmt] -> (same_stmt, same_stmt)
               | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
             in
-            addEdge (Statement stmt) (loc, Test (exp, true )) (Statement true_stmt);
-            addEdge (Statement stmt) (loc, Test (exp, false)) (Statement false_stmt)
+            addEdge (Statement stmt) (eloc, Test (exp, true )) (Statement true_stmt);
+            addEdge (Statement stmt) (eloc, Test (exp, false)) (Statement false_stmt)
 
-          | Loop (_, loc, Some cont, Some brk) -> (* TODO: use loc for something? *)
+          | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
             (* CIL already converts Loop logic to Gotos and If. *)
             (* CIL eliminates the constant true If corresponding to constant true Loop.
                Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
@@ -336,7 +336,7 @@ let createCFG (file: file) =
                 ()
             end
 
-          | Loop (_, _, _, _) ->
+          | Loop (_, _, _, _, _) ->
             (* CIL's xform_switch_stmt (via prepareCFG) always adds both continue and break statements to all Loops. *)
             failwith "MyCFG.createCFG: unprepared Loop"
 
@@ -532,7 +532,7 @@ struct
       | _ -> ["label=\"" ^ String.escaped (Node.show_cfg n) ^ "\""]
     in
     let shape = match n with
-      | Statement {skind=If (_,_,_,_); _}  -> ["shape=diamond"]
+      | Statement {skind=If (_,_,_,_,_); _}  -> ["shape=diamond"]
       | Statement _     -> [] (* use default shape *)
       | Function _
       | FunctionEntry _ -> ["shape=box"]
@@ -697,7 +697,7 @@ let getGlobalInits (file: file) : edges  =
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1;}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
 
 
 let numGlobals file =
