@@ -9,6 +9,10 @@ WORKDIR /home/opam/analyzer/
 # TODO: use opam depext
 RUN sudo apt-get update \
     && sudo apt-get install -y libgmp-dev libmpfr-dev
+# update local opam repository because base image may be outdated
+RUN cd /home/opam/opam-repository \
+    && git pull origin master \
+    && opam update
 RUN make setup
 # copy the rest
 COPY --chown=opam . /home/opam/analyzer

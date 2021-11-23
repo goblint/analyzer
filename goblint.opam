@@ -21,8 +21,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "ocaml" {>= "4.09"}
   "dune" {>= "2.8"}
-  "zarith_stubs_js"
-  "goblint-cil"
+  "goblint-cil" {>= "1.8.2"}
   "batteries" {>= "3.2.0"}
   "qcheck-core"
   "ppx_distr_guards" {>= "0.2"}
@@ -33,7 +32,7 @@ depends: [
   "odoc" {with-doc}
   "dune-site"
   "sha"
-  "benchmark"
+  "benchmark" {with-test}
   "ocamlbuild"
   "ocamlfind"
 ]
