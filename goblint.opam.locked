@@ -30,6 +30,7 @@ depends: [
   "conf-gmp" {= "3"}
   "conf-mpfr" {= "2"}
   "conf-perl" {= "1"}
+  "conf-ruby" {= "1.0.0" & with-test}
   "cppo" {= "1.6.7"}
   "dune" {= "2.9.0"}
   "dune-private-libs" {= "2.9.1"}

@@ -32,6 +32,7 @@ depends: [
   "odoc" {with-doc}
   "dune-site"
   "sha"
+  "conf-ruby" {with-test}
   "benchmark" {with-test}
 ]
 depopts: ["apron" "z3"]

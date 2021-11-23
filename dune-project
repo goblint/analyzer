@@ -35,6 +35,7 @@
     (odoc :with-doc)
     dune-site
     sha
+    (conf-ruby :with-test)
     (benchmark :with-test) ; TODO: make this optional somehow, (optional) on bench executable doesn't work
   )
   (depopts
