@@ -80,10 +80,6 @@ dev-repo: "git+https://github.com/goblint/analyzer.git"
 # also remember to generate/adjust goblint.opam.locked!
 pin-depends: [
   [
-    "apron.v0.9.13"
-    "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"
-  ]
-  [
     "zarith.1.12-gob0"
     "git+https://github.com/goblint/Zarith.git#goblint-release-1.12"
   ]
