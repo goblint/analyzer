@@ -272,9 +272,7 @@ let preprocess_files () =
 
   let extra_arg_files = ref [] in
 
-  (* possibly add our lib.c to the files *)
-  if get_bool "custom_libc" then
-    extra_arg_files := find_custom_include "lib.c" :: !extra_arg_files;
+  extra_arg_files := find_custom_include "stdlib.c" :: !extra_arg_files;
 
   if get_bool "ana.sv-comp.functions" then
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;

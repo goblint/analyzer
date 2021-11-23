@@ -11,3 +11,8 @@ RUN rm ~/.gitconfig
 
 # otherwise perl (not ruby!) complains during regression testing
 ENV LC_ALL=C.UTF-8
+
+# update local opam repository because base image may be outdated
+RUN cd /home/opam/opam-repository \
+    && git pull origin master \
+    && opam update

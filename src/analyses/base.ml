@@ -1826,12 +1826,14 @@ struct
           | TVoid _ -> M.warn "Returning a value from a void function"; assert false
           | ret -> ret
         in
-        (* Evaluate exp and cast the resulting value to the void-pointer-type.
-        Casting to the right type here avoids precision loss on joins. *)
-        let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp |> VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType in
+        let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
         let nst: store =
           match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> { nst with cpa = CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv nst.cpa}
+          | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
+            (* Evaluate exp and cast the resulting value to the void-pointer-type.
+               Casting to the right type here avoids precision loss on joins. *)
+            let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
+            { nst with cpa = CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv nst.cpa}
           | _ -> nst
         in
         set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv

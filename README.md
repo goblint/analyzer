@@ -28,7 +28,7 @@ _The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very
 
 ### Other
 * **[devcontainer](./.devcontainer/).** Select "Reopen in Container" in VS Code and continue with `make` using Linux instructions in devcontainer.
-* **[Docker (GitHub Container Registry)](https://github.com/goblint/analyzer/pkgs/container/analyzer)**. Run `docker pull ghcr.io/goblint/analyzer:latest`.
+* **[Docker (GitHub Container Registry)](https://github.com/goblint/analyzer/pkgs/container/analyzer)**. Run `docker pull ghcr.io/goblint/analyzer:latest` (or `:nightly`).
 * **Docker (repository).** Clone and run `docker build -t goblint .`.
 * **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
 * **[opam](https://opam.ocaml.org/packages/goblint/)** (very outdated). Run `opam install goblint`.
@@ -47,6 +47,6 @@ To confirm that the Docker container worked, you can try running Goblint as foll
 ```
 docker run -it --rm -v $(pwd):/data goblint /data/tests/regression/04-mutex/01-simple_rc.c
 ```
-If pulled from GitHub Container Registry, use the container name `ghcr.io/goblint/analyzer:latest` instead.
+If pulled from GitHub Container Registry, use the container name `ghcr.io/goblint/analyzer:latest` (or `:nightly`) instead.
 
 For further information, see [documentation](https://goblint.readthedocs.io/en/latest/user-guide/running/).

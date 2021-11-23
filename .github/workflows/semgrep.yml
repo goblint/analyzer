@@ -11,6 +11,8 @@ jobs:
   semgrep:
     runs-on: ubuntu-latest
 
+    continue-on-error: true # TODO: remove when semgrep fixed: https://github.com/returntocorp/semgrep-action/issues/429
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -21,6 +23,8 @@ jobs:
           config: >-
             .semgrep/
           generateSarif: "1"
+        env:
+          SEMGREP_AGENT_DEBUG: 1 # https://github.com/returntocorp/semgrep-action/issues/429
 
       - name: Upload SARIF file to GitHub Advanced Security Dashboard
         uses: github/codeql-action/upload-sarif@v1
