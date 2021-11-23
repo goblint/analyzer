@@ -339,8 +339,8 @@ else
     # globals are protected from change when running processes instead of threads
     projects = Parallel.map(projects, &doproject)
   rescue LoadError => e
-    puts "Missing dependency. Please run: gem install parallel"
-    raise e
+    puts "Missing parallel gem (install with: gem install parallel), falling back to sequential"
+    projects = projects.map(&doproject)
   end
 end
 alliswell = projects.map{|p| p.ok}.all?
