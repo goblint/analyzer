@@ -21,7 +21,8 @@ let create_map (new_file: Cil.file) =
   let add_to_hashtbl tbl (global: Cil.global) =
     match global with
     | GFun (fund, _) as f -> (match fund.smaxstmtid with
-        | Some i -> update_vid fund.svar.vid; update_sid i; Hashtbl.replace tbl (identifier_of_global f) f
+        | Some i -> update_vid fund.svar.vid; List.iter (fun v -> update_vid v.vid) fund.slocals;
+          List.iter (fun v -> update_vid v.vid) fund.sformals; update_sid i; Hashtbl.replace tbl (identifier_of_global f) f
         | None -> failwith "smaxstmtid should have been computed when calling Cil.computeCFGInfo")
     | GVar (var, _, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) v
     | GVarDecl (var, _) as v -> update_vid var.vid; Hashtbl.replace tbl (identifier_of_global v) v
