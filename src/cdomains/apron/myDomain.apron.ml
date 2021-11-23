@@ -15,8 +15,19 @@ open Apron
    in
    zero_vec [] n
 
+   let show t =
+    let rec list_str l =
+      match l with
+      | [] -> "]"
+      | x :: xs -> (Format.asprintf "%i" x) ^(list_str xs)
+    in
+    "["^list_str t^"\n"
+
   let map_vec f v =
     List.map f v
+
+  let equal v1 v2 =
+    List.equal Int.equal v1 v2
 
   let neg v =
     List.map (function x -> (-1) * x) v
@@ -82,20 +93,16 @@ open Apron
                   in
                   let res = get_colnum (-1) (List.length t) (List.rev t)
                 in if M.tracing then M.tracel "affEq" "colnum %i \n" res; res
-
-  let show t =
-    let rec list_str l =
-      match l with
-      | [] -> "]"
-      | x :: xs -> (Format.asprintf "%i" x) ^(list_str xs)
-    in
-    "["^list_str t^"\n"
 end
 
 module Matrix =
 struct
   type t = int list list
   let empty () = ([] : t)
+
+  let show (x:t) =
+    List.fold_left (^) "" (List.map (Vector.show) x)
+
   let rec add_row (m : t) (row: Vector.t) pos : t =
     match m with
     | [] -> if pos > 0 then failwith "Position exceeds size" else [row]
@@ -117,6 +124,11 @@ struct
   let remove_column (m : t) pos =
     List.map (Vector.remove_val pos) m
 
+  (*Extended removal of columns. Removes rows that had an entry != 0 at the col pos as well*)
+  let remove_column_ex (m : t) pos =
+    let filtered_rows = List.filter (function x -> if (List.nth x pos) == 0 then true else false) m
+     in remove_column filtered_rows pos
+
   let append_matrices (a:t) (b:t) : t =
     List.append a b
 
@@ -133,9 +145,6 @@ struct
       else l
     in
     create_zero_list [] (dim_y m)
-
-  let show (x:t) =
-    List.fold_left (^) "" (List.map (Vector.show) x)
 
    let rec equal (a: t) (b: t) =
     match (a, b) with
@@ -162,8 +171,8 @@ struct
     let red_row = List.nth t row_n
           in List.map (function x -> subtract_rows x red_row) t
 
+  (*Extended List.opt with index*)
   let find_opt_with_index f row =
-    (*Extended List.opt with index*)
     let rec find_opt_i row i =
       match row with
       | [] -> None
@@ -177,9 +186,7 @@ struct
     | Some (i, p) -> Some (i, List.map (function x -> x / p) row)
 
   let rec remove_zero_rows t =
-    match t with
-    | [] -> []
-    | x :: xs -> if Vector.is_only_zero x then xs else x :: (remove_zero_rows xs)
+    List.filter (function x -> not (Vector.is_only_zero x)) t
 
    (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref)*)
   let normalize t =
@@ -200,6 +207,12 @@ struct
   let normalize t =
     let res = normalize t in
     if M.tracing then M.tracel "norm" "normalize %s -> %s" (show t) (show res); res
+
+  let rec is_contained_in t1 t2 =
+    match t1, t2 with
+    | [], _ -> true
+    | x1 :: xs1, x2 ::xs2 -> Vector.equal x1 x2 && is_contained_in xs1 xs2
+    | _, _ -> false
 end
 
 module VarManagement =
@@ -213,20 +226,12 @@ struct
   }
 
   let dim_add (ch: Apron.Dim.change) m =
-    let rec add_cols pos =
-      match pos with
-      | [] -> m
-      | x :: xs -> Matrix.add_column m (Matrix.create_zero_col m) x
-    in
-     add_cols (Array.to_list ch.dim)
+    let to_add = Array.to_list ch.dim in
+      List.fold_left (function m -> function x -> Matrix.add_column m (Matrix.create_zero_col m) x) m to_add
 
   let dim_remove (ch: Apron.Dim.change) m =
-    let rec remove_cols pos =
-      match pos with
-      | [] -> m
-      | x :: xs -> Matrix.remove_column m  x (* TODO Every row that has an entry > 0 in this col should be removed as well!*)
-    in
-     remove_cols (Array.to_list ch.dim)
+    let to_remove = Array.to_list ch.dim in
+    List.fold_left (function m -> function x -> Matrix.normalize (Matrix.remove_column_ex m x)) m to_remove
 
   let add_vars a vars =
     let vs' = get_filtered_vars_add (a.env) vars in
@@ -306,7 +311,7 @@ struct
   let show a =
     let d_str = (match a.d with
     | None -> "⟂"
-    | Some ([]) -> "top"
+    | Some ([]) -> "⊤"
     | Some (m) -> Matrix.show m)
     in
    Format.asprintf "%s (env: %a)" d_str (Environment.print:Format.formatter -> Environment.t -> unit) a.env
@@ -336,14 +341,21 @@ struct
   let to_yojson a = failwith "ToDo Implement in future"
   let invariant a b = Invariant.none
   let arbitrary () = failwith "no arbitrary"
-  let leq a b = false
-
+  let leq a b = (*ToDo environment change*)
+    let cmp = Environment.compare a.env b.env in
+    if cmp == (-2) || cmp > 0 then false
+    else
+    match a.d, b.d with
+    | None, _ ->  true
+    | _ , Some ([]) -> true
+    | Some (x), Some (y) -> Matrix.is_contained_in y x
+    | _, _ -> false
   let leq a b =
     let res = leq a b in
-      if M.tracing then M.tracel "ops" "leq a: %s b: %s -> %b \n" (show a) (show b) res ;
+      if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show a) (show b) res ;
       res
 
-  let join a b = b
+  let join a b = a
 
   let join a b =
     let res = join a b in
@@ -359,7 +371,7 @@ struct
     | _, _ -> {d = None; env = new_env}
   let meet a b =
     let res = meet a b in
-      if M.tracing then M.tracel "meet" "meet a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+      if M.tracing then M.tracel "meet" "meet \n a: %s \n b: %s -> %s \n" (show a) (show b) (show res) ;
       res
   let widen a b = join a b
   let narrow a b = meet a b
@@ -437,7 +449,7 @@ struct
   let remove_rels_with_var x var env =
     let j0 = Environment.dim_of_var env var
       in let n = Vector.get_colnum_not_zero (Matrix.get_col x j0)
-          in if n > (-1) then Matrix.reduce_row_to_zero x n (*ToDo normalize rows*)
+          in if n > (-1) then Matrix.reduce_row_to_zero x n
               else x (*Nothing to remove*)
 
   let assign_texpr t var texp =

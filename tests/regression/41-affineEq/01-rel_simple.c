@@ -7,7 +7,7 @@ void main(void) {
     i = 2;
     j = k + 5;
 
-    while (1) {
+    while (i < 100) {
         i = i + 1;
         j = j + 3;
     }
