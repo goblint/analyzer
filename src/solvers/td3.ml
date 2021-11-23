@@ -177,7 +177,7 @@ module WP =
             HM.remove superstable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
-      and solve ?(abortable=true) x phase (changed: bool): bool =
+      and solve ?reuse_eq ?(abortable=true) x phase (changed: bool): bool =
         if tracing then trace "sol2" "solve %a, phase: %s, changed: %b, abortable: %b, called: %b, stable: %b\n" S.Var.pretty_trace x (match phase with Widen -> "Widen" | Narrow -> "Narrow") changed abortable (HM.mem called x) (HM.mem stable x);
         trace_called ();
         init x;
@@ -237,28 +237,32 @@ module WP =
                 d
           in
           let tmp =
-            try
-              if abort && abort_verify then (
-                (* collect dep vals for x *)
-                let new_dep_vals_x = HM.create (HM.length prev_dep_vals_x) in
-                let eval' y =
-                  let d = eval' y in
-                  HM.replace new_dep_vals_x y d;
-                  d
-                in
-                let tmp = eq x eval' (side ~x) in
-                HM.replace prev_dep_vals x new_dep_vals_x;
-                tmp
-              )
-              else
-                eq x eval' (side ~x)
-            with AbortEq ->
-              abort_rhs_event x;
-              if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
-              HM.remove destab_dep x; (* TODO: safe to remove here? doesn't prevent some aborts? *)
-              (* prev_dep_vals remain the same *)
-              HM.find rho x (* old *)
+            match reuse_eq with
+            | Some d -> d
+            | None ->
+              try
+                if abort && abort_verify then (
+                  (* collect dep vals for x *)
+                  let new_dep_vals_x = HM.create (HM.length prev_dep_vals_x) in
+                  let eval' y =
+                    let d = eval' y in
+                    HM.replace new_dep_vals_x y d;
+                    d
+                  in
+                  let tmp = eq x eval' (side ~x) in
+                  HM.replace prev_dep_vals x new_dep_vals_x;
+                  tmp
+                )
+                else
+                  eq x eval' (side ~x)
+              with AbortEq ->
+                abort_rhs_event x;
+                if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
+                HM.remove destab_dep x; (* TODO: safe to remove here? doesn't prevent some aborts? *)
+                (* prev_dep_vals remain the same *)
+                HM.find rho x (* old *)
           in
+          let new_eq = tmp in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -322,7 +326,7 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
                 HM.remove stable x;
                 HM.remove superstable x;
-                (solve[@tailcall]) ~abortable:false x Narrow changed
+                (solve[@tailcall]) ~reuse_eq:new_eq ~abortable:false x Narrow changed
               ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
                 HM.remove wpoint x;
