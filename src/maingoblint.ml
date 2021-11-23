@@ -119,18 +119,14 @@ let option_spec_list =
   ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
   ]
 
-(** List of C files to consider. *)
-let cFileNames = ref []
 
-(** Parse arguments and fill [cFileNames] and [jsonFiles]. Print help if needed. *)
+(** Parse arguments and fill [arg_files]. Print help if needed. *)
 let parse_arguments () =
-  let jsonRegex = Str.regexp ".+\\.json$" in
-  let recordFile fname =
-    if Str.string_match jsonRegex fname 0
-    then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles
-    else cFileNames := fname :: !cFileNames
+  let anon_arg filename =
+    arg_files := filename :: !arg_files
   in
-  Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
+  Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
+  arg_files := List.rev !arg_files; (* reverse files to get given order *)
   if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
 
 (** Initialize some globals in other modules. *)
@@ -151,7 +147,7 @@ let handle_flags () =
     set_string "outfile" ""
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
-let preprocess_one_file cppflags fname =
+let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
   if Sys.file_exists (get_string "tempDir") then
@@ -159,7 +155,7 @@ let preprocess_one_file cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -173,7 +169,7 @@ let preprocess_one_file cppflags fname =
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
   (* Preprocessor flags *)
-  let cppflags = ref (get_string "cppflags") in
+  let cppflags = ref (get_string_list "cppflags") in
 
   (* the base include directory *)
   let custom_include_dirs =
@@ -213,37 +209,6 @@ let preprocess_files () =
 
   include_dirs := custom_include_dirs @ !include_dirs;
 
-  (* reverse the files again *)
-  cFileNames := List.rev !cFileNames;
-
-  (* If the first file given is a Makefile, we use it to combine files *)
-  if !cFileNames <> [] then (
-    let firstFile = List.first !cFileNames in
-    if Filename.basename firstFile = "Makefile" then (
-      let makefile = firstFile in
-      let path = Filename.dirname makefile in
-      (* make sure the Makefile exists or try to generate it *)
-      if not (Sys.file_exists makefile) then (
-        print_endline ("Given " ^ makefile ^ " does not exist!");
-        let configure = Filename.concat path "configure" in
-        if Sys.file_exists configure then (
-          print_endline ("Trying to run " ^ configure ^ " to generate Makefile");
-          let exit_code, output = MakefileUtil.exec_command ~path "./configure" in
-          print_endline (configure ^ MakefileUtil.string_of_process_status exit_code ^ ". Output: " ^ output);
-          if not (Sys.file_exists makefile) then failwith ("Running " ^ configure ^ " did not generate a Makefile - abort!")
-        ) else failwith ("Could neither find given " ^ makefile ^ " nor " ^ configure ^ " - abort!")
-      );
-      let _ = MakefileUtil.run_cilly path in
-      let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
-      cFileNames := file :: (List.drop 1 !cFileNames);
-    );
-  );
-
-  cFileNames := find_custom_include "stdlib.c" :: !cFileNames;
-
-  if get_bool "ana.sv-comp.functions" then
-    cFileNames := find_custom_include "sv-comp.c" :: !cFileNames;
-
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
     let kernel_roots = [
@@ -261,7 +226,7 @@ let preprocess_files () =
 
     let preconf = find_custom_include "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
-    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ " ^ !cppflags;
+    cppflags := "-D__KERNEL__" :: "-U__i386__" :: "-D__x86_64__" :: !cppflags;
     include_files := preconf :: autoconf :: !include_files;
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
@@ -271,17 +236,48 @@ let preprocess_files () =
       ]
   );
 
-  let includes =
-    String.join " " (List.map (fun include_dir -> "-I " ^ include_dir) !include_dirs) ^
-    " " ^
-    String.join " " (List.map (fun include_file -> "-include " ^ include_file) !include_files)
+  let include_args =
+    List.flatten (List.map (fun include_dir -> ["-I"; include_dir]) !include_dirs) @
+    List.flatten (List.map (fun include_file -> ["-include"; include_file]) !include_files)
   in
 
-  let cppflags = !cppflags ^ " " ^ includes in
+  let all_cppflags = !cppflags @ include_args in
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  List.rev_map (preprocess_one_file cppflags) !cFileNames
+
+  let rec preprocess_arg_file = function
+    | filename when Filename.basename filename = "Makefile" ->
+      let comb_file = MakefileUtil.generate_and_combine filename in
+      [basic_preprocess ~all_cppflags comb_file]
+
+    | filename when Filename.basename filename = CompilationDatabase.basename ->
+      CompilationDatabase.load_and_preprocess ~all_cppflags filename
+
+    | filename when Sys.is_directory filename ->
+      let dir_files = Sys.readdir filename in
+      if Array.mem CompilationDatabase.basename dir_files then (* prefer compilation database to Makefile in case both exist, because compilation database is more robust *)
+        preprocess_arg_file (Filename.concat filename CompilationDatabase.basename)
+      else if Array.mem "Makefile" dir_files then
+        preprocess_arg_file (Filename.concat filename "Makefile")
+      else
+        [] (* don't recurse for anything else *)
+
+    | filename when Filename.extension filename = ".json" ->
+      [] (* ignore other JSON files for contain analysis *)
+
+    | filename ->
+      [basic_preprocess ~all_cppflags filename]
+  in
+
+  let extra_arg_files = ref [] in
+
+  extra_arg_files := find_custom_include "stdlib.c" :: !extra_arg_files;
+
+  if get_bool "ana.sv-comp.functions" then
+    extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
+
+  List.flatten (List.map preprocess_arg_file (!extra_arg_files @ !arg_files))
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
