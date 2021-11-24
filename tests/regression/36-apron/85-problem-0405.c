@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[-] threadJoins --set exp.solver.td3.side_widen sides-pp
 #include <pthread.h>
 #include <stdio.h>
 

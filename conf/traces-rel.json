@@ -42,6 +42,11 @@
         "ldv_xzalloc",
         "ldv_calloc"
       ]
+    },
+    "solver" : {
+      "td3": {
+        "side_widen" : "sides-pp"
+      }
     }
   },
   "dbg" : {
