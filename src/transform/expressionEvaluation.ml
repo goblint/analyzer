@@ -42,12 +42,9 @@ module ExpEval : Transform.S =
     let string_of_statement statement =
       statement
         (* Pretty print *)
-        |> Cil.d_stmt ()
-        |> Pretty.sprint ~width:0
+        |> CilType.Stmt.show
         (* Split into lines *)
         |> String.split_on_char '\n'
-        (* Remove preprocessor directives *)
-        |> List.filter (fun line -> line.[0] <> '#')
         (* Remove indentation *)
         |> List.map String.trim
         (* Concatenate lines into one *)

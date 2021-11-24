@@ -146,7 +146,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             match cfgnode, TaskResult.invariant node with
             | Statement _, Some i ->
               let i = InvariantCil.exp_replace_original_name i in
-              [("invariant", Pretty.sprint 800 (Cil.dn_exp () i));
+              [("invariant", CilType.Exp.show i);
               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
             | _ ->
               (* ignore entry and return invariants, variables of wrong scopes *)

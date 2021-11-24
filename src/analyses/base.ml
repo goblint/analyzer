@@ -830,8 +830,8 @@ struct
            then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer");
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
-        | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-          M.debug ~category:Analyzer "Failed evaluating %s to lvalue" str; do_offs AD.unknown_ptr ofs
+        | _ ->
+          M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval; do_offs AD.unknown_ptr ofs
       end
 
   (* run eval_rv from above and keep a result that is bottom *)
@@ -1855,7 +1855,7 @@ struct
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
     let do_exp e =
-      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (Pretty.sprint ~width:100 (Cil.d_exp () e)) in
+      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ask [immediately_reachable] gs st
     in
     List.concat (List.map do_exp exps)
