@@ -137,6 +137,7 @@ rule() {
 
     # tests, CI
     ;; test)
+      chmod -R +w ./tests/ # dune runtest normally has everything read-only, but update_suite wants to write a lot of things
       ./scripts/update_suite.rb # run regression tests
     ;; testci)
       ruby scripts/update_suite.rb -s -d # -s: run tests sequentially instead of in parallel such that output is not scrambled, -d shows some stats?
