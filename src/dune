@@ -80,6 +80,18 @@
 )
 
 (rule
+  (target configCpp.ml)
+  (mode (promote (until-clean)))
+  (enabled_if (<> %{system} "darwin"))
+  (action (write-file %{target} "let cpp = \"cpp\"")))
+
+(rule
+  (target configCpp.ml)
+  (mode (promote (until-clean)))
+  (enabled_if (= %{system} "darwin")) ; if we are on OS X and cpp is the Apple LLVM version, we should look for some Homebrew cpp-8 (or other version)
+  (action (pipe-stdout (with-accepted-exit-codes 0 (bash "compgen -c cpp-2 | head -n1")) (with-stdout-to %{target} (bash "xargs printf 'let cpp = \"%s\"'")))))
+
+(rule
   (alias runtest)
   (deps ../goblint ../scripts/update_suite.rb ../Makefile (source_tree ../tests) (source_tree ../includes))
   (action (chdir .. (run ./make.sh test)))
