@@ -75,6 +75,7 @@
 (rule
   (target configVersion.ml)
   (mode (promote (until-clean)))
+  (deps (universe)) ; do not cache, always regenerate
   (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
 
 (rule
@@ -91,6 +92,7 @@
 (rule
   (target configCpp.ml)
   (mode (promote (until-clean)))
+  (deps (universe))
   (enabled_if (= %{system} "darwin")) ; if we are on OS X and cpp is the Apple LLVM version, we should look for some Homebrew cpp-8 (or other version)
   (action (pipe-stdout (with-accepted-exit-codes 0 (bash "compgen -c cpp-2 | head -n1")) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet cpp = \"%s\"'")))))
 
