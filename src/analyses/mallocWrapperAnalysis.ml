@@ -76,8 +76,11 @@ struct
     | Q.HeapVar ->
       let node = match ctx.local with
         | `Lifted vinfo -> vinfo
-        | _ -> ctx.node in
-      `Lifted (get_heap_var node)
+        | _ -> ctx.node
+      in
+      let var = get_heap_var node in
+      var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
+      `Lifted var
     | Q.IsHeapVar v ->
       NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->

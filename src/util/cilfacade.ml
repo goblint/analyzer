@@ -8,9 +8,9 @@ module GU = Goblintutil
 
 let get_labelLoc = function
   | Label (_, loc, _) -> loc
-  | Case (_, loc) -> loc
-  | CaseRange (_, _, loc) -> loc
-  | Default loc -> loc
+  | Case (_, loc, _) -> loc
+  | CaseRange (_, _, loc, _) -> loc
+  | Default (loc, _) -> loc
 
 let rec get_labelsLoc = function
   | [] -> Cil.locUnknown
@@ -81,6 +81,7 @@ let end_basic_blocks f =
   let thisVisitor = new allBBVisitor in
   visitCilFileSameGlobals thisVisitor f
 
+
 let visitors = ref []
 let register_preprocess name visitor_fun =
   visitors := !visitors @ [name, visitor_fun]
@@ -132,7 +133,7 @@ class addConstructors cons = object
         | s :: _ -> get_stmtLoc s
         | [] -> locUnknown
       in
-      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
+      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc,locUnknown)]) in (* TODO: fd declaration loc for eloc? *)
       let call_cons = List.map f cons1 in
       let body = mkBlock (call_cons @ fd.sbody.bstmts) in
       fd.sbody <- body;
@@ -375,9 +376,9 @@ class countFnVisitor = object
       | ComputedGoto (_, loc)
       | Break loc
       | Continue loc
-      | If (_,_,_,loc)
-      | Switch (_,_,_,loc)
-      | Loop (_,loc,_,_)
+      | If (_,_,_,loc,_)
+      | Switch (_,_,_,loc,_)
+      | Loop (_,loc,_,_,_)
       | TryFinally (_,_,loc)
       | TryExcept (_,_,_,loc)
         -> Hashtbl.replace locs loc.line (); DoChildren
@@ -385,8 +386,8 @@ class countFnVisitor = object
         DoChildren
 
     method! vinst = function
-      | Set (_,_,loc)
-      | Call (_,_,_,loc)
+      | Set (_,_,loc,_)
+      | Call (_,_,_,loc,_)
       | Asm (_,_,_,_,_,loc)
         -> Hashtbl.replace locs loc.line (); SkipChildren
       | _ -> SkipChildren
@@ -541,5 +542,5 @@ let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* 
 let stmt_pretty_short () x =
   match x.skind with
   | Instr (y::ys) -> dn_instr () y
-  | If (exp,_,_,_) -> dn_exp () exp
+  | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x

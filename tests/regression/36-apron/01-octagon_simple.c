@@ -16,7 +16,7 @@ void main(void) {
     N = 8;
   } else {
     // is dead code but if that is detected or not depends on what we do in branch
-    // currenlty we can't detect this
+    // currently we can't detect this
     N = 42;
   }
 }

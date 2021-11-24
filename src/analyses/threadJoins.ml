@@ -27,8 +27,12 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match LibraryFunctions.classify f.vname arglist with
     | `ThreadJoin (id, ret_var) ->
-      (
-        let threads = TIDs.elements (ctx.ask (Queries.EvalThread id)) in
+      let threads = ctx.ask (Queries.EvalThread id) in
+      if TIDs.is_top threads then
+        ctx.local
+      else (
+        (* elements throws if the thread set is top *)
+        let threads = TIDs.elements threads in
         match threads with
         | [tid] when TID.is_unique tid->
           let joined = ctx.global (TID.to_varinfo tid) in

@@ -10,7 +10,6 @@ module SpecFunctor (AD: ApronDomain.S2) (Priv: ApronPriv.S) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
-
   let name () = "apron"
 
   module Priv = Priv(AD)
@@ -216,6 +215,7 @@ struct
 
   let return ctx e f =
     let st = ctx.local in
+    let ask = Analyses.ask_of_ctx ctx in
     let new_apr =
       if AD.type_tracked (Cilfacade.fundec_return_type f) then (
         let apr' = AD.add_vars st.apr [V.return] in
@@ -235,8 +235,15 @@ struct
       |> List.filter AD.varinfo_tracked
       |> List.map V.local
     in
+
     AD.remove_vars_with new_apr local_vars;
-    {st with apr = new_apr}
+    let st' = {st with apr = new_apr} in
+    begin match ThreadId.get_current ask with
+      | `Lifted tid when ThreadReturn.is_current ask ->
+        Priv.thread_return ask ctx.global ctx.sideg tid st'
+      | _ ->
+        st'
+    end
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
@@ -288,6 +295,13 @@ struct
       unify_st
 
   let special ctx r f args =
+    let ask = Analyses.ask_of_ctx ctx in
+    let invalidate_one st lv =
+      assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+          let apr' = AD.forget_vars st.apr [V.local v] in
+          assert_type_bounds apr' v (* re-establish type bounds after forget *)
+        )
+    in
     let st = ctx.local in
     match LibraryFunctions.classify f.vname args with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
@@ -295,6 +309,14 @@ struct
     | `Unknown "__goblint_check" -> st
     | `Unknown "__goblint_commit" -> st
     | `Unknown "__goblint_assert" -> st
+    | `ThreadJoin (id,retvar) ->
+      (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
+      (
+        let st' = Priv.thread_join ask ctx.global id st in
+        match r with
+        | Some lv -> invalidate_one st' lv
+        | None -> st'
+      )
     | _ ->
       let ask = Analyses.ask_of_ctx ctx in
       let invalidate_one st lv =

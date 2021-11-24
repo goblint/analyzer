@@ -15,6 +15,11 @@ module M = Messages
     - C API docs PDF (alternative mathematical descriptions): https://antoinemine.github.io/Apron/doc/api/c/apron.pdf
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
+let widening_thresholds_apron = lazy (
+  let t = WideningThresholds.thresholds () in
+  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_string @@ Z.to_string x) t in
+  Array.of_list r
+)
 
 module Var =
 struct
@@ -813,7 +818,8 @@ struct
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a\n" pretty j;
-      let j = strengthening j x y in
+      (* TODO: optimize strengthening, currently disabled because relational traces doesn't join different environments *)
+      (* let j = strengthening j x y in *)
       if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
       j
     )
@@ -836,8 +842,16 @@ struct
   let widen x y =
     let x_env = A.env x in
     let y_env = A.env y in
-    if Environment.equal x_env y_env then
-      A.widening Man.mgr x y (* widen if env didn't increase *)
+    if Environment.equal x_env y_env  then
+      if GobConfig.get_bool "ana.apron.threshold_widening" && Oct.manager_is_oct Man.mgr then
+        let octmgr = Oct.manager_to_oct Man.mgr in
+        let ts = Lazy.force widening_thresholds_apron in
+        let x_oct = Oct.Abstract1.to_oct x in
+        let y_oct = Oct.Abstract1.to_oct y in
+        let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+        Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+      else
+        A.widening Man.mgr x y
     else
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 

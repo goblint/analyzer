@@ -99,7 +99,7 @@ struct
   (* function for creating a new intermediate node (will generate a new sid every time!) *)
   let mkDummyNode ?loc line =
     let loc = { (loc |? !Tracing.current_loc) with line = line } in
-    MyCFG.Statement { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc)) with sid = new_sid () }
+    MyCFG.Statement { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc, locUnknown)) with sid = new_sid () }
   (* table from sum type to negative line number for new intermediate node (-1 to -4 have special meanings) *)
   type tmpNodeUse = Branch of stmt | Combine of lval
   module NodeTbl = ArincUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
@@ -217,7 +217,7 @@ struct
             (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
             (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
             (match env.node with
-             | MyCFG.Statement({ skind = If(e, bt, bf, loc); _ } as stmt) ->
+             | MyCFG.Statement({ skind = If(e, bt, bf, loc, eloc); _ } as stmt) ->
                (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
                (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
                let then_node = NodeTbl.get @@ Branch (List.hd bt.bstmts) in

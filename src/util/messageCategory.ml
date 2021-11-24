@@ -31,6 +31,8 @@ type category =
   | Deadcode
   | Unknown
   | Analyzer
+  | Unsound
+  | Imprecise
 [@@deriving eq]
 
 type t = category [@@deriving eq]
@@ -164,6 +166,8 @@ let should_warn e =
     | Deadcode -> "deadcode"
     | Unknown -> "unknown"
     | Analyzer -> "analyzer"
+    | Unsound -> "unsound"
+    | Imprecise -> "imprecise"
   in get_bool ("warn." ^ (to_string e))
 
 let path_show e =
@@ -176,30 +180,34 @@ let path_show e =
   | Deadcode -> ["Deadcode"]
   | Unknown -> ["Unknown"]
   | Analyzer -> ["Analyzer"]
+  | Unsound -> ["Unsound"]
+  | Imprecise -> ["Imprecise"]
 
 let show x = String.concat " > " (path_show x)
 
-let behaviorName = function 
+let behaviorName = function
   |Machine -> "Machine";
   |Implementation -> "Implementation"
-  |Undefined u -> match u with 
+  |Undefined u -> match u with
     |NullPointerDereference -> "NullPointerDereference"
     |UseAfterFree -> "UseAfterFree"
-    | ArrayOutOfBounds aob -> match aob with 
+    | ArrayOutOfBounds aob -> match aob with
       | PastEnd -> "PastEnd"
-      | BeforeStart -> "BeforeStart" 
+      | BeforeStart -> "BeforeStart"
       | Unknown -> "Unknown Aob"
-let categoryName = function 
-  | Assert -> "Assert" 
+let categoryName = function
+  | Assert -> "Assert"
 
   | Race -> "Race"
-  | Cast x -> "Cast" 
+  | Cast x -> "Cast"
   | Deadcode -> "Deadcode"
   | Unknown -> "Unknown"
   | Analyzer -> "Analyzer"
+  | Unsound -> "Unsound"
+  | Imprecise -> "Imprecise"
 
-  | Behavior x -> behaviorName x 
-  | Integer x -> match x with 
+  | Behavior x -> behaviorName x
+  | Integer x -> match x with
     | Overflow -> "Overflow";
     | DivByZero -> "DivByZero"
 
@@ -215,6 +223,8 @@ let from_string_list (s: string list) =
     | "cast" -> Cast.from_string_list t
     | "deadcode" -> Deadcode
     | "analyzer" -> Analyzer
+    | "unsound" -> Unsound
+    | "imprecise" -> Imprecise
     | _ -> Unknown
 
 let to_yojson x = `List (List.map (fun x -> `String x) (path_show x))

@@ -36,6 +36,9 @@ module type S =
     val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> apron_components_t -> apron_components_t
     val threadenter: Q.ask -> (varinfo -> G.t) -> apron_components_t -> apron_components_t
 
+    val thread_join: Q.ask -> (varinfo -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
+    val thread_return: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
+
     val init: unit -> unit
     val finalize: unit -> unit
   end
@@ -55,6 +58,9 @@ struct
 
   let lock ask getg st m = st
   let unlock ask getg sideg st m = st
+
+  let thread_join ask getg exp st = st
+  let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg st reason = st
 
@@ -259,6 +265,10 @@ struct
     let apr_local' = AD.meet apr_local (getg (global_varinfo ())) in
     {apr = apr_local'; priv = (p', w')}
 
+
+  let thread_join ask getg exp st = st
+  let thread_return ask getg sideg tid st = st
+
   let sync ask getg sideg (st: apron_components_t) reason =
     match reason with
     | `Return -> (* required for thread return *)
@@ -305,10 +315,32 @@ struct
   let finalize () = ()
 end
 
+module CommonPerMutex = functor(AD: ApronDomain.S2) ->
+struct
+  include Protection
+  module V = ApronDomain.V
+
+  let remove_globals_unprotected_after_unlock ask m oct =
+    let newly_unprot var = match V.find_metadata var with
+      | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
+      | _ -> false
+    in
+    AD.remove_filter oct newly_unprot
+
+  let keep_only_protected_globals ask m oct =
+    let protected var = match V.find_metadata var with
+      | Some (Global g) -> is_protected_by ask m g
+      | _ -> false
+    in
+    AD.keep_filter oct protected
+
+  let finalize () = ProtectionLogging.dump ()
+end
+
 (** Per-mutex meet. *)
 module PerMutexMeetPriv : S = functor (AD: ApronDomain.S2) ->
 struct
-  open Protection
+  open CommonPerMutex(AD)
   open ExplicitMutexGlobals
 
   module D = Lattice.Unit
@@ -330,12 +362,7 @@ struct
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in
     let get_mutex_inits = getg (mutex_inits ()) in
-    let get_mutex_inits' = AD.keep_filter get_mutex_inits (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      )
-    in
+    let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
     AD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
@@ -387,31 +414,19 @@ struct
     let apr = st.apr in
     let get_m = get_m_with_mutex_inits ask getg m in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let get_m = AD.keep_filter get_m (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      )
-    in
+    let get_m = keep_only_protected_globals ask m get_m in
     let apr' = AD.meet apr get_m in
     {st with apr = apr'}
 
   let unlock ask getg sideg (st: apron_components_t) m: apron_components_t =
     let apr = st.apr in
-    let apr_side = AD.keep_filter apr (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      )
-    in
+    let apr_side = keep_only_protected_globals ask m apr in
     sideg (mutex_addr_to_varinfo m) apr_side;
-    let apr_local = AD.remove_filter apr (fun var ->
-        match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
-        | _ -> false
-      )
-    in
+    let apr_local = remove_globals_unprotected_after_unlock ask m apr in
     {st with apr = apr_local}
+
+  let thread_join ask getg exp st = st
+  let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: apron_components_t) reason =
     match reason with
@@ -466,112 +481,557 @@ struct
     {apr = AD.bot (); priv = startstate ()}
 
   let init () = ()
-  let finalize () = ()
+  let finalize () = finalize ()
 end
 
-(** Write-Centered Reading. *)
-(* TODO: uncompleted, only W, P components from basePriv *)
-module WriteCenteredPriv: S = functor (AD: ApronDomain.S2) ->
+(** May written variables. *)
+module W =
 struct
-  open Locksets
-  open WriteCenteredD
+  include MayVars
+  let name () = "W"
+end
 
-  module D = Lattice.Prod (W) (P)
-  module G = AD
+module type ClusterArg = functor (AD: ApronDomain.S2) ->
+sig
+  module LAD: Lattice.S
+
+  val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LAD.t -> LAD.t
+  val keep_global: varinfo -> LAD.t -> LAD.t
+
+  val lock: AD.t -> LAD.t -> LAD.t -> AD.t
+  val unlock: W.t -> AD.t -> LAD.t
+
+  val name: unit -> string
+end
+
+(** No clustering. *)
+module NoCluster:ClusterArg = functor (AD: ApronDomain.S2) ->
+struct
+  module AD = AD
+  open CommonPerMutex(AD)
+  module LAD = AD
+
+  let keep_only_protected_globals = keep_only_protected_globals
+
+  let keep_global g oct =
+    let g_var = V.global g in
+    AD.keep_vars oct [g_var]
+
+  let lock oct local_m get_m =
+    AD.meet oct (AD.join local_m get_m)
+
+  let unlock w oct_side =
+    oct_side
+
+  let name () = "no-clusters"
+end
+
+module type ClusteringArg =
+sig
+  val generate: varinfo list -> varinfo list list
+  val name: unit -> string
+end
+
+(** All clusters of size 1 and 2. *)
+module Clustering12: ClusteringArg =
+struct
+  let generate gs =
+    List.cartesian_product gs gs
+    |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 <= 0) (* filter flipped ordering, keep equals for next step *)
+    |> List.map (fun (g1, g2) -> [g1; g2]) (* if g1 = g2, then we get a singleton cluster *)
+
+  let name () = "cluster12"
+end
+
+(** All clusters of size 2. *)
+module Clustering2: ClusteringArg =
+struct
+  let generate gs =
+    match gs with
+    | [_] -> [gs] (* use clusters of size 1 if only 1 variable *)
+    | _ ->
+      List.cartesian_product gs gs
+      |> List.filter (fun (g1, g2) -> CilType.Varinfo.compare g1 g2 < 0) (* filter flipped ordering, forbid equals for just clusters of size 2 *)
+      |> List.map (fun (g1, g2) -> [g1; g2])
+
+  let name () = "cluster2"
+end
+
+(** All subset clusters. *)
+module ClusteringPower: ClusteringArg =
+struct
+  let generate gs =
+    gs
+    |> List.map (fun _ -> [true; false])
+    |> List.n_cartesian_product (* TODO: exponential! *)
+    |> List.map (fun bs ->
+      (* list globals where omega is true *)
+      List.fold_left2 (fun acc g b ->
+          if b then
+            g :: acc
+          else
+            acc
+        ) [] gs bs
+    )
+
+  let name () = "clusterPow"
+end
+
+(** One maximum cluster. *)
+module ClusteringMax: ClusteringArg =
+struct
+  let generate gs =
+    [gs]
+
+  let name () = "clusterMax"
+end
+
+
+(** Clusters when clustering is downward-closed. *)
+module DownwardClosedCluster (ClusteringArg: ClusteringArg) =  functor (AD: ApronDomain.S2) ->
+struct
+  module AD = AD
+  open CommonPerMutex(AD)
+
+  module VS =
+  struct
+    include Printable.Std
+    include SetDomain.Make (CilType.Varinfo)
+  end
+  module LAD = MapDomain.MapBot (VS) (AD)
+
+  let keep_only_protected_globals ask m octs =
+    (* normal (strong) mapping: contains only still fully protected *)
+    (* must filter by protection to avoid later meeting with non-protecting *)
+    LAD.filter (fun gs _ ->
+        VS.for_all (is_protected_by ask m) gs
+      ) octs
+
+  let keep_global g octs =
+    let g_var = V.global g in
+    (* normal (strong) mapping: contains only still fully protected *)
+    let g' = VS.singleton g in
+    let oct = LAD.find g' octs in
+    LAD.singleton g' (AD.keep_vars oct [g_var])
+
+  let lock_get_m oct local_m get_m =
+    let joined = LAD.join local_m get_m in
+    if M.tracing then M.traceli "apronpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LAD.pretty get_m LAD.pretty joined;
+    let r = LAD.fold (fun _ -> AD.meet) joined (AD.bot ()) in (* bot is top with empty env *)
+    if M.tracing then M.trace "apronpriv" "meet=%a\n" AD.pretty r;
+    let r = AD.meet oct r in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    r
+
+  let lock oct local_m get_m =
+    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD.pretty local_m;
+    let r = lock_get_m oct local_m get_m in
+    (* is_bot check commented out because it's unnecessarily expensive *)
+    (* if AD.is_bot_env r then
+      failwith "DownwardClosedCluster.lock: not downward closed?"; *)
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    r
+
+  let unlock w oct_side =
+    let vars = AD.vars oct_side in
+    let gs = List.map (fun var -> match V.find_metadata var with
+        | Some (Global g) -> g
+        | _ -> assert false (* oct_side should only contain (protected) globals *)
+      ) vars
+    in
+    let clusters =
+      ClusteringArg.generate gs
+      |> List.map VS.of_list
+      |> List.filter (VS.exists (fun g -> W.mem g w)) (* cluster intersection w is non-empty *)
+    in
+    let oct_side_cluster gs =
+      AD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
+    in
+    LAD.add_list_fun clusters oct_side_cluster (LAD.empty ())
+
+  let name = ClusteringArg.name
+end
+
+(** Clusters when clustering is arbitrary (not necessarily downward-closed). *)
+module ArbitraryCluster (ClusteringArg: ClusteringArg): ClusterArg = functor (AD: ApronDomain.S2) ->
+struct
+  module AD = AD
+  module DCCluster = (DownwardClosedCluster(ClusteringArg))(AD)
+
+  open CommonPerMutex(AD)
+
+  module VS = DCCluster.VS
+  module LAD1 = DCCluster.LAD
+  module LAD = Lattice.Prod (LAD1) (LAD1) (* second component is only used between keep_* and lock for additional weak mapping *)
+
+  let name = ClusteringArg.name
+
+  let filter_map' f m =
+    LAD1.fold (fun k v acc ->
+        match f k v with
+        | Some (k', v') ->
+          LAD1.add k' (AD.join (LAD1.find k' acc) v') acc
+        | None ->
+          acc
+      ) m (LAD1.empty ())
+
+  let keep_only_protected_globals ask m (octs, _) =
+    let lad = DCCluster.keep_only_protected_globals ask m octs in
+    let lad_weak =
+      (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
+      filter_map' (fun gs oct ->
+          (* must filter by protection to avoid later meeting with non-protecting *)
+          let gs' = VS.filter (is_protected_by ask m) gs in
+          if VS.is_empty gs' then
+            None
+          else
+            (* must restrict cluster down to protected (join) *)
+            Some (gs', keep_only_protected_globals ask m oct)
+        ) octs
+    in
+    (lad, lad_weak)
+
+  let keep_global g (octs, _) =
+    let g_var = V.global g in
+    let lad = DCCluster.keep_global g octs in
+    let lad_weak =
+      (* backup (weak) mapping: contains any still intersecting with protected, needed for decreasing protecting locksets *)
+      filter_map' (fun gs oct ->
+          (* must filter by protection to avoid later meeting with non-protecting *)
+          if VS.mem g gs then
+            (* must restrict cluster down to m_g (join) *)
+            Some (VS.singleton g, AD.keep_vars oct [g_var])
+          else
+            None
+        ) octs
+    in
+    (lad, lad_weak)
+
+  let lock oct (local_m, _) (get_m, get_m') =
+    if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD1.pretty local_m;
+    let r =
+      let locked = DCCluster.lock_get_m oct local_m get_m in
+      if AD.is_bot_env locked then (
+        let locked' = DCCluster.lock_get_m oct local_m get_m' in
+        if AD.is_bot_env locked' then
+          raise Deadcode
+        else
+          locked'
+      )
+      else
+        locked
+    in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" AD.pretty r;
+    r
+
+  let unlock w oct_side =
+    (DCCluster.unlock w oct_side, LAD1.bot ())
+end
+
+(** Per-mutex meet with TIDs. *)
+module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.S2) ->
+struct
+  open CommonPerMutex(AD)
+  open ExplicitMutexGlobals
+  include ConfCheck.RequireThreadFlagPathSensInit
+
+  module NC = Cluster(AD)
+  module Cluster = NC
+  module LAD = NC.LAD
+
+  (* Map from locks to last written values thread-locally *)
+  module L = MapDomain.MapBot_LiftTop(Locksets.Lock)(LAD)
+
+  module LMust = struct
+    include Locksets.MustLockset
+    let name () = "LMust"
+  end
+
+  module D = Lattice.Prod3 (W) (LMust) (L)
+  module GMutex = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(LAD)
+  module GThread = Lattice.Prod (LMust) (L)
+  module G = Lattice.Lift2(GMutex)(GThread)(struct let bot_name = "bot" let top_name = "top" end)
+
+  module V = ApronDomain.V
+  module TID = ThreadIdDomain.Thread
+
+  let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
+
+  let compatible (ask:Q.ask) current must_joined other =
+    match current, other with
+    | `Lifted current, `Lifted other ->
+      let not_self_read = (not (TID.is_unique current)) || (not (TID.equal current other)) in
+      let may_be_running () =
+        if (not (TID.is_must_parent current other)) then
+          true
+        else
+          let created = ask.f Q.CreatedThreads in
+          let ident_or_may_be_created creator = TID.equal creator other || TID.may_create creator other in
+          if ConcDomain.ThreadSet.is_top created then
+            true
+          else
+            ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
+      in
+      let may_not_be_joined () =
+        try
+          not @@ List.mem other (ConcDomain.ThreadSet.elements must_joined)
+        with _ -> true
+      in
+      not_self_read && (not (GobConfig.get_bool "exp.apron.priv.not-started") || (may_be_running ())) && (not (GobConfig.get_bool "exp.apron.priv.must-joined") || (may_not_be_joined ()))
+    | _ -> true
+
+  let get_relevant_writes (ask:Q.ask) m v =
+    let current = ThreadId.get_current ask in
+    let must_joined = ask.f Queries.MustJoinedThreads in
+    GMutex.fold (fun k v acc ->
+        if compatible ask current must_joined k then
+          LAD.join acc (Cluster.keep_only_protected_globals ask m v)
+        else
+          acc
+      ) v (LAD.bot ())
+
+  let get_relevant_writes_nofilter (ask:Q.ask) v =
+    let current = ThreadId.get_current ask in
+    let must_joined = ask.f Queries.MustJoinedThreads in
+    GMutex.fold (fun k v acc ->
+        if compatible ask current must_joined k then
+          LAD.join acc v
+        else
+          acc
+      ) v (LAD.bot ())
+
+  let merge_all v =
+    GMutex.fold (fun _ v acc -> LAD.join acc v) v (LAD.bot ())
 
   type apron_components_t =  ApronDomain.ApronComponents (AD) (D).t
   let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
-  let name () = "WriteCenteredPriv"
 
-  let startstate () = (W.bot (), P.top ())
+  let startstate () = W.bot (), LMust.top (), L.bot ()
 
   let should_join _ _ = true
 
-  let lockset_init = Lockset.top ()
+  let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
 
-  (* TODO: distr_init? *)
+  let get_m_with_mutex_inits inits ask getg_mutex m =
+    let vi = mutex_addr_to_varinfo m in
+    let get_m = get_relevant_writes ask m (getg_mutex vi) in
+    if M.tracing then M.traceli "apronpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LAD.pretty get_m;
+    let r =
+    if not inits then
+      get_m
+    else
+      let get_mutex_inits = merge_all @@ getg_mutex (mutex_inits ()) in
+      let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
+      if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
+      LAD.join get_m get_mutex_inits'
+    in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pretty r;
+    r
 
-  let restrict_globals apr =
-    match !MyCFG.current_node with
-    | Some node ->
-      let fd = Node.find_fundec node in
-      if M.tracing then M.trace "apronpriv" "restrict_globals %s\n" fd.svar.vname;
-      (* TODO: avoid *)
-      let vars =
-        foldGlobals !Cilfacade.current_file (fun acc global ->
-            match global with
-            | GVar (vi, _, _) ->
-              vi :: acc
-            (* TODO: what about GVarDecl? *)
-            | _ -> acc
-          ) []
-      in
-      let to_keep = List.map (fun v -> Var.of_string v.vname) vars in
-      AD.keep_vars apr to_keep
-    | None ->
-      (* TODO: when does this happen? *)
-      if M.tracing then M.trace "apronpriv" "restrict_globals -\n";
-      AD.bot ()
+  let get_mutex_global_g_with_mutex_inits inits ask getg_mutex g =
+    let vi = mutex_global g in
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ getg_mutex vi in
+    if M.tracing then M.traceli "apronpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LAD.pretty get_mutex_global_g;
+    let r =
+    if not inits then
+      get_mutex_global_g
+    else
+      let get_mutex_inits = merge_all @@ getg_mutex (mutex_inits ()) in
+      let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
+      if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
+      LAD.join get_mutex_global_g get_mutex_inits'
+    in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pretty r;
+    r
 
-  let read_global ask getg (st: apron_components_t) g x =
-    (* let s = current_lockset ask in *)
-    (* let (w, p) = st.priv in *)
-    (* let p_g = P.find g p in *)
-    (* TODO: implement *)
-    let apr' = AD.add_vars st.apr [Var.of_string g.vname] in
-    let apr' = A.assign_texpr AD.Man.mgr apr' (Var.of_string x.vname) (Texpr1.var (A.env apr') (Var.of_string g.vname)) None in (* TODO: unsound *)
-    apr'
+  let read_global ask getg (st: apron_components_t) g x: AD.t =
+    let _,lmust,l = st.priv in
+    let apr = st.apr in
+    let m = Locksets.Lock.from_var (mutex_global g) in
+    (* lock *)
+    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
+    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
+    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+    let apr = Cluster.lock apr local_m tmp in
+    (* read *)
+    let g_var = V.global g in
+    let x_var = Var.of_string x.vname in
+    let apr_local = AD.add_vars apr [g_var] in
+    let apr_local = AD.assign_var apr_local x_var g_var in
+    (* unlock *)
+    let apr_local' =
+      if is_unprotected ask g then
+        AD.remove_vars apr_local [g_var]
+      else
+        apr_local
+    in
+    apr_local'
 
-  let write_global ?(invariant=false) ask getg sideg (st: apron_components_t) g x: apron_components_t =
-    let s = current_lockset ask in
-    let (w, p) = st.priv in
-    let w' = W.add g (MinLocksets.singleton s) w in
-    let p' = P.add g (MinLocksets.singleton s) p in
-    let p' = P.map (fun s' -> MinLocksets.add s s') p' in
-    (* TODO: implement *)
-    let apr' = AD.add_vars st.apr [Var.of_string g.vname] in
-    let apr' = A.assign_texpr AD.Man.mgr apr' (Var.of_string g.vname) (Texpr1.var (A.env apr') (Var.of_string x.vname)) None in (* TODO: unsound? *)
-    sideg (global_varinfo ()) (restrict_globals apr');
-    {apr = apr'; priv = (w', p')}
+  let write_global ?(invariant=false) (ask:Q.ask) getg sideg (st: apron_components_t) g x: apron_components_t =
+    let w,lmust,l = st.priv in
+    let mg = mutex_global g in
+    let m = Locksets.Lock.from_var mg in
+    let apr = st.apr in
+    (* lock *)
+    let tmp = (get_mutex_global_g_with_mutex_inits (not (LMust.mem m lmust)) ask getg g) in
+    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
+    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+    let apr = Cluster.lock apr local_m tmp in
+    (* write *)
+    let g_var = V.global g in
+    let x_var = Var.of_string x.vname in
+    let apr_local = AD.add_vars apr [g_var] in
+    let apr_local = AD.assign_var apr_local g_var x_var in
+    (* unlock *)
+    let apr_side = AD.keep_vars apr_local [g_var] in
+    let apr_side = Cluster.unlock (W.singleton g) apr_side in
+    let tid = ThreadId.get_current ask in
+    let sidev = GMutex.singleton tid apr_side in
+    sideg mg sidev;
+    let l' = L.add m apr_side l in
+    let apr_local' =
+      if is_unprotected ask g then
+        AD.remove_vars apr_local [g_var]
+      else
+        apr_local
+    in
+    {apr = apr_local'; priv = (W.add g w,LMust.add m lmust,l')}
 
-  let lock ask getg (st: apron_components_t) m = st
+  let lock ask getg (st: apron_components_t) m =
+    let apr = st.apr in
+    let _,lmust,l = st.priv in
+    let get_m = get_m_with_mutex_inits (not (LMust.mem m lmust)) ask getg m in
+    let local_m = BatOption.default (LAD.bot ()) (L.find_opt m l) in
+    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+    let local_m = Cluster.keep_only_protected_globals ask m local_m in
+    let apr = Cluster.lock apr local_m get_m in
+    {st with apr}
 
-  let unlock ask getg sideg (st: apron_components_t) m =
-    let s = Lockset.remove m (current_lockset ask) in
-    let (w, p) = st.priv in
-    let p' = P.map (fun s' -> MinLocksets.add s s') p in
-    (* TODO: implement *)
-    sideg (global_varinfo ()) (restrict_globals st.apr);
-    {st with priv = (w, p')}
+  let unlock ask getg sideg (st: apron_components_t) m: apron_components_t =
+    let apr = st.apr in
+    let w,lmust,l = st.priv in
+    let apr_local = remove_globals_unprotected_after_unlock ask m apr in
+    let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
+    let side_needed = W.exists (fun v -> is_protected_by ask m v) w in
+    if not side_needed then
+      {apr = apr_local; priv = (w',lmust,l)}
+    else
+      let apr_side = keep_only_protected_globals ask m apr in
+      let apr_side = Cluster.unlock w apr_side in
+      let tid = ThreadId.get_current ask in
+      let sidev = GMutex.singleton tid apr_side in
+      sideg (mutex_addr_to_varinfo m) sidev;
+      let l' = L.add m apr_side l in
+      {apr = apr_local; priv = (w',LMust.add m lmust,l')}
 
-  let sync ask getg sideg (st: apron_components_t) reason =
+  let thread_join (ask:Q.ask) getg exp (st: apron_components_t) =
+    let w,lmust,l = st.priv in
+    let tids = ask.f (Q.EvalThread exp) in
+    if ConcDomain.ThreadSet.is_top tids then
+      st (* TODO: why needed? *)
+    else (
+      (* elements throws if the thread set is top *)
+      let tids = ConcDomain.ThreadSet.elements tids in
+      match tids with
+      | [tid] ->
+        let lmust',l' = getg tid in
+        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+      | _ ->
+        (* To match the paper more closely, one would have to join in the non-definite case too *)
+        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+        st
+    )
+
+  let thread_return ask getg sideg tid (st: apron_components_t) =
+    let _,lmust,l = st.priv in
+    sideg tid (lmust,l);
+    st
+
+  let sync (ask:Q.ask) getg sideg (st: apron_components_t) reason =
     match reason with
-    | `Return -> (* required for thread return *)
-      (* TODO: implement? *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x (* when CPA.mem x st.cpa *) ->
-          st
-        | _ ->
-          st
-      end
+    | `Return -> st (* TODO: implement? *)
+    | `Join ->
+      if (ask.f Q.MustBeSingleThreaded) then
+        st
+      else
+        let apr = st.apr in
+        (* There can be no branched going multi-threaded here *)
+        (* TODO: Do we need to remove no longer protected variables here? *)
+        (* TODO: Is not potentially even unsound to do so?! *)
+        let apr_local = AD.remove_filter apr (fun var ->
+            match V.find_metadata var with
+            | Some (Global g) -> is_unprotected ask g
+            | _ -> false
+          )
+        in
+        {st with apr = apr_local}
     | `Normal
-    | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
     | `Thread ->
       st
 
-  let enter_multithreaded ask getg sideg (st: apron_components_t) =
-    (* TODO: implement *)
-    {st with apr = AD.meet st.apr (getg (global_varinfo ()))}
+  let enter_multithreaded (ask:Q.ask) getg sideg (st: apron_components_t): apron_components_t =
+    let apr = st.apr in
+    (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
+    let g_vars = List.filter (fun var ->
+        match V.find_metadata var with
+        | Some (Global _) -> true
+        | _ -> false
+      ) (AD.vars apr)
+    in
+    let apr_side = AD.keep_vars apr g_vars in
+    let apr_side = Cluster.unlock (W.top ()) apr_side in (* top W to avoid any filtering *)
+    let tid = ThreadId.get_current ask in
+    let sidev = GMutex.singleton tid apr_side in
+    let vi = mutex_inits () in
+    sideg vi sidev;
+    (* Introduction into local state not needed, will be read via initializer *)
+    (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
+    (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
+    let apr_local = AD.remove_vars apr g_vars in
+    {st with apr = apr_local}
 
   let threadenter ask getg (st: apron_components_t): apron_components_t =
-    {apr = getg (global_varinfo ()); priv = startstate ()}
+    let _,lmust,l = st.priv in
+    {apr = AD.bot (); priv = (W.bot (),lmust,l)}
 
-  let init () = ()
-  let finalize () = ()
+  let finalize () = finalize ()
+
+  (* All that follows is stupid boilerplate to give each of these functions the getg and sideg that only deals with TIDs or Mutexes *)
+
+  let sideg_mutex (sideg: varinfo -> G.t -> unit) (g:varinfo) (v:GMutex.t):unit =
+    sideg g (`Lifted1 v)
+
+  let sideg_tid (sideg:varinfo -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
+    sideg (TID.to_varinfo tid) (`Lifted2 v)
+
+  let getg_mutex getg g = match getg g with
+    | `Lifted1 v -> v
+    | `Bot -> GMutex.bot ()
+    | _ -> failwith "wrong either argument"
+
+  let getg_tid getg tid = match getg (TID.to_varinfo tid) with
+    | `Lifted2 v -> v
+    | `Bot -> GThread.bot ()
+    | _ -> failwith "wrong either argument"
+
+  let patch_getside_mutex fn ask getg sideg = fn ask (getg_mutex getg) (sideg_mutex sideg)
+  let patch_getside_tid fn ask getg sideg = fn ask (getg_tid getg) (sideg_tid sideg)
+
+  let patch_get_mutex fn ask getg = fn ask (getg_mutex getg)
+  let patch_get_tid fn ask getg = fn ask (getg_tid getg)
+
+  let read_global = patch_get_mutex read_global
+  let write_global ?(invariant=false) (ask:Q.ask) getg sideg = write_global ~invariant ask (getg_mutex getg) (sideg_mutex sideg)
+  let lock = patch_get_mutex lock
+  let unlock = patch_getside_mutex unlock
+  let thread_join = patch_get_tid thread_join
+  let thread_return = patch_getside_tid thread_return
+  let sync = patch_getside_mutex sync
+  let enter_multithreaded = patch_getside_mutex enter_multithreaded
+  let threadenter = patch_get_mutex threadenter
 end
-
 
 module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
 struct
@@ -690,8 +1150,12 @@ let priv_module: (module S) Lazy.t =
          | "dummy" -> (module Dummy : S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
-         | "mutex-meet" -> (module PerMutexMeetPriv )
-         (* | "write" -> (module WriteCenteredPriv) *)
+         | "mutex-meet" -> (module PerMutexMeetPriv)
+         | "mutex-meet-tid" -> (module PerMutexMeetPrivTID (NoCluster))
+         | "mutex-meet-tid-cluster12" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (Clustering12)))
+         | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (ArbitraryCluster (Clustering2)))
+         | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (ArbitraryCluster (ClusteringMax)))
+         | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (ClusteringPower)))
          | _ -> failwith "exp.apron.privatization: illegal value"
       )
     in

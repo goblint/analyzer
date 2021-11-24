@@ -112,7 +112,7 @@ module WP =
             HM.remove stable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
-      and solve x phase =
+      and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
@@ -122,7 +122,12 @@ module WP =
           let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) (side ~x) in
+          let tmp =
+            match reuse_eq with
+            | Some d -> d
+            | None -> eq x (eval l x) (side ~x)
+          in
+          let new_eq = tmp in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -150,7 +155,7 @@ module WP =
           ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
             if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
             HM.remove stable x;
-            (solve[@tailcall]) x Narrow;
+            (solve[@tailcall]) ~reuse_eq:new_eq x Narrow;
           ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
             if tracing then trace "sol2" "solve removing wpoint %a\n" S.Var.pretty_trace x;
             HM.remove wpoint x;
@@ -204,9 +209,10 @@ module WP =
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
+          let old_sides = HM.find_default sides y VS.empty in
           let sided = match x with
             | Some x ->
-              let sided = VS.mem x (HM.find_default sides y VS.empty) in
+              let sided = VS.mem x old_sides in
               if not sided then add_sides y x;
               sided
             | None -> false
@@ -223,6 +229,13 @@ module WP =
             wpoint_if false
           | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
+          | "sides-pp" ->
+            (match x with
+            | Some x ->
+              let n = S.Var.node x in
+              let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
+              wpoint_if sided
+            | None -> ())
           | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
             (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
             let destabilized_vs = destabilize_vs y in
@@ -275,9 +288,9 @@ module WP =
         if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
-            let old_rho = HM.find rho k in
-            let old_infl = HM.find_default infl k VS.empty in
-            Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
+              let old_rho = HM.find rho k in
+              let old_infl = HM.find_default infl k VS.empty in
+              Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
         ) else (
           (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
              and the primary obsolete nodes of partly changed functions *)

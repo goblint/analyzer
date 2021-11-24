@@ -1130,7 +1130,7 @@ struct
           let lock_str = Lockset.show dom_elem in
           let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully2) never happens!" ) (Lockset.ReverseAddrSet.elements dom_elem) in
           let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
-          let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
+          let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Flags.show flagstate) else "" in
           let action = if write then "write" else "read" in
           let thread = "\"" ^ Flag.show fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in
