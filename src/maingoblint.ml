@@ -10,11 +10,10 @@ let writeconffile = ref ""
 
 (** Print version and bail. *)
 let print_version ch =
-  let open Version in let open Config in
-  let f ch b = if b then fprintf ch "enabled" else fprintf ch "disabled" in
+  let open Version in
   printf "Goblint version: %s\n" goblint;
-  printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
-  printf "Configuration:   tracing %a\n" f tracing;
+  printf "Cil version:     %s\n" Cil.cilVersion;
+  printf "Profile:         %s\n" ConfigProfile.profile;
   exit 0
 
 (** Print helpful messages. *)
@@ -61,9 +60,8 @@ let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
   let add_int    l = let f str = l := str :: !l in Arg.Int f in
   let set_trace sys =
-    let msg = "Goblint has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
-    if Config.tracing then Tracing.addsystem sys
-    else (prerr_endline msg; raise Exit)
+    if Messages.tracing then Tracing.addsystem sys
+    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
   in
   let oil file =
     set_string "ana.osek.oil" file;
@@ -158,7 +156,7 @@ let basic_preprocess ~all_cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = ConfigCpp.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -516,7 +514,3 @@ let main () =
     | Timeout ->
       eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
       exit 124
-
-(* The actual entry point is in the auto-generated goblint.ml module, and is defined as: *)
-(* let _ = at_exit main *)
-(* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)

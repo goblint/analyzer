@@ -1,6 +1,12 @@
 #/usr/bin/env bash
-make gen
-scripts/set_version.sh
-grep -q 'tracing = false' src/config.ml && \
-  sed 's/tracing = false/tracing = true/' src/config.ml > src/config.tmp && mv src/config.tmp src/config.ml
+
+echo "Just change dune-workspace directly!"
+
+if grep -q '(profile .*)' dune-workspace; then
+  sed -i 's/(profile .*)/(profile trace)/' dune-workspace
+else
+  echo "(lang dune 2.8)" >> dune-workspace
+  echo "(profile trace)" >> dune-workspace
+fi
+
 make
