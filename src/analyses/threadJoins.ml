@@ -29,7 +29,7 @@ struct
     | `ThreadJoin (id, ret_var) ->
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then
-        ctx.local (* TODO: why needed? *)
+        ctx.local
       else (
         (* elements throws if the thread set is top *)
         let threads = TIDs.elements threads in
