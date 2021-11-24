@@ -73,11 +73,16 @@
 )
 
 (rule
-  (targets config.ml version.ml)
+  (targets version.ml)
   (mode fallback) ; do nothing if all targets already exist
   (deps ../scripts/set_version.sh)
   (action (chdir .. (run ./scripts/set_version.sh)))
 )
+
+(rule
+  (target configProfile.ml)
+  (mode (promote (until-clean)))
+  (action (write-file %{target} "let profile = \"%{profile}\"")))
 
 (rule
   (target configCpp.ml)
@@ -99,6 +104,9 @@
 
 (env
   (dev
+    (flags (:standard -warn-error -A -w -6-27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  )
+  (trace
     (flags (:standard -warn-error -A -w -6-27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )

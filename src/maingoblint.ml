@@ -10,11 +10,10 @@ let writeconffile = ref ""
 
 (** Print version and bail. *)
 let print_version ch =
-  let open Version in let open Config in
-  let f ch b = if b then fprintf ch "enabled" else fprintf ch "disabled" in
+  let open Version in
   printf "Goblint version: %s\n" goblint;
   printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
-  printf "Configuration:   tracing %a\n" f tracing;
+  printf "Profile:         %s\n" ConfigProfile.profile;
   exit 0
 
 (** Print helpful messages. *)
@@ -61,9 +60,8 @@ let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
   let add_int    l = let f str = l := str :: !l in Arg.Int f in
   let set_trace sys =
-    let msg = "Goblint has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
-    if Config.tracing then Tracing.addsystem sys
-    else (prerr_endline msg; raise Exit)
+    if Messages.tracing then Tracing.addsystem sys
+    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
   in
   let oil file =
     set_string "ana.osek.oil" file;

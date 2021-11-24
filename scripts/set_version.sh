@@ -9,12 +9,6 @@ if [ ! -f src/version.ml ]; then
   } >> src/version.ml
 fi
 
-if [ ! -f src/config.ml ]; then
-  {
-    echo "let tracing = false"
-  } >> src/config.ml
-fi
-
 if [ "$VERSION" ]; then
   grep -q "goblint = \"$VERSION\"" src/version.ml 2> /dev/null ||
     (sed "s@goblint = .*@goblint = \"$VERSION\"@" src/version.ml > src/version.tmp && mv src/version.tmp src/version.ml)

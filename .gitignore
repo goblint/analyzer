@@ -11,7 +11,6 @@ goblint.byte
 goblint.json
 goblint.domaintest
 src/version.ml
-src/config.ml
 src/config*.ml
 tests/bench.txt
 .DS_Store
@@ -77,3 +76,5 @@ incremental_data/
 relocatable/
 
 *.sarif
+
+dune-workspace

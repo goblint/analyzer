@@ -140,7 +140,6 @@ let () = AfterConfig.register (fun () ->
       GobFormat.pp_set_ansi_color_tags !formatter
   )
 
-let tracing = Config.tracing
 let xml_file_name = ref ""
 
 
