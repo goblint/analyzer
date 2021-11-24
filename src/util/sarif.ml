@@ -91,7 +91,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     let piece_locations = List.map piece_location pieces in
     List.map2i (fun i piece locations ->
         let text = prefix ^ group_text ^ "\n" ^ piece.Messages.Piece.text in
-        let relatedLocations = List.flatten (List.remove_at i piece_locations) in
+        let relatedLocations = List.unique ~eq:Location.equal (List.flatten (List.remove_at i piece_locations)) in
         let result: Result.t = {
           ruleId;
           kind;

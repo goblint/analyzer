@@ -15,14 +15,14 @@ struct
     startColumn: int;
     endColumn: int;
     endLine: int;
-  } [@@deriving to_yojson]
+  } [@@deriving to_yojson, eq]
 end
 
 module ArtifactLocation =
 struct
   type t = {
     uri: string;
-  } [@@deriving to_yojson]
+  } [@@deriving to_yojson, eq]
 end
 
 module PhysicalLocation =
@@ -30,7 +30,7 @@ struct
   type t = {
     artifactLocation: ArtifactLocation.t;
     region: Region.t;
-  } [@@deriving to_yojson]
+  } [@@deriving to_yojson, eq]
 end
 
 module Artifact =
@@ -44,7 +44,7 @@ module Location =
 struct
   type t = {
     physicalLocation: PhysicalLocation.t;
-  } [@@deriving to_yojson]
+  } [@@deriving to_yojson, eq]
 end
 
 module Message =
