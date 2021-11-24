@@ -13,6 +13,7 @@
       "base",
       "threadid",
       "threadflag",
+      "threadreturn",
       "mallocWrapper",
       "mutex",
       "escape",
