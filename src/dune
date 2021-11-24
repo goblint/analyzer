@@ -73,11 +73,9 @@
 )
 
 (rule
-  (targets version.ml)
-  (mode fallback) ; do nothing if all targets already exist
-  (deps ../scripts/set_version.sh)
-  (action (chdir .. (run ./scripts/set_version.sh)))
-)
+  (target configVersion.ml)
+  (mode (promote (until-clean)))
+  (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf 'let version = \"%s\"'")))))
 
 (rule
   (target configProfile.ml)
