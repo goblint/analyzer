@@ -73,13 +73,14 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     | Some loc -> [location_of_cil_location loc]
     | None -> []
   in
+  let prefix = Format.asprintf "%a " Messages.Tags.pp message.tags in
   match message.multipiece with
   | Single piece ->
     let result: Result.t = {
       ruleId;
       kind;
       level;
-      message = { text = piece.text };
+      message = { text = prefix ^ piece.text };
       locations = piece_location piece;
       relatedLocations = [];
     }
@@ -89,7 +90,7 @@ let result_of_message (message: Messages.Message.t): Result.t list =
     (* each grouped piece becomes a separate result with the other locations as related *)
     let piece_locations = List.map piece_location pieces in
     List.map2i (fun i piece locations ->
-        let text = group_text ^ "\n" ^ piece.Messages.Piece.text in
+        let text = prefix ^ group_text ^ "\n" ^ piece.Messages.Piece.text in
         let relatedLocations = List.flatten (List.remove_at i piece_locations) in
         let result: Result.t = {
           ruleId;
