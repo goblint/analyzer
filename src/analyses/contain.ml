@@ -79,7 +79,7 @@ struct
       Hashtbl.replace htbl cn xs
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
     let json=
-      match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
+      match List.filter (fun x -> Filename.check_suffix x "CXX.json") !Goblintutil.arg_files with
       | [] -> failwith "Containment analysis needs a CXX.json file."
       | f :: _ ->
         begin
@@ -100,7 +100,7 @@ struct
         end
     in (*read in SAFE.json, suppress warnings for safe funs/vars*)
     json;
-    match List.filter (fun x -> Str.string_match (Str.regexp ".*SAFE\\.json$") x 0) !Goblintutil.jsonFiles with
+    match List.filter (fun x -> Filename.check_suffix x "SAFE.json") !Goblintutil.arg_files with
     | [] -> ()
     | f :: _ ->
       try

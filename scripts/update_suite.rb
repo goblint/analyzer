@@ -392,7 +392,7 @@ File.open(theresultfile, "w") do |f|
         vars = $1
         evals = $2
       end
-      next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?\)/
+      next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
 
       ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]

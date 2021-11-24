@@ -73,7 +73,7 @@ let _ = ()
       ; reg Std "allglobs"        "false"        "Prints access information about all globals, not just races."
       ; reg Std "keepcpp"         "false"        "Keep the intermediate output of running the C preprocessor."
       ; reg Std "tempDir"         "''"           "Reuse temporary directory for preprocessed files."
-      ; reg Std "cppflags"        "''"           "Pre-processing parameters."
+      ; reg Std "cppflags"        "[]"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
       ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, pretty, json-messages."
