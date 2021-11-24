@@ -53,7 +53,7 @@ open Apron
 
   let rec set_val t n new_val =
     match t with
-    | [] -> failwith "Can not set val of an empty Vector"
+    | [] -> failwith "Entry does not exist"
     | x :: xs -> if n > 0 then x :: set_val xs (n-1) new_val else  new_val :: xs
 
   let rec add_val n vl (v:t) =
@@ -67,19 +67,11 @@ open Apron
   let divide_by_const v c =
     List.map (function x -> x / c) v
 
-  let rec apply_on_entry f n v =
-   match v with
-   | x :: xs -> if n > 0 then (x :: apply_on_entry f (n - 1) xs) else f x :: xs
-   | [] -> failwith "Entry does not exist"
-
-  let is_constant v =
-   let rec const_check v =
+  let rec is_constant v =
      match v with
      | [] -> true
      | x :: [] -> true
-     | x :: xs -> if x != 0 then false else const_check xs
-   in
-   const_check v
+     | x :: xs -> if x != 0 then false else is_constant xs
 
   let get_val n (v: t) =
    List.nth v n
@@ -132,11 +124,7 @@ struct
   let append_matrices (a:t) (b:t) : t =
     List.append a b
 
-  let dim_x (m : t) =
-    match m with
-    | [] -> 0
-    | x :: xs -> List.length x
-  let dim_y (m : t) =
+  let num_rows (m : t) =
     List.length m
 
   let create_zero_col (m : t)  =
@@ -144,20 +132,13 @@ struct
       if n > 0 then create_zero_list (List.append [0] l) (n-1)
       else l
     in
-    create_zero_list [] (dim_y m)
+    create_zero_list [] (num_rows m)
 
    let rec equal (a: t) (b: t) =
     match (a, b) with
     | [], [] -> true
     | x1 :: xs1, x2 :: xs2 -> if List.equal Int.equal x1 x2 then equal xs1 xs2 else false
     | _ -> false
-
-  let rec transpose t =
-  match t with
-  | [] -> []
-  | [] :: xss -> transpose xss
-  | (x::xs) :: xss ->
-      (x :: List.map List.hd xss) :: transpose (xs :: List.map List.tl xss)
 
   let subtract_rows row1 row2 =
     List.map2 (function x -> function y -> x - y) row1 row2
@@ -208,6 +189,8 @@ struct
     let res = normalize t in
     if M.tracing then M.tracel "norm" "normalize %s -> %s" (show t) (show res); res
 
+
+  (*Checks if the rows of t1 are also present in t2*)
   let rec is_contained_in t1 t2 =
     match t1, t2 with
     | [], _ -> true
@@ -231,7 +214,7 @@ struct
 
   let dim_remove (ch: Apron.Dim.change) m =
     let to_remove = Array.to_list ch.dim in
-    List.fold_left (function m -> function x -> Matrix.normalize (Matrix.remove_column_ex m x)) m to_remove
+      List.fold_left (function m -> function x -> Matrix.normalize (Matrix.remove_column_ex m x)) m to_remove
 
   let add_vars a vars =
     let vs' = get_filtered_vars_add (a.env) vars in
@@ -291,17 +274,7 @@ struct
   let bound_texpr t texpr = (Some (Z.of_int 0), Some (Z.of_int 0))
 end
 
-module Tracked = (* ToDo Move to another place*)
-  struct
-    let type_tracked typ =
-      isIntegralType typ
-
-    let varinfo_tracked vi =
-      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-      type_tracked vi.vtype && not vi.vaddrof
-  end
-
-module Convert = EnvDomain.Convert(Tracked) (DummyBounds)
+module Convert = EnvDomain.Convert (DummyBounds)
 open Apron.Texpr1
 
 module MyD2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
@@ -326,7 +299,7 @@ struct
 
   let equal a b =
     let res = equal a b in
-      if M.tracing then M.tracel "ops" "equal a: %s b: %s -> %b \n" (show a) (show b) res ;
+      if M.tracing then M.tracel "eq" "equal a: %s b: %s -> %b \n" (show a) (show b) res ;
       res
 
   let hash a = 0
@@ -355,7 +328,7 @@ struct
       if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show a) (show b) res ;
       res
 
-  let join a b = a
+  let join a b = b
 
   let join a b =
     let res = join a b in
@@ -388,7 +361,8 @@ struct
     {d = Some (Matrix.empty ()); env = Environment.make [||] [||] }
   let is_top a = a.d == Some (Matrix.empty ())
 
-  let create_affineEq_vec env texp =
+  (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.*)
+  let get_coeff_vec env texp =
     let zero_vec = Vector.create_zero_vec ((Environment.size env) + 1) in
     let rec convert_texpr env texp =
     (match texp with
@@ -419,8 +393,8 @@ struct
                                       else None ) (*Var * Var is invalid!*)
     | _ -> None (*None, rest is not valid!*)) )
                                     in convert_texpr env texp
-  let create_affineEq_vec env texp =
-    let res = create_affineEq_vec env texp in
+  let get_coeff_vec env texp =
+    let res = get_coeff_vec env texp in
     (match res with
     | None -> if M.tracing then M.tracel "affEq" "Invalid expr created\n"
     | Some (x) -> if M.tracing then M.tracel "affEq" "Created expr vector: %s\n" (Vector.show x))
@@ -455,7 +429,7 @@ struct
   let assign_texpr t var texp =
     let is_invertible = function v -> Vector.get_val (Environment.dim_of_var t.env var) v != 0
     in
-    let affineEq_vec = create_affineEq_vec t.env texp in
+    let affineEq_vec = get_coeff_vec t.env texp in
       match t.d, affineEq_vec with
       | Some ([]), Some(v)
       | None, Some(v) -> if is_invertible v then t (*top/bottom and inv. assign = top*)

@@ -355,7 +355,7 @@ end
 module AOps (Tracked: Tracked) (Man: Manager) =
 struct
   module Bounds = Bounds (Man)
-  module Convert = EnvDomain.Convert (Tracked) (Bounds)
+  module Convert = EnvDomain.Convert (Bounds)
   include EnvDomain.EnvOps
 
   type t = Man.mt A.t

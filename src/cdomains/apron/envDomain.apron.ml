@@ -25,7 +25,17 @@ sig
   val bound_texpr: d -> Texpr1.t -> Z.t option * Z.t option
 end
 
-module Convert (Tracked: Tracked) (Bounds: ConvBounds) =
+module Tracked =
+  struct
+    let type_tracked typ =
+      isIntegralType typ
+
+    let varinfo_tracked vi =
+      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+      type_tracked vi.vtype && not vi.vaddrof
+  end
+
+module Convert (Bounds: ConvBounds) =
 struct
   open Texpr1
   open Tcons1
