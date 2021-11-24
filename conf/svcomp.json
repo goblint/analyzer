@@ -47,7 +47,11 @@
         "kzalloc_node",
         "ldv_zalloc",
         "kmalloc_array",
-        "kcalloc"
+        "kcalloc",
+
+        "ldv_xmalloc",
+        "ldv_xzalloc",
+        "ldv_calloc"
       ]
     }
   },
