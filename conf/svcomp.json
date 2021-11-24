@@ -28,7 +28,8 @@
   },
   "exp": {
     "witness": {
-      "id": "enumerate"
+      "id": "enumerate",
+      "unknown": false
     },
     "partition-arrays": {
       "enabled": true
