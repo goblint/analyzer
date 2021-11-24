@@ -39,6 +39,9 @@ sig
 
   val threadenter: t * D.t -> Node.t -> varinfo -> t
   val threadspawn: D.t -> Node.t -> varinfo -> D.t
+
+  (** If it is possible to get a list of unique thread create thus far, get it *)
+  val created: t -> D.t -> (t list) option
 end
 
 
@@ -94,6 +97,8 @@ struct
 
   let threadenter _ = threadenter
   let threadspawn () _ _ = ()
+
+  let created _ _ = None
 end
 
 module History (Base: Stateless): Stateful =
@@ -112,7 +117,7 @@ struct
   module M = struct
     include Printable.Prod (P) (S)
     (* Varinfos for histories are named using a string representation based on node ids,
-     not locations, for compatibilty with incremental analysis.*)
+     not locations, for compatibility with incremental analysis.*)
     let name_varinfo ((l, s): t): string =
       let list_name = String.concat "," (List.map Base.name_varinfo l) in
       let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
@@ -165,6 +170,10 @@ struct
       (p, S.singleton n)
     else
       composed
+
+  let created current cs =
+    let els = D.elements cs in
+    Some (List.map (compose current) els)
 
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs

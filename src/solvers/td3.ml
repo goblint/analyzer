@@ -209,9 +209,10 @@ module WP =
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
+          let old_sides = HM.find_default sides y VS.empty in
           let sided = match x with
             | Some x ->
-              let sided = VS.mem x (HM.find_default sides y VS.empty) in
+              let sided = VS.mem x old_sides in
               if not sided then add_sides y x;
               sided
             | None -> false
@@ -228,6 +229,13 @@ module WP =
             wpoint_if false
           | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
+          | "sides-pp" ->
+            (match x with
+            | Some x ->
+              let n = S.Var.node x in
+              let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
+              wpoint_if sided
+            | None -> ())
           | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
             (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
             let destabilized_vs = destabilize_vs y in
@@ -280,9 +288,9 @@ module WP =
         if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
-            let old_rho = HM.find rho k in
-            let old_infl = HM.find_default infl k VS.empty in
-            Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
+              let old_rho = HM.find rho k in
+              let old_infl = HM.find_default infl k VS.empty in
+              Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
         ) else (
           (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
              and the primary obsolete nodes of partly changed functions *)

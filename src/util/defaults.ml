@@ -145,6 +145,7 @@ let _ = ()
       ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
       ; reg Analyses "ana.apron.domain" "'octagon'" "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'"
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
+      ; reg Analyses "ana.apron.threshold_widening" "false" "Use constants appearing in program as threshold for widening"
 
 (* {4 category [Incremental]} *)
 let _ = ()
@@ -178,7 +179,9 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which Apron privatization to use? dummy/protection/protection-path/mutex-meet"
+      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power"
+      ; reg Experimental "exp.apron.priv.not-started" "true" "Exclude writes from threads that may not be started yet"
+      ; reg Experimental "exp.apron.priv.must-joined" "true" "Exclude writes from threads that must have been joined"
       ; reg Experimental "exp.apron.prec-dump"    "''"    "File to dump apron precision data to."
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
@@ -199,7 +202,7 @@ let _ = ()
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
-      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
+      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"
@@ -247,7 +250,9 @@ let _ = ()
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
       ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
       ; reg Debugging "dbg.compare_runs.glob" "true" "Compare GlobConstrSys in compare_runs"
-      ; reg Debugging "dbg.compare_runs.eq" "true" "Compare EqConstrSys in compare_runs"
+      ; reg Debugging "dbg.compare_runs.eq"  "true" "Compare EqConstrSys in compare_runs"
+      ; reg Debugging "dbg.print_tids"       "false" "Should the analysis print information on the encountered TIDs"
+      ; reg Debugging "dbg.print_protection" "false" "Should the analysis print information on which globals are protected by which mutex?"
 
 (* {4 category [Warnings]} *)
 let _ = ()
