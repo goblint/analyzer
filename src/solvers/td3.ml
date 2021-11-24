@@ -619,22 +619,40 @@ module WP =
           HM.iter (fun k _ -> if Hashtbl.mem marked_for_deletion (S.Var.var_id k) then (ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k); destabilize k)) stable_copy; (* TODO: don't use string-based nodes *)
         );
 
+        let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)
+          HM.replace rho x (S.Dom.bot ());
+          destabilize x
+        in
+
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
         List.iter (fun (v,d) ->
             if restart_sided then (
               match GU.assoc_eq v data.st S.Var.equal with
               | Some old_d when not (S.Dom.equal old_d d) ->
-                ignore (Pretty.printf "Destabilizing changed start var %a\n" S.Var.pretty_trace v);
-                destabilize v
+                ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
+                restart_and_destabilize v (* restart side effect from start *)
               | _ ->
                 (* don't restart unchanged start global *)
                 (* no need to restart added start global (implicit bot before) *)
-                (* no need to restart removed start global (not used any more)? *)
+                (* restart removed start global below *)
                 ()
-            ); (* restart side effect from start *)
+            );
             side v d
           ) st;
+
+        if restart_sided then (
+          List.iter (fun (v, _) ->
+              match GU.assoc_eq v st S.Var.equal with
+              | None ->
+                (* restart removed start global to allow it to be pruned from incremental solution *)
+                (* this gets rid of its warnings and makes comparing with from scratch sensible *)
+                ignore (Pretty.printf "Destabilizing and restarting removed start var %a\n" S.Var.pretty_trace v);
+                restart_and_destabilize v
+              | _ ->
+                ()
+            ) data.st
+        );
 
         delete_marked stable;
         delete_marked side_dep;
