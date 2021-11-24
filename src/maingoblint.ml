@@ -265,7 +265,7 @@ let preprocess_files () =
         [] (* don't recurse for anything else *)
 
     | filename when Filename.extension filename = ".json" ->
-      if List.mem "contain" (get_string_list "ana.activated") then
+      if List.mem "containment" (get_string_list "ana.activated") then
         [] (* ignore other JSON files for contain analysis *)
       else begin
         eprintf "Unexpected JSON file argument (possibly missing --conf): %s\n" filename;
