@@ -262,7 +262,7 @@ let _ = ()
       ; reg Warnings "warn.error"           "true"  "Error severity messages"
       ; reg Warnings "warn.warning"         "true"  "Warning severity messages"
       ; reg Warnings "warn.info"            "true"  "Info severity messages"
-      ; reg Warnings "warn.debug"           "true"  "Debug severity messages"
+      ; reg Warnings "warn.debug"           "false" "Debug severity messages"
       ; reg Warnings "warn.success"         "true"  "Success severity messages"
 
 let default_schema = {schema|

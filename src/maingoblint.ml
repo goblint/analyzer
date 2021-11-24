@@ -140,6 +140,9 @@ let handle_flags () =
     Errormsg.verboseFlag := true
   );
 
+  if get_bool "dbg.debug" then
+    set_bool "warn.debug" true;
+
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
