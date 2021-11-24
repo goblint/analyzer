@@ -75,24 +75,24 @@
 (rule
   (target configVersion.ml)
   (mode (promote (until-clean)))
-  (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf 'let version = \"%s\"'")))))
+  (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
 
 (rule
   (target configProfile.ml)
   (mode (promote (until-clean)))
-  (action (write-file %{target} "let profile = \"%{profile}\"")))
+  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
 
 (rule
   (target configCpp.ml)
   (mode (promote (until-clean)))
   (enabled_if (<> %{system} "darwin"))
-  (action (write-file %{target} "let cpp = \"cpp\"")))
+  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet cpp = \"cpp\"")))
 
 (rule
   (target configCpp.ml)
   (mode (promote (until-clean)))
   (enabled_if (= %{system} "darwin")) ; if we are on OS X and cpp is the Apple LLVM version, we should look for some Homebrew cpp-8 (or other version)
-  (action (pipe-stdout (with-accepted-exit-codes 0 (bash "compgen -c cpp-2 | head -n1")) (with-stdout-to %{target} (bash "xargs printf 'let cpp = \"%s\"'")))))
+  (action (pipe-stdout (with-accepted-exit-codes 0 (bash "compgen -c cpp-2 | head -n1")) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet cpp = \"%s\"'")))))
 
 (rule
   (alias runtest)
