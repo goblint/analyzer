@@ -365,12 +365,12 @@ struct
   let get_ptrs (vals: value list): address list =
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs ->
-        M.warn "Unknown address given as function argument"; acc
+        M.info ~category:Unsound "Unknown address given as function argument"; acc
       | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs ->
         let typ = AD.get_type adrs in
         if isFunctionType typ then acc else adrs :: acc
-      | `Top -> M.warn "Unknown value type given as function argument"; acc
+      | `Top -> M.info ~category:Unsound "Unknown value type given as function argument"; acc
       | _ -> acc
     in
     List.fold_right f vals []
@@ -380,10 +380,10 @@ struct
     if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
     match value with
     | `Top ->
-      if VD.is_immediate_type t then () else M.warn "Unknown value in %s could be an escaped pointer address!" description; empty
+      if VD.is_immediate_type t then () else M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
     | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
     | `Address adrs when AD.is_top adrs ->
-      M.warn "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+      M.info ~category:Unsound "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
     | `Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
@@ -831,7 +831,7 @@ struct
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-          M.debug "Failed evaluating %s to lvalue" str; do_offs AD.unknown_ptr ofs
+          M.debug ~category:Analyzer "Failed evaluating %s to lvalue" str; do_offs AD.unknown_ptr ofs
       end
 
   (* run eval_rv from above and keep a result that is bottom *)
@@ -1427,7 +1427,7 @@ struct
         else set a gs st addr t_lval new_val ~invariant:true ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.warn "Invariant failed: expression \"%a\" not understood." d_plainexp exp;
+      M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_plainexp exp;
       st
 
   let invariant ctx a gs st exp tv: store =
@@ -1862,7 +1862,7 @@ struct
 
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    if exps <> [] then M.warn "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
+    if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
@@ -1951,7 +1951,7 @@ struct
           in
           Some (lval, v, args)
         else (
-          M.warn "Not creating a thread from %s because its type is %a" v.vname d_type v.vtype;
+          M.debug ~category:Analyzer "Not creating a thread from %s because its type is %a" v.vname d_type v.vtype;
           None
         )
     in
@@ -1980,7 +1980,7 @@ struct
         in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        if addrs <> [] then M.warn "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
+        if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
         List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
@@ -2037,11 +2037,11 @@ struct
       end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn "Function definition missing for %s" f.vname);
+    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname);
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
     let addrs =
       if get_bool "sem.unknown_function.invalidate.globals" then (
-        M.warn "INVALIDATING ALL GLOBALS!";
+        M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
         foldGlobals !Cilfacade.current_file (fun acc global ->
             match global with
             | GVar (vi, _, _) when not (is_static vi) ->

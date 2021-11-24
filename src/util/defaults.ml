@@ -258,6 +258,8 @@ let _ = ()
       ; reg Warnings "warn.race"            "true"  "Race warnings"
       ; reg Warnings "warn.deadcode"        "true"  "Dead code warnings"
       ; reg Warnings "warn.analyzer"        "true"  "Analyzer messages"
+      ; reg Warnings "warn.unsound"         "true"  "Unsoundness messages"
+      ; reg Warnings "warn.imprecise"       "true"  "Imprecision messages"
       ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
       ; reg Warnings "warn.error"           "true"  "Error severity messages"
       ; reg Warnings "warn.warning"         "true"  "Warning severity messages"
