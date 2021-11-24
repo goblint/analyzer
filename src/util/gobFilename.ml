@@ -38,3 +38,6 @@ let common_prefix filename1 filename2 =
 let chop_common_prefix filename1 filename2 =
   let filename2 = absolute filename2 in
   chop_prefix ~prefix:(common_prefix (absolute filename1) filename2) filename2
+
+let chop_common_suffix filename1 filename2 =
+  String.rev (chop_common_prefix (String.rev filename1) (String.rev filename2))
