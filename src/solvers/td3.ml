@@ -113,7 +113,7 @@ module WP =
       (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
          If false, it will restart all destabilized side-effected vars. *)
       let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
-      
+
       (* If true, wpoint will be restarted to bot when added.
          This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
       let restart_wpoint = GobConfig.get_bool "exp.solver.td3.restart.wpoint.enabled" in
@@ -622,8 +622,17 @@ module WP =
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
         List.iter (fun (v,d) ->
-            if restart_sided then
-              destabilize v; (* restart side effect from start *)
+            if restart_sided then (
+              match GU.assoc_eq v data.st S.Var.equal with
+              | Some old_d when not (S.Dom.equal old_d d) ->
+                ignore (Pretty.printf "Destabilizing changed start var %a\n" S.Var.pretty_trace v);
+                destabilize v
+              | _ ->
+                (* don't restart unchanged start global *)
+                (* no need to restart added start global (implicit bot before) *)
+                (* no need to restart removed start global (not used any more)? *)
+                ()
+            ); (* restart side effect from start *)
             side v d
           ) st;
 
