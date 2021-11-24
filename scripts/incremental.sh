@@ -53,8 +53,8 @@ trap finish EXIT
 
 outp=$out/$(basename $repo_path)
 
-rm -r "$outp"
-rm -r "incremental_data"
+rm -rf "$outp"
+rm -rf "incremental_data"
 function log {
   echo "$*" | tee -a $outp/incremental.log
 }
