@@ -37,7 +37,7 @@ let create_map (new_file: Cil.file) =
     | GFun _
     | GVar _
     | GVarDecl _ -> Hashtbl.replace tbl (identifier_of_global global) global
-    | other -> () in
+    | _ -> () in
   let tbl : (global_identifier, Cil.global) Hashtbl.t = Hashtbl.create 1000 in
   Cil.iterGlobals new_file (fun g -> add_to_hashtbl tbl g; update_max_ids max_vid max_sid g);
   tbl, {max_sid = !max_sid; max_vid = !max_vid}
