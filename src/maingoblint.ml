@@ -249,7 +249,7 @@ let preprocess_files () =
 
   let rec preprocess_arg_file = function
     | filename when Filename.basename filename = "Makefile" ->
-      let comb_file = MakefileUtil.generate_and_combine filename in
+      let comb_file = MakefileUtil.generate_and_combine filename ~all_cppflags in
       [basic_preprocess ~all_cppflags comb_file]
 
     | filename when Filename.basename filename = CompilationDatabase.basename ->
