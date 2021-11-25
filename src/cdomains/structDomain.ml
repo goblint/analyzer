@@ -131,7 +131,7 @@ struct
   let top () = HS.singleton (SS.top ())
   let is_top = HS.exists all_fields_top
   let bot = HS.bot
-  let is_bot x = HS.is_bot x || HS.exists all_fields_bot x
+  let is_bot x = HS.is_bot x || HS.for_all all_fields_bot x
   let create _ = top ()
 
   let replace s field value =
@@ -207,7 +207,7 @@ struct
     in
     product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ())
 
-  let leq_with_fct f a b = 
+  let leq_with_fct f a b =
     let mem x s f = HS.exists ((SS.leq_with_fct f) x) s in (* from HS.mem *)
     HS.for_all (fun x -> mem x b f) a
 
@@ -267,7 +267,7 @@ struct
   let top () = (HS.singleton (SS.top ()), None)
   let is_top (s, _) = HS.exists (fun ss -> all_fields_top ss) s
   let bot () = (HS.bot (), None)
-  let is_bot (s, _) = HS.is_bot s || HS.exists (fun ss -> all_fields_bot ss) s
+  let is_bot (s, _) = HS.is_bot s || HS.for_all (fun ss -> all_fields_bot ss) s
   let create _ = top ()
 
   let join_ss (s: set): variant =
@@ -373,7 +373,7 @@ struct
   let equal (x,_) (y,_) = HS.equal x y
   let compare (x,_) (y,_) = HS.compare x y
 
-  let take_some_key (k1: field option) (k2: field option) (s: set) = 
+  let take_some_key (k1: field option) (k2: field option) (s: set) =
     match (k1, k2) with
     | (Some(x), _) -> Some x
     | (_, Some(y)) -> Some y
@@ -438,7 +438,7 @@ struct
     let s = product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ()) x y
     in reduce_key (s, take_some_key kx ky s)
 
-  let leq_with_fct f (a, _) (b, _) = 
+  let leq_with_fct f (a, _) (b, _) =
     let mem x s f = HS.exists ((SS.leq_with_fct f) x) s in (* form HS.mem *)
     HS.for_all (fun x -> mem x b f) a
 
