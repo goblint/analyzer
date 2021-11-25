@@ -17,6 +17,7 @@
     1. Add a desired version number (`vX.Y.Z`) header at the top.
     2. Add a list of biggest changes compared to the previous version.
 
+6. Update list of authors in `CITATION.cff` and `dune-project`.
 6. Tag the release: `dune-release tag`.
 7. Do the release: `dune-release`.
 
