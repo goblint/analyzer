@@ -22,8 +22,8 @@ void example1() {
     // { first = top, second = top } and { first = 10, second = 20 }
 
     // Result should still be top since branch is not always taken!
-    assert(pair.first == 10); // UNKNOWN
-    assert(pair.second == 20); // UNKNOWN
+    assert(pair.first == 10); // UNKNOWN!
+    assert(pair.second == 20); // UNKNOWN!
 
     if (a > 10) {
         // The analysis currently cannot infer this, since a is not connected to struct
@@ -35,14 +35,14 @@ void example1() {
         assert(pair.first == 10); // This is known from the if statement refine
 
         // Since one variant is top, we still don't know what second is!
-        assert(pair.second == 20); // UNKNOWN
+        assert(pair.second == 20); // UNKNOWN!
     }
 
     pair.first = a;
     pair.second = b;
     // Reset both to top, should be same state as before.
-    assert(pair.first == 10); // UNKNOWN
-    assert(pair.second == 20); // UNKNOWN
+    assert(pair.first == 10); // UNKNOWN!
+    assert(pair.second == 20); // UNKNOWN!
 
     pair.first = 10;
     pair.second = 20;
