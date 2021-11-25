@@ -61,26 +61,26 @@ struct
   let get s field = M.find field s
   let fold = M.fold
   let map = M.map
-  let cardinal x = M.fold (fun _ _ -> succ) x 0
+  let cardinal = M.cardinal
   let keys x = M.fold (fun k _ a -> k::a) x []
 
   (* Add these or the byte code will segfault ... *)
-  let equal x y = M.equal x y
-  let compare x y = M.compare x y
-  let is_top x = M.is_top x
+  let equal = M.equal
+  let compare = M.compare
+  let is_top = M.is_top
   let top () = M.top ()
   let create _ = top ()
-  let is_bot x = M.is_bot x
+  let is_bot = M.is_bot
   let bot () = M.bot ()
-  let meet x y = M.meet x y
-  let join x y = M.join x y
-  let leq x y = M.leq x y
-  let hash x = M.hash x
+  let meet = M.meet
+  let join = M.join
+  let leq = M.leq
+  let hash  = M.hash
   let widen = M.widen
   let narrow = M.narrow
   let pretty_diff () (x,y) =
     Pretty.dprintf "{@[%a@] ...}" M.pretty_diff (x,y)
-  let printXml f xs = M.printXml f xs
+  let printXml = M.printXml
   let widen_with_fct = M.widen_with_fct
   let leq_with_fct = M.leq_with_fct
   let join_with_fct = M.join_with_fct
@@ -433,7 +433,7 @@ struct
   let widen_with_fct f (x, kx) (y, ky) =
     let product_widen op a b = (* assumes b to be bigger than a *) (* from HS.product_widen *)
       let xs,ys = HS.elements a, HS.elements b in
-      List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> HS.of_list (List.append x ys)
+      List.map (fun x -> List.map (op x) ys) xs |> List.flatten |> fun x -> HS.of_list (List.append x ys)
     in
     let s = product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ()) x y
     in reduce_key (s, take_some_key kx ky s)
