@@ -95,6 +95,8 @@ struct
   } [@@deriving to_yojson]
 end
 
+let result_to_yojson = Result.to_yojson (* workaround for ppx_deriving problem on Result *)
+
 module Run =
 struct
   type t = {
@@ -102,7 +104,7 @@ struct
     defaultSourceLanguage: string;
     invocations: Invocation.t list;
     artifacts: Artifact.t list;
-    results: Result.t list;
+    results: (Result.t [@to_yojson result_to_yojson]) list; (* workaround for ppx_deriving problem on Result *)
   } [@@deriving to_yojson]
 end
 
