@@ -84,6 +84,11 @@ let option_spec_list =
     set_bool "dbg.print_dead_code" true;
     set_string "result" "sarif"
   in
+  let defaults_spec_list = List.map (fun (_, (name, (_, _))) ->
+      (* allow "--option value" as shorthand for "--set option value" *)
+      ("--" ^ name, Arg.String (set_auto name), "")
+    ) !Defaults.registrar
+  in
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""
   ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
@@ -115,7 +120,7 @@ let option_spec_list =
   ; "--osekcheck"          , Arg.Unit (fun () -> set_bool "ana.osek.check" true), ""
   ; "--oseknames"          , Arg.Set_string OilUtil.osek_renames, ""
   ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
-  ]
+  ] @ defaults_spec_list (* lowest priority *)
 
 
 (** Parse arguments and fill [arg_files]. Print help if needed. *)
