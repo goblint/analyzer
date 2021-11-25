@@ -265,9 +265,9 @@ struct
   let all_fields_bot = for_all_fields (fun _ value -> Val.is_bot_value value)
 
   let top () = (HS.singleton (SS.top ()), None)
-  let is_top (s, _) = HS.exists (fun ss -> all_fields_top ss) s
+  let is_top (s, _) = HS.exists all_fields_top s
   let bot () = (HS.bot (), None)
-  let is_bot (s, _) = HS.is_bot s || HS.for_all (fun ss -> all_fields_bot ss) s
+  let is_bot (s, _) = HS.is_bot s || HS.for_all all_fields_bot s
   let create _ = top ()
 
   let join_ss (s: set): variant =
