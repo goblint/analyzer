@@ -168,7 +168,7 @@ struct
     However, arrays set everything at start to bottom, and we would quickly have
     some things initialized to bottom, and discard them.
     That's why we take a more involved approach and only discard those variants
-    that were not overlaped before (non-bottom meet && none of them was bottom before)
+    that were not overlapped before (non-bottom meet && none of them was bottom before)
      *)
     let values_overlap (a: value) (b: value) =
       Val.is_bot_value a || Val.is_bot_value b || not (Val.is_bot_value (Val.meet a b))
@@ -385,7 +385,7 @@ struct
     However, arrays set everything at start to bottom, and we would quickly have
     some things initialized to bottom, and discard them.
     That's why we take a more involved approach and only discard those variants
-    that were not overlaped before (non-bottom meet && none of them was bottom before)
+    that were not overlapped before (non-bottom meet && none of them was bottom before)
      *)
     begin
       let fields_overlap a b =
