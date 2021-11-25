@@ -285,7 +285,7 @@ struct
 
   let get_key_from_compinfo (info:compinfo): field option =
     let fields = info.cfields in
-    if List.length fields == 0
+    if fields = []
     then None
     else
       let fields = if get_bool "exp.structs.key.forward" then fields else List.rev fields in
@@ -313,7 +313,7 @@ struct
     | (_, Some k) -> Some k
     | (s, _) ->
       let existing_fields = keys x in
-      if List.length existing_fields == 0
+      if existing_fields = []
       then None
       else get_key_from_compinfo ((List.hd existing_fields).fcomp)
 
