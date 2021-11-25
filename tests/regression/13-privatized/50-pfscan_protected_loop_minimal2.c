@@ -19,7 +19,7 @@ int pqueue_init(PQUEUE *qp)
 int pqueue_put(PQUEUE *qp)
 {
   pthread_mutex_lock(& qp->mtx);
-  (qp->occupied) ++;
+  (qp->occupied) ++; // overflow gives < 0 values!
   pthread_mutex_unlock(& qp->mtx);
   return (1);
 }
@@ -30,7 +30,8 @@ int pqueue_get(PQUEUE *qp)
   pthread_mutex_lock(& qp->mtx);
   while (qp->occupied <= 0) {
     // qp->occupied should not be just 0, unsoundness in old
-    assert(qp->occupied == 0); // UNKNOWN!
+    assert(qp->occupied == 0); // UNKNOWN (no interval, with overflow)
+    // this assert should not refine!
   }
   // qp->occupied should not be Error int, unsoundness in global
   assert(qp->occupied != 0);

@@ -7,14 +7,15 @@ open GobConfig
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
-(** Json files that are given as arguments *)
-let jsonFiles : string list ref = ref []
+(** Files given as arguments. *)
+let arg_files : string list ref = ref []
 
 (** If this is true we output messages and collect accesses.
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
 
-let did_overflow = ref false
+(** Whether signed overflow or underflow happened *)
+let svcomp_may_overflow = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)

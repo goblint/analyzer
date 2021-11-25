@@ -99,7 +99,7 @@ struct
   (* function for creating a new intermediate node (will generate a new sid every time!) *)
   let mkDummyNode ?loc line =
     let loc = { (loc |? !Tracing.current_loc) with line = line } in
-    MyCFG.Statement { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc)) with sid = new_sid () }
+    MyCFG.Statement { (mkStmtOneInstr @@ Set (var dummyFunDec.svar, zero, loc, locUnknown)) with sid = new_sid () }
   (* table from sum type to negative line number for new intermediate node (-1 to -4 have special meanings) *)
   type tmpNodeUse = Branch of stmt | Combine of lval
   module NodeTbl = ArincUtil.SymTbl (struct type k = tmpNodeUse type v = MyCFG.node let getNew xs = mkDummyNode @@ -5 - (List.length (List.of_enum xs)) end)
@@ -163,7 +163,7 @@ struct
       M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
-  let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.length xs = 1 then Some (List.hd xs) else None
+  let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.compare_length_with xs 1 = 0 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
   let debugMayPointTo ctx exp = M.debug "%a mayPointTo %a" d_exp exp (Pretty.d_list ", " Lval.CilLval.pretty) (mayPointTo ctx exp)
 
@@ -217,14 +217,14 @@ struct
             (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
             (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
             (match env.node with
-             | MyCFG.Statement({ skind = If(e, bt, bf, loc); _ } as stmt) ->
+             | MyCFG.Statement({ skind = If(e, bt, bf, loc, eloc); _ } as stmt) ->
                (* 1. write out edges to predecessors, 2. set predecessors to current node, 3. write edge to the first node of the taken branch and set it as predecessor *)
                (* the then-block always has some stmts, but the else-block might be empty! in this case we use the successors of the if instead. *)
                let then_node = NodeTbl.get @@ Branch (List.hd bt.bstmts) in
                let else_stmts = if List.is_empty bf.bstmts then stmt.succs else bf.bstmts in
                let else_node = NodeTbl.get @@ Branch (List.hd else_stmts) in
                let dst_node = if tv then then_node else else_node in
-               let d_if = if List.length stmt.preds > 1 then ( (* seems like this never happens *)
+               let d_if = if List.compare_length_with stmt.preds 1 > 0 then ( (* seems like this never happens *)
                    M.debug "WARN: branch: If has more than 1 predecessor, will insert Nop edges!";
                    add_edges env ArincUtil.Nop;
                    { ctx.local with pred = Pred.of_node env.node }

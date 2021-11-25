@@ -439,7 +439,7 @@ struct
           if ci.cstruct then
             `Struct (match v with
                 | `Struct x when same_struct x -> x
-                | `Struct x when List.length ci.cfields > 0 ->
+                | `Struct x when ci.cfields <> [] ->
                   let first = List.hd ci.cfields in
                   Structs.(replace (Structs.create ci) first (get x first))
                 | _ -> log_top __POS__; Structs.create ci

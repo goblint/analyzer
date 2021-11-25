@@ -20,7 +20,6 @@
 
 open Prelude
 open Tracing
-open Config
 open Printf
 open JsonSchema
 

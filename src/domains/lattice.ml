@@ -18,7 +18,8 @@ sig
   val leq: t -> t -> bool
   val join: t -> t -> t
   val meet: t -> t -> t
-  val widen: t -> t -> t
+  val widen: t -> t -> t (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
+
   val narrow: t -> t -> t
 
   (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)

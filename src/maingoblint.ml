@@ -10,11 +10,10 @@ let writeconffile = ref ""
 
 (** Print version and bail. *)
 let print_version ch =
-  let open Version in let open Config in
-  let f ch b = if b then fprintf ch "enabled" else fprintf ch "disabled" in
+  let open Version in
   printf "Goblint version: %s\n" goblint;
-  printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
-  printf "Configuration:   tracing %a\n" f tracing;
+  printf "Cil version:     %s\n" Cil.cilVersion;
+  printf "Profile:         %s\n" ConfigProfile.profile;
   exit 0
 
 (** Print helpful messages. *)
@@ -61,9 +60,8 @@ let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
   let add_int    l = let f str = l := str :: !l in Arg.Int f in
   let set_trace sys =
-    let msg = "Goblint has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
-    if Config.tracing then Tracing.addsystem sys
-    else (prerr_endline msg; raise Exit)
+    if Messages.tracing then Tracing.addsystem sys
+    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
   in
   let oil file =
     set_string "ana.osek.oil" file;
@@ -79,6 +77,12 @@ let option_spec_list =
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
     set_string "result" "fast_xml"
+  in
+  let configure_sarif () =
+    if (get_string "outfile" = "") then
+      set_string "outfile" "goblint.sarif";
+    set_bool "dbg.print_dead_code" true;
+    set_string "result" "sarif"
   in
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""
@@ -99,6 +103,7 @@ let option_spec_list =
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
   ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
   ; "--html"               , Arg.Unit (fun _ -> configure_html ()),""
+  ; "--sarif"               , Arg.Unit (fun _ -> configure_sarif ()),""
   ; "--compare_runs"       , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x))], ""
   ; "--oil"                , Arg.String oil, ""
   (*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
@@ -112,18 +117,14 @@ let option_spec_list =
   ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
   ]
 
-(** List of C files to consider. *)
-let cFileNames = ref []
 
-(** Parse arguments and fill [cFileNames] and [jsonFiles]. Print help if needed. *)
+(** Parse arguments and fill [arg_files]. Print help if needed. *)
 let parse_arguments () =
-  let jsonRegex = Str.regexp ".+\\.json$" in
-  let recordFile fname =
-    if Str.string_match jsonRegex fname 0
-    then Goblintutil.jsonFiles := fname :: !Goblintutil.jsonFiles
-    else cFileNames := fname :: !cFileNames
+  let anon_arg filename =
+    arg_files := filename :: !arg_files
   in
-  Arg.parse option_spec_list recordFile "Look up options using 'goblint --help'.";
+  Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
+  arg_files := List.rev !arg_files; (* reverse files to get given order *)
   if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
 
 (** Initialize some globals in other modules. *)
@@ -137,6 +138,9 @@ let handle_flags () =
     Errormsg.verboseFlag := true
   );
 
+  if get_bool "dbg.debug" then
+    set_bool "warn.debug" true;
+
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
@@ -144,7 +148,7 @@ let handle_flags () =
     set_string "outfile" ""
 
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
-let preprocess_one_file cppflags fname =
+let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
   if Sys.file_exists (get_string "tempDir") then
@@ -152,7 +156,7 @@ let preprocess_one_file cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ cppflags ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = ConfigCpp.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -166,13 +170,13 @@ let preprocess_one_file cppflags fname =
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
   (* Preprocessor flags *)
-  let cppflags = ref (get_string "cppflags") in
+  let cppflags = ref (get_string_list "cppflags") in
 
   (* the base include directory *)
   let custom_include_dirs =
     get_string_list "custom_includes" @
     Filename.concat exe_dir "includes" ::
-    Gobsites.Sites.includes
+    Goblint_sites.includes
   in
   if get_bool "dbg.verbose" then (
     print_endline "Custom include dirs:";
@@ -206,39 +210,6 @@ let preprocess_files () =
 
   include_dirs := custom_include_dirs @ !include_dirs;
 
-  (* reverse the files again *)
-  cFileNames := List.rev !cFileNames;
-
-  (* If the first file given is a Makefile, we use it to combine files *)
-  if List.length !cFileNames >= 1 then (
-    let firstFile = List.first !cFileNames in
-    if Filename.basename firstFile = "Makefile" then (
-      let makefile = firstFile in
-      let path = Filename.dirname makefile in
-      (* make sure the Makefile exists or try to generate it *)
-      if not (Sys.file_exists makefile) then (
-        print_endline ("Given " ^ makefile ^ " does not exist!");
-        let configure = Filename.concat path "configure" in
-        if Sys.file_exists configure then (
-          print_endline ("Trying to run " ^ configure ^ " to generate Makefile");
-          let exit_code, output = MakefileUtil.exec_command ~path "./configure" in
-          print_endline (configure ^ MakefileUtil.string_of_process_status exit_code ^ ". Output: " ^ output);
-          if not (Sys.file_exists makefile) then failwith ("Running " ^ configure ^ " did not generate a Makefile - abort!")
-        ) else failwith ("Could neither find given " ^ makefile ^ " nor " ^ configure ^ " - abort!")
-      );
-      let _ = MakefileUtil.run_cilly path in
-      let file = MakefileUtil.(find_file_by_suffix path comb_suffix) in
-      cFileNames := file :: (List.drop 1 !cFileNames);
-    );
-  );
-
-  (* possibly add our lib.c to the files *)
-  if get_bool "custom_libc" then
-    cFileNames := find_custom_include "lib.c" :: !cFileNames;
-
-  if get_bool "ana.sv-comp.functions" then
-    cFileNames := find_custom_include "sv-comp.c" :: !cFileNames;
-
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
     let kernel_roots = [
@@ -256,7 +227,7 @@ let preprocess_files () =
 
     let preconf = find_custom_include "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
-    cppflags := "-D__KERNEL__ -U__i386__ -D__x86_64__ " ^ !cppflags;
+    cppflags := "-D__KERNEL__" :: "-U__i386__" :: "-D__x86_64__" :: !cppflags;
     include_files := preconf :: autoconf :: !include_files;
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
@@ -266,17 +237,53 @@ let preprocess_files () =
       ]
   );
 
-  let includes =
-    String.join " " (List.map (fun include_dir -> "-I " ^ include_dir) !include_dirs) ^
-    " " ^
-    String.join " " (List.map (fun include_file -> "-include " ^ include_file) !include_files)
+  let include_args =
+    List.flatten (List.map (fun include_dir -> ["-I"; include_dir]) !include_dirs) @
+    List.flatten (List.map (fun include_file -> ["-include"; include_file]) !include_files)
   in
 
-  let cppflags = !cppflags ^ " " ^ includes in
+  let all_cppflags = !cppflags @ include_args in
 
   (* preprocess all the files *)
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
-  List.rev_map (preprocess_one_file cppflags) !cFileNames
+
+  let rec preprocess_arg_file = function
+    | filename when Filename.basename filename = "Makefile" ->
+      let comb_file = MakefileUtil.generate_and_combine filename in
+      [basic_preprocess ~all_cppflags comb_file]
+
+    | filename when Filename.basename filename = CompilationDatabase.basename ->
+      CompilationDatabase.load_and_preprocess ~all_cppflags filename
+
+    | filename when Sys.is_directory filename ->
+      let dir_files = Sys.readdir filename in
+      if Array.mem CompilationDatabase.basename dir_files then (* prefer compilation database to Makefile in case both exist, because compilation database is more robust *)
+        preprocess_arg_file (Filename.concat filename CompilationDatabase.basename)
+      else if Array.mem "Makefile" dir_files then
+        preprocess_arg_file (Filename.concat filename "Makefile")
+      else
+        [] (* don't recurse for anything else *)
+
+    | filename when Filename.extension filename = ".json" ->
+      if List.mem "containment" (get_string_list "ana.activated") then
+        [] (* ignore other JSON files for contain analysis *)
+      else begin
+        eprintf "Unexpected JSON file argument (possibly missing --conf): %s\n" filename;
+        raise Exit
+      end
+
+    | filename ->
+      [basic_preprocess ~all_cppflags filename]
+  in
+
+  let extra_arg_files = ref [] in
+
+  extra_arg_files := find_custom_include "stdlib.c" :: !extra_arg_files;
+
+  if get_bool "ana.sv-comp.functions" then
+    extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
+
+  List.flatten (List.map preprocess_arg_file (!extra_arg_files @ !arg_files))
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
@@ -386,6 +393,35 @@ let do_html_output () =
       eprintf "Warning: jar file %s not found.\n" jar
   )
 
+let do_gobview () =
+  let create_symlink target link =
+    if not (Sys.file_exists link) then Unix.symlink target link
+  in
+  let gobview = GobConfig.get_bool "gobview" in
+  let goblint_root =
+    Filename.concat (Unix.getcwd ()) (Filename.dirname Sys.argv.(0))
+  in
+  let dist_dir = Filename.concat goblint_root "_build/default/gobview/dist" in
+  let js_file = Filename.concat dist_dir "main.js" in
+  if gobview then (
+    if Sys.file_exists js_file then (
+      let save_run = GobConfig.get_string "save_run" in
+      let run_dir = if save_run <> "" then save_run else "run" in
+      let dist_files =
+        Sys.files_of dist_dir
+        |> Enum.filter (fun n -> n <> "dune")
+        |> List.of_enum
+      in
+      List.iter (fun n ->
+          create_symlink
+            (Filename.concat dist_dir n)
+            (Filename.concat run_dir n)
+        ) dist_files
+    )
+    else
+      eprintf "Warning: Cannot locate Gobview.\n"
+  )
+
 let eprint_color m = eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr m)
 
 let check_arguments () =
@@ -419,7 +455,7 @@ let diff_and_rename current_file =
         (changes, Some old_file, version_map, max_ids)
       end else begin
         let (version_map, max_ids) = VersionLookup.create_map current_file in
-        (CompareAST.empty_change_info (), None, version_map, max_ids)
+        (CompareCIL.empty_change_info (), None, version_map, max_ids)
       end
     in
     let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")
@@ -471,6 +507,7 @@ let main () =
     file|> do_analyze changeInfo;
     do_stats ();
     do_html_output ();
+    do_gobview ();
     if !verified = Some false then exit 3;  (* verifier failed! *)
   with
     | Exit ->
@@ -482,7 +519,3 @@ let main () =
     | Timeout ->
       eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
       exit 124
-
-(* The actual entry point is in the auto-generated goblint.ml module, and is defined as: *)
-(* let _ = at_exit main *)
-(* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)

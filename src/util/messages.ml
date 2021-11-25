@@ -140,7 +140,6 @@ let () = AfterConfig.register (fun () ->
       GobFormat.pp_set_ansi_color_tags !formatter
   )
 
-let tracing = Config.tracing
 let xml_file_name = ref ""
 
 
@@ -217,17 +216,23 @@ let msg_group_race_old severity group_name errors =
 
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
+let msg_context () =
+  if GobConfig.get_bool "dbg.warn_with_context" then
+    !current_context
+  else
+    None (* avoid identical messages from multiple contexts without any mention of context *)
+
 let msg severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = !current_context}}
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = !current_context}}
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 

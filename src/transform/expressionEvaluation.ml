@@ -41,17 +41,14 @@ module ExpEval : Transform.S =
       | None -> "UNKNOWN"
     let string_of_statement statement =
       statement
-        (* Pretty print *)
-        |> Cil.d_stmt ()
-        |> Pretty.sprint ~width:0
-        (* Split into lines *)
-        |> String.split_on_char '\n'
-        (* Remove preprocessor directives *)
-        |> List.filter (fun line -> line.[0] <> '#')
-        (* Remove indentation *)
-        |> List.map String.trim
-        (* Concatenate lines into one *)
-        |> List.fold_left (^) ""
+      (* Pretty print *)
+      |> CilType.Stmt.show
+      (* Split into lines *)
+      |> String.split_on_char '\n'
+      (* Remove indentation *)
+      |> List.map String.trim
+      (* Concatenate lines into one *)
+      |> List.fold_left (^) ""
 
     class evaluator (file : Cil.file) (ask : Cil.location -> Queries.ask) =
       object (self)

@@ -47,6 +47,10 @@ EXCLUDE_TASKS = [
     "13-privatized_28-multiple-protecting2-simple", # similar to 13/27
     "13-privatized_39-traces-ex-5", # intentional data race
     "13-privatized_43-traces-mine1", # intentional data race
+    "13-privatized_48-pfscan_protected_loop_minimal", # overflow, non-refining assert
+    "13-privatized_49-refine-protected-loop", # overflow, non-refining assert
+    "13-privatized_50-pfscan_protected_loop_minimal2", # overflow, non-refining assert
+    "13-privatized_51-refine-protected-loop2", # overflow, non-refining assert
 
     "36-apron_12-traces-min-rpb1", # intentional data race
     "36-apron_13-traces-min-rpb2", # intentional data race

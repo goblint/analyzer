@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 // Based on 01/35.
 extern int __VERIFIER_nondet_int();
 

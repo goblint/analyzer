@@ -27,6 +27,11 @@ struct
       | [] -> [e]
       | x::xs -> try op e x :: xs with Lattice.Uncomparable -> x :: join op e xs
 
+    (* widen element e with bucket using op *)
+    let rec widen op e = function
+      | [] -> []
+      | x::xs -> try if E.leq e x then [op e x] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *)
+
     (* meet element e with bucket using op *)
     let rec meet op e = function
       | [] -> []
@@ -64,6 +69,15 @@ struct
           if r = [] then None else Some r
         | _ -> None
       ) x y
+  let merge_widen f x y =
+    Map.merge (fun i a b -> match a, b with
+        | Some a, Some b ->
+          let r = List.concat @@ List.map (fun x -> B.widen f x b) a in (* a, b switched compared to merge_meet to ensure correct order of widen arguments inside B.widen *)
+          let r = List.fold_left (fun r x -> B.join E.join x r) r b in (* join b per bucket *)
+          if r = [] then None else Some r
+        | None, Some b -> Some b (* join b per bucket *)
+        | _ -> None
+      ) x y
 
   (* join all elements from the smaller map into their bucket in the other one.
    * this doesn't need to go over all elements of both maps as the general merge above. *)
@@ -72,9 +86,9 @@ struct
     List.fold_left (flip (B.merge_element (B.join f))) y (elements x)
 
   let join   x y = merge_join E.join x y
-  let widen  x y = merge_join E.widen x y
+  let widen  x y = merge_widen E.widen x y
   let meet   x y = merge_meet E.meet x y
-  let narrow x y = merge_meet E.narrow x y
+  let narrow x y = merge_meet E.narrow x y (* TODO: fix narrow like widen? see Set *)
 
   (* Set *)
   let of_list_by f es = List.fold_left (flip (B.merge_element (B.join f))) Map.empty es
