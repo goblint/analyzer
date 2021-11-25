@@ -122,7 +122,7 @@ struct
   let for_all_common_bindings pred x y =
     HS.for_all (fun sy -> HS.for_all (fun s -> SS.for_all_common_bindings pred s sy) x) y
 
-  let pretty () x = HS.pretty () x
+  let pretty = HS.pretty
 
   let for_all_fields f ss = SS.fold (fun field value acc -> acc && (f field value)) ss true
   let all_fields_top = for_all_fields (fun field value -> Val.is_top_value value field.ftype)
@@ -187,11 +187,10 @@ struct
 
   let meet x y = meet_narrow_common x y SS.meet
 
-  let join x y = HS.join x y
-  let leq x y = HS.leq x y
-
-  let hash x = HS.hash x
-  let widen x y = HS.widen x y
+  let join = HS.join
+  let leq = HS.leq
+  let hash = HS.hash
+  let widen = HS.widen
 
   let narrow x y =
     meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
@@ -232,7 +231,7 @@ struct
     if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" pretty x pretty y pretty (HS.of_list appended) pretty res;
     res
 
-  let invariant c x = HS.invariant c x
+  let invariant = HS.invariant
 end
 
 module KeyedSets (Val: LatticeWithIsTopBotValue) =
