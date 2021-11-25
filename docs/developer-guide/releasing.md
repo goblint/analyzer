@@ -1,9 +1,10 @@
 # Releasing
 
 1. Install dune-release: `opam install dune-release`.
-2. Check whether all opam pins are still necessary.
+2. Remove all opam pins because _opam-repository doesn't allow them_.
 
-    If the pinned changes have been released and published in opam, remove the pin to allow more flexible dependencies.
+    * If the pinned changes have been released and published in opam, remove the pin (and add a version lower bound).
+    * If the pinned changes are not strictly necessary for building (but just optimization or stability), then temporarily remove the pin.
 
 3. Regenerate `goblint.opam`: `dune build`.
 4. Regenerate `goblint.opam.locked`: `opam lock .`.
