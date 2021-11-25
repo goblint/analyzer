@@ -59,7 +59,7 @@ depends: [
   "sha" {= "1.15.1"}
   "stdlib-shims" {= "0.3.0"}
   "yojson" {= "1.7.0"}
-  "zarith" {= "1.12-gob0"}
+  "zarith" {= "1.12"}
 ]
 build: [
   ["dune" "subst"] {dev}
