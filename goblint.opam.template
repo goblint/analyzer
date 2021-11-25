@@ -3,7 +3,8 @@
 pin-depends: [
   # the published goblint-cil 1.8.2 is currently up-to-date, so no pin needed
   # [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#c16dddf74f6053a8b3fac07ca2feff18d4d56964" ]
-  [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
+  # TODO: add back after release, only pinned for optimization (https://github.com/ocaml-ppx/ppx_deriving/pull/252)
+  # [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
   [ "ppx_deriving_yojson.3.6.1" "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd" ]
   [ "zarith.1.12-gob0" "git+https://github.com/goblint/Zarith.git#goblint-release-1.12" ]
   # TODO: add back after release, only pinned for CI stability
