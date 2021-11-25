@@ -4,13 +4,19 @@ message: "If you use this software, please cite it using the metadata from this 
 
 title: "Goblint"
 abstract: "Static analysis framework for C"
-authors: # same authors as in dune-project
+authors: # TODO: same authors as in dune-project (for future releases)
   - given-names: Vesal
     family-names: Vojdani
     affiliation: "University of Tartu"
   - given-names: Kalmer
     family-names: Apinis
     affiliation: "University of Tartu"
+  - given-names: Martin D.
+    family-names: Schwarz
+    affiliation: "Technische Universität München"
+  - given-names: Alexander
+    family-names: Herz
+    affiliation: "Technische Universität München"
   - given-names: Ralf
     family-names: Vogler
     affiliation: "Technische Universität München"

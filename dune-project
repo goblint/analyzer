@@ -14,7 +14,7 @@
 (source (github goblint/analyzer))
 (homepage "https://goblint.in.tum.de")
 (documentation "https://goblint.readthedocs.io/en/latest/")
-(authors "Vesal Vojdani" "Kalmer Apinis" "Ralf Vogler" "Michael Schwarz" "Julian Erhard" "Simmo Saan") ; same authors as in CITATION.cff
+(authors "Vesal Vojdani" "Kalmer Apinis" "Ralf Vogler" "Michael Schwarz" "Julian Erhard" "Simmo Saan") ; TODO: same authors as in CITATION.cff (for future releases)
 (maintainers "Michael Schwarz <michael.schwarz93@gmail.com>" "Simmo Saan <simmo.saan@gmail.com>" "Ralf Vogler <ralf.vogler@gmail.com>")
 (license MIT)
 
