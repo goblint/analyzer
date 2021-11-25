@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set exp.structs.domain "sets" --enable exp.structs.meet-condition
+// PARAM: --enable ana.int.interval --set exp.structs.domain "sets"
 
 #include "assert.h"
 
