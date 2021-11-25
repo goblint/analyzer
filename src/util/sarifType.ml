@@ -95,6 +95,10 @@ struct
   } [@@deriving to_yojson]
 end
 
+(* ppx_deriving_yojson quoter fixed upstream (https://github.com/ocaml-ppx/ppx_deriving_yojson/pull/140)
+   but unreleased (https://github.com/ocaml-ppx/ppx_deriving_yojson/issues/141),
+   so use workaround for goblint release *)
+(* TODO: remove workaround when new ppx_deriving_yojson released *)
 let result_to_yojson = Result.to_yojson (* workaround for ppx_deriving problem on Result *)
 
 module Run =
