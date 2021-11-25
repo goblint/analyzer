@@ -8,6 +8,10 @@
 
 3. Regenerate `goblint.opam`: `dune build`.
 4. Regenerate `goblint.opam.locked`: `opam lock .`.
+5. Check with `dune-release check`.
+
+    All changes must be committed because the working tree is not checked.
+
 5. Update `CHANGELOG.md`:
 
     1. Add a desired version number (`vX.Y.Z`) header at the top.
