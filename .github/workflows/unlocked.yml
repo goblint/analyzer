@@ -73,7 +73,9 @@ jobs:
 
   lower-bounds:
     runs-on: ubuntu-latest
-    container: ocaml/opam:ubuntu-21.04-ocaml-4.12
+    container:
+      image: ocaml/opam:ubuntu-21.04-ocaml-4.12
+      options: --user 1000
 
     steps:
       - name: Checkout code
