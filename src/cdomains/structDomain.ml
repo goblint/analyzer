@@ -106,6 +106,22 @@ struct
   type value = SS.value
   type variant = SS.t
   type set = HS.t
+
+  let join_ss s =
+    match HS.elements s with
+    | [] -> raise (Unsupported "join_ss on an empty set")
+    | h::t -> List.fold_left SS.join h t
+
+  let on_joint_ss f default s =
+    if HS.is_bot s then default else f (join_ss s)
+
+  let hs_top () = HS.singleton (SS.top ())
+  let hs_is_top = HS.exists SS.is_top
+  let hs_bot () = HS.bot ()
+  let hs_is_bot x = HS.is_bot x || HS.for_all (SS.for_all_fields (fun _ value -> Val.is_bot_value value)) x
+  let hs_get s field = HS.fold (fun ss acc -> Val.join acc (SS.get ss field)) s (Val.bot ())
+  let hs_create fn compinfo = HS.singleton (SS.create fn compinfo)
+  let hs_fold f s a = on_joint_ss (fun ss -> SS.fold f ss a) a s
 end
 
 module Sets (Val: LatticeWithIsTopBotValue) =
@@ -117,28 +133,18 @@ struct
 
   let show mapping = HS.show mapping
   let pretty = HS.pretty
-  let top () = HS.singleton (SS.top ())
-  let is_top = HS.exists SS.is_top
-  let bot = HS.bot
-  let is_bot x = HS.is_bot x || HS.for_all (SS.for_all_fields (fun _ value -> Val.is_bot_value value)) x
-  let create fn compinfo = HS.singleton (SS.create fn compinfo)
+  let top = hs_top
+  let is_top = hs_is_top
+  let bot = hs_bot
+  let is_bot = hs_is_bot
+  let create = hs_create
 
   let replace s field value =
     if Messages.tracing then Messages.tracel "simplesets" "Normalize top Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pretty s Basetype.CilField.pretty field Val.pretty value;
     HS.map (fun s -> SS.replace s field value) s
 
-  let get s field =
-    HS.fold (fun ss acc -> Val.join acc (SS.get ss field)) s (Val.bot ())
-
-  let join_ss s =
-    match HS.elements s with
-    | [] -> raise (Unsupported "join_ss on an empty set")
-    | h::t -> List.fold_left SS.join h t
-
-  let on_joint_ss f default s =
-    if HS.is_bot s then default else f (join_ss s)
-
-  let fold f s a = on_joint_ss (fun ss -> SS.fold f ss a) a s
+  let get = hs_get
+  let fold = hs_fold
 
   let map f s =
     if HS.is_bot s
@@ -239,20 +245,10 @@ struct
     | None -> (HS.pretty () s) ++ (text " without key")
 
 
-  let top () = (HS.singleton (SS.top ()), None)
-  let is_top (s, _) = HS.exists SS.is_top s
-  let bot () = (HS.bot (), None)
-  let is_bot (s, _) = HS.is_bot s || HS.for_all (SS.for_all_fields (fun _ value -> Val.is_bot_value value)) s
-  let create fn compinfo = (HS.singleton (SS.create fn compinfo), None)
-
-  let join_ss (s: set): variant =
-    match HS.elements s with
-    | [] -> raise (Unsupported "join_ss on an empty set")
-    | h::t -> List.fold_left (fun el acc -> SS.join el acc) h t
-
-  let on_joint_ss f default (s: set) =
-    if HS.is_bot s then default else f (join_ss s)
-
+  let top () = (hs_top (), None)
+  let is_top (s, _) = hs_is_top s
+  let bot () = (hs_bot (), None)
+  let is_bot (s, _) = hs_is_bot s
   let join_set (s: set): set = if HS.is_bot s then s else HS.singleton (join_ss s)
 
   let keys (s,_): field list = on_joint_ss (SS.keys) [] s
@@ -331,10 +327,10 @@ struct
     in
     result_key
 
-  let get (s, _: t) field =
-    HS.fold (fun ss acc -> Val.join acc (SS.get ss field)) s (Val.bot ())
+  let create fn compinfo = (hs_create fn compinfo, get_key_from_compinfo compinfo)
+  let get (s, _: t) = hs_get s
 
-  let fold f (s, _: t) a = on_joint_ss (fun ss -> SS.fold f ss a) a s
+  let fold f (s, _: t) = hs_fold f s
 
   let map f (x: t) =
     let (s, k) = x in
