@@ -497,6 +497,22 @@ module WP =
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
 
+        let restart_leaf x =
+          if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
+          ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pretty_trace x);
+          HM.replace rho x (S.Dom.bot ());
+          (* HM.remove rho x; *)
+          HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
+          HM.remove sides x; (* just in case *)
+
+          (* immediately redo "side effect" from st *)
+          match GU.assoc_eq x st S.Var.equal with
+          | Some d ->
+            HM.replace rho x d;
+          | None ->
+            ()
+        in
+
         (* destabilize which restarts side-effected vars *)
         let rec destabilize_with_side ?(front=true) x =
           if tracing then trace "sol2" "destabilize_with_side %a\n" S.Var.pretty_trace x;
@@ -507,12 +523,7 @@ module WP =
 
           if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) then (
             (* restart side-effected var *)
-            if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
-            ignore (Pretty.printf "Restarting to bot %a\n" S.Var.pretty_trace x);
-            HM.replace rho x (S.Dom.bot ());
-            (* HM.remove rho x; *)
-            HM.remove wpoint x; (* otherwise gets immediately widened during resolve *)
-            HM.remove sides x; (* just in case *)
+            restart_leaf x;
 
             (* destabilize side dep to redo side effects *)
             VS.iter (fun y ->
@@ -620,7 +631,7 @@ module WP =
         );
 
         let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)
-          HM.replace rho x (S.Dom.bot ());
+          restart_leaf x;
           destabilize x
         in
 
