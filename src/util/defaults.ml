@@ -222,7 +222,7 @@ let _ = ()
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
       ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
-      ; reg Experimental "exp.structs.domain"          "'simple'" "The domain that should be used for structs."
+      ; reg Experimental "exp.structs.domain"          "'simple'" "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk"
       ; reg Experimental "exp.structs.key.forward"     "true"     "Whether the struct key should be picked going from first field to last."
       ; reg Experimental "exp.structs.key.avoid-ints"  "true"     "Whether integers should be avoided for key."
       ; reg Experimental "exp.structs.key.prefer-ptrs" "true"     "Whether pointers should be preferred for key."
