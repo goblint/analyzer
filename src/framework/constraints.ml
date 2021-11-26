@@ -1051,7 +1051,7 @@ struct
       Locmap.add h k d
 
   let branch ctx exp tv =
-    if !GU.in_verifying_stage && get_bool "dbg.print_dead_code" then (
+    if !GU.postsolving then (
       Locmap.replace Deadcode.dead_branches_cond !Tracing.current_loc exp;
       try
         let r = branch ctx exp tv in
