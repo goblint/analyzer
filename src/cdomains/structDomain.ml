@@ -462,7 +462,6 @@ struct
   type value = S.value
   type t = S.t option * HS.t option * KS.t option [@@deriving to_yojson]
 
-  let invariant _ _ = Invariant.none
   let tag _ = failwith "FlagConfiguredStructDomain: no tag"
   let arbitrary () = failwith "FlagConfiguredStructDomain: no arbitrary"
 
@@ -471,6 +470,8 @@ struct
     | (None, Some hs, None) -> ophs hs
     | (None, None, Some ks) -> opks ks
     | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
+
+  let invariant c = unop (S.invariant c) (HS.invariant c) (KS.invariant c)
 
   let pretty () = unop (S.pretty ()) (HS.pretty ()) (KS.pretty ())
 
