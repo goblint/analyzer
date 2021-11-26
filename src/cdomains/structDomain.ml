@@ -50,7 +50,6 @@ struct
   let get s field = M.find field s
   let fold = M.fold
   let map = M.map
-  let cardinal = M.cardinal
   let keys x = M.fold (fun k _ a -> k::a) x []
 
   (* Add these or the byte code will segfault ... *)
