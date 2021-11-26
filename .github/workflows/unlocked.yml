@@ -75,9 +75,11 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ocaml/opam:ubuntu-21.04-ocaml-4.12
-      options: --user 1000:1000
+      # options: --user 1000:1000
 
     steps:
+      - run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
+
       - name: Checkout code
         uses: actions/checkout@v2
 
