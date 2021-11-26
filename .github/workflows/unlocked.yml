@@ -72,25 +72,12 @@ jobs:
         run: ruby scripts/update_suite.rb -m
 
   lower-bounds:
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-        ocaml-compiler:
-          - 4.12.0 # matches opam lock file
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    container: ubuntu-21.04-ocaml-4.12
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
-        with:
-          ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install dependencies
         env:
