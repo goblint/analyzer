@@ -19,11 +19,11 @@
 
 6. Update list of authors in `CITATION.cff` and `dune-project`.
 6. Tag the release: `dune-release tag`.
-7. Do the release: `dune-release`.
+1. Create the distribution archive: `DUNE_RELEASE_DELEGATE=github-dune-release-delegate dune-release publish distrib`.
 
-    This will automatically do all of the following:
+    Explicitly specify `distrib` because we don't want to publish OCaml API docs.
+    Environment variable workaround for the package having a Read the Docs `doc` URL (see <https://github.com/ocamllabs/dune-release/issues/154>).
 
-    1. Create the distribution archive (`dune-release distrib`).
-    2. Create a GitHub release with the git tag (`dune-release publish`).
-    3. Create an opam package (`dune-release opam pkg`).
-    4. Submit the opam package to opam-repository (`dune-release opam submit`).
+2. Create a GitHub release with the git tag: `dune-release publish`.
+3. Create an opam package: `dune-release opam pkg`.
+4. Submit the opam package to opam-repository: `dune-release opam submit`.
