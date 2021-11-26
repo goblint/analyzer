@@ -17,7 +17,6 @@ sig
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val for_all_common_bindings: (value -> value -> bool) -> t -> t -> bool
   val map: (value -> value) -> t -> t
-  val cardinal: t -> int
   val keys: t -> field list
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
@@ -156,7 +155,6 @@ struct
     then s
     else HS.singleton (on_joint_ss (SS.map f) (SS.bot ()) s)
 
-  let cardinal = on_joint_ss (SS.cardinal) 0
   let keys = on_joint_ss (SS.keys) []
 
   let equal = HS.equal
@@ -279,8 +277,7 @@ struct
 
   let join_set (s: set): set = if HS.is_bot s then s else HS.singleton (join_ss s)
 
-  let cardinal (s, _: t): int = on_joint_ss (SS.cardinal) 0 s
-  let keys (s, _: t): field list = on_joint_ss (SS.keys) [] s
+  let keys (s,_): field list = on_joint_ss (SS.keys) [] s
 
   let get_key_from_compinfo (info:compinfo): field option =
     let fields = info.cfields in
@@ -542,7 +539,6 @@ struct
   let get = unop S.get HS.get KS.get
   let replace = twoaccop_to_t S.replace HS.replace KS.replace
   let for_all_common_bindings f = binop (S.for_all_common_bindings f) (HS.for_all_common_bindings f) (KS.for_all_common_bindings f)
-  let cardinal = unop S.cardinal HS.cardinal KS.cardinal
   let keys = unop S.keys HS.keys KS.keys
   let map f = unop_to_t (S.map f) (HS.map f) (KS.map f)
   let fold f = unop (S.fold f) (HS.fold f) (KS.fold f)

@@ -17,7 +17,6 @@ sig
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
   val for_all_common_bindings: (value -> value -> bool) -> t -> t -> bool
   val map: (value -> value) -> t -> t
-  val cardinal: t -> int
   val keys: t -> field list
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
