@@ -274,18 +274,17 @@ struct
           end
       in Some (first_appropriate_key fields (List.hd fields))
 
-  let find_key_field (x: t): field option =
-    match x with
-    | (_, Some k) -> Some k
-    | (s, _) ->
-      let existing_fields = keys x in
+  let find_key_field (s,k): field option =
+    match k with
+    | Some k -> Some k
+    | _ ->
+      let existing_fields = keys (s,k) in
       if existing_fields = []
       then None
       else get_key_from_compinfo ((List.hd existing_fields).fcomp)
 
 
-  let reduce_key_with_fct f (x: t): t =
-    let (s, _) = x in
+  let reduce_key_with_fct f ((s,k) as x): t =
     if HS.cardinal s <= 1 then x else
       match find_key_field x with
       | None -> x
@@ -309,13 +308,12 @@ struct
 
   let reduce_key (x: t): t = reduce_key_with_fct (SS.join) x
 
-  let replace (x: t) field value : t =
-    let (s, _) = x in
+  let replace (s,k) field value : t =
     let join_set s =if HS.is_bot s then s else HS.singleton (join_ss s) in
     if Messages.tracing then Messages.tracel "keyedsets" "Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pretty s Basetype.CilField.pretty field Val.pretty value ;
     let replaced = HS.map (fun s -> SS.replace s field value) s in
     let result_key =
-      match find_key_field x with
+      match find_key_field (s,k) with
       | None -> (replaced, None)
       | Some key ->
         if Basetype.CilField.equal key field
