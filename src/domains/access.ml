@@ -357,18 +357,16 @@ and distribute_access_exp f w r c = function
   | _ -> ()
 
 let add side e w conf vo oo p =
-  if !Goblintutil.should_warn then begin
-    let ty = get_val_type e vo oo in
-    (* let loc = !Tracing.current_loc in *)
-    (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
-    match vo, oo with
-    | Some v, Some o -> add_struct side e w conf ty (Some (v, remove_idx o)) p
-    | _ ->
-      if !unsound && isArithmeticType (type_from_type_offset ty) then
-        add_struct side e w conf ty None p
-      else
-        add_propagate side e w conf ty None p
-  end
+  let ty = get_val_type e vo oo in
+  (* let loc = !Tracing.current_loc in *)
+  (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
+  match vo, oo with
+  | Some v, Some o -> add_struct side e w conf ty (Some (v, remove_idx o)) p
+  | _ ->
+    if !unsound && isArithmeticType (type_from_type_offset ty) then
+      add_struct side e w conf ty None p
+    else
+      add_propagate side e w conf ty None p
 
 
 (* Access table as Lattice. *)
