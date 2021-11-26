@@ -123,6 +123,9 @@ struct
   let hs_create fn compinfo = HS.singleton (SS.create fn compinfo)
   let hs_fold f s a = on_joint_ss (fun ss -> SS.fold f ss a) a s
   let hs_keys = on_joint_ss (SS.keys) []
+  let hs_map f s = if HS.is_bot s
+    then s
+    else HS.map (SS.map f) s
 end
 
 module Sets (Val: LatticeWithIsTopBotValue) =
@@ -146,12 +149,7 @@ struct
 
   let get = hs_get
   let fold = hs_fold
-
-  let map f s =
-    if HS.is_bot s
-    then s
-    else HS.singleton (on_joint_ss (SS.map f) (SS.bot ()) s)
-
+  let map = hs_map
   let keys = hs_keys
   let equal = HS.equal
   let compare = HS.compare
@@ -331,13 +329,9 @@ struct
 
   let fold f (s, _: t) = hs_fold f s
 
-  let map f (x: t) =
-    let (s, k) = x in
-    if HS.is_bot s
-    then x
-    else
-      let s' = HS.singleton (on_joint_ss (SS.map f) (SS.top ()) s) in
-      reduce_key (s', k)
+  let map f (s,k) =
+    let s' = hs_map f s in
+    reduce_key (s', k)
 
   let equal (x,_) (y,_) = HS.equal x y
   let compare (x,_) (y,_) = HS.compare x y
