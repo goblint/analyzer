@@ -1060,7 +1060,7 @@ struct
               match eval_exp e with
               | `Int x -> ID.cast_to (Cilfacade.ptrdiff_ikind ())  x
               | _ ->
-                M.warn "Expression for size of VLA did not evaluate to Int at declaration";
+                M.debug ~category:Analyzer "Expression for size of VLA did not evaluate to Int at declaration";
                 ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
             end
         in
