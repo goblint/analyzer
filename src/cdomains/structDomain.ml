@@ -11,7 +11,7 @@ sig
   include Lattice.S
   type value
   type field
-  val create: compinfo -> t
+  val create: (field -> value) -> compinfo -> t
   val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
@@ -68,7 +68,7 @@ struct
   let compare = M.compare
   let is_top = M.is_top
   let top () = M.top ()
-  let create _ = top ()
+  let create fn compinfo = List.fold_left (fun s fd -> replace s fd (fn fd)) (M.top ()) compinfo.cfields
   let is_bot = M.is_bot
   let bot () = M.bot ()
   let meet = M.meet
@@ -131,7 +131,7 @@ struct
   let is_top = HS.exists all_fields_top
   let bot = HS.bot
   let is_bot x = HS.is_bot x || HS.for_all all_fields_bot x
-  let create _ = top ()
+  let create fn compinfo = HS.singleton (SS.create fn compinfo)
 
   let replace s field value =
     if Messages.tracing then Messages.tracel "simplesets" "Normalize top Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pretty s Basetype.CilField.pretty field Val.pretty value;
@@ -265,7 +265,7 @@ struct
   let is_top (s, _) = HS.exists all_fields_top s
   let bot () = (HS.bot (), None)
   let is_bot (s, _) = HS.is_bot s || HS.for_all all_fields_bot s
-  let create _ = top ()
+  let create fn compinfo = (HS.singleton (SS.create fn compinfo), None)
 
   let join_ss (s: set): variant =
     match HS.elements s with
@@ -586,11 +586,11 @@ struct
     | "keyed" -> (None, None, Some (KS.top ()))
     | _ -> failwith "FlagConfiguredStructDomain cannot construct a top struct from set option"
 
-  let create (comp: compinfo): t =
+  let create fn (comp: compinfo): t =
     match pick_combined (chosen_domain ()) comp with
-    | "simple" -> (Some (S.top ()), None, None)
-    | "sets" -> (None, Some (HS.top ()), None)
-    | "keyed" -> (None, None, Some (KS.top ()))
+    | "simple" -> (Some (S.create fn comp), None, None)
+    | "sets" -> (None, Some (HS.create fn comp), None)
+    | "keyed" -> (None, None, Some (KS.create fn comp))
     | _ -> failwith "FlagConfiguredStructDomain cannot construct a struct from set option"
 
 end

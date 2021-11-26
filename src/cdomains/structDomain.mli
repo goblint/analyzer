@@ -11,7 +11,7 @@ sig
   type value
   (** The abstract domain of values stored in the struct. *)
 
-  val create: compinfo -> t
+  val create: (field -> value) -> compinfo -> t
   val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a

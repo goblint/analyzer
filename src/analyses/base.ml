@@ -442,14 +442,7 @@ struct
             | `Top -> `Top
             | t -> `Blob (t,s,o)
           end
-        | `Struct s ->
-          let one_field fl vl st =
-            match replace_val vl with
-            | `Top -> st
-            | v    -> ValueDomain.Structs.replace st fl v
-          in
-          let ci = (List.hd (ValueDomain.Structs.keys s)).fcomp in
-          `Struct (ValueDomain.Structs.fold one_field (ValueDomain.Structs.create ci) s)
+        | `Struct s -> `Struct (ValueDomain.Structs.map replace_val s)
         | _ -> `Top
       in
       CPA.map replace_val st
