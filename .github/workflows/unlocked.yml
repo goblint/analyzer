@@ -70,3 +70,39 @@ jobs:
 
       - name: Test marshal regression
         run: ruby scripts/update_suite.rb -m
+
+  lower-bounds:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        ocaml-compiler:
+          - 4.12.0 # matches opam lock file
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        env:
+          # imitate lower-bounds opam-ci from opam-repository
+          OPAMCRITERIA: +removed,+count[version-lag,solution]
+          OPAMEXTERNALSOLVER: builtin-0install
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install dependencies
+        run: opam install . --deps-only --with-test
+
+      - name: Install Apron dependencies
+        run: |
+          opam depext apron
+          opam install apron
+
+      - name: Build
+        run: ./make.sh nat
