@@ -38,18 +38,20 @@ struct
     unsafe := 0
 
   let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
-    let (g, o) = lv_opt |? (!none_varinfo, `NoOffset) in
-    let d =
-      let open Access in
-      OM.singleton o (
-        TM.singleton ty (
-          PM.singleton ls_opt (
-            AS.singleton (conf, w, loc, e, lp)
+    if !GU.should_warn then (
+      let (g, o) = lv_opt |? (!none_varinfo, `NoOffset) in
+      let d =
+        let open Access in
+        OM.singleton o (
+          TM.singleton ty (
+            PM.singleton ls_opt (
+              AS.singleton (conf, w, loc, e, lp)
+            )
           )
         )
-      )
-    in
-    ctx.sideg g d
+      in
+      ctx.sideg g d
+    )
 
   let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
