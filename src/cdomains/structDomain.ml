@@ -110,11 +110,10 @@ struct
   let pretty = HS.pretty
 
   let for_all_fields f ss = SS.fold (fun field value acc -> acc && (f field value)) ss true
-  let all_fields_top = for_all_fields (fun field value -> Val.is_top_value value field.ftype)
   let all_fields_bot = for_all_fields (fun _ value -> Val.is_bot_value value)
 
   let top () = HS.singleton (SS.top ())
-  let is_top = HS.exists all_fields_top
+  let is_top = HS.exists SS.is_top
   let bot = HS.bot
   let is_bot x = HS.is_bot x || HS.for_all all_fields_bot x
   let create fn compinfo = HS.singleton (SS.create fn compinfo)
@@ -241,11 +240,10 @@ struct
     | None -> (HS.pretty () s) ++ (text " without key")
 
   let for_all_fields f ss = SS.fold (fun field value acc -> acc && (f field value)) ss true
-  let all_fields_top = for_all_fields (fun field value -> Val.is_top_value value field.ftype)
   let all_fields_bot = for_all_fields (fun _ value -> Val.is_bot_value value)
 
   let top () = (HS.singleton (SS.top ()), None)
-  let is_top (s, _) = HS.exists all_fields_top s
+  let is_top (s, _) = HS.exists SS.is_top s
   let bot () = (HS.bot (), None)
   let is_bot (s, _) = HS.is_bot s || HS.for_all all_fields_bot s
   let create fn compinfo = (HS.singleton (SS.create fn compinfo), None)
