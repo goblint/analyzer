@@ -242,9 +242,9 @@ doproject = lambda do |p|
   end
   starttime = Time.now
   if marshal then
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --set save_run run  2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{statsfile}"
   else
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true 2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code 2>#{statsfile}"
   end
   pid = Process.spawn(cmd, :pgroup=>true)
   begin
@@ -286,7 +286,7 @@ doproject = lambda do |p|
     f.puts vrsn
   end
   if marshal then
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --conf run/config.json --set save_run '' --set load_run run  2>#{statsfile}"
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --conf run/config.json --set save_run '' --set load_run run  2>#{statsfile}"
     pid = Process.spawn(cmd, :pgroup=>true)
     begin
       Timeout::timeout(timeout) {Process.wait pid}
