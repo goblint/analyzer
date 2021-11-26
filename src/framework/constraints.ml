@@ -1034,6 +1034,33 @@ struct
     if D.is_bot d then raise Deadcode else d
 end
 
+module DeadBranchLifter (S: Spec): Spec =
+struct
+  include S
+
+  let name () = "DeadBranch (" ^ name () ^ ")"
+
+  module Locmap = Deadcode.Locmap
+
+  let dead_branches = function true -> Deadcode.dead_branches_then | false -> Deadcode.dead_branches_else
+
+  let branch ctx exp tv =
+    if !GU.postsolving then (
+      Locmap.replace Deadcode.dead_branches_cond !Tracing.current_loc exp;
+      try
+        let r = branch ctx exp tv in
+        (* branch is live *)
+        Locmap.replace (dead_branches tv) !Tracing.current_loc false; (* set to live (false) *)
+        r
+      with Deadcode ->
+        (* branch is dead *)
+        Locmap.modify_def true !Tracing.current_loc Fun.id (dead_branches tv); (* set to dead (true) if not mem, otherwise keep existing (Fun.id) since it may be live (false) in another context *)
+        raise Deadcode
+    )
+    else
+      branch ctx exp tv
+end
+
 module Compare
     (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)

@@ -21,6 +21,7 @@ let get_spec () : (module Spec) =
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
             |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
+            |> lift (get_bool "dbg.print_dead_code") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -138,11 +139,10 @@ struct
     );
     let str = function true -> "then" | false -> "else" in
     let report tv (loc, dead) =
-      if Deadcode.Locmap.mem dead_locations loc then
-        match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-        | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
-        | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
-        | _ -> ()
+      match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
+      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
+      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
+      | _ -> ()
     in
     if get_bool "dbg.print_dead_code" then (
       let by_fst (a,_) (b,_) = Stdlib.compare a b in

@@ -21,13 +21,8 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 
-  let update_vid_max vid =
-    if vid > !vid_max then vid_max := vid
-  in
-
-  let update_sid_max sid =
-    if sid > !sid_max then sid_max := sid
-  in
+  let update_vid_max vid = update_id_max vid_max vid in
+  let update_sid_max sid = update_id_max sid_max sid  in
 
   let make_vid () =
     vid_max := !vid_max +1;
@@ -128,26 +123,12 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
       | _ -> ()
     with Failure m -> ()
   in
-  let update_sids (glob: global) = match glob with
-    | GFun (fn, loc) -> List.iter (fun s -> update_sid_max s.sid) fn.sallstmts
-    | _ -> ()
-  in
-
-  let update_vids (glob: global) = match glob with
-    | GFun (fn, loc) -> List.iter (List.iter (fun v -> update_vid_max v.vid)) [fn.slocals; fn.sformals]
-    | GVar (v,_,_) -> update_vid_max v.vid
-    | GVarDecl (v,_) -> update_vid_max v.vid
-    | _ -> ()
-  in
-  let update_ids (glob: global) =
-    update_vids glob; update_sids glob;
-  in
   List.iter reset_globals changes.unchanged;
   List.iter reset_changed_globals changes.changed;
   List.iter update_globals changes.added;
 
   (* Update the sid_max and vid_max *)
-  Cil.iterGlobals new_file update_ids;
+  Cil.iterGlobals new_file (update_max_ids vid_max sid_max);
   (* increment the sid so that the *unreachable* nodes that are introduced afterwards get unique sids *)
   while !sid_max > Cil.new_sid () do
     ()
