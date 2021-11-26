@@ -986,13 +986,17 @@ struct
               let new_array_value = CArrays.set ask x' (e, idx) new_value_at_index in
               `Array new_array_value
             | `Bot ->
-              let t = (match t with
-              | TArray(t1 ,_,_) -> t1
-              | _ -> t) in (* This is necessary because t is not a TArray in case of calloc *)
+              let t,len = (match t with
+                  | TArray(t1 ,len,_) -> t1, len
+                  | _ -> t, None) in (* This is necessary because t is not a TArray in case of calloc *)
               let x' = CArrays.bot () in
               let e = determine_offset ask l o exp (Some v) in
               let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
+              let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
+              let len_id = BatOption.map (fun ci -> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint ci) len_ci in
+              let newl = BatOption.default (ID.top_of (Cilfacade.ptrdiff_ikind ())) len_id in
+              let new_array_value = CArrays.update_length newl new_array_value in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
             | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
