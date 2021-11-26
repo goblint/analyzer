@@ -41,7 +41,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install dependencies
-        run: opam install . --deps-only
+        run: opam install . --deps-only --with-test
 
       - name: Install Apron dependencies
         if: ${{ matrix.apron }}

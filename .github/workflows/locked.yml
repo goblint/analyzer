@@ -32,7 +32,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install dependencies
-        run: opam install . --deps-only --locked
+        run: opam install . --deps-only --locked --with-test
 
       - name: Build
         run: ./make.sh nat
