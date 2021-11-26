@@ -486,9 +486,7 @@ struct
     | (Some s1, None, None), (Some s2, None, None) -> (Some (ops s1 s2), None, None)
     | (None, Some hs1, None), (None, Some hs2, None) -> (None, Some(ophs hs1 hs2), None)
     | (None, None, Some ks1), (None, None, Some ks2) -> (None, None, Some(opks ks1 ks2))
-    | _ ->
-      if Messages.tracing then Messages.tracel "flag-struct-dom" "binoptot\nx: %a\ny: %a\n" pretty (s1, hs1, ks1) pretty (s2, hs2, ks2);
-      failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
+    | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
 
 
   let unop_to_t ops ophs opks (s,hs,ks) = match (s, hs, ks) with
