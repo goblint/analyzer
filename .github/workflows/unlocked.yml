@@ -71,36 +71,29 @@ jobs:
       - name: Test marshal regression
         run: ruby scripts/update_suite.rb -m
 
-  configure:
-    runs-on: ubuntu-latest
-    outputs:
-      uid_gid: ${{ steps.get-user.outputs.uid_gid }}
-    steps:
-      - id: get-user
-        run: echo "::set-output name=uid_gid::$(id -u):$(id -g)"
-
   lower-bounds:
-    needs: configure
     runs-on: ubuntu-latest
-    container:
-      image: ocaml/opam:ubuntu-21.04-ocaml-4.12
-      options: --user ${{ needs.configure.outputs.uid_gid }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install dependencies
-        env:
-          # imitate lower-bounds opam-ci from opam-repository
-          OPAMCRITERIA: +removed,+count[version-lag,solution]
-          OPAMEXTERNALSOLVER: builtin-0install
-        run: opam install . --deps-only --with-test
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1 # needed for GitHub Actions Cache in build-push-action
 
-      # - name: Install Apron dependencies
-      #   run: |
-      #     opam depext apron
-      #     opam install apron
+      - name: Build dev Docker image
+        id: build
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          load: true # load into docker instead of immediately pushing
+          tags: dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max # max mode caches all layers for multi-stage image
 
-      - name: Build
-        run: ./make.sh nat
+      - uses: addnab/docker-run-action@v3
+        with:
+          image: dev
+          run: |
+            OPAMCRITERIA=+removed,+count[version-lag,solution] OPAMEXTERNALSOLVER=builtin-0install opam-2.1 install . --deps-only --with-test -y
+            opam exec -- dune runtest
