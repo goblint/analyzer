@@ -122,6 +122,7 @@ struct
   let hs_get s field = HS.fold (fun ss acc -> Val.join acc (SS.get ss field)) s (Val.bot ())
   let hs_create fn compinfo = HS.singleton (SS.create fn compinfo)
   let hs_fold f s a = on_joint_ss (fun ss -> SS.fold f ss a) a s
+  let hs_keys = on_joint_ss (SS.keys) []
 end
 
 module Sets (Val: LatticeWithIsTopBotValue) =
@@ -151,8 +152,7 @@ struct
     then s
     else HS.singleton (on_joint_ss (SS.map f) (SS.bot ()) s)
 
-  let keys = on_joint_ss (SS.keys) []
-
+  let keys = hs_keys
   let equal = HS.equal
   let compare = HS.compare
 
@@ -249,9 +249,8 @@ struct
   let is_top (s, _) = hs_is_top s
   let bot () = (hs_bot (), None)
   let is_bot (s, _) = hs_is_bot s
-  let join_set (s: set): set = if HS.is_bot s then s else HS.singleton (join_ss s)
 
-  let keys (s,_): field list = on_joint_ss (SS.keys) [] s
+  let keys (s,_) = hs_keys s
 
   let get_key_from_compinfo (info:compinfo): field option =
     let fields = info.cfields in
@@ -315,6 +314,7 @@ struct
 
   let replace (x: t) field value : t =
     let (s, _) = x in
+    let join_set s =if HS.is_bot s then s else HS.singleton (join_ss s) in
     if Messages.tracing then Messages.tracel "keyedsets" "Replace - s:\n%a\nfield:%a\nvalue: %a\n---------\n" HS.pretty s Basetype.CilField.pretty field Val.pretty value ;
     let replaced = HS.map (fun s -> SS.replace s field value) s in
     let result_key =
