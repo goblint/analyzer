@@ -7,14 +7,18 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (wrapped false)
-  (modules :standard \ goblint mainarinc maindomaintest mainspec privPrecCompare)
-  (libraries goblint-cil.all-features batteries.unthreaded zarith_stubs_js qcheck-core.runner
+  (modules :standard \ goblint mainarinc maindomaintest mainspec privPrecCompare apronPrecCompare)
+  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
     (select apronDomain.ml from
-      (apron apron.octMPQ -> apronDomain.apron.ml)
+      (apron apron.octD apron.boxD apron.polkaMPQ -> apronDomain.apron.ml)
       (-> apronDomain.no-apron.ml)
+    )
+    (select apronPrecCompareUtil.ml from
+      (apron -> apronPrecCompareUtil.apron.ml)
+      (-> apronPrecCompareUtil.no-apron.ml)
     )
     (select apronAnalysis.ml from
       (apron -> apronAnalysis.apron.ml)
@@ -25,7 +29,7 @@
       (-> apronPriv.no-apron.ml)
     )
     (select violationZ3.ml from
-      (z3 -> violationZ3.z3.ml)
+      (z3 !js_of_ocaml -> violationZ3.z3.ml) ; disable in js because no z3 js stubs
       (-> violationZ3.no-z3.ml)
     )
   )
@@ -39,14 +43,15 @@
 ; TODO: Remove workaround with dune 3.0, where this should get fixed.
 (copy_files cdomains/apron/*.ml)
 (copy_files analyses/apron/*.ml)
+(copy_files util/apron/*.ml)
 (copy_files witness/z3/*.ml)
 
 (executables
   (names goblint maindomaintest) ; TODO: separate domaintest executable?
   (public_names goblint -)
-  (modes native js) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
+  (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules goblint mainarinc maindomaintest mainspec)
-  (libraries goblint.lib)
+  (libraries goblint.lib goblint.sites.dune)
   (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
   (flags :standard -linkall)
 )
@@ -54,17 +59,42 @@
 (executable
   (name privPrecCompare)
   (modules privPrecCompare)
-  (libraries goblint.lib)
+  (libraries goblint.lib goblint.sites.dune)
+  (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (flags :standard -linkall)
+)
+
+(executable
+  (name apronPrecCompare)
+  (modules apronPrecCompare)
+  (libraries goblint.lib goblint.sites.dune)
   (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
   (flags :standard -linkall)
 )
 
 (rule
-  (targets goblint.ml config.ml version.ml)
-  (mode fallback) ; do nothing if all targets already exist
-  (deps ../scripts/set_version.sh (source_tree .)) ; also depend on src/ such that all files are copied before goblint.ml is generated. Otherwise dune runs this rule in parallel and might be in the middle of building, i.e., some files might not be reached and copied yet.
-  (action (chdir .. (run ./make.sh gen)))
-)
+  (target configVersion.ml)
+  (mode (promote (until-clean)))
+  (deps (universe)) ; do not cache, always regenerate
+  (action (pipe-stdout (run git describe --all --long --dirty) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet version = \"%s\"'")))))
+
+(rule
+  (target configProfile.ml)
+  (mode (promote (until-clean)))
+  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
+
+(rule
+  (target configCpp.ml)
+  (mode (promote (until-clean)))
+  (enabled_if (<> %{system} "macosx"))
+  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet cpp = \"cpp\"")))
+
+(rule
+  (target configCpp.ml)
+  (mode (promote (until-clean)))
+  (deps (universe))
+  (enabled_if (= %{system} "macosx")) ; if we are on OS X and cpp is the Apple LLVM version, we should look for some Homebrew cpp-8 (or other version)
+  (action (pipe-stdout (with-accepted-exit-codes 0 (bash "compgen -c cpp- | head -n1")) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet cpp = \"%s\"'")))))
 
 (rule
   (alias runtest)
@@ -74,6 +104,9 @@
 
 (env
   (dev
+    (flags (:standard -warn-error -A -w -6-27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  )
+  (trace
     (flags (:standard -warn-error -A -w -6-27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
   )
 )

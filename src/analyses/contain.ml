@@ -79,7 +79,7 @@ struct
       Hashtbl.replace htbl cn xs
     in (*read CXX.json; FIXME: use mangled names including namespaces*)
     let json=
-      match List.filter (fun x -> Str.string_match (Str.regexp ".*CXX\\.json$") x 0) !Goblintutil.jsonFiles with
+      match List.filter (fun x -> Filename.check_suffix x "CXX.json") !Goblintutil.arg_files with
       | [] -> failwith "Containment analysis needs a CXX.json file."
       | f :: _ ->
         begin
@@ -100,7 +100,7 @@ struct
         end
     in (*read in SAFE.json, suppress warnings for safe funs/vars*)
     json;
-    match List.filter (fun x -> Str.string_match (Str.regexp ".*SAFE\\.json$") x 0) !Goblintutil.jsonFiles with
+    match List.filter (fun x -> Filename.check_suffix x "SAFE.json") !Goblintutil.arg_files with
     | [] -> ()
     | f :: _ ->
       try
@@ -113,7 +113,7 @@ struct
 
   let funcount = ref 0
 
-  let init () =
+  let init marshal =
     init_inh_rel ();
     Printexc.record_backtrace true;
     iterGlobals (!Cilfacade.current_file) (function GFun (f,_) -> incr funcount| _ -> ());
@@ -542,7 +542,7 @@ struct
 
                     let res = List.fold_left (fun y x -> try ignore(Cilfacade.find_varinfo_fundec x);x::y with _ -> y) [] vars in
                     begin
-                      if List.length res = 0 then
+                      if res = [] then
                         begin
                           begin
                             D.report(" (6) unresolved function pointer in "^sprint 160 (d_exp () fval)^" -> "^sprint 160 (ContainDomain.ArgSet.pretty () rvs));
@@ -579,7 +579,7 @@ struct
       (*D.report (" SPECIAL_FN '"^f.vname^"'.");*)
       if danger_bot ctx || ignore_this ctx.local ctx.global || (D.is_safe_name f.vname) then ctx.local else begin
         let from = (Some (AddrOf (Var f,NoOffset))) in
-        if not (D.is_safe_name f.vname)&& !Goblintutil.in_verifying_stage then add_reentrant_fun f.vname ctx.global;
+        if not (D.is_safe_name f.vname)&& !Goblintutil.postsolving then add_reentrant_fun f.vname ctx.global;
         if is_private f ctx.global then
           D.add_required_fun_priv f.vname; (*called priv member funs should be analyzed!*)
         let fs=D.get_tainted_fields ctx.global in

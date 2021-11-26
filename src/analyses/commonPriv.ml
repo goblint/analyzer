@@ -6,6 +6,38 @@ module Q = Queries
 module IdxDom = ValueDomain.IndexDomain
 module VD     = BaseDomain.VD
 
+module ProtectionLogging =
+struct
+  module GM = Hashtbl.Make(ValueDomain.Addr)
+  module VarSet = SetDomain.Make(Basetype.Variables)
+  let gm = GM.create 10
+
+  let record m x =
+    if !GU.postsolving && GobConfig.get_bool "dbg.print_protection" then
+      let old = GM.find_default gm m (VarSet.empty ()) in
+      let n = VarSet.add x old in
+      GM.replace gm m n
+
+  let dump () =
+    if GobConfig.get_bool "dbg.print_protection" then (
+      let max_cluster = ref 0 in
+      let num_mutexes = ref 0 in
+      let sum_protected = ref 0 in
+      Printf.printf "\n\nProtecting mutexes:\n";
+      GM.iter (fun m vs ->
+          let s = VarSet.cardinal vs in
+          max_cluster := max !max_cluster s;
+          sum_protected := !sum_protected + s;
+          incr num_mutexes;
+          Printf.printf "%s -> %s\n" (ValueDomain.Addr.show m) (VarSet.show vs) ) gm;
+      Printf.printf "\nMax number of protected: %i\n" !max_cluster;
+      Printf.printf "Num mutexes: %i\n" !num_mutexes;
+      Printf.printf "Sum protected: %i\n" !sum_protected
+    );
+
+
+end
+
 module Protection =
 struct
   let is_unprotected ask x: bool =
@@ -24,6 +56,11 @@ struct
     is_global ask x &&
     not (VD.is_immediate_type x.vtype) &&
     ask.f (Q.MustBeProtectedBy {mutex=m; global=x; write=true})
+
+  let is_protected_by ask m x =
+    let r = is_protected_by ask m x in
+    if r then ProtectionLogging.record m x;
+    r
 
   let is_atomic ask: bool =
     ask Q.MustBeAtomic
@@ -48,7 +85,16 @@ end
 module ExplicitMutexGlobals =
 struct
   include MutexGlobalsBase
-  let mutex_global: varinfo -> varinfo = RichVarinfo.Variables.map ~name:(fun x -> "MUTEX_GLOBAL_" ^ x.vname) (* explicit type to force call without ?size *)
+  let mutex_global: varinfo -> varinfo =
+    let module Variables = struct
+        include Basetype.Variables
+        let name_varinfo x = "MUTEX_GLOBAL_" ^ x.vname
+      end
+    in
+    (* TODO: Use marshal/unmarshal of VarinfoMap *)
+    let module VarinfoMap = RichVarinfo.Make (Variables) in
+    VarinfoMap.to_varinfo
+
   let mutex_global x =
     let r = mutex_global x in
     if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x d_varinfo r;
@@ -78,6 +124,8 @@ struct
     let disjoint s t = is_empty (inter s t)
   end
 
+  module MustLockset = SetDomain.Reverse (Lockset)
+
   let rec conv_offset = function
     | `NoOffset -> `NoOffset
     | `Field (f, o) -> `Field (f, conv_offset o)
@@ -95,7 +143,7 @@ struct
         ) ls (Lockset.empty ())
 
   (* TODO: reversed SetDomain.Hoare *)
-  module MinLocksets = HoareDomain.Set_LiftTop (Lattice.Reverse (Lockset)) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
+  module MinLocksets = HoareDomain.Set_LiftTop (MustLockset) (struct let topname = "All locksets" end) (* reverse Lockset because Hoare keeps maximal, but we need minimal *)
 end
 
 module WriteCenteredD =
@@ -138,6 +186,16 @@ struct
       let mutex_path_sens = List.mem "mutex" (GobConfig.get_string_list "ana.path_sens") in
       if not mutex_path_sens then failwith "The activated privatization requires the 'mutex' analysis to be enabled & path sensitive (it is currently enabled, but not path sensitive)";
       ()
+  end
+
+  module RequireThreadFlagPathSensInit =
+  struct
+    let init () =
+      let threadflag_active = List.mem "threadflag" (GobConfig.get_string_list "ana.activated") in
+      if threadflag_active then
+        let threadflag_path_sens = List.mem "threadflag" (GobConfig.get_string_list "ana.path_sens") in
+        if not threadflag_path_sens then failwith "The activated privatization requires the 'threadflag' analysis to be path sensitive if it is enabled (it is currently enabled, but not path sensitive)";
+        ()
   end
 
 end

@@ -24,6 +24,7 @@ depends: [
   "base-threads" {= "base"}
   "base-unix" {= "base"}
   "batteries" {= "3.3.0"}
+  "benchmark" {= "1.6" & with-test}
   "biniou" {= "1.2.1"}
   "camlidl" {= "1.09"}
   "conf-gmp" {= "3"}
@@ -31,8 +32,10 @@ depends: [
   "conf-perl" {= "1"}
   "cppo" {= "1.6.7"}
   "dune" {= "2.9.0"}
+  "dune-private-libs" {= "2.9.1"}
+  "dune-site" {= "2.9.1"}
   "easy-format" {= "1.3.2"}
-  "goblint-cil" {= "1.8.1"}
+  "goblint-cil" {= "1.8.2"}
   "mlgmpidl" {= "1.2.13"}
   "num" {= "1.4"}
   "ocaml" {= "4.12.0"}
@@ -52,13 +55,13 @@ depends: [
   "qcheck-core" {= "0.17"}
   "result" {= "1.5"}
   "sexplib0" {= "v0.14.0"}
+  "sha" {= "1.15.1"}
   "stdlib-shims" {= "0.3.0"}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.12-gob0"}
-  "zarith_stubs_js" {= "v0.14.0"}
 ]
 build: [
-  ["dune" "subst"] {pinned}
+  ["dune" "subst"] {dev}
   [
     "dune"
     "build"
@@ -72,11 +75,29 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
+# on `dune build` goblint.opam will be generated from goblint.opam.template and dune-project
+# also remember to generate/adjust goblint.opam.locked!
 pin-depends: [
-  [ "goblint-cil.1.8.1" "git+https://github.com/goblint/cil.git#208d2a2f9e51a42ee0a036f4587624ac7ac23ccb" ]
-  [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
-  [ "zarith.1.12-gob0" "git+https://github.com/goblint/Zarith.git#goblint-release-1.12" ]
-  [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
+  [
+    "goblint-cil.1.8.2"
+    "git+https://github.com/goblint/cil.git#a3c91aa6e8f946fec9a9a13361b051a73b12a65c"
+  ]
+  [
+    "apron.v0.9.13"
+    "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"
+  ]
+  [
+    "zarith.1.12-gob0"
+    "git+https://github.com/goblint/Zarith.git#goblint-release-1.12"
+  ]
+  [
+    "ppx_deriving_yojson.3.6.1"
+    "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd"
+  ]
+  [
+    "ppx_deriving.5.2.1"
+    "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
+  ]
 ]
 name: "goblint"
 version: "dev"

@@ -7,14 +7,15 @@ open GobConfig
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
-(** Json files that are given as arguments *)
-let jsonFiles : string list ref = ref []
+(** Files given as arguments. *)
+let arg_files : string list ref = ref []
 
 (** If this is true we output messages and collect accesses.
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
 
-let did_overflow = ref false
+(** Whether signed overflow or underflow happened *)
+let svcomp_may_overflow = ref false
 
 (** hack to use a special integer to denote synchronized array-based locking *)
 let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
@@ -58,8 +59,8 @@ let global_initialization = ref false
 (** Another hack to see if earlyglobs is enabled *)
 let earlyglobs = ref false
 
-(** true if in verifying stage *)
-let in_verifying_stage = ref false
+(** Whether currently in postsolver evaluations (e.g. verify, warn) *)
+let postsolving = ref false
 
 (* None if verification is disabled, Some true if verification succeeded, Some false if verification failed *)
 let verified : bool option ref = ref None
@@ -413,3 +414,14 @@ let self_signal signal = Unix.kill (Unix.getpid ()) signal
 let rec zip x y = match x,y with
   | (x::xs), (y::ys) -> (x,y) :: zip xs ys
   | _ -> []
+
+let rec for_all_in_range (a, b) f =
+  let module BI = IntOps.BigIntOps in
+  if BI.compare a b > 0
+  then true
+  else f a && (for_all_in_range (BI.add a (BI.one), b) f)
+
+let assoc_eq (x: 'a) (ys: ('a * 'b) list) (eq: 'a -> 'a -> bool): ('b option) =
+  Option.map Batteries.Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
+
+let dummy_obj = Obj.repr ()

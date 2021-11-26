@@ -9,6 +9,7 @@ open List
 (** Main categories of configuration variables. *)
 type category = Std             (** Parsing input, includes, standard stuff, etc. *)
               | Analyses        (** Analyses                                      *)
+              | Incremental     (** Incremental features                          *)
               | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
               | Experimental    (** Experimental features of analyses             *)
@@ -26,6 +27,7 @@ let catDescription = function
   | Transformations -> "Options for transformations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
+  | Incremental     -> "Incremental analysis options"
   | Warnings        -> "Filtering of warnings"
 
 (** A place to store registered variables *)
@@ -60,8 +62,7 @@ let _ = ()
       ; reg Std "includes"        "[]"           "List of directories to include."
       ; reg Std "kernel_includes" "[]"           "List of kernel directories to include."
       ; reg Std "custom_includes" "[]"           "List of custom directories to include."
-      ; reg Std "custom_incl"     "''"           "Use custom includes"
-      ; reg Std "custom_libc"     "false"        "Use goblints custom libc."
+      ; reg Std "kernel-root"     "''"           "Root directory for Linux kernel (linux-headers)"
       ; reg Std "justcil"         "false"        "Just parse and output the CIL."
       ; reg Std "justcfg"         "false"        "Only output the CFG in cfg.dot ."
       ; reg Std "printstats"      "false"        "Outputs timing information."
@@ -72,7 +73,7 @@ let _ = ()
       ; reg Std "allglobs"        "false"        "Prints access information about all globals, not just races."
       ; reg Std "keepcpp"         "false"        "Keep the intermediate output of running the C preprocessor."
       ; reg Std "tempDir"         "''"           "Reuse temporary directory for preprocessed files."
-      ; reg Std "cppflags"        "''"           "Pre-processing parameters."
+      ; reg Std "cppflags"        "[]"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
       ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, pretty, json-messages."
@@ -142,7 +143,20 @@ let _ = ()
       ; reg Analyses "ana.base.context.int"    "true" "Integer values in function contexts."
       ; reg Analyses "ana.base.context.interval" "true" "Integer values of the Interval domain in function contexts."
       ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
+      ; reg Analyses "ana.apron.domain" "'octagon'" "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'"
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
+      ; reg Analyses "ana.apron.threshold_widening" "false" "Use constants appearing in program as threshold for widening"
+
+(* {4 category [Incremental]} *)
+let _ = ()
+      ; reg Incremental "incremental.load"        "false" "Load incremental analysis results, in case any exist."
+      ; reg Incremental "incremental.only-rename" "false" "Only reset IDs of unchanged objects in the AST. Do  not reuse solver results. This option is mainly useful for benchmarking purposes."
+      ; reg Incremental "incremental.save"        "false" "Store incremental analysis results."
+      ; reg Incremental "incremental.stable"      "true"  "Reuse the stable set and selectively destabilize it (recommended)."
+      ; reg Incremental "incremental.wpoint"      "false" "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points."
+      ; reg Incremental "incremental.reluctant.on" "true" "Destabilize nodes in changed functions reluctantly"
+      ; reg Incremental "incremental.reluctant.compare" "'leq'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
+      ; reg Incremental "incremental.compare" "'ast'" "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)"
 
 (* {4 category [Semantics]} *)
 let _ = ()
@@ -165,7 +179,10 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet"
+      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power"
+      ; reg Experimental "exp.apron.priv.not-started" "true" "Exclude writes from threads that may not be started yet"
+      ; reg Experimental "exp.apron.priv.must-joined" "true" "Exclude writes from threads that must have been joined"
+      ; reg Experimental "exp.apron.prec-dump"    "''"    "File to dump apron precision data to."
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
       ; reg Experimental "exp.earlyglobs"        "false" "Side-effecting of globals right after initialization."
@@ -185,7 +202,7 @@ let _ = ()
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
-      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
+      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"
@@ -199,15 +216,14 @@ let _ = ()
       ; reg Experimental "exp.witness.minimize"  "false" "Try to minimize the witness"
       ; reg Experimental "exp.witness.uncil"     "false" "Try to undo CIL control flow transformations in witness"
       ; reg Experimental "exp.witness.stack"     "true" "Construct stacktrace-based witness nodes"
+      ; reg Experimental "exp.witness.unknown"   "true" "Output witness for unknown result"
       ; reg Experimental "exp.architecture"      "'64bit'" "Architecture for analysis, currently for witness"
       ; reg Experimental "exp.partition-arrays.enabled" "false" "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well."
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
       ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
-      ; reg Experimental "exp.incremental.mode"   "'off'" "Use incremental analysis in the TD3 solver. Values: off (default), incremental (analyze based on data from a previous commit or fresh if there is none), complete (discard loaded data and start fresh)."
-      ; reg Experimental "exp.incremental.stable" "true"  "Reuse the stable set and selectively destabilize it."
-      ; reg Experimental "exp.incremental.wpoint" "false" "Reuse the wpoint set."
-      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc-6'" "Location of gcc-6. Used to combine source files with cilly."
+      ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
+      ; reg Experimental "exp.compdb.original-path" "" "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts."
 
 (* {4 category [Debugging]} *)
 let _ = ()
@@ -233,6 +249,10 @@ let _ = ()
       ; reg Debugging "dbg.test.domain"     "false" "Test domain properties"
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
       ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
+      ; reg Debugging "dbg.compare_runs.glob" "true" "Compare GlobConstrSys in compare_runs"
+      ; reg Debugging "dbg.compare_runs.eq"  "true" "Compare EqConstrSys in compare_runs"
+      ; reg Debugging "dbg.print_tids"       "false" "Should the analysis print information on the encountered TIDs"
+      ; reg Debugging "dbg.print_protection" "false" "Should the analysis print information on which globals are protected by which mutex?"
 
 (* {4 category [Warnings]} *)
 let _ = ()
@@ -243,17 +263,19 @@ let _ = ()
       ; reg Warnings "warn.race"            "true"  "Race warnings"
       ; reg Warnings "warn.deadcode"        "true"  "Dead code warnings"
       ; reg Warnings "warn.analyzer"        "true"  "Analyzer messages"
+      ; reg Warnings "warn.unsound"         "true"  "Unsoundness messages"
+      ; reg Warnings "warn.imprecise"       "true"  "Imprecision messages"
       ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
       ; reg Warnings "warn.error"           "true"  "Error severity messages"
       ; reg Warnings "warn.warning"         "true"  "Warning severity messages"
       ; reg Warnings "warn.info"            "true"  "Info severity messages"
-      ; reg Warnings "warn.debug"           "true"  "Debug severity messages"
+      ; reg Warnings "warn.debug"           "false" "Debug severity messages"
       ; reg Warnings "warn.success"         "true"  "Success severity messages"
 
 let default_schema = {schema|
 { "id"              : "root"
 , "type"            : "object"
-, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "custom_incl", "custom_libc", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
+, "required"        : ["outfile", "includes", "kernel_includes", "custom_includes", "kernel-root", "justcil", "justcfg", "printstats", "verify", "mainfun", "exitfun", "otherfun", "allglobs", "keepcpp", "tempDir", "cppflags", "kernel", "dump_globs", "result", "solver", "allfuns", "nonstatic", "colors", "g2html"]
 , "additionalProps" : false
 , "properties" :
   { "ana" :
@@ -262,6 +284,7 @@ let default_schema = {schema|
     , "required"        : []
     }
   , "sem"               : {}
+  , "incremental"       : {}
   , "trans"             : {}
   , "phases"            : {}
   , "exp" :
@@ -281,12 +304,11 @@ let default_schema = {schema|
   , "includes"        : {}
   , "kernel_includes" : {}
   , "custom_includes" : {}
-  , "custom_incl"     : {}
-  , "custom_libc"     : {}
+  , "kernel-root"     : {}
   , "justcil"         : {}
   , "justcfg"         : {}
   , "printstats"      : {}
-  , "verify"        : {}
+  , "verify"          : {}
   , "mainfun"         : {}
   , "exitfun"         : {}
   , "otherfun"        : {}

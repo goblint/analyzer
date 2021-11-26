@@ -18,8 +18,8 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
+          # - 4.13.x # TODO: re-enable when Batteries gets support: https://github.com/ocaml-batteries-team/batteries-included/issues/1045
           - 4.12.x
-          - 4.11.x
           - 4.09.x
         apron:
           - false
@@ -58,6 +58,10 @@ jobs:
       - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         if: ${{ matrix.apron }}
         run: ruby scripts/update_suite.rb group apron -s
+
+      - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group apron-mukherjee -s
 
       - name: Build domaintest
         run: ./make.sh domaintest

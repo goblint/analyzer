@@ -71,9 +71,9 @@ struct
 
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let regpart = get_regpart ctx in
     match q with
     | Queries.Regions e ->
+      let regpart = get_regpart ctx in
       if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
         ls
@@ -181,7 +181,7 @@ struct
 
   let name () = "region"
 
-  let init () =
+  let init marshal =
     partition_varstore := Goblintutil.create_var @@ makeVarinfo false "REGION_PARTITIONS" voidType;
 
 end

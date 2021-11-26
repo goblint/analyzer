@@ -16,14 +16,17 @@ struct
   let to_yojson x = `String (show x)
 end
 
-
 module Variables =
 struct
   include CilType.Varinfo
   let trace_enabled = true
   let is_global v = v.vglob
   let copy x = x
-  let show x = GU.demangle x.vname
+  let show x =
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
+      GU.demangle "(" ^ x.vname ^ ", " ^ description ^ ")"
+    else GU.demangle x.vname
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
   let get_location x = x.vdecl
@@ -42,7 +45,6 @@ struct
 
   let arbitrary () = MyCheck.Arbitrary.varinfo
 end
-
 
 module RawStrings: Printable.S with type t = string =
 struct

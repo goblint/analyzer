@@ -218,7 +218,10 @@ struct
     | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
 
   let short_addr (x, o) =
-    GU.demangle x.vname ^ short_offs o
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
+      GU.demangle "(" ^ x.vname ^ ", " ^ description ^ ")"
+    else GU.demangle x.vname ^ short_offs o
 
   let show = function
     | Addr x     -> short_addr x
@@ -499,7 +502,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (e,o) -> short_offs o (a^"["^Pretty.sprint 80 (dn_exp () e)^"]")
+    | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
     match x with

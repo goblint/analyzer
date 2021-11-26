@@ -4,3 +4,6 @@
 [submodule "g2html"]
 	path = g2html
 	url = https://github.com/goblint/g2html.git
+[submodule "gobview"]
+	path = gobview
+	url = https://github.com/goblint/gobview.git

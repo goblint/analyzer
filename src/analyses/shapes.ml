@@ -78,7 +78,7 @@ struct
       let (nsm,nds,rmd) = sync_one ask gl upd sm in
       let add_regmap (ls,gs) (rm,part) =
         let set =
-          if List.length gs = 0 then RS.singleton VFB.bullet else
+          if gs = [] then RS.singleton VFB.bullet else
             List.fold_right (fun x -> RS.add (VFB.of_vf (x,[]))) gs (RS.empty ())
         in
         let write_map l rm =
@@ -274,7 +274,7 @@ struct
   let startstate v = LD.singleton (SHMap.top ()), Re.startstate v
   let exitstate  v = LD.singleton (SHMap.top ()), Re.exitstate v
 
-  let init () = Printexc.record_backtrace true
+  let init marshal = Printexc.record_backtrace true
 
   (*  let init () = *)
   (*    Goblintutil.region_offsets := false*)

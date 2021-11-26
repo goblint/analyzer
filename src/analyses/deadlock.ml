@@ -24,7 +24,7 @@ struct
     in
 
     (* Check forbidden list *)
-    if !Goblintutil.in_verifying_stage then begin
+    if !Goblintutil.postsolving then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
             Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc CilType.Location.pretty b.loc CilType.Location.pretty a.loc;
@@ -41,11 +41,6 @@ struct
       ) lockList
     end
 
-
-  (* Initialization and finalization *)
-  let init () = ()
-
-  let finalize () = ()
 
   (* Some required states *)
   let startstate _ : D.t = D.empty ()
@@ -107,7 +102,7 @@ struct
         ) ctx.local (eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist))
       | `Unlock ->
         let lockAddrs = eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist) in
-        if List.length lockAddrs = 1 then
+        if List.compare_length_with lockAddrs 1 = 0 then
           let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
           D.filter (neg inLockAddrs) ctx.local
         else ctx.local

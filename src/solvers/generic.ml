@@ -5,12 +5,38 @@ open Analyses
 let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 
+module LoadRunSolver: GenericEqBoxSolver =
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    let solve box xs vs =
+      (* copied from Control.solve_and_postprocess *)
+      let solver_file = "solver.marshalled" in
+      let load_run = get_string "load_run" in
+      let solver = Filename.concat load_run solver_file in
+      if get_bool "dbg.verbose" then
+        print_endline ("Loading the solver result of a saved run from " ^ solver);
+      let vh: S.d VH.t = Serialize.unmarshal solver in
+      if get_bool "ana.opt.hashcons" then (
+        let vh' = VH.create (VH.length vh) in
+        VH.iter (fun x d ->
+            let x' = S.Var.relift x in
+            let d' = S.Dom.relift d in
+            VH.replace vh' x' d'
+          ) vh;
+        vh'
+      )
+      else
+        vh
+  end
+
+module LoadRunIncrSolver: GenericEqBoxIncrSolver =
+  Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 
 module SolverInteractiveWGlob
     (S:Analyses.GlobConstrSys)
-    (LH:Hash.H with type key=S.LVar.t)
-    (GH:Hash.H with type key=S.GVar.t) =
+    (LH:Hashtbl.S with type key=S.LVar.t)
+    (GH:Hashtbl.S with type key=S.GVar.t) =
 struct
   open S
   open Printf
@@ -171,7 +197,7 @@ struct
       write_all hl hg
 end
 
-module SolverStats (S:EqConstrSys) (HM:Hash.H with type key = S.v) =
+module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct
   open S
   open Messages
@@ -288,7 +314,7 @@ end
 (** use this if your [box] is [join] --- the simple solver *)
 module DirtyBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 
@@ -362,7 +388,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
 (* use this if you do widenings & narrowings (but no narrowings for globals) --- maybe outdated *)
 module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 
@@ -463,7 +489,7 @@ module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
 (* use this if you do widenings & narrowings for globals --- outdated *)
 module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 

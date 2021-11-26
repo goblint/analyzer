@@ -134,7 +134,7 @@ struct
     let walk_edges (a, out_edges) =
       let edges = Set.elements out_edges |> List.map codegen_edge in
       (label a ^ ":") ::
-      if List.length edges > 1 then
+      if List.compare_length_with edges 1 > 0 then
         "if" :: (choice edges) @ ["fi"]
       else
         edges
@@ -321,12 +321,13 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 
-  let init () = (* registers which functions to extract and writes out their definitions *)
+  let init marshal = (* registers which functions to extract and writes out their definitions *)
+    init (); (* TODO: why wasn't this called before? *)
     Osek.Spec.parse_oil ();
     let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
-    assert (List.length mainfuns = 1); (* TODO? *)
+    assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
     output_file (Goblintutil.create_dir "result/" ^ "osek.os.pml") (snd (Pml_osek.init ()))
 

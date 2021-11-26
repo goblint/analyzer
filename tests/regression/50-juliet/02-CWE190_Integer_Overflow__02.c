@@ -12,7 +12,7 @@ void main()
 
     if(data > 0 && multiply > 0) // avoid potential underflow
     {
-        char result = data * multiply;  // TODO WARN: potential overflow
+        char result = data * multiply;  // WARN: potential overflow
         printf("%hhd\n", result);
     }
 }

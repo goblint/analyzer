@@ -6,7 +6,7 @@ void main()
     char data;
     fscanf(stdin, "%c", &data);
     {
-        char result = data + 1;  // TODO WARN: potential overflow
+        char result = data + 1;  // WARN: potential overflow
         printf("%hhd\n", result);
     }
 }

@@ -1,6 +1,8 @@
 open Cil
 open Pretty
 
+include Printable.Std
+
 (** A node in the Control Flow Graph is either a statement or function. Think of
  * the function node as last node that all the returning nodes point to.  So
  * the result of the function call is contained in the function node. *)
@@ -14,6 +16,7 @@ type t =
   (** The variable information associated with the function declaration. *)
 [@@deriving eq, ord, to_yojson]
 
+let name () = "node"
 
 (* TODO: remove this? *)
 (** Pretty node plainly with entire stmt. *)
@@ -34,6 +37,12 @@ let pretty_trace () = function
   | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
   | Function      fd -> dprintf "call of %s" fd.svar.vname
   | FunctionEntry fd -> dprintf "entry state of %s" fd.svar.vname
+
+(** Output functions for Printable interface *)
+let pretty () x = pretty_trace () x
+let show x = Pretty.sprint ~width:max_int (pretty () x)
+let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+let to_yojson x = `String (show x)
 
 (** Show node ID for CFG and results output. *)
 let show_id = function
@@ -59,7 +68,7 @@ let location (node: t) =
   | Function fd -> fd.svar.vdecl
   | FunctionEntry fd -> fd.svar.vdecl
 
-(** Find [fundec] which the node is in. *)
+(** Find [fundec] which the node is in. In an incremental run this might yield old fundecs for pseudo-return nodes from the old file. *)
 let find_fundec (node: t) =
   match node with
   | Statement stmt -> Cilfacade.find_stmt_fundec stmt
