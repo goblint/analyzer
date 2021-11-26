@@ -1044,23 +1044,17 @@ struct
 
   let dead_branches = function true -> Deadcode.dead_branches_then | false -> Deadcode.dead_branches_else
 
-  let locmap_modify_def d k f h =
-    if Locmap.mem h k then
-      Locmap.replace h k (f (Locmap.find h k))
-    else
-      Locmap.add h k d
-
   let branch ctx exp tv =
     if !GU.postsolving then (
       Locmap.replace Deadcode.dead_branches_cond !Tracing.current_loc exp;
       try
         let r = branch ctx exp tv in
         (* branch is live *)
-        Locmap.replace (dead_branches tv) !Tracing.current_loc false;
+        Locmap.replace (dead_branches tv) !Tracing.current_loc false; (* set to live (false) *)
         r
       with Deadcode ->
         (* branch is dead *)
-        locmap_modify_def true !Tracing.current_loc (fun x -> x) (dead_branches tv);
+        Locmap.modify_def true !Tracing.current_loc Fun.id (dead_branches tv); (* set to dead (true) if not mem, otherwise keep existing (Fun.id) since it may be live (false) in another context *)
         raise Deadcode
     )
     else
