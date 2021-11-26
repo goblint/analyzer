@@ -993,12 +993,9 @@ struct
               let e = determine_offset ask l o exp (Some v) in
               let new_value_at_index = do_update_offset ask `Bot offs value exp l' o' v t in
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
-              let newl = match len with
-                | None -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO: must be non-negative, top is overly cautious *)
-                | Some e ->
-                  let l = BatOption.map (fun x -> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint x) (Cil.getInteger @@ Cil.constFold true e) in
-                  BatOption.default (ID.top_of (Cilfacade.ptrdiff_ikind ())) l
-              in
+              let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
+              let len_id = BatOption.map (fun ci -> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint ci) len_ci in
+              let newl = BatOption.default (ID.top_of (Cilfacade.ptrdiff_ikind ())) len_id in
               let new_array_value = CArrays.update_length newl new_array_value in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
