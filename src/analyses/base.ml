@@ -1261,16 +1261,8 @@ struct
 
   let is_some_bot x =
     match x with
-    | `Int n ->  ID.is_bot n
-    | `Address n ->  AD.is_bot n
-    | `Struct n ->  ValueDomain.Structs.is_bot n
-    | `Union n ->  ValueDomain.Unions.is_bot n
-    | `Array n ->  ValueDomain.CArrays.is_bot n
-    | `Blob n ->  ValueDomain.Blobs.is_bot n
-    | `List n ->  ValueDomain.Lists.is_bot n
-    | `Thread n -> ValueDomain.Threads.is_bot n
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
-    | `Top -> false
+    | _ -> VD.is_bot_value x
 
   let invariant ctx a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
