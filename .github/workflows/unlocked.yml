@@ -60,7 +60,7 @@ jobs:
         run: ruby scripts/update_suite.rb group apron -s
 
       - name: Test unit
-        run: dune runtest unittest
+        run: opam exec -- dune runtest unittest
 
       - name: Build domaintest
         run: ./make.sh domaintest
