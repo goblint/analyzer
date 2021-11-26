@@ -995,7 +995,7 @@ struct
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
               let len_id = BatOption.map (fun ci -> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint ci) len_ci in
-              let newl = BatOption.default (ID.top_of (Cilfacade.ptrdiff_ikind ())) len_id in
+              let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
               let new_array_value = CArrays.update_length newl new_array_value in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
@@ -1054,12 +1054,14 @@ struct
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
         let newl = match e with
-          | None -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO: must be non-negative, top is overly cautious *)
+          | None -> ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
           | Some e ->
             begin
               match eval_exp e with
               | `Int x -> ID.cast_to (Cilfacade.ptrdiff_ikind ())  x
-              | _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO:Warn *)
+              | _ ->
+                M.debug ~category:Analyzer "Expression for size of VLA did not evaluate to Int at declaration";
+                ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
             end
         in
         `Array(CArrays.update_length newl n')
