@@ -15,7 +15,6 @@ sig
   val get: t -> field -> value
   val replace: t -> field -> value -> t
   val fold: (field -> value -> 'a -> 'a) -> t -> 'a -> 'a
-  val for_all_common_bindings: (value -> value -> bool) -> t -> t -> bool
   val map: (value -> value) -> t -> t
   val keys: t -> field list
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
@@ -45,15 +44,6 @@ struct
     let f (key, st) = Val.show st in
     let whole_str_list = List.rev_map f assoclist in
     Printable.get_short_list "<" ">" whole_str_list
-
-  let for_all_common_bindings (pred: (value -> value -> bool)) (x:t) (y:t) =
-    let pred_ok key value =
-      try
-        let other = M.find key y in
-        pred value other
-      with Not_found -> true
-    in
-    M.for_all pred_ok x
 
   let pretty () = M.pretty ()
   let replace s field value = M.add field value s
@@ -117,9 +107,6 @@ struct
   type value = SS.value
 
   let show mapping = HS.show mapping
-
-  let for_all_common_bindings pred x y =
-    HS.for_all (fun sy -> HS.for_all (fun s -> SS.for_all_common_bindings pred s sy) x) y
 
   let pretty = HS.pretty
 
@@ -249,9 +236,6 @@ struct
   let show (s, k) = match k with
     | Some k -> HS.show s ^ " with key " ^ F.show k
     | None -> HS.show s ^ " without key"
-
-  let for_all_common_bindings pred (x, _) (y, _) =
-    HS.for_all (fun sy -> HS.for_all (fun s -> SS.for_all_common_bindings pred s sy) x) y
 
   let pretty () (s, k) = match k with
     | Some k -> (HS.pretty () s) ++ (text " with key ") ++ (F.pretty () k)
@@ -538,7 +522,6 @@ struct
   let is_bot = unop S.is_bot HS.is_bot KS.is_bot
   let get = unop S.get HS.get KS.get
   let replace = twoaccop_to_t S.replace HS.replace KS.replace
-  let for_all_common_bindings f = binop (S.for_all_common_bindings f) (HS.for_all_common_bindings f) (KS.for_all_common_bindings f)
   let keys = unop S.keys HS.keys KS.keys
   let map f = unop_to_t (S.map f) (HS.map f) (KS.map f)
   let fold f = unop (S.fold f) (HS.fold f) (KS.fold f)
