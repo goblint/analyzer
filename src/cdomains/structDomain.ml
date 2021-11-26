@@ -73,6 +73,8 @@ struct
   let leq_with_fct = M.leq_with_fct
   let join_with_fct = M.join_with_fct
 
+  let for_all_fields f = M.for_all f
+
   let invariant c x =
     match c.Invariant.offset with
     (* invariants for all fields *)
@@ -94,28 +96,31 @@ struct
       Invariant.none
 end
 
-module Sets (Val: LatticeWithIsTopBotValue) =
+module SetsCommon (Val:LatticeWithIsTopBotValue) =
 struct
   include Printable.Std
   module SS = Simple (Val)
   module HS = HoareDomain.Set (SS)
 
-  let name () = "set structs"
-  type t = HS.t [@@deriving to_yojson]
   type field = fieldinfo
   type value = SS.value
+  type variant = SS.t
+  type set = HS.t
+end
+
+module Sets (Val: LatticeWithIsTopBotValue) =
+struct
+  include SetsCommon(Val)
+
+  let name () = "set structs"
+  type t = HS.t [@@deriving to_yojson]
 
   let show mapping = HS.show mapping
-
   let pretty = HS.pretty
-
-  let for_all_fields f ss = SS.fold (fun field value acc -> acc && (f field value)) ss true
-  let all_fields_bot = for_all_fields (fun _ value -> Val.is_bot_value value)
-
   let top () = HS.singleton (SS.top ())
   let is_top = HS.exists SS.is_top
   let bot = HS.bot
-  let is_bot x = HS.is_bot x || HS.for_all all_fields_bot x
+  let is_bot x = HS.is_bot x || HS.for_all (SS.for_all_fields (fun _ value -> Val.is_bot_value value)) x
   let create fn compinfo = HS.singleton (SS.create fn compinfo)
 
   let replace s field value =
@@ -219,16 +224,10 @@ end
 
 module KeyedSets (Val: LatticeWithIsTopBotValue) =
 struct
-  include Printable.Std
-  module SS = Simple (Val)
-  module HS = HoareDomain.Set (SS)
+  include SetsCommon(Val)
   module F = Basetype.CilField
 
   let name () = "keyed set structs"
-  type field = fieldinfo
-  type value = SS.value
-  type variant = SS.t
-  type set = HS.t
   type t = HS.t * Basetype.CilField.t option [@@deriving to_yojson]
 
   let show (s, k) = match k with
@@ -239,13 +238,11 @@ struct
     | Some k -> (HS.pretty () s) ++ (text " with key ") ++ (F.pretty () k)
     | None -> (HS.pretty () s) ++ (text " without key")
 
-  let for_all_fields f ss = SS.fold (fun field value acc -> acc && (f field value)) ss true
-  let all_fields_bot = for_all_fields (fun _ value -> Val.is_bot_value value)
 
   let top () = (HS.singleton (SS.top ()), None)
   let is_top (s, _) = HS.exists SS.is_top s
   let bot () = (HS.bot (), None)
-  let is_bot (s, _) = HS.is_bot s || HS.for_all all_fields_bot s
+  let is_bot (s, _) = HS.is_bot s || HS.for_all (SS.for_all_fields (fun _ value -> Val.is_bot_value value)) s
   let create fn compinfo = (HS.singleton (SS.create fn compinfo), None)
 
   let join_ss (s: set): variant =
