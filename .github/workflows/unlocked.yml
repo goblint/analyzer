@@ -89,20 +89,20 @@ jobs:
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         uses: ocaml/setup-ocaml@v2
-        env:
-          # imitate lower-bounds opam-ci from opam-repository
-          OPAMCRITERIA: +removed,+count[version-lag,solution]
-          OPAMEXTERNALSOLVER: builtin-0install
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install dependencies
+        env:
+          # imitate lower-bounds opam-ci from opam-repository
+          OPAMCRITERIA: +removed,+count[version-lag,solution]
+          OPAMEXTERNALSOLVER: builtin-0install
         run: opam install . --deps-only --with-test
 
-      - name: Install Apron dependencies
-        run: |
-          opam depext apron
-          opam install apron
+      # - name: Install Apron dependencies
+      #   run: |
+      #     opam depext apron
+      #     opam install apron
 
       - name: Build
         run: ./make.sh nat
