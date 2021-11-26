@@ -71,15 +71,22 @@ jobs:
       - name: Test marshal regression
         run: ruby scripts/update_suite.rb -m
 
+  configure:
+    runs-on: ubuntu-latest
+    outputs:
+      uid_gid: ${{ steps.get-user.outputs.uid_gid }}
+    steps:
+      - id: get-user
+        run: echo "::set-output name=uid_gid::$(id -u):$(id -g)"
+
   lower-bounds:
+    needs: configure
     runs-on: ubuntu-latest
     container:
       image: ocaml/opam:ubuntu-21.04-ocaml-4.12
-      options: --user 1000:1000
+      options: --user ${{ needs.configure.outputs.uid_gid }}
 
     steps:
-      - run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
-
       - name: Checkout code
         uses: actions/checkout@v2
 
