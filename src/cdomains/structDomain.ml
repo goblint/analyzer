@@ -438,7 +438,7 @@ struct
     in reduce_key (s, take_some_key kx ky s)
 
   let leq_with_fct f (a, _) (b, _) =
-    let mem x s f = HS.exists ((SS.leq_with_fct f) x) s in (* form HS.mem *)
+    let mem x s f = HS.exists ((SS.leq_with_fct f) x) s in (* from HS.mem *)
     HS.for_all (fun x -> mem x b f) a
 
   let join_with_fct f (x, k) (y, _) =
