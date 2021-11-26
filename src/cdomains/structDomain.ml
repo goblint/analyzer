@@ -244,7 +244,6 @@ struct
     | Some k -> (HS.pretty () s) ++ (text " with key ") ++ (F.pretty () k)
     | None -> (HS.pretty () s) ++ (text " without key")
 
-
   let top () = (hs_top (), None)
   let is_top (s, _) = hs_is_top s
   let bot () = (hs_bot (), None)
