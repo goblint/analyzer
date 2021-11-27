@@ -32,7 +32,8 @@ depends: [
   "ounit2" {with-test}
   "odoc" {with-doc}
   "dune-site"
-  "sha"
+  "sha" {>= "1.12"}
+  "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}
   "benchmark" {with-test}
 ]
