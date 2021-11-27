@@ -30,7 +30,7 @@
     (ppx_distr_guards (>= 0.2))
     ppx_deriving
     ppx_deriving_yojson
-    ocaml-monadic
+    (ocaml-monadic (>= 0.5))
     (ounit2 :with-test)
     (odoc :with-doc)
     dune-site
