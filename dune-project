@@ -35,6 +35,7 @@
     (odoc :with-doc)
     dune-site
     sha
+    (conf-gmp (>= 3)) ; only needed transitively, but they don't have lower bound, which is needed on MacOS
     (conf-ruby :with-test)
     (benchmark :with-test) ; TODO: make this optional somehow, (optional) on bench executable doesn't work
   )
