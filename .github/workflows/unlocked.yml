@@ -131,6 +131,8 @@ jobs:
         run: ruby scripts/update_suite.rb -m
 
   lower-bounds:
+    if: ${{ false }}
+
     runs-on: ubuntu-latest
 
     steps:
