@@ -104,6 +104,7 @@ jobs:
         run: opam install apron
 
       - name: Build
+        if: ${{ false }}
         run: ./make.sh nat
 
       - name: Install opam-0install
