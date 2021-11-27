@@ -96,5 +96,5 @@ jobs:
         with:
           image: dev
           run: |
-            OPAMCRITERIA=+removed,+count[version-lag,solution] OPAMEXTERNALSOLVER=builtin-0install opam-2.1 install . --deps-only --with-test -y
+            OPAMCRITERIA=+removed,+count[version-lag,solution] OPAMEXTERNALSOLVER=builtin-0install opam-2.1 install . --deps-only --with-test --confirm-level=unsafe-yes
             opam exec -- dune runtest
