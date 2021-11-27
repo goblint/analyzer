@@ -71,6 +71,65 @@ jobs:
       - name: Test marshal regression
         run: ruby scripts/update_suite.rb -m
 
+  lower-bounds-downgrade:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        ocaml-compiler:
+          - 4.12.0 # matches opam lock file
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      OPAMCONFIRMLEVEL: unsafe-yes
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install dependencies
+        run: opam install . --deps-only --with-test
+
+      - name: Install Apron dependencies
+        run: opam install apron
+
+      - name: Build
+        run: ./make.sh nat
+
+      - run: opam install opam-0install
+
+      - run: opam install $(opam-0install --prefer-oldest goblint ocaml-base-compiler.${{ matrix.ocaml-compiler }})
+
+      - name: Build
+        run: ./make.sh nat
+
+      - name: Test regression
+        run: ./make.sh headers testci
+
+      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        # if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group apron -s
+
+      - name: Test unit
+        run: opam exec -- dune runtest unittest
+
+      - name: Build domaintest
+        run: ./make.sh domaintest
+
+      - name: Test domains
+        run: ./goblint.domaintest # could be made long
+
+      - name: Test marshal regression
+        run: ruby scripts/update_suite.rb -m
+
   lower-bounds:
     runs-on: ubuntu-latest
 
