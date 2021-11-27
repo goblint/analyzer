@@ -84,7 +84,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     env:
-      OPAMCONFIRMLEVEL: unsafe-yes
+      OPAMCONFIRMLEVEL: unsafe-yes # allow opam depext to yes package manager prompts
 
     steps:
       - name: Checkout code
@@ -104,9 +104,12 @@ jobs:
       - name: Build
         run: ./make.sh nat
 
-      - run: opam install opam-0install
+      - name: Install opam-0install
+        run: opam install opam-0install
 
-      - run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-base-compiler.${{ matrix.ocaml-compiler }})
+      - name: Downgrade dependencies
+        # must specify ocaml-base-compiler again to prevent it from being downgraded
+        run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-base-compiler.${{ matrix.ocaml-compiler }})
 
       - name: Build
         run: ./make.sh nat
@@ -153,7 +156,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max # max mode caches all layers for multi-stage image
 
-      - uses: addnab/docker-run-action@v3
+      - name: Run opam downgrade and tests in dev Docker image
+        uses: addnab/docker-run-action@v3
         with:
           image: dev
           run: |
