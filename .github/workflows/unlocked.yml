@@ -106,7 +106,7 @@ jobs:
 
       - run: opam install opam-0install
 
-      - run: opam install $(opam-0install --prefer-oldest goblint ocaml-base-compiler.${{ matrix.ocaml-compiler }})
+      - run: opam install $(opam exec -- opam-0install --prefer-oldest goblint ocaml-base-compiler.${{ matrix.ocaml-compiler }})
 
       - name: Build
         run: ./make.sh nat
