@@ -81,6 +81,8 @@ jobs:
         ocaml-compiler:
           - 4.12.0 # matches opam lock file
 
+    name: lower-bounds (${{ matrix.os }}, ${{ matrix.ocaml-compiler }}, downgrade)
+
     runs-on: ${{ matrix.os }}
 
     env:
@@ -133,8 +135,10 @@ jobs:
       - name: Test marshal regression
         run: ruby scripts/update_suite.rb -m
 
-  lower-bounds:
+  lower-bounds-docker:
     if: ${{ false }}
+
+    name: lower-bounds (docker)
 
     runs-on: ubuntu-latest
 
