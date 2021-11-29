@@ -173,3 +173,46 @@ jobs:
           run: |
             OPAMCRITERIA=+removed,+count[version-lag,solution] OPAMEXTERNALSOLVER=builtin-0install opam-2.1 install . --deps-only --with-test --confirm-level=unsafe-yes
             opam exec -- dune runtest
+
+  opam-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        ocaml-compiler:
+          - 4.12.0 # matches opam lock file
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Install Goblint with test
+        run: opam install goblint --with-test
+
+      - name: Install Apron dependencies
+        run: opam install apron
+
+      - name: Symlink installed goblint to repository # because tests want to use locally built one
+        run: ln -s $(opam exec -- which goblint) goblint
+
+      - name: Set gobopt with kernel-root # because linux-headers are not installed
+        run: echo "gobopt='--set kernel-root $PWD/linux-headers'" >> $GITHUB_ENV
+
+      - name: Test regression
+        run: ./make.sh headers testci
+
+      - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        # if: ${{ matrix.apron }}
+        run: ruby scripts/update_suite.rb group apron -s
+
+      - name: Test marshal regression
+        run: ruby scripts/update_suite.rb -m
