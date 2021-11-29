@@ -34,5 +34,4 @@ authors: # TODO: same authors as in dune-project (for future releases)
 license: MIT
 repository-code: "https://github.com/goblint/analyzer"
 url: "https://goblint.in.tum.de"
-
-# TODO: concept doi after publishing on Zenodo
+doi: 10.5281/zenodo.5735006
