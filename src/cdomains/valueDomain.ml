@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open GobConfig
+open PrecisionUtil
 
 include PreValueDomain
 module Offs = Lval.Offset (IndexDomain)
@@ -34,6 +35,8 @@ sig
   val top_value: typ -> t
   val is_top_value: t -> typ -> bool
   val zero_init_value: typ -> t
+
+  val project: precision -> t -> t
 end
 
 module type Blob =
@@ -1002,7 +1005,7 @@ struct
               let new_array_value =  CArrays.set ask x' (e, idx) new_value_at_index in
               let len_ci = BatOption.bind len (fun e -> Cil.getInteger @@ Cil.constFold true e) in
               let len_id = BatOption.map (fun ci -> IndexDomain.of_int (Cilfacade.ptrdiff_ikind ()) @@ Cilint.big_int_of_cilint ci) len_ci in
-              let newl = BatOption.default (ID.top_of (Cilfacade.ptrdiff_ikind ())) len_id in
+              let newl = BatOption.default (ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero) len_id in
               let new_array_value = CArrays.update_length newl new_array_value in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
@@ -1061,12 +1064,14 @@ struct
         let update_fun x = update_array_lengths eval_exp x ti in
         let n' = CArrays.map (update_fun) n in
         let newl = match e with
-          | None -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO: must be non-negative, top is overly cautious *)
+          | None -> ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
           | Some e ->
             begin
               match eval_exp e with
               | `Int x -> ID.cast_to (Cilfacade.ptrdiff_ikind ())  x
-              | _ -> ID.top_of (Cilfacade.ptrdiff_ikind ()) (* TODO:Warn *)
+              | _ ->
+                M.debug ~category:Analyzer "Expression for size of VLA did not evaluate to Int at declaration";
+                ID.starting (Cilfacade.ptrdiff_ikind ()) Z.zero
             end
         in
         `Array(CArrays.update_length newl n')
@@ -1108,6 +1113,44 @@ struct
     | _ -> None (* TODO *)
 
   let arbitrary () = QCheck.always `Bot (* S TODO: other elements *)
+
+  let rec project p (v: t): t =
+    match v with
+    | `Int n ->  `Int (ID.project p n)
+    | `Address n -> `Address (project_addr p n)
+    | `Struct n -> `Struct (Structs.map (fun (x: t) -> project p x) n)
+    | `Union (f, v) -> `Union (f, project p v)
+    | `Array n -> `Array (project_arr p n)
+    | `Blob (v, s, z) -> `Blob (project p v, ID.project p s, z)
+    | `List n -> `List (project_list p n (Lists.bot ()))
+    | `Thread n -> `Thread n
+    | `Bot -> `Bot
+    | `Top -> `Top
+  and project_addr p a =
+    AD.map (fun addr ->
+        match addr with
+        | Addr.Addr (v, o) -> Addr.Addr (v, project_offs p o)
+        | ptr -> ptr) a
+  and project_offs p offs =
+    match offs with
+    | `NoOffset -> `NoOffset
+    | `Field (field, offs') -> `Field (field, project_offs p offs')
+    | `Index (idx, offs') -> `Index (ID.project p idx, project_offs p offs')
+  and project_arr p n =
+    let n' = CArrays.map (fun (x: t) -> project p x) n in
+    match CArrays.length n with
+    | None -> n'
+    | Some l -> CArrays.update_length (ID.project p l) n'
+  and project_list p (acc: Lists.t) (l: Lists.t) =
+    match Lists.list_empty l with
+    | Some true -> acc
+    | _ ->
+      begin
+        let e = Lists.entry l in
+        let acc' = Lists.add (project_addr p e) acc in
+        let l' = Lists.del e l in
+        project_list p acc' l'
+      end
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
