@@ -178,11 +178,7 @@ struct
     |> HS.of_list
 
   let meet x y = meet_narrow_common x y SS.meet
-
-  let join = HS.join
-  let leq = HS.leq
   let hash = HS.hash
-  let widen = HS.widen
 
   let narrow x y =
     meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
@@ -198,9 +194,13 @@ struct
     in
     product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ())
 
+  let widen = widen_with_fct Val.widen
+
   let leq_with_fct f a b =
     let mem x s f = HS.exists ((SS.leq_with_fct f) x) s in (* from HS.mem *)
     HS.for_all (fun x -> mem x b f) a
+
+  let leq = leq_with_fct Val.leq
 
   let join_with_fct f x y =
     let appended = List.append (HS.elements x) (HS.elements y) in
@@ -222,6 +222,8 @@ struct
     let res = reduce_list_with_fct (SS.join_with_fct f) appended x in
     if Messages.tracing then Messages.tracel "simplesets-fct" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" pretty x pretty y pretty (HS.of_list appended) pretty res;
     res
+
+  let join = join_with_fct Val.join
 
   let invariant = HS.invariant
 end
@@ -369,13 +371,7 @@ struct
 
   let meet x y = meet_narrow_common x y SS.meet
 
-  let join (x, kx) (y, ky) = let s = HS.join x y in reduce_key (s, take_some_key kx ky s)
-  let leq (x, _) (y, _) = HS.leq x y
-
   let hash (s, _) = HS.hash s
-  let widen (x, kx) (y, ky) =
-    let s = HS.widen x y in
-    reduce_key (s, take_some_key kx ky s)
 
   let narrow x y = meet_narrow_common x y (fun x y -> if SS.leq y x then SS.narrow x y else x)
 
@@ -399,9 +395,13 @@ struct
     let s = product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ()) x y
     in reduce_key (s, take_some_key kx ky s)
 
+  let widen = widen_with_fct Val.widen
+
   let leq_with_fct f (a, _) (b, _) =
     let mem x s f = HS.exists ((SS.leq_with_fct f) x) s in (* from HS.mem *)
     HS.for_all (fun x -> mem x b f) a
+
+  let leq = leq_with_fct Val.leq
 
   let join_with_fct f (x, k) (y, _) =
     let appended = List.append (HS.elements x) (HS.elements y) in
@@ -430,6 +430,8 @@ struct
     let res = reduce_list_key_with_fct (SS.join_with_fct f) appended (x,k) in
     if Messages.tracing then Messages.tracel "bettersets" "Join-fct result!\nx: %a\ny: %a\nconverted: %a\nres: %a\n" HS.pretty x HS.pretty y HS.pretty (HS.of_list appended) pretty res;
     res
+
+  let join = join_with_fct Val.join
 
   let invariant c (x,_) = HS.invariant c x
 end
