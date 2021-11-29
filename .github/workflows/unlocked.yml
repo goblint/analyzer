@@ -205,7 +205,7 @@ jobs:
         run: ln -s $(opam exec -- which goblint) goblint
 
       - name: Set gobopt with kernel-root # because linux-headers are not installed
-        run: echo "gobopt='--set kernel-root $PWD/linux-headers'" >> $GITHUB_ENV
+        run: echo "gobopt=--set kernel-root $PWD/linux-headers" >> $GITHUB_ENV
 
       - name: Test regression
         run: ./make.sh headers testci
