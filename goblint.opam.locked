@@ -44,7 +44,7 @@ depends: [
   "num" {= "1.4"}
   "ocaml" {= "4.12.0"}
   "ocaml-base-compiler" {= "4.12.0"}
-  "ocaml-compiler-libs" {= "v0.12.3"}
+  "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
   "ocaml-monadic" {= "0.5"}
   "ocaml-options-vanilla" {= "1"}
@@ -90,3 +90,13 @@ build: [
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 name: "goblint"
 version: "dev"
+pin-depends: [
+  [
+  "apron.v0.9.13"
+  "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"
+]
+  [
+  "ppx_deriving.5.2.1"
+  "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
+]
+]
