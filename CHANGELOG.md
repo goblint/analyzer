@@ -2,7 +2,7 @@
 * Added lower bounds to dependencies (zarith, ocaml-monadic, sha, conf-gmp).
 * Fixed ounit2 library for unit tests.
 * Disabled kernel regression tests when linux-headers couldn't be downloaded (e.g. in opam-repository opam-ci).
-* Fixed dune-site in opam install by requiring dune 2.9.
+* Fixed dune-site in opam install by requiring dune 2.9.1.
 
 ## v1.1.0
 
