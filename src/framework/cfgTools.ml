@@ -219,9 +219,7 @@ let createCFG (file: file) =
           (* Should be removed by Cil.prepareCFG. *)
           failwith "MyCFG.createCFG: unprepared stmt"
 
-        | ComputedGoto _
-        | TryExcept _
-        | TryFinally _ ->
+        | ComputedGoto _->
           failwith "MyCFG.createCFG: unsupported stmt"
     in
     try
@@ -379,9 +377,7 @@ let createCFG (file: file) =
             (* Should be removed by Cil.prepareCFG. *)
             failwith "MyCFG.createCFG: unprepared stmt"
 
-          | ComputedGoto _
-          | TryExcept _
-          | TryFinally _ ->
+          | ComputedGoto _ ->
             failwith "MyCFG.createCFG: unsupported stmt"
         in
         List.iter handle fd.sallstmts;

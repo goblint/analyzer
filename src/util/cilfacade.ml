@@ -340,7 +340,7 @@ and typeOfLval = function
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
-      partitionAttributes ~default:(AttrName false) baseAttrs in
+      partitionAttributes ~default:(AttrName) baseAttrs in
     typeAddAttributes contageous
   in
   function
@@ -379,8 +379,6 @@ class countFnVisitor = object
       | If (_,_,_,loc,_)
       | Switch (_,_,_,loc,_)
       | Loop (_,loc,_,_,_)
-      | TryFinally (_,_,loc)
-      | TryExcept (_,_,_,loc)
         -> Hashtbl.replace locs loc.line (); DoChildren
       | _ ->
         DoChildren
