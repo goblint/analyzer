@@ -1,6 +1,6 @@
 // PARAM: --set exp.structs.domain "keyed"
 
-#include "assert.h"
+#include<assert.h>
 
 struct Pair {
     int first;

@@ -1,7 +1,7 @@
 // PARAM: --set exp.structs.domain "keyed" --disable exp.structs.key.forward --disable exp.structs.key.avoid-ints
 
-#include "assert.h"
-#include "stdio.h"
+#include<assert.h>
+#include<stdio.h>
 
 struct FunctionInfo {
     void* ptr;

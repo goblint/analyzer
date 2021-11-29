@@ -1,9 +1,9 @@
-// PARAM: --set exp.structs.domain "sets" --enable exp.structs.key.avoid-ints 
+// PARAM: --set exp.structs.domain "sets" --enable exp.structs.key.avoid-ints
 
-#include "assert.h"
-#include "stdio.h"
-#include "string.h"
-#include "stdlib.h"
+#include<assert.h>
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
 
 struct FunctionInfo {
     const char *name;

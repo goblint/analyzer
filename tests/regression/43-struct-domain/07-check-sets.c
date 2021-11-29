@@ -1,9 +1,9 @@
 // PARAM: --set exp.structs.domain "sets"
 
-#include "assert.h"
-#include "stdio.h"
-#include "string.h"
-#include "stdlib.h"
+#include<assert.h>
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
 
 struct FunctionInfo {
     const char *name;

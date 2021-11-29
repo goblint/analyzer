@@ -1,6 +1,6 @@
 // PARAM: --enable ana.int.interval --set exp.structs.domain "sets"
 
-#include "assert.h"
+#include<assert.h>
 
 struct Pair {
     int first;

@@ -1,7 +1,7 @@
 // PARAM: --set exp.structs.domain "sets" --enable ana.int.interval
 
-#include "assert.h"
-#include "stdio.h"
+#include<assert.h>
+#include<stdio.h>
 
 struct FunctionInfo {
     int id;
