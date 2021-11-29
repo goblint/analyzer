@@ -340,7 +340,7 @@ and typeOfLval = function
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
-      partitionAttributes ~default:(AttrName) baseAttrs in
+      partitionAttributes ~default:AttrName baseAttrs in
     typeAddAttributes contageous
   in
   function
