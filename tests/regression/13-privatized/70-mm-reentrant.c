@@ -18,7 +18,22 @@ void* fn1(void* agr)
     i = 5;
   }
   pthread_mutex_lock(&mt);
-  assert(i == 0); //FAIL
+  assert(i == 0); //UNKNOWN!
+  i = 0;
+  pthread_mutex_unlock(&mt);
+  pthread_mutex_unlock(&mt);
+}
+
+void* fn2(void* agr)
+{
+  int top = rand();
+
+  pthread_mutex_lock(&mt);
+  if(top) {
+    i = 5;
+  }
+  top = pthread_mutex_lock(&mt);
+  assert(i == 0); //UNKNOWN!
   i = 0;
   pthread_mutex_unlock(&mt);
   pthread_mutex_unlock(&mt);
@@ -28,6 +43,7 @@ void* fn1(void* agr)
 int main()
 {
   pthread_t tid1;
+  pthread_t tid2;
 
   pthread_mutexattr_t mat;
   pthread_mutexattr_init(&mat);
@@ -37,6 +53,7 @@ int main()
   pthread_mutex_init(&mt, &mat);
 
   pthread_create(&tid1, NULL, fn1, NULL);
+  pthread_create(&tid2, NULL, fn2, NULL);
 
   pthread_join(tid1,NULL);
 }

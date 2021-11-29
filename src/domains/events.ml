@@ -9,7 +9,7 @@ type t =
   | AssignSpawnedThread of lval * ThreadIdDomain.Thread.t (** Assign spawned thread's ID to lval. *)
 
 let pretty () = function
-  | Lock m -> dprintf "Lock %a" LockDomain.Addr.pretty m
+  | Lock m -> dprintf "Lock %a" LockDomain.Addr.pretty m (* This is only emitted if the mutex was not previously held *)
   | Unlock m -> dprintf "Unock %a" LockDomain.Addr.pretty m
   | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped
   | EnterMultiThreaded -> text "EnterMultiThreaded"
