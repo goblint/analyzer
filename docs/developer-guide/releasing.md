@@ -7,7 +7,11 @@
     * If the pinned changes are not strictly necessary for building (but just optimization or stability), then temporarily remove the pin.
 
 3. Regenerate `goblint.opam`: `dune build`.
-4. Regenerate `goblint.opam.locked`: `opam lock .`.
+4. Regenerate `goblint.opam.locked`: `opam pin add goblint.dev . --no-action` and `opam lock .`.
+
+    Pinning the package is necessary for locking, otherwise lockfile will be generated for previously published version.
+    Manually remove not installed `depopts` from `conflicts`.
+
 5. Check with `dune-release check`.
 
     All changes must be committed because the working tree is not checked.
