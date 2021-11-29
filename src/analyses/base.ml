@@ -454,13 +454,7 @@ struct
             | `Top -> `Top
             | t -> `Blob (t,s,o)
           end
-        | `Struct s ->
-          let one_field fl vl st =
-            match replace_val vl with
-            | `Top -> st
-            | v    -> ValueDomain.Structs.replace st fl v
-          in
-          `Struct (ValueDomain.Structs.fold one_field (ValueDomain.Structs.top ()) s)
+        | `Struct s -> `Struct (ValueDomain.Structs.map replace_val s)
         | _ -> `Top
       in
       CPA.map replace_val st
@@ -1281,16 +1275,8 @@ struct
 
   let is_some_bot x =
     match x with
-    | `Int n ->  ID.is_bot n
-    | `Address n ->  AD.is_bot n
-    | `Struct n ->  ValueDomain.Structs.is_bot n
-    | `Union n ->  ValueDomain.Unions.is_bot n
-    | `Array n ->  ValueDomain.CArrays.is_bot n
-    | `Blob n ->  ValueDomain.Blobs.is_bot n
-    | `List n ->  ValueDomain.Lists.is_bot n
-    | `Thread n -> ValueDomain.Threads.is_bot n
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
-    | `Top -> false
+    | _ -> VD.is_bot_value x
 
   let invariant ctx a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
@@ -1611,13 +1597,27 @@ struct
           | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
-        let oldv = eval (Lval x) st in
-        let v = VD.meet oldv c' in
-        if is_some_bot v then raise Deadcode
-        else (
-          if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
-          set' x v st
-        )
+        (match x with
+         | Var var, o ->
+           (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
+           let oldv = get_var a gs st var in
+           let offs = convert_offset a gs st o in
+           let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+           let v = VD.meet oldv newv in
+           if is_some_bot v then raise Deadcode
+           else (
+             if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
+             set' (Var var,NoOffset) v st
+           )
+         | Mem _, _ ->
+           (* For accesses via pointers, not yet *)
+           let oldv = eval (Lval x) st in
+           let v = VD.meet oldv c' in
+           if is_some_bot v then raise Deadcode
+           else (
+             if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
+             set' x v st
+           ))
       | Const _ -> st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e)
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
