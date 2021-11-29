@@ -2179,18 +2179,17 @@ struct
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
       let st' =
-        begin match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
-          | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
-          | `Address ret_a ->
-            begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
-              | `Thread a ->
-                let a = List.fold AD.join (AD.bot ()) (List.map (fun x -> AD.from_var (ThreadIdDomain.Thread.to_varinfo x)) (ValueDomain.Threads.elements a)) in
-                (* TODO: is this type right? *)
-                set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) (get (Analyses.ask_of_ctx ctx) gs st a None)
-              | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
-            end
-          | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
-        end
+        match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
+        | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
+        | `Address ret_a ->
+          begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
+            | `Thread a ->
+              let a = List.fold AD.join (AD.bot ()) (List.map (fun x -> AD.from_var (ThreadIdDomain.Thread.to_varinfo x)) (ValueDomain.Threads.elements a)) in
+              (* TODO: is this type right? *)
+              set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) (get (Analyses.ask_of_ctx ctx) gs st a None)
+            | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
+          end
+        | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
       in
       invalidate_ret_lv st'
     | `Malloc size -> begin
