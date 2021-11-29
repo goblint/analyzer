@@ -193,7 +193,7 @@ let invalidate_actions = ref [
     "_spin_lock_irqsave", readsAll;(*safe*)
     "_spin_unlock_irqrestore", readsAll;(*safe*)
     "pthread_mutex_init", readsAll;(*safe*)
-    "pthread_mutex_init", readsAll;(*safe*)
+    "pthread_mutex_destroy", readsAll;(*safe*)
     "pthread_mutexattr_settype", readsAll;(*safe*)
     "pthread_mutexattr_init", readsAll;(*safe*)
     "pthread_self", readsAll;(*safe*)
