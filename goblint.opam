@@ -20,7 +20,7 @@ doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "ocaml" {>= "4.09"}
-  "dune" {>= "2.8"}
+  "dune" {>= "2.9"}
   "goblint-cil" {>= "1.8.2"}
   "batteries" {>= "3.2.0"}
   "zarith" {>= "1.8"}
@@ -39,7 +39,7 @@ depends: [
 ]
 depopts: ["apron" "z3"]
 build: [
-  ["dune" "subst"] {dev}
+  ["dune" "subst" "--root" "."] {dev}
   [
     "dune"
     "build"
@@ -47,10 +47,13 @@ build: [
     name
     "-j"
     jobs
+    "--promote-install-files"
+    "false"
     "@install"
     "@runtest" {with-test}
     "@doc" {with-doc}
   ]
+  ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://github.com/goblint/analyzer.git"
 # on `dune build` goblint.opam will be generated from goblint.opam.template and dune-project
