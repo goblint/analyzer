@@ -54,6 +54,7 @@ if not File.exists? "linux-headers" then
   puts "Missing linux-headers, will download now!"
   `make headers`
 end
+has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make headers failed (e.g. on opam-repository opam-ci where network is forbidden)
 
 testresults = File.expand_path("tests/suite_result")
 testfiles   = File.expand_path("tests/regression")
@@ -145,6 +146,7 @@ regs.sort.each do |d|
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
+    next if not has_linux_headers and lines[0] =~ /kernel/
     lines[0] =~ /PARAM: (.*)$/
     if $1 then params = $1 else params = "" end
 
@@ -339,8 +341,8 @@ else
     # globals are protected from change when running processes instead of threads
     projects = Parallel.map(projects, &doproject)
   rescue LoadError => e
-    puts "Missing dependency. Please run: gem install parallel"
-    raise e
+    puts "Missing parallel gem (install with: gem install parallel), falling back to sequential"
+    projects = projects.map(&doproject)
   end
 end
 alliswell = projects.map{|p| p.ok}.all?
