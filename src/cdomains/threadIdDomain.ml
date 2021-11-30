@@ -296,7 +296,7 @@ struct
   let show = unop H.show P.show
   let pretty () = unop (H.pretty ()) (P.pretty ())
   let printXml f = unop (H.printXml f) (P.printXml f)
-  let to_yojson = unop (H.to_yojson) (P.to_yojson)
+  let to_yojson = unop H.to_yojson P.to_yojson
 
   let name () = "FlagConfiguredTID: " ^ if history_enabled () then H.name () else P.name ()
   let invariant _ _ = Invariant.none
