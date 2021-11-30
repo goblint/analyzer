@@ -10,8 +10,6 @@ Documentation can be browsed on [Read the Docs](https://goblint.readthedocs.io/e
 ## Installing
 Both for using an up-to-date version of Goblint or developing it, the best way is to install from source by cloning this repository.
 
-_The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very outdated and should currently not be used._
-
 ### Linux
 1. Install [opam](https://opam.ocaml.org/doc/Install.html).
 2. Make sure the following are installed: `git patch m4 autoconf libgmp-dev libmpfr-dev`.
@@ -28,11 +26,11 @@ _The [goblint package on opam](https://opam.ocaml.org/packages/goblint/) is very
 2. Continue using Linux instructions in WSL.
 
 ### Other
+* **[opam](https://opam.ocaml.org/packages/goblint/)**. Install [opam](https://opam.ocaml.org/doc/Install.html) and run `opam install goblint`.
 * **[devcontainer](./.devcontainer/).** Select "Reopen in Container" in VS Code and continue with `make` using Linux instructions in devcontainer.
 * **[Docker (GitHub Container Registry)](https://github.com/goblint/analyzer/pkgs/container/analyzer)**. Run `docker pull ghcr.io/goblint/analyzer:latest` (or `:nightly`).
 * **Docker (repository).** Clone and run `docker build -t goblint .`.
 * **Vagrant.** Clone and run `vagrant up && vagrant ssh`.
-* **[opam](https://opam.ocaml.org/packages/goblint/)** (very outdated). Run `opam install goblint`.
 
 
 ## Running
