@@ -365,7 +365,7 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      if ContextUtil.should_keep ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
+      if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
         let v_old = M.find f.svar m in (* S.D.bot () if not found *)
         let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
         Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
@@ -509,7 +509,7 @@ struct
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            M.warn "Created a thread from unknown function %s" f.vname
+            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname
             (* actual implementation (e.g. invalidation) is done by threadenter *)
         ) ds
     in
@@ -1043,6 +1043,33 @@ struct
     in
     let d = D.fold k d (D.bot ()) in
     if D.is_bot d then raise Deadcode else d
+end
+
+module DeadBranchLifter (S: Spec): Spec =
+struct
+  include S
+
+  let name () = "DeadBranch (" ^ name () ^ ")"
+
+  module Locmap = Deadcode.Locmap
+
+  let dead_branches = function true -> Deadcode.dead_branches_then | false -> Deadcode.dead_branches_else
+
+  let branch ctx exp tv =
+    if !GU.postsolving then (
+      Locmap.replace Deadcode.dead_branches_cond !Tracing.current_loc exp;
+      try
+        let r = branch ctx exp tv in
+        (* branch is live *)
+        Locmap.replace (dead_branches tv) !Tracing.current_loc false; (* set to live (false) *)
+        r
+      with Deadcode ->
+        (* branch is dead *)
+        Locmap.modify_def true !Tracing.current_loc Fun.id (dead_branches tv); (* set to dead (true) if not mem, otherwise keep existing (Fun.id) since it may be live (false) in another context *)
+        raise Deadcode
+    )
+    else
+      branch ctx exp tv
 end
 
 module Compare

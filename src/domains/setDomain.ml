@@ -1,8 +1,6 @@
 (** Abstract domains representing sets. *)
 open Pretty
 
-module GU = Goblintutil
-
 (* Exception raised when the set domain can not support the requested operation.
  * This will be raised, when trying to iterate a set that has been set to Top *)
 exception Unsupported of string

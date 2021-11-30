@@ -265,7 +265,7 @@ struct
     | EAddr -> "&"
     | EDeref -> "*"
     | EField f -> f.fname
-    | EIndex e -> Pretty.sprint 80 (d_exp () e)
+    | EIndex e -> CilType.Exp.show e
 
   let ees_to_str xs = List.fold_right (fun x xs -> " " ^ (ee_to_str x) ^ xs ) xs ""
 

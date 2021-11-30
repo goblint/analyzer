@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>

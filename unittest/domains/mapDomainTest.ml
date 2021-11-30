@@ -1,5 +1,4 @@
 open OUnit
-open Pretty
 
 module GroupableDriver : MapDomain.Groupable with type t = string  =
 struct

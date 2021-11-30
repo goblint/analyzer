@@ -270,6 +270,8 @@ sig
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
+
+  val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -296,6 +298,8 @@ sig
   val ending     : Cil.ikind -> int_t -> t
 
   val is_top_of: Cil.ikind -> t -> bool
+
+  val project: PrecisionUtil.precision -> t -> t
 end
 (** The signature of integral value domains keeping track of ikind information *)
 

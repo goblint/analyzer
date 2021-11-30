@@ -7,6 +7,9 @@ open Cil
 
 module Strs = Set.Make (String)
 
+
+let tracing = ConfigProfile.profile = "trace"
+
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty

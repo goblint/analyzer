@@ -1,3 +1,4 @@
+open Prelude
 open Unix
 
 let buff_size = 1024
@@ -53,14 +54,14 @@ let remove_comb_files path =
     done
   with Failure e -> ()
 
-let run_cilly (path: string) =
+let run_cilly (path: string) ~all_cppflags =
   if Sys.file_exists path && Sys.is_directory path then (
     (* We need to `make clean` if `make` was run manually, otherwise it would say there is nothing to do and cilly would not be run and no combined C file would be created. *)
     let _ = exec_command ~path "make clean" in
     remove_comb_files path;
     (* Combine source files with make using cilly as compiler *)
     let gcc_path = GobConfig.get_string "exp.gcc_path" in
-    let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
+    let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" CFLAGS+=" ^ String.join " " (List.map Filename.quote all_cppflags) ^ " " ^
                                                   "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
     print_string output;
     (* fail if make failed *)
@@ -68,7 +69,7 @@ let run_cilly (path: string) =
       failwith ("Failed combining files. Make was " ^ (GobUnix.string_of_process_status exit_code) ^ ".")
   )
 
-let generate_and_combine makefile =
+let generate_and_combine makefile ~all_cppflags =
   let path = Filename.dirname makefile in
   (* make sure the Makefile exists or try to generate it *)
   if not (Sys.file_exists makefile) then (
@@ -87,5 +88,5 @@ let generate_and_combine makefile =
     try generate_makefile_with autogen
     with MakefileNotGenerated -> failwith ("Could neither find given " ^ makefile ^ " nor generate it - abort!");
   );
-  run_cilly path;
+  run_cilly path ~all_cppflags;
   find_file_by_suffix path comb_suffix

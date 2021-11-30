@@ -1,7 +1,7 @@
 open Prelude.Ana
 
 type t =
-  | Lock of LockDomain.Addr.t
+  | Lock of LockDomain.Addr.t  (** This is only emitted if the mutex was not previously held *)
   | Unlock of LockDomain.Addr.t
   | Escape of EscapeDomain.EscapedVars.t
   | EnterMultiThreaded

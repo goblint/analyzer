@@ -31,6 +31,19 @@ let system ~cwd command =
 
 let load_and_preprocess ~all_cppflags filename =
   let database_dir = Filename.dirname (GobFilename.absolute filename) in (* absolute before dirname to avoid . *)
+  let reroot =
+    let original_path = GobConfig.get_string "exp.compdb.original-path" in
+    if original_path <> "" then (
+      let original_database_dir = Filename.dirname original_path in
+      let old_root = GobFilename.chop_common_suffix database_dir original_database_dir in
+      let new_root = GobFilename.chop_common_suffix original_database_dir database_dir in
+      if GobConfig.get_bool "dbg.verbose" then
+        Printf.printf "Rerooting compilation database\n  from %s\n  to %s\n" old_root new_root;
+      Str.global_replace (Str.regexp_string old_root) new_root
+    )
+    else
+      Fun.id
+  in
   (* TODO: generalize .goblint for everything *)
   ignore (Goblintutil.create_dir ".goblint");
   let preprocessed_dir = Goblintutil.create_dir (Filename.concat ".goblint" "preprocessed") in
@@ -41,6 +54,7 @@ let load_and_preprocess ~all_cppflags filename =
     let preprocess_command = match obj.command, obj.arguments with
       | Some command, None ->
         (* TODO: extract o_file *)
+        let command = reroot command in
         let preprocess_command = Str.replace_first command_program_regexp ("\\1 " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -E") command in
         let preprocess_command = Str.replace_first command_o_regexp ("-o " ^ preprocessed_file) preprocess_command in
         if preprocess_command = command then (* easier way to check if match was found (and replaced) *)
@@ -48,6 +62,7 @@ let load_and_preprocess ~all_cppflags filename =
         else
           preprocess_command
       | None, Some arguments ->
+        let arguments = List.map reroot arguments in
         begin match List.findi (fun i e -> e = "-o") arguments with
           | (o_i, _) ->
             begin match List.split_at o_i arguments with
@@ -65,9 +80,10 @@ let load_and_preprocess ~all_cppflags filename =
       | None, None ->
         failwith "CompilationDatabase.preprocess: neither command nor arguments specified for " ^ file
     in
+    let cwd = reroot obj.directory in
     if GobConfig.get_bool "dbg.verbose" then
-      Printf.printf "Preprocessing %s\n  to %s\n  using %s\n  in %s\n" file preprocessed_file preprocess_command obj.directory;
-    system ~cwd:obj.directory preprocess_command; (* command/arguments might have paths relative to directory *)
+      Printf.printf "Preprocessing %s\n  to %s\n  using %s\n  in %s\n" file preprocessed_file preprocess_command cwd;
+    system ~cwd preprocess_command; (* command/arguments might have paths relative to directory *)
     preprocessed_file
   in
   parse_file filename

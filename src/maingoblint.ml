@@ -10,11 +10,10 @@ let writeconffile = ref ""
 
 (** Print version and bail. *)
 let print_version ch =
-  let open Version in let open Config in
-  let f ch b = if b then fprintf ch "enabled" else fprintf ch "disabled" in
-  printf "Goblint version: %s\n" goblint;
-  printf "Cil version:     %s (%s)\n" Cil.cilVersion cil;
-  printf "Configuration:   tracing %a\n" f tracing;
+  let open Version in
+  printf "Goblint version: %%VERSION_NUM%% (%s)\n" goblint;
+  printf "Cil version:     %s\n" Cil.cilVersion;
+  printf "Profile:         %s\n" ConfigProfile.profile;
   exit 0
 
 (** Print helpful messages. *)
@@ -61,9 +60,8 @@ let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
   let add_int    l = let f str = l := str :: !l in Arg.Int f in
   let set_trace sys =
-    let msg = "Goblint has been compiled without tracing, run ./scripts/trace_on.sh to recompile." in
-    if Config.tracing then Tracing.addsystem sys
-    else (prerr_endline msg; raise Exit)
+    if Messages.tracing then Tracing.addsystem sys
+    else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
   in
   let oil file =
     set_string "ana.osek.oil" file;
@@ -85,6 +83,11 @@ let option_spec_list =
       set_string "outfile" "goblint.sarif";
     set_bool "dbg.print_dead_code" true;
     set_string "result" "sarif"
+  in
+  let defaults_spec_list = List.map (fun (_, (name, (_, _))) ->
+      (* allow "--option value" as shorthand for "--set option value" *)
+      ("--" ^ name, Arg.String (set_auto name), "")
+    ) !Defaults.registrar
   in
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""
@@ -117,7 +120,7 @@ let option_spec_list =
   ; "--osekcheck"          , Arg.Unit (fun () -> set_bool "ana.osek.check" true), ""
   ; "--oseknames"          , Arg.Set_string OilUtil.osek_renames, ""
   ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
-  ]
+  ] @ defaults_spec_list (* lowest priority *)
 
 
 (** Parse arguments and fill [arg_files]. Print help if needed. *)
@@ -140,6 +143,9 @@ let handle_flags () =
     Errormsg.verboseFlag := true
   );
 
+  if get_bool "dbg.debug" then
+    set_bool "warn.debug" true;
+
   match get_string "dbg.dump" with
   | "" -> ()
   | path ->
@@ -155,7 +161,7 @@ let basic_preprocess ~all_cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = Config.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = ConfigCpp.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -248,7 +254,7 @@ let preprocess_files () =
 
   let rec preprocess_arg_file = function
     | filename when Filename.basename filename = "Makefile" ->
-      let comb_file = MakefileUtil.generate_and_combine filename in
+      let comb_file = MakefileUtil.generate_and_combine filename ~all_cppflags in
       [basic_preprocess ~all_cppflags comb_file]
 
     | filename when Filename.basename filename = CompilationDatabase.basename ->
@@ -264,7 +270,12 @@ let preprocess_files () =
         [] (* don't recurse for anything else *)
 
     | filename when Filename.extension filename = ".json" ->
-      [] (* ignore other JSON files for contain analysis *)
+      if List.mem "containment" (get_string_list "ana.activated") then
+        [] (* ignore other JSON files for contain analysis *)
+      else begin
+        eprintf "Unexpected JSON file argument (possibly missing --conf): %s\n" filename;
+        raise Exit
+      end
 
     | filename ->
       [basic_preprocess ~all_cppflags filename]
@@ -513,7 +524,3 @@ let main () =
     | Timeout ->
       eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
       exit 124
-
-(* The actual entry point is in the auto-generated goblint.ml module, and is defined as: *)
-(* let _ = at_exit main *)
-(* We do this since the evaluation order of top-level bindings is not defined, but we want `main` to run after all the other side-effects (e.g. registering analyses/solvers) have happened. *)

@@ -17,6 +17,7 @@ module Offs = ValueDomain.Offs
 module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
+module PU = PrecisionUtil
 
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
@@ -61,6 +62,17 @@ struct
 
   let hash    (x,_)             = Hashtbl.hash x
   let leq     (x1,_) (y1,_) = CPA.leq   x1 y1
+
+  let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
+
+  let project_val p_opt value is_glob =
+    match GobConfig.get_bool "annotation.int.enabled", is_glob, p_opt with
+    | true, true, _ -> VD.project PU.max_precision value
+    | true, false, Some p -> VD.project p value
+    | _ -> value
+
+  let project p_opt cpa =
+    CPA.mapi (fun varinfo value -> project_val p_opt value (is_privglob varinfo)) cpa
 
 
   (**************************************************************************
@@ -365,12 +377,12 @@ struct
   let get_ptrs (vals: value list): address list =
     let f x acc = match x with
       | `Address adrs when AD.is_top adrs ->
-        M.warn "Unknown address given as function argument"; acc
+        M.info ~category:Unsound "Unknown address given as function argument"; acc
       | `Address adrs when AD.to_var_may adrs = [] -> acc
       | `Address adrs ->
         let typ = AD.get_type adrs in
         if isFunctionType typ then acc else adrs :: acc
-      | `Top -> M.warn "Unknown value type given as function argument"; acc
+      | `Top -> M.info ~category:Unsound "Unknown value type given as function argument"; acc
       | _ -> acc
     in
     List.fold_right f vals []
@@ -380,10 +392,10 @@ struct
     if M.tracing then M.trace "reachability" "Checking value %a\n" VD.pretty value;
     match value with
     | `Top ->
-      if VD.is_immediate_type t then () else M.warn "Unknown value in %s could be an escaped pointer address!" description; empty
+      if VD.is_immediate_type t then () else M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
     | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
     | `Address adrs when AD.is_top adrs ->
-      M.warn "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
+      M.info ~category:Unsound "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
     | `Address adrs -> AD.remove Addr.NullPtr adrs
     (* Unions are easy, I just ingore the type info. *)
@@ -442,13 +454,7 @@ struct
             | `Top -> `Top
             | t -> `Blob (t,s,o)
           end
-        | `Struct s ->
-          let one_field fl vl st =
-            match replace_val vl with
-            | `Top -> st
-            | v    -> ValueDomain.Structs.replace st fl v
-          in
-          `Struct (ValueDomain.Structs.fold one_field (ValueDomain.Structs.top ()) s)
+        | `Struct s -> `Struct (ValueDomain.Structs.map replace_val s)
         | _ -> `Top
       in
       CPA.map replace_val st
@@ -472,9 +478,9 @@ struct
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
     f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
-    %> f (ContextUtil.should_keep ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
+    %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
 
   let context_cpa fd (st: store) = (context fd st).cpa
 
@@ -830,8 +836,8 @@ struct
            then M.warn ~category:M.Category.Behavior.Undefined.nullpointer_dereference ~tags:[CWE 476] "May dereference NULL pointer");
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
-        | _ ->  let str = Pretty.sprint ~width:80 (Pretty.dprintf "%a " d_lval lval) in
-          M.debug "Failed evaluating %s to lvalue" str; do_offs AD.unknown_ptr ofs
+        | _ ->
+          M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval; do_offs AD.unknown_ptr ofs
       end
 
   (* run eval_rv from above and keep a result that is bottom *)
@@ -1115,7 +1121,9 @@ struct
               lval_type
       in
       let update_offset old_value =
-        let new_value = VD.update_offset a old_value offs value lval_raw ((Var x), cil_offset) t in
+        (* Projection to highest Precision *)
+        let projected_value = project_val None value (is_global a x) in
+        let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
         else if invariant then
@@ -1267,16 +1275,8 @@ struct
 
   let is_some_bot x =
     match x with
-    | `Int n ->  ID.is_bot n
-    | `Address n ->  AD.is_bot n
-    | `Struct n ->  ValueDomain.Structs.is_bot n
-    | `Union n ->  ValueDomain.Unions.is_bot n
-    | `Array n ->  ValueDomain.CArrays.is_bot n
-    | `Blob n ->  ValueDomain.Blobs.is_bot n
-    | `List n ->  ValueDomain.Lists.is_bot n
-    | `Thread n -> ValueDomain.Threads.is_bot n
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
-    | `Top -> false
+    | _ -> VD.is_bot_value x
 
   let invariant ctx a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
@@ -1427,7 +1427,7 @@ struct
         else set a gs st addr t_lval new_val ~invariant:true ~ctx:(Some ctx) (* no *_raw because this is not a real assignment *)
     | None ->
       if M.tracing then M.traceu "invariant" "Doing nothing.\n";
-      M.warn "Invariant failed: expression \"%a\" not understood." d_plainexp exp;
+      M.debug ~category:Analyzer "Invariant failed: expression \"%a\" not understood." d_plainexp exp;
       st
 
   let invariant ctx a gs st exp tv: store =
@@ -1597,13 +1597,27 @@ struct
           | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
-        let oldv = eval (Lval x) st in
-        let v = VD.meet oldv c' in
-        if is_some_bot v then raise Deadcode
-        else (
-          if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
-          set' x v st
-        )
+        (match x with
+         | Var var, o ->
+           (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
+           let oldv = get_var a gs st var in
+           let offs = convert_offset a gs st o in
+           let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+           let v = VD.meet oldv newv in
+           if is_some_bot v then raise Deadcode
+           else (
+             if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
+             set' (Var var,NoOffset) v st
+           )
+         | Mem _, _ ->
+           (* For accesses via pointers, not yet *)
+           let oldv = eval (Lval x) st in
+           let v = VD.meet oldv c' in
+           if is_some_bot v then raise Deadcode
+           else (
+             if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
+             set' x v st
+           ))
       | Const _ -> st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e)
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
@@ -1739,18 +1753,7 @@ struct
         set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
 
 
-  module Locmap = Deadcode.Locmap
-
-  let dead_branches = function true -> Deadcode.dead_branches_then | false -> Deadcode.dead_branches_else
-
-  let locmap_modify_def d k f h =
-    if Locmap.mem h k then
-      Locmap.replace h k (f (Locmap.find h k))
-    else
-      Locmap.add h k d
-
   let branch ctx (exp:exp) (tv:bool) : store =
-    Locmap.replace Deadcode.dead_branches_cond !Tracing.next_loc exp;
     let valu = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
     let refine () =
       let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
@@ -1774,12 +1777,6 @@ struct
       (* to suppress pattern matching warnings: *)
       let fromJust x = match x with Some x -> x | None -> assert false in
       let v = fromJust (ID.to_bool value) in
-      if !GU.postsolving && get_bool "dbg.print_dead_code" then begin
-        if v=tv then
-          Locmap.replace (dead_branches tv) !Tracing.next_loc false
-        else
-          locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv)
-      end;
       (* Eliminate the dead branch and just propagate to the true branch *)
       if v = tv then refine () else begin
         if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
@@ -1788,14 +1785,11 @@ struct
     | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
       if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
-      if !GU.postsolving && get_bool "dbg.print_dead_code" then begin
-        locmap_modify_def true !Tracing.next_loc (fun x -> x) (dead_branches tv)
-      end;
       raise Deadcode
     (* Otherwise we try to impose an invariant: *)
     | _ ->
-      if !GU.postsolving then
-        Locmap.replace (dead_branches tv) !Tracing.next_loc false;
+      (* Sometimes invariant may be more precise than eval_rv and also raise Deadcode, making the branch dead.
+         For example, 50-juliet/08-CWE570_Expression_Always_False__02. *)
       refine ()
 
   let body ctx f =
@@ -1855,14 +1849,14 @@ struct
   (** From a list of expressions, collect a list of addresses that they might point to, or contain pointers to. *)
   let collect_funargs ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
     let do_exp e =
-      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (Pretty.sprint ~width:100 (Cil.d_exp () e)) in
+      let immediately_reachable = reachable_from_value ask gs st (eval_rv ask gs st e) (Cilfacade.typeOf e) (CilType.Exp.show e) in
       reachable_vars ask [immediately_reachable] gs st
     in
     List.concat (List.map do_exp exps)
 
   let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
-    if exps <> [] then M.warn "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
+    if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
      * top value. *)
     let invalidate_address st a =
@@ -1919,6 +1913,11 @@ struct
     let reachable = List.concat (List.map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st)) in
     let reachable = List.filter (fun v -> CPA.mem v st.cpa) reachable in
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
+
+    (* Projection to Precision of the Callee *)
+    let p = PU.precision_from_fundec fundec in
+    let new_cpa = project (Some p) new_cpa in
+
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
     (* Add to the set of weakly updated variables *)
@@ -1951,7 +1950,7 @@ struct
           in
           Some (lval, v, args)
         else (
-          M.warn "Not creating a thread from %s because its type is %a" v.vname d_type v.vtype;
+          M.debug ~category:Analyzer "Not creating a thread from %s because its type is %a" v.vname d_type v.vtype;
           None
         )
     in
@@ -1980,7 +1979,7 @@ struct
         in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat (List.map AD.to_var_may flist) in
-        if addrs <> [] then M.warn "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
+        if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
         List.filter_map (create_thread None None) addrs
       end
     | _ ->  []
@@ -2037,11 +2036,11 @@ struct
       end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.warn "Function definition missing for %s" f.vname);
+    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname);
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
     let addrs =
       if get_bool "sem.unknown_function.invalidate.globals" then (
-        M.warn "INVALIDATING ALL GLOBALS!";
+        M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
         foldGlobals !Cilfacade.current_file (fun acc global ->
             match global with
             | GVar (vi, _, _) when not (is_static vi) ->
@@ -2058,7 +2057,12 @@ struct
     invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
-    (*    let heap_var = heap_var !Tracing.current_loc in*)
+    let invalidate_ret_lv st = match lv with
+      | Some lv ->
+        if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
+        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+      | None -> st
+    in
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
@@ -2171,10 +2175,11 @@ struct
       end
     (* handling thread creations *)
     | `ThreadCreate _ ->
-      ctx.local (* actual results joined via threadspawn *)
+      invalidate_ret_lv ctx.local (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
-      begin match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
+      let st' =
+        match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
         | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
@@ -2185,7 +2190,8 @@ struct
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
-      end
+      in
+      invalidate_ret_lv st'
     | `Malloc size -> begin
         match lv with
         | Some lv ->
@@ -2240,12 +2246,7 @@ struct
              *)
         in
         (* invalidate lhs in case of assign *)
-        let st = match lv with
-          | None -> st
-          | Some x ->
-            if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for unknown function call %s\n" d_plainlval x f.vname;
-            invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [mkAddrOrStartOf x]
-        in
+        let st = invalidate_ret_lv st in
         (* apply all registered abstract effects from other analysis on the base value domain *)
         LF.effects_for f.vname args
         |> List.map (fun sets ->
@@ -2280,7 +2281,13 @@ struct
         else VD.top ()
       in
       let nst = add_globals st fun_st in
-      let st = { nst with weak = st.weak } in (* keep weak from caller *)
+
+      (* Projection to Precision of the Caller *)
+      let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let return_val = project_val (Some p) return_val (is_privglob (return_varinfo ())) in
+      let cpa' = project (Some p) nst.cpa in
+
+      let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st
       | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val

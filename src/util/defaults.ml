@@ -12,6 +12,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Incremental     (** Incremental features                          *)
               | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
+              | Annotation      (** Features for annotations                       *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
               | Warnings        (** Filtering warnings                            *)
@@ -25,6 +26,7 @@ let catDescription = function
   | Analyses        -> "Options for analyses"
   | Semantics       -> "Options for semantics"
   | Transformations -> "Options for transformations"
+  | Annotation      -> "Options for annotations"
   | Experimental    -> "Experimental features"
   | Debugging       -> "Debugging options"
   | Incremental     -> "Incremental analysis options"
@@ -145,6 +147,7 @@ let _ = ()
       ; reg Analyses "ana.apron.context" "true" "Entire relation in function contexts."
       ; reg Analyses "ana.apron.domain" "'octagon'" "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'"
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
+      ; reg Analyses "ana.apron.threshold_widening" "false" "Use constants appearing in program as threshold for widening"
 
 (* {4 category [Incremental]} *)
 let _ = ()
@@ -174,6 +177,11 @@ let _ = ()
       ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
       ; reg Transformations "trans.expeval.query_file_name" "''" "Path to the JSON file containing an expression evaluation query."
 
+(* {4 category [Annotation]} *)
+let _ = ()
+      ; reg Annotation "annotation.int.enabled"   "false" "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains."
+      ; reg Annotation "annotation.int.privglobs" "true"  "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true."
+
 (* {4 category [Experimental]} *)
 let _ = ()
       ; reg Experimental "exp.lower-constants"   "true"  "Use Cil.lowerConstants to simplify some constant? (assumes wrap-around for signed int)"
@@ -181,7 +189,9 @@ let _ = ()
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."
       ; reg Experimental "exp.priv-distr-init"   "false"  "Distribute global initializations to all global invariants for more consistent widening dynamics."
-      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which Apron privatization to use? dummy/protection/protection-path/mutex-meet"
+      ; reg Experimental "exp.apron.privatization" "'mutex-meet'" "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power"
+      ; reg Experimental "exp.apron.priv.not-started" "true" "Exclude writes from threads that may not be started yet"
+      ; reg Experimental "exp.apron.priv.must-joined" "true" "Exclude writes from threads that must have been joined"
       ; reg Experimental "exp.apron.prec-dump"    "''"    "File to dump apron precision data to."
       ; reg Experimental "exp.cfgdot"            "false" "Output CFG to dot files"
       ; reg Experimental "exp.mincfg"            "false" "Try to minimize the number of CFG nodes."
@@ -202,7 +212,7 @@ let _ = ()
       ; reg Experimental "exp.no-narrow"         "false" "Overwrite narrow a b = a"
       ; reg Experimental "exp.basic-blocks"      "false" "Only keep values for basic blocks instead of for every node. Should take longer but need less space."
       ; reg Experimental "exp.solver.td3.term"   "true"  "Should the td3 solver use the phased/terminating strategy?"
-      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized."
+      ; reg Experimental "exp.solver.td3.side_widen" "'sides'" "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value."
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"
@@ -226,7 +236,12 @@ let _ = ()
       ; reg Experimental "exp.partition-arrays.keep-expr" "'first'" "When using the partitioning which expression should be used for partitioning ('first', 'last')"
       ; reg Experimental "exp.partition-arrays.partition-by-const-on-return" "false" "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?"
       ; reg Experimental "exp.partition-arrays.smart-join" "false" "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous."
+      ; reg Experimental "exp.structs.domain"          "'simple'" "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk"
+      ; reg Experimental "exp.structs.key.forward"     "true"     "Whether the struct key should be picked going from first field to last."
+      ; reg Experimental "exp.structs.key.avoid-ints"  "true"     "Whether integers should be avoided for key."
+      ; reg Experimental "exp.structs.key.prefer-ptrs" "true"     "Whether pointers should be preferred for key."
       ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
+      ; reg Experimental "exp.compdb.original-path" "" "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts."
 
 (* {4 category [Debugging]} *)
 let _ = ()
@@ -253,7 +268,9 @@ let _ = ()
       ; reg Debugging "dbg.cilcfgdot"       "false" "Output dot files for CIL CFGs."
       ; reg Debugging "dbg.cfg.loop-clusters" "false" "Add loop SCC clusters to CFG .dot output."
       ; reg Debugging "dbg.compare_runs.glob" "true" "Compare GlobConstrSys in compare_runs"
-      ; reg Debugging "dbg.compare_runs.eq" "true" "Compare EqConstrSys in compare_runs"
+      ; reg Debugging "dbg.compare_runs.eq"  "true" "Compare EqConstrSys in compare_runs"
+      ; reg Debugging "dbg.print_tids"       "false" "Should the analysis print information on the encountered TIDs"
+      ; reg Debugging "dbg.print_protection" "false" "Should the analysis print information on which globals are protected by which mutex?"
 
 (* {4 category [Warnings]} *)
 let _ = ()
@@ -264,11 +281,13 @@ let _ = ()
       ; reg Warnings "warn.race"            "true"  "Race warnings"
       ; reg Warnings "warn.deadcode"        "true"  "Dead code warnings"
       ; reg Warnings "warn.analyzer"        "true"  "Analyzer messages"
+      ; reg Warnings "warn.unsound"         "true"  "Unsoundness messages"
+      ; reg Warnings "warn.imprecise"       "true"  "Imprecision messages"
       ; reg Warnings "warn.unknown"         "true"  "Unknown (of string) warnings"
       ; reg Warnings "warn.error"           "true"  "Error severity messages"
       ; reg Warnings "warn.warning"         "true"  "Warning severity messages"
       ; reg Warnings "warn.info"            "true"  "Info severity messages"
-      ; reg Warnings "warn.debug"           "true"  "Debug severity messages"
+      ; reg Warnings "warn.debug"           "false" "Debug severity messages"
       ; reg Warnings "warn.success"         "true"  "Success severity messages"
 
 let default_schema = {schema|
@@ -286,6 +305,11 @@ let default_schema = {schema|
   , "incremental"       : {}
   , "trans"             : {}
   , "phases"            : {}
+  , "annotation" :
+    { "type"            : "object"
+    , "additionalProps" : true
+    , "required"        : []
+    }
   , "exp" :
     { "type"            : "object"
     , "additionalProps" : true

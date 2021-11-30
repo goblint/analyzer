@@ -4,27 +4,12 @@ set -o pipefail # or all $? in pipe instead of returning exit code of the last c
 
 TARGET=src/goblint
 
-gen() { # generate configuration files and goblint.ml which opens all modules in src/ such that they will be linked and executed without the need to be referenced somewhere else
-  scripts/set_version.sh # generate the version file
-  echo '[@@@ocaml.warning "-33"]' > $TARGET.ml # disable warning 'Unused open statement.'
-  ls -1 src/**/*.ml | egrep -v "goblint.ml|violationZ3" | perl -pe 's/.*\/(.*)\.ml/open \u$1/g' | perl -pe 's/(.*)\.(apron|no-apron)/$1/g' >> $TARGET.ml
-  echo "let _ = at_exit Maingoblint.main" >> $TARGET.ml
-}
-
 opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
   opam switch -y create . --deps-only ocaml-base-compiler.4.12.0 --locked
   # opam install camlp4 mongo # camlp4 needed for mongo
-}
-
-# deprecated, use dune which is much faster
-OCBFLAGS="-cflag -annot -tag bin_annot -X webapp -no-links -use-ocamlfind -j 8 -no-log -ocamlopt opt -cflag -g"
-ocb() {
-  command -v opam >/dev/null 2>&1 && eval $(opam config env)
-  gen
-  ocamlbuild $OCBFLAGS $*
 }
 
 rule() {
@@ -67,34 +52,13 @@ rule() {
       dune build src/apronPrecCompare.exe &&
       cp _build/default/src/apronPrecCompare.exe apronPrecCompare
       chmod +w apronPrecCompare
-    # old rules using ocamlbuild
-    ;; ocbnat*)
-      ocb -no-plugin $TARGET.native &&
-      cp _build/$TARGET.native goblint
     ;; byte)
       eval $(opam config env)
       dune build goblint.byte &&
       cp _build/default/goblint.byte goblint.byte
       chmod +w goblint.byte
-    ;; profile)
-      # gprof (run only generates gmon.out). use: gprof goblint
-      ocb -tag profile $TARGET.p.native &&
-      cp _build/$TARGET.p.native goblint
-    ;; ocamlprof)
-      # gprof & ocamlprof (run also generates ocamlprof.dump). use: ocamlprof src/goblint.ml
-      ocb -ocamlopt ocamloptp $TARGET.p.native &&
-      cp _build/$TARGET.p.native goblint
-    # ;; docs)
-    #   rm -rf doc;
-    #   ls src/**/*.ml | egrep -v $EXCLUDE  | sed 's/.*\/\(.*\)\.ml/\1/' > doclist.odocl;
-    #   ocb -ocamldoc ocamldoc -docflags -charset,utf-8,-colorize-code,-keep-code doclist.docdir/index.html;
-    #   rm doclist.odocl;
-    #   ln -sf _build/doclist.docdir doc
     # ;; tag*)
     #   otags -vi `find src/ -iregex [^.]*\.mli?`
-    ;; arinc)
-      ocb src/mainarinc.native &&
-      cp _build/src/mainarinc.native arinc
 
     # setup, dependencies
     ;; deps)
@@ -166,9 +130,9 @@ rule() {
 
     # tests, CI
     ;; test)
+      chmod -R +w ./tests/ # dune runtest normally has everything read-only, but update_suite wants to write a lot of things
+      mkdir -p ./tests/suite_result
       ./scripts/update_suite.rb # run regression tests
-    ;; unit)
-      ocamlbuild -use-ocamlfind unittest/mainTest.native && ./mainTest.native
     ;; testci)
       ruby scripts/update_suite.rb -s -d # -s: run tests sequentially instead of in parallel such that output is not scrambled, -d shows some stats?
     ;; travis) # run a travis docker container with the files tracked by git - intended to debug setup problems on travis-ci.com

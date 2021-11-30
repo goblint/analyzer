@@ -13,6 +13,7 @@
       "base",
       "threadid",
       "threadflag",
+      "threadreturn",
       "mallocWrapper",
       "mutex",
       "access",
@@ -29,7 +30,8 @@
   },
   "exp": {
     "witness": {
-      "id": "enumerate"
+      "id": "enumerate",
+      "unknown": false
     },
     "partition-arrays": {
       "enabled": true
@@ -48,7 +50,11 @@
         "kzalloc_node",
         "ldv_zalloc",
         "kmalloc_array",
-        "kcalloc"
+        "kcalloc",
+
+        "ldv_xmalloc",
+        "ldv_xzalloc",
+        "ldv_calloc"
       ]
     }
   },

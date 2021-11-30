@@ -1,5 +1,6 @@
 open GobConfig
 open Pretty
+open PrecisionUtil
 
 module GU = Goblintutil
 module M = Messages
@@ -152,6 +153,8 @@ sig
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
+
+  val project: Cil.ikind -> precision -> t -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -168,6 +171,8 @@ sig
   val starting   : Cil.ikind -> int_t -> t
   val ending     : Cil.ikind -> int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
+
+  val project: precision -> t -> t
 end
 
 module type Z = Y with type int_t = BI.t
@@ -259,6 +264,8 @@ struct
   let refine_with_interval ik a b = a
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
+
+  let project ik p t = t
 end
 
 
@@ -369,6 +376,8 @@ struct
   let is_top_of ik x = ik = x.ikind && I.is_top_of ik x.v
 
   let relift x = { v = I.relift x.v; ikind = x.ikind }
+
+  let project p v =  { v = I.project v.ikind p v.v; ikind = v.ikind }
 end
 
 module type Ikind =
@@ -908,6 +917,7 @@ struct
         | Some m1, Some m2 -> refine_with_interval ik (Some(l, u)) (Some (m1, m2))
         | _, _-> intv
 
+  let project ik p t = t
 end
 
 
@@ -1638,11 +1648,15 @@ struct
     ] (* S TODO: decide frequencies *)
 
   let refine_with_congruence ik a b = a
-  let refine_with_interval ik a b = a
+  let refine_with_interval ik a b = match a, b with
+    | x, Some(i) -> meet ik x (of_interval ik i)
+    | _ -> a
   let refine_with_excl_list ik a b = match a, b with
   | `Excluded (s, r), Some(ls) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls)
   | _ -> a
   let refine_with_incl_list ik a b = a
+
+  let project ik p t = t
 end
 
 module OverflowInt64 = (* throws Overflow for add, sub, mul *)
@@ -2082,6 +2096,8 @@ module Enums : S with type int_t = BigInt.t = struct
     match a, b with
     | Inc x, Some (ls) -> meet ik (Inc x) (Inc (BISet.of_list ls))
     | _ -> a
+
+  let project ik p t = t
 end
 
 module Congruence : S with type int_t = BI.t and type t = (BI.t * BI.t) option =
@@ -2540,6 +2556,8 @@ struct
   let refine_with_congruence ik a b = meet ik a b
   let refine_with_excl_list ik a b = a
   let refine_with_incl_list ik a b = a
+
+  let project ik p t = t
 end
 
 (* The old IntDomList had too much boilerplate since we had to edit every function in S when adding a new domain. With the following, we only have to edit the places where fn are applied, i.e., create, mapp, map, map2. You can search for I3 below to see where you need to extend. *)
@@ -2573,12 +2591,17 @@ module IntDomTupleImpl = struct
   type 'b poly2_pr = {f2p: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'b}
   type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
   type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
+  type 'b poly3 = { f3: 'a. 'a m -> 'a option } (* used for projection to given precision *)
+  let create r x ((p1, p2, p3, p4): precision) =
+    let f b g = if b then Some (g x) else None in
+    f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4)
   let create r x = (* use where values are introduced *)
-    let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi (module I1), f "interval" @@ r.fi (module I2), f "enums" @@ r.fi (module I3), f "congruence" @@ r.fi (module I4)
+    create r x (precision_from_node_or_config ())
+  let create2 r x ((p1, p2, p3, p4): precision) =
+    let f b g = if b then Some (g x) else None in
+    f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4)
   let create2 r x = (* use where values are introduced *)
-    let f n g = if get_bool ("ana.int."^n) then Some (g x) else None in
-    f "def_exc" @@ r.fi2 (module I1), f "interval" @@ r.fi2 (module I2), f "enums" @@ r.fi2 (module I3), f "congruence" @@ r.fi2 (module I4)
+    create2 r x (precision_from_node_or_config ())
 
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
@@ -2807,6 +2830,37 @@ module IntDomTupleImpl = struct
   let show = String.concat "; " % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.name () ^ ":" ^ (I.show x) }
   let to_yojson = [%to_yojson: Yojson.Safe.t list] % to_list % mapp { fp = fun (type a) (module I:S with type t = a) x -> I.to_yojson x }
   let hash = List.fold_left (lxor) 0 % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> I.hash }
+
+  (* `map/opt_map` are used by `project` *)
+  let opt_map b f =
+    curry @@ function None, true -> f | x, y when y || b -> x | _ -> None
+  let map ~keep r (i1, i2, i3, i4) (b1, b2, b3, b4) =
+    ( opt_map keep (r.f3 (module I1)) i1 b1
+    , opt_map keep (r.f3 (module I2)) i2 b2
+    , opt_map keep (r.f3 (module I3)) i3 b3
+    , opt_map keep (r.f3 (module I4)) i4 b4 )
+
+  (** Project tuple t to precision p
+   * We have to deactivate IntDomains after the refinement, since we might
+   * lose information if we do it before. E.g. only "Interval" is active
+   * and shall be projected to only "Def_Exc". By seting "Interval" to None
+   * before refinment we have no information for "Def_Exc".
+   *
+   * Thus we have 3 Steps:
+   * 1. Add padding to t by setting `None` to `I.top_of ik` if p is true for this element
+   * 2. Refine the padded t
+   * 3. Set elements of t to `None` if p is false for this element
+   *
+   * Side Note:
+   * ~keep is used to reuse `map/opt_map` for Step 1 and 3.
+   * ~keep:true will keep elements that are `Some x` but should be set to `None` by p.
+   *  This way we won't loose any information for the refinement.
+   * ~keep:false will set the elements to `None` as defined by p *)
+  let project ik (p: precision) t =
+    let t_padded = map ~keep:true { f3 = fun (type a) (module I:S with type t = a) -> Some (I.top_of ik) } t p in
+    let t_refined = refine ik t_padded in
+    map ~keep:false { f3 = fun (type a) (module I:S with type t = a) -> None } t_refined p
+
 
   (* f2: binary ops *)
   let join ik =
