@@ -2057,7 +2057,12 @@ struct
     invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
-    (*    let heap_var = heap_var !Tracing.current_loc in*)
+    let invalidate_ret_lv st = match lv with
+      | Some lv ->
+        if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
+        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+      | None -> st
+    in
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
@@ -2170,10 +2175,11 @@ struct
       end
     (* handling thread creations *)
     | `ThreadCreate _ ->
-      ctx.local (* actual results joined via threadspawn *)
+      invalidate_ret_lv ctx.local (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
-      begin match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
+      let st' =
+        match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
         | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
@@ -2184,7 +2190,8 @@ struct
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
-      end
+      in
+      invalidate_ret_lv st'
     | `Malloc size -> begin
         match lv with
         | Some lv ->
@@ -2239,12 +2246,7 @@ struct
              *)
         in
         (* invalidate lhs in case of assign *)
-        let st = match lv with
-          | None -> st
-          | Some x ->
-            if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for unknown function call %s\n" d_plainlval x f.vname;
-            invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [mkAddrOrStartOf x]
-        in
+        let st = invalidate_ret_lv st in
         (* apply all registered abstract effects from other analysis on the base value domain *)
         LF.effects_for f.vname args
         |> List.map (fun sets ->

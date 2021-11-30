@@ -3,12 +3,8 @@ open OUnit
 module U = Testutils
 
 let all_tests _ = ("" >:::
-  [ NativeArrayDomainTest.test ();
-    CollapsingArrayDomainTest.test ();
-    IntDomainTest.test ();
+  [ IntDomainTest.test ();
     MapDomainTest.test ();
-    PMapArrayDomainTest.test ();
-    LMapArrayDomainTest.test ();
     SolverTest.test ();
     (* etc *)
   ])
