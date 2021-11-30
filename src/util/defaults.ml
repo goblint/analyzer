@@ -148,6 +148,8 @@ let _ = ()
       ; reg Analyses "ana.apron.domain" "'octagon'" "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'"
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
       ; reg Analyses "ana.apron.threshold_widening" "false" "Use constants appearing in program as threshold for widening"
+      ; reg Analyses "ana.thread.domain" "'history'" "Which domain should be used for the thread ids. Can be 'history' or 'plain'"
+
 
 (* {4 category [Incremental]} *)
 let _ = ()
