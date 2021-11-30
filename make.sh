@@ -9,7 +9,6 @@ opam_setup() {
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
   opam switch -y create . --deps-only ocaml-base-compiler.4.12.0 --locked
-  # opam install camlp4 mongo # camlp4 needed for mongo
 }
 
 rule() {
