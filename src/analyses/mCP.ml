@@ -274,7 +274,6 @@ module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
 =
 struct
   open DLSpec
-  open List
   open Obj
 
   include DomVariantPrintable (PrintableOfLatticeSpec (DLSpec))
