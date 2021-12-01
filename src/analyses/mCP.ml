@@ -160,74 +160,64 @@ struct
 
   type t = int * unknown
 
-  let unop_fold f a (x:t) =
-    let f a n d =
-      f a n (assoc_dom n) d
-    in
-    fold_left (fun a (n,d) -> f a n d) a [x] (* TODO: inline singleton list *)
+  let unop_map f ((n, d):t) =
+    f n (assoc_dom n) d
 
-  let pretty () x =
-    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
-    let xs = unop_fold f [] x in
-    match xs with
-    | [] -> text "[]"
-    | x :: [] -> x
-    | x :: y ->
-      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
-      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
-
-  let show x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x ->
-        let analysis_name = assoc n !analyses_table in
-        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
-    in
-    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
-
-  let to_yojson xs =
-    let f a n (module S : Printable.S) x =
-      let name = BatList.assoc n !analyses_table in
-      (name, S.to_yojson (obj x)) :: a
-    in `Assoc (unop_fold f [] xs)
-
-  let equal   x y = fst x = fst y && (
-    let module S = (val assoc_dom (fst x)) in
-    S.equal (obj (snd x)) (obj (snd y))
-  )
-  let compare x y =
-    let r = Stdlib.compare (fst x) (fst y) in
-    if r <> 0 then
-      r
-    else (
-      let module S = (val assoc_dom (fst x)) in
-      S.compare (obj (snd x)) (obj (snd y))
+  let pretty () = unop_map (fun n (module S: Printable.S) x ->
+      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x)
     )
 
-  let hashmul x y = if x=0 then y else if y=0 then x else x*y
+  let show = unop_map (fun n (module S: Printable.S) x ->
+      let analysis_name = assoc n !analyses_table in
+      analysis_name ^ ":" ^ S.show (obj x)
+    )
 
-  let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
+  let to_yojson x =
+    `Assoc [
+      unop_map (fun n (module S: Printable.S) x ->
+          let name = BatList.assoc n !analyses_table in
+          (name, S.to_yojson (obj x))
+        ) x
+    ]
+
+  let equal (n1, x1) (n2, x2) =
+    n1 = n2 && (
+      let module S = (val assoc_dom n1) in
+      S.equal (obj x1) (obj x2)
+    )
+
+  let compare (n1, x1) (n2, x2) =
+    let r = Stdlib.compare n1 n2 in
+    if r <> 0 then
+      r
+    else
+      let module S = (val assoc_dom n1) in
+      S.compare (obj x1) (obj x2)
+
+  let hash = unop_map (fun n (module S: Printable.S) x ->
+      Hashtbl.hash (n, S.hash (obj x))
+    )
 
   let name () =
-    let domain_name (n, (module D: Printable.S)) =
+    let domain_name (n, (module S: Printable.S)) =
       let analysis_name = assoc n !analyses_table in
-      analysis_name ^ ":(" ^ D.name () ^ ")"
+      analysis_name ^ ":" ^ S.name ()
     in
-    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
+    IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list ())
 
-  let printXml f xs =
-    let print_one a n (module S : Printable.S) x : unit =
+  let printXml f = unop_map (fun n (module S: Printable.S) x ->
       BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
-    in
-    unop_fold print_one () xs
+    )
 
-  let invariant c = unop_fold (fun a n (module S : Printable.S) x ->
-      Invariant.(a && S.invariant c (obj x))
-    ) Invariant.none
+  let invariant c = unop_map (fun n (module S: Printable.S) x ->
+      S.invariant c (obj x)
+    )
 
-  (* let arbitrary () =
-    let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
-    MyCheck.Arbitrary.sequence arbs *)
+  let arbitrary () =
+    let arbs = map (fun (n, (module S: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
+    QCheck.oneof arbs
 end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
