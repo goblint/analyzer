@@ -25,8 +25,8 @@ struct
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      GU.demangle "(" ^ x.vname ^ ", " ^ description ^ ")"
-    else GU.demangle x.vname
+      "(" ^ x.vname ^ ", " ^ description ^ ")"
+    else x.vname
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
   let get_location x = x.vdecl
@@ -166,51 +166,4 @@ module CilField =
 struct
   include Printable.Std (* for default MapDomain.Groupable *)
   include CilType.Fieldinfo
-end
-
-module FieldVariables =
-struct
-  include Printable.Std
-
-  type t = CilType.Varinfo.t*CilType.Fieldinfo.t option [@@deriving to_yojson]
-
-  let gen v = (v,None)
-  let gen_f v f = (v,Some f)
-
-  let get_var x = fst x
-  let get_field x = snd x
-
-  let has_field x = match get_field x with
-    | Some x -> true
-    | _ -> false
-
-  let apply_field f default v = match get_field v with
-    | Some x -> f x
-    | _ -> default
-
-  let is_global v = (get_var v).vglob
-  let copy x = x
-  let equal x y = CilType.Varinfo.equal (get_var x) (get_var y) && (apply_field (fun v->v.fname) "" x)=(apply_field (fun v->v.fname) "" y)
-
-  let show x = GU.demangle (get_var x).vname^
-                  (*"("^string_of_int (get_var x).vid ^")"^*)
-                  (apply_field (fun x->"::"^x.fname) "" x)
-
-  let compare x y = let cmp = CilType.Varinfo.compare (get_var x) (get_var y) in
-    if cmp = 0 then
-      compare (apply_field (fun v->v.fname) "" x) (apply_field (fun v->v.fname) "" y)
-    else
-      cmp
-
-  let hash x = Hashtbl.hash ((get_var x).vid,(apply_field (fun x->"::"^x.fname) "" x))
-
-  let pretty () x = Pretty.text (show x)
-  let pretty_trace () x = let name = show x in
-    Pretty.dprintf "%s on %a" name CilType.Location.pretty (get_var x).vdecl
-
-  let get_location x = (get_var x).vdecl
-  let to_group x = Variables.to_group (get_var x)
-
-  let name () = "variables and fields"
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
