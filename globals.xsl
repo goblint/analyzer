@@ -55,8 +55,8 @@
         &#8709;
       </xsl:otherwise>
     </xsl:choose>
-  </xsl:template>   
-  
+  </xsl:template>
+
   <xsl:template match="globs">
     <xsl:for-each select="glob[1]/analysis" >
       <xsl:variable name="analysis" select="@name"/>
@@ -67,8 +67,8 @@
         <span>
           <xsl:for-each select="/globs/glob" >
             <xsl:variable name="glob" select="key"/>
-              
-              
+
+
             <xsl:choose>
               <xsl:when test="analysis[@name=$analysis]/value//value">
                 <div class="toggle">
@@ -91,8 +91,8 @@
                 </div>
               </xsl:otherwise>
             </xsl:choose>
-              
-              
+
+
           </xsl:for-each>
         </span>
       </div>
