@@ -269,7 +269,6 @@ open Analyses
 module Result (Cfg : CfgBidir)
               (Spec : Spec)
               (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                                  (* and module GVar = Basetype.Variables *)
                                   and module GVar = GVarF (Spec.V)
                                   and module D = Spec.D
                                   and module G = Spec.G)

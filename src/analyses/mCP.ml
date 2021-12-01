@@ -306,9 +306,8 @@ struct
     binop_map' f x y
 end
 
-module DomVariantLattice (DLSpec : DomainListLatticeSpec)
-  (* : Lattice.S with type t = (int * unknown) *)
-  = Lattice.Lift (DomVariantLattice0 (DLSpec)) (Printable.DefaultNames)
+module DomVariantLattice (DLSpec : DomainListLatticeSpec) =
+  Lattice.Lift (DomVariantLattice0 (DLSpec)) (Printable.DefaultNames)
 
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
