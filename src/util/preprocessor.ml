@@ -1,6 +1,6 @@
 open Prelude
 
-let bad_cpp_version_regexp = Str.regexp_case_fold "ubuntu" (* TODO: change *)
+let bad_cpp_version_regexp = Str.regexp_case_fold "clang\\|apple\\|darwin"
 
 let is_bad name =
   let cpp_in = Unix.open_process_in (name ^ " --version") in
