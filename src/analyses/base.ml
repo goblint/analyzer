@@ -1087,6 +1087,15 @@ struct
     | _ ->  st
 
 
+  let is_integral_var (e: exp) =
+    match e with
+    | Lval l ->
+      (match l with
+       | Var v, NoOffset -> Cil.isIntegralType v.vtype
+       | _ -> false
+      )
+    | _ -> false
+
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
@@ -1145,7 +1154,8 @@ struct
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-        let new_value = update_offset (Priv.read_global a gs st x) in
+        let old_value = if Option.map_default is_integral_var false lval_raw then VD.bot_value lval_type else Priv.read_global a gs st x in
+        let new_value = update_offset old_value in
         let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
