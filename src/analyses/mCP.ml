@@ -65,7 +65,7 @@ end
 exception DomListBroken of string
 
 module DomListPrintable (DLSpec : DomainListPrintableSpec)
-  (*  : Printable.S with type t = (string * unknown) list *)
+  : Printable.S with type t = (int * unknown) list
 =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
@@ -149,7 +149,7 @@ struct
 end
 
 module DomVariantPrintable (DLSpec : DomainListPrintableSpec)
-  (*  : Printable.S with type t = (string * unknown) list *)
+  : Printable.S with type t = int * unknown
 =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
@@ -229,10 +229,6 @@ struct
     let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
     MyCheck.Arbitrary.sequence arbs *)
 end
-
-let _ =
-  let module Test : functor (DLSpec : DomainListPrintableSpec) -> Printable.S with type t = (int * unknown) list = DomListPrintable  in
-  ()
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
   : Lattice.S with type t = (int * unknown) list
