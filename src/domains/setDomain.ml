@@ -336,7 +336,7 @@ end
 (** Functor for creating artificially topped set domains. *)
 module ToppedSet (Base: Printable.S) (N: ToppedSetNames): S with
   type elt = Base.t and
-  type t = [`Top | `Lifted of Make (Base).t] = (* TODO: don't expose t for ShapeDomain *)
+  type t = [`Top | `Lifted of Make (Base).t] = (* TODO: don't expose t *)
 struct
   module S = Make (Base)
   include LiftTop (S) (N)
