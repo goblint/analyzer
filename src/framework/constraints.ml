@@ -18,6 +18,7 @@ struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name () ^" hashconsed"
 
@@ -95,6 +96,7 @@ struct
   module D = S.D
   module G = S.G
   module C = Printable.HConsed (S.C)
+  module V = S.V
 
   let name () = S.name () ^" context hashconsed"
 
@@ -182,6 +184,7 @@ struct
   module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name ()^" level sliced"
 
@@ -322,6 +325,7 @@ struct
   end
   module G = S.G
   module C = S.C
+  module V = S.V
 
 
   let name () = S.name ()^" with widened contexts"
@@ -391,6 +395,7 @@ struct
   module D = Dom (S.D)
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name ()^" lifted"
 
@@ -897,6 +902,7 @@ module PathSensitive2 (Spec:Spec)
     with type D.t = HoareDomain.Set(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
+     and module V = Spec.V
 =
 struct
   module D =
@@ -938,6 +944,7 @@ struct
 
   module G = Spec.G
   module C = Spec.C
+  module V = Spec.V
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 

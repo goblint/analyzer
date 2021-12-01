@@ -316,6 +316,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   module C : Printable.S
+  module V: Printable.S (** Global constraint variables. *)
 
   val name : unit -> string
 
@@ -487,10 +488,13 @@ struct
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
 
+module VarinfoV = CilType.Varinfo
 
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
+  module V = VarinfoV
+
   type marshal = unit
   let init _ = ()
   let finalize () = ()

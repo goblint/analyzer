@@ -18,6 +18,7 @@ struct
   module C = D
 
   open AD
+  open (ApronDomain: (sig module V: (module type of ApronDomain.V) end)) (* open only V from ApronDomain (to shadow V of Spec), but don't open D (to not shadow D here) *)
 
   open ApronPrecCompareUtil
   (* Result map used for comparison of results *)

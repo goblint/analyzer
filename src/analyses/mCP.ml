@@ -9,7 +9,8 @@ module QuerySet = Set.Make (Queries.Any)
 type spec_modules = { spec : (module MCPSpec)
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
-                    ; cont : (module Printable.S) }
+                    ; cont : (module Printable.S)
+                    ; var  : (module Printable.S) }
 
 let analyses_list  : (int * spec_modules) list ref = ref []
 let analyses_list' : (int * spec_modules) list ref = ref []
@@ -25,6 +26,7 @@ let register_analysis =
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
+            ; var  = (module S.V : Printable.S)
             }
     in
     let n = S.name () in
@@ -217,14 +219,22 @@ struct
   let domain_list () = List.map (fun (n,p) -> n, p.cont) !analyses_list
 end
 
+module VarListSpec : DomainListPrintableSpec =
+struct
+  let assoc_dom n = (List.assoc n !analyses_list).var
+  let domain_list () = List.map (fun (n,p) -> n, p.var) !analyses_list
+end
+
 module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
    and module G = DomListLattice (GlobalDomainListSpec)
-   and module C = DomListPrintable (ContextListSpec) =
+   and module C = DomListPrintable (ContextListSpec)
+   and module V = DomListPrintable (VarListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomListLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
+  module V = DomListPrintable (VarListSpec)
 
   open List open Obj
 
