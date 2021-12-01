@@ -1,6 +1,7 @@
 open Cil
 open GobConfig
 open Pretty
+open FlagHelper
 
 (* Exception raised when the set domain can not support the requested operation.
  * This will be raised, when trying to iterate a set that has been set to Top *)
@@ -446,74 +447,48 @@ struct
 
   type field = fieldinfo
   type value = S.value
-  type t = S.t option * HS.t option * KS.t option [@@deriving to_yojson]
 
-  let tag _ = failwith "FlagConfiguredStructDomain: no tag"
-  let arbitrary () = failwith "FlagConfiguredStructDomain: no arbitrary"
+  module P = struct
+    let msg = "FlagConfiguredStructDomain received a value where not exactly one component is set"
+    let name = "FlagConfiguredStructDomain"
+  end
 
-  let unop ops ophs opks (s,hs,ks) = match (s, hs, ks) with
-    | (Some s, None, None) -> ops s
-    | (None, Some hs, None) -> ophs hs
-    | (None, None, Some ks) -> opks ks
+  let of_t = function
+    | (Some s, None) -> (Some s, None, None)
+    | (None, Some (hs,ks)) -> (None, hs, ks)
     | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
 
-  let invariant c = unop (S.invariant c) (HS.invariant c) (KS.invariant c)
-
-  let pretty () = unop (S.pretty ()) (HS.pretty ()) (KS.pretty ())
-
-  (* Helpers *)
-  let binop ops ophs opks (s1,hs1,ks1) (s2,hs2,ks2) = match (s1, hs1, ks1), (s2, hs2, ks2) with
-    | (Some s1, None, None), (Some s2, None, None) -> ops s1 s2
-    | (None, Some hs1, None), (None, Some hs2, None) -> ophs hs1 hs2
-    | (None, None, Some ks1), (None, None, Some ks2) -> opks ks1 ks2
-    | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
-
-  let binop_to_t ops ophs opks (s1,hs1,ks1) (s2,hs2,ks2)= match (s1, hs1, ks1),(s2, hs2, ks2) with
-    | (Some s1, None, None), (Some s2, None, None) -> (Some (ops s1 s2), None, None)
-    | (None, Some hs1, None), (None, Some hs2, None) -> (None, Some(ophs hs1 hs2), None)
-    | (None, None, Some ks1), (None, None, Some ks2) -> (None, None, Some(opks ks1 ks2))
+  let to_t = function
+    | (Some s, None, None) -> (Some s, None)
+    | (None, Some hs, None) -> (None, Some (Some hs, None))
+    | (None, None, Some ks) -> (None, Some (None, Some ks))
     | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
 
 
-  let unop_to_t ops ophs opks (s,hs,ks) = match (s, hs, ks) with
-    | (Some s, None, None) -> (Some (ops s), None, None)
-    | (None, Some hs, None) -> (None, Some(ophs hs), None)
-    | (None, None, Some ks) -> (None, None, Some(opks ks))
-    | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
+  module I = struct include LatticeFlagHelper (HS) (KS) (P) let name () = "" end
+  include LatticeFlagHelper (S) (I) (P)
 
-  let twoaccop_to_t ops ophs opks (s,hs,ks) a1 a2 = match (s, hs, ks) with
+  let invariant c = unop (S.invariant c) (I.unop (HS.invariant c) (KS.invariant c))
+
+  let twoaccop_to_t ops ophs opks (s,r) a1 a2 = to_t @@ match of_t (s,r) with
     | (Some s, None, None) -> (Some (ops s a1 a2), None, None)
     | (None, Some hs, None) -> (None, Some(ophs hs a1 a2), None)
     | (None, None, Some ks) -> (None, None, Some(opks ks a1 a2))
     | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
 
-  (* Simply call appropriate function for component that is not None *)
-  let equal = binop S.equal HS.equal KS.equal
-  let hash = unop S.hash HS.hash KS.hash
-  let compare = binop S.compare HS.compare KS.compare
-  let show = unop S.show HS.show KS.show
-  let leq = binop S.leq HS.leq KS.leq
-  let leq_with_fct f = binop (S.leq_with_fct f) (HS.leq_with_fct f) (KS.leq_with_fct f)
-  let join = binop_to_t S.join HS.join KS.join
-  let join_with_fct f = binop_to_t (S.join_with_fct f) (HS.join_with_fct f) (KS.join_with_fct f)
-  let meet = binop_to_t S.meet HS.meet KS.meet
-  let widen = binop_to_t S.widen HS.widen KS.widen
-  let widen_with_fct f = binop_to_t (S.widen_with_fct f) (HS.widen_with_fct f) (KS.widen_with_fct f)
-  let narrow = binop_to_t S.narrow HS.narrow KS.narrow
-  let is_top = unop S.is_top HS.is_top KS.is_top
-  let is_bot = unop S.is_bot HS.is_bot KS.is_bot
-  let get = unop S.get HS.get KS.get
+  let binop' ops ophs opks = binop ops (I.binop ophs opks)
+  let unop' ops ophs opks = unop ops (I.unop ophs opks)
+  let binop_to_t' ops ophs opks = binop_to_t ops (I.binop_to_t ophs opks)
+  let unop_to_t' ops ophs opks = unop_to_t ops (I.unop_to_t ophs opks)
+
+  let leq_with_fct f = binop' (S.leq_with_fct f) (HS.leq_with_fct f) (KS.leq_with_fct f)
+  let join_with_fct f = binop_to_t' (S.join_with_fct f) (HS.join_with_fct f) (KS.join_with_fct f)
+  let widen_with_fct f = binop_to_t' (S.widen_with_fct f) (HS.widen_with_fct f) (KS.widen_with_fct f)
+  let get = unop' S.get HS.get KS.get
   let replace = twoaccop_to_t S.replace HS.replace KS.replace
-  let keys = unop S.keys HS.keys KS.keys
-  let map f = unop_to_t (S.map f) (HS.map f) (KS.map f)
-  let fold f = unop (S.fold f) (HS.fold f) (KS.fold f)
-  let printXml f = unop (S.printXml f) (HS.printXml f) (KS.printXml f)
-  let to_yojson = unop (S.to_yojson) (HS.to_yojson) (KS.to_yojson)
-  let pretty_diff () ((s1,hs1,ks1),(s2,hs2,ks2)) = match (s1, hs1, ks1),(s2, hs2, ks2) with
-    | (Some s1, None, None), (Some s2, None, None) -> S.pretty_diff () (s1, s2)
-    | (None, Some hs1, None), (None, Some hs2, None) -> HS.pretty_diff () (hs1, hs2)
-    | (None, None, Some ks1), (None, None, Some ks2) -> KS.pretty_diff () (ks1, ks2)
-    | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
+  let keys = unop' S.keys HS.keys KS.keys
+  let map f = unop_to_t' (S.map f) (HS.map f) (KS.map f)
+  let fold f = unop' (S.fold f) (HS.fold f) (KS.fold f)
 
   (* Functions that make us of the configuration flag *)
   let chosen_domain () = get_string "exp.structs.domain"
@@ -538,21 +513,21 @@ struct
     | _ -> failwith "FlagConfiguredStructDomain cannot name a struct from set option"
 
   let bot () =
-    match chosen_domain () with
+    to_t @@ match chosen_domain () with
     | "simple" -> (Some (S.bot ()), None, None)
     | "sets" -> (None, Some (HS.bot ()), None)
     | "keyed" -> (None, None, Some (KS.bot ()))
     | _ -> failwith "FlagConfiguredStructDomain cannot construct a bot struct from set option"
 
   let top () =
-    match chosen_domain () with
+    to_t @@ match chosen_domain () with
     | "simple" -> (Some (S.top ()), None, None)
     | "sets" -> (None, Some (HS.top ()), None)
     | "keyed" -> (None, None, Some (KS.top ()))
     | _ -> failwith "FlagConfiguredStructDomain cannot construct a top struct from set option"
 
   let create fn (comp: compinfo): t =
-    match pick_combined (chosen_domain ()) comp with
+    to_t @@ match pick_combined (chosen_domain ()) comp with
     | "simple" -> (Some (S.create fn comp), None, None)
     | "sets" -> (None, Some (HS.create fn comp), None)
     | "keyed" -> (None, None, Some (KS.create fn comp))
