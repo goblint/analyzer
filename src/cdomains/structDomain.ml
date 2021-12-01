@@ -465,8 +465,8 @@ struct
     | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
 
 
-  module I = struct include FlagHelper (HS) (KS) (P) let name () = "" end
-  include FlagHelper (S) (I) (P)
+  module I = struct include LatticeFlagHelper (HS) (KS) (P) let name () = "" end
+  include LatticeFlagHelper (S) (I) (P)
 
   let invariant c = unop (S.invariant c) (I.unop (HS.invariant c) (KS.invariant c))
 
@@ -481,26 +481,14 @@ struct
   let binop_to_t' ops ophs opks = binop_to_t ops (I.binop_to_t ophs opks)
   let unop_to_t' ops ophs opks = unop_to_t ops (I.unop_to_t ophs opks)
 
-  let leq = binop' S.leq HS.leq KS.leq
   let leq_with_fct f = binop' (S.leq_with_fct f) (HS.leq_with_fct f) (KS.leq_with_fct f)
-  let join = binop_to_t' S.join HS.join KS.join
   let join_with_fct f = binop_to_t' (S.join_with_fct f) (HS.join_with_fct f) (KS.join_with_fct f)
-  let meet = binop_to_t' S.meet HS.meet KS.meet
-  let widen = binop_to_t' S.widen HS.widen KS.widen
   let widen_with_fct f = binop_to_t' (S.widen_with_fct f) (HS.widen_with_fct f) (KS.widen_with_fct f)
-  let narrow = binop_to_t' S.narrow HS.narrow KS.narrow
-  let is_top = unop' S.is_top HS.is_top KS.is_top
-  let is_bot = unop' S.is_bot HS.is_bot KS.is_bot
   let get = unop' S.get HS.get KS.get
   let replace = twoaccop_to_t S.replace HS.replace KS.replace
   let keys = unop' S.keys HS.keys KS.keys
   let map f = unop_to_t' (S.map f) (HS.map f) (KS.map f)
   let fold f = unop' (S.fold f) (HS.fold f) (KS.fold f)
-  let pretty_diff () ((s1,r1),(s2,r2)) = match (of_t (s1,r1), of_t ((s2, r2))) with
-    | (Some s1, None, None), (Some s2, None, None) -> S.pretty_diff () (s1, s2)
-    | (None, Some hs1, None), (None, Some hs2, None) -> HS.pretty_diff () (hs1, hs2)
-    | (None, None, Some ks1), (None, None, Some ks2) -> KS.pretty_diff () (ks1, ks2)
-    | _ -> failwith "FlagConfiguredStructDomain received a value where not exactly one component is set"
 
   (* Functions that make us of the configuration flag *)
   let chosen_domain () = get_string "exp.structs.domain"

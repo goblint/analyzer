@@ -689,19 +689,12 @@ struct
   type idx = Idx.t
   type value = Val.t
 
-  include FlagHelper(P)(T)(struct
+  include LatticeFlagHelper(P)(T)(struct
       let msg = "FlagConfiguredArrayDomain received a value where not exactly one component is set"
       let name = "FlagConfiguredArrayDomain"
     end)
 
   (* Simply call appropriate function for component that is not None *)
-  let leq = binop P.leq T.leq
-  let join = binop_to_t P.join T.join
-  let meet = binop_to_t P.meet T.meet
-  let widen = binop_to_t P.widen T.widen
-  let narrow = binop_to_t P.narrow T.narrow
-  let is_top = unop P.is_top T.is_top
-  let is_bot = unop P.is_bot T.is_bot
   let get a x (e,i) = unop (fun x ->
         if e = `Top then
           let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
@@ -721,12 +714,7 @@ struct
   let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
   let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 
-  let pretty_diff () ((p1,t1),(p2,t2)) = match (p1, t1),(p2, t2) with
-    | (Some p1, None), (Some p2, None) -> P.pretty_diff () (p1, p2)
-    | (None, Some t1), (None, Some t2) -> T.pretty_diff () (t1, t2)
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  (* Functions that make us of the configuration flag *)
+  (* Functions that make use of the configuration flag *)
   let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "exp.partition-arrays.enabled" then P.name () else T.name ()
 
   let partition_enabled () = get_bool "exp.partition-arrays.enabled"

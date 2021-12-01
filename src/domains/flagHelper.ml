@@ -63,3 +63,26 @@ struct
        | _ -> None)
     | _ -> failwith Msg.msg
 end
+
+module type LatticeFlagHelperArg = sig
+  include Lattice.PO
+  val is_top: t -> bool
+  val is_bot: t -> bool
+end
+
+module LatticeFlagHelper (L:LatticeFlagHelperArg) (R:LatticeFlagHelperArg) (Msg: FlagError) =
+struct
+  include FlagHelper (L) (R) (Msg)
+
+  let leq = binop L.leq R.leq
+  let join = binop_to_t L.join R.join
+  let meet = binop_to_t L.meet R.meet
+  let widen = binop_to_t L.widen R.widen
+  let narrow = binop_to_t L.narrow R.narrow
+  let is_top = unop L.is_top R.is_top
+  let is_bot = unop L.is_bot R.is_bot
+  let pretty_diff () ((l1,r1),(l2,r2)) = match (l1, r1),(l2, r2) with
+    | (Some p1, None), (Some p2, None) -> L.pretty_diff () (p1, p2)
+    | (None, Some t1), (None, Some t2) -> R.pretty_diff () (t1, t2)
+    | _ -> failwith Msg.msg
+end
