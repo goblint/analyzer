@@ -1086,14 +1086,13 @@ struct
     (* `List and `Blob cannot contain arrays *)
     | _ ->  st
 
-  (** Check whether the lval is an integer variable or a reference to a integer variable (but not an integer in a composite type) *)
-  let rec lval_is_integral_var = function
+  (** Check whether the lval is an integer variable *)
+  let lval_is_integral_var = function
     | Var v, NoOffset -> Cil.isIntegralType v.vtype
-    | Mem m, NoOffset -> exp_is_integral_var m
     | _ -> false
 
-  (** Check whether the expression is an integer variable or a reference to a integer variable (but not an integer in a composite type) *)
-  and exp_is_integral_var (e: exp) =
+  (** Check whether the expression is an integer variable *)
+  let exp_is_integral_var (e: exp) =
     match e with
     | Lval l -> lval_is_integral_var l
     | _ -> false
