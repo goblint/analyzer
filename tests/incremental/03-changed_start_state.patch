@@ -1,6 +1,6 @@
---- a/tests/incremental/02-changed_start_state.c
-+++ b/tests/incremental/02-changed_start_state.c
-@@ -1,6 +1,6 @@
+--- a/tests/incremental/03-changed_start_state.c
++++ b/tests/incremental/03-changed_start_state.c
+@@ -1,12 +1,12 @@
  #include <assert.h>
 
 -int g = 1;
@@ -8,3 +8,11 @@
 
  int main() {
      // After the presolve phase, g is in the start state but neither in the context nor in the start variables.
+     // If the start state of main is not overwriten when main is destabilized because of a changed start state,
+     // the first assert will wrongly succeed and the second fail in the incremental run
+-    assert(g == 1); // SUCCESS
+-    assert(g == 2); // FAIL
++    assert(g == 1); // FAIL
++    assert(g == 2); // SUCCESS
+     return 0;
+ }
