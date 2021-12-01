@@ -80,7 +80,7 @@
                   </span>
                 </div>
               </xsl:when>
-              <xsl:otherwise>
+              <xsl:when test="analysis[@name=$analysis]">
                 <div class="nontoggle">
                   <span class="emph">
                     <xsl:value-of select="$glob"/>
@@ -89,7 +89,7 @@
                     <xsl:apply-templates select="analysis[@name=$analysis]/value"/>
                   </span>
                 </div>
-              </xsl:otherwise>
+              </xsl:when>
             </xsl:choose>
 
 
