@@ -38,7 +38,6 @@ struct
     | x when Cilfacade.is_varinfo_formal x -> Parameter
     | _ -> Local
   let name () = "variables"
-  let loopSep _ = true
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec
