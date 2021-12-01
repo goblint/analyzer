@@ -41,7 +41,7 @@ struct
 
   (* start MapDomain.Groupable *)
   type group = |
-  let show_group (x: group)= match x with _ -> .
+  let show_group (x: group) = match x with _ -> .
   let to_group _ = None
   let trace_enabled = false
   (* end MapDomain.Groupable *)

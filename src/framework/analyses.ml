@@ -66,8 +66,18 @@ struct
   let var_id (n,_) = Var.var_id n
   let node (n,_) = n
 end
-exception Deadcode
 
+module GVarF (V: Printable.S) =
+struct
+  include V
+  (* from Basetype.Variables *)
+  let var_id _ = "globals"
+  let node _ = MyCFG.Function Cil.dummyFunDec
+  let pretty_trace = pretty
+end
+
+
+exception Deadcode
 
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
 module Dom (LD: Lattice.S) =
@@ -286,12 +296,12 @@ type ('d,'g,'c,'v) ctx =
   ; context  : unit -> 'c (** current Spec context *)
   ; edge     : MyCFG.edge
   ; local    : 'd
-  ; global   : varinfo -> 'g
+  ; global   : 'v -> 'g
   ; presub   : (string * Obj.t) list
   ; postsub  : (string * Obj.t) list
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
-  ; sideg    : varinfo -> 'g -> unit
+  ; sideg    : 'v -> 'g -> unit
   ; assign   : ?name:string -> lval -> exp -> unit
   }
 

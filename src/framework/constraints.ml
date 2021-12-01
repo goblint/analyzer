@@ -456,10 +456,11 @@ end
 module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
-                           and module GVar = Basetype.Variables
+                           (* and module GVar = Basetype.Variables *)
+                           and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = S.G
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t
   end
 =
 struct
@@ -468,7 +469,8 @@ struct
   type ld = S.D.t
   (* type gd = S.G.t *)
   module LVar = VarF (S.C)
-  module GVar = Basetype.Variables
+  (* module GVar = Basetype.Variables *)
+  module GVar = GVarF (S.V)
   module D = S.D
   module G = S.G
 
@@ -1071,7 +1073,8 @@ end
 module Compare
     (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = Basetype.Variables
+                        (* and module GVar = Basetype.Variables *)
+                        and module GVar = GVarF (S.V)
                         and module D = S.D
                         and module G = S.G)
     (LH:Hashtbl.S with type key=Sys.LVar.t)
