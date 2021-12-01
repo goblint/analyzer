@@ -58,6 +58,7 @@ has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make hea
 
 testresults = File.expand_path("tests/suite_result")
 testfiles   = File.expand_path("tests/regression")
+testfiles_incr   = File.expand_path("tests/incremental")
 
 alliswell = true
 failed    = [] # failed tests
@@ -90,6 +91,17 @@ class Project
   end
 end
 
+class ProjectIncr < Project
+  attr_reader :config_path, :patch_path, :tests_incr, :tests_incr_line
+  def initialize(id, name, size, group, path, params, tests, tests_line, todo, ok, tests_incr, tests_incr_line, patch_path, config_path)
+    super(id, name, size, group, path, params, tests, tests_line, todo, ok)
+    @config_path = config_path
+    @patch_path = patch_path
+    @tests_incr = tests_incr
+    @tests_incr_line = tests_incr_line
+  end
+end
+
 #Command line parameters
 #Either only run a single test, or
 #"future" will also run tests we normally skip
@@ -115,6 +127,40 @@ end
 
 # tracing = `grep 'tracing = true' src/config.ml`.size > 0
 # if tracing then puts "Tracing in on!" else puts "Tracing is off" end
+
+def parse_tests (lines, todo, tests, tests_line)
+  i = 0
+  lines.each do |obj|
+    i = i + 1
+    if obj =~ /#line ([0-9]+).*$/ then
+      i = $1.to_i - 1
+    end
+    next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
+    todo << i if obj =~ /TODO|SKIP/
+    tests_line[i] = obj
+    if obj =~ /RACE/ then
+      tests[i] = if obj =~ /NORACE/ then "norace" else "race" end
+    elsif obj =~ /DEADLOCK/ then
+      tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
+    elsif obj =~ /WARN/ then
+      tests[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
+    elsif obj =~ /assert.*\(/ then
+      if obj =~ /FAIL/ then
+        tests[i] = "fail"
+      elsif obj =~ /UNKNOWN/ then
+        tests[i] = "unknown"
+      else
+        tests[i] = "assert"
+      end
+    end
+  end
+  case lines[0]
+  when /NON?TERM/
+    tests[-1] = "noterm"
+  when /TERM/
+    tests[-1] = "term"
+  end
+end
 
 #processing the file information
 projects = []
@@ -153,40 +199,8 @@ regs.sort.each do |d|
     tests = Hash.new
     todo = Set.new
     tests_line = Hash.new
-    i = 0
-    lines.each do |obj|
-      i = i + 1
-      if obj =~ /#line ([0-9]+).*$/ then
-        i = $1.to_i - 1
-      end
-      next if obj =~ /^\s*\/\// || obj =~ /^\s*\/\*([^*]|\*+[^*\/])*\*\/$/
-      todo << i if obj =~ /TODO|SKIP/
-      tests_line[i] = obj
-      if obj =~ /RACE/ then
-        tests[i] = if obj =~ /NORACE/ then "norace" else "race" end
-      elsif obj =~ /DEADLOCK/ then
-        tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
-      elsif obj =~ /WARN/ then
-        tests[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
-      elsif obj =~ /assert.*\(/ then
-        debug = true
-        if obj =~ /FAIL/ then
-          tests[i] = "fail"
-        elsif obj =~ /UNKNOWN/ then
-          tests[i] = "unknown"
-        else
-          tests[i] = "assert"
-        end
-      end
-    end
-    case lines[0]
-    when /NON?TERM/
-      tests[-1] = "noterm"
-      debug = true
-    when /TERM/
-      tests[-1] = "term"
-      debug = true
-    end
+    parse_tests(lines, todo, tests, tests_line)
+
     # always enable debugging so that the warnings would work
     debug = true
 
@@ -195,6 +209,49 @@ regs.sort.each do |d|
     projects << p
     project_ids << id
   end
+end
+
+regs = Dir.open(testfiles_incr)
+regs.sort.each do |f|
+  next if File.basename(f)[0] == ?.
+  next if f =~ /goblin_temp/
+  next unless f =~ /^[0-9]+-.*\.c$/
+  groupname = "incr"
+  id = groupname + "/" + f[0..1]
+  if project_ids.member?(id) then
+    puts "Duplicate test ID #{id}"
+    exit 1
+  end
+  testname = f[3..-3]
+  next unless only.nil? or testname == only
+  path = File.expand_path(f, testfiles_incr)
+  lines = IO.readlines(path)
+  # apply patch
+  patch = f[0..-3] + ".patch"
+  patch_path = File.expand_path(patch, testfiles_incr)
+  `patch -b #{path} #{patch_path}`
+  lines_incr = IO.readlines(path)
+  `patch -b -R #{path} #{patch_path}`
+
+  next if not future and only.nil? and lines[0] =~ /SKIP/
+
+  params = ""
+  tests = Hash.new
+  todo = Set.new
+  todo_incr = Set.new
+  tests_line = Hash.new
+  tests_incr = Hash.new
+  tests_line_incr = Hash.new
+  parse_tests(lines, todo, tests, tests_line)
+  # parse incremental test
+  parse_tests(lines_incr, todo_incr, tests_incr, tests_line_incr)
+  config_path = f[0..-3] + ".json"
+
+  # always enable debugging so that the warnings would work
+  params << " --set dbg.debug true"
+  p = ProjectIncr.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true, tests_incr, tests_line_incr, patch_path, config_path)
+  projects << p
+  project_ids << id
 end
 
 highlighter = lambda {|f,o| "cp #{f} #{o}"}
