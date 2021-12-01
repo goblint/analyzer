@@ -148,6 +148,88 @@ struct
     MyCheck.Arbitrary.sequence arbs
 end
 
+module DomVariantPrintable (DLSpec : DomainListPrintableSpec)
+  (*  : Printable.S with type t = (string * unknown) list *)
+=
+struct
+  include Printable.Std (* for default invariant, tag, ... *)
+
+  open DLSpec
+  open List
+  open Obj
+
+  type t = int * unknown
+
+  let unop_fold f a (x:t) =
+    let f a n d =
+      f a n (assoc_dom n) d
+    in
+    fold_left (fun a (n,d) -> f a n d) a [x] (* TODO: inline singleton list *)
+
+  let pretty () x =
+    let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
+    let xs = unop_fold f [] x in
+    match xs with
+    | [] -> text "[]"
+    | x :: [] -> x
+    | x :: y ->
+      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
+      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
+
+  let show x =
+    let xs = unop_fold (fun a n (module S : Printable.S) x ->
+        let analysis_name = assoc n !analyses_table in
+        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
+    in
+    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
+
+  let to_yojson xs =
+    let f a n (module S : Printable.S) x =
+      let name = BatList.assoc n !analyses_table in
+      (name, S.to_yojson (obj x)) :: a
+    in `Assoc (unop_fold f [] xs)
+
+  let equal   x y = fst x = fst y && (
+    let module S = (val assoc_dom (fst x)) in
+    S.equal (obj (snd x)) (obj (snd y))
+  )
+  let compare x y =
+    let r = Stdlib.compare (fst x) (fst y) in
+    if r <> 0 then
+      r
+    else (
+      let module S = (val assoc_dom (fst x)) in
+      S.compare (obj (snd x)) (obj (snd y))
+    )
+
+  let hashmul x y = if x=0 then y else if y=0 then x else x*y
+
+  let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
+
+  let name () =
+    let domain_name (n, (module D: Printable.S)) =
+      let analysis_name = assoc n !analyses_table in
+      analysis_name ^ ":(" ^ D.name () ^ ")"
+    in
+    IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
+
+  let printXml f xs =
+    let print_one a n (module S : Printable.S) x : unit =
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
+      S.printXml f (obj x);
+      BatPrintf.fprintf f "</analysis>\n"
+    in
+    unop_fold print_one () xs
+
+  let invariant c = unop_fold (fun a n (module S : Printable.S) x ->
+      Invariant.(a && S.invariant c (obj x))
+    ) Invariant.none
+
+  (* let arbitrary () =
+    let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
+    MyCheck.Arbitrary.sequence arbs *)
+end
+
 let _ =
   let module Test : functor (DLSpec : DomainListPrintableSpec) -> Printable.S with type t = (int * unknown) list = DomListPrintable  in
   ()
@@ -229,15 +311,15 @@ module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
    and module G = DomListLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
-   and module V = DomListPrintable (VarListSpec) =
+   and module V = DomVariantPrintable (VarListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomListLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
-  module V = DomListPrintable (VarListSpec)
+  module V = DomVariantPrintable (VarListSpec)
 
   open List open Obj
-  let v_of n v = [(n, repr v)]
+  let v_of n v = (n, repr v)
 
   let name () = "MCP2"
 
