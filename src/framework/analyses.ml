@@ -498,12 +498,13 @@ struct
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
 
-module VarinfoV = CilType.Varinfo
+module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
+module EmptyV = Printable.Empty
 
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
-  module V = VarinfoV
+  module V = EmptyV
 
   type marshal = unit
   let init _ = ()

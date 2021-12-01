@@ -14,6 +14,7 @@ struct
   module D = MSpec.D
   module G = MSpec.G
   module C = MSpec.C
+  module V = MSpec.V
 
   let extra_var = Goblintutil.create_var (makeGlobalVar "__deadlock_variable" intType)
   let gate_var = Goblintutil.create_var (makeGlobalVar "__gatelock_variable" intType)

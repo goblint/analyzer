@@ -42,6 +42,7 @@ struct
 
   (** We do not add global state, so just lift from [BS]*)
   module G = P.G
+  module V = VarinfoV
 
   let should_join x y = D.equal x y
 

@@ -18,6 +18,7 @@ struct
   module D  = Lattice.Prod (LD) (Re.D)
   module C  = Lattice.Prod (LD) (Re.D)
   module G  = Lattice.Prod (IntDomain.Booleans) (Re.G)
+  module V = VarinfoV
 
   let rec tryReallyHard ask gl upd f st =
     if LD.is_empty st then raise Deadcode else

@@ -14,6 +14,7 @@ struct
   module D = RegionDomain.RegionDom
   module G = RegPart
   module C = D
+  module V = VarinfoV (* TODO: use UnitConf when shapes removed *)
 
   let partition_varstore = ref dummyFunDec.svar
   let partition_varinfo () = !partition_varstore

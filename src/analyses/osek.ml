@@ -263,6 +263,7 @@ struct
   module D = M.D
   module C = M.C
   module G = M.G
+  module V = M.V
 
   let offensivepriorities : (string,int) Hashtbl.t= Hashtbl.create 16
   let off_pry_with_flag : (string,(Flags.t*int) list) Hashtbl.t = Hashtbl.create 16

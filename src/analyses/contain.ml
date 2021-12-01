@@ -31,6 +31,7 @@ struct
   end
   module C = D
   module G = ContainDomain.Globals
+  module V = VarinfoV
 
   let add_analyzed_fun f ht = (*build list of funs that actually have been analyzed*)
     let get_pure_name x=
