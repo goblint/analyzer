@@ -144,7 +144,7 @@ struct
 
   let arinc_analysis_activated = ref false
 
-  let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
       (*privatization*)

@@ -43,7 +43,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
+  let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.MayBeThreadReturn -> ctx.local
     | _ -> Queries.Result.top x

@@ -91,7 +91,7 @@ struct
     | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
     | _ -> ConcDomain.ThreadSet.top ()
 
-  let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
+  let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.CurrentThreadId -> fst ctx.local
     | Queries.CreatedThreads -> created ctx.local

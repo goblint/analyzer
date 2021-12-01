@@ -61,7 +61,7 @@ struct
     in
     S.elements (cv e)
 
-  let re_context (ctx: (D.t,G.t,C.t) ctx) (re:Re.D.t): (Re.D.t, Re.G.t,C.t) ctx =
+  let re_context (ctx: (D.t,G.t,C.t,V.t) ctx) (re:Re.D.t): (Re.D.t, Re.G.t,C.t,V.t) ctx =
     let ge v = let a,b = ctx.global v in b in
     let spawn f v x = f v x in
     let geffect f v d = f v (false, d) in

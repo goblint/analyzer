@@ -453,7 +453,7 @@ struct
         let assigns = ref [] in
         let emits = ref [] in
         let f post_all (n,(module S:MCPSpec),d) =
-          let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+          let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
             { local  = obj d
             ; node   = ctx.node
             ; prev_node = ctx.prev_node
@@ -471,7 +471,7 @@ struct
             ; assign = (fun ?name v e    -> assigns := (v,e,name, repr ctx')::!assigns)
             }
           in
-          let rec octx' : (S.D.t, S.G.t, S.C.t) ctx =
+          let rec octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
             { local  = obj (assoc n octx.local)
             ; node   = octx.node
             ; prev_node = octx.prev_node
@@ -503,14 +503,14 @@ struct
     let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) emits in
     ctx'.local
 
-  and branch (ctx:(D.t, G.t, C.t) ctx) (e:exp) (tv:bool) =
+  and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
     let assigns = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -539,7 +539,7 @@ struct
     if q then raise Deadcode else d
 
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
-  and query': type a. QuerySet.t -> (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun asked ctx q ->
+  and query': type a. QuerySet.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun asked ctx q ->
     let module Result = (val Queries.Result.lattice q) in
     if QuerySet.mem (Any q) asked then
       Result.top () (* query cycle *)
@@ -547,7 +547,7 @@ struct
       let asked' = QuerySet.add (Any q) asked in
       let sides = ref [] in
       let f a (n,(module S:MCPSpec),d) =
-        let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+        let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
           { local  = obj d
           ; node   = ctx.node
           ; prev_node = ctx.prev_node
@@ -583,16 +583,16 @@ struct
         do_sideg ctx !sides;
         r
 
-  and query: type a. (D.t, G.t, C.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+  and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
     query' QuerySet.empty ctx q
 
-  let assign (ctx:(D.t, G.t, C.t) ctx) l e =
+  let assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -620,13 +620,13 @@ struct
     if q then raise Deadcode else d
 
 
-  let vdecl (ctx:(D.t, G.t, C.t) ctx) v =
+  let vdecl (ctx:(D.t, G.t, C.t, V.t) ctx) v =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -653,14 +653,14 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let body (ctx:(D.t, G.t, C.t) ctx) f =
+  let body (ctx:(D.t, G.t, C.t, V.t) ctx) f =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -688,14 +688,14 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let return (ctx:(D.t, G.t, C.t) ctx) e f =
+  let return (ctx:(D.t, G.t, C.t, V.t) ctx) e f =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -723,14 +723,14 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let intrpt (ctx:(D.t, G.t, C.t) ctx) =
+  let intrpt (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -758,14 +758,14 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let asm (ctx:(D.t, G.t, C.t) ctx) =
+  let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -793,14 +793,14 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let skip (ctx:(D.t, G.t, C.t) ctx) =
+  let skip (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -828,14 +828,14 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let special (ctx:(D.t, G.t, C.t) ctx) r f a =
+  let special (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -863,13 +863,13 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let sync (ctx:(D.t, G.t, C.t) ctx) reason =
+  let sync (ctx:(D.t, G.t, C.t, V.t) ctx) reason =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -896,11 +896,11 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let enter (ctx:(D.t, G.t, C.t) ctx) r f a =
+  let enter (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
     let spawns = ref [] in
     let sides  = ref [] in
     let f (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -925,13 +925,13 @@ struct
     do_spawns ctx !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine (ctx:(D.t, G.t, C.t) ctx) r fe f a fc fd =
+  let combine (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd =
     let spawns = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -958,11 +958,11 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let threadenter (ctx:(D.t, G.t, C.t) ctx) lval f a =
+  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
     let sides  = ref [] in
     let emits = ref [] in
     let f (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -987,11 +987,11 @@ struct
     (* TODO: this do_emits is now different from everything else *)
     map (do_emits ctx !emits) @@ map topo_sort_an @@ n_cartesian_product css
 
-  let threadspawn (ctx:(D.t, G.t, C.t) ctx) lval f a fctx =
+  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a fctx =
     let sides  = ref [] in
     let emits = ref [] in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
@@ -1009,7 +1009,7 @@ struct
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadspawn context.")
         }
       in
-      let fctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj (assoc n fctx.local)
         ; node   = fctx.node
         ; prev_node = fctx.prev_node
