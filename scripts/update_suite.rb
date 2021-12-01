@@ -92,10 +92,9 @@ class Project
 end
 
 class ProjectIncr < Project
-  attr_reader :config_path, :patch_path, :tests_incr, :tests_incr_line
-  def initialize(id, name, size, group, path, params, tests, tests_line, todo, ok, tests_incr, tests_incr_line, patch_path, config_path)
+  attr_reader :patch_path, :tests_incr, :tests_incr_line
+  def initialize(id, name, size, group, path, params, tests, tests_line, todo, ok, tests_incr, tests_incr_line, patch_path)
     super(id, name, size, group, path, params, tests, tests_line, todo, ok)
-    @config_path = config_path
     @patch_path = patch_path
     @tests_incr = tests_incr
     @tests_incr_line = tests_incr_line
@@ -245,11 +244,11 @@ regs.sort.each do |f|
   parse_tests(lines, todo, tests, tests_line)
   # parse incremental test
   parse_tests(lines_incr, todo_incr, tests_incr, tests_line_incr)
-  config_path = f[0..-3] + ".json"
-
+  config_path = File.expand_path(f[0..-3] + ".json", testfiles_incr)
+  params << "--conf #{config_path}"
   # always enable debugging so that the warnings would work
   params << " --set dbg.debug true"
-  p = ProjectIncr.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true, tests_incr, tests_line_incr, patch_path, config_path)
+  p = ProjectIncr.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true, tests_incr, tests_line_incr, patch_path)
   projects << p
   project_ids << id
 end
