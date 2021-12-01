@@ -23,7 +23,10 @@ let cpp =
   let is_good name = not (is_bad name) in
   let default = "cpp" in
   lazy (
-    if is_good default then
+    let cpp_path = GobConfig.get_string "exp.cpp-path" in
+    if cpp_path <> "" then
+      cpp_path (* explicit option overrides is_good check *)
+    else if is_good default then
       default
     else (
       compgen "cpp-" (* only run compgen if default was bad *)
