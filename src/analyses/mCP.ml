@@ -269,6 +269,48 @@ struct
     binop_fold f nil x y
 end
 
+module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
+  : Lattice.S with type t = int * unknown
+=
+struct
+  open DLSpec
+  open List
+  open Obj
+
+  include DomVariantPrintable (PrintableOfLatticeSpec (DLSpec))
+
+  let binop_map' (f: int -> (module Lattice.S) -> Obj.t -> Obj.t -> 'a) (n1, d1) (n2, d2) =
+    if n1 <> n2
+    then raise (DomListBroken "binop_fold : differing variants")
+    else f n1 (assoc_dom n1) d1 d2
+
+  let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) =
+    binop_map' (fun n s d1 d2 -> (n, f s d1 d2))
+
+  let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
+  let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))
+  let meet   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y))
+  let join   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y))
+
+  let leq    = binop_map' (fun _ (module S : Lattice.S) x y -> S.leq (obj x) (obj y))
+
+  let is_top x = false
+  let is_bot x = false
+  let top () = failwith "DomVariantLattice0.top"
+  let bot () = failwith "DomVariantLattice0.bot"
+
+  let pretty_diff () (x, y) =
+    let f _ (module S : Lattice.S) x y =
+      if S.leq (obj x) (obj y) then nil
+      else S.pretty_diff () (obj x, obj y)
+    in
+    binop_map' f x y
+end
+
+module DomVariantLattice (DLSpec : DomainListLatticeSpec)
+  (* : Lattice.S with type t = (int * unknown) *)
+  = Lattice.Lift (DomVariantLattice0 (DLSpec)) (Printable.DefaultNames)
+
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
   let assoc_dom n = (List.assoc n !analyses_list).dom
@@ -295,17 +337,26 @@ end
 
 module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
-   and module G = DomListLattice (GlobalDomainListSpec)
+   and module G = DomVariantLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
    and module V = DomVariantPrintable (VarListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
-  module G = DomListLattice (GlobalDomainListSpec)
+  module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
   module V = DomVariantPrintable (VarListSpec)
 
   open List open Obj
   let v_of n v = (n, repr v)
+  let g_to n = function
+    | `Lifted (n', g) ->
+      assert (n = n');
+      g
+    | `Bot ->
+      let module S = (val GlobalDomainListSpec.assoc_dom n) in
+      repr (S.bot ())
+    | `Top ->
+      failwith "MCP2.g_to: top"
 
   let name () = "MCP2"
 
@@ -460,10 +511,7 @@ struct
 
   let do_sideg ctx (xs:(V.t * (int * Obj.t)) list) =
     let side_one v d =
-      let join_vals (n,(module S:MCPSpec),d) =
-        n, repr @@ fold_left (fun x y -> S.G.join x (obj y)) (S.G.bot ()) d
-      in
-      ctx.sideg v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ G.bot ())
+      ctx.sideg v @@ fold_left (fun x y -> G.join x (`Lifted y)) (G.bot ()) d
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
@@ -533,7 +581,7 @@ struct
             ; emit   = (fun e -> emits := e :: !emits)
             ; presub = filter_presubs n ctx.local
             ; postsub= filter_presubs n post_all
-            ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+            ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
             ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
             ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
             ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -551,7 +599,7 @@ struct
             ; emit   = (fun e -> emits := e :: !emits)
             ; presub = filter_presubs n octx.local
             ; postsub= filter_presubs n post_all
-            ; global = (fun v      -> octx.global (v_of n v) |> assoc n |> obj)
+            ; global = (fun v      -> octx.global (v_of n v) |> g_to n |> obj)
             ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
             ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
             ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -590,7 +638,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -627,7 +675,7 @@ struct
           ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
           ; presub = filter_presubs n ctx.local
           ; postsub= []
-          ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+          ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
           ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
           ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
           ; sideg  = (fun v g    -> sides := (v_of n v, (n, repr g)) :: !sides)
@@ -672,7 +720,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -706,7 +754,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -740,7 +788,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -775,7 +823,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -810,7 +858,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -845,7 +893,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -880,7 +928,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -915,7 +963,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -949,7 +997,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -980,7 +1028,7 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter context.")
         ; presub = filter_presubs n ctx.local
         ; postsub= []
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun _ _    -> failwith "Cannot \"split\" in enter context." )
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -1011,7 +1059,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> failwith "Cannot \"split\" in combine context.")
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -1042,7 +1090,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= []
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadenter context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in threadenter context.")
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -1071,7 +1119,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in threadspawn context.")
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
@@ -1089,7 +1137,7 @@ struct
         ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n fctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> fctx.global (v_of n v) |> assoc n |> obj)
+        ; global = (fun v      -> fctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in threadspawn context.")
         ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
