@@ -288,6 +288,9 @@ let preprocess_files () =
   if get_bool "ana.sv-comp.functions" then
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
 
+  (* TODO: remove *)
+  ignore (Preprocessor.get_cpp ());
+
   List.flatten (List.map preprocess_arg_file (!extra_arg_files @ !arg_files))
 
 (** Possibly merge all postprocessed files *)
