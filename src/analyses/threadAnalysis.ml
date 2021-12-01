@@ -90,35 +90,4 @@ struct
   let exitstate  v = D.bot ()
 end
 
-(* really stupid thread-ids *)
-module StartLocIDs =
-struct
-  include Analyses.DefaultSpec
-
-  let name () = "thread-id-location"
-  module D = ConcDomain.ThreadStringSet
-  module C = D
-  module G = Lattice.Unit
-
-  (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
-  let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
-  let body ctx (f:fundec) : D.t =  ctx.local
-  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = ctx.local
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ctx.local
-
-  let main = D.singleton "main"
-  let startstate v = main
-  let exitstate  v = D.top ()
-
-  let threadenter ctx lval f args =
-    let location x = let l = !Tracing.current_loc in CilType.Location.show l ^ ":" ^ x.vname in
-    [D.singleton (location f)]
-
-  let threadspawn ctx lval f args fctx = ctx.local
-end
-
-let _ = MCP.register_analysis (module StartLocIDs : MCPSpec)
 let _ = MCP.register_analysis ~dep:["threadid"] (module Spec : MCPSpec)

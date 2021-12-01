@@ -220,8 +220,8 @@ struct
   let short_addr (x, o) =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      GU.demangle "(" ^ x.vname ^ ", " ^ description ^ ")"
-    else GU.demangle x.vname ^ short_offs o
+      "(" ^ x.vname ^ ", " ^ description ^ ")"
+    else x.vname ^ short_offs o
 
   let show = function
     | Addr x     -> short_addr x
@@ -357,7 +357,7 @@ struct
       | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
       | `Index (v, ofs) -> "[" ^ Idx.show v ^ "]" ^ off_str ofs
     in
-    (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
+    (if dest then "&" else "") ^ x.vname ^ off_str offs
 
   let pretty () x = Pretty.text (show x)
 
@@ -526,7 +526,7 @@ struct
     | `Field (_,o) -> has_index_offs o
   let has_index (v,o) = has_index_offs o
 
-  let show (v,o) = short_offs o (GU.demangle v.vname)
+  let show (v,o) = short_offs o v.vname
 
   let pretty () x = text (show x)
 
