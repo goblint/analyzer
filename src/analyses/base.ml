@@ -1086,14 +1086,16 @@ struct
     (* `List and `Blob cannot contain arrays *)
     | _ ->  st
 
+  (** Check whether the lval is an integer variable or a reference to a integer variable (but not an integer in a composite type) *)
+  let rec lval_is_integral_var = function
+    | Var v, NoOffset -> Cil.isIntegralType v.vtype
+    | Mem m, NoOffset -> exp_is_integral_var m
+    | _ -> false
 
-  let is_integral_var (e: exp) =
+  (** Check whether the expression is an integer variable or a reference to a integer variable (but not an integer in a composite type) *)
+  and exp_is_integral_var (e: exp) =
     match e with
-    | Lval l ->
-      (match l with
-       | Var v, NoOffset -> Cil.isIntegralType v.vtype
-       | _ -> false
-      )
+    | Lval l -> lval_is_integral_var l
     | _ -> false
 
   (** [set st addr val] returns a state where [addr] is set to [val]
@@ -1154,7 +1156,11 @@ struct
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-        let old_value = if Option.map_default is_integral_var false lval_raw then VD.bot_value lval_type else Priv.read_global a gs st x in
+        let old_value = if Option.map_default exp_is_integral_var false lval_raw then
+            VD.bot_value lval_type (* There is no need to evaluate integral globals when setting them *)
+          else
+            Priv.read_global a gs st x
+        in
         let new_value = update_offset old_value in
         let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
@@ -1743,7 +1749,11 @@ struct
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, _) when AD.is_definite lval_val && v.vglob ->
-        let current_val = eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
+        let current_val = if lval_is_integral_var lval then
+            `Bot (* In case of integral types, we not need to evaluate the old value. *)
+          else
+            eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
+        in
         (match current_val with
         | `Bot -> (* current value is VD `Bot *)
           (match Addr.to_var_offset (AD.choose lval_val) with
@@ -1752,7 +1762,7 @@ struct
             let iv = VD.bot_value t in (* correct bottom value for top level variable *)
             if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
             let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
+            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
           | _ ->
             set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           )
