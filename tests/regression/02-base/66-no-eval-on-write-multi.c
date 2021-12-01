@@ -30,6 +30,7 @@ int main() {
   pthread_mutex_unlock(&mutex);
   pthread_join(t, NULL);
   assert(glob >= 1);
-  assert(glob <= 2);
+  assert(glob <= 2); //UNKNOWN
+  assert(glob <= 10);
   return 0;
 }
