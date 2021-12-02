@@ -1091,12 +1091,6 @@ struct
     | Var v, NoOffset -> Cil.isIntegralType v.vtype
     | _ -> false
 
-  (** Check whether the expression is an integer variable *)
-  let exp_is_integral_var (e: exp) =
-    match e with
-    | Lval l -> lval_is_integral_var l
-    | _ -> false
-
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
@@ -1155,9 +1149,13 @@ struct
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-        let old_value = if Option.map_default exp_is_integral_var false lval_raw then
-            VD.bot_value lval_type (* There is no need to evaluate integral globals when setting them *)
-          else
+        (* Optimization to avoid evaluating integer values when setting them.
+           The case when invariant = true requires the old_value to be sound for the meet.
+           Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) then begin
+            assert (offs = `NoOffset); (* We expect `NoOffset for this case *)
+            VD.bot_value lval_type
+          end else
             Priv.read_global a gs st x
         in
         let new_value = update_offset old_value in
