@@ -272,38 +272,7 @@ if report then
 end
 
 #analysing the files
-startdir = Dir.pwd
-doproject = lambda do |p|
-  Dir.chdir(startdir)
-  filepath = p.path
-  dirname = File.dirname(filepath)
-  filename = File.basename(filepath)
-  Dir.chdir(dirname)
-  clearline
-  id = "#{p.id} #{p.group}/#{p.name}"
-  print "Testing #{id}"
-  begin
-    Dir.mkdir(File.join(testresults, p.group)) unless Dir.exist?(File.join(testresults, p.group))
-  rescue
-    # if we run into this, the directory was created in the time between exist? and mkdir => we can just continue
-  end
-  warnfile = File.join(testresults, p.group, p.name + ".warn.txt")
-  statsfile = File.join(testresults, p.group, p.name + ".stats.txt")
-#   confile = File.join(testresults, p.group, p.name + ".con.txt")
-#   solfile = File.join(testresults, p.group, p.name + ".sol.txt")
-  cilfile = File.join(testresults, p.group, p.name + ".cil.txt")
-  orgfile = File.join(testresults, p.group, p.name + ".c.html")
-  if report then
-    system(highlighter.call(filename, orgfile))
-    `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
-    p.size = `wc -l #{cilfile}`.split[0]
-  end
-  starttime = Time.now
-  if marshal then
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{statsfile}"
-  else
-    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code 2>#{statsfile}"
-  end
+def run_test (id, cmd, starttime, statsfile, warnfile, timeout, vrsn)
   pid = Process.spawn(cmd, :pgroup=>true)
   begin
     Timeout::timeout(timeout) {Process.wait pid}
@@ -342,6 +311,53 @@ doproject = lambda do |p|
     f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
     f.puts "Goblint params: #{cmd}"
     f.puts vrsn
+  end
+  status
+end
+
+startdir = Dir.pwd
+doproject = lambda do |p|
+  Dir.chdir(startdir)
+  filepath = p.path
+  dirname = File.dirname(filepath)
+  filename = File.basename(filepath)
+  Dir.chdir(dirname)
+  clearline
+  id = "#{p.id} #{p.group}/#{p.name}"
+  print "Testing #{id}"
+  begin
+    Dir.mkdir(File.join(testresults, p.group)) unless Dir.exist?(File.join(testresults, p.group))
+  rescue
+    # if we run into this, the directory was created in the time between exist? and mkdir => we can just continue
+  end
+  warnfile = File.join(testresults, p.group, p.name + ".warn.txt")
+  statsfile = File.join(testresults, p.group, p.name + ".stats.txt")
+  #   confile = File.join(testresults, p.group, p.name + ".con.txt")
+  #   solfile = File.join(testresults, p.group, p.name + ".sol.txt")
+  cilfile = File.join(testresults, p.group, p.name + ".cil.txt")
+  orgfile = File.join(testresults, p.group, p.name + ".c.html")
+  if report then
+    system(highlighter.call(filename, orgfile))
+    `#{goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
+    p.size = `wc -l #{cilfile}`.split[0]
+  end
+  if marshal then
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{statsfile}"
+  elsif p.is_a?(ProjectIncr) then
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.save 2>#{statsfile}"
+  else
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code 2>#{statsfile}"
+  end
+  starttime = Time.now
+  status = run_test(id, cmd, starttime, statsfile, warnfile, timeout, vrsn)
+  if p.is_a?(ProjectIncr) then
+    # apply patch
+    `patch -b #{p.path} #{p.patch_path}`
+    starttime = Time.now
+    cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.load 2>#{statsfile}"
+    status_incr = run_test(id, cmd, starttime, statsfile, warnfile, timeout, vrsn)
+    # revert patch
+    `patch -b -R #{p.path} #{p.patch_path}`
   end
   if marshal then
     cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --conf run/config.json --set save_run '' --set load_run run  2>#{statsfile}"
