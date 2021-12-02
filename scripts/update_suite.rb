@@ -56,14 +56,6 @@ if not File.exists? "linux-headers" then
 end
 has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make headers failed (e.g. on opam-repository opam-ci where network is forbidden)
 
-testresults = File.expand_path("tests/suite_result")
-testfiles   = File.expand_path("tests/regression")
-testfiles_incr   = File.expand_path("tests/incremental")
-
-alliswell = true
-failed    = [] # failed tests
-timedout  = [] # timed out tests
-
 class Project
   attr_reader :id, :name, :group, :path, :params, :tests, :tests_line, :todo
   attr_accessor :size, :ok
@@ -107,10 +99,14 @@ end
 dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
+incremental = ARGV.last == "-i" && ARGV.pop
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
-if marshal then
+if marshal || incremental then
   sequential = true
+end
+if marshal && incremental then
+  fail "Marshal (-m) and Incremental (-i) tests can not be activated at the same time!"
 end
 if only == "future" then
   future = true
@@ -123,6 +119,17 @@ elsif only == "group" then
 else
   future = false
 end
+
+testresults = File.expand_path("tests/suite_result")
+testfiles   = if incremental then
+                File.expand_path("tests/incremental")
+              else
+                File.expand_path("tests/regression")
+              end
+
+alliswell = true
+failed    = [] # failed tests
+timedout  = [] # timed out tests
 
 # tracing = `grep 'tracing = true' src/config.ml`.size > 0
 # if tracing then puts "Tracing in on!" else puts "Tracing is off" end
@@ -187,70 +194,44 @@ regs.sort.each do |d|
     next unless only.nil? or testname == only
     path = File.expand_path(f, grouppath)
     lines = IO.readlines(path)
-    debug = true
 
     next if not future and only.nil? and lines[0] =~ /SKIP/
     next if marshal and lines[0] =~ /NOMARSHAL/
     next if not has_linux_headers and lines[0] =~ /kernel/
-    lines[0] =~ /PARAM: (.*)$/
-    if $1 then params = $1 else params = "" end
+    if incremental then
+      config_path = File.expand_path(f[0..-3] + ".json", grouppath)
+      params = "--conf #{config_path}"
+    else
+      lines[0] =~ /PARAM: (.*)$/
+      if $1 then params = $1 else params = "" end
+    end
+    # always enable debugging so that the warnings would work
+    params << " --set dbg.debug true"
 
     tests = Hash.new
     todo = Set.new
     tests_line = Hash.new
     parse_tests(lines, todo, tests, tests_line)
 
-    # always enable debugging so that the warnings would work
-    debug = true
-
-    params << " --set dbg.debug true" if debug
-    p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true)
+    if incremental then
+      tests_incr = Hash.new
+      todo_incr = Set.new
+      tests_line_incr = Hash.new
+      # apply patch
+      patch = f[0..-3] + ".patch"
+      patch_path = File.expand_path(patch, grouppath)
+      `patch -b #{path} #{patch_path}`
+      lines_incr = IO.readlines(path)
+      `patch -b -R #{path} #{patch_path}`
+      # parse incremental test
+      parse_tests(lines_incr, todo_incr, tests_incr, tests_line_incr)
+      p = ProjectIncr.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true, tests_incr, tests_line_incr, patch_path)
+    else
+      p = Project.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true)
+    end
     projects << p
     project_ids << id
   end
-end
-
-regs = Dir.open(testfiles_incr)
-regs.sort.each do |f|
-  next if File.basename(f)[0] == ?.
-  next if f =~ /goblin_temp/
-  next unless f =~ /^[0-9]+-.*\.c$/
-  groupname = "incr"
-  id = groupname + "/" + f[0..1]
-  if project_ids.member?(id) then
-    puts "Duplicate test ID #{id}"
-    exit 1
-  end
-  testname = f[3..-3]
-  next unless only.nil? or testname == only
-  path = File.expand_path(f, testfiles_incr)
-  lines = IO.readlines(path)
-  # apply patch
-  patch = f[0..-3] + ".patch"
-  patch_path = File.expand_path(patch, testfiles_incr)
-  `patch -b #{path} #{patch_path}`
-  lines_incr = IO.readlines(path)
-  `patch -b -R #{path} #{patch_path}`
-
-  next if not future and only.nil? and lines[0] =~ /SKIP/
-
-  params = ""
-  tests = Hash.new
-  todo = Set.new
-  todo_incr = Set.new
-  tests_line = Hash.new
-  tests_incr = Hash.new
-  tests_line_incr = Hash.new
-  parse_tests(lines, todo, tests, tests_line)
-  # parse incremental test
-  parse_tests(lines_incr, todo_incr, tests_incr, tests_line_incr)
-  config_path = File.expand_path(f[0..-3] + ".json", testfiles_incr)
-  params << "--conf #{config_path}"
-  # always enable debugging so that the warnings would work
-  params << " --set dbg.debug true"
-  p = ProjectIncr.new(id, testname, 0, groupname, path, params, tests, tests_line, todo, true, tests_incr, tests_line_incr, patch_path)
-  projects << p
-  project_ids << id
 end
 
 highlighter = lambda {|f,o| "cp #{f} #{o}"}
@@ -343,14 +324,14 @@ doproject = lambda do |p|
   end
   if marshal then
     cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{statsfile}"
-  elsif p.is_a?(ProjectIncr) then
+  elsif incremental then
     cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.save 2>#{statsfile}"
   else
     cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code 2>#{statsfile}"
   end
   starttime = Time.now
   status = run_test(id, cmd, starttime, statsfile, warnfile, timeout, vrsn)
-  if p.is_a?(ProjectIncr) then
+  if incremental then
     # apply patch
     `patch -b #{p.path} #{p.patch_path}`
     starttime = Time.now
