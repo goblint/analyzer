@@ -302,8 +302,8 @@ def run_test (id, cmd, starttime, statsfile, warnfile, timeout, vrsn)
       puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.itemize
     end
   end
-#   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
-#   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
+  #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
+  #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
   File.open(statsfile, "a") do |f|
     f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
     f.puts "Analysis began: #{starttime}"
@@ -361,45 +361,7 @@ doproject = lambda do |p|
   end
   if marshal then
     cmd = "#{goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{warnfile} --set printstats true --enable dbg.print_dead_code --conf run/config.json --set save_run '' --set load_run run  2>#{statsfile}"
-    pid = Process.spawn(cmd, :pgroup=>true)
-    begin
-      Timeout::timeout(timeout) {Process.wait pid}
-    rescue Timeout::Error
-      pgid = Process.getpgid(pid)
-      puts "\t #{id} reached timeout of #{timeout}s!".red + " Killing pgid #{pgid}..."
-      timedout.push id
-      Process.kill('INT', -1*pgid)
-      p.ok = false
-      return p
-    end
-    endtime   = Time.now
-    status = $?.exitstatus
-    if status != 0 then
-      reason = if status == 1 then "error" elsif status == 2 then "exception" elsif status == 3 then "verify" end
-      clearline
-      puts "Testing #{id}" + "\t Status: #{status} (#{reason})".red
-      stats = File.readlines statsfile
-      if status == 1 then
-        puts stats.last(5).itemize
-      elsif status == 2 then # if stats[0] =~ /exception/ then
-        lastline = (File.readlines warnfile).last()
-        puts lastline.strip().sub filename, relpath(filepath).to_s unless lastline.nil?
-        puts stats[0..9].itemize
-      elsif status == 3 then
-        warn = File.readlines warnfile
-        puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.itemize
-      end
-    end
-    #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
-    #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
-    File.open(statsfile, "a") do |f|
-      f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
-      f.puts "Analysis began: #{starttime}"
-      f.puts "Analysis ended: #{endtime}"
-      f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
-      f.puts "Goblint params: #{cmd}"
-      f.puts vrsn
-    end
+    run_test(id, cmd, starttime, statsfile, warnfile, timeout, vrsn)
     FileUtils.rm_rf('run')
   end
   p.ok = status == 0
