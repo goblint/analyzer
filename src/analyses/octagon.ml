@@ -18,7 +18,6 @@ struct
   let name () = "octagon"
   module D = MapOctagonBot
   module C = D
-  module G = Lattice.Unit
 
   let return_varstore = ref dummyFunDec.svar
   let return_varinfo () = !return_varstore

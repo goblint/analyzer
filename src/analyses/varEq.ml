@@ -39,7 +39,6 @@ struct
   end
 
   module C = D
-  module G = Lattice.Unit
 
   let name () = "var_eq"
 

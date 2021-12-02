@@ -15,7 +15,6 @@ struct
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-  module G = Lattice.Unit
 
   let should_join x y = D.equal x y
 

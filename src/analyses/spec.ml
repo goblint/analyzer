@@ -12,7 +12,6 @@ struct
   let name()  = "spec"
   module D = SpecDomain.Dom
   module C = SpecDomain.Dom
-  module G = Lattice.Unit
 
   (* special variables *)
   let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset

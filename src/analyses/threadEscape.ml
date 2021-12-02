@@ -23,7 +23,6 @@ struct
   let name () = "escape"
   module D = EscapeDomain.EscapedVars
   module C = EscapeDomain.EscapedVars
-  module G = Lattice.Unit
 
   (* queries *)
   let query ctx (type a) (q: a Queries.t): a Queries.result =

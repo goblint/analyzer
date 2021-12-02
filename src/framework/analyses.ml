@@ -504,6 +504,7 @@ module EmptyV = Printable.Empty
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
+  module G = Lattice.Unit
   module V = EmptyV
 
   type marshal = unit

@@ -26,7 +26,6 @@ struct
 
   module D = Lattice.Prod (ThreadLifted) (TD)
   module C = D
-  module G = Lattice.Unit
 
   let tids = ref (Hashtbl.create 20)
 

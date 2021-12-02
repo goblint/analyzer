@@ -15,7 +15,6 @@ struct
   let name () = "OSEK2"
   module D = Lattice.Prod (Osektupel) (Osektupel) (* Summary x Result *)
   module C = D
-  module G = Lattice.Unit
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
   let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((Set.String.empty  )  , Osektupel.bot())

@@ -13,7 +13,6 @@ struct
 
   let name () = "threadreturn"
   module D = IntDomain.Booleans
-  module G = Lattice.Unit
   module C = D
 
   (* transfer functions *)

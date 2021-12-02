@@ -9,7 +9,6 @@ module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
   module D = Lattice.Unit
-  module G = Lattice.Unit
   module C = Lattice.Unit
 
   let name () = "expRelation"
