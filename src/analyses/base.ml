@@ -1086,11 +1086,6 @@ struct
     (* `List and `Blob cannot contain arrays *)
     | _ ->  st
 
-  (** Check whether the lval is an integer variable *)
-  let lval_is_integral_var = function
-    | Var v, NoOffset -> Cil.isIntegralType v.vtype
-    | _ -> false
-
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
@@ -1745,10 +1740,11 @@ struct
       | _ -> ()
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, _) when AD.is_definite lval_val && v.vglob ->
-        let current_val = if lval_is_integral_var lval then
-            `Bot (* In case of integral types, we not need to evaluate the old value. *)
-          else
+      | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
+        let current_val = if Cil.isIntegralType v.vtype then begin
+            assert (offs = NoOffset);
+            `Bot (* In case of simple integral types, we not need to evaluate the old value. *)
+          end else
             eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
         in
         (match current_val with
