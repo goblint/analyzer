@@ -17,22 +17,23 @@ module type S =
 sig
   module D: Lattice.S
   module G: Lattice.S
+  module V: Printable.S
 
   val startstate: unit -> D.t
 
-  val read_global: Q.ask -> (varinfo -> G.t) -> BaseComponents (D).t -> varinfo -> VD.t
+  val read_global: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> varinfo -> VD.t
 
   (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
    * the state when following conditional guards. *)
-  val write_global: ?invariant:bool -> Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> varinfo -> VD.t -> BaseComponents (D).t
+  val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> varinfo -> VD.t -> BaseComponents (D).t
 
-  val lock: Q.ask -> (varinfo -> G.t) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
-  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
+  val lock: Q.ask -> (V.t -> G.t) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
+  val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> LockDomain.Addr.t -> BaseComponents (D).t
 
-  val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t
+  val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> BaseComponents (D).t
 
-  val escape: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
-  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
+  val escape: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> EscapeDomain.EscapedVars.t -> BaseComponents (D).t
+  val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
 
   val init: unit -> unit
@@ -82,6 +83,7 @@ module NonePriv: S =
 struct
   include OldPrivBase
   module G = BaseDomain.VD
+  module V = VarinfoV
 
   let init () = ()
 
@@ -133,6 +135,7 @@ struct
   include OldPrivBase
 
   module G = BaseDomain.VD
+  module V = VarinfoV
 
   let init () =
     if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
@@ -192,6 +195,7 @@ struct
 
   module D = Lattice.Unit
   module G = CPA
+  module V = VarinfoV
 
   let startstate () = ()
 
@@ -411,6 +415,7 @@ struct
 
   module D = MustVars
   module G = BaseDomain.VD
+  module V = VarinfoV
 
   let init () =
     if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
@@ -518,6 +523,7 @@ struct
     let create_protected v = (GUnprot.bot (), v)
     let create_init v = (v, v)
   end
+  module V = VarinfoV
 
   let startstate () = P.empty ()
 
@@ -636,6 +642,7 @@ struct
     let create_weak weak = (weak, GSync.bot ())
     let create_sync sync = (GWeak.bot (), sync)
   end
+  module V = VarinfoV
 end
 
 module LockCenteredGBase =
@@ -1396,6 +1403,7 @@ module TimedPriv (Priv: S): S with module D = Priv.D =
 struct
   module D = Priv.D
   module G = Priv.G
+  module V = Priv.V
 
   let time str f arg = Stats.time "priv" (Stats.time str f) arg
 
@@ -1459,7 +1467,7 @@ struct
     if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
       r
     in
     let v = Priv.read_global ask getg st x in
@@ -1471,11 +1479,11 @@ struct
     if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      if M.tracing then M.trace "priv" "sideg %a %a\n" V.pretty x G.pretty v;
       sideg x v
     in
     let r = write_global ?invariant ask getg sideg st x v in
@@ -1487,7 +1495,7 @@ struct
     if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
       r
     in
     let r = lock ask getg st m in
@@ -1499,11 +1507,11 @@ struct
     if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      if M.tracing then M.trace "priv" "sideg %a %a\n" V.pretty x G.pretty v;
       sideg x v
     in
     let r = unlock ask getg sideg st m in
@@ -1515,11 +1523,11 @@ struct
     if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      if M.tracing then M.trace "priv" "sideg %a %a\n" V.pretty x G.pretty v;
       sideg x v
     in
     let r = enter_multithreaded ask getg sideg st in
@@ -1538,11 +1546,11 @@ struct
     if M.tracing then M.trace "priv" "st: %a\n" BaseComponents.pretty st;
     let getg x =
       let r = getg x in
-      if M.tracing then M.trace "priv" "getg %a -> %a\n" d_varinfo x G.pretty r;
+      if M.tracing then M.trace "priv" "getg %a -> %a\n" V.pretty x G.pretty r;
       r
     in
     let sideg x v =
-      if M.tracing then M.trace "priv" "sideg %a %a\n" d_varinfo x G.pretty v;
+      if M.tracing then M.trace "priv" "sideg %a %a\n" V.pretty x G.pretty v;
       sideg x v
     in
     let r = sync ask getg sideg st reason in
