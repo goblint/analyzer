@@ -112,16 +112,22 @@ struct
         ls
       else begin
         let nls = Lockset.add (e,rw) ls in
+        let changed = Lockset.compare ls nls <> 0 in
         match lv with
         | None ->
           if may_fail then
             ls
           else (
-            ctx.emit (Events.Lock e);
+            (* If the lockset did not change, do not emit Lock event *)
+            if changed then ctx.emit (Events.Lock e);
             nls
           )
         | Some lv ->
-          ctx.split nls [Events.SplitBranch (Lval lv, nonzero_return_when_aquired); Events.Lock e];
+          let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
+          if changed then
+            ctx.split nls [sb; Events.Lock e]
+          else
+            ctx.split nls [sb];
           if may_fail then (
             let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
             ctx.split ls [Events.SplitBranch (fail_exp, not nonzero_return_when_aquired)]

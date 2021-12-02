@@ -11,7 +11,7 @@ let writeconffile = ref ""
 (** Print version and bail. *)
 let print_version ch =
   let open Version in
-  printf "Goblint version: %s\n" goblint;
+  printf "Goblint version: %%VERSION_NUM%% (%s)\n" goblint;
   printf "Cil version:     %s\n" Cil.cilVersion;
   printf "Profile:         %s\n" ConfigProfile.profile;
   exit 0
@@ -161,7 +161,7 @@ let basic_preprocess ~all_cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = ConfigCpp.cpp ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
@@ -270,12 +270,8 @@ let preprocess_files () =
         [] (* don't recurse for anything else *)
 
     | filename when Filename.extension filename = ".json" ->
-      if List.mem "containment" (get_string_list "ana.activated") then
-        [] (* ignore other JSON files for contain analysis *)
-      else begin
-        eprintf "Unexpected JSON file argument (possibly missing --conf): %s\n" filename;
-        raise Exit
-      end
+      eprintf "Unexpected JSON file argument (possibly missing --conf): %s\n" filename;
+      raise Exit
 
     | filename ->
       [basic_preprocess ~all_cppflags filename]

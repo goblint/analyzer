@@ -30,8 +30,10 @@ sig
   val smart_leq: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
   val is_immediate_type: typ -> bool
   val bot_value: typ -> t
+  val is_bot_value: t -> bool
   val init_value: typ -> t
   val top_value: typ -> t
+  val is_top_value: t -> typ -> bool
   val zero_init_value: typ -> t
 
   val project: precision -> t -> t
@@ -111,15 +113,10 @@ struct
     | _ -> false
 
   let rec bot_value (t: typ): t =
-    let bot_comp compinfo: Structs.t =
-      let nstruct = Structs.top () in
-      let bot_field nstruct fd = Structs.replace nstruct fd (bot_value fd.ftype) in
-      List.fold_left bot_field nstruct compinfo.cfields
-    in
     match t with
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (bot_comp ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
     | TArray (ai, None, _) ->
       `Array (CArrays.make (IndexDomain.bot ()) (bot_value ai))
@@ -130,17 +127,25 @@ struct
     | TNamed ({ttype=t; _}, _) -> bot_value t
     | _ -> `Bot
 
+  let is_bot_value x =
+    match x with
+    | `Int x -> ID.is_bot x
+    | `Address x -> AD.is_bot x
+    | `Struct x -> Structs.is_bot x
+    | `Union x -> Unions.is_bot x
+    | `Array x -> CArrays.is_bot x
+    | `List x -> Lists.is_bot x
+    | `Blob x -> Blobs.is_bot x
+    | `Thread x -> Threads.is_bot x
+    | `Bot -> true
+    | `Top -> false
+
   let rec init_value (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
-    let init_comp compinfo: Structs.t =
-      let nstruct = Structs.top () in
-      let init_field nstruct fd = Structs.replace nstruct fd (init_value fd.ftype) in
-      List.fold_left init_field nstruct compinfo.cfields
-    in
     match t with
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (init_comp ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
       `Array (CArrays.make (IndexDomain.bot ())  (if get_bool "exp.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
@@ -152,15 +157,10 @@ struct
     | _ -> `Top
 
   let rec top_value (t: typ): t =
-    let top_comp compinfo: Structs.t =
-      let nstruct = Structs.top () in
-      let top_field nstruct fd = Structs.replace nstruct fd (top_value fd.ftype) in
-      List.fold_left top_field nstruct compinfo.cfields
-    in
     match t with
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (top_comp ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
       `Array (CArrays.make (IndexDomain.top ()) (if get_bool "exp.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
@@ -170,17 +170,24 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
+  let is_top_value x (t: typ) =
+    match x with
+    | `Int x -> ID.is_top_of (Cilfacade.get_ikind (t)) x
+    | `Address x -> AD.is_top x
+    | `Struct x -> Structs.is_top x
+    | `Union x -> Unions.is_top x
+    | `Array x -> CArrays.is_top x
+    | `List x -> Lists.is_top x
+    | `Blob x -> Blobs.is_top x
+    | `Thread x -> Threads.is_top x
+    | `Top -> true
+    | `Bot -> false
 
     let rec zero_init_value (t:typ): t =
-      let zero_init_comp compinfo: Structs.t =
-        let nstruct = Structs.top () in
-        let zero_init_field nstruct fd = Structs.replace nstruct fd (zero_init_value fd.ftype) in
-        List.fold_left zero_init_field nstruct compinfo.cfields
-      in
       match t with
       | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
       | TPtr _ -> `Address AD.null_ptr
-      | TComp ({cstruct=true; _} as ci,_) -> `Struct (zero_init_comp ci)
+      | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value fd.ftype) ci)
       | TComp ({cstruct=false; _} as ci,_) ->
         let v = try
           (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
@@ -417,8 +424,8 @@ struct
                 | `Struct x when same_struct x -> x
                 | `Struct x when ci.cfields <> [] ->
                   let first = List.hd ci.cfields in
-                  Structs.(replace (top ()) first (get x first))
-                | _ -> log_top __POS__; Structs.top ()
+                  Structs.(replace (Structs.create (fun fd -> top_value fd.ftype) ci) first (get x first))
+                | _ -> log_top __POS__; Structs.create (fun fd -> top_value fd.ftype) ci
               )
           else
             `Union (match v with
@@ -670,7 +677,7 @@ struct
   let rec invalidate_value (ask:Q.ask) typ (state:t) : t =
     let typ = unrollType typ in
     let invalid_struct compinfo old =
-      let nstruct = Structs.top () in
+      let nstruct = Structs.create (fun fd -> invalidate_value ask fd.ftype (Structs.get old fd)) compinfo in
       let top_field nstruct fd =
         Structs.replace nstruct fd (invalidate_value ask fd.ftype (Structs.get old fd))
       in
@@ -932,7 +939,7 @@ struct
               end
             | `Bot ->
               let init_comp compinfo =
-                let nstruct = Structs.top () in
+                let nstruct = Structs.create (fun fd -> `Bot) compinfo in
                 let init_field nstruct fd = Structs.replace nstruct fd `Bot in
                 List.fold_left init_field nstruct compinfo.cfields
               in
@@ -1147,7 +1154,7 @@ struct
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
-  StructDomain.Simple (Compound)
+  StructDomain.FlagConfiguredStructDomain (Compound)
 
 and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)

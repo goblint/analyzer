@@ -454,13 +454,7 @@ struct
             | `Top -> `Top
             | t -> `Blob (t,s,o)
           end
-        | `Struct s ->
-          let one_field fl vl st =
-            match replace_val vl with
-            | `Top -> st
-            | v    -> ValueDomain.Structs.replace st fl v
-          in
-          `Struct (ValueDomain.Structs.fold one_field (ValueDomain.Structs.top ()) s)
+        | `Struct s -> `Struct (ValueDomain.Structs.map replace_val s)
         | _ -> `Top
       in
       CPA.map replace_val st
@@ -1281,16 +1275,8 @@ struct
 
   let is_some_bot x =
     match x with
-    | `Int n ->  ID.is_bot n
-    | `Address n ->  AD.is_bot n
-    | `Struct n ->  ValueDomain.Structs.is_bot n
-    | `Union n ->  ValueDomain.Unions.is_bot n
-    | `Array n ->  ValueDomain.CArrays.is_bot n
-    | `Blob n ->  ValueDomain.Blobs.is_bot n
-    | `List n ->  ValueDomain.Lists.is_bot n
-    | `Thread n -> ValueDomain.Threads.is_bot n
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
-    | `Top -> false
+    | _ -> VD.is_bot_value x
 
   let invariant ctx a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
@@ -1611,13 +1597,27 @@ struct
           | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
           | _ -> `Int c
         in
-        let oldv = eval (Lval x) st in
-        let v = VD.meet oldv c' in
-        if is_some_bot v then raise Deadcode
-        else (
-          if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
-          set' x v st
-        )
+        (match x with
+         | Var var, o ->
+           (* For variables, this is done at to the level of entire variables to benefit e.g. from disjunctive struct domains *)
+           let oldv = get_var a gs st var in
+           let offs = convert_offset a gs st o in
+           let newv = VD.update_offset a oldv offs c' (Some exp) x (var.vtype) in
+           let v = VD.meet oldv newv in
+           if is_some_bot v then raise Deadcode
+           else (
+             if M.tracing then M.tracel "inv" "improve variable %a from %a to %a (c = %a, c' = %a)\n" d_varinfo var VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
+             set' (Var var,NoOffset) v st
+           )
+         | Mem _, _ ->
+           (* For accesses via pointers, not yet *)
+           let oldv = eval (Lval x) st in
+           let v = VD.meet oldv c' in
+           if is_some_bot v then raise Deadcode
+           else (
+             if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
+             set' x v st
+           ))
       | Const _ -> st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e)
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
@@ -2057,7 +2057,12 @@ struct
     invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
-    (*    let heap_var = heap_var !Tracing.current_loc in*)
+    let invalidate_ret_lv st = match lv with
+      | Some lv ->
+        if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
+        invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
+      | None -> st
+    in
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
@@ -2170,10 +2175,11 @@ struct
       end
     (* handling thread creations *)
     | `ThreadCreate _ ->
-      ctx.local (* actual results joined via threadspawn *)
+      invalidate_ret_lv ctx.local (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
     | `ThreadJoin (id,ret_var) ->
-      begin match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
+      let st' =
+        match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
         | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
@@ -2184,7 +2190,8 @@ struct
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
-      end
+      in
+      invalidate_ret_lv st'
     | `Malloc size -> begin
         match lv with
         | Some lv ->
@@ -2239,12 +2246,7 @@ struct
              *)
         in
         (* invalidate lhs in case of assign *)
-        let st = match lv with
-          | None -> st
-          | Some x ->
-            if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for unknown function call %s\n" d_plainlval x f.vname;
-            invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [mkAddrOrStartOf x]
-        in
+        let st = invalidate_ret_lv st in
         (* apply all registered abstract effects from other analysis on the base value domain *)
         LF.effects_for f.vname args
         |> List.map (fun sets ->
@@ -2305,7 +2307,7 @@ struct
       | _, v -> VD.show v
     in
     let args_short = List.map short_fun f.sformals in
-    Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" args_short
+    Printable.get_short_list (f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     match Cilfacade.find_varinfo_fundec f with

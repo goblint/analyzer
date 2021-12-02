@@ -256,18 +256,6 @@ struct
       else
         let f = BatIO.output_channel out in
         write_file f (get_string "outfile")
-    (* | "mongo" ->
-       let open Deriving.Cil in
-       Printf.printf "Connecting to local MongoDB... ";
-       let db = Db.connect () in
-       let insert (loc,n,fd) v =
-         Db.insert db (MyCFG.node_to_yojson n, location_to_yojson loc, Range.to_yojson v)
-       in
-       let t = Unix.gettimeofday () in
-       Printf.printf "Inserting %d entries... " (length (Lazy.force table));
-       iter insert (Lazy.force table);
-       let t1 = Unix.gettimeofday () -. t in
-       Printf.printf "Done in %fs!\n" t1 *)
     | "sarif" ->
       let open BatPrintf in
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");

@@ -1,0 +1,12 @@
+(include_subdirs unqualified)
+
+(test
+  (name mainTest)
+  (libraries ounit2 goblint.lib goblint.sites.dune)
+  (flags :standard -linkall))
+
+(env
+  (dev
+    (flags (:standard -warn-error -A -w -6-27-32)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  )
+)

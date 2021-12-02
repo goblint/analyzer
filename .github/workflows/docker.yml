@@ -54,7 +54,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=schedule
-            type=ref,event=tag
+            type=semver,pattern={{version}}
             type=raw,enable=${{ github.event_name == 'workflow_dispatch' }},value=${{ github.event.inputs.tag }}
 
       - name: Build Docker image

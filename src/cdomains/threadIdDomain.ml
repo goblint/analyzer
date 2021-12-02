@@ -1,4 +1,5 @@
 open Cil
+open FlagHelper
 
 module type S =
 sig
@@ -200,14 +201,103 @@ struct
   let name () = "Thread"
 end
 
-(* Since the thread ID module is extensively used statically, it cannot be dynamically switched via an option. *)
-(* TODO: make dynamically switchable? using flag-configured delegating module (like array domains)? *)
+module FlagConfiguredTID:Stateful =
+struct
+  (* Thread IDs with prefix-set history *)
+  module H = History(FunLoc)
+  (* Plain thread IDs *)
+  module P = Unit(FunLoc)
 
-(* Old thread IDs *)
-(* module Thread = Unit (FunLoc) *)
+  include GroupableFlagHelper(H)(P)(struct
+      let msg = "FlagConfiguredTID received a value where not exactly one component is set"
+      let name = "FlagConfiguredTID"
+    end)
 
-(* Thread IDs with prefix-set history *)
-module Thread = History (FunLoc)
+  module D = Lattice.Lift2(H.D)(P.D)(struct let bot_name = "bot" let top_name = "top" end)
 
+  type marshal = H.marshal option * P.marshal option
+
+  let history_enabled () =
+    match GobConfig.get_string "ana.thread.domain" with
+    | "plain" -> false
+    | "history" -> true
+    | s -> failwith @@ "Illegal value " ^ s ^ " for ana.thread.domain"
+
+  let threadinit v ~multiple =
+    if history_enabled () then
+      (Some (H.threadinit v multiple), None)
+    else
+      (None, Some (P.threadinit v multiple))
+
+  let to_varinfo = unop H.to_varinfo P.to_varinfo
+  let is_main = unop H.is_main P.is_main
+  let is_unique = unop H.is_unique P.is_unique
+  let name_varinfo = unop H.name_varinfo P.name_varinfo
+  let may_create = binop H.may_create P.may_create
+  let is_must_parent = binop H.is_must_parent P.is_must_parent
+
+  let created x d =
+    let lifth x' d' =
+      let hres = H.created x' d' in
+      match hres with
+      | None -> None
+      | Some l -> Some (List.map (fun x -> (Some x, None)) l)
+    in
+    let liftp x' d' =
+      let pres = P.created x' d' in
+      match pres with
+      | None -> None
+      | Some l -> Some (List.map (fun x -> (None, Some x)) l)
+    in
+    match x, d with
+    | (Some x', None), `Lifted1 d' -> lifth x' d'
+    | (Some x', None), `Bot -> lifth x' (H.D.bot ())
+    | (Some x', None), `Top -> lifth x' (H.D.top ())
+    | (None, Some x'), `Lifted2 d' -> liftp x' d'
+    | (None, Some x'), `Bot -> liftp x' (P.D.bot ())
+    | (None, Some x'), `Top -> liftp x' (P.D.top ())
+    | _ -> None
+
+  let threadenter x n v =
+    match x with
+    | ((Some x', None), `Lifted1 d) -> (Some (H.threadenter (x',d) n v), None)
+    | ((Some x', None), `Bot) -> (Some (H.threadenter (x',H.D.bot ()) n v), None)
+    | ((Some x', None), `Top) -> (Some (H.threadenter (x',H.D.top ()) n v), None)
+    | ((None, Some x'), `Lifted2 d) -> (None, Some (P.threadenter (x',d) n v))
+    | ((None, Some x'), `Bot) -> (None, Some (P.threadenter (x',P.D.bot ()) n v))
+    | ((None, Some x'), `Top) -> (None, Some (P.threadenter (x',P.D.top ()) n v))
+    | _ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
+
+  let threadspawn x n v =
+    match x with
+    | `Lifted1 x' -> `Lifted1 (H.threadspawn x' n v)
+    | `Lifted2 x' -> `Lifted2 (P.threadspawn x' n v)
+    | `Bot when history_enabled () -> `Lifted1 (H.threadspawn (H.D.bot ()) n v)
+    | `Bot  -> `Lifted2 (P.threadspawn (P.D.bot ()) n v)
+    | `Top when history_enabled () -> `Lifted1 (H.threadspawn (H.D.top ()) n v)
+    | `Top  -> `Lifted2 (P.threadspawn (P.D.top ()) n v)
+
+  let name () = "FlagConfiguredTID: " ^ if history_enabled () then H.name () else P.name ()
+
+  let finalize () =
+    if history_enabled () then
+      (Some (H.finalize ()), None)
+    else
+      (None, Some (P.finalize ()))
+
+  let init v =
+    if history_enabled () then
+      match v with
+      | None -> H.init None
+      | Some (v', None) -> H.init v'
+      |_ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
+    else
+      match v with
+      | None -> P.init None
+      | Some (None, v') -> P.init v'
+      |_ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
+end
+
+module Thread = FlagConfiguredTID
 
 module ThreadLifted = Lift (Thread)
