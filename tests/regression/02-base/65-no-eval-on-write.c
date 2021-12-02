@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.interval --enable exp.earlyglobs --enable ana.int.enums
+//PARAM: --enable ana.int.interval --enable exp.earlyglobs --enable ana.int.enums -v
 
 // Test case that shows how avoiding reading integral globals can reduce the number of solver evaluations.
 // Avoiding to evaluate integral globals when setting them reduced the number of necessary evaluations from 27 to 14 in this test case.
