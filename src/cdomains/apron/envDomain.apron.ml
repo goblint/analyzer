@@ -222,6 +222,11 @@ struct
           |> Array.of_enum
         in
         Environment.make vs' [||]
+
+  let assert_inv a b c = a
+  let eval_int a e =
+    let module ID = Queries.ID in
+      ID.top ()
 end
 
 

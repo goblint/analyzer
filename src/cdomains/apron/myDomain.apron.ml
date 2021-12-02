@@ -4,13 +4,25 @@ open Cil
 module M = Messages
 open Apron
 
+ let ( *: ) = Mpqf.mul
+  let (+:) = Mpqf.add
+  let (-:) = Mpqf.sub
+  let (/:) = Mpqf.div
+  let (=:) = Mpqf.equal
+  let (<:) x y = Mpqf.cmp x y < 0
+  let (>:) x y = Mpqf.cmp x y > 0
+  let (<=:) x y = Mpqf.cmp x y <= 0
+  let (>=:) x y = Mpqf.cmp x y >= 0
+
+  let to_rt x = Mpqf.of_int x
+
   module Vector =
   struct
-  type t = int list
+  type t = Mpqf.t list
 
   let create_zero_vec n : t =
     let rec zero_vec t n =
-     if n > 0 then zero_vec (0 :: t) (n-1)
+     if n > 0 then zero_vec (Mpqf.of_int 0 :: t) (n-1)
      else t
    in
    zero_vec [] n
@@ -19,7 +31,7 @@ open Apron
     let rec list_str l =
       match l with
       | [] -> "]"
-      | x :: xs -> (Format.asprintf "%i" x) ^(list_str xs)
+      | x :: xs -> (Mpqf.to_string x) ^","^(list_str xs)
     in
     "["^list_str t^"\n"
 
@@ -27,51 +39,65 @@ open Apron
     List.map f v
 
   let equal v1 v2 =
-    List.equal Int.equal v1 v2
+    List.equal Mpqf.equal v1 v2
 
   let neg v =
-    List.map (function x -> (-1) * x) v
+    List.map (function x -> (to_rt (-1)) *: x) v
 
   let sub_vecs t1 t2 =
-    List.map2 (function x -> function y -> x - y) t1 t2
+    List.map2 (function x -> function y -> x -: y) t1 t2
 
   let mul_vecs t1 t2 =
-    List.map2 (function x -> function y -> x * y) t1 t2
+    List.map2 (function x -> function y -> x *: y) t1 t2
 
   let add_vecs t1 t2 =
-    List.map2 (function x -> function y -> x + y) t1 t2
+    List.map2 (function x -> function y -> x +: y) t1 t2
+
+  let find_largest_diff v1 v2 =
+    let rec l_d v1 v2 entry diff =
+    match v1, v2 with
+    | x1 :: xs1, x2 :: xs2 -> let diff_i = x1 -: x2 in
+                                 let n_e, n_d = l_d xs1 xs2 (entry + 1) diff in
+                                   if Mpqf.abs (diff_i) > Mpqf.abs (n_d) then (entry, diff_i)
+                                   else (n_e, n_d)
+    | _, _ -> (entry, diff)
+    in l_d v1 v2 0 (to_rt 0)
 
   let is_only_zero v =
-    match List.find_opt (function x -> x != 0) v with
+    match List.find_opt (function x -> x <> (to_rt 0)) v with
     | None -> true
     | _ -> false
 
+  let rec keep_rows (v:t) n =
+    match v with
+    | [] -> if n = 0 then [] else failwith "Number exceeds list"
+    | x :: xs -> if n > 0 then x :: keep_rows xs (n-1) else x :: []
   let rec remove_val n (v:t) =
     match v with
     | [] -> failwith "Entry does not exist"
     | x :: xs -> if n > 0 then remove_val (n-1) xs else xs
 
-  let rec set_val t n new_val =
+  let rec set_val t n new_val :t =
     match t with
     | [] -> failwith "Entry does not exist"
     | x :: xs -> if n > 0 then x :: set_val xs (n-1) new_val else  new_val :: xs
 
   let rec add_val n vl (v:t) =
     match v with
-    | [] -> if n == 0 then [vl] else failwith "Entry does not exist"
+    | [] -> if n = 0 then [vl] else failwith "Entry does not exist"
     | x :: xs -> if n > 0 then add_val (n-1) vl xs else x :: vl :: xs
 
   let mul_by_constant c v =
-    List.map (function x -> x * c) v
+    List.map (function x -> x *: c) v
 
   let divide_by_const v c =
-    List.map (function x -> x / c) v
+    List.map (function x -> x /: c) v
 
   let rec is_constant v =
      match v with
      | [] -> true
      | x :: [] -> true
-     | x :: xs -> if x != 0 then false else is_constant xs
+     | x :: xs -> if x <> (to_rt 0) then false else is_constant xs
 
   let get_val n (v: t) =
    List.nth v n
@@ -80,7 +106,7 @@ open Apron
     let rec get_colnum last curr_col t =
       match t with
       | [] -> last
-      | x :: xs -> if x != 0 then get_colnum curr_col (curr_col - 1) xs
+      | x :: xs -> if x <> (to_rt 0) then get_colnum curr_col (curr_col - 1) xs
                     else get_colnum last (curr_col - 1) xs
                   in
                   let res = get_colnum (-1) (List.length t) (List.rev t)
@@ -89,7 +115,7 @@ end
 
 module Matrix =
 struct
-  type t = int list list
+  type t = Mpqf.t list list
   let empty () = ([] : t)
 
   let show (x:t) =
@@ -111,14 +137,22 @@ struct
   let append_row (m : t) row =
     List.append m [row]
 
+  let get_row (m : t) row_n =
+    List.nth m row_n
+
+  let rec remove_row (m : t) row_n =
+    match m with
+    | [] -> failwith "Entry does not exist"
+    | x :: xs -> if row_n > 0 then x :: remove_row xs (row_n - 1) else xs
+
   let get_col (a:t) n : Vector.t =
     List.map (function x -> List.nth x n) a
   let remove_column (m : t) pos =
     List.map (Vector.remove_val pos) m
 
-  (*Extended removal of columns. Removes rows that had an entry != 0 at the col pos as well*)
+  (*Extended removal of columns. Removes rows that had an entry <> 0 at the col pos as well*)
   let remove_column_ex (m : t) pos =
-    let filtered_rows = List.filter (function x -> if (List.nth x pos) == 0 then true else false) m
+    let filtered_rows = List.filter (function x -> if (List.nth x pos) = (to_rt 0) then true else false) m
      in remove_column filtered_rows pos
 
   let append_matrices (a:t) (b:t) : t =
@@ -127,9 +161,13 @@ struct
   let num_rows (m : t) =
     List.length m
 
+  let num_cols (m : t) =
+    match m with
+    | [] -> 0
+    | x :: xs -> List.length x
   let create_zero_col (m : t)  =
     let rec create_zero_list l n =
-      if n > 0 then create_zero_list (List.append [0] l) (n-1)
+      if n > 0 then create_zero_list (List.append [to_rt 0] l) (n-1)
       else l
     in
     create_zero_list [] (num_rows m)
@@ -137,18 +175,21 @@ struct
    let rec equal (a: t) (b: t) =
     match (a, b) with
     | [], [] -> true
-    | x1 :: xs1, x2 :: xs2 -> if List.equal Int.equal x1 x2 then equal xs1 xs2 else false
+    | x1 :: xs1, x2 :: xs2 -> if List.equal Mpqf.equal x1 x2 then equal xs1 xs2 else false
     | _ -> false
 
   let subtract_rows row1 row2 =
-    List.map2 (function x -> function y -> x - y) row1 row2
+    List.map2 (function x -> function y -> x -: y) row1 row2
+
+  let add_rows row1 row2 =
+    List.map2 (function x -> function y -> x +: y) row1 row2
 
   let subtract_rows_c row1 row2 col_val =
     let subtr_vec = Vector.mul_by_constant col_val row2
       in Vector.sub_vecs row1 subtr_vec
 
 
-  let reduce_row_to_zero t row_n =
+  let reduce_row_to_zero t row_n : t =
     let red_row = List.nth t row_n
           in List.map (function x -> subtract_rows x red_row) t
 
@@ -161,26 +202,26 @@ struct
     in find_opt_i row 0
 
   let obtain_pivot row =
-    let non_zero = find_opt_with_index (function x -> x != 0) row in
+    let non_zero = find_opt_with_index (function x -> x <> (to_rt 0)) row in
     match non_zero with
     | None -> None
-    | Some (i, p) -> Some (i, List.map (function x -> x / p) row)
+    | Some (i, p) -> Some (i, List.map (function x -> x /: p) row)
 
   let rec remove_zero_rows t =
     List.filter (function x -> not (Vector.is_only_zero x)) t
 
-   (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref)*)
+   (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows*)
   let normalize t =
     let rec create_rref t interm_t curr_row =
       match t with
       | [] -> interm_t
       | row :: xs -> let pivot_row = obtain_pivot row in
           match pivot_row with
-          | None -> create_rref xs interm_t (curr_row +1)
+          | None -> create_rref xs interm_t (curr_row + 1)
           | Some (i, p) ->
             let col = get_col interm_t i in
                             let res = List.map2i (function row_i -> function y -> function z ->
-                              if row_i != curr_row then subtract_rows_c y p z else p)
+                              if row_i <> curr_row then subtract_rows_c y p z else p)
                               interm_t col in
                               create_rref xs res (curr_row +1)
     in remove_zero_rows (create_rref t t 0) (*ToDo reorder!*)
@@ -293,8 +334,8 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
   let equal a b =
     match a.d, b.d with
-    | None, None -> Environment.equal (a.env) (b.env)
-    | Some (x1), Some(x2) -> Matrix.equal x1 x2 && Environment.equal (a.env) (b.env)
+    | None, None -> true
+    | Some (x1), Some(x2) -> Matrix.equal x1 x2
     | _ -> false
 
   let equal a b =
@@ -314,11 +355,8 @@ struct
   let to_yojson a = failwith "ToDo Implement in future"
   let invariant a b = Invariant.none
   let arbitrary () = failwith "no arbitrary"
-  let leq a b = (*ToDo environment change*)
-    let cmp = Environment.compare a.env b.env in
-    if cmp == (-2) || cmp > 0 then false
-    else
-    match a.d, b.d with
+  let leq a b =
+  match a.d, b.d with
     | None, _ ->  true
     | _ , Some ([]) -> true
     | Some (x), Some (y) -> Matrix.is_contained_in y x
@@ -328,7 +366,64 @@ struct
       if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show a) (show b) res ;
       res
 
-  let join a b = b
+  let case_two a r col_b =
+    let rec append_zeros v r = if List.length v < r then append_zeros (List.append v [to_rt 0]) r else v in
+    let a_r = Matrix.get_row a r in
+      let mapping = List.map2i (function i -> function x -> function y -> if i < r then
+        Vector.add_vecs x (Vector.mul_by_constant y a_r) else x ) a (append_zeros col_b (List.length a))
+    in Matrix.remove_row mapping r
+
+  let case_three a b col_a col_b max =
+    let col_a, col_b = Vector.keep_rows col_a max, Vector.keep_rows col_b max in
+    if Vector.equal col_a col_b then (a, b) else
+    let r, diff = Vector.find_largest_diff col_a col_b  in
+    let a_t, b_t = Matrix.get_row a r, Matrix.get_row b r in
+       let rec multiply_by_t m col_v t i =
+        match m, col_v with
+        | x :: xs, c :: cs->  if i > 0 then let beta = c /: diff in
+                                let mul_t = Vector.mul_by_constant beta t in
+                                 Vector.sub_vecs x mul_t :: multiply_by_t xs cs t (i - 1)
+                              else xs
+        | _, _ -> []
+       in
+       let sub_col = List.map2 (function x -> function y -> x -: y) col_a col_b in
+        Matrix.remove_row (multiply_by_t a sub_col a_t max) r, Matrix.remove_row (multiply_by_t b sub_col b_t max) r
+
+  let rec lin_disjunc r s a b =
+    if s >= Matrix.num_cols a then a
+    else
+      let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
+      match Int.compare (Matrix.num_rows a) r, Int.compare (Matrix.num_rows b) r with
+      | 1 , 1 ->   let a_rs, b_rs = Mpqf.to_float (Vector.get_val r col_a), Mpqf.to_float (Vector.get_val r col_b) in
+                    (match  a_rs, b_rs with
+                   |  1., 1. -> lin_disjunc (r + 1) (s + 1) a b
+                   | 1., 0. -> lin_disjunc r (s + 1) (case_two a r col_b) b
+                   | 0., 1. -> lin_disjunc r (s + 1) a (case_two b r col_a)
+                   | 0., 0. ->  let new_a, new_b = case_three a b col_a col_b r in
+                                  lin_disjunc r (s + 1) new_a new_b
+                   | _, _ -> failwith "Matrix not normalized")
+      | 1 , _  -> let a_rs = Vector.get_val r col_a in
+                  if a_rs = (to_rt 1) then lin_disjunc r (s + 1) (case_two a r col_b) b
+                  else
+                    let new_a, new_b = case_three a b col_a col_b r in
+                      lin_disjunc r (s + 1) new_a new_b
+      | _ , 1  -> let b_rs = Vector.get_val r col_b in
+                  if b_rs = (to_rt 1) then lin_disjunc r (s + 1) a (case_two b r col_a)
+                  else
+                  let new_a, new_b = case_three a b col_a col_b r in
+                    lin_disjunc r (s + 1) new_a new_b
+      | _, _ ->   let new_a, new_b = case_three a b col_a col_b r in
+                    lin_disjunc r (s + 1) new_a new_b
+
+
+  let join a b =
+    match a.d, b.d with
+    | Some ([]), _
+    | _, Some ([]) -> {d = Some ([]); env = a.env}
+    | Some (x), Some(y) -> if Matrix.equal x y
+                          then {d = Some (x); env = a.env}
+                            else  {d = Some(lin_disjunc 0 0 x y); env = a.env}
+    | _, _ -> {d = None; env = a.env}
 
   let join a b =
     let res = join a b in
@@ -336,12 +431,11 @@ struct
       res
 
   let meet a b =
-    let new_env = Environment.lce a.env b.env in (*ToDo Watch out for dimchange here!*)
     match (a.d, b.d) with
-    | Some([]), y -> {d = y; env = new_env}
-    | x , Some([])  -> {d = x; env = new_env}
-    | Some(x), Some(y) -> {d = Some (Matrix.normalize (Matrix.append_matrices x y)); env = new_env}
-    | _, _ -> {d = None; env = new_env}
+    | Some([]), y -> {d = y; env = a.env}
+    | x , Some([])  -> {d = x; env = a.env}
+    | Some(x), Some(y) -> {d = Some (Matrix.normalize (Matrix.append_matrices x y)); env = a.env}
+    | _, _ -> {d = None; env = a.env}
   let meet a b =
     let res = meet a b in
       if M.tracing then M.tracel "meet" "meet \n a: %s \n b: %s -> %s \n" (show a) (show b) (show res) ;
@@ -352,22 +446,22 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let bot () =
      {d = None; env = Environment.make [||] [||]}
-  let is_bot a = a.d == None
+  let is_bot a = a.d = None
   let is_bot_env a =
     match a.d with
     | None -> true
     | _ -> false
   let top () =
     {d = Some (Matrix.empty ()); env = Environment.make [||] [||] }
-  let is_top a = a.d == Some (Matrix.empty ())
+  let is_top a = a.d = Some (Matrix.empty ())
 
   (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.*)
   let get_coeff_vec env texp =
     let zero_vec = Vector.create_zero_vec ((Environment.size env) + 1) in
     let rec convert_texpr env texp =
     (match texp with
-    | Cst x ->  Some (Vector.set_val zero_vec ((List.length zero_vec) - 1) (Convert.int_of_cst x))
-    | Var x ->  Some (Vector.set_val zero_vec (Environment.dim_of_var env x) 1)
+    | Cst x ->  Some (Vector.set_val zero_vec ((List.length zero_vec) - 1) (to_rt (Convert.int_of_cst x)))
+    | Var x ->  Some (Vector.set_val zero_vec (Environment.dim_of_var env x) (to_rt 1))
     | Unop (u, e, _, _) -> (
       match u with
       | Neg -> (match convert_texpr env e with
@@ -409,15 +503,15 @@ struct
             match m, rd_a with
             | [], [] -> []
             | x::xs, y::ys -> List.map2i (function j -> function z -> function d ->
-                              if j == j0 then y
-                              else if j < ((List.length b) -1) then z - y * d
-                              else z + y * d) x b :: recalc_entries xs ys
+                              if j = j0 then y
+                              else if j < ((List.length b) -1) then z -: y *: d
+                              else z +: y *: d) x b :: recalc_entries xs ys
            | _, _ -> failwith "Unequal sizes"
                             in {d = Some (recalc_entries x reduced_a); env = env}
 
   let assign_uninvertible_rel x var b env =
-    let neg_vec = List.mapi (function i -> function z -> if i < (List.length b) - 1 then (-1) * z else z) b
-        in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) 1
+    let neg_vec = List.mapi (function i -> function z -> if i < (List.length b) - 1 then to_rt (-1) *: z else z) b
+        in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) (to_rt 1)
             in {d = Some (Matrix.normalize (Matrix.append_row x var_vec)); env = env}
 
   let remove_rels_with_var x var env =
@@ -427,7 +521,7 @@ struct
               else x (*Nothing to remove*)
 
   let assign_texpr t var texp =
-    let is_invertible = function v -> Vector.get_val (Environment.dim_of_var t.env var) v != 0
+    let is_invertible = function v -> Vector.get_val (Environment.dim_of_var t.env var) v <> (to_rt 0)
     in
     let affineEq_vec = get_coeff_vec t.env texp in
       match t.d, affineEq_vec with
