@@ -61,7 +61,16 @@ rule() {
 
     # setup, dependencies
     ;; deps)
-      opam update; OPAMCLI=2.0 opam install -y . --deps-only --locked --unlock-base; opam upgrade -y $(opam list --pinned -s)
+      eval $(opam config env)
+      {
+        opam install -y . --deps-only --locked --update-invariant
+        opam upgrade -y $(opam list --pinned -s)
+      } || {
+        opam update
+        opam pin remove -y $(opam list --pinned -s) || echo "No pins! All good...\n"
+        opam install -y . --deps-only --locked --update-invariant
+        opam upgrade -y $(opam list --pinned -s)
+      }
     ;; setup)
       echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
