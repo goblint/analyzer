@@ -749,15 +749,29 @@ struct
   module L = MapDomain.MapBot_LiftTop (LLock) (LAD)
 
   module LMust = struct
-    (* include Locksets.MustLockset *)
   include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
     let name () = "LMust"
   end
 
   module D = Lattice.Prod3 (W) (LMust) (L)
-  module GMutex = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(LAD)
+  module GMutex = MapDomain.MapBot_LiftTop (ThreadIdDomain.ThreadLifted) (LAD)
   module GThread = Lattice.Prod (LMust) (L)
-  module G = Lattice.Lift2(GMutex)(GThread)(struct let bot_name = "bot" let top_name = "top" end)
+  module G =
+  struct
+    include Lattice.Lift2 (GMutex) (GThread) (Printable.DefaultNames)
+
+    let mutex = function
+      | `Bot -> GMutex.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "PerMutexMeetPrivTID.mutex"
+    let thread = function
+      | `Bot -> GThread.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "PerMutexMeetPrivTID.thread"
+    let create_mutex mutex = `Lifted1 mutex
+    let create_global global = `Lifted1 global
+    let create_thread thread = `Lifted2 thread
+  end
 
   module AV = ApronDomain.V
   module TID = ThreadIdDomain.Thread
@@ -773,31 +787,6 @@ struct
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
-  let sideg_mutex (sideg: V.t -> G.t -> unit) (g:MutexGlobals.V.t) (v:GMutex.t):unit =
-    sideg (`Left g) (`Lifted1 v)
-
-  let sideg_tid (sideg:V.t -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
-    sideg (V.thread tid) (`Lifted2 v)
-
-  let getg_mutex getg g = match getg (V.mutex g) with
-    | `Lifted1 v -> v
-    | `Bot -> GMutex.bot ()
-    | _ -> failwith "wrong either argument"
-
-  let getg_tid getg tid = match getg (V.thread tid) with
-    | `Lifted2 v -> v
-    | `Bot -> GThread.bot ()
-    | _ -> failwith "wrong either argument"
-
-  let g_mutex = function
-    | `Lifted1 v -> v
-    | `Bot -> GMutex.bot ()
-    | _ -> failwith "wrong either argument"
-
-  let g_thread = function
-    | `Lifted2 v -> v
-    | `Bot -> GThread.bot ()
-    | _ -> failwith "wrong either argument"
 
   let compatible (ask:Q.ask) current must_joined other =
     match current, other with
@@ -852,14 +841,14 @@ struct
 
   let should_join _ _ = true
 
-  let get_m_with_mutex_inits inits ask getg_mutex m =
-    let get_m = get_relevant_writes ask m (g_mutex @@ getg_mutex (V.mutex m)) in
+  let get_m_with_mutex_inits inits ask getg m =
+    let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
     if M.tracing then M.traceli "apronpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LAD.pretty get_m;
     let r =
     if not inits then
       get_m
     else
-      let get_mutex_inits = merge_all @@ g_mutex @@ getg_mutex V.mutex_inits in
+      let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
       if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
       LAD.join get_m get_mutex_inits'
@@ -867,14 +856,14 @@ struct
     if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pretty r;
     r
 
-  let get_mutex_global_g_with_mutex_inits inits ask getg_mutex g =
-    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ g_mutex @@ getg_mutex (V.global g) in
+  let get_mutex_global_g_with_mutex_inits inits ask getg g =
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
     if M.tracing then M.traceli "apronpriv" "get_mutex_global_g_with_mutex_inits %a\n  get=%a\n" CilType.Varinfo.pretty g LAD.pretty get_mutex_global_g;
     let r =
     if not inits then
       get_mutex_global_g
     else
-      let get_mutex_inits = merge_all @@ g_mutex @@ getg_mutex V.mutex_inits in
+      let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
       if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
       LAD.join get_mutex_global_g get_mutex_inits'
@@ -924,7 +913,7 @@ struct
     let apr_side = Cluster.unlock (W.singleton g) apr_side in
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid apr_side in
-    sideg (V.global g) (`Lifted1 sidev);
+    sideg (V.global g) (G.create_global sidev);
     let l' = L.add lm apr_side l in
     let apr_local' =
       if is_unprotected ask g then
@@ -958,7 +947,7 @@ struct
       let apr_side = Cluster.unlock w apr_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid apr_side in
-      sideg (V.mutex m) (`Lifted1 sidev);
+      sideg (V.mutex m) (G.create_mutex sidev);
       let lm = LLock.mutex m in
       let l' = L.add lm apr_side l in
       {apr = apr_local; priv = (w',LMust.add lm lmust,l')}
@@ -973,7 +962,7 @@ struct
       let tids = ConcDomain.ThreadSet.elements tids in
       match tids with
       | [tid] ->
-        let lmust',l' = getg tid in
+        let lmust',l' = G.thread (getg (V.thread tid)) in
         {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
       | _ ->
         (* To match the paper more closely, one would have to join in the non-definite case too *)
@@ -983,7 +972,7 @@ struct
 
   let thread_return ask getg sideg tid (st: apron_components_t) =
     let _,lmust,l = st.priv in
-    sideg tid (lmust,l);
+    sideg (V.thread tid) (G.create_thread (lmust,l));
     st
 
   let sync (ask:Q.ask) getg sideg (st: apron_components_t) reason =
@@ -1022,7 +1011,7 @@ struct
     let apr_side = Cluster.unlock (W.top ()) apr_side in (* top W to avoid any filtering *)
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid apr_side in
-    sideg V.mutex_inits (`Lifted1 sidev);
+    sideg V.mutex_inits (G.create_mutex sidev);
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
@@ -1034,26 +1023,6 @@ struct
     {apr = AD.bot (); priv = (W.bot (),lmust,l)}
 
   let finalize () = finalize ()
-
-  (* All that follows is stupid boilerplate to give each of these functions the getg and sideg that only deals with TIDs or Mutexes *)
-
-
-
-  let patch_getside_mutex fn ask getg sideg = fn ask (getg_mutex getg) (sideg_mutex sideg)
-  let patch_getside_tid fn ask getg sideg = fn ask (getg_tid getg) (sideg_tid sideg)
-
-  let patch_get_mutex fn ask getg = fn ask (getg_mutex getg)
-  let patch_get_tid fn ask getg = fn ask (getg_tid getg)
-
-  (* let read_global = patch_get_mutex read_global *)
-  (* let write_global ?(invariant=false) (ask:Q.ask) getg sideg = write_global ~invariant ask (getg_mutex getg) (sideg_mutex sideg) *)
-  (* let lock = patch_get_mutex lock *)
-  (* let unlock = patch_getside_mutex unlock *)
-  let thread_join = patch_get_tid thread_join
-  let thread_return = patch_getside_tid thread_return
-  let sync = patch_getside_mutex sync
-  (* let enter_multithreaded = patch_getside_mutex enter_multithreaded *)
-  let threadenter = patch_get_mutex threadenter
 end
 
 module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
