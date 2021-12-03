@@ -762,32 +762,18 @@ struct
   module AV = ApronDomain.V
   module TID = ThreadIdDomain.Thread
 
-  module VMutex =
-  struct
-    include LockDomain.Addr
-    let name () = "mutex"
-    let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
-  end
-  module VGlobal =
-  struct
-    include VarinfoV
-    let name () = "global"
-    let show x = show x ^ ":global" (* distinguishable variant names for html *)
-  end
-  module V1 = Printable.Either (VMutex) (VGlobal) (* TODO: mutexglobalsbase *)
-  module VThread = TID
   module V =
   struct
-    (* TODO: Either3? *)
-    include Printable.Either (V1) (VThread)
-    let mutex x = `Left (`Left x)
-    let global x = `Left (`Right x)
+    include Printable.Either (MutexGlobals.V) (TID)
+    let mutex x = `Left (MutexGlobals.V.mutex x)
+    let mutex_inits = `Left MutexGlobals.V.mutex_inits
+    let global x = `Left (MutexGlobals.V.global x)
     let thread x = `Right x
   end
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
-  let sideg_mutex (sideg: V.t -> G.t -> unit) (g:V1.t) (v:GMutex.t):unit =
+  let sideg_mutex (sideg: V.t -> G.t -> unit) (g:MutexGlobals.V.t) (v:GMutex.t):unit =
     sideg (`Left g) (`Lifted1 v)
 
   let sideg_tid (sideg:V.t -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
@@ -866,20 +852,14 @@ struct
 
   let should_join _ _ = true
 
-  let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
-  let mutex_inits' () = `Left (LockDomain.Addr.from_var (mutex_inits ()))
-  let mutex_inits () = V.mutex (LockDomain.Addr.from_var (mutex_inits ()))
-  (* let mutex_inits () = `Left (mutex_inits ()) *)
-
   let get_m_with_mutex_inits inits ask getg_mutex m =
-    let vi = `Left m in
-    let get_m = get_relevant_writes ask m (g_mutex @@ getg_mutex (`Left vi)) in
+    let get_m = get_relevant_writes ask m (g_mutex @@ getg_mutex (V.mutex m)) in
     if M.tracing then M.traceli "apronpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LAD.pretty get_m;
     let r =
     if not inits then
       get_m
     else
-      let get_mutex_inits = merge_all @@ g_mutex @@ getg_mutex (mutex_inits ()) in
+      let get_mutex_inits = merge_all @@ g_mutex @@ getg_mutex V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_only_protected_globals ask m get_mutex_inits in
       if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
       LAD.join get_m get_mutex_inits'
@@ -894,7 +874,7 @@ struct
     if not inits then
       get_mutex_global_g
     else
-      let get_mutex_inits = merge_all @@ g_mutex @@ getg_mutex (mutex_inits ()) in
+      let get_mutex_inits = merge_all @@ g_mutex @@ getg_mutex V.mutex_inits in
       let get_mutex_inits' = Cluster.keep_global g get_mutex_inits in
       if M.tracing then M.trace "apronpriv" "inits=%a\n  inits'=%a\n" LAD.pretty get_mutex_inits LAD.pretty get_mutex_inits';
       LAD.join get_mutex_global_g get_mutex_inits'
@@ -978,7 +958,7 @@ struct
       let apr_side = Cluster.unlock w apr_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid apr_side in
-      sideg (`Left (`Left m)) (`Lifted1 sidev);
+      sideg (V.mutex m) (`Lifted1 sidev);
       let lm = LLock.mutex m in
       let l' = L.add lm apr_side l in
       {apr = apr_local; priv = (w',LMust.add lm lmust,l')}
@@ -1042,8 +1022,7 @@ struct
     let apr_side = Cluster.unlock (W.top ()) apr_side in (* top W to avoid any filtering *)
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid apr_side in
-    let vi = mutex_inits' () in
-    sideg (`Left vi) (`Lifted1 sidev);
+    sideg V.mutex_inits (`Lifted1 sidev);
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
