@@ -637,12 +637,18 @@ struct
   struct
     (* weak: G -> (2^M -> WeakRange) *)
     (* sync: M -> (2^M -> SyncRange) *)
-    include Lattice.Prod (GWeak) (GSync)
+    include Lattice.Lift2 (GWeak) (GSync) (Printable.DefaultNames)
 
-    let weak = fst
-    let sync = snd
-    let create_weak weak = (weak, GSync.bot ())
-    let create_sync sync = (GWeak.bot (), sync)
+    let weak = function
+      | `Bot -> GWeak.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "AbstractLockCenteredGBase.weak"
+    let sync = function
+      | `Bot -> GSync.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "AbstractLockCenteredGBase.sync"
+    let create_weak weak = `Lifted1 weak
+    let create_sync sync = `Lifted2 sync
   end
 end
 
@@ -700,14 +706,14 @@ struct
             ) tm acc
         else
           acc
-      ) (fst (getg (V.global x))) (CPA.find x st.cpa)
+      ) (G.weak (getg (V.global x))) (CPA.find x st.cpa)
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let t = current_thread ask in
     let cpa' = CPA.add x v st.cpa in
     if not (!GU.earlyglobs && is_precious_glob x) then
-      sideg (V.global x) (GWeak.singleton s (ThreadMap.singleton t v), GSync.bot ());
+      sideg (V.global x) (G.create_weak (GWeak.singleton s (ThreadMap.singleton t v)));
     {st with cpa = cpa'}
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -717,7 +723,7 @@ struct
           CPA.join cpa' acc
         else
           acc
-      ) (snd (getg (V.mutex m))) st.cpa
+      ) (G.sync (getg (V.mutex m))) st.cpa
     in
     {st with cpa = cpa'}
 
@@ -729,10 +735,10 @@ struct
             (* TODO: swap 2^M and T partitioning for lookup by t here first? *)
             let v = ThreadMap.find t tm in
             (Lockset.mem m s' && not (VD.is_bot v)) || acc
-          ) (fst (getg (V.global x))) false
+          ) (G.weak (getg (V.global x))) false
       ) st.cpa
     in
-    sideg (V.mutex m) (GWeak.bot (), GSync.singleton s side_cpa);
+    sideg (V.mutex m) (G.create_sync (GSync.singleton s side_cpa));
     st
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
@@ -742,7 +748,7 @@ struct
         | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
           let x' = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x' st.cpa in
-          sideg (V.global x') ((GWeak.singleton (Lockset.empty ()) (ThreadMap.singleton x v), GSync.bot ()));
+          sideg (V.global x') (G.create_weak (GWeak.singleton (Lockset.empty ()) (ThreadMap.singleton x v)));
           {st with cpa = CPA.remove x' st.cpa}
         | _ ->
           st
@@ -767,13 +773,13 @@ struct
           VD.join v acc
         else
           acc
-      ) (fst (getg (V.global x))) (CPA.find x st.cpa)
+      ) (G.weak (getg (V.global x))) (CPA.find x st.cpa)
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
     if not (!GU.earlyglobs && is_precious_glob x) then
-      sideg (V.global x) (GWeak.singleton s v, GSync.bot ());
+      sideg (V.global x) (G.create_weak (GWeak.singleton s v));
     {st with cpa = cpa'}
 
   let lock ask getg (st: BaseComponents (D).t) m =
@@ -783,7 +789,7 @@ struct
           CPA.join cpa' acc
         else
           acc
-      ) (snd (getg (V.mutex m))) st.cpa
+      ) (G.sync (getg (V.mutex m))) st.cpa
     in
     {st with cpa = cpa'}
 
@@ -792,10 +798,10 @@ struct
     let side_cpa = CPA.filter (fun x _ ->
         GWeak.fold (fun s' v acc ->
             (Lockset.mem m s' && not (VD.is_bot v)) || acc
-          ) (fst (getg (V.global x))) false
+          ) (G.weak (getg (V.global x))) false
       ) st.cpa
     in
-    sideg (V.mutex m) (GWeak.bot (), GSync.singleton s side_cpa);
+    sideg (V.mutex m) (G.create_sync (GSync.singleton s side_cpa));
     st
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
@@ -805,7 +811,7 @@ struct
         | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
           let x = ThreadIdDomain.Thread.to_varinfo x in
           let v = CPA.find x st.cpa in
-          sideg (V.global x) ((GWeak.singleton (Lockset.empty ()) v, GSync.bot ()));
+          sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
           {st with cpa = CPA.remove x st.cpa}
         | _ ->
           st
