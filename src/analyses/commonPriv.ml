@@ -86,16 +86,6 @@ struct
     let mutex x: t = `Left x
     let global x: t = `Right x
   end
-
-  (* TODO: rename *)
-  let mutex_addr_to_varinfo = V.mutex
-
-  let mutex_global = V.global
-
-  let mutex_global x =
-    let r = mutex_global x in
-    if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x V.pretty r;
-    r
 end
 
 module MayVars =
