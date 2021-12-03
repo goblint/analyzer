@@ -508,11 +508,13 @@ struct
   struct
     include VarinfoV (* [g]' *)
     let name () = "unprotected"
+    let show x = show x ^ ":unprotected" (* distinguishable variant names for html *)
   end
   module VProt =
   struct
     include VarinfoV (* [g] *)
     let name () = "protected"
+    let show x = show x ^ ":protected" (* distinguishable variant names for html *)
   end
   module V =
   struct
