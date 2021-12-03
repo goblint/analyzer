@@ -195,11 +195,11 @@ struct
 
   module D = Lattice.Unit
   module G = CPA
-  module V = VarinfoV
 
   let startstate () = ()
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
+  let mutex_inits () = V.mutex (mutex_inits ())
 
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in
@@ -644,7 +644,6 @@ struct
     let create_weak weak = (weak, GSync.bot ())
     let create_sync sync = (GWeak.bot (), sync)
   end
-  module V = VarinfoV
 end
 
 module LockCenteredGBase =

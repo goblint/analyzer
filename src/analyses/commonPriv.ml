@@ -68,38 +68,44 @@ end
 
 module MutexGlobalsBase =
 struct
+  module VMutex =
+  struct
+    include VarinfoV
+    let name () = "mutex"
+    let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
+  end
+  module VGlobal =
+  struct
+    include VarinfoV
+    let name () = "global"
+    let show x = show x ^ ":global" (* distinguishable variant names for html *)
+  end
+  module V =
+  struct
+    include Printable.Either (VMutex) (VGlobal)
+    let mutex x = `Left x
+    let global x = `Right x
+  end
+
+  (* TODO: rename *)
   let mutex_addr_to_varinfo = function
-    | LockDomain.Addr.Addr (v, `NoOffset) -> v
+    | LockDomain.Addr.Addr (v, `NoOffset) -> V.mutex v
     | LockDomain.Addr.Addr (v, offs) ->
       M.warn "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs;
-      v
+      V.mutex v
     | _ -> failwith "MutexGlobalsBase.mutex_addr_to_varinfo"
-end
 
-module ImplicitMutexGlobals =
-struct
-  include MutexGlobalsBase
-  let mutex_global x = x
-end
-
-module ExplicitMutexGlobals =
-struct
-  include MutexGlobalsBase
-  let mutex_global: varinfo -> varinfo =
-    let module Variables = struct
-        include Basetype.Variables
-        let name_varinfo x = "MUTEX_GLOBAL_" ^ x.vname
-      end
-    in
-    (* TODO: Use marshal/unmarshal of VarinfoMap *)
-    let module VarinfoMap = RichVarinfo.Make (Variables) in
-    VarinfoMap.to_varinfo
+  let mutex_global = V.global
 
   let mutex_global x =
     let r = mutex_global x in
-    if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x d_varinfo r;
+    if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x V.pretty r;
     r
 end
+
+(* TODO: inline *)
+module ImplicitMutexGlobals = MutexGlobalsBase
+module ExplicitMutexGlobals = MutexGlobalsBase
 
 module MayVars =
 struct
