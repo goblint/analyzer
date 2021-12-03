@@ -237,6 +237,7 @@ let _ = ()
       ; reg Experimental "exp.structs.key.prefer-ptrs" "true"     "Whether pointers should be preferred for key."
       ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
       ; reg Experimental "exp.compdb.original-path" "" "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts."
+      ; reg Experimental "exp.cpp-path" "" "Path to C preprocessor (cpp) to use. If empty, then automatically searched."
 
 (* {4 category [Debugging]} *)
 let _ = ()

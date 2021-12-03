@@ -84,19 +84,6 @@
   (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet profile = \"%{profile}\"")))
 
 (rule
-  (target configCpp.ml)
-  (mode (promote (until-clean) (only configCpp.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (enabled_if (<> %{system} "macosx"))
-  (action (write-file %{target} "(* Automatically regenerated, changes do not persist! *)\nlet cpp = \"cpp\"")))
-
-(rule
-  (target configCpp.ml)
-  (mode (promote (until-clean) (only configCpp.ml))) ; replace existing file in source tree, even if releasing (only overrides)
-  (deps (universe))
-  (enabled_if (= %{system} "macosx")) ; if we are on OS X and cpp is the Apple LLVM version, we should look for some Homebrew cpp-8 (or other version)
-  (action (pipe-stdout (with-accepted-exit-codes 0 (bash "compgen -c cpp- | head -n1")) (with-stdout-to %{target} (bash "xargs printf '(* Automatically regenerated, changes do not persist! *)\nlet cpp = \"%s\"'")))))
-
-(rule
   (alias runtest)
   (deps ../goblint ../scripts/update_suite.rb ../Makefile ../make.sh (source_tree ../tests/regression) (source_tree ../includes) (source_tree ../linux-headers))
   (action (chdir .. (run ./make.sh test)))
