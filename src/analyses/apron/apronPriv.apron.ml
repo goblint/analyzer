@@ -102,10 +102,9 @@ struct
 
   module D = Lattice.Prod (P) (W)
   module G = AD
-  module V = VarinfoV
+  module V = Printable.UnitConf (struct let name = "global" end)
 
   type apron_components_t = ApronComponents (AD) (D).t
-  let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
   module VM =
   struct
@@ -195,7 +194,7 @@ struct
       )
     in
     let apr_local' = restrict_local (is_unprotected ask) apr_local' (W.empty ()) in
-    let apr_local' = AD.meet apr_local' (getg (global_varinfo ())) in
+    let apr_local' = AD.meet apr_local' (getg ()) in
     apr_local'
 
   let write_global ?(invariant=false) ask getg sideg (st: apron_components_t) g x =
@@ -210,7 +209,7 @@ struct
     let apr_side = AD.assign_var apr_side g_unprot_var g_local_var in
     let apr' = apr_side in
     let apr_side = restrict_global apr_side in
-    sideg (global_varinfo ()) apr_side;
+    sideg () apr_side;
     let st' =
       (* if is_unprotected ask g then
          st (* add, assign, remove gives original local state *)
@@ -225,7 +224,7 @@ struct
         {apr = restrict_local (is_unprotected ask) apr' (W.empty ()); priv = (p', w')}
       )
     in
-    let apr_local' = AD.meet st'.apr (getg (global_varinfo ())) in
+    let apr_local' = AD.meet st'.apr (getg ()) in
     {st' with apr = apr_local'}
 
   let lock ask getg (st: apron_components_t) m = st
@@ -263,9 +262,9 @@ struct
     in
     let apr' = apr_side in
     let apr_side = restrict_global apr_side in
-    sideg (global_varinfo ()) apr_side;
+    sideg () apr_side;
     let apr_local = restrict_local (fun g -> is_unprotected_without ask g m) apr' w_remove in
-    let apr_local' = AD.meet apr_local (getg (global_varinfo ())) in
+    let apr_local' = AD.meet apr_local (getg ()) in
     {apr = apr_local'; priv = (p', w')}
 
 
@@ -307,13 +306,13 @@ struct
     let apr_side = AD.assign_var_parallel' apr_side g_unprot_vars g_vars in
     let apr_side = AD.assign_var_parallel' apr_side g_prot_vars g_vars in
     let apr_side = restrict_global apr_side in
-    sideg (global_varinfo ()) apr_side;
+    sideg () apr_side;
     let apr_local = AD.remove_vars apr g_vars in
-    let apr_local' = AD.meet apr_local (getg (global_varinfo ())) in
+    let apr_local' = AD.meet apr_local (getg ()) in
     {apr = apr_local'; priv = startstate ()}
 
   let threadenter ask getg (st: apron_components_t): apron_components_t =
-    {apr = getg (global_varinfo ()); priv = startstate ()}
+    {apr = getg (); priv = startstate ()}
 
   let finalize () = ()
 end
