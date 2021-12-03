@@ -21,13 +21,13 @@ rule() {
     ;; nat*)
       eval $(opam config env)
       dune build $TARGET.exe &&
+      rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
-      chmod +w goblint
     ;; release)
       eval $(opam config env)
       dune build --profile release $TARGET.exe &&
+      rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
-      chmod +w goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
     ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
       dune build $TARGET.bc.js &&
@@ -39,23 +39,23 @@ rule() {
     ;; domaintest)
       eval $(opam config env)
       dune build src/maindomaintest.exe &&
+      rm -f goblint.domaintest &&
       cp _build/default/src/maindomaintest.exe goblint.domaintest
-      chmod +w goblint.domaintest
     ;; privPrecCompare)
       eval $(opam config env)
       dune build src/privPrecCompare.exe &&
+      rm -f privPrecCompare &&
       cp _build/default/src/privPrecCompare.exe privPrecCompare
-      chmod +w privPrecCompare
     ;; apronPrecCompare)
       eval $(opam config env)
       dune build src/apronPrecCompare.exe &&
+      rm -f apronPrecCompare &&
       cp _build/default/src/apronPrecCompare.exe apronPrecCompare
-      chmod +w apronPrecCompare
     ;; byte)
       eval $(opam config env)
       dune build goblint.byte &&
+      rm -f goblint.byte &&
       cp _build/default/goblint.byte goblint.byte
-      chmod +w goblint.byte
     # ;; tag*)
     #   otags -vi `find src/ -iregex [^.]*\.mli?`
 
