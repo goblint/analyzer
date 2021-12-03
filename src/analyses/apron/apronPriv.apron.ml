@@ -749,7 +749,7 @@ struct
   module L = MapDomain.MapBot_LiftTop (LLock) (LAD)
 
   module LMust = struct
-  include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
+    include SetDomain.Reverse (SetDomain.ToppedSet (LLock) (struct let topname = "All locks" end))
     let name () = "LMust"
   end
 
