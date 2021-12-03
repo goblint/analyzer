@@ -198,12 +198,9 @@ struct
 
   let startstate () = ()
 
-  let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
-  let mutex_inits () = V.mutex (LockDomain.Addr.from_var (mutex_inits ()))
-
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (V.mutex m) in
-    let get_mutex_inits = getg (mutex_inits ()) in
+    let get_mutex_inits = getg V.mutex_inits in
     let is_in_Gm x _ = is_protected_by ask m x in
     let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
     if M.tracing then M.tracel "priv" "get_m_with_mutex_inits %a:\n  get_m: %a\n  get_mutex_inits: %a\n  get_mutex_inits': %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty get_mutex_inits CPA.pretty get_mutex_inits';
@@ -212,7 +209,7 @@ struct
   (** [get_m_with_mutex_inits] optimized for implementation-specialized [read_global]. *)
   let get_mutex_global_x_with_mutex_inits getg x =
     let get_mutex_global_x = getg (V.global x) in
-    let get_mutex_inits = getg (mutex_inits ()) in
+    let get_mutex_inits = getg V.mutex_inits in
     match CPA.find_opt x get_mutex_global_x, CPA.find_opt x get_mutex_inits with
       | Some v1, Some v2 -> Some (VD.join v1 v2)
       | Some v, None
@@ -221,7 +218,7 @@ struct
 
   let escape ask getg sideg (st: BaseComponents (D).t) escaped =
     let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
-    sideg (mutex_inits ()) escaped_cpa;
+    sideg V.mutex_inits escaped_cpa;
 
     let cpa' = CPA.fold (fun x v acc ->
         if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
@@ -237,7 +234,7 @@ struct
 
   let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
     let global_cpa = CPA.filter (fun x _ -> is_global ask x) st.cpa in
-    sideg (mutex_inits ()) global_cpa;
+    sideg V.mutex_inits global_cpa;
 
     let cpa' = CPA.fold (fun x v acc ->
         if is_global ask x (* && is_unprotected ask x *) then (

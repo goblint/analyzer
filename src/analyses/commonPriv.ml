@@ -74,6 +74,7 @@ struct
     let name () = "mutex"
     let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
   end
+  module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
   module VGlobal =
   struct
     include VarinfoV
@@ -82,8 +83,10 @@ struct
   end
   module V =
   struct
-    include Printable.Either (VMutex) (VGlobal)
-    let mutex x: t = `Left x
+    (* TODO: Either3? *)
+    include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    let mutex x: t = `Left (`Left x)
+    let mutex_inits: t = `Left (`Right ())
     let global x: t = `Right x
   end
 end

@@ -358,18 +358,15 @@ struct
 
   let should_join _ _ = true
 
-  let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
-  let mutex_inits () = V.mutex (LockDomain.Addr.from_var (mutex_inits ()))
-
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (V.mutex m) in
-    let get_mutex_inits = getg (mutex_inits ()) in
+    let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
     AD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
     let get_mutex_global_g = getg (V.global g) in
-    let get_mutex_inits = getg (mutex_inits ()) in
+    let get_mutex_inits = getg V.mutex_inits in
     let g_var = AV.global g in
     let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
     AD.join get_mutex_global_g get_mutex_inits'
@@ -452,7 +449,7 @@ struct
           ) (AD.vars apr)
         in
         let apr_side = AD.keep_vars apr g_vars in
-        sideg (mutex_inits ()) apr_side;
+        sideg V.mutex_inits apr_side;
         let apr_local = AD.remove_filter apr (fun var ->
             match AV.find_metadata var with
             | Some (Global g) -> is_unprotected ask g
@@ -475,7 +472,7 @@ struct
       ) (AD.vars apr)
     in
     let apr_side = AD.keep_vars apr g_vars in
-    sideg (mutex_inits ()) apr_side;
+    sideg V.mutex_inits apr_side;
     let apr_local = AD.remove_vars apr g_vars in (* TODO: side effect initial values to mutex_globals? *)
     {st with apr = apr_local}
 
@@ -875,7 +872,7 @@ struct
   (* let mutex_inits () = `Left (mutex_inits ()) *)
 
   let get_m_with_mutex_inits inits ask getg_mutex m =
-    let vi = MutexGlobals.V.mutex m in
+    let vi = `Left m in
     let get_m = get_relevant_writes ask m (g_mutex @@ getg_mutex (`Left vi)) in
     if M.tracing then M.traceli "apronpriv" "get_m_with_mutex_inits %a\n  get=%a\n" LockDomain.Addr.pretty m LAD.pretty get_m;
     let r =
@@ -981,7 +978,7 @@ struct
       let apr_side = Cluster.unlock w apr_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid apr_side in
-      sideg (`Left (MutexGlobals.V.mutex m)) (`Lifted1 sidev);
+      sideg (`Left (`Left m)) (`Lifted1 sidev);
       let lm = LLock.mutex m in
       let l' = L.add lm apr_side l in
       {apr = apr_local; priv = (w',LMust.add lm lmust,l')}
