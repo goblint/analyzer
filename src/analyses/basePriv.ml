@@ -199,7 +199,7 @@ struct
   let startstate () = ()
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
-  let mutex_inits () = V.mutex (mutex_inits ())
+  let mutex_inits () = V.mutex (LockDomain.Addr.from_var (mutex_inits ()))
 
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in

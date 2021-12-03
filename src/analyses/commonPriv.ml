@@ -70,7 +70,7 @@ module MutexGlobalsBase =
 struct
   module VMutex =
   struct
-    include VarinfoV
+    include LockDomain.Addr
     let name () = "mutex"
     let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
   end
@@ -83,17 +83,12 @@ struct
   module V =
   struct
     include Printable.Either (VMutex) (VGlobal)
-    let mutex x = `Left x
-    let global x = `Right x
+    let mutex x: t = `Left x
+    let global x: t = `Right x
   end
 
   (* TODO: rename *)
-  let mutex_addr_to_varinfo = function
-    | LockDomain.Addr.Addr (v, `NoOffset) -> V.mutex v
-    | LockDomain.Addr.Addr (v, offs) ->
-      M.warn "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs;
-      V.mutex v
-    | _ -> failwith "MutexGlobalsBase.mutex_addr_to_varinfo"
+  let mutex_addr_to_varinfo = V.mutex
 
   let mutex_global = V.global
 

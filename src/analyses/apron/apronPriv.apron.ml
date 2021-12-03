@@ -361,7 +361,7 @@ struct
   let should_join _ _ = true
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
-  let mutex_inits () = V.mutex (mutex_inits ())
+  let mutex_inits () = V.mutex (LockDomain.Addr.from_var (mutex_inits ()))
 
   let get_m_with_mutex_inits ask getg m =
     let get_m = getg (mutex_addr_to_varinfo m) in
@@ -769,7 +769,7 @@ struct
 
   module VMutex =
   struct
-    include VarinfoV
+    include LockDomain.Addr
     let name () = "mutex"
     let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
   end
@@ -873,8 +873,8 @@ struct
   let should_join _ _ = true
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
-  let mutex_inits' () = `Left (mutex_inits ())
-  let mutex_inits () = V.mutex (mutex_inits ())
+  let mutex_inits' () = `Left (LockDomain.Addr.from_var (mutex_inits ()))
+  let mutex_inits () = V.mutex (LockDomain.Addr.from_var (mutex_inits ()))
   (* let mutex_inits () = `Left (mutex_inits ()) *)
 
   let get_m_with_mutex_inits inits ask getg_mutex m =
@@ -986,7 +986,7 @@ struct
       let apr_side = Cluster.unlock w apr_side in
       let tid = ThreadId.get_current ask in
       let sidev = GMutex.singleton tid apr_side in
-      sideg (mutex_addr_to_varinfo m) sidev;
+      sideg (`Left (mutex_addr_to_varinfo m)) (`Lifted1 sidev);
       let lm = LLock.mutex m in
       let l' = L.add lm apr_side l in
       {apr = apr_local; priv = (w',LMust.add lm lmust,l')}
@@ -1051,7 +1051,7 @@ struct
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid apr_side in
     let vi = mutex_inits' () in
-    sideg (vi) sidev;
+    sideg (`Left vi) (`Lifted1 sidev);
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
@@ -1077,11 +1077,11 @@ struct
   (* let read_global = patch_get_mutex read_global *)
   (* let write_global ?(invariant=false) (ask:Q.ask) getg sideg = write_global ~invariant ask (getg_mutex getg) (sideg_mutex sideg) *)
   (* let lock = patch_get_mutex lock *)
-  let unlock = patch_getside_mutex unlock
+  (* let unlock = patch_getside_mutex unlock *)
   let thread_join = patch_get_tid thread_join
   let thread_return = patch_getside_tid thread_return
   let sync = patch_getside_mutex sync
-  let enter_multithreaded = patch_getside_mutex enter_multithreaded
+  (* let enter_multithreaded = patch_getside_mutex enter_multithreaded *)
   let threadenter = patch_get_mutex threadenter
 end
 
