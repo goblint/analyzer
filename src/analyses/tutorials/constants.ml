@@ -34,8 +34,8 @@ struct
   let rec eval (state : D.t) (e: exp) =
     match e with
     | Const c -> (match c with
-      | CInt64 (i,_,_) -> I.of_int i
-      | _ -> I.top ()
+        | CInt (i,_,_) -> I.of_int (Cilint.int64_of_cilint i) (* TODO: why?*)
+        | _ -> I.top ()
       )
     | Lval lv -> (match get_local lv with
       | Some v -> D.find v state

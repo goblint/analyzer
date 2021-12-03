@@ -608,14 +608,14 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-    | Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_const_offset o)
+    | Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_const_offset o)
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
@@ -850,8 +850,8 @@ struct
         if not (D.is_empty regular) then (
           let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
           let ev = match arglist with
-            | [CastE (_, Const (CInt64 (c,_,_))) | Const (CInt64 (c,_,_))] ->
-              fst @@ Hashtbl.find events (Int64.to_string c)
+            | [CastE (_, Const (CInt (c,_,_))) | Const (CInt (c,_,_))] ->
+              fst @@ Hashtbl.find events (Cilint.string_of_cilint c)
             | _ -> print_endline "No event found for argument of WaitEvent"; "_not_found_"
           in
           print_endline (task ^ " waited for event "^ ev ^ " while holding resource(s) " ^ res)

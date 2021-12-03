@@ -36,11 +36,11 @@ struct
 
   let evaluate_sums oct exp =
     let match_exp = function
-      | BinOp(Mult, Lval(Var(var), _), Const(CInt64 (c, _, _)), _)
-      | BinOp(Mult, Const(CInt64 (c, _, _)), Lval(Var(var), NoOffset), _) ->
+      | BinOp(Mult, Lval(Var(var), _), Const(CInt (c, _, _)), _)
+      | BinOp(Mult, Const(CInt (c, _, _)), Lval(Var(var), NoOffset), _) ->
         Some (c, var)
       | Lval(Var(var), NoOffset) ->
-        Some (Int64.one, var)
+        Some (Cilint.one_cilint, var)
       | _ -> None
     in
 
@@ -48,8 +48,7 @@ struct
     | BinOp(op, expl, expr, _) when op = PlusA || op = MinusA ->
       begin match match_exp expl, match_exp expr with
         | Some(cl, varl), Some(cr, varr) when (BV.compare varl varr <> 0) -> (* this is needed as projection with varl=varr throws an exception (?) *)
-          let cr = if op = PlusA then cr else Int64.neg cr in
-          let cl, cr = Tuple2.mapn BI.of_int64 (cl, cr) in
+          let cr = if op = PlusA then cr else Cilint.neg_cilint cr in
           let cl, cr = INV.of_int oct_ik cl, INV.of_int oct_ik cr in
           let varSum = D.projection varl (Some (true, varr)) oct in
           let varDif1 = D.projection varl (Some (false, varr)) oct in
@@ -74,7 +73,7 @@ struct
     | None ->
       begin
         match exp with
-        | Const (CInt64 (i, _, _)) -> INV.of_int oct_ik (BI.of_int64 i)
+        | Const (CInt (i, _, _)) -> INV.of_int oct_ik i
         | Lval (Var var, NoOffset) -> D.projection var None oct
         | UnOp (Neg, exp, _) ->
           INV.neg (evaluate_exp oct exp)
@@ -116,19 +115,19 @@ struct
               D.set_constraint (var1, Some(ConstraintType.minus, v), CT.UpperAndLower, i) oct, true (* TODO: Is this ok, we need to be careful when to do closures *)
          in
          (match rval with
-          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _)
+          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt (integer, _, _)), _)
             when (op = PlusA || op = MinusA) && is_local_and_not_pointed_to var ->
             begin
-              let integer = BI.of_int64 @@
+              let integer =
                 if op = MinusA then
-                  Int64.neg integer
+                  Cilint.neg_cilint integer
                 else
                   integer
               in
               assignVarPlusInt var integer
             end
-          | BinOp(PlusA, Const(CInt64 (integer, _, _)), Lval(Var(var), NoOffset), _) when is_local_and_not_pointed_to var ->
-            assignVarPlusInt var (BI.of_int64 integer)
+          | BinOp(PlusA, Const(CInt (integer, _, _)), Lval(Var(var), NoOffset), _) when is_local_and_not_pointed_to var ->
+            assignVarPlusInt var integer
           | Lval(Var var, NoOffset) when is_local_and_not_pointed_to var ->
             assignVarPlusInt var BI.zero
           | exp ->
@@ -304,18 +303,18 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let rec getSumAndDiffForVars exp1 exp2 =
-      let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int oct_ik (BI.of_int64 c))) x in
+      let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int oct_ik c)) x in
       match exp1, exp2 with
-      | BinOp(PlusA, Lval l1, Const(CInt64(c,_,_)), _), Lval l2 ->
+      | BinOp(PlusA, Lval l1, Const(CInt(c,_,_)), _), Lval l2 ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
         addConstant sum c, addConstant diff c                         (* a+c <= (x+c)-y <= b+c (add c to all sides)    *)
-      | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(c,_,_)), _) ->
+      | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(c,_,_)), _) ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
-        addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* x-(y+c)= x-y-c --> a-c <= x-(y+c) <= b-c      *)
-      | BinOp(MinusA, Lval l1, Const(CInt64(c,_,_)), _), Lval l2 ->
+        addConstant sum (Cilint.neg_cilint c), addConstant diff (Cilint.neg_cilint c) (* x-(y+c)= x-y-c --> a-c <= x-(y+c) <= b-c      *)
+      | BinOp(MinusA, Lval l1, Const(CInt(c,_,_)), _), Lval l2 ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
-        addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* (x-c)-y = x-y-c --> a-c <= (x-c)-y <= b-c     *)
-      | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(c,_,_)), _) ->
+        addConstant sum (Cilint.neg_cilint c), addConstant diff (Cilint.neg_cilint c) (* (x-c)-y = x-y-c --> a-c <= (x-c)-y <= b-c     *)
+      | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(c,_,_)), _) ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
         addConstant sum c, addConstant diff c                         (* x-(y-c) = x-y+c --> a+c <= x-(y-c) <= b+c     *)
       | Lval(Var v1, NoOffset), Lval(Var v2, NoOffset) ->
@@ -323,7 +322,7 @@ struct
         if not flag then
           sum, diff
         else
-          sum, BatOption.map (OctagonDomain.INV.mul (INV.of_int oct_ik (BI.of_int64 Int64.minus_one))) diff
+          sum, BatOption.map (OctagonDomain.INV.mul (INV.of_int oct_ik Cilint.mone_cilint)) diff
       | _ -> None, None
     in
     match q with

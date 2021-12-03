@@ -60,7 +60,7 @@ struct
 
   (* This should now evaluate expressions. *)
   let eval (d: D.t) (exp: exp): SL.t = match exp with
-    | Const (CInt64 (i, _, _)) -> SL.top () (* TODO: Fix me! *)
+    | Const (CInt (i, _, _)) -> SL.top () (* TODO: Fix me! *)
     | Lval (Var x, NoOffset) -> D.find x d
     | _ -> SL.top ()
 

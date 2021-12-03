@@ -490,8 +490,8 @@ struct
         match IdxDom.to_int i with
         | Some x ->
           (* TODO: Handle values outside of int64 *)
-          let x = BI.to_int64 x in
-          Const (CInt64 (x,IInt, None))
+          (* TODO: Type ?! *)
+          Const (CInt (x,IInt, None))
         | _ -> mkCast (Const (CStr "unknown")) intType
 
       in
@@ -667,10 +667,10 @@ struct
       (* query functions were no help ... now try with values*)
       match (if get_bool "exp.lower-constants" then constFold true exp else exp) with
       (* Integer literals *)
-      (* seems like constFold already converts CChr to CInt64 *)
+      (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
-      | Const (CInt64 (num,ikind,str)) ->
-        (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind ikind x | None -> ());
+      | Const (CInt (num,ikind,str)) ->
+        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
       (* String literals *)
       | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
@@ -700,8 +700,8 @@ struct
           let cast_ok = function
             | Addr a ->
               begin
-                match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
-                | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
+                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf (get_type_addr a)) with
+                | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
                 | _ ->
                   if contains_vla t || contains_vla (get_type_addr a) then
                     begin
@@ -1665,7 +1665,7 @@ struct
     let lval_t = Cilfacade.typeOf rval in
     let char_array_hack () =
       let rec split_offset = function
-        | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
+        | Index(Const(CInt(i, _, _)), NoOffset) -> (* ...[i] *)
           Index(zero, NoOffset), Some i (* all i point to StartOf(string) *)
         | NoOffset -> NoOffset, None
         | Index(exp, offs) ->
@@ -1682,7 +1682,7 @@ struct
       in
       match last_index lval, stripCasts rval with
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
-        let i = i64_to_int i in
+        let i = Cilint.int_of_cilint i in
         (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
         let s = try Hashtbl.find char_array lv with Not_found -> Bytes.empty in (* current string for lv or empty string *)
         if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)

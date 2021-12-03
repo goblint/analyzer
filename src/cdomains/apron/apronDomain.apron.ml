@@ -162,10 +162,10 @@ struct
             raise Unsupported_CilExp
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
-      | Const (CInt64 (i, _, s)) ->
+      | Const (CInt (i, _, s)) ->
         let str = match s with
           | Some s -> s
-          | None -> Int64.to_string i
+          | None -> Cilint.string_of_cilint i
         in
         Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
       | exp ->

@@ -7,15 +7,11 @@ class extractConstantsVisitor(widening_thresholds) = object
 
   method! vexpr e =
     match e with
-    | Const (CInt64(i,ik,str)) ->
-      let bi = match str with
-        | Some t -> Z.of_string t
-        | None -> Z.of_int64 i
-      in
-      widening_thresholds := Thresholds.add bi !widening_thresholds;
+    | Const (CInt(i,ik,_)) ->
+      widening_thresholds := Thresholds.add i !widening_thresholds;
       (* Adding double value of all constants so that we can establish for single variables that they are <= const*)
       (* This is only needed for Apron, one might want to remove it later *)
-      widening_thresholds := Thresholds.add (Z.mul (Z.of_int 2) bi) !widening_thresholds;
+      widening_thresholds := Thresholds.add (Z.mul (Z.of_int 2) i) !widening_thresholds;
       DoChildren
     | _ -> DoChildren
 end
