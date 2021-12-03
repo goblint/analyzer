@@ -349,7 +349,6 @@ struct
   module G = AD
 
   type apron_components_t = ApronDomain.ApronComponents (AD) (D).t
-  let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
   module AV = ApronDomain.V
 
@@ -864,7 +863,6 @@ struct
     GMutex.fold (fun _ v acc -> LAD.join acc v) v (LAD.bot ())
 
   type apron_components_t =  ApronDomain.ApronComponents (AD) (D).t
-  let global_varinfo = RichVarinfo.single ~name:"APRON_GLOBAL"
 
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
