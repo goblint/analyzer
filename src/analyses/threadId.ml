@@ -110,11 +110,11 @@ struct
     let (current, td) = ctx.local in
     (current, Thread.threadspawn td ctx.prev_node f)
 
-  type marshal = Thread.marshal * ((Thread.t,unit) Hashtbl.t)
+  type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
   let init (m:marshal option): unit =
     match m with
-    | Some (x,y) -> Thread.init (Some x); tids := y
-    | None ->  Thread.init None
+    | Some y -> tids := y
+    | None -> ()
 
 
   let print_tid_info () =
@@ -132,7 +132,7 @@ struct
 
   let finalize () =
     if GobConfig.get_bool "dbg.print_tids" then print_tid_info ();
-    Thread.finalize (),!tids
+    !tids
 end
 
 let _ =
