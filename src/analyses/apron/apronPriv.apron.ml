@@ -344,7 +344,7 @@ end
 module PerMutexMeetPriv : S = functor (AD: ApronDomain.S2) ->
 struct
   open CommonPerMutex(AD)
-  include ExplicitMutexGlobals
+  include MutexGlobals
 
   module D = Lattice.Unit
   module G = AD
@@ -736,7 +736,7 @@ end
 module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.S2) ->
 struct
   open CommonPerMutex(AD)
-  include ExplicitMutexGlobals
+  include MutexGlobals
   include ConfCheck.RequireThreadFlagPathSensInit
 
   module NC = Cluster(AD)

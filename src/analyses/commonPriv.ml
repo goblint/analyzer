@@ -66,7 +66,7 @@ struct
     ask Q.MustBeAtomic
 end
 
-module MutexGlobalsBase =
+module MutexGlobals =
 struct
   module VMutex =
   struct
@@ -97,10 +97,6 @@ struct
     if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x V.pretty r;
     r
 end
-
-(* TODO: inline *)
-module ImplicitMutexGlobals = MutexGlobalsBase
-module ExplicitMutexGlobals = MutexGlobalsBase
 
 module MayVars =
 struct

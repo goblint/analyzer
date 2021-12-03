@@ -190,7 +190,7 @@ module PerMutexPrivBase =
 struct
   include NoFinalize
   include ConfCheck.RequireMutexActivatedInit
-  include ExplicitMutexGlobals
+  include MutexGlobals
   include Protection
 
   module D = Lattice.Unit
@@ -657,7 +657,7 @@ module MinePrivBase =
 struct
   include NoFinalize
   include ConfCheck.RequireMutexPathSensInit
-  include ImplicitMutexGlobals (* explicit not needed here because G is Prod anyway? *)
+  include MutexGlobals (* explicit not needed here because G is Prod anyway? *)
 end
 
 module MineNaivePrivBase =
