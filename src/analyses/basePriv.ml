@@ -297,16 +297,7 @@ struct
             sideg (V.global x) (CPA.singleton x v)
         ) st.cpa;
       st
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x st.cpa in
-          sideg (V.global x) (CPA.singleton x v);
-          {st with cpa = CPA.remove x st.cpa}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Init
     | `Thread ->
@@ -387,16 +378,7 @@ struct
         ) st.cpa st.cpa
       in
       {st with cpa = cpa'}
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x st.cpa in
-          sideg (V.global x) (CPA.singleton x v);
-          {st with cpa = CPA.remove x st.cpa}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Init
     | `Thread ->
@@ -574,16 +556,7 @@ struct
           ) st.cpa st
       in
       st'
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x st.cpa in
-          sideg (V.unprotected x) v;
-          {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Init
     | `Thread ->
@@ -740,16 +713,7 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x' = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x' st.cpa in
-          sideg (V.global x') (G.create_weak (GWeak.singleton (Lockset.empty ()) (ThreadMap.singleton x v)));
-          {st with cpa = CPA.remove x' st.cpa}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
@@ -803,16 +767,7 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x st.cpa in
-          sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
-          {st with cpa = CPA.remove x st.cpa}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
@@ -878,16 +833,7 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x st.cpa in
-          sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
-          {st with cpa = CPA.remove x st.cpa}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
@@ -1032,16 +978,7 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x st.cpa in
-          sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) v));
-          {st with cpa = CPA.remove x st.cpa}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
@@ -1188,16 +1125,7 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x st.cpa in
-          sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton (Lockset.empty ()) v)));
-          {st with cpa = CPA.remove x st.cpa}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
@@ -1361,16 +1289,7 @@ struct
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
-    | `Return -> (* required for thread return *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x when CPA.mem (ThreadIdDomain.Thread.to_varinfo x) st.cpa ->
-          let x = ThreadIdDomain.Thread.to_varinfo x in
-          let v = CPA.find x st.cpa in
-          sideg (V.global x) (G.create_weak (GWeak.singleton (Lockset.empty ()) (GWeakW.singleton (Lockset.empty ()) v)));
-          {st with cpa = CPA.remove x st.cpa}
-        | _ ->
-          st
-      end
+    | `Return
     | `Normal
     | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
