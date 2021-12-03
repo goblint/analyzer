@@ -1845,15 +1845,14 @@ struct
           | ret -> ret
         in
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-        let nst: store =
-          match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
           | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
             (* Evaluate exp and cast the resulting value to the void-pointer-type.
                Casting to the right type here avoids precision loss on joins. *)
             let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
-            { nst with cpa = CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv nst.cpa}
-          | _ -> nst
-        in
+            ctx.sideg (V.thread tid) (G.create_thread rv);
+          | _ -> ()
+        end;
         set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
         (* lval_raw:None, and rval_raw:None is correct here *)
 
@@ -2179,9 +2178,10 @@ struct
           begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
             | `Lifted tid ->
               let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-              let nst = {st with cpa=CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv st.cpa} in
+              ctx.sideg (V.thread tid) (G.create_thread rv);
               (* TODO: emit thread return event so other analyses are aware? *)
-              publish_all {ctx with local=nst} `Return (* like normal return *)
+              (* TODO: publish still needed? *)
+              publish_all ctx `Return (* like normal return *)
             | _ -> ()
           end;
           raise Deadcode
@@ -2208,9 +2208,9 @@ struct
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
             | `Thread a ->
-              let a = List.fold AD.join (AD.bot ()) (List.map (fun x -> AD.from_var (ThreadIdDomain.Thread.to_varinfo x)) (ValueDomain.Threads.elements a)) in
+              let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
-              set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) (get (Analyses.ask_of_ctx ctx) gs st a None)
+              set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
