@@ -755,10 +755,23 @@ struct
   module GMutex = MapDomain.MapBot_LiftTop(ThreadIdDomain.ThreadLifted)(LAD)
   module GThread = Lattice.Prod (LMust) (L)
   module G = Lattice.Lift2(GMutex)(GThread)(struct let bot_name = "bot" let top_name = "top" end)
-  module V = VarinfoV
 
   module AV = ApronDomain.V
   module TID = ThreadIdDomain.Thread
+
+  module VMutex =
+  struct
+    include VarinfoV
+    let name () = "mutex"
+    let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
+  end
+  module VThread = TID
+  module V =
+  struct
+    include Printable.Either (VMutex) (VThread)
+    let mutex x = `Left x
+    let thread x = `Right x
+  end
 
   let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
@@ -1005,18 +1018,18 @@ struct
 
   (* All that follows is stupid boilerplate to give each of these functions the getg and sideg that only deals with TIDs or Mutexes *)
 
-  let sideg_mutex (sideg: varinfo -> G.t -> unit) (g:varinfo) (v:GMutex.t):unit =
-    sideg g (`Lifted1 v)
+  let sideg_mutex (sideg: V.t -> G.t -> unit) (g:varinfo) (v:GMutex.t):unit =
+    sideg (V.mutex g) (`Lifted1 v)
 
-  let sideg_tid (sideg:varinfo -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
-    sideg (TID.to_varinfo tid) (`Lifted2 v)
+  let sideg_tid (sideg:V.t -> G.t -> unit) (tid:TID.t) (v:GThread.t):unit =
+    sideg (V.thread tid) (`Lifted2 v)
 
-  let getg_mutex getg g = match getg g with
+  let getg_mutex getg g = match getg (V.mutex g) with
     | `Lifted1 v -> v
     | `Bot -> GMutex.bot ()
     | _ -> failwith "wrong either argument"
 
-  let getg_tid getg tid = match getg (TID.to_varinfo tid) with
+  let getg_tid getg tid = match getg (V.thread tid) with
     | `Lifted2 v -> v
     | `Bot -> GThread.bot ()
     | _ -> failwith "wrong either argument"
