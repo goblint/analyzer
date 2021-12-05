@@ -147,6 +147,7 @@ struct
                      | Float x -> int_of_float x
                      | Mpqf x -> int_of_float(Mpqf.to_float x)
                      | Mpfrf x -> int_of_float(Mpfr.to_float x))
+
 end
 
 module EnvOps =
@@ -223,12 +224,7 @@ struct
         in
         Environment.make vs' [||]
 
-  let assert_inv a b c = a
-  let eval_int a e =
-    let module ID = Queries.ID in
-      ID.top ()
 end
-
 
 
 

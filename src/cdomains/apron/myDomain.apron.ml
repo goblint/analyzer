@@ -53,15 +53,14 @@ open Apron
   let add_vecs t1 t2 =
     List.map2 (function x -> function y -> x +: y) t1 t2
 
-  let find_largest_diff v1 v2 =
-    let rec l_d v1 v2 entry diff =
+  (*Searches for the last entry where v1 and v2 are different. Returns diff + position*)
+  let find_last_diff v1 v2 =
+    let rec l_d v1 v2 entry diff i =
     match v1, v2 with
-    | x1 :: xs1, x2 :: xs2 -> let diff_i = x1 -: x2 in
-                                 let n_e, n_d = l_d xs1 xs2 (entry + 1) diff in
-                                   if Mpqf.abs (diff_i) > Mpqf.abs (n_d) then (entry, diff_i)
-                                   else (n_e, n_d)
+    | x1 :: xs1, x2 :: xs2 -> if x1 <> x2 then l_d xs1 xs2 i (x1 -: x2) (i + 1)
+                  else l_d xs1 xs2 entry diff (i + 1)
     | _, _ -> (entry, diff)
-    in l_d v1 v2 0 (to_rt 0)
+    in l_d v1 v2 0 (to_rt 0) 0
 
   let is_only_zero v =
     match List.find_opt (function x -> x <> (to_rt 0)) v with
@@ -102,15 +101,19 @@ open Apron
   let get_val n (v: t) =
    List.nth v n
 
+  (*Extended List.opt with index*)
+  let find_opt_with_index f v =
+    let rec find_opt_i v i =
+      match v with
+      | [] -> None
+      | x :: xs -> if f x then Some ((i, x)) else find_opt_i xs (i + 1)
+    in find_opt_i v 0
+
+
   let get_colnum_not_zero t =
-    let rec get_colnum last curr_col t =
-      match t with
-      | [] -> last
-      | x :: xs -> if x <> (to_rt 0) then get_colnum curr_col (curr_col - 1) xs
-                    else get_colnum last (curr_col - 1) xs
-                  in
-                  let res = get_colnum (-1) (List.length t) (List.rev t)
-                in if M.tracing then M.tracel "affEq" "colnum %i \n" res; res
+    let rev_list = List.rev t in
+      find_opt_with_index (function x -> x <> (to_rt 0)) rev_list
+
 end
 
 module Matrix =
@@ -190,46 +193,35 @@ struct
 
 
   let reduce_row_to_zero t row_n : t =
+    if M.tracing then M.tracel "affEq" "Starting reduction to zero row_n: %i , t: %s\n" row_n (show t);
     let red_row = List.nth t row_n
           in List.map (function x -> subtract_rows x red_row) t
 
-  (*Extended List.opt with index*)
-  let find_opt_with_index f row =
-    let rec find_opt_i row i =
-      match row with
-      | [] -> None
-      | x :: xs -> if f x then Some ((i, x)) else find_opt_i xs (i + 1)
-    in find_opt_i row 0
-
   let obtain_pivot row =
-    let non_zero = find_opt_with_index (function x -> x <> (to_rt 0)) row in
+    let non_zero = Vector.find_opt_with_index (function x -> x <> (to_rt 0)) row in
     match non_zero with
     | None -> None
-    | Some (i, p) -> Some (i, List.map (function x -> x /: p) row)
+      | Some (i, p) -> Some (i, List.map (function x -> x /: p) row)
 
   let rec remove_zero_rows t =
     List.filter (function x -> not (Vector.is_only_zero x)) t
 
    (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows*)
-  let normalize t =
-    let rec create_rref t interm_t curr_row =
-      match t with
-      | [] -> interm_t
-      | row :: xs -> let pivot_row = obtain_pivot row in
+    let normalize t =
+      let rec create_rref new_t curr_row =
+        if curr_row >= num_rows new_t then new_t else
+        let pivot_row = obtain_pivot (List.nth new_t curr_row) in
           match pivot_row with
-          | None -> create_rref xs interm_t (curr_row + 1)
-          | Some (i, p) ->
-            let col = get_col interm_t i in
+          | None -> create_rref new_t (curr_row + 1)
+          | Some (i, p) -> let col = get_col new_t i in
                             let res = List.map2i (function row_i -> function y -> function z ->
-                              if row_i <> curr_row then subtract_rows_c y p z else p)
-                              interm_t col in
-                              create_rref xs res (curr_row +1)
-    in remove_zero_rows (create_rref t t 0) (*ToDo reorder!*)
+                              if row_i <> curr_row then subtract_rows_c y p z else p) new_t col in
+                                create_rref res (curr_row + 1)
+                            in remove_zero_rows (create_rref t 0)
 
   let normalize t =
     let res = normalize t in
     if M.tracing then M.tracel "norm" "normalize %s -> %s" (show t) (show res); res
-
 
   (*Checks if the rows of t1 are also present in t2*)
   let rec is_contained_in t1 t2 =
@@ -360,7 +352,7 @@ struct
     | None, _ ->  true
     | _ , Some ([]) -> true
     | Some (x), Some (y) -> Matrix.is_contained_in y x
-    | _, _ -> false
+    | _ -> false
   let leq a b =
     let res = leq a b in
       if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show a) (show b) res ;
@@ -375,8 +367,8 @@ struct
 
   let case_three a b col_a col_b max =
     let col_a, col_b = Vector.keep_rows col_a max, Vector.keep_rows col_b max in
-    if Vector.equal col_a col_b then (a, b) else
-    let r, diff = Vector.find_largest_diff col_a col_b  in
+    if Vector.equal col_a col_b then (a, b, max) else
+    let r, diff = Vector.find_last_diff col_a col_b  in
     let a_t, b_t = Matrix.get_row a r, Matrix.get_row b r in
        let rec multiply_by_t m col_v t i =
         match m, col_v with
@@ -387,34 +379,33 @@ struct
         | _, _ -> []
        in
        let sub_col = List.map2 (function x -> function y -> x -: y) col_a col_b in
-        Matrix.remove_row (multiply_by_t a sub_col a_t max) r, Matrix.remove_row (multiply_by_t b sub_col b_t max) r
+        Matrix.remove_row (multiply_by_t a sub_col a_t max) r, Matrix.remove_row (multiply_by_t b sub_col b_t max) r, (max - 1)
 
   let rec lin_disjunc r s a b =
     if s >= Matrix.num_cols a then a
     else
       let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
       match Int.compare (Matrix.num_rows a) r, Int.compare (Matrix.num_rows b) r with
-      | 1 , 1 ->   let a_rs, b_rs = Mpqf.to_float (Vector.get_val r col_a), Mpqf.to_float (Vector.get_val r col_b) in
+      | 1 , 1 -> let a_rs, b_rs = Mpqf.to_float (Vector.get_val r col_a), Mpqf.to_float (Vector.get_val r col_b) in
                     (match  a_rs, b_rs with
                    |  1., 1. -> lin_disjunc (r + 1) (s + 1) a b
                    | 1., 0. -> lin_disjunc r (s + 1) (case_two a r col_b) b
                    | 0., 1. -> lin_disjunc r (s + 1) a (case_two b r col_a)
-                   | 0., 0. ->  let new_a, new_b = case_three a b col_a col_b r in
-                                  lin_disjunc r (s + 1) new_a new_b
+                   | 0., 0. ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
+                                  lin_disjunc new_r (s + 1) new_a new_b
                    | _, _ -> failwith "Matrix not normalized")
       | 1 , _  -> let a_rs = Vector.get_val r col_a in
                   if a_rs = (to_rt 1) then lin_disjunc r (s + 1) (case_two a r col_b) b
                   else
-                    let new_a, new_b = case_three a b col_a col_b r in
-                      lin_disjunc r (s + 1) new_a new_b
+                    let new_a, new_b, new_r = case_three a b col_a col_b r in
+                      lin_disjunc new_r (s + 1) new_a new_b
       | _ , 1  -> let b_rs = Vector.get_val r col_b in
                   if b_rs = (to_rt 1) then lin_disjunc r (s + 1) a (case_two b r col_a)
                   else
-                  let new_a, new_b = case_three a b col_a col_b r in
-                    lin_disjunc r (s + 1) new_a new_b
-      | _, _ ->   let new_a, new_b = case_three a b col_a col_b r in
-                    lin_disjunc r (s + 1) new_a new_b
-
+                  let new_a, new_b, new_r = case_three a b col_a col_b r in
+                    lin_disjunc new_r (s + 1) new_a new_b
+      | _, _ -> let new_a, new_b, new_r = case_three a b col_a col_b r in
+                    lin_disjunc new_r (s + 1) new_a new_b
 
   let join a b =
     match a.d, b.d with
@@ -427,7 +418,7 @@ struct
 
   let join a b =
     let res = join a b in
-      if M.tracing then M.tracel "ops" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+      if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
       res
 
   let meet a b =
@@ -517,11 +508,13 @@ struct
   let remove_rels_with_var x var env =
     let j0 = Environment.dim_of_var env var
       in let n = Vector.get_colnum_not_zero (Matrix.get_col x j0)
-          in if n > (-1) then Matrix.reduce_row_to_zero x n
-              else x (*Nothing to remove*)
+          in
+          match n with
+          | None -> x
+          | Some (r, _) -> Matrix.reduce_row_to_zero x r
 
   let assign_texpr t var texp =
-    let is_invertible = function v -> Vector.get_val (Environment.dim_of_var t.env var) v <> (to_rt 0)
+    let is_invertible v = Vector.get_val (Environment.dim_of_var t.env var) v <> (to_rt 0)
     in
     let affineEq_vec = get_coeff_vec t.env texp in
       match t.d, affineEq_vec with
@@ -546,7 +539,9 @@ struct
       if M.tracing then M.tracel "ops" "assign_var\n";
       res
 
-  let assign_var_parallel a b = a
+  let assign_var_parallel t vv's =
+    let new_t's = List.map (function (v,v') -> assign_var t v v') vv's in
+      List.fold_left join t new_t's
 
   let assign_var_parallel a b =
     let res = assign_var_parallel a b in
@@ -555,10 +550,73 @@ struct
 
   let substitute_exp t var exp = assign_exp t var exp (*This is not correct!*)
 
-  let assert_inv a b c = a
-  let eval_int a e =
+  let exp_is_cons = function
+  (* constraint *)
+  | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+  (* expression *)
+  | _ -> false
+
+(** Assert a constraint expression. *)
+  let rec meet_with_tcons d tcons =
+    match Tcons1.get_typ tcons with
+    | EQ -> begin match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+            | None -> d
+            | Some (e) ->  meet d {d = Some ([e]); env = d.env}
+            end
+    | _ -> d
+
+  let rec assert_cons d e negate =
+      begin match Convert.tcons1_of_cil_exp d (d.env) e negate with
+        | tcons1 -> meet_with_tcons d tcons1
+        | exception Convert.Unsupported_CilExp ->
+          d
+      end
+
+(** Assert any expression. *)
+  let assert_inv d e negate =
+    let e' =
+      if exp_is_cons e then
+        e
+      else
+        (* convert non-constraint expression, such that we assert(e != 0) *)
+        BinOp (Ne, e, zero, intType)
+    in
+    assert_cons d e' negate
+
+  let check_assert d e =
+    if is_bot_env (assert_inv d e false) then
+      `False
+    else if is_bot_env (assert_inv d e true) then
+      `True
+    else
+      `Top
+
+  (** Evaluate non-constraint expression as interval. *)
+  let eval_interval_expr d e =
+    match Convert.texpr1_of_cil_exp d (d.env) e with
+    | texpr1 ->
+      DummyBounds.bound_texpr d texpr1
+    | exception Convert.Unsupported_CilExp ->
+      (None, None)
+
+(** Evaluate constraint or non-constraint expression as integer. *)
+  let eval_int d e =
     let module ID = Queries.ID in
+    let ik = Cilfacade.get_ikind_exp e in
+    if exp_is_cons e then
+      match check_assert d e with
+      | `True -> ID.of_bool ik true
+      | `False -> ID.of_bool ik false
+      | `Top -> ID.top ()
+    else (*ToDo Implement proper bounds calculation and determine limits*)
+      (* match eval_interval_expr d e with
+      | (Some min, Some max) -> ID.of_interval ik (min, max)
+      | (Some min, None) -> ID.starting ik min
+      | (None, Some max) -> ID.ending ik max
+      | (None, None) -> ID.top () *)
       ID.top ()
+
+
   let unify a b = a
 
   let unify a b =
