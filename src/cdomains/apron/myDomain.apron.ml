@@ -617,7 +617,23 @@ struct
       ID.top ()
 
 
-  let unify a b = a
+  let unify a b =
+    let new_env, a_change, b_change  = Environment.lce_change a.env b.env in
+     let reduced_a = match a_change with
+                    | None -> a
+                    | Some (change) -> begin match a.d with
+                                        | None -> {d = None; env = new_env}
+                                        | Some (d) -> {d = Some (dim_remove change d); env = new_env}
+                                        end
+                                      in
+        let reduced_b = match b_change with
+        | None -> b
+        | Some (change) -> begin match b.d with
+                            | None -> {d = None; env = new_env}
+                            | Some (d) -> {d = Some (dim_remove change d); env = new_env}
+                            end
+                          in
+     join reduced_a reduced_b
 
   let unify a b =
     let res = unify a b in
