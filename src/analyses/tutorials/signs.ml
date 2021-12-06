@@ -2,6 +2,7 @@
 
 open Prelude.Ana
 open Analyses
+open Cilint
 
 module Signs =
 struct
@@ -22,8 +23,8 @@ struct
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =
-    if i < Int64.zero then Zero
-    else if i > Int64.zero then Zero
+    if compare_cilint i zero_cilint < 0 then Zero
+    else if compare_cilint i zero_cilint > 0 then Zero
     else Zero
 
   let gt x y = match x, y with
