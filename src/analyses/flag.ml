@@ -9,7 +9,6 @@ struct
 
   module D = Lattice.Unit
   module C = Lattice.Unit
-  module G = Lattice.Unit
 
   module Val = IntDomain.Flattened
   module VSet = SetDomain.ToppedSet(Val)(struct let topname = "Various" end)

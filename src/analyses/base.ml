@@ -35,11 +35,34 @@ struct
 
   module Dom    = BaseDomain.DomFunctor (Priv.D) (RVEval)
   type t = Dom.t
-
-  module G      = Priv.G
   module D      = Dom
   module C      = Dom
-  module V      = Basetype.Variables
+
+  module V =
+  struct
+    include Printable.Either (Priv.V) (ThreadIdDomain.Thread)
+    let priv x = `Left x
+    let thread x = `Right x
+  end
+
+  module G =
+  struct
+    include Lattice.Lift2 (Priv.G) (VD) (Printable.DefaultNames)
+
+    let priv = function
+      | `Bot -> Priv.G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "Base.priv"
+    let thread = function
+      | `Bot -> VD.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "Base.thread"
+    let create_priv priv = `Lifted1 priv
+    let create_thread thread = `Lifted2 thread
+  end
+
+  let priv_getg getg g = G.priv (getg (V.priv g))
+  let priv_sideg sideg g d = sideg (V.priv g) (G.create_priv d)
 
   type extra = (varinfo * Offs.t * bool) list
   type store = D.t
@@ -315,7 +338,7 @@ struct
         ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)
     in
     if M.tracing then M.tracel "sync" "sync multi=%B earlyglobs=%B\n" multi !GU.earlyglobs;
-    if !GU.earlyglobs || multi then Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local reason else ctx.local
+    if !GU.earlyglobs || multi then Priv.sync (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) ctx.local reason else ctx.local
 
   let sync ctx reason = sync' (reason :> [`Normal | `Join | `Return | `Init | `Thread]) ctx
 
@@ -324,7 +347,7 @@ struct
 
   let get_var (a: Q.ask) (gs: glob_fun) (st: store) (x: varinfo): value =
     if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then
-      Priv.read_global a gs st x
+      Priv.read_global a (priv_getg gs) st x
     else begin
       if M.tracing then M.tracec "get" "Singlethreaded mode.\n";
       CPA.find x st.cpa
@@ -477,7 +500,7 @@ struct
   let context (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
-    f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (V.is_global k) || is_precious_glob k))
+    f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (Basetype.Variables.is_global k) || is_precious_glob k))
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
@@ -875,7 +898,7 @@ struct
       | EvalInt e -> query_evalint ask gs st e (* mimic EvalInt query since eval_rv needs it *)
       | _ -> Queries.Result.top q
     and ask = { Queries.f = fun (type a) (q: a Queries.t) -> query q } (* our version of ask *)
-    and gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
+    and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) in (* the expression is guaranteed to not contain globals *)
     match (eval_rv ask gs st exp) with
     | `Int x -> ValueDomain.ID.to_int x
     | _ -> None
@@ -1145,8 +1168,9 @@ struct
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
-        let new_value = update_offset (Priv.read_global a gs st x) in
-        let r = Priv.write_global ~invariant a gs (Option.get ctx).sideg st x new_value in
+        let priv_getg = priv_getg gs in
+        let new_value = update_offset (Priv.read_global a priv_getg st x) in
+        let r = Priv.write_global ~invariant a priv_getg (priv_sideg (Option.get ctx).sideg) st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
       end else begin
@@ -1808,7 +1832,7 @@ struct
       publish_all ctx `Init;
       (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
       (* TODO: move into sync `Init *)
-      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
+      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | _ ->
       let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
       let nst_part = rem_many_paritioning (Analyses.ask_of_ctx ctx) ctx.local locals in
@@ -1821,15 +1845,14 @@ struct
           | ret -> ret
         in
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-        let nst: store =
-          match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
           | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) ->
             (* Evaluate exp and cast the resulting value to the void-pointer-type.
                Casting to the right type here avoids precision loss on joins. *)
             let rv = VD.cast ~torg:(Cilfacade.typeOf exp) Cil.voidPtrType rv in
-            { nst with cpa = CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv nst.cpa}
-          | _ -> nst
-        in
+            ctx.sideg (V.thread tid) (G.create_thread rv);
+          | _ -> ()
+        end;
         set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
         (* lval_raw:None, and rval_raw:None is correct here *)
 
@@ -1884,7 +1907,7 @@ struct
     set_many ?ctx ask gs st invalids'
 
 
-  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t) Analyses.ctx) fundec args: D.t =
+  let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
     let st: store = ctx.local in
     (* Evaluate the arguments. *)
     let vals = List.map (eval_rv (Analyses.ask_of_ctx ctx) ctx.global st) args in
@@ -1898,10 +1921,10 @@ struct
            sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
            EnterMultithreaded events only execute after threadenter and threadspawn. *)
         if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
-          ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
+          ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st);
         Priv.threadenter (Analyses.ask_of_ctx ctx) st
       ) else
-        let globals = CPA.filter (fun k v -> V.is_global k) st.cpa in
+        let globals = CPA.filter (fun k v -> Basetype.Variables.is_global k) st.cpa in
         (* let new_cpa = if !GU.earlyglobs || ThreadFlag.is_multi ctx.ask then CPA.filter (fun k v -> is_private ctx.ask ctx.local k) globals else globals in *)
         let new_cpa = globals in
         {st with cpa = new_cpa}
@@ -1929,7 +1952,7 @@ struct
 
 
 
-  let forkfun (ctx:(D.t, G.t, C.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
+  let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
     let create_thread lval arg v =
       try
         (* try to get function declaration *)
@@ -2155,9 +2178,10 @@ struct
           begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
             | `Lifted tid ->
               let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-              let nst = {st with cpa=CPA.add (ThreadIdDomain.Thread.to_varinfo tid) rv st.cpa} in
+              ctx.sideg (V.thread tid) (G.create_thread rv);
               (* TODO: emit thread return event so other analyses are aware? *)
-              publish_all {ctx with local=nst} `Return (* like normal return *)
+              (* TODO: publish still needed? *)
+              publish_all ctx `Return (* like normal return *)
             | _ -> ()
           end;
           raise Deadcode
@@ -2184,9 +2208,9 @@ struct
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
             | `Thread a ->
-              let a = List.fold AD.join (AD.bot ()) (List.map (fun x -> AD.from_var (ThreadIdDomain.Thread.to_varinfo x)) (ValueDomain.Threads.elements a)) in
+              let v = List.fold VD.join (VD.bot ()) (List.map (fun x -> G.thread (ctx.global (V.thread x))) (ValueDomain.Threads.elements a)) in
               (* TODO: is this type right? *)
-              set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) (get (Analyses.ask_of_ctx ctx) gs st a None)
+              set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st ret_a (Cilfacade.typeOf ret_var) v
             | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
           end
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
@@ -2307,7 +2331,7 @@ struct
       | _, v -> VD.show v
     in
     let args_short = List.map short_fun f.sformals in
-    Printable.get_short_list (GU.demangle f.svar.vname ^ "(") ")" args_short
+    Printable.get_short_list (f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     match Cilfacade.find_varinfo_fundec f with
@@ -2338,13 +2362,13 @@ struct
     match e with
     | Events.Lock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
-      Priv.lock (Analyses.ask_of_ctx octx) octx.global st addr
+      Priv.lock (Analyses.ask_of_ctx octx) (priv_getg octx.global) st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.unlock (Analyses.ask_of_ctx octx) octx.global octx.sideg st addr
+      Priv.unlock (Analyses.ask_of_ctx octx) (priv_getg octx.global) (priv_sideg octx.sideg) st addr
     | Events.Escape escaped ->
-      Priv.escape (Analyses.ask_of_ctx octx) octx.global octx.sideg st escaped
+      Priv.escape (Analyses.ask_of_ctx octx) (priv_getg octx.global) (priv_sideg octx.sideg) st escaped
     | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded (Analyses.ask_of_ctx octx) octx.global octx.sideg st
+      Priv.enter_multithreaded (Analyses.ask_of_ctx octx) (priv_getg octx.global) (priv_sideg octx.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))

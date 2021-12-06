@@ -10,7 +10,6 @@ struct
   let name () = "file"
   module D = FileDomain.Dom
   module C = FileDomain.Dom
-  module G = Lattice.Unit
 
   (* special variables *)
   let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset

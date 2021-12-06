@@ -16,7 +16,6 @@ struct
 
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-  module G = Lattice.Unit
 
   type trans_in  = D.t
   type trans_out = D.t

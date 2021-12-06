@@ -33,7 +33,7 @@ struct
   module C = D
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
-  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
+  module V = Printable.UnitConf (struct let name = "tasks" end)
 
   type pname = string (* process name *)
   type fname = string (* function name *)
@@ -333,8 +333,8 @@ struct
               let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_loc f.vdecl in
               List.iter (fun f -> Pfuns.add name f.vname) funs;
               Prios.add name pri;
-              let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-              ctx.sideg tasks_var tasks;
+              let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+              ctx.sideg () tasks;
               let v,i = Res.get ("process", name) in
               assign_id pid' v;
               List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
@@ -362,7 +362,7 @@ struct
                 (* some calls have side effects *)
                 begin match fname, args with
                   | "SetPartitionMode", "NORMAL"::_ ->
-                    let tasks = ctx.global tasks_var in
+                    let tasks = ctx.global () in
                     ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
                     Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
                   | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
@@ -394,7 +394,7 @@ struct
     )
 
   let threadenter ctx lval f args =
-    let tasks = ctx.global tasks_var in
+    let tasks = ctx.global () in
     (* TODO: optimize finding *)
     let tasks_f = Tasks.filter (fun (fs,f_d) ->
         Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs

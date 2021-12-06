@@ -187,7 +187,7 @@ struct
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
-        fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (Basetype.Variables.show k)) Spec.G.printXml v;
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (Spec.V.show k)) Spec.G.printXml v;
       in
       GHT.iter print_globals g
     in
@@ -215,7 +215,7 @@ struct
     let gh = GHT.create 13 in
     let getg v = GHT.find_default gh v (Spec.G.bot ()) in
     let sideg v d =
-      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Prelude.Ana.d_varinfo v Spec.G.pretty d;
+      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Spec.V.pretty v Spec.G.pretty d;
       GHT.replace gh v (Spec.G.join (getg v) d)
     in
     (* Old-style global function for context.
@@ -621,7 +621,7 @@ struct
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
-      Spec.query ctx (WarnGlobal g)
+      Spec.query ctx (WarnGlobal (Obj.repr g))
     in
     Stats.time "warn_global" (GHT.iter warn_global) gh;
 

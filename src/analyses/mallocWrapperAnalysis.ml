@@ -71,7 +71,7 @@ struct
   type marshal = NodeVarinfoMap.marshal
 
   let get_heap_var = NodeVarinfoMap.to_varinfo
-  let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
+  let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Queries.result =
     match q with
     | Q.HeapVar ->
       let node = match ctx.local with

@@ -91,6 +91,7 @@ struct
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (ArincDomain.D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
   module C = D
+  module V = Printable.UnitConf (struct let name = "tasks" end)
 
   let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
 
@@ -109,7 +110,6 @@ struct
 
   let is_single ctx =
     not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx))
-  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
   let is_mainfun name = List.mem name (GobConfig.get_string_list "mainfun")
 
   type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }
@@ -402,7 +402,7 @@ struct
             let pm = partition_mode_of_enum @@ BI.to_int i in
             if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" (BI.to_int64 i) (show_partition_mode_opt pm);
             if mode_is_multi (Pmo.of_int (BI.to_int64 i)) then (
-              let tasks = ctx.global tasks_var in
+              let tasks = ctx.global () in
               ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
               Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
             );
@@ -507,8 +507,8 @@ struct
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
             let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
-            let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-            ctx.sideg tasks_var tasks;
+            let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+            ctx.sideg () tasks;
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
@@ -618,8 +618,8 @@ struct
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
             let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
-            let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-            ctx.sideg tasks_var tasks;
+            let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+            ctx.sideg () tasks;
             add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
         end
@@ -657,7 +657,7 @@ struct
 
   let threadenter ctx lval f args =
     let d : D.t = ctx.local in
-    let tasks = ctx.global tasks_var in
+    let tasks = ctx.global () in
     (* TODO: optimize finding *)
     let tasks_f = Tasks.filter (fun (fs,f_d) ->
         Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs

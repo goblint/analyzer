@@ -28,7 +28,6 @@ struct
     let names x = "state " ^ string_of_int x
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
-  module G = Lattice.Unit
   module C = D
 
   let should_join x y = D.equal x y (* fully path-sensitive *)

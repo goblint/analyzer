@@ -78,7 +78,7 @@ let _ = ()
       ; reg Std "cppflags"        "[]"           "Pre-processing parameters."
       ; reg Std "kernel"          "false"        "For analyzing Linux Device Drivers."
       ; reg Std "dump_globs"      "false"        "Print out the global invariant."
-      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, mongo, pretty, json-messages."
+      ; reg Std "result"          "'none'"       "Result style: none, fast_xml, json, pretty, json-messages."
       ; reg Std "solver"          "'td3'"         "Picks the solver."
       ; reg Std "comparesolver"   "''"           "Picks another solver for comparison."
       ; reg Std "solverdiffs"     "false"        "Print out solver differences."
@@ -148,6 +148,8 @@ let _ = ()
       ; reg Analyses "ana.apron.domain" "'octagon'" "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'"
       ; reg Analyses "ana.context.widen"     "false" "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls."
       ; reg Analyses "ana.apron.threshold_widening" "false" "Use constants appearing in program as threshold for widening"
+      ; reg Analyses "ana.thread.domain" "'history'" "Which domain should be used for the thread ids. Can be 'history' or 'plain'"
+
 
 (* {4 category [Incremental]} *)
 let _ = ()
@@ -242,6 +244,7 @@ let _ = ()
       ; reg Experimental "exp.structs.key.prefer-ptrs" "true"     "Whether pointers should be preferred for key."
       ; reg Experimental "exp.gcc_path"           "'/usr/bin/gcc'" "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise)."
       ; reg Experimental "exp.compdb.original-path" "" "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts."
+      ; reg Experimental "exp.cpp-path" "" "Path to C preprocessor (cpp) to use. If empty, then automatically searched."
 
 (* {4 category [Debugging]} *)
 let _ = ()

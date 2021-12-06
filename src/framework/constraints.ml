@@ -18,6 +18,7 @@ struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name () ^" hashconsed"
 
@@ -95,6 +96,7 @@ struct
   module D = S.D
   module G = S.G
   module C = Printable.HConsed (S.C)
+  module V = S.V
 
   let name () = S.name () ^" context hashconsed"
 
@@ -182,6 +184,7 @@ struct
   module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name ()^" level sliced"
 
@@ -322,6 +325,7 @@ struct
   end
   module G = S.G
   module C = S.C
+  module V = S.V
 
 
   let name () = S.name ()^" with widened contexts"
@@ -391,6 +395,7 @@ struct
   module D = Dom (S.D)
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name ()^" lifted"
 
@@ -451,10 +456,10 @@ end
 module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
-                           and module GVar = Basetype.Variables
+                           and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = S.G
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> D.t -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> D.t -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t
   end
 =
 struct
@@ -463,7 +468,7 @@ struct
   type ld = S.D.t
   (* type gd = S.G.t *)
   module LVar = VarF (S.C)
-  module GVar = Basetype.Variables
+  module GVar = GVarF (S.V)
   module D = S.D
   module G = S.G
 
@@ -475,7 +480,7 @@ struct
     | _ :: _ :: _ -> S.sync ctx `Join
     | _ -> S.sync ctx `Normal
 
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
+  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
@@ -908,6 +913,7 @@ module PathSensitive2 (Spec:Spec)
     with type D.t = HoareDomain.Set(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
+     and module V = Spec.V
 =
 struct
   module D =
@@ -949,6 +955,7 @@ struct
 
   module G = Spec.G
   module C = Spec.C
+  module V = Spec.V
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
@@ -1075,7 +1082,7 @@ end
 module Compare
     (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = Basetype.Variables
+                        and module GVar = GVarF (S.V)
                         and module D = S.D
                         and module G = S.G)
     (LH:Hashtbl.S with type key=Sys.LVar.t)

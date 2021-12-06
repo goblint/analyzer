@@ -20,7 +20,6 @@ struct
 
   module D = LockDomain.Symbolic
   module C = LockDomain.Symbolic
-  module G = Lattice.Unit
 
   let name () = "symb_locks"
 
