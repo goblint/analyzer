@@ -20,41 +20,33 @@ struct
 
   module G =
   struct
-    include Access.OM
+    include Access.PM
 
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
-  module V = VarinfoV (* TODO: change to abstract type-based struct accesses, etc *)
-
-  let none_varinfo = ref dummyFunDec.svar
+  module V = Printable.Prod (Access.LVOpt) (Access.T)
 
   let safe       = ref 0
   let vulnerable = ref 0
   let unsafe     = ref 0
 
   let init marshal =
-    none_varinfo := GU.create_var @@ makeGlobalVar "__NONE__" voidType;
     safe := 0;
     vulnerable := 0;
     unsafe := 0
 
   let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
-    let (g, o) = lv_opt |? (!none_varinfo, `NoOffset) in
     if !GU.should_warn then (
       let d =
         let open Access in
-        OM.singleton o (
-          TM.singleton ty (
-            PM.singleton ls_opt (
-              AS.singleton (conf, w, loc, e, lp)
-            )
-          )
+        PM.singleton ls_opt (
+          AS.singleton (conf, w, loc, e, lp)
         )
       in
-      ctx.sideg g d
+      ctx.sideg (lv_opt, ty) d
     )
     else
-      ctx.sideg g (G.bot ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
+      ctx.sideg (lv_opt, ty) (G.bot ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
@@ -149,12 +141,6 @@ struct
     ctx.local
 
   let body ctx f : D.t =
-    begin match f.svar.vname with
-    | "__goblint_dummy_init" ->
-      ctx.sideg !none_varinfo (G.bot ()) (* make one side effect to None, otherwise verify will always fail due to Lift2 bottom *)
-    | _ ->
-      ()
-    end;
     ctx.local
 
   let special ctx lv f arglist : D.t =
@@ -224,16 +210,9 @@ struct
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-      let v =
-        if CilType.Varinfo.equal g !none_varinfo then (
-          None
-        )
-        else
-          Some g
-      in
-      let om = ctx.global g in
-      Access.print_accesses v om;
-      Access.incr_summary safe vulnerable unsafe v om
+      let pm = ctx.global g in
+      Access.print_accesses g pm;
+      Access.incr_summary safe vulnerable unsafe g pm
     | _ -> Queries.Result.top q
 
   let finalize () =

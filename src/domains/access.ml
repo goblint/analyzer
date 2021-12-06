@@ -402,13 +402,12 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
-module TM = MapDomain.MapBot (T) (PM)
 module O =
 struct
   include Printable.Std
   type t = offs [@@deriving eq, ord]
 
-  let hash _ = 0 (* TODO: not used? *)
+  let hash _ = 0 (* TODO: add hash *)
 
   let pretty = d_offs
 
@@ -416,7 +415,8 @@ struct
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let to_yojson x = `String (show x)
 end
-module OM = MapDomain.MapBot (O) (TM)
+module LV = Printable.Prod (CilType.Varinfo) (O)
+module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
 
 let check_accs (prev_r,prev_lp,prev_w) (conf,w,loc,e,lp) =
@@ -451,63 +451,47 @@ let check_safe ls accs prev_safe =
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe v om =
-  OM.iter (fun o tm ->
-      TM.iter (fun ty pm ->
-          (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
-          let safety = PM.fold check_safe pm None in
-          match safety with
-          | None -> incr safe
-          | Some n when n >= 100 -> is_all_safe := false; incr unsafe
-          | Some n -> is_all_safe := false; incr vulnerable
-        ) tm
-    ) om
+let incr_summary safe vulnerable unsafe (lv, ty) pm =
+  (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
+  let safety = PM.fold check_safe pm None in
+  match safety with
+  | None -> incr safe
+  | Some n when n >= 100 -> is_all_safe := false; incr unsafe
+  | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses v om =
+let print_accesses (lv, ty) pm =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  OM.iter (fun o tm ->
-      let lv =
-        match v with
-        | None ->
-          assert (o = `NoOffset);
-          None
-        | Some v ->
-          Some (v, o)
+  let g (ls, acs) =
+    let h (conf,w,loc,e,lp) =
+      let d_ls () = match ls with
+        | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
+        | Some ls when LSSet.is_empty ls -> nil
+        | Some ls -> text " in " ++ LSSet.pretty () ls
       in
-      TM.iter (fun ty pm ->
-          let g (ls, acs) =
-            let h (conf,w,loc,e,lp) =
-              let d_ls () = match ls with
-                | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
-                | Some ls when LSSet.is_empty ls -> nil
-                | Some ls -> text " in " ++ LSSet.pretty () ls
-              in
-              let atyp = if w then "write" else "read" in
-              let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
-              let doc =
-                if debug then
-                  dprintf "%t  (exp: %a)" d_msg d_exp e
-                else
-                  d_msg ()
-              in
-              (doc, Some loc)
-            in
-            AS.elements acs
-            |> List.enum
-            |> Enum.map h
-          in
-          let msgs () =
-            PM.bindings pm
-            |> List.enum
-            |> Enum.concat_map g
-            |> List.of_enum
-          in
-          match PM.fold check_safe pm None with
-          | None ->
-            if allglobs then
-              M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
-          | Some n ->
-            M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
-        ) tm
-    ) om
+      let atyp = if w then "write" else "read" in
+      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
+      let doc =
+        if debug then
+          dprintf "%t  (exp: %a)" d_msg d_exp e
+        else
+          d_msg ()
+      in
+      (doc, Some loc)
+    in
+    AS.elements acs
+    |> List.enum
+    |> Enum.map h
+  in
+  let msgs () =
+    PM.bindings pm
+    |> List.enum
+    |> Enum.concat_map g
+    |> List.of_enum
+  in
+  match PM.fold check_safe pm None with
+  | None ->
+    if allglobs then
+      M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
+  | Some n ->
+    M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
