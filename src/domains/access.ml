@@ -407,7 +407,10 @@ struct
   include Printable.Std
   type t = offs [@@deriving eq, ord]
 
-  let hash _ = 0 (* TODO: add hash *)
+  let rec hash = function
+    | `NoOffset -> 13
+    | `Index os -> 3 + hash os
+    | `Field (f, os) -> 3 * CilType.Fieldinfo.hash f + hash os
 
   let pretty = d_offs
 
