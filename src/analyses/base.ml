@@ -898,7 +898,7 @@ struct
       | EvalInt e -> query_evalint ask gs st e (* mimic EvalInt query since eval_rv needs it *)
       | _ -> Queries.Result.top q
     and ask = { Queries.f = fun (type a) (q: a Queries.t) -> query q } (* our version of ask *)
-    and gs = fun _ -> G.top () in (* the expression is guaranteed to not contain globals *)
+    and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) in (* the expression is guaranteed to not contain globals *)
     match (eval_rv ask gs st exp) with
     | `Int x -> ValueDomain.ID.to_int x
     | _ -> None
