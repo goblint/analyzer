@@ -335,8 +335,15 @@ struct
       if M.tracing then M.tracel "eq" "equal a: %s b: %s -> %b \n" (show a) (show b) res ;
       res
 
-  let hash a = 0
-  let compare a b = 0
+  let hash t =
+    Hashtbl.hash t
+  let compare a b = (*ToDo Unequal is always -1. Is this correct?*)
+    if Environment.compare a.env b.env <> 0 then -1 else
+    match a.d, b.d with
+    | None, None -> 0
+    | Some([]), _ | _, Some([]) -> -1
+    | Some(x), Some(y) -> if Matrix.equal x y then 0 else -1
+    | _, _ -> -1
 
   let compare a b =
     let res = compare a b in
@@ -548,7 +555,15 @@ struct
       if M.tracing then M.tracel "ops" "assign_var parallel\n";
       res
 
-  let substitute_exp t var exp = assign_exp t var exp (*This is not correct!*)
+  let substitute_exp t var exp =
+     let b = get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env exp) in
+                match b with
+                  | None -> t
+                  | Some (x) -> meet t (assign_uninvertible_rel (Matrix.empty ()) var x t.env)
+
+  let substitute_exp t var exp =
+    let res = substitute_exp t var exp
+      in if M.tracing then M.tracel "ops" "Substitute_expr\n"; res
 
   let exp_is_cons = function
   (* constraint *)
@@ -633,7 +648,7 @@ struct
                             | Some (d) -> {d = Some (dim_remove change d); env = new_env}
                             end
                           in
-     join reduced_a reduced_b
+     meet reduced_a reduced_b
 
   let unify a b =
     let res = unify a b in
