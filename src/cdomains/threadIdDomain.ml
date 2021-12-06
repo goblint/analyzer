@@ -1,4 +1,5 @@
 open Cil
+open FlagHelper
 
 module type S =
 sig
@@ -207,10 +208,13 @@ struct
   (* Plain thread IDs *)
   module P = Unit(FunLoc)
 
+  include GroupableFlagHelper(H)(P)(struct
+      let msg = "FlagConfiguredTID received a value where not exactly one component is set"
+      let name = "FlagConfiguredTID"
+    end)
+
   module D = Lattice.Lift2(H.D)(P.D)(struct let bot_name = "bot" let top_name = "top" end)
 
-  type t = H.t option * P.t option
-  type group = H.group option * P.group option
   type marshal = H.marshal option * P.marshal option
 
   let history_enabled () =
@@ -218,21 +222,6 @@ struct
     | "plain" -> false
     | "history" -> true
     | s -> failwith @@ "Illegal value " ^ s ^ " for ana.thread.domain"
-
-  let unop oph opp (h,p) = match (h, p) with
-    | (Some h, None) -> oph h
-    | (None, Some p) -> opp p
-    | _ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
-
-  let unop_to_t oph opp (h,p) = match (h, p) with
-    | (Some h, None) -> (Some (oph h), None)
-    | (None, Some p) -> (None, Some (opp p))
-    | _ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
-
-  let binop oph opp (h1,p1) (h2,p2) = match (h1, p1), (h2,p2) with
-    | (Some h1, None), (Some h2, None) -> oph h1 h2
-    | (None, Some p1), (None, Some p2) -> opp p1 p2
-    | _ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
 
   let threadinit v ~multiple =
     if history_enabled () then
@@ -244,7 +233,6 @@ struct
   let is_main = unop H.is_main P.is_main
   let is_unique = unop H.is_unique P.is_unique
   let name_varinfo = unop H.name_varinfo P.name_varinfo
-
   let may_create = binop H.may_create P.may_create
   let is_must_parent = binop H.is_must_parent P.is_must_parent
 
@@ -289,35 +277,7 @@ struct
     | `Top when history_enabled () -> `Lifted1 (H.threadspawn (H.D.top ()) n v)
     | `Top  -> `Lifted2 (P.threadspawn (P.D.top ()) n v)
 
-  let trace_enabled = false
-  let equal = binop H.equal P.equal
-  let hash = unop H.hash P.hash
-  let compare = binop H.compare P.compare
-  let show = unop H.show P.show
-  let pretty () = unop (H.pretty ()) (P.pretty ())
-  let printXml f = unop (H.printXml f) (P.printXml f)
-  let to_yojson = unop H.to_yojson P.to_yojson
-
   let name () = "FlagConfiguredTID: " ^ if history_enabled () then H.name () else P.name ()
-  let invariant _ _ = Invariant.none
-  let tag _ = failwith "FlagConfiguredTID: no tag"
-  let arbitrary () = failwith "FlagConfiguredTID: no arbitrary"
-
-  let relift = unop_to_t H.relift P.relift
-  let show_group = unop H.show_group P.show_group
-  let to_group (h,p) = match (h, p) with
-    | (Some h, None) ->
-      (let r = H.to_group h in
-       match r with
-       | Some r -> Some (Some r, None)
-       | _ -> None)
-    | (None, Some p) ->
-      (let r = P.to_group p in
-       match r with
-       | Some r -> Some (None, Some r)
-       | _ -> None)
-    | _ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
-
 
   let finalize () =
     if history_enabled () then
