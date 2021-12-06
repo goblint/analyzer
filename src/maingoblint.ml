@@ -10,7 +10,11 @@ let writeconffile = ref ""
 
 (** Print version and bail. *)
 let print_version ch =
-  printf "Goblint version: %%VERSION_NUM%% (%s)\n" ConfigVersion.version;
+  let release_version = "%%VERSION_NUM%%" in
+  let version =
+    if String.starts_with release_version "%" then ConfigVersion.version
+    else release_version in
+  printf "Goblint version: %s\n" version;
   printf "Cil version:     %s\n" Cil.cilVersion;
   printf "Profile:         %s\n" ConfigProfile.profile;
   exit 0
