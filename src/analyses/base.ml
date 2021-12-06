@@ -486,12 +486,10 @@ struct
 
   let convertToQueryLval x =
     let rec offsNormal o =
+      let ik = Cilfacade.ptrdiff_ikind () in
       let toInt i =
-        match IdxDom.to_int i with
-        | Some x ->
-          (* TODO: Handle values outside of int64 *)
-          (* TODO: Type ?! *)
-          Const (CInt (x,IInt, None))
+        match IdxDom.to_int @@ ID.cast_to ik i with
+        | Some x -> Const (CInt (x,ik, None))
         | _ -> mkCast (Const (CStr "unknown")) intType
 
       in
