@@ -24,7 +24,7 @@ let goblintTool: Tool.t = {
     fullName = "Goblint static analyser";
     informationUri = "https://goblint.in.tum.de/home";
     organization = "TUM - i2 and UTartu - SWS";
-    version = Version.goblint;
+    version = ConfigVersion.version;
     rules = List.map transformToReportingDescriptor (List.map (fun rule -> rule.name) rules)
   };
 }

@@ -1,1 +1,0 @@
-let goblint = ConfigVersion.version
