@@ -42,6 +42,7 @@ struct
 
   (** We do not add global state, so just lift from [BS]*)
   module G = P.G
+  module V = VarinfoV
 
   let should_join x y = D.equal x y
 
@@ -144,7 +145,7 @@ struct
 
   let arinc_analysis_activated = ref false
 
-  let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
       (*privatization*)

@@ -13,8 +13,6 @@ struct
 
   (* Map of (local int) variables to flat integers *)
   module D = MapDomain.MapBot (Basetype.Variables) (I)
-  (* No information about globals*)
-  module G = Lattice.Unit
   (* No contexts*)
   module C = Lattice.Unit
 

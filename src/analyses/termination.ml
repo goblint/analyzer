@@ -190,7 +190,6 @@ struct
   let name () = "term"
   module D = TermDomain
   module C = TermDomain
-  module G = Lattice.Unit
 
   (* queries *)
   (*let query ctx (q:Queries.t) : Queries.Result.t =*)

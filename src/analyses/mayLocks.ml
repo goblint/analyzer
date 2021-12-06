@@ -10,7 +10,6 @@ struct
   let name () = "maylocks"
   module D = LockDomain.MayLockset
   module C = LockDomain.MayLockset
-  module G = Lattice.Unit
 
   (* transfer functions : usual operation just propagates the value *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local

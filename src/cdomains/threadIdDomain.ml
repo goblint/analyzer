@@ -7,7 +7,6 @@ sig
   include MapDomain.Groupable with type t := t
 
   val threadinit: varinfo -> multiple:bool -> t
-  val to_varinfo: t -> varinfo
   val is_main: t -> bool
   val is_unique: t -> bool
 
@@ -16,13 +15,6 @@ sig
 
   (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
   val is_must_parent: t -> t -> bool
-
-  type marshal
-  val init: marshal option -> unit
-  val finalize: unit -> marshal
-
-  (** How the created varinfos should be namend. Returned strings should not contain [Cil.location]s, but may contain node ids. *)
-  val name_varinfo: t -> string
 end
 
 module type Stateless =
@@ -49,16 +41,7 @@ end
 (** Type to represent an abstract thread ID. *)
 module FunLoc: Stateless =
 struct
-  module M = struct
-    include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
-
-    (* Defines how varinfos representing a FunLoc are named.
-    The varinfo-name contains node ids, but not their location (for compatibility with incremental analysis) *)
-    let name_varinfo = function
-      | (f, Some n) -> f.vname ^ "@" ^ Node.show n
-      | (f, None) -> f.vname
-  end
-  include M
+  include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
 
   let show = function
     | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
@@ -81,12 +64,6 @@ struct
   let is_unique _ = false (* TODO: should this consider main unique? *)
   let may_create _ _ = true
   let is_must_parent _ _ = false
-
-  module VarinfoMap = RichVarinfo.Make (M)
-  let to_varinfo = VarinfoMap.to_varinfo
-  type marshal = VarinfoMap.marshal
-  let init m = VarinfoMap.unmarshal m
-  let finalize () = VarinfoMap.marshal ()
 end
 
 
@@ -115,16 +92,7 @@ struct
     include SetDomain.Make (Base)
     let name () = "set"
   end
-  module M = struct
-    include Printable.Prod (P) (S)
-    (* Varinfos for histories are named using a string representation based on node ids,
-     not locations, for compatibility with incremental analysis.*)
-    let name_varinfo ((l, s): t): string =
-      let list_name = String.concat "," (List.map Base.name_varinfo l) in
-      let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
-      list_name ^ ", {" ^ set_name ^ "}"
-  end
-  include M
+  include Printable.Prod (P) (S)
 
   module D =
   struct
@@ -179,16 +147,9 @@ struct
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs
 
-  module VarinfoMap = RichVarinfo.Make (M)
-  let to_varinfo = VarinfoMap.to_varinfo
-
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
     | _ -> false
-
-  type marshal = VarinfoMap.marshal
-  let finalize () = VarinfoMap.marshal ()
-  let init m = VarinfoMap.unmarshal m
 end
 
 module ThreadLiftNames = struct
@@ -215,8 +176,6 @@ struct
 
   module D = Lattice.Lift2(H.D)(P.D)(struct let bot_name = "bot" let top_name = "top" end)
 
-  type marshal = H.marshal option * P.marshal option
-
   let history_enabled () =
     match GobConfig.get_string "ana.thread.domain" with
     | "plain" -> false
@@ -229,10 +188,8 @@ struct
     else
       (None, Some (P.threadinit v multiple))
 
-  let to_varinfo = unop H.to_varinfo P.to_varinfo
   let is_main = unop H.is_main P.is_main
   let is_unique = unop H.is_unique P.is_unique
-  let name_varinfo = unop H.name_varinfo P.name_varinfo
   let may_create = binop H.may_create P.may_create
   let is_must_parent = binop H.is_must_parent P.is_must_parent
 
@@ -278,24 +235,6 @@ struct
     | `Top  -> `Lifted2 (P.threadspawn (P.D.top ()) n v)
 
   let name () = "FlagConfiguredTID: " ^ if history_enabled () then H.name () else P.name ()
-
-  let finalize () =
-    if history_enabled () then
-      (Some (H.finalize ()), None)
-    else
-      (None, Some (P.finalize ()))
-
-  let init v =
-    if history_enabled () then
-      match v with
-      | None -> H.init None
-      | Some (v', None) -> H.init v'
-      |_ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
-    else
-      match v with
-      | None -> P.init None
-      | Some (None, v') -> P.init v'
-      |_ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
 end
 
 module Thread = FlagConfiguredTID

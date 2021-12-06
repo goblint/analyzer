@@ -9,7 +9,6 @@ struct
 
   let name () = "unit"
   module D = Lattice.Unit
-  module G = Lattice.Unit
   module C = Lattice.Unit
 
   (* transfer functions *)

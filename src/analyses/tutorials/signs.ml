@@ -50,7 +50,6 @@ struct
 
   (* Map of integers variables to our signs lattice. *)
   module D = MapDomain.MapBot (Basetype.Variables) (SL)
-  module G = Lattice.Unit
   module C = D
 
   let startstate v = D.bot ()

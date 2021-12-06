@@ -15,7 +15,6 @@ struct
   (* The domain for the analysis *)
   module D = DeadlockDomain.Lockset (* MayLockset *)
   module C = DeadlockDomain.Lockset
-  module G = Lattice.Unit
 
   let addLockingInfo newLock lockList =
     let add_comb a b =
