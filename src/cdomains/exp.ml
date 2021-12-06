@@ -109,7 +109,7 @@ struct
 
   let eq_const c1 c2 =
     match c1, c2 with
-    | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0 (* TODO: correct? *)
+    | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0
     |	CStr s1        , CStr s2         -> s1=s2
     |	CWStr s1       , CWStr s2        -> s1=s2
     |	CChr c1        , CChr c2         -> c1=c2
