@@ -1741,9 +1741,12 @@ struct
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
+        (* Optimization: In case of simple integral types, we not need to evaluate the old value.
+           v is not an allocated block, as v directly appears as a variable in the program;
+           so no explicit check is required here (unlike in set) *)
         let current_val = if Cil.isIntegralType v.vtype then begin
             assert (offs = NoOffset);
-            `Bot (* In case of simple integral types, we not need to evaluate the old value. *)
+            `Bot
           end else
             eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
         in
