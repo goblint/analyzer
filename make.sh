@@ -21,13 +21,13 @@ rule() {
     ;; nat*)
       eval $(opam config env)
       dune build $TARGET.exe &&
+      rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
-      chmod +w goblint
     ;; release)
       eval $(opam config env)
       dune build --profile release $TARGET.exe &&
+      rm -f goblint &&
       cp _build/default/$TARGET.exe goblint
-      chmod +w goblint
     # alternatives to .exe: .bc (bytecode), .bc.js (js_of_ocaml), see https://dune.readthedocs.io/en/stable/dune-files.html#executable
     ;; js) # https://dune.readthedocs.io/en/stable/jsoo.html
       dune build $TARGET.bc.js &&
@@ -39,29 +39,38 @@ rule() {
     ;; domaintest)
       eval $(opam config env)
       dune build src/maindomaintest.exe &&
+      rm -f goblint.domaintest &&
       cp _build/default/src/maindomaintest.exe goblint.domaintest
-      chmod +w goblint.domaintest
     ;; privPrecCompare)
       eval $(opam config env)
       dune build src/privPrecCompare.exe &&
+      rm -f privPrecCompare &&
       cp _build/default/src/privPrecCompare.exe privPrecCompare
-      chmod +w privPrecCompare
     ;; apronPrecCompare)
       eval $(opam config env)
       dune build src/apronPrecCompare.exe &&
+      rm -f apronPrecCompare &&
       cp _build/default/src/apronPrecCompare.exe apronPrecCompare
-      chmod +w apronPrecCompare
     ;; byte)
       eval $(opam config env)
       dune build goblint.byte &&
+      rm -f goblint.byte &&
       cp _build/default/goblint.byte goblint.byte
-      chmod +w goblint.byte
     # ;; tag*)
     #   otags -vi `find src/ -iregex [^.]*\.mli?`
 
     # setup, dependencies
     ;; deps)
-      opam update; OPAMCLI=2.0 opam install -y . --deps-only --locked --unlock-base; opam upgrade -y $(opam list --pinned -s)
+      eval $(opam config env)
+      {
+        opam install -y . --deps-only --locked --update-invariant
+        opam upgrade -y $(opam list --pinned -s)
+      } || {
+        opam update
+        opam pin remove -y $(opam list --pinned -s) || echo "No pins! All good...\n"
+        opam install -y . --deps-only --locked --update-invariant
+        opam upgrade -y $(opam list --pinned -s)
+      }
     ;; setup)
       echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
@@ -100,7 +109,7 @@ rule() {
       cp g2html/g2html.jar .
     ;; setup_gobview )
       [[ -f gobview/gobview.opam ]] || git submodule update --init gobview
-      opam install --deps-only gobview/gobview.opam
+      opam install --deps-only --locked gobview/gobview.opam
     # ;; watch)
     #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; install)
