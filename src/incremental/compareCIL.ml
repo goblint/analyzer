@@ -35,19 +35,22 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
       List.for_all2 eq_varinfo a.sformals b.sformals
     with Invalid_argument _ -> false in
   let identical, diffOpt =
-    try
-      let sameDef = unchangedHeader && List.for_all2 eq_varinfo a.slocals b.slocals in
-      match cfgs with
-      | None -> sameDef && eq_block (a.sbody, a) (b.sbody, b), None
-      | Some (cfgOld, cfgNew) ->
-        let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
-        let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
-        let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
-        if not sameDef then (false, None)
-        else if diffNodes1 = [] && diffNodes2 = [] then (true, None)
-        else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
-    with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
-      false, None in
+    if List.mem a.svar.vname (GobConfig.get_string_list "incremental.extra-changed") then
+      false, None
+    else
+      try
+        let sameDef = unchangedHeader && List.for_all2 eq_varinfo a.slocals b.slocals in
+        match cfgs with
+        | None -> sameDef && eq_block (a.sbody, a) (b.sbody, b), None
+        | Some (cfgOld, cfgNew) ->
+          let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
+          let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
+          let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
+          if not sameDef then (false, None)
+          else if diffNodes1 = [] && diffNodes2 = [] then (true, None)
+          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
+      with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
+        false, None in
   identical, unchangedHeader, diffOpt
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * cfg) option) = match a, b with
@@ -74,7 +77,7 @@ let compareCilFiles (oldAST: file) (newAST: file) =
       let ident = identifier_of_global global in
       (try
          let old_global = GlobalMap.find ident map in
-         (* Do a (recursive) equal comparision ignoring location information *)
+         (* Do a (recursive) equal comparison ignoring location information *)
          let identical, unchangedHeader, diff = eq_glob old_global global cfgs in
          if identical
          then changes.unchanged <- global :: changes.unchanged
