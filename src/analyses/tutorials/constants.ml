@@ -34,7 +34,10 @@ struct
   let rec eval (state : D.t) (e: exp) =
     match e with
     | Const c -> (match c with
-        | CInt (i,_,_) -> I.of_int (Cilint.int64_of_cilint i) (* TODO: why?*)
+        | CInt (i,_,_) ->
+          (try I.of_int (Z.to_int64 i) with Z.Overflow -> I.top ())
+        (* Our underlying int domain here can not deal with values that do not fit into int64 *)
+        (* Use Z.to_int64 instead of Cilint.int64_of_cilint to get exception instead of silent wrap-around *)
         | _ -> I.top ()
       )
     | Lval lv -> (match get_local lv with
