@@ -124,7 +124,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       | Result.Unknown -> "unknown_witness"
     );
   GML.write_metadata g "sourcecodelang" "C";
-  GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" ConfigVersion.version);
+  GML.write_metadata g "producer" (Printf.sprintf "Goblint (%s)" Version.goblint);
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
   let programfile = (Node.location (N.cfgnode main_entry)).file in
   GML.write_metadata g "programfile" programfile;
