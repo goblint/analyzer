@@ -1,7 +1,8 @@
 let release = "%%VERSION_NUM%%"
 
 let goblint =
+  let commit = ConfigVersion.version in
   if BatString.starts_with release "%" then
-    ConfigVersion.version
+    commit
   else
-    release
+    Format.sprintf "%s (%s)" release commit
