@@ -32,7 +32,7 @@ struct
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
-  let rec is_not_unique ctx tid =
+  let rec is_not_unique ctx (tid: T.t) =
     let (rep, parents, _) = ctx.global tid in
     let n = TS.cardinal parents in
     (* A thread is not unique if it is
@@ -40,18 +40,18 @@ struct
       * b) created in multiple threads, or
       * c) created by a thread that is itself multiply created.
       * Note that starting threads have empty ancestor sets! *)
-    rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose parents)
+    rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose' parents)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match LibraryFunctions.classify f.vname arglist with
     | `ThreadJoin (id, ret_var) ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
       (* TODO: elements might throw an exception *)
-      let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in
+      let threads = TS.elements' (ctx.ask (Queries.EvalThread id)) in
       let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
       let join_thread s tid =
         if has_clean_exit tid && not (is_not_unique ctx tid) then
-          D.remove tid s
+          D.remove' tid s
         else
           s
       in
@@ -79,15 +79,15 @@ struct
   let threadspawn ctx lval f args fctx =
     let creator = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     let tid = ThreadId.get_current_unlift (Analyses.ask_of_ctx fctx) in
-    let repeated = D.mem tid ctx.local in
+    let repeated = D.mem' tid ctx.local in
     let eff =
       match creator with
-      | `Lifted ctid -> (repeated, TS.singleton ctid, false)
+      | `Lifted ctid -> (repeated, TS.singleton' ctid, false)
       | `Top         -> (true,     TS.bot (),         false)
       | `Bot         -> (false,    TS.bot (),         false)
     in
     ctx.sideg tid eff;
-    D.join ctx.local (D.singleton tid)
+    D.join ctx.local (D.singleton' tid)
   let exitstate  v = D.bot ()
 end
 

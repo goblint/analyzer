@@ -87,7 +87,7 @@ struct
 
   let created (current, td) =
     match current with
-    | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
+    | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list') (ConcDomain.ThreadSet.top ()) (Thread.created current td)
     | _ -> ConcDomain.ThreadSet.top ()
 
   let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =

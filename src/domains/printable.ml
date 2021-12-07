@@ -491,6 +491,8 @@ struct
     List.rev (helper [] x y)
 
   let common_suffix x y = List.rev (common_prefix (List.rev x) (List.rev y))
+
+  let arbitrary () = QCheck.list (Base.arbitrary ())
 end
 
 module type ChainParams = sig

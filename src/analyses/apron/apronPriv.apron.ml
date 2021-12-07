@@ -801,11 +801,11 @@ struct
           if ConcDomain.ThreadSet.is_top created then
             true
           else
-            ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
+            ConcDomain.ThreadSet.exists' (ident_or_may_be_created) created
       in
       let may_not_be_joined () =
         try
-          not @@ List.mem other (ConcDomain.ThreadSet.elements must_joined)
+          not @@ List.mem other (ConcDomain.ThreadSet.elements' must_joined)
         with _ -> true
       in
       not_self_read && (not (GobConfig.get_bool "exp.apron.priv.not-started") || (may_be_running ())) && (not (GobConfig.get_bool "exp.apron.priv.must-joined") || (may_not_be_joined ()))
@@ -959,7 +959,7 @@ struct
       st (* TODO: why needed? *)
     else (
       (* elements throws if the thread set is top *)
-      let tids = ConcDomain.ThreadSet.elements tids in
+      let tids = ConcDomain.ThreadSet.elements' tids in
       match tids with
       | [tid] ->
         let lmust',l' = G.thread (getg (V.thread tid)) in

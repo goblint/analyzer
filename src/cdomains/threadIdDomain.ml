@@ -27,6 +27,7 @@ end
 module type Stateful =
 sig
   include S
+  val leq: t -> t -> bool
 
   module D: Lattice.S
 
@@ -71,6 +72,8 @@ module Unit (Base: Stateless): Stateful =
 struct
   include Base
 
+  let leq = equal
+
   module D = Lattice.Unit
 
   let threadenter _ = threadenter
@@ -112,6 +115,16 @@ struct
 
   let may_create (p,s) (p',s') =
     S.subset (S.union (S.of_list p) s) (S.union (S.of_list p') s')
+
+  let leq (xp, xs) (yp, ys) =
+    (* TODO: common prefix check and chop *)
+    let p = P.common_prefix xp yp in
+    if P.equal p yp then (
+      let xp' = BatList.drop (List.length p) xp in
+      S.equal S.(union (of_list xp') xs) ys
+    )
+    else
+      false
 
   let compose ((p, s) as current) n =
     if BatList.mem_cmp Base.compare n p then (
@@ -173,6 +186,8 @@ struct
       let msg = "FlagConfiguredTID received a value where not exactly one component is set"
       let name = "FlagConfiguredTID"
     end)
+
+  let leq = binop H.leq P.leq
 
   module D = Lattice.Lift2(H.D)(P.D)(struct let bot_name = "bot" let top_name = "top" end)
 

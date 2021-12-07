@@ -33,11 +33,11 @@ struct
         ctx.local
       else (
         (* elements throws if the thread set is top *)
-        let threads = TIDs.elements threads in
+        let threads = TIDs.elements' threads in
         match threads with
         | [tid] when TID.is_unique tid->
           let joined = ctx.global tid in
-          D.union (D.add tid ctx.local) joined
+          D.join (D.add' tid ctx.local) joined
         | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
