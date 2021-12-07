@@ -330,8 +330,11 @@ struct
     | _ -> false
 
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    if leq x y then Pretty.text "No Changes" else
-      Pretty.dprintf "%a instead of %a" pretty x pretty y
+    match x, y with
+    | `Lifted1 x, `Lifted1 y -> Base1.pretty_diff () (x, y)
+    | `Lifted2 x, `Lifted2 y -> Base2.pretty_diff () (x, y)
+    | _ when leq x y -> Pretty.text "No Changes"
+    | _ -> Pretty.dprintf "%a instead of %a" pretty x pretty y
 
   let join x y =
     match (x,y) with
