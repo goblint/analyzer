@@ -408,6 +408,8 @@ File.open(theresultfile, "w") do |f|
                     when /^\[Warning\]/              then "warn"
                     when /^\[Error\]/                then "warn"
                     when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
+                    when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                    when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                     else "other"
                   end
       oldwarn = warnings[i]
