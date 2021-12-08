@@ -7,14 +7,13 @@ struct
   } [@@deriving to_yojson]
 end
 
-(*endColumn and endLine are not produced by Goblint yet, however the Github action uses these properties. *)
 module Region =
 struct
   type t = {
     startLine: int;
-    startColumn: int;
-    endColumn: int;
+    startColumn: int option [@default None];
     endLine: int;
+    endColumn: int option [@default None];
   } [@@deriving to_yojson, eq]
 end
 
