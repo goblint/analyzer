@@ -94,9 +94,6 @@ $alliswell = true
 $failed    = [] # failed tests
 $timedout  = [] # timed out tests
 
-# tracing = `grep 'tracing = true' src/config.ml`.size > 0
-# if tracing then puts "Tracing in on!" else puts "Tracing is off" end
-
 class Tests
   attr_reader :tests, :tests_line, :todo
   attr_accessor :p, :warnfile, :statsfile, :ok, :correct, :ignored, :ferr, :warnings, :vars, :evals
@@ -307,8 +304,6 @@ class Project
         puts (warn.select { |x| x["Unsatisfied constraint"] || x["Fixpoint not reached"] }).uniq.itemize
       end
     end
-    #   `#{goblint} #{filename} #{p.params} --trace con 2>#{confile}` if tracing
-    #   `#{goblint} #{filename} #{p.params} --trace sol 2>#{solfile}` if tracing
     File.open(testset.statsfile, "a") do |f|
       f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
       f.puts "Analysis began: #{starttime}"
@@ -547,7 +542,6 @@ File.open(theresultfile, "w") do |f|
     if p.group != gname then
       gname = p.group
       headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Vars / Eval", "Problems"]
-#       headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Constraints", "Solver", "Problems"] if tracing
       f.puts "<tr><th colspan=#{headings.size}>#{gname}</th></tr>"
       f.puts "<tr>"
       headings.each {|h| f.puts "<th>#{h}</th>"}
@@ -560,17 +554,6 @@ File.open(theresultfile, "w") do |f|
     p.compare_warnings
 
     f.puts p.to_html
-
-#     if tracing then
-#       confile = p.name + ".con.txt"
-#       lines = IO.readlines(File.join($testresults, confile))
-#       cons = lines.grep(/con/).size
-#       f.puts "<td><a href=\"#{confile}\">#{cons} nodes</a></td>"
-#       solfile = p.name + ".sol.txt"
-#       lines = IO.readlines(File.join($testresults, solfile))
-#       sols = lines.grep(/sol: Entered/).size
-#       f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
-#     end
 
     f.puts "</tr>"
   end
