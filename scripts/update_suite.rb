@@ -94,9 +94,27 @@ $alliswell = true
 $failed    = [] # failed tests
 $timedout  = [] # timed out tests
 
+$highlighter = lambda {|f,o| "cp #{f} #{o}"}
+if report then
+  cmds = {"code2html" => lambda {|f,o| "code2html -l c -n #{f} 2> /dev/null 1> #{o}"},
+          "source-highlight" => lambda {|f,o| "source-highlight -n -i #{f} -o #{o}"},
+          "pygmentize" => lambda {|f,o| "pygmentize -O full,linenos=1 -o #{o} #{f}"}
+        }
+  cmds.each do |name, cmd|
+    # if `which #{cmd} 2> /dev/null`.empty? then
+    if ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{name}"}.include?(true) then
+      $highlighter = cmd
+      break
+    end
+  end
+  if $highlighter.nil? then
+    puts "Warning: No syntax highlighter installed (code2html, source-highlight, pygmentize)."
+  end
+end
+
 class Tests
   attr_reader :tests, :tests_line, :todo
-  attr_accessor :p, :warnfile, :statsfile, :ok, :correct, :ignored, :ferr, :warnings, :vars, :evals
+  attr_accessor :p, :warnfile, :statsfile, :orgfile, :cilfile, :ok, :correct, :ignored, :ferr, :warnings, :vars, :evals
   def initialize(project, tests, tests_line, todo)
     @p = project
     @tests = tests
@@ -111,14 +129,21 @@ class Tests
     @warnings = Hash.new
   end
 
+  def report
+    filename = File.basename(p.path)
+    system($highlighter.call(filename, orgfile))
+    `#{$goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
+    p.size = `wc -l #{cilfile}`.split[0]
+  end
+
   def collect_warnings
     warnings[-1] = "term"
     lines = IO.readlines(warnfile)
     lines.each do |l|
       if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
       if l =~ /vars = (\d*).*evals = (\d+)/ then
-        vars = $1
-        evals = $2
+        @vars = $1
+        @evals = $2
       end
       next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
       obj,i = $1,$2.to_i
@@ -185,7 +210,7 @@ class Tests
       ok = false
       "<td><a href=\"#{statsfile}\">failure</a></td>"
     else
-      "<td><a href=\"#{statsfile}\">#{"%.2f" % res} s</a></td>"
+      "<td><a href=\"#{statsfile}\">#{"%.3f" % res} s</a></td>"
     end
   end
 
@@ -217,10 +242,19 @@ class Tests
       end
     end
   end
+
+  def to_html
+    "<td><a href=\"#{orgfile}\">#{p.name}</a></td>\n" +
+    "<td><a href=\"#{cilfile}\">#{p.size} lines</a></td>\n" +
+    "<td><a href=\"#{warnfile}\">#{correct} of #{tests.size}</a></td>" +
+    time_to_html +
+    "<td>#{vars} / #{evals}</a></td>" +
+    problems_to_html
+  end
 end
 
 class Project
-  attr_reader :id, :name, :group, :path, :params, :testset
+  attr_reader :id, :name, :group, :path, :params, :testset, :html_heading
   attr_accessor :size, :testset
   def initialize(id, name, group, path, params)
     @id       = id
@@ -229,7 +263,9 @@ class Project
     @group    = group
     @path     = path
     @params   = params
+    @html_heading = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Vars / Eval", "Problems"]
   end
+
   def parse_tests (lines)
     tests = Hash.new
     todo = Set.new
@@ -267,10 +303,13 @@ class Project
     end
     Tests.new(self, tests, tests_line, todo)
   end
+
   def create_test_set(lines)
     @testset = parse_tests(lines)
     @testset.warnfile = File.join($testresults, group, name + ".warn.txt")
     @testset.statsfile = File.join($testresults, group, name + ".stats.txt")
+    @testset.orgfile = File.join($testresults, group, name + ".c.html")
+    @testset.cilfile = File.join($testresults, group, name + ".cil.txt")
   end
 
   def run_testset (testset, cmd, starttime)
@@ -314,30 +353,38 @@ class Project
     end
     testset.ok = status == 0
   end
-  def run ()
+
+  def run
     filename = File.basename(@path)
     cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code 2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd, starttime)
   end
+
   def collect_warnings
     testset.collect_warnings
   end
+
   def compare_warnings
     testset.compare_warnings
   end
 
-  def to_html
-    orgfile = File.join(group, name + ".c.html")
-    cilfile = File.join(group, name + ".cil.txt")
-    "<td>#{@id}</td>\n" +
-    "<td><a href=\"#{orgfile}\">#{@name}</a></td>\n" +
-    "<td><a href=\"#{cilfile}\">#{@size} lines</a></td>\n" +
-    "<td><a href=\"#{testset.warnfile}\">#{testset.correct} of #{testset.tests.size}</a></td>" +
-    testset.time_to_html +
-    "<td>#{testset.vars} / #{testset.evals}</a></td>" +
-    testset.problems_to_html
+  def report
+    testset.report
   end
+
+  def heading_to_html
+    "<tr><th colspan=#{html_heading.size}>#{group}</th></tr>" +
+    "<tr>" +
+    (html_heading.map {|h| "<th>#{h}</th>"}).join(" ") +
+    "</tr>"
+  end
+
+  def to_html
+    "<td>#{@id}</td>\n" +
+    testset.to_html
+  end
+
   def to_s
     "#{@name} (#{@url})"
   end
@@ -350,7 +397,9 @@ class ProjectIncr < Project
   def initialize(id, name, group, path, params, patch_path)
     super(id, name, group, path, params)
     @patch_path = patch_path
+    @html_heading = html_heading + ["Patched", "Size (CIL) Incr", "Checks Incr", "Time Incr", "Vars / Eval Incr", "Problems Incr"]
   end
+
   def create_test_set(lines)
     super(lines)
     @testset.p = self
@@ -361,12 +410,14 @@ class ProjectIncr < Project
     @testset_incr.p = self
     @testset_incr.warnfile = File.join($testresults, group, name + ".incr.warn.txt")
     @testset_incr.statsfile = File.join($testresults, group, name + ".incr.stats.txt")
+    @testset_incr.orgfile = File.join($testresults, group, name + ".incr.c.html")
+    @testset_incr.cilfile = File.join($testresults, group, name + ".incr.cil.txt")
   end
+
   def run
     filename = File.basename(@path)
     cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.save 2>#{@testset.statsfile}"
     cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.load 2>#{@testset_incr.statsfile}"
-
     starttime = Time.now
     run_testset(@testset_incr, cmd, starttime)
     # apply patch
@@ -377,16 +428,27 @@ class ProjectIncr < Project
     `patch -b -R #{@path} #{@patch_path}`
     FileUtils.rm_rf('incremental_data')
   end
+
+  def report
+    testset.report
+    `patch -b #{path} #{patch_path}`
+    testset_incr.report
+    `patch -b -R #{path} #{patch_path}`
+  end
+
   def collect_warnings
     testset.collect_warnings
     testset_incr.collect_warnings
   end
+
   def compare_warnings
-    testset.collect_warnings
-    testset_incr.collect_warnings
+    testset.compare_warnings
+    testset_incr.compare_warnings
   end
+
   def to_html
-    super + testset_incr.problems_to_html
+    super +
+    testset_incr.to_html
   end
 end
 
@@ -397,8 +459,8 @@ class ProjectMarshal < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{@testcase.warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{@testcase.statsfile}"
-    cmd2 = "#{$goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{@testcase.warnfile} --set printstats true --enable dbg.print_dead_code --conf run/config.json --set save_run '' --set load_run run  2>#{@testcase.statsfile}"
+    cmd1 = "#{$goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{@testset.statsfile}"
+    cmd2 = "#{$goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --conf run/config.json --set save_run '' --set load_run run  2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     run_testset(@testset, cmd2, starttime)
@@ -459,23 +521,6 @@ regs.sort.each do |d|
   end
 end
 
-highlighter = lambda {|f,o| "cp #{f} #{o}"}
-if report then
-  cmds = {"code2html" => lambda {|f,o| "code2html -l c -n #{f} 2> /dev/null 1> #{o}"},
-          "source-highlight" => lambda {|f,o| "source-highlight -n -i #{f} -o #{o}"},
-          "pygmentize" => lambda {|f,o| "pygmentize -O full,linenos=1 -o #{o} #{f}"}
-         }
-  cmds.each do |name, cmd|
-    # if `which #{cmd} 2> /dev/null`.empty? then
-    if ENV['PATH'].split(':').map {|f| File.executable? "#{f}/#{name}"}.include?(true) then
-      highlighter = cmd
-      break
-    end
-  end
-  if highlighter.nil? then
-    puts "Warning: No syntax highlighter installed (code2html, source-highlight, pygmentize)."
-  end
-end
 
 #analysing the files
 startdir = Dir.pwd
@@ -493,12 +538,8 @@ doproject = lambda do |p|
   rescue
     # if we run into this, the directory was created in the time between exist? and mkdir => we can just continue
   end
-  cilfile = File.join($testresults, p.group, p.name + ".cil.txt")
-  orgfile = File.join($testresults, p.group, p.name + ".c.html")
   if report then
-    system(highlighter.call(filename, orgfile))
-    `#{$goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
-    p.size = `wc -l #{cilfile}`.split[0]
+    p.report
   end
   p.run
   p
@@ -538,24 +579,17 @@ File.open(theresultfile, "w") do |f|
   f.puts "<table border=2 cellpadding=4>"
   gname = ""
   projects.each do |p|
-    id = "#{p.id} #{p.group}/#{p.name}"
     if p.group != gname then
       gname = p.group
-      headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Vars / Eval", "Problems"]
-      f.puts "<tr><th colspan=#{headings.size}>#{gname}</th></tr>"
-      f.puts "<tr>"
-      headings.each {|h| f.puts "<th>#{h}</th>"}
-      f.puts "</tr>"
+      f.puts p.heading_to_html
     end
-    f.puts "<tr>"
 
 
     p.collect_warnings
     p.compare_warnings
 
-    f.puts p.to_html
+    f.puts "<tr>" + p.to_html + "</tr>"
 
-    f.puts "</tr>"
   end
   f.puts "</table>"
   f.print "<p style=\"font-size: 90%; white-space: pre-line\">"
@@ -578,6 +612,6 @@ end
 if $alliswell then
   puts "No errors :)".green
 else
-  puts "#{$failed.length} tests failed: #{$failed}".red
+  puts "#{$failed.length} test(s) failed: #{$failed}".red
 end
 exit $alliswell
