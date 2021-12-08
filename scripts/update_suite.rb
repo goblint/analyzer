@@ -59,7 +59,7 @@ has_linux_headers = File.exists? "linux-headers" # skip kernel tests if make hea
 #Command line parameters
 #Either only run a single test, or
 #"future" will also run tests we normally skip
-dump = ARGV.last == "-d" && ARGV.pop
+$dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
 incremental = ARGV.last == "-i" && ARGV.pop
@@ -97,11 +97,11 @@ $timedout  = [] # timed out tests
 # tracing = `grep 'tracing = true' src/config.ml`.size > 0
 # if tracing then puts "Tracing in on!" else puts "Tracing is off" end
 
-
 class Tests
   attr_reader :tests, :tests_line, :todo
-  attr_accessor :warnfile, :statsfile, :ok, :correct, :ignored, :ferr
-  def initialize(tests, tests_line, todo)
+  attr_accessor :p, :warnfile, :statsfile, :ok, :correct, :ignored, :ferr, :warnings, :vars, :evals
+  def initialize(project, tests, tests_line, todo)
+    @p = project
     @tests = tests
     @tests_line = tests_line
     @todo = todo
@@ -109,6 +109,116 @@ class Tests
     @correct = 0
     @ignored = 0
     @ferr = nil
+    @vars = 0
+    @evals = 0
+    @warnings = Hash.new
+  end
+
+  def collect_warnings
+    warnings[-1] = "term"
+    lines = IO.readlines(warnfile)
+    lines.each do |l|
+      if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
+      if l =~ /vars = (\d*).*evals = (\d+)/ then
+        vars = $1
+        evals = $2
+      end
+      next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
+      obj,i = $1,$2.to_i
+
+      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
+      thiswarn =  case obj
+                    when /\(conf\. \d+\)/            then "race"
+                    when /lockset:/                  then "race" # osek races have their own legacy-like output
+                    when /Deadlock/                  then "deadlock"
+                    when /Assertion .* will fail/    then "fail"
+                    when /Assertion .* will succeed/ then "success"
+                    when /Assertion .* is unknown/   then "unknown"
+                    when /^\[Warning\]/              then "warn"
+                    when /^\[Error\]/                then "warn"
+                    when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
+                    when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                    when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
+                    else "other"
+                  end
+      oldwarn = warnings[i]
+      if oldwarn.nil? then
+        warnings[i] = thiswarn
+      else
+        warnings[i] = ranking[[ranking.index(thiswarn), ranking.index(oldwarn)].max]
+      end
+    end
+  end
+
+  def compare_warnings
+    tests.each_pair do |idx, type|
+      check = lambda {|cond|
+        if cond then
+          @correct += 1
+          # full p.path is too long and p.name does not allow click to open in terminal
+          if todo.include? idx then puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan}:#{idx.to_s.blue} is now passing!" end
+        else
+          if todo.include? idx then @ignored += 1 else
+            puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
+            puts tests_line[idx].rstrip.gray
+            ferr = idx if ferr.nil? or idx < ferr
+          end
+        end
+      }
+      case type
+      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
+        check.call warnings[idx] == type
+      when "nowarn"
+        check.call warnings[idx].nil?
+      when "assert"
+        check.call warnings[idx] == "success"
+      when "norace"
+        check.call warnings[idx] != "race"
+      when "nodeadlock"
+        check.call warnings[idx] != "deadlock"
+      end
+    end
+  end
+
+  def time_to_html
+    lines = IO.readlines(statsfile)
+    res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
+    errors = lines.grep(/Error:/)
+    if res == [] or not errors == [] then
+      ok = false
+      "<td><a href=\"#{statsfile}\">failure</a></td>"
+    else
+      "<td><a href=\"#{statsfile}\">#{"%.2f" % res} s</a></td>"
+    end
+  end
+
+  def problems_to_html
+    id = "#{p.id} #{p.group}/#{p.name}"
+    lines = IO.readlines(statsfile)
+    if correct + ignored == tests.size && ok then
+      "<td style =\"color: green\">NONE</td>"
+    else
+      $alliswell = false
+      if not $timedout.include? id then
+        $failed.push "#{p.id} #{p.name}"
+        exc = if lines[0] =~ /exception/ then " (see exception above)" else "" end
+        puts "#{p.id}" + " failed#{exc}!".red
+        puts ""
+        if $dump then
+          puts "============== WARNINGS ==============="
+          puts File.read(warnfile)
+          puts "================ STATS ================"
+          puts File.read(statsfile)
+          puts "======================================="
+        end
+      end
+      if not ok or ferr.nil? then
+        "<td style =\"color: red\">FAILED</td>"
+      else
+        whataglorifiedmess = File.join(p.group, p.name + ".c.html")
+        "<td><a href=\"#{whataglorifiedmess}#line#{ferr}\" style =\"color: red\">LINE #{ferr}</a></td>"
+      end
+    end
   end
 end
 
@@ -158,9 +268,9 @@ class Project
     when /TERM/
       tests[-1] = "term"
     end
-    Tests.new(tests, tests_line, todo)
+    Tests.new(self, tests, tests_line, todo)
   end
-  def createTestSet(lines)
+  def create_test_set(lines)
     @testset = parse_tests(lines)
     @testset.warnfile = File.join($testresults, group, name + ".warn.txt")
     @testset.statsfile = File.join($testresults, group, name + ".stats.txt")
@@ -176,8 +286,8 @@ class Project
       puts "\t #{strid} reached timeout of #{$timeout}s!".red + " Killing pgid #{pgid}..."
       $timedout.push strid
       Process.kill('KILL', -1*pgid)
-      p.testset.ok = false
-      return p
+      testset.ok = false
+      return self
     end
     endtime   = Time.now
     status = $?.exitstatus
@@ -215,12 +325,23 @@ class Project
     starttime = Time.now
     run_testset(@testset, cmd, starttime)
   end
+  def collect_warnings
+    testset.collect_warnings
+  end
+  def compare_warnings
+    testset.compare_warnings
+  end
+
   def to_html
     orgfile = File.join(group, name + ".c.html")
     cilfile = File.join(group, name + ".cil.txt")
     "<td>#{@id}</td>\n" +
     "<td><a href=\"#{orgfile}\">#{@name}</a></td>\n" +
-    "<td><a href=\"#{cilfile}\">#{@size} lines</a></td>\n"
+    "<td><a href=\"#{cilfile}\">#{@size} lines</a></td>\n" +
+    "<td><a href=\"#{testset.warnfile}\">#{testset.correct} of #{testset.tests.size}</a></td>" +
+    testset.time_to_html +
+    "<td>#{testset.vars} / #{testset.evals}</a></td>" +
+    testset.problems_to_html
   end
   def to_s
     "#{@name} (#{@url})"
@@ -235,12 +356,18 @@ class ProjectIncr < Project
     super(id, name, group, path, params)
     @patch_path = patch_path
   end
-  def createIncrTestSet(lines)
-    @testset_incr = parse_tests(lines)
-    testset_incr.warnfile = File.join($testresults, group, name + ".incr.warn.txt")
-    testset_incr.statsfile = File.join($testresults, group, name + ".incr.stats.txt")
+  def create_test_set(lines)
+    super(lines)
+    @testset.p = self
+    `patch -b #{path} #{patch_path}`
+    lines_incr = IO.readlines(path)
+    `patch -b -R #{path} #{patch_path}`
+    @testset_incr = parse_tests(lines_incr)
+    @testset_incr.p = self
+    @testset_incr.warnfile = File.join($testresults, group, name + ".incr.warn.txt")
+    @testset_incr.statsfile = File.join($testresults, group, name + ".incr.stats.txt")
   end
-  def run ()
+  def run
     filename = File.basename(@path)
     cmd = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.save 2>#{@testset.statsfile}"
     cmd_incr = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset_incr.warnfile} --set printstats true --enable dbg.print_dead_code --enable incremental.load 2>#{@testset_incr.statsfile}"
@@ -255,9 +382,24 @@ class ProjectIncr < Project
     `patch -b -R #{@path} #{@patch_path}`
     FileUtils.rm_rf('incremental_data')
   end
+  def collect_warnings
+    testset.collect_warnings
+    testset_incr.collect_warnings
+  end
+  def compare_warnings
+    testset.collect_warnings
+    testset_incr.collect_warnings
+  end
+  def to_html
+    super + testset_incr.problems_to_html
+  end
 end
 
 class ProjectMarshal < Project
+  def create_test_set(lines)
+    super(lines)
+    @testset.p = self
+  end
   def run ()
     filename = File.basename(@path)
     cmd1 = "#{$goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{@testcase.warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{@testcase.statsfile}"
@@ -315,16 +457,8 @@ regs.sort.each do |d|
         else
           Project.new(id, testname, groupname, path, params)
         end
-    p.createTestSet(lines)
+    p.create_test_set(lines)
 
-    if incremental then
-      # apply patch
-      `patch -b #{path} #{patch_path}`
-      lines_incr = IO.readlines(path)
-      `patch -b -R #{path} #{patch_path}`
-      # parse incremental test
-      p.createIncrTestSet(lines_incr)
-    end
     projects << p
     project_ids << id
   end
@@ -364,10 +498,6 @@ doproject = lambda do |p|
   rescue
     # if we run into this, the directory was created in the time between exist? and mkdir => we can just continue
   end
-  warnfile = File.join($testresults, p.group, p.name + ".warn.txt")
-  statsfile = File.join($testresults, p.group, p.name + ".stats.txt")
-  #   confile = File.join($testresults, p.group, p.name + ".con.txt")
-  #   solfile = File.join($testresults, p.group, p.name + ".sol.txt")
   cilfile = File.join($testresults, p.group, p.name + ".cil.txt")
   orgfile = File.join($testresults, p.group, p.name + ".c.html")
   if report then
@@ -375,8 +505,7 @@ doproject = lambda do |p|
     `#{$goblint} #{filename} --set justcil true #{p.params} >#{cilfile} 2> /dev/null`
     p.size = `wc -l #{cilfile}`.split[0]
   end
-
-  p.run()
+  p.run
   p
 end
 if sequential then
@@ -413,11 +542,8 @@ File.open(theresultfile, "w") do |f|
   f.puts "<body>"
   f.puts "<table border=2 cellpadding=4>"
   gname = ""
-  vars = 0
-  evals = 0
   projects.each do |p|
     id = "#{p.id} #{p.group}/#{p.name}"
-    is_ok = true
     if p.group != gname then
       gname = p.group
       headings = ["ID", "Name", "Size (CIL)", "Checks", "Time", "Vars / Eval", "Problems"]
@@ -428,88 +554,12 @@ File.open(theresultfile, "w") do |f|
       f.puts "</tr>"
     end
     f.puts "<tr>"
+
+
+    p.collect_warnings
+    p.compare_warnings
+
     f.puts p.to_html
-
-    warnfile = File.join(p.group, p.name + ".warn.txt")
-    warnings = Hash.new
-    warnings[-1] = "term"
-    lines = IO.readlines(File.join($testresults, warnfile))
-    lines.each do |l|
-      if l =~ /does not reach the end/ then warnings[-1] = "noterm" end
-      if l =~ /vars = (\d*).*evals = (\d+)/ then
-        vars = $1
-        evals = $2
-      end
-      next unless l =~ /(.*)\(.*?\:(\d+)(?:\:\d+)?(?:-(?:\d+)(?:\:\d+)?)?\)/
-      obj,i = $1,$2.to_i
-
-      ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
-      thiswarn =  case obj
-                    when /\(conf\. \d+\)/            then "race"
-                    when /lockset:/                  then "race" # osek races have their own legacy-like output
-                    when /Deadlock/                  then "deadlock"
-                    when /Assertion .* will fail/    then "fail"
-                    when /Assertion .* will succeed/ then "success"
-                    when /Assertion .* is unknown/   then "unknown"
-                    when /^\[Warning\]/              then "warn"
-                    when /^\[Error\]/                then "warn"
-                    when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
-                    when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
-                    when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
-                    else "other"
-                  end
-      oldwarn = warnings[i]
-      if oldwarn.nil? then
-        warnings[i] = thiswarn
-      else
-        warnings[i] = ranking[[ranking.index(thiswarn), ranking.index(oldwarn)].max]
-      end
-    end
-    correct = 0
-    ignored = 0
-    ferr = nil
-    path = relpath(p.path) # full p.path is too long and p.name does not allow click to open in terminal
-
-    p.testset.tests.each_pair do |idx, type|
-      check = lambda {|cond|
-        if cond then
-          correct += 1
-          if p.testset.todo.include? idx then puts "Excellent: ignored check on #{path.to_s.cyan}:#{idx.to_s.blue} is now passing!" end
-        else
-          if p.testset.todo.include? idx then ignored += 1 else
-            puts "Expected #{type.yellow}, but registered #{(warnings[idx] or "nothing").yellow} on #{p.name.cyan}:#{idx.to_s.blue}"
-            puts p.testset.tests_line[idx].rstrip.gray
-            ferr = idx if ferr.nil? or idx < ferr
-          end
-        end
-      }
-      case type
-      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
-        check.call warnings[idx] == type
-      when "nowarn"
-        check.call warnings[idx].nil?
-      when "assert"
-        check.call warnings[idx] == "success"
-      when "norace"
-        check.call warnings[idx] != "race"
-      when "nodeadlock"
-        check.call warnings[idx] != "deadlock"
-      end
-    end
-    f.puts "<td><a href=\"#{warnfile}\">#{correct} of #{p.testset.tests.size}</a></td>"
-
-    statsfile = File.join(p.group, p.name + ".stats.txt")
-    lines = IO.readlines(File.join($testresults, statsfile))
-    res = lines.grep(/^TOTAL\s*(.*) s.*$/) { $1 }
-    errors = lines.grep(/Error:/)
-    if res == [] or not errors == [] then
-      is_ok = false
-      f.puts "<td><a href=\"#{statsfile}\">failure</a></td>"
-    else
-      f.puts "<td><a href=\"#{statsfile}\">#{"%.2f" % res} s</a></td>"
-    end
-
-    f.puts "<td>#{vars} / #{evals}</a></td>"
 
 #     if tracing then
 #       confile = p.name + ".con.txt"
@@ -521,31 +571,6 @@ File.open(theresultfile, "w") do |f|
 #       sols = lines.grep(/sol: Entered/).size
 #       f.puts "<td><a href=\"#{solfile}\">#{sols} nodes</a></td>"
 #     end
-
-    if correct + ignored == p.testset.tests.size && is_ok then
-      f.puts "<td style =\"color: green\">NONE</td>"
-    else
-      $alliswell = false
-      if not $timedout.include? id then
-        $failed.push "#{p.id} #{p.name}"
-        exc = if lines[0] =~ /exception/ then " (see exception above)" else "" end
-        puts "#{id}" + " failed#{exc}!".red
-        puts ""
-        if dump then
-          puts "============== WARNINGS ==============="
-          puts File.read(File.join($testresults, warnfile))
-          puts "================ STATS ================"
-          puts File.read(File.join($testresults, statsfile))
-          puts "======================================="
-        end
-      end
-      if not is_ok or ferr.nil? then
-        f.puts "<td style =\"color: red\">FAILED</td>"
-      else
-        whataglorifiedmess = File.join(p.group, p.name + ".c.html")
-        f.puts "<td><a href=\"#{whataglorifiedmess}#line#{ferr}\" style =\"color: red\">LINE #{ferr}</a></td>"
-      end
-    end
 
     f.puts "</tr>"
   end
