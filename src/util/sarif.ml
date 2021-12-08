@@ -53,9 +53,9 @@ let location_of_cil_location ({file; line; column; endLine; endColumn; _}: Cil.l
     artifactLocation = { uri = file };
     region = {
       startLine = line;
-      startColumn = column;
+      startColumn = if column >= 0 then Some column else None;
       endLine;
-      endColumn;
+      endColumn = if endColumn >= 0 then Some endColumn else None;
     };
   }
 }
