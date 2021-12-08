@@ -66,8 +66,18 @@ struct
   let var_id (n,_) = Var.var_id n
   let node (n,_) = n
 end
-exception Deadcode
 
+module GVarF (V: Printable.S) =
+struct
+  include V
+  (* from Basetype.Variables *)
+  let var_id _ = "globals"
+  let node _ = MyCFG.Function Cil.dummyFunDec
+  let pretty_trace = pretty
+end
+
+
+exception Deadcode
 
 (** [Dom (D)] produces D lifted where bottom means dead-code *)
 module Dom (LD: Lattice.S) =
@@ -277,7 +287,7 @@ end
 
    It is not clear if we need pre-states, post-states or both on foreign analyses.
 *)
-type ('d,'g,'c) ctx =
+type ('d,'g,'c,'v) ctx =
   { ask      : 'a. 'a Queries.t -> 'a Queries.result (* Inlined Queries.ask *)
   ; emit     : Events.t -> unit
   ; node     : MyCFG.node
@@ -286,12 +296,12 @@ type ('d,'g,'c) ctx =
   ; context  : unit -> 'c (** current Spec context *)
   ; edge     : MyCFG.edge
   ; local    : 'd
-  ; global   : varinfo -> 'g
+  ; global   : 'v -> 'g
   ; presub   : (string * Obj.t) list
   ; postsub  : (string * Obj.t) list
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
-  ; sideg    : varinfo -> 'g -> unit
+  ; sideg    : 'v -> 'g -> unit
   ; assign   : ?name:string -> lval -> exp -> unit
   }
 
@@ -316,6 +326,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   module C : Printable.S
+  module V: Printable.S (** Global constraint variables. *)
 
   val name : unit -> string
 
@@ -341,33 +352,33 @@ sig
   val context : fundec -> D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
-  val sync  : (D.t, G.t, C.t) ctx -> [`Normal | `Join | `Return] -> D.t
-  val query : (D.t, G.t, C.t) ctx -> 'a Queries.t -> 'a Queries.result
-  val assign: (D.t, G.t, C.t) ctx -> lval -> exp -> D.t
-  val vdecl : (D.t, G.t, C.t) ctx -> varinfo -> D.t
-  val branch: (D.t, G.t, C.t) ctx -> exp -> bool -> D.t
-  val body  : (D.t, G.t, C.t) ctx -> fundec -> D.t
-  val return: (D.t, G.t, C.t) ctx -> exp option  -> fundec -> D.t
-  val intrpt: (D.t, G.t, C.t) ctx -> D.t
-  val asm   : (D.t, G.t, C.t) ctx -> D.t
-  val skip  : (D.t, G.t, C.t) ctx -> D.t
+  val sync  : (D.t, G.t, C.t, V.t) ctx -> [`Normal | `Join | `Return] -> D.t
+  val query : (D.t, G.t, C.t, V.t) ctx -> 'a Queries.t -> 'a Queries.result
+  val assign: (D.t, G.t, C.t, V.t) ctx -> lval -> exp -> D.t
+  val vdecl : (D.t, G.t, C.t, V.t) ctx -> varinfo -> D.t
+  val branch: (D.t, G.t, C.t, V.t) ctx -> exp -> bool -> D.t
+  val body  : (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t
+  val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
+  val intrpt: (D.t, G.t, C.t, V.t) ctx -> D.t
+  val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
+  val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
 
 
-  val special : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t
-  val enter   : (D.t, G.t, C.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t -> D.t -> D.t
+  val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
+  val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
+  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t -> D.t -> D.t
 
   (** Returns initial state for created thread. *)
-  val threadenter : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> D.t list
+  val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
 
   (** Updates the local state of the creator thread using initial state of created thread. *)
-  val threadspawn : (D.t, G.t, C.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t) ctx -> D.t
+  val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
 module type MCPSpec =
 sig
   include Spec
-  val event : (D.t, G.t, C.t) ctx -> Events.t -> (D.t, G.t, C.t) ctx -> D.t
+  val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
 type analyzed_data = {
@@ -487,10 +498,15 @@ struct
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
 
+module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
+module EmptyV = Printable.Empty
 
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
+  module G = Lattice.Unit
+  module V = EmptyV
+
   type marshal = unit
   let init _ = ()
   let finalize () = ()

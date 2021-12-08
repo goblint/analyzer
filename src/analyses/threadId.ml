@@ -26,7 +26,6 @@ struct
 
   module D = Lattice.Prod (ThreadLifted) (TD)
   module C = D
-  module G = Lattice.Unit
 
   let tids = ref (Hashtbl.create 20)
 
@@ -91,7 +90,7 @@ struct
     | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
     | _ -> ConcDomain.ThreadSet.top ()
 
-  let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
+  let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.CurrentThreadId -> fst ctx.local
     | Queries.CreatedThreads -> created ctx.local
@@ -111,11 +110,11 @@ struct
     let (current, td) = ctx.local in
     (current, Thread.threadspawn td ctx.prev_node f)
 
-  type marshal = Thread.marshal * ((Thread.t,unit) Hashtbl.t)
+  type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
   let init (m:marshal option): unit =
     match m with
-    | Some (x,y) -> Thread.init (Some x); tids := y
-    | None ->  Thread.init None
+    | Some y -> tids := y
+    | None -> ()
 
 
   let print_tid_info () =
@@ -133,7 +132,7 @@ struct
 
   let finalize () =
     if GobConfig.get_bool "dbg.print_tids" then print_tid_info ();
-    Thread.finalize (),!tids
+    !tids
 end
 
 let _ =

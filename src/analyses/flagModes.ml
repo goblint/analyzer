@@ -11,7 +11,6 @@ struct
   let name () = "fmode"
   module D = FlagModeDomain.Dom
   module C = FlagModeDomain.Dom
-  module G = Lattice.Unit
 
   let flag_list = ref []
 

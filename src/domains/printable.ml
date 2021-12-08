@@ -32,6 +32,23 @@ sig
   val relift: t -> t
 end
 
+module Empty: S =
+struct
+  type t = |
+  let equal (x: t) (_: t) = match x with _ -> .
+  let hash (x: t) = match x with _ -> .
+  let compare (x: t) (_: t) = match x with _ -> .
+  let show (x: t) = match x with _ -> .
+  let pretty () (x: t) = match x with _ -> .
+  let printXml _ (x: t) = match x with _ -> .
+  let name () = "empty"
+  let to_yojson (x: t) = match x with _ -> .
+  let invariant _ (x: t) = match x with _ -> .
+  let tag (x: t) = match x with _ -> .
+  let arbitrary () = failwith "Printable.Empty.arbitrary"
+  let relift (x: t) = match x with _ -> .
+end
+
 
 module Std =
 struct
@@ -41,7 +58,7 @@ struct
 
   (* start MapDomain.Groupable *)
   type group = |
-  let show_group (x: group)= match x with _ -> .
+  let show_group (x: group) = match x with _ -> .
   let to_group _ = None
   let trace_enabled = false
   (* end MapDomain.Groupable *)

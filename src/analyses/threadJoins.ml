@@ -14,12 +14,13 @@ struct
   module D = MustTIDs
   module C = D
   module G = MustTIDs
+  module V = TID
 
   (* transfer functions *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (
       match ctx.ask CurrentThreadId with
-      | `Lifted tid -> ctx.sideg (TID.to_varinfo tid) ctx.local
+      | `Lifted tid -> ctx.sideg tid ctx.local
       | _ -> () (* correct? *)
     );
     ctx.local
@@ -35,7 +36,7 @@ struct
         let threads = TIDs.elements threads in
         match threads with
         | [tid] when TID.is_unique tid->
-          let joined = ctx.global (TID.to_varinfo tid) in
+          let joined = ctx.global tid in
           D.union (D.add tid ctx.local) joined
         | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)

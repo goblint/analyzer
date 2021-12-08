@@ -41,10 +41,10 @@
 ; Workaround for alternative dependencies with unqualified subdirs.
 ; See: https://github.com/ocaml/dune/issues/4383#issuecomment-805107435.
 ; TODO: Remove workaround with dune 3.0, where this should get fixed.
-(copy_files cdomains/apron/*.ml)
-(copy_files analyses/apron/*.ml)
-(copy_files util/apron/*.ml)
-(copy_files witness/z3/*.ml)
+(copy_files# cdomains/apron/*.ml)
+(copy_files# analyses/apron/*.ml)
+(copy_files# util/apron/*.ml)
+(copy_files# witness/z3/*.ml)
 
 (executables
   (names goblint maindomaintest mainarinc mainspec) ; TODO: separate domaintest executable?

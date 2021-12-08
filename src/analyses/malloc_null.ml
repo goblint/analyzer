@@ -15,7 +15,6 @@ struct
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-  module G = Lattice.Unit
 
   let should_join x y = D.equal x y
 
@@ -24,7 +23,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 

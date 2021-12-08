@@ -91,6 +91,7 @@ struct
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (ArincDomain.D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
   module C = D
+  module V = Printable.UnitConf (struct let name = "tasks" end)
 
   let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
 
@@ -109,7 +110,6 @@ struct
 
   let is_single ctx =
     not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx))
-  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
   let is_mainfun name = List.mem name (GobConfig.get_string_list "mainfun")
 
   type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }
@@ -136,7 +136,7 @@ struct
   let is_return_code_type exp = Cilfacade.typeOf exp |> unrollTypeDeep |> function
     | TEnum(ei, _) when ei.ename = "T13" -> true
     | _ -> false
-  let return_code_is_success = function 0L | 1L -> true | _ -> false
+  let return_code_is_success z = Cilint.is_zero_cilint z || Cilint.compare_cilint z Cilint.one_cilint = 0
   let str_return_code i = if return_code_is_success i then "SUCCESS" else "ERROR"
   let str_return_dlval (v,o as dlval) =
     sprint d_lval (Lval.CilLval.to_lval dlval) ^ "_" ^ string_of_int v.vdecl.line |>
@@ -195,7 +195,7 @@ struct
               let add_one str_rhs = add_edges env @@ ArincUtil.Assign (str_return_dlval dlval, str_rhs) in
               let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincUtil.Nop in
               match stripCasts rval with
-              | Const CInt64(i,_,_) -> add_one @@ str_return_code i
+              | Const CInt(i,_,_) -> add_one @@ str_return_code i
               (*       | Lval rlval ->
                         iterMayPointTo ctx (AddrOf rlval) (fun rdlval -> add_return_dlval env `Read rdlval; add_one @@ str_return_dlval rdlval) *)
               | _ -> add_top ()
@@ -212,8 +212,8 @@ struct
         let check a b tv =
           (* we are interested in a comparison between some lval lval (which has the type of the return code enum) and a value of that enum (which gets converted to an Int by CIL) *)
           match a, b with
-          | Lval lval, Const CInt64(i,_,_)
-          | Const CInt64(i,_,_), Lval lval when is_return_code_type (Lval lval) ->
+          | Lval lval, Const CInt(i,_,_)
+          | Const CInt(i,_,_), Lval lval when is_return_code_type (Lval lval) ->
             (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
             (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
             (match env.node with
@@ -402,7 +402,7 @@ struct
             let pm = partition_mode_of_enum @@ BI.to_int i in
             if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" (BI.to_int64 i) (show_partition_mode_opt pm);
             if mode_is_multi (Pmo.of_int (BI.to_int64 i)) then (
-              let tasks = ctx.global tasks_var in
+              let tasks = ctx.global () in
               ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
               Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
             );
@@ -507,8 +507,8 @@ struct
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
             let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
-            let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-            ctx.sideg tasks_var tasks;
+            let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+            ctx.sideg () tasks;
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
@@ -618,8 +618,8 @@ struct
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
             let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
-            let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-            ctx.sideg tasks_var tasks;
+            let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+            ctx.sideg () tasks;
             add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
         end
@@ -657,7 +657,7 @@ struct
 
   let threadenter ctx lval f args =
     let d : D.t = ctx.local in
-    let tasks = ctx.global tasks_var in
+    let tasks = ctx.global () in
     (* TODO: optimize finding *)
     let tasks_f = Tasks.filter (fun (fs,f_d) ->
         Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs
