@@ -37,7 +37,7 @@ struct
         match threads with
         | [tid] when TID.is_unique tid->
           let joined = ctx.global tid in
-          D.join (D.add' tid ctx.local) joined
+          D.meet (D.add' tid ctx.local) joined (* union in reverse hoare set is meet *)
         | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
