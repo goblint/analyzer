@@ -292,14 +292,14 @@ struct
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
       match a, b with
-      | Const (CInt64(i, kind, str)), Lval lval
-      | Lval lval, Const (CInt64(i, kind, str)) ->
+      | Const (CInt(i, kind, str)), Lval lval
+      | Lval lval, Const (CInt(i, kind, str)) ->
         (* let binop = BinOp (Eq, a, b, Cil.intType) in *)
         (* standardize the format of the expression to 'lval==i'. -> spec needs to follow that format, the code is mapped to it. *)
-        let binop = BinOp (Eq, Lval lval, Const (CInt64(i, kind, str)), Cil.intType) in
+        let binop = BinOp (Eq, Lval lval, Const (CInt(i, kind, str)), Cil.intType) in
         let key = D.key_from_lval lval in
         let value = D.find key m in
-        if i = Int64.zero && tv then (
+        if Cilint.is_zero_cilint i && tv then (
           M.debug "error-branch";
           (* D.remove key m *)
         )else(

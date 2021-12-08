@@ -109,7 +109,7 @@ struct
 
   let eq_const c1 c2 =
     match c1, c2 with
-    | CInt64 (i1,_,_), CInt64 (i2,_,_) -> i1=i2
+    | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0
     |	CStr s1        , CStr s2         -> s1=s2
     |	CWStr s1       , CWStr s2        -> s1=s2
     |	CChr c1        , CChr c2         -> c1=c2
@@ -278,7 +278,7 @@ struct
     *)	| EAddr :: EDeref :: x -> ees_to_offs x
     | EDeref :: EAddr :: x -> ees_to_offs x
     | EField f :: x -> `Field (f,ees_to_offs x)
-    | EIndex (Const (CInt64 (i, ik, str))) :: x -> `Index (IntDomain.of_const (i, ik, str),ees_to_offs x)
+    | EIndex (Const (CInt (i, ik, str))) :: x -> `Index (IntDomain.of_const (i, ik, str),ees_to_offs x)
     | EIndex i :: x -> `NoOffset              (* Ideally this would be ValueDomain.IntDomain but that leads to issues *)
     | x  -> raise NotSimpleEnough             (* with a cyclic build *)
 
