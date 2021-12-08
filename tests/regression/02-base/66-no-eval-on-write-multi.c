@@ -3,7 +3,7 @@
 #include<pthread.h>
 
 // Test case that shows how avoiding reading integral globals can reduce the number of solver evaluations.
-// Avoiding to evaluate integral globals when setting them reduced the number of necessary evaluations from 62 to 21 in this test case.
+// Avoiding to evaluate integral globals when setting them reduced the number of necessary evaluations from 62 to 20 in this test case.
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 int glob = 10;
@@ -30,7 +30,6 @@ int main() {
   pthread_mutex_unlock(&mutex);
   pthread_join(t, NULL);
   assert(glob >= 1);
-  assert(glob <= 2); //UNKNOWN
   assert(glob <= 10);
   return 0;
 }
