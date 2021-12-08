@@ -71,7 +71,7 @@ for f in $(git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$"); do
       lines="$a-$b"
     fi
     echo "ocp-indent file: $f, lines: $lines"
-    diff $f <(ocp-indent --lines=$lines $f) || fail="true"
+    [[ $lines -eq "0" ]] || diff $f <(ocp-indent --lines=$lines $f) || fail="true"
   done
 done
 if [ "$fail" == "true" ]; then
