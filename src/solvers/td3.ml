@@ -143,8 +143,10 @@ module WP =
           in
           if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
           if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
-          if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
-          cache_sizes := HM.length l :: !cache_sizes;
+          if cache then (
+            if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
+            cache_sizes := HM.length l :: !cache_sizes;
+          );
           if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then ( (* value changed *)
             update_var_event x old tmp;
             HM.replace rho x tmp;
@@ -424,7 +426,7 @@ module WP =
         Stats.time "restore" restore ();
         if GobConfig.get_bool "dbg.verbose" then ignore @@ Pretty.printf "Solved %d vars. Total of %d vars after restore.\n" !Goblintutil.vars (HM.length rho);
         let avg xs = if List.is_empty !cache_sizes then 0.0 else float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
-        if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
+        if tracing && cache then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
       );
 
       stop_event ();
