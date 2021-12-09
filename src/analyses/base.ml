@@ -1169,7 +1169,7 @@ struct
         (* Optimization to avoid evaluating integer values when setting them.
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
-           let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) then begin
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) then begin
             assert (offs = `NoOffset); (* We expect `NoOffset for this case *)
             VD.bot_value lval_type
           end else
