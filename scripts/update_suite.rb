@@ -391,13 +391,14 @@ class Project
 end
 
 class ProjectIncr < Project
-  attr_reader :patch_path
+  attr_reader :patch_path, :conf_path
   attr_accessor :testset_incr
   @testset_incr
-  def initialize(id, name, group, path, params, patch_path)
+  def initialize(id, name, group, path, params, patch_path, conf_path)
     super(id, name, group, path, params)
     @patch_path = patch_path
-    @html_heading = html_heading + ["Patched", "Size (CIL) Incr", "Checks Incr", "Time Incr", "Vars / Eval Incr", "Problems Incr"]
+    @conf_path = conf_path
+    @html_heading = html_heading + ["Config", "Patched", "Size (CIL) Incr", "Checks Incr", "Time Incr", "Vars / Eval Incr", "Problems Incr"]
   end
 
   def create_test_set(lines)
@@ -448,6 +449,7 @@ class ProjectIncr < Project
 
   def to_html
     super +
+    "<td><a href=\"#{conf_path}\">#{name}</a></td>\n" +
     testset_incr.to_html
   end
 end
@@ -510,7 +512,9 @@ regs.sort.each do |d|
     p = if incremental then
           patch = f[0..-3] + ".patch"
           patch_path = File.expand_path(patch, grouppath)
-          ProjectIncr.new(id, testname, groupname, path, params, patch_path)
+          conf = f[0..-3] + ".json"
+          conf_path = File.expand_path(conf, grouppath)
+          ProjectIncr.new(id, testname, groupname, path, params, patch_path, conf_path)
         else
           Project.new(id, testname, groupname, path, params)
         end
