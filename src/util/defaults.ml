@@ -161,6 +161,7 @@ let _ = ()
       ; reg Incremental "incremental.reluctant.on" "false" "Destabilize nodes in changed functions reluctantly"
       ; reg Incremental "incremental.reluctant.compare" "'equal'" "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old."
       ; reg Incremental "incremental.compare" "'ast'" "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)"
+      ; reg Incremental "incremental.force-reanalyze.funs" "[]" "List of functions that are to be re-analayzed from scratch"
       ; reg Incremental "incremental.restart.sided.enabled" "true" "TODO"
       ; reg Incremental "incremental.restart.sided.only-global" "false" "TODO"
       ; reg Incremental "incremental.verify" "true" "TODO"

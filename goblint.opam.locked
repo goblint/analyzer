@@ -94,7 +94,7 @@ version: "dev"
 pin-depends: [
   [
     "goblint-cil.1.8.2"
-    "git+https://github.com/goblint/cil.git#83835348d20b3f51f1e8e505480b773c9fa5f96b"
+    "git+https://github.com/goblint/cil.git#64f3010e56563cf78ab3f4535b8614ef8f4e3abf"
   ]
   [
     "apron.v0.9.13"

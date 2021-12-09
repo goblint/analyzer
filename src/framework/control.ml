@@ -109,29 +109,40 @@ struct
     dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
     dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
     dead_lines := StringMap.filter (fun _ x -> not (StringMap.is_empty x)) !dead_lines;
-    let print_func f xs =
-      let one_range b e first =
-        count := !count + (e - b + 1);
-        if not first then printf ", ";
-        if b=e then
-          printf "%d" b
-        else
-          printf "%d..%d" b e;
-        false
+    let warn_func file f xs =
+      let warn_range b e =
+        count := !count + (e - b + 1); (* for total count below *)
+        let doc =
+          if b = e then
+            Pretty.dprintf "on line %d" b
+          else
+            Pretty.dprintf "on lines %d..%d" b e
+        in
+        let loc: Cil.location = {
+          file;
+          line = b;
+          column = -1; (* not shown *)
+          byte = 0; (* wrong, but not shown *)
+          endLine = e;
+          endColumn = -1; (* not shown *)
+          endByte = 0; (* wrong, but not shown *)
+        }
+        in
+        (doc, Some loc)
       in
-      printf "  function '%s' has dead code on lines: " f;
-      ignore (BatISet.fold_range one_range xs true);
-      printf "\n"
+      let msgs =
+        BatISet.fold_range (fun b e acc ->
+            warn_range b e :: acc
+          ) xs []
+      in
+      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
     in
-    let print_file f =
-      printf "File '%s':\n" f;
-      StringMap.iter print_func
-    in
+    let warn_file f = StringMap.iter (warn_func f) in
     if get_bool "dbg.print_dead_code" then (
       if StringMap.is_empty !dead_lines
       then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
       else (
-        StringMap.iter print_file !dead_lines; (* populates count by side-effect *)
+        StringMap.iter warn_file !dead_lines; (* populates count by side-effect *)
         let total_dead = !count + uncalled_fn_loc in
         printf "Found dead code on %d line%s%s!\n" total_dead (if total_dead>1 then "s" else "") (if uncalled_fn_loc > 0 then Printf.sprintf " (including %d in uncalled functions)" uncalled_fn_loc else "")
       );

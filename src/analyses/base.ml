@@ -509,12 +509,10 @@ struct
 
   let convertToQueryLval x =
     let rec offsNormal o =
+      let ik = Cilfacade.ptrdiff_ikind () in
       let toInt i =
-        match IdxDom.to_int i with
-        | Some x ->
-          (* TODO: Handle values outside of int64 *)
-          let x = BI.to_int64 x in
-          Const (CInt64 (x,IInt, None))
+        match IdxDom.to_int @@ ID.cast_to ik i with
+        | Some x -> Const (CInt (x,ik, None))
         | _ -> mkCast (Const (CStr "unknown")) intType
 
       in
@@ -690,10 +688,10 @@ struct
       (* query functions were no help ... now try with values*)
       match (if get_bool "exp.lower-constants" then constFold true exp else exp) with
       (* Integer literals *)
-      (* seems like constFold already converts CChr to CInt64 *)
+      (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
-      | Const (CInt64 (num,ikind,str)) ->
-        (match str with Some x -> M.tracel "casto" "CInt64 (%s, %a, %s)\n" (Int64.to_string num) d_ikind ikind x | None -> ());
+      | Const (CInt (num,ikind,str)) ->
+        (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
       (* String literals *)
       | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
@@ -723,8 +721,8 @@ struct
           let cast_ok = function
             | Addr a ->
               begin
-                match Cil.isInteger (sizeOf t), Cil.isInteger (sizeOf (get_type_addr a)) with
-                | Some i1, Some i2 -> Int64.compare i1 i2 <= 0
+                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf (get_type_addr a)) with
+                | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
                 | _ ->
                   if contains_vla t || contains_vla (get_type_addr a) then
                     begin
@@ -1109,7 +1107,6 @@ struct
     (* `List and `Blob cannot contain arrays *)
     | _ ->  st
 
-
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
@@ -1169,7 +1166,16 @@ struct
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
-        let new_value = update_offset (Priv.read_global a priv_getg st x) in
+        (* Optimization to avoid evaluating integer values when setting them.
+           The case when invariant = true requires the old_value to be sound for the meet.
+           Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) then begin
+            assert (offs = `NoOffset); (* We expect `NoOffset for this case *)
+            VD.bot_value lval_type
+          end else
+            Priv.read_global a priv_getg st x
+        in
+        let new_value = update_offset old_value in
         let r = Priv.write_global ~invariant a priv_getg (priv_sideg (Option.get ctx).sideg) st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
@@ -1689,7 +1695,7 @@ struct
     let lval_t = Cilfacade.typeOf rval in
     let char_array_hack () =
       let rec split_offset = function
-        | Index(Const(CInt64(i, _, _)), NoOffset) -> (* ...[i] *)
+        | Index(Const(CInt(i, _, _)), NoOffset) -> (* ...[i] *)
           Index(zero, NoOffset), Some i (* all i point to StartOf(string) *)
         | NoOffset -> NoOffset, None
         | Index(exp, offs) ->
@@ -1706,7 +1712,7 @@ struct
       in
       match last_index lval, stripCasts rval with
       | Some (lv, i), Const(CChr c) when c<>'\000' -> (* "abc" <> "abc\000" in OCaml! *)
-        let i = i64_to_int i in
+        let i = Cilint.int_of_cilint i in
         (* ignore @@ printf "%a[%i] = %c\n" d_lval lv i c; *)
         let s = try Hashtbl.find char_array lv with Not_found -> Bytes.empty in (* current string for lv or empty string *)
         if i >= Bytes.length s then ((* optimized b/c Out_of_memory *)
@@ -1756,8 +1762,16 @@ struct
       | _ -> ()
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, _) when AD.is_definite lval_val && v.vglob ->
-        let current_val = eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
+      | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
+        (* Optimization: In case of simple integral types, we not need to evaluate the old value.
+           v is not an allocated block, as v directly appears as a variable in the program;
+           so no explicit check is required here (unlike in set) *)
+        let current_val = if Cil.isIntegralType v.vtype then begin
+            assert (offs = NoOffset);
+            `Bot
+          end else
+            eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
+        in
         (match current_val with
         | `Bot -> (* current value is VD `Bot *)
           (match Addr.to_var_offset (AD.choose lval_val) with
@@ -1766,7 +1780,7 @@ struct
             let iv = VD.bot_value t in (* correct bottom value for top level variable *)
             if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
             let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
+            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
           | _ ->
             set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           )

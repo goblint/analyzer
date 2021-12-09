@@ -52,7 +52,7 @@ struct
     |	CStr s1  , CStr s2	 -> s1 = s2
     |	CWStr is1, CWStr is2 -> is1 = is2
     |	CChr c1  , CChr c2   -> c1 = c2
-    |	CInt64 (v1,k1,_), CInt64 (v2,k2,_) -> v1 = v2 && k1 = k2
+    |	CInt (v1,k1,_), CInt (v2,k2,_) -> Cilint.compare_cilint v1 v2 = 0 && k1 = k2
     |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
     |	CEnum (_,n1,e1), CEnum (_,n2,e2) -> n1 = n2 && e1.ename = e2.ename
     | _ -> false

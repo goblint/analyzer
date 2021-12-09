@@ -108,7 +108,9 @@ jobs:
         run: opam install . --deps-only --with-test
 
       - name: Install Apron dependencies
-        run: opam install apron
+        run: |
+          opam depext apron
+          opam install apron
 
       - name: Build
         if: ${{ false }}
@@ -207,7 +209,9 @@ jobs:
         run: opam install goblint --with-test
 
       - name: Install Apron dependencies
-        run: opam install apron
+        run: |
+          opam depext apron
+          opam install apron
 
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
