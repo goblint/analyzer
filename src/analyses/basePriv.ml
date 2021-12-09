@@ -252,7 +252,6 @@ struct
   let threadenter = old_threadenter
 end
 
-(* Unsound for 13-privatized/67-pthread_cond_wait for unknown reason. *)
 module PerMutexOplusPriv: S =
 struct
   include PerMutexPrivBase
@@ -278,7 +277,7 @@ struct
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let get_m = get_m_with_mutex_inits ask getg m in
-    let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
+    let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
     let cpa' = CPA.filter is_in_V get_m in
     if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
     {st with cpa = CPA.fold CPA.add cpa' st.cpa}

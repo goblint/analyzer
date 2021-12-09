@@ -1,3 +1,4 @@
+// PARAM: --sets exp.privatization mutex-oplus
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>
