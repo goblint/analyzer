@@ -57,14 +57,6 @@ module WP =
 
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
-    module P =
-    struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
-    end
-
-    module HPM = Hashtbl.Make (P)
-
     type phase = Widen | Narrow
 
     let solve box st vs data =
