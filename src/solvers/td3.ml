@@ -126,7 +126,7 @@ module WP =
             if not wp then tmp
             else
               if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> S.Dom.narrow old tmp
+                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> assert (S.Dom.leq tmp old); S.Dom.narrow old tmp (* tmp > old would be unsound *)
               else
                 box x old tmp
           in
