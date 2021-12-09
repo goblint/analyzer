@@ -6,6 +6,8 @@ module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
 
+let (let+) xs f = List.map f xs (* TODO: move to general library *)
+
 module Thread = ThreadIdDomain.Thread
 module ThreadLifted = ThreadIdDomain.ThreadLifted
 
@@ -43,12 +45,12 @@ struct
   let create_tid (current, td) (node: Node.t) v =
     match current with
     | `Lifted current ->
-      let tid = Thread.threadenter (current, td) node v in
+      let+ tid = Thread.threadenter (current, td) node v in
       if GobConfig.get_bool "dbg.print_tids" then
         Hashtbl.replace !tids tid ();
-      `Lifted (tid)
+      `Lifted tid
     | _ ->
-      `Lifted (Thread.threadinit v ~multiple:true)
+      [`Lifted (Thread.threadinit v ~multiple:true)]
 
   let body ctx f = ctx.local
 
@@ -104,7 +106,8 @@ struct
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
-    [(create_tid ctx.local ctx.prev_node f, TD.bot ())]
+    let+ tid = create_tid ctx.local ctx.prev_node f in
+    (tid, TD.bot ())
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in

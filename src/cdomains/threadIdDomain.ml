@@ -30,7 +30,7 @@ sig
 
   module D: Lattice.S
 
-  val threadenter: t * D.t -> Node.t -> varinfo -> t
+  val threadenter: t * D.t -> Node.t -> varinfo -> t list
   val threadspawn: D.t -> Node.t -> varinfo -> D.t
 
   (** If it is possible to get a list of unique thread create thus far, get it *)
@@ -73,7 +73,7 @@ struct
 
   module D = Lattice.Unit
 
-  let threadenter _ = threadenter
+  let threadenter _ n v = [threadenter n v]
   let threadspawn () _ _ = ()
 
   let created _ _ = None
@@ -136,9 +136,9 @@ struct
     let n = Base.threadenter n v in
     let ((p', s') as composed) = compose current n in
     if is_unique composed && S.mem n cs then
-      (p, S.singleton n)
+      [(p, S.singleton n); composed] (* also respawn unique version of the thread to keep it reachable while thread ID sets refer to it *)
     else
-      composed
+      [composed]
 
   let created current cs =
     let els = D.elements cs in
@@ -217,12 +217,12 @@ struct
 
   let threadenter x n v =
     match x with
-    | ((Some x', None), `Lifted1 d) -> (Some (H.threadenter (x',d) n v), None)
-    | ((Some x', None), `Bot) -> (Some (H.threadenter (x',H.D.bot ()) n v), None)
-    | ((Some x', None), `Top) -> (Some (H.threadenter (x',H.D.top ()) n v), None)
-    | ((None, Some x'), `Lifted2 d) -> (None, Some (P.threadenter (x',d) n v))
-    | ((None, Some x'), `Bot) -> (None, Some (P.threadenter (x',P.D.bot ()) n v))
-    | ((None, Some x'), `Top) -> (None, Some (P.threadenter (x',P.D.top ()) n v))
+    | ((Some x', None), `Lifted1 d) -> H.threadenter (x',d) n v |> List.map (fun t -> (Some t, None))
+    | ((Some x', None), `Bot) -> H.threadenter (x',H.D.bot ()) n v |> List.map (fun t -> (Some t, None))
+    | ((Some x', None), `Top) -> H.threadenter (x',H.D.top ()) n v |> List.map (fun t -> (Some t, None))
+    | ((None, Some x'), `Lifted2 d) -> P.threadenter (x',d) n v |> List.map (fun t -> (None, Some t))
+    | ((None, Some x'), `Bot) -> P.threadenter (x',P.D.bot ()) n v |> List.map (fun t -> (None, Some t))
+    | ((None, Some x'), `Top) -> P.threadenter (x',P.D.top ()) n v |> List.map (fun t -> (None, Some t))
     | _ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
 
   let threadspawn x n v =
