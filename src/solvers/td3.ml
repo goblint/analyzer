@@ -103,6 +103,7 @@ module WP =
             HM.remove stable y;
             if not (HM.mem called y) then destabilize y
           ) w
+      (* Same as destabilize, but returns true if it destabilized a called var, or a var in vs which was stable. *)
       and destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
         if tracing then trace "sol2" "destabilize_vs %a\n" S.Var.pretty_trace x;
         let w = HM.find_default infl x VS.empty in
@@ -144,12 +145,12 @@ module WP =
           if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
-          if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
+          if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then ( (* value changed *)
             update_var_event x old tmp;
             HM.replace rho x tmp;
             destabilize x;
             (solve[@tailcall]) x phase;
-          ) else if not (HM.mem stable x) then (
+          ) else if not (HM.mem stable x) then ( (* value unchanged, but not stable, i.e. destabilized itself during rhs? *)
             if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
             (solve[@tailcall]) x Widen;
           ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
@@ -447,7 +448,7 @@ module WP =
           | Some d -> true, Obj.obj d.solver_data
           | _ -> false, create_empty_data ()
         in
-        (* This hack is for fixing hashconsing.
+        (* The following hack is for fixing hashconsing.
          * If hashcons is enabled now, then it also was for the loaded values (otherwise it would crash). If it is off, we don't need to do anything.
          * HashconsLifter uses BatHashcons.hashcons on Lattice operations like join, so we call join (with bot) to make sure that the old values will populate the empty hashcons table via side-effects and at the same time get new tags that are conform with its state.
          * The tags are used for `equals` and `compare` to avoid structural comparisons. TODO could this be replaced by `==` (if values are shared by hashcons they should be physically equal)?
