@@ -3,9 +3,6 @@ int garr[7];
 
 int main(int argc, char **argv)
 {
-	unsigned char *arr[3];
-    unsigned char * top;
-
 	// Call to a function with a missing fundef causes invalidation of garr
 	fundef_missing();
 
