@@ -365,6 +365,9 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
+      let global_cpa = CPA.filter (fun x _ -> is_global ask x && is_unprotected ask x) st.cpa in
+      sideg V.mutex_inits global_cpa; (* must be like enter_multithreaded *)
+
       let cpa' = CPA.fold (fun x v cpa ->
           if is_global ask x && is_unprotected ask x (* && not (VD.is_top v) *) then (
             if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
