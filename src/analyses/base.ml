@@ -1107,7 +1107,6 @@ struct
     (* `List and `Blob cannot contain arrays *)
     | _ ->  st
 
-
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
@@ -1167,7 +1166,16 @@ struct
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
-        let new_value = update_offset (Priv.read_global a priv_getg st x) in
+        (* Optimization to avoid evaluating integer values when setting them.
+           The case when invariant = true requires the old_value to be sound for the meet.
+           Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) then begin
+            assert (offs = `NoOffset); (* We expect `NoOffset for this case *)
+            VD.bot_value lval_type
+          end else
+            Priv.read_global a priv_getg st x
+        in
+        let new_value = update_offset old_value in
         let r = Priv.write_global ~invariant a priv_getg (priv_sideg (Option.get ctx).sideg) st x new_value in
         if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
@@ -1754,8 +1762,16 @@ struct
       | _ -> ()
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, _) when AD.is_definite lval_val && v.vglob ->
-        let current_val = eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset)) in
+      | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
+        (* Optimization: In case of simple integral types, we not need to evaluate the old value.
+           v is not an allocated block, as v directly appears as a variable in the program;
+           so no explicit check is required here (unlike in set) *)
+        let current_val = if Cil.isIntegralType v.vtype then begin
+            assert (offs = NoOffset);
+            `Bot
+          end else
+            eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
+        in
         (match current_val with
         | `Bot -> (* current value is VD `Bot *)
           (match Addr.to_var_offset (AD.choose lval_val) with
@@ -1764,7 +1780,7 @@ struct
             let iv = VD.bot_value t in (* correct bottom value for top level variable *)
             if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
             let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv (* set top-level variable to updated value *)
+            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
           | _ ->
             set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
           )
