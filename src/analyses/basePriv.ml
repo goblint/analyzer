@@ -291,6 +291,10 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
+      let global_cpa = CPA.filter (fun x _ -> is_global ask x && is_unprotected ask x) st.cpa in
+      sideg V.mutex_inits global_cpa; (* must be like enter_multithreaded *)
+      (* TODO: this makes mutex-oplus less precise in 28-race_reach/10-ptrmunge_racefree and 28-race_reach/trylock2_racefree, why? *)
+
       CPA.iter (fun x v ->
           (* TODO: is_unprotected - why breaks 02/11 init_mainfun? *)
           if is_global ask x && is_unprotected ask x then
