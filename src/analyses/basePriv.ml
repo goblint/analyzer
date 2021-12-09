@@ -545,17 +545,15 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
-      let st' =
-        CPA.fold (fun x v (st: BaseComponents (D).t) ->
-            if is_global ask x && is_unprotected ask x then (
-              sideg (V.unprotected x) v;
-              {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
-            )
-            else
-              st
-          ) st.cpa st
-      in
-      st'
+      CPA.fold (fun x v (st: BaseComponents (D).t) ->
+          if is_global ask x && is_unprotected ask x then (
+            sideg (V.unprotected x) v;
+            sideg (V.protected x) v; (* must be like enter_multithreaded *)
+            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
+          )
+          else
+            st
+        ) st.cpa st
     | `Return
     | `Normal
     | `Init
