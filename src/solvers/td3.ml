@@ -22,9 +22,9 @@ module WP =
   functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (HM) (Arg))
-
     include Generic.SolverStats (S) (HM)
     module VS = Set.Make (S.Var)
+    let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
     type solver_data = {
       mutable st: (S.Var.t * S.Dom.t) list; (* needed to destabilize start functions if their start state changed because of some changed global initializer *)
@@ -55,9 +55,7 @@ module WP =
         Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint)
 
-    let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
-
-    type phase = Widen | Narrow
+    type phase = Widen | Narrow (* used in inner solve *)
 
     let solve box st vs data =
       let term  = GobConfig.get_bool "exp.solver.td3.term" in
