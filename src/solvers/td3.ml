@@ -110,32 +110,31 @@ module WP =
         if not (HM.mem called x || HM.mem stable x) then (
           HM.replace stable x ();
           HM.replace called x ();
-          let wp = HM.mem wpoint x in
-          let old = HM.find rho x in
-          let l = HM.create 10 in
-          let tmp =
+          let l = HM.create 10 in (* local cache *)
+          let wp = HM.mem wpoint x in (* if x becomes a wpoint during eq, checking this will delay widening until next solve *)
+          let old = HM.find rho x in (* d from older solve *)
+          let eqd = (* d from equation/rhs *)
             match reuse_eq with
             | Some d -> d
             | None -> eq x (eval l x) (side ~x)
           in
-          let new_eq = tmp in
           HM.remove called x;
-          let tmp =
-            if not wp then tmp
+          let wpd = (* d after widen/narrow (if wp) *)
+            if not wp then eqd
             else
               if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old tmp) | Narrow -> assert (S.Dom.leq tmp old); S.Dom.narrow old tmp (* tmp > old would be unsound *)
+                match phase with Widen -> S.Dom.widen old (S.Dom.join old eqd) | Narrow -> assert (S.Dom.leq eqd old); S.Dom.narrow old eqd (* eqd > old would be unsound *)
               else
-                box x old tmp
+                box x old eqd
           in
-          if tracing then trace "sol" "Var: %a (wp: %b)\nOld value: %a\nNew value: %a\n" S.Var.pretty_trace x wp S.Dom.pretty old S.Dom.pretty tmp;
+          if tracing then trace "sol" "Var: %a (wp: %b)\nOld value: %a\nNew value: %a\n" S.Var.pretty_trace x wp S.Dom.pretty old S.Dom.pretty wpd;
           if cache then (
             if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
             cache_sizes := HM.length l :: !cache_sizes;
           );
-          if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then ( (* value changed *)
-            update_var_event x old tmp;
-            HM.replace rho x tmp;
+          if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old wpd) ()) then ( (* value changed *)
+            update_var_event x old wpd;
+            HM.replace rho x wpd;
             destabilize x;
             (solve[@tailcall]) x phase;
           ) else if not (HM.mem stable x) then ( (* value unchanged, but not stable, i.e. destabilized itself during rhs? *)
@@ -144,7 +143,7 @@ module WP =
           ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
             if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
             HM.remove stable x;
-            (solve[@tailcall]) ~reuse_eq:new_eq x Narrow;
+            (solve[@tailcall]) ~reuse_eq:eqd x Narrow;
           ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
             if tracing then trace "sol2" "solve removing wpoint %a\n" S.Var.pretty_trace x;
             HM.remove wpoint x;
@@ -165,10 +164,10 @@ module WP =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) (side ~x) in
+          let eqd = eq y (eval l x) (side ~x) in
           HM.remove called y;
           if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
-          else (if cache then HM.replace l y tmp; tmp)
+          else (if cache then HM.replace l y eqd; eqd)
         )
       and eval l x y =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
