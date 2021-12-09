@@ -281,8 +281,36 @@ struct
         | _ ->
           st
       end
+    | `Join ->
+      if (ask.f Q.MustBeSingleThreaded) then
+        st
+      else
+        (* must be like enter_multithreaded *)
+        let apr = st.apr in
+        let (g_vars, gs) =
+          AD.vars apr
+          |> List.enum
+          |> Enum.filter_map (fun var ->
+              match ApronDomain.V.find_metadata var with
+              | Some (Global g) -> Some (var, g)
+              | _ -> None
+            )
+          |> Enum.uncombine
+          |> Tuple2.map List.of_enum List.of_enum
+        in
+        let g_unprot_vars = List.map AV.unprot gs in
+        let g_prot_vars = List.map AV.prot gs in
+        let apr_side = AD.add_vars apr (g_unprot_vars @ g_prot_vars) in
+        let apr_side = AD.assign_var_parallel' apr_side g_unprot_vars g_vars in
+        let apr_side = AD.assign_var_parallel' apr_side g_prot_vars g_vars in
+        let apr_side = restrict_global apr_side in
+        sideg () apr_side;
+        (* TODO: why not remove at all? should only remove unprotected? *)
+        (* let apr_local = AD.remove_vars apr g_vars in
+        let apr_local' = AD.meet apr_local (getg ()) in
+        {st with apr = apr_local'} *)
+        st
     | `Normal
-    | `Join (* TODO: no problem with branched thread creation here? *)
     | `Init
     | `Thread ->
       st
