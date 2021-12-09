@@ -35,7 +35,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
       List.for_all2 eq_varinfo a.sformals b.sformals
     with Invalid_argument _ -> false in
   let identical, diffOpt =
-    if List.mem a.svar.vname (GobConfig.get_string_list "incremental.extra-changed") then
+    if List.mem a.svar.vname (GobConfig.get_string_list "incremental.force-reanalyze.funs") then
       false, None
     else
       try
