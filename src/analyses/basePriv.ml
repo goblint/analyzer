@@ -277,7 +277,14 @@ struct
 
   let lock ask getg (st: BaseComponents (D).t) m =
     let get_m = get_m_with_mutex_inits ask getg m in
-    let is_in_V x _ = is_protected_by ask m x && is_unprotected ask x in
+    (* Really we want is_unprotected, but pthread_cond_wait emits unlock-lock events,
+       where our (necessary) original context still has the mutex,
+       so the query would be on the wrong lockset.
+       TODO: Fixing the event contexts is hard: https://github.com/goblint/analyzer/pull/487#discussion_r765905029.
+       Therefore, just use _without to exclude the mutex we shouldn't have.
+       In non-cond locks we don't have it anyway, so there's no difference.
+       No other privatization uses is_unprotected, so this hack is only needed here. *)
+    let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
     let cpa' = CPA.filter is_in_V get_m in
     if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
     {st with cpa = CPA.fold CPA.add cpa' st.cpa}
@@ -291,6 +298,10 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
+      let global_cpa = CPA.filter (fun x _ -> is_global ask x && is_unprotected ask x) st.cpa in
+      sideg V.mutex_inits global_cpa; (* must be like enter_multithreaded *)
+      (* TODO: this makes mutex-oplus less precise in 28-race_reach/10-ptrmunge_racefree and 28-race_reach/trylock2_racefree, why? *)
+
       CPA.iter (fun x v ->
           (* TODO: is_unprotected - why breaks 02/11 init_mainfun? *)
           if is_global ask x && is_unprotected ask x then
@@ -365,6 +376,9 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
+      let global_cpa = CPA.filter (fun x _ -> is_global ask x && is_unprotected ask x) st.cpa in
+      sideg V.mutex_inits global_cpa; (* must be like enter_multithreaded *)
+
       let cpa' = CPA.fold (fun x v cpa ->
           if is_global ask x && is_unprotected ask x (* && not (VD.is_top v) *) then (
             if M.tracing then M.tracel "priv" "SYNC SIDE %a = %a\n" d_varinfo x VD.pretty v;
@@ -545,17 +559,15 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     match reason with
     | `Join -> (* required for branched thread creation *)
-      let st' =
-        CPA.fold (fun x v (st: BaseComponents (D).t) ->
-            if is_global ask x && is_unprotected ask x then (
-              sideg (V.unprotected x) v;
-              {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
-            )
-            else
-              st
-          ) st.cpa st
-      in
-      st'
+      CPA.fold (fun x v (st: BaseComponents (D).t) ->
+          if is_global ask x && is_unprotected ask x then (
+            sideg (V.unprotected x) v;
+            sideg (V.protected x) v; (* must be like enter_multithreaded *)
+            {st with cpa = CPA.remove x st.cpa; priv = P.remove x st.priv}
+          )
+          else
+            st
+        ) st.cpa st
     | `Return
     | `Normal
     | `Init
