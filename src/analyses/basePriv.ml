@@ -252,6 +252,7 @@ struct
   let threadenter = old_threadenter
 end
 
+(* Unsound for 13-privatized/67-pthread_cond_wait for unknown reason. *)
 module PerMutexOplusPriv: S =
 struct
   include PerMutexPrivBase
