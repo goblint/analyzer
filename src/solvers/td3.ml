@@ -119,8 +119,6 @@ module WP =
             | None -> eq x (eval l x) (side ~x)
           in
           let new_eq = tmp in
-          if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
-          if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
           let tmp =
             if not wp then tmp
@@ -130,8 +128,7 @@ module WP =
               else
                 box x old tmp
           in
-          if tracing then trace "sol" "Old value:%a\n" S.Dom.pretty old;
-          if tracing then trace "sol" "New Value:%a\n" S.Dom.pretty tmp;
+          if tracing then trace "sol" "Var: %a (wp: %b)\nOld value: %a\nNew value: %a\n" S.Var.pretty_trace x wp S.Dom.pretty old S.Dom.pretty tmp;
           if cache then (
             if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
             cache_sizes := HM.length l :: !cache_sizes;
