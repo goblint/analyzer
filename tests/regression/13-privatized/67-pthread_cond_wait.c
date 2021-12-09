@@ -12,6 +12,7 @@ void* f1(void* ptr) {
     pthread_mutex_lock(&mut);
     g = 1;
     pthread_cond_wait(&cond,&mut);
+    // TODO: mutex-oplus is unsound here!
     assert(g == 0); //UNKNOWN!
     assert(g != 1); //UNKNOWN!
     printf("g is %i", g);
