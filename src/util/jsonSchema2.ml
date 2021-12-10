@@ -72,7 +72,7 @@ let default_schema = {schema|
   , "compare_runs"    : {}
   , "warn_at"         : {}
   , "warn"              :
-    { "type"            : "string"
+    { "type"            : "object"
     , "additionalProperties" : true
     , "required"        : ["foo"]
     }
@@ -84,13 +84,22 @@ let schema = JS.of_json (Yojson.Safe.from_string default_schema)
 
 
 let rec encoding_of_schema_element (schema_element: Json_schema.element): unit Json_encoding.encoding =
+  let open Json_encoding in
+  let erase: type t. t encoding -> unit encoding = fun encoding -> conv (fun _ -> failwith "asd") (fun _ -> ()) encoding in
   match schema_element.kind with
+  | Any -> unit
+  | String string_specs -> erase string
   | Object object_specs ->
-    let open Json_encoding in
     List.fold_left (fun acc (name, element, required, _) ->
-        conv (fun _ -> failwith "asd") (fun _ -> ()) @@ merge_objs acc (obj1 (if required then req name unit else dft name unit ()))
+        let field =
+          if required then
+            req name (encoding_of_schema_element element)
+          else
+            dft name (encoding_of_schema_element element) ()
+        in
+        erase @@ merge_objs acc (obj1 field)
       ) (Option.map_default encoding_of_schema_element empty object_specs.additional_properties) object_specs.properties
-  | _ -> failwith (Format.asprintf "%a" Json_schema.pp (Json_schema.create schema_element))
+  | _ -> failwith (Format.asprintf "encoding_of_schema_element: %a" Json_schema.pp (Json_schema.create schema_element))
 
 let encoding_of_schema (schema: Json_schema.schema): unit Json_encoding.encoding =
   encoding_of_schema_element (Json_schema.root schema)
@@ -99,5 +108,5 @@ let validate json =
   match JE.destruct (encoding_of_schema schema) json with
     | _ -> ()
     | exception (Json_encoding.Cannot_destruct _ as e) ->
-      Json_encoding.print_error Format.std_formatter e;
+      Format.printf "validate: %a\n" (Json_encoding.print_error ?print_unknown:None) e;
       failwith "JsonSchema2.validate"
