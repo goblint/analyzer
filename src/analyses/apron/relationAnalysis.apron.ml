@@ -5,24 +5,26 @@ open RelationDomain
 
 module M = Messages
 
-module SpecFunctor (CPriv: ApronPriv.SharedS) (RD: RelationDomain.RD) : Analyses.MCPSpec =
+module SpecFunctor (CPriv: ApronPriv.SharedS) (RD: RelationDomain.RD) (PCU: RelPrecCompareUtil.Util) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
-
 
   module AD = RD.D2
 
   let name () = AD.name ()
-  module Priv = CPriv (RD)
+
+  module Priv = CPriv (AD)
   module D = RelationDomain.RelComponent (AD) (Priv.D)
   module G = Priv.G
   module C = D
-  module V = RelationDomain.V (RD.Var)
-  module VTemp = Priv.V
+  module V = Priv.V
+  module RV = RelationDomain.V (RD.Var)
+  module PCU = PCU(AD)
 
-  open ApronPrecCompareUtil
+  open AD
+  open PrecCompareUtil
 
-  let results = RH.create 103
+  let results = PCU.RH.create 103
 
   let should_join = Priv.should_join
 
@@ -42,8 +44,8 @@ struct
       Priv.read_global ask getg st g x
     else (
       let apr = st.RelationDomain.apr in
-      let g_var = V.global g in
-      let x_var = V.local x in
+      let g_var = RV.global g in
+      let x_var = RV.local x in
       let apr' = AD.add_vars apr [g_var] in
       let apr' = AD.assign_var apr' x_var g_var in
       apr'
@@ -72,7 +74,7 @@ struct
     end
     in
     let e' = visitCilExpr visitor e in
-    let apr = AD.add_vars st.RelationDomain.apr (List.map V.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
+    let apr = AD.add_vars st.RelationDomain.apr (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* add temporary g#in-s *)
     let apr' = VH.fold (fun v v_in apr ->
         if M.tracing then M.trace "apron" "read_global %a %a\n" d_varinfo v d_varinfo v_in;
         read_global ask getg {st with RelationDomain.apr = apr} v v_in (* g#in = g; *)
@@ -88,7 +90,7 @@ struct
     let (apr', e', v_ins) = read_globals_to_locals ask getg st e in
     if M.tracing then M.trace "apron" "assign_from_globals_wrapper %a\n" d_exp e';
     let apr' = f apr' e' in (* x = e; *)
-    let apr'' = AD.remove_vars apr' (List.map V.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
+    let apr'' = AD.remove_vars apr' (List.map RV.local (VH.values v_ins |> List.of_enum)) in (* remove temporary g#in-s *)
     apr''
 
   let write_global ask getg sideg st g x =
@@ -96,8 +98,8 @@ struct
       Priv.write_global ask getg sideg st g x
     else (
       let apr = st.RelationDomain.apr in
-      let g_var = V.global g in
-      let x_var = V.local x in
+      let g_var = RV.global g in
+      let x_var = RV.local x in
       let apr' = AD.add_vars apr [g_var] in
       let apr' = AD.assign_var apr' g_var x_var in
       {st with RelationDomain.apr = apr'}
@@ -113,11 +115,11 @@ struct
         {st with apr = f st v}
       else (
         let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
-        let st = {st with apr = AD.add_vars st.apr [V.local v_out]} in (* add temporary g#out *)
+        let st = {st with apr = AD.add_vars st.apr [RV.local v_out]} in (* add temporary g#out *)
         let st' = {st with apr = f st v_out} in (* g#out = e; *)
         if M.tracing then M.trace "apron" "write_global %a %a\n" d_varinfo v d_varinfo v_out;
         let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
-        let apr'' = AD.remove_vars st'.apr [V.local v_out] in (* remove temporary g#out *)
+        let apr'' = AD.remove_vars st'.apr [RV.local v_out] in (* remove temporary g#out *)
         {st' with apr = apr''}
       )
     (* Ignoring all other assigns *)
@@ -149,7 +151,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
-              AD.assign_exp apr' (V.local v) e'
+              AD.assign_exp apr' (RV.local v) e'
             )
         )
       in
@@ -178,7 +180,7 @@ struct
     let arg_assigns =
       Goblintutil.zip f.sformals args
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
-      |> List.map (Tuple2.map1 V.arg)
+      |> List.map (Tuple2.map1 RV.arg)
     in
     let arg_vars = List.map fst arg_assigns in
     let new_apr = AD.add_vars st.apr arg_vars in
@@ -192,7 +194,7 @@ struct
       ) new_apr arg_assigns
     in
     let filtered_new_apr = AD.remove_filter new_apr (fun var ->
-        match V.find_metadata var with
+        match RV.find_metadata var with
         | Some Local -> true (* remove caller locals *)
         | Some Arg when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
@@ -205,13 +207,13 @@ struct
     let st = ctx.local in
     let formals = List.filter AD.varinfo_tracked f.sformals in
     let locals = List.filter AD.varinfo_tracked f.slocals in
-    let new_apr = AD.add_vars st.apr (List.map V.local (formals @ locals)) in
+    let new_apr = AD.add_vars st.apr (List.map RV.local (formals @ locals)) in
     (* TODO: do this after local_assigns? *)
     let new_apr = List.fold_left (fun new_apr x ->
         assert_type_bounds new_apr x
       ) new_apr (formals @ locals)
     in
-    let local_assigns = List.map (fun x -> (V.local x, V.arg x)) formals in
+    let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
     let assigned_new_apr = AD.assign_var_parallel new_apr local_assigns in (* doesn't need to be parallel since arg vars aren't local vars *)
     {st with apr = assigned_new_apr}
 
@@ -219,14 +221,14 @@ struct
     let st = ctx.local in
     let new_apr =
       if AD.type_tracked (Cilfacade.fundec_return_type f) then (
-        let apr' = AD.add_vars st.apr [V.return] in
+        let apr' = AD.add_vars st.apr [RV.return] in
         match e with
         | Some e ->
           assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with apr = apr'} e (fun apr' e' ->
-              AD.assign_exp apr' V.return e'
+              AD.assign_exp apr' RV.return e'
             )
         | None ->
-          apr' (* leaves V.return unconstrained *)
+          apr' (* leaves RV.return unconstrained *)
       )
       else
         st.apr
@@ -234,7 +236,7 @@ struct
     let local_vars =
       f.sformals @ f.slocals
       |> List.filter AD.varinfo_tracked
-      |> List.map V.local
+      |> List.map RV.local
     in
     let rem_new_apr = AD.remove_vars new_apr local_vars in
     {st with apr = rem_new_apr}
@@ -248,7 +250,7 @@ struct
     let arg_substitutes =
       Goblintutil.zip f.sformals args
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
-      |> List.map (Tuple2.map1 V.arg)
+      |> List.map (Tuple2.map1 RV.arg)
     in
     (* AD.substitute_exp_parallel_with new_fun_apr arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
     (* TODO: parallel version of assign_from_globals_wrapper? *)
@@ -264,7 +266,7 @@ struct
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
     let new_fun_apr = AD.remove_vars new_fun_apr arg_vars in (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
-        match V.find_metadata var with
+        match RV.find_metadata var with
         | Some Local -> true (* keep caller locals *)
         | Some Arg -> true (* keep caller args *)
         | _ -> false (* remove everything else (globals, global privs) *)
@@ -277,54 +279,69 @@ struct
       let unify_st' = match r with
         | Some lv ->
           assign_to_global_wrapper (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg unify_st lv (fun st v ->
-              AD.assign_var st.apr (V.local v) V.return
+              AD.assign_var st.apr (RV.local v) RV.return
             )
         | None ->
           unify_st
       in
-      let new_unify_st_apr = AD.remove_vars unify_st'.apr [V.return] in (* mutates! *)
+      let new_unify_st_apr = AD.remove_vars unify_st'.apr [RV.return] in (* mutates! *)
       {RelationDomain.apr = new_unify_st_apr; RelationDomain.priv = unify_st'.priv}
     )
     else
       unify_st
 
   let special ctx r f args =
-    let st = ctx.local in
-    match LibraryFunctions.classify f.vname args with
-    (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | `Assert expression -> st
-    | `Unknown "__goblint_check" -> st
-    | `Unknown "__goblint_commit" -> st
-    | `Unknown "__goblint_assert" -> st
-    | _ ->
-      let ask = Analyses.ask_of_ctx ctx in
-      let invalidate_one st lv =
-        assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-            let apr' = AD.forget_vars st.apr [V.local v] in
-            assert_type_bounds apr' v (* re-establish type bounds after forget *)
+        let ask = Analyses.ask_of_ctx ctx in
+        let invalidate_one st lv =
+          assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+              let apr' = AD.forget_vars st.apr [RV.local v] in
+              assert_type_bounds apr' v (* re-establish type bounds after forget *)
+            )
+        in
+        let st = ctx.local in
+        match LibraryFunctions.classify f.vname args with
+        (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
+        | `Assert expression -> st
+        | `Unknown "__goblint_check" -> st
+        | `Unknown "__goblint_commit" -> st
+        | `Unknown "__goblint_assert" -> st
+        | `ThreadJoin (id,retvar) ->
+          (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
+          (
+            let st' = Priv.thread_join ask ctx.global id st in
+            match r with
+            | Some lv -> invalidate_one st' lv
+            | None -> st'
           )
-      in
-      let st' = match LibraryFunctions.get_invalidate_action f.vname with
-        | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
-        | None ->
-          if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
-            let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
-                match global with
-                | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                  (Var vi, NoOffset) :: acc
-                (* TODO: what about GVarDecl? *)
-                | _ -> acc
-              ) []
-            in
-            List.fold_left invalidate_one st globals
-          )
-          else
-            st
-      in
-      (* invalidate lval if present *)
-      match r with
-      | Some lv -> invalidate_one st' lv
-      | None -> st'
+        | _ ->
+          let ask = Analyses.ask_of_ctx ctx in
+          let invalidate_one st lv =
+            assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+                let apr' = AD.forget_vars st.apr [RV.local v] in
+                assert_type_bounds apr' v (* re-establish type bounds after forget *)
+              )
+          in
+          let st' = match LibraryFunctions.get_invalidate_action f.vname with
+            | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
+            | None ->
+              if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
+                let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
+                    match global with
+                    | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+                      (Var vi, NoOffset) :: acc
+                    (* TODO: what about GVarDecl? *)
+                    | _ -> acc
+                  ) []
+                in
+                List.fold_left invalidate_one st globals
+              )
+              else
+                st
+          in
+          (* invalidate lval if present *)
+          match r with
+          | Some lv -> invalidate_one st' lv
+          | None -> st'
 
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -358,7 +375,7 @@ struct
       let arg_vars =
         fd.sformals
         |> List.filter AD.varinfo_tracked
-        |> List.map V.arg
+        |> List.map RV.arg
       in
       let new_apr = AD.add_vars st'.apr arg_vars in
       [{st' with apr = new_apr}]
@@ -383,12 +400,12 @@ struct
     | _ ->
       st
 
-  let sync ctx reason =
-    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
-
-  let init marshal =
-    Priv.init ()
-
-  let finalize () =
-    Priv.finalize ()
+      let sync ctx reason =
+        (* After the solver is finished, store the results (for later comparison) *)
+        if !GU.postsolving then begin
+          let old_value = PCU.RH.find_default results ctx.node (AD.bot ()) in
+          let new_value = AD.join old_value ctx.local.apr in
+          PCU.RH.replace results ctx.node new_value;
+        end;
+        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
 end

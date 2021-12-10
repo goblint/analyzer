@@ -18,7 +18,7 @@ let spec_module: (module MCPSpec) Lazy.t =
         module D2 = AD
       end in
     let module Priv = (val ApronPriv.get_priv ()) in
-    let module Spec = SpecFunctor (Priv) (RD) in
+    let module Spec = SpecFunctor (Priv) (RD) (RelPrecCompareUtil.DummyUtil) in
     (module Spec)
   )
 

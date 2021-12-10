@@ -314,6 +314,20 @@ module MyD2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
 struct
 
   include VarManagement
+  type lconsarray
+
+  type marshal = t
+
+  let marshal t = t
+
+  let unmarshal t = t
+
+  let relift t = t
+
+  let of_lincons_array t = failwith "Does not exist"
+
+  let to_lincons_array t = failwith "Does not exist"
+  let tag t = failwith "No tag"
   let show a =
     let d_str = (match a.d with
     | None -> "⟂"

@@ -9,7 +9,7 @@ module Q = Queries
 open CommonPriv
 
 
-module type S =
+(* module type S =
   functor (AD: ApronDomain.S2) ->
   sig
     module D: Lattice.S
@@ -36,7 +36,7 @@ module type S =
     val threadenter: Q.ask -> (V.t -> G.t) -> apron_components_t -> apron_components_t
 
     val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
-    val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
+    val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t *)
 (* module type S =
 sig
   module D: Lattice.S
@@ -57,29 +57,35 @@ sig
 end *)
 
 module type SharedS =
-functor (RD: RelationDomain.RD) ->
+functor (RD: RelationDomain.RelD2) ->
 sig
   module D: Lattice.S
   module G: Lattice.S
-  val startstate: unit -> D.t
-  val should_join: RelationDomain.RelComponent (RD.D2) (D).t -> RelationDomain.RelComponent (RD.D2) (D).t -> bool
+  module V: Printable.S
+  type apron_components_t := RelationDomain.RelComponent (RD) (D).t
+    val name: unit -> string
+    val startstate: unit -> D.t
+    val should_join: apron_components_t -> apron_components_t -> bool
 
-  val read_global: Q.ask -> (varinfo -> G.t) -> RelationDomain.RelComponent (RD.D2) (D).t -> varinfo -> varinfo -> RD.D2.t
+    val read_global: Q.ask -> (V.t -> G.t) -> apron_components_t -> varinfo -> varinfo -> RD.t
 
-  (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
-   * the state when following conditional guards. *)
-  val write_global: ?invariant:bool -> Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> RelationDomain.RelComponent (RD.D2) (D).t -> varinfo -> varinfo -> RelationDomain.RelComponent (RD.D2) (D).t
+    (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
+     * the state when following conditional guards. *)
+    val write_global: ?invariant:bool -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> varinfo -> varinfo -> apron_components_t
 
-  val lock: Q.ask -> (varinfo -> G.t) -> RelationDomain.RelComponent (RD.D2) (D).t -> LockDomain.Addr.t -> RelationDomain.RelComponent (RD.D2) (D).t
-  val unlock: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> RelationDomain.RelComponent (RD.D2) (D).t -> LockDomain.Addr.t -> RelationDomain.RelComponent (RD.D2) (D).t
+    val lock: Q.ask -> (V.t -> G.t) -> apron_components_t -> LockDomain.Addr.t -> apron_components_t
+    val unlock: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> LockDomain.Addr.t -> apron_components_t
 
-  val sync: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> RelationDomain.RelComponent (RD.D2) (D).t -> [`Normal | `Join | `Return | `Init | `Thread] -> RelationDomain.RelComponent (RD.D2) (D).t
+    val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> [`Normal | `Join | `Return | `Init | `Thread] -> apron_components_t
 
-  val enter_multithreaded: Q.ask -> (varinfo -> G.t) -> (varinfo -> G.t -> unit) -> RelationDomain.RelComponent (RD.D2) (D).t -> RelationDomain.RelComponent (RD.D2) (D).t
-  val threadenter: Q.ask -> (varinfo -> G.t) -> RelationDomain.RelComponent (RD.D2) (D).t -> RelationDomain.RelComponent (RD.D2) (D).t
+    val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> apron_components_t
+    val threadenter: Q.ask -> (V.t -> G.t) -> apron_components_t -> apron_components_t
 
-  val init: unit -> unit
-  val finalize: unit -> unit
+    val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
+    val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
+
+    val init: unit -> unit
+    val finalize: unit -> unit
 end
 
 
@@ -104,10 +110,13 @@ struct
 end *)
 
 module SharedDummy : SharedS  =
-  functor (RD: RelationDomain.RD) ->
+  functor (RD: RelationDomain.RelD2) ->
 struct
   module D = Lattice.Unit
   module G = Lattice.Unit
+  module V = EmptyV
+
+  let name () = "Dummy"
   let startstate () = ()
   let should_join _ _ = true
 
@@ -128,7 +137,7 @@ struct
   let init () = ()
   let finalize () = ()
 end
-
+(*
  module type ProtectionBasedPrivParam =
 sig
   (** Whether to be path-sensitive w.r.t. locally written protected globals that have been continuously protected since writing. *)

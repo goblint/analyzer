@@ -1,6 +1,7 @@
 open Prelude
 open Pretty
 open Cil
+open PrecCompareUtil
 
 module type RelVar =
 sig
@@ -16,6 +17,7 @@ module type RelD2  =
 sig
   type var
   type t
+  type marshal
 
   val name : unit -> string
   val is_bot_env : t -> bool
@@ -54,6 +56,12 @@ sig
   val assert_inv : t -> exp -> bool -> t
   val eval_int : t -> exp -> IntDomain.IntDomTuple.t
   val unify: t -> t -> t
+  val tag: t -> int
+  val relift: t -> t
+
+  val marshal: t -> marshal
+
+  val unmarshal: marshal -> t
 end
 
 module RelVM =
@@ -76,6 +84,7 @@ sig
   type t
   val var_name: t -> string
 end
+
 
 module VarMetadataTbl (VM: VarMetadata) =
   functor (Var: RelVar) ->

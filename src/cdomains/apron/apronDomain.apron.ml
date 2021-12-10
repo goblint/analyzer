@@ -354,8 +354,7 @@ end
 (** Convenience operations on A. *)
 module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Bounds = Bounds (Man)
-  module Convert = EnvDomain.Convert (Bounds)
+  module Convert = EnvDomain.Convert (Bounds(Man))
   include EnvDomain.EnvOps
 
   type t = Man.mt A.t
@@ -604,7 +603,6 @@ struct
   let bot_env = A.bottom Man.mgr
   let is_top_env = A.is_top Man.mgr
   let is_bot_env = A.is_bottom Man.mgr
-
   let to_yojson x = failwith "TODO implement to_yojson"
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
@@ -651,6 +649,7 @@ struct
   include AOps (Tracked) (Man)
 
   include Tracked
+  module SBounds = Bounds(Man)
 
   let rec exp_is_cons = function
     (* constraint *)
@@ -704,7 +703,7 @@ struct
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (A.env d) e with
     | texpr1 ->
-      Bounds.bound_texpr d texpr1
+      SBounds.bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp ->
       (None, None)
 
@@ -972,27 +971,26 @@ module type S2 =
 sig
   module Man: Manager
   module Tracked : Tracked
-  module Bounds : module type of Bounds (Man)
+  include module type of AOps (Tracked) (Man)
   include Tracked
   include SLattice with type t = Man.mt A.t
 
-
+  val exp_is_cons : exp -> bool
+  val assert_cons : t -> exp -> bool -> t
   val assert_inv : t -> exp -> bool -> t
   val eval_int : t -> exp -> Queries.ID.t
 end
 
-<<<<<<< HEAD
-type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, hash, to_yojson]
 
-module D2 (Man: Manager) : S2 with module Man = Man =
-=======
-module D2 (Man: Manager) : RelD2 with type var = Var.t =
->>>>>>> Move environment modifying code to envDomain + add new Karr domain
+
+module D2Complete (Man: Manager)=
 struct
   type var = EnvDomain.Var.t
+  type lconsarray = Lincons1.earray
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
 end
+<<<<<<< HEAD
 <<<<<<< HEAD
 
 module ApronComponents (D2: S2) (PrivD: Lattice.S):
@@ -1112,3 +1110,10 @@ end
 >>>>>>> 4da71d5e1 (Add common interface for apron + new domain)
 =======
 >>>>>>> f0a0ae216 (Move convert module to new domain)
+=======
+
+module D2 (Man: Manager): (RelD2 with type var = Var.t) =
+struct
+include D2Complete(Man)
+end
+>>>>>>> c1637e453 (Finish rebasing)
