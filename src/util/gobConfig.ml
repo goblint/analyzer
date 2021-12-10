@@ -260,7 +260,10 @@ struct
         new_v
     in
     o := set_value v !o orig_pth;
-    validate conf_schema !json_conf
+    validate conf_schema !json_conf;
+
+    if not !build_config then (* object incomplete during building *)
+      JsonSchema2.validate !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f st =
