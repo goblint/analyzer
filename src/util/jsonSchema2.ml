@@ -82,10 +82,10 @@ let default_schema = {schema|
 
 let schema = JS.of_json (Yojson.Safe.from_string default_schema)
 
+let erase: type t. t Json_encoding.encoding -> unit Json_encoding.encoding = fun encoding -> Json_encoding.conv (fun _ -> failwith "asd") (fun _ -> ()) encoding
 
 let rec encoding_of_schema_element (schema_element: Json_schema.element): unit Json_encoding.encoding =
   let open Json_encoding in
-  let erase: type t. t encoding -> unit encoding = fun encoding -> conv (fun _ -> failwith "asd") (fun _ -> ()) encoding in
   match schema_element.kind with
   | Any -> unit
   | String string_specs -> erase string
@@ -110,3 +110,105 @@ let validate json =
     | exception (Json_encoding.Cannot_destruct _ as e) ->
       Format.printf "validate: %a\n" (Json_encoding.print_error ?print_unknown:None) e;
       failwith "JsonSchema2.validate"
+
+
+(** raise when you cannot parse the path *)
+exception PathParseError
+
+(** raise when there is an type error *)
+exception ConfTypeError
+
+(** Type of the index *)
+type index = Int of int  (** and integer *)
+           | App         (** prepend to the list *)
+           | Rem         (** remove from the list *)
+           | New         (** create a new list *)
+
+(** Type of the path *)
+type path  = Here                    (** we are there *)
+           | Select of string * path (** we need to select an field *)
+           | Index  of index  * path (** we need to select an array index *)
+
+open Printf
+
+(** Path printing. *)
+let rec print_path' ch = function
+  | Here -> ()
+  | Select (s,p)    -> fprintf ch ".%s%a"  s print_path' p
+  | Index (Int i,p) -> fprintf ch "[%d]%a" i print_path' p
+  | Index (App ,p) -> fprintf ch "[+]%a"    print_path' p
+  | Index (Rem ,p) -> fprintf ch "[-]%a"    print_path' p
+  | Index (New  ,p) -> fprintf ch "[*]%a"    print_path' p
+
+
+(** Parse an index. *)
+let parse_index s =
+  try if s = "+" then App
+    else if s = "*" then New
+    else if s = "-" then Rem
+    else Int (int_of_string s)
+  with Failure _ -> raise PathParseError
+
+(** Helper function [split c1 c2 xs] that splits [xs] on [c1] or [c2] *)
+let split c1 c2 xs =
+  let l = String.length xs in
+  let rec split' i =
+    if i<l then begin
+      if xs.[i]=c1 || xs.[i]=c2 then
+        (String.sub xs 0 i, String.sub xs i (l-i))
+      else
+        split' (i+1)
+    end else
+      (xs,"")
+  in
+  split' 0
+
+(** Parse a string path. *)
+let rec parse_path' (s:string) : path =
+  if String.length s = 0 then Here else
+    match s.[0] with
+    | '.' ->
+      let fld, pth = split '.' '[' (String.lchop s) in
+      Select (fld, parse_path' pth)
+    | '[' ->
+      let idx, pth = String.split (String.lchop s) "]" in
+      Index (parse_index idx, parse_path' pth)
+    | _ -> raise PathParseError
+
+(** Parse a string path, but you may ignore the first dot. *)
+let parse_path (s:string) : path =
+  let s = String.trim s in
+  try
+    if String.length s = 0 then Here else begin
+      let fld, pth = split '.' '[' s in
+      if fld = ""
+      then parse_path' pth
+      else Select (fld, parse_path' pth)
+    end
+  with PathParseError ->
+    eprintf "Error: Couldn't parse the json path '%s'\n%!" s;
+    failwith "parsing"
+
+open Json_encoding
+
+let convert_opt name desc def: unit encoding =
+  let rec convert_path = function
+    | Select (s, Here) ->
+      obj1 @@ dft ~title:name ~description:desc s unit () (* TODO: correct type *)
+    | Select (s, path') ->
+      let obj' = convert_path path' in
+      obj1 @@ dft s obj' ()
+    | _ -> assert false
+  in
+  let path = parse_path name in
+  convert_path path
+
+
+let convert_schema opts =
+  opts
+  |> List.map (fun (name, (desc, def)) -> convert_opt name desc def)
+  |> List.reduce (fun o1 o2 -> erase (merge_objs o1 o2))
+  |> fun el ->
+    let sch = schema el in
+    (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
+    Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch)
