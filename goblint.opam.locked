@@ -18,6 +18,7 @@ homepage: "https://goblint.in.tum.de"
 doc: "https://goblint.readthedocs.io/en/latest/"
 bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
+  "angstrom" {= "0.15.0"}
   "apron" {= "v0.9.13"}
   "astring" {= "0.8.5" & with-doc}
   "base-bigarray" {= "base"}
@@ -26,12 +27,15 @@ depends: [
   "base-unix" {= "base"}
   "batteries" {= "3.3.0"}
   "benchmark" {= "1.6" & with-test}
+  "bigarray-compat" {= "1.0.0"}
+  "bigstringaf" {= "0.7.0"}
   "biniou" {= "1.2.1"}
   "camlidl" {= "1.09"}
   "cmdliner" {= "1.0.4" & with-doc}
   "conf-gmp" {= "3"}
   "conf-mpfr" {= "2"}
   "conf-perl" {= "1"}
+  "conf-pkg-config" {= "2"}
   "conf-ruby" {= "1.0.0" & with-test}
   "cppo" {= "1.6.7"}
   "dune" {= "2.9.1"}
@@ -48,8 +52,10 @@ depends: [
   "ocaml-config" {= "2"}
   "ocaml-monadic" {= "0.5"}
   "ocaml-options-vanilla" {= "1"}
+  "ocaml-syntax-shims" {= "1.0.0"}
   "ocamlbuild" {= "0.14.0"}
   "ocamlfind" {= "1.9.1"}
+  "ocplib-json-typed" {= "0.7.1"}
   "odoc" {= "1.5.2" & with-doc}
   "ounit2" {= "2.2.4" & with-test}
   "ppx_derivers" {= "1.2.1"}
@@ -64,9 +70,11 @@ depends: [
   "sexplib0" {= "v0.14.0"}
   "sha" {= "1.15.1"}
   "stdlib-shims" {= "0.3.0"}
+  "stringext" {= "1.6.0"}
   "topkg" {= "1.0.3" & with-doc}
   "tyxml" {= "4.4.0" & with-doc}
   "uchar" {= "0.0.2" & with-doc}
+  "uri" {= "4.2.0"}
   "uutf" {= "1.0.2" & with-doc}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.12"}

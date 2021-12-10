@@ -32,6 +32,7 @@ depends: [
   "ounit2" {with-test}
   "odoc" {with-doc}
   "dune-site"
+  "ocplib-json-typed"
   "sha" {>= "1.12"}
   "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}
