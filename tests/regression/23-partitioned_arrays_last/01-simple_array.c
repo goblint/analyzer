@@ -156,7 +156,7 @@ void example7(void) {
     assert(a[top] == 0); // UNKNOWN
 }
 
-// Check that the global variable is not used for paritioning
+// Check that the global variable is not used for partitioning
 void example8() {
     int a[10];
 

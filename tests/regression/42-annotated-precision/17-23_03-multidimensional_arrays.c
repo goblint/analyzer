@@ -5,8 +5,12 @@ int main(void) {
     return 0;
 }
 
+void example1(void) __attribute__((goblint_precision("no-def_exc","interval")));
+void example2(void) __attribute__((goblint_precision("no-def_exc","interval")));
+
+
 // Two-dimensional array
-void example1(void) __attribute__((goblint_precision("no-def_exc","interval"))) {
+void example1(void) {
     int a[10][10];
     int i=0;
     int j=0;
@@ -36,7 +40,7 @@ void example1(void) __attribute__((goblint_precision("no-def_exc","interval"))) 
 }
 
 // Combines backwards- and forwards-iteration
-void example2(void) __attribute__((goblint_precision("no-def_exc","interval"))) {
+void example2(void) {
     int array[10][10];
     int i = 9;
 

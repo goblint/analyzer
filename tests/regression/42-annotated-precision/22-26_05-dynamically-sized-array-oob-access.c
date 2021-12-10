@@ -2,9 +2,11 @@
 
 // Variable sized array: oob access
 
+int main() __attribute__((goblint_precision("no-def_exc","interval")));
+
 #include <stdio.h>
 #include <stdlib.h>
-int main() __attribute__((goblint_precision("no-def_exc","interval"))) {
+int main() {
   int top;
   int N;
 // The if statement is needed, so the size is actually dynamic
