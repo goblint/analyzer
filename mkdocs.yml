@@ -1,0 +1,33 @@
+site_name: Goblint documentation
+site_description: Goblint static analysis framework documentation
+repo_url: https://github.com/goblint/analyzer
+
+theme:
+  name: readthedocs
+  hljs_languages: # non-default languages, see https://highlightjs.org/download/
+    - ocaml
+  # prev_next_buttons_location: both
+
+markdown_extensions:
+  - toc:
+      permalink: True
+
+dev_addr: '127.0.0.1:8010' # different port from default python http.server for g2html
+
+nav:
+  - Home: index.md
+  - 'User guide':
+    - user-guide/running.md
+    - user-guide/inspecting.md
+    - user-guide/annotating.md
+  - 'Developer guide':
+    - developer-guide/developing.md
+    - developer-guide/firstanalysis.md
+    - developer-guide/messaging.md
+    - developer-guide/testing.md
+    - developer-guide/debugging.md
+    - developer-guide/profiling.md
+    - developer-guide/documenting.md
+    - developer-guide/releasing.md
+  - 'Artifact descriptions':
+    - "SAS '21": artifact-descriptions/sas21.md

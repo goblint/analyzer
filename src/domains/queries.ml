@@ -1,270 +1,284 @@
 (** Structures for the querying subsystem. *)
 
-open Deriving.Cil
-open Pretty
+open Cil
 
 module GU = Goblintutil
-module ID = IntDomain.FlatPureIntegers
-module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
-module TS = SetDomain.ToppedSet (Basetype.CilType) (struct let topname = "All" end)
-module PS = SetDomain.ToppedSet (Exp.LockingPattern) (struct let topname = "All" end)
-module LPS = SetDomain.ToppedSet (Printable.Prod (Lval.CilLval) (Lval.CilLval)) (struct let topname = "All" end)
-
-(* who uses this? hopefully it's not in the domain *)
-module ES_r = SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end)
-module ES =
+module ID =
 struct
-  include ES_r
-  include Printable.Std
-  let bot = ES_r.top
-  let top = ES_r.bot
-  let leq x y = ES_r.leq y x
-  let join = ES_r.meet
-  let meet x y = ES_r.join x y
+  include IntDomain.IntDomTuple
+  (* Special IntDomTuple that has _some_ top and bot which MCP2.query can use *)
+  let top () = top_of IInt
+  let is_top x = equal (top ()) x
+  let bot () = bot_of IInt
+  let is_bot x = equal (bot ()) x
+  let join x y =
+    if is_top x || is_top y then
+      top ()
+    else if is_bot x then
+      y
+    else if is_bot y then
+      x
+    else
+      join x y
+  let meet x y =
+    if is_bot x || is_bot y then
+      bot ()
+    else if is_top x then
+      y
+    else if is_top y then
+      x
+    else
+      meet x y
 end
+module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
+module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
+module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
   let bot_name = "Unreachable line"
 end)
 
+module PartAccessResult = Access.PartAccessResult
+
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
-let iterprevvar_to_yojson _ = `Null
 type itervar = int -> unit
-let itervar_to_yojson _ = `Null
+let compare_itervar _ _ = 0
+let compare_iterprevvar _ _ = 0
 
-type t = EqualSet of exp
-       | Assert of exp
-       | MayPointTo of exp
-       | ReachableFrom of exp
-       | ReachableUkTypes of exp
-       | Regions of exp
-       | MayEscape of varinfo
-       | Priority of string
-       | MayBePublic of varinfo
-       | MustBeSingleThreaded
-       | MustBeUniqueThread
-       | CurrentThreadId
-       | MayBeThreadReturn
-       | EvalFunvar of exp
-       | EvalInt of exp
-       | EvalStr of exp
-       | EvalLength of exp (* length of an array or string *)
-       | BlobSize of exp (* size of a dynamically allocated `Blob pointed to by exp *)
-       | PrintFullState
-       | CondVars of exp
-       | Access of exp * bool * bool * int
-       | IterPrevVars of iterprevvar
-       | IterVars of itervar
-       | MustBeEqual of exp * exp (* are two expression known to must-equal ? *)
-       | MayBeEqual of exp * exp (* may two expressions be equal? *)
-       | MayBeLess of exp * exp (* may exp1 < exp2 ? *)
-       | TheAnswerToLifeUniverseAndEverything
-       | HeapVar
-       | IsHeapVar of varinfo
-[@@deriving to_yojson]
+module SD = Basetype.Strings
 
-type result = [
-  | `Top
-  | `Int of ID.t
-  | `Str of string
-  | `LvalSet of LS.t
-  | `ExprSet of ES.t
-  | `ExpTriples of PS.t
-  | `TypeSet of TS.t
-  | `Varinfo of VI.t
-  | `MustBool of bool  (* true \leq false *)
-  | `MayBool of bool   (* false \leq true *)
-  | `Bot
-] [@@deriving to_yojson]
+module MayBool = BoolDomain.MayBool
+module MustBool = BoolDomain.MustBool
 
-type ask = t -> result
+module Unit = Lattice.Unit
 
-module Result: Lattice.S with type t = result =
+(* Helper definitions for deriving complex parts of Any.compare below. *)
+type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord]
+type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord]
+type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord]
+type partaccess = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: bool} [@@deriving ord]
+
+(** GADT for queries with specific result type. *)
+type _ t =
+  | EqualSet: exp -> ES.t t
+  | MayPointTo: exp -> LS.t t
+  | ReachableFrom: exp -> LS.t t
+  | ReachableUkTypes: exp -> TS.t t
+  | Regions: exp -> LS.t t
+  | MayEscape: varinfo -> MayBool.t t
+  | Priority: string -> ID.t t
+  | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
+  | MayBePublicWithout: maybepublicwithout -> MayBool.t t
+  | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
+  | CurrentLockset: LS.t t
+  | MustBeAtomic: MustBool.t t
+  | MustBeSingleThreaded: MustBool.t t
+  | MustBeUniqueThread: MustBool.t t
+  | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
+  | MayBeThreadReturn: MayBool.t t
+  | EvalFunvar: exp -> LS.t t
+  | EvalInt: exp -> ID.t t
+  | EvalStr: exp -> SD.t t
+  | EvalLength: exp -> ID.t t (* length of an array or string *)
+  | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
+  | PrintFullState: Unit.t t
+  | CondVars: exp -> ES.t t
+  | PartAccess: partaccess -> PartAccessResult.t t
+  | IterPrevVars: iterprevvar -> Unit.t t
+  | IterVars: itervar -> Unit.t t
+  | MustBeEqual: exp * exp -> MustBool.t t (* are two expression known to must-equal ? *)
+  | MayBeEqual: exp * exp -> MayBool.t t (* may two expressions be equal? *)
+  | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
+  | HeapVar: VI.t t
+  | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
+  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
+  | EvalThread: exp -> ConcDomain.ThreadSet.t t
+  | CreatedThreads: ConcDomain.ThreadSet.t t
+  | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+
+type 'a result = 'a
+
+(** Container for explicitly polymorphic [ctx.ask] function out of [ctx].
+    To be used when passing entire [ctx] around seems inappropriate.
+    Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
+(* Must be in a singleton record due to second-order polymorphism.
+   See https://ocaml.org/releases/4.12/htmlman/polymorphism.html#s%3Ahigher-rank-poly. *)
+type ask = { f: 'a. 'a t -> 'a result }
+
+(* Result cannot implement Lattice.S because the function types are different due to GADT. *)
+module Result =
 struct
-  include Printable.Std
-  type t = result [@@deriving to_yojson]
+  let lattice (type a) (q: a t): (module Lattice.S with type t = a) =
+    match q with
+    (* Cannot group these GADTs... *)
+    | EqualSet _ -> (module ES)
+    | CondVars _ -> (module ES)
+    | MayPointTo _ -> (module LS)
+    | ReachableFrom _ -> (module LS)
+    | Regions _ -> (module LS)
+    | CurrentLockset -> (module LS)
+    | EvalFunvar _ -> (module LS)
+    | ReachableUkTypes _ -> (module TS)
+    | MayEscape _ -> (module MayBool)
+    | MayBePublic _ -> (module MayBool)
+    | MayBePublicWithout _ -> (module MayBool)
+    | MayBeThreadReturn -> (module MayBool)
+    | MayBeEqual _ -> (module MayBool)
+    | MayBeLess _ -> (module MayBool)
+    | IsHeapVar _ -> (module MayBool)
+    | MustBeProtectedBy _ -> (module MustBool)
+    | MustBeAtomic -> (module MustBool)
+    | MustBeSingleThreaded -> (module MustBool)
+    | MustBeUniqueThread -> (module MustBool)
+    | MustBeEqual _ -> (module MustBool)
+    | Priority _ -> (module ID)
+    | EvalInt _ -> (module ID)
+    | EvalLength _ -> (module ID)
+    | BlobSize _ -> (module ID)
+    | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
+    | HeapVar -> (module VI)
+    | EvalStr _ -> (module SD)
+    | PrintFullState -> (module Unit)
+    | IterPrevVars _ -> (module Unit)
+    | IterVars _ -> (module Unit)
+    | PartAccess _ -> (module PartAccessResult)
+    | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
+    | EvalThread _ -> (module ConcDomain.ThreadSet)
+    | CreatedThreads ->  (module ConcDomain.ThreadSet)
+    | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
 
-  let name () = "query result domain"
+  (** Get bottom result for query. *)
+  let bot (type a) (q: a t): a result =
+    let module Result = (val lattice q) in
+    Result.bot ()
 
-  let bot () = `Bot
-  let is_bot x = x = `Bot
-  let bot_name = "Bottom"
-  let top () = `Top
-  let is_top x = x = `Top
-  let top_name = "Unknown"
+  (** Get top result for query. *)
+  let top (type a) (q: a t): a result =
+    (* let module Result = (val lattice q) in
+    Result.top () *)
+    (* [lattice] and [top] manually inlined to avoid first-class module
+       for every unsupported [query] implementation.
+       See benchmarks at: https://github.com/goblint/analyzer/pull/221#issuecomment-842351621. *)
+    match q with
+    (* Cannot group these GADTs... *)
+    | EqualSet _ -> ES.top ()
+    | CondVars _ -> ES.top ()
+    | MayPointTo _ -> LS.top ()
+    | ReachableFrom _ -> LS.top ()
+    | Regions _ -> LS.top ()
+    | CurrentLockset -> LS.top ()
+    | EvalFunvar _ -> LS.top ()
+    | ReachableUkTypes _ -> TS.top ()
+    | MayEscape _ -> MayBool.top ()
+    | MayBePublic _ -> MayBool.top ()
+    | MayBePublicWithout _ -> MayBool.top ()
+    | MayBeThreadReturn -> MayBool.top ()
+    | MayBeEqual _ -> MayBool.top ()
+    | MayBeLess _ -> MayBool.top ()
+    | IsHeapVar _ -> MayBool.top ()
+    | MustBeProtectedBy _ -> MustBool.top ()
+    | MustBeAtomic -> MustBool.top ()
+    | MustBeSingleThreaded -> MustBool.top ()
+    | MustBeUniqueThread -> MustBool.top ()
+    | MustBeEqual _ -> MustBool.top ()
+    | Priority _ -> ID.top ()
+    | EvalInt _ -> ID.top ()
+    | EvalLength _ -> ID.top ()
+    | BlobSize _ -> ID.top ()
+    | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
+    | HeapVar -> VI.top ()
+    | EvalStr _ -> SD.top ()
+    | PrintFullState -> Unit.top ()
+    | IterPrevVars _ -> Unit.top ()
+    | IterVars _ -> Unit.top ()
+    | PartAccess _ -> PartAccessResult.top ()
+    | IsMultiple _ -> MustBool.top ()
+    | EvalThread _ -> ConcDomain.ThreadSet.top ()
+    | CreatedThreads -> ConcDomain.ThreadSet.top ()
+    | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+end
 
-  let equal x y =
-    match (x, y) with
-    | (`Top, `Top) -> true
-    | (`Bot, `Bot) -> true
-    | (`Int x, `Int y) -> ID.equal x y
-    | (`LvalSet x, `LvalSet y) -> LS.equal x y
-    | (`ExprSet x, `ExprSet y) -> ES.equal x y
-    | (`ExpTriples x, `ExpTriples y) -> PS.equal x y
-    | (`TypeSet x, `TypeSet y) -> TS.equal x y
-    | (`Varinfo x, `Varinfo y) -> VI.equal x y
-    | (`MustBool x, `MustBool y) -> Bool.equal x y
-    | (`MayBool x, `MayBool y) -> Bool.equal x y
-    | _ -> false
+(* The type any_query can't be directly defined in Any as t,
+   because it also refers to the t from the outer scope. *)
+type any_query = Any: 'a t -> any_query
 
-  let hash (x:t) =
-    match x with
-    | `Int n -> ID.hash n
-    | `LvalSet n -> LS.hash n
-    | `ExprSet n -> ES.hash n
-    | `ExpTriples n -> PS.hash n
-    | `TypeSet n -> TS.hash n
-    | `Varinfo n -> VI.hash n
-    (* `MustBool and `MayBool should work by the following *)
-    | _ -> Hashtbl.hash x
+module Any =
+struct
+  type t = any_query
 
-  let compare x y =
-    let constr_to_int x = match x with
-      | `Bot -> 0
-      | `Int _ -> 1
-      | `LvalSet _ -> 2
-      | `ExprSet _ -> 3
-      | `ExpTriples _ -> 4
-      | `Str _ -> 5
-      | `IntSet _ -> 6
-      | `TypeSet _ -> 7
-      | `Varinfo _ -> 8
-      | `MustBool _ -> 9
-      | `MayBool _ -> 10
-      | `Top -> 100
-    in match x,y with
-    | `Int x, `Int y -> ID.compare x y
-    | `LvalSet x, `LvalSet y -> LS.compare x y
-    | `ExprSet x, `ExprSet y -> ES.compare x y
-    | `ExpTriples x, `ExpTriples y -> PS.compare x y
-    | `TypeSet x, `TypeSet y -> TS.compare x y
-    | `Varinfo x, `Varinfo y -> VI.compare x y
-    | `MustBool x, `MustBool y -> Bool.compare x y
-    | `MayBool x, `MayBool y -> Bool.compare x y
-    | _ -> Stdlib.compare (constr_to_int x) (constr_to_int y)
-
-  let pretty_f s () state =
-    match state with
-    | `Int n ->  ID.pretty () n
-    | `Str s ->  text s
-    | `LvalSet n ->  LS.pretty () n
-    | `ExprSet n ->  ES.pretty () n
-    | `ExpTriples n ->  PS.pretty () n
-    | `TypeSet n -> TS.pretty () n
-    | `Varinfo n -> VI.pretty () n
-    | `MustBool n -> text (string_of_bool n)
-    | `MayBool n -> text (string_of_bool n)
-    | `Bot -> text bot_name
-    | `Top -> text top_name
-
-  let short w state =
-    match state with
-    | `Int n ->  ID.short w n
-    | `Str s ->  s
-    | `LvalSet n ->  LS.short w n
-    | `ExprSet n ->  ES.short w n
-    | `ExpTriples n ->  PS.short w n
-    | `TypeSet n -> TS.short w n
-    | `Varinfo n -> VI.short w n
-    | `MustBool n -> string_of_bool n
-    | `MayBool n -> string_of_bool n
-    | `Bot -> bot_name
-    | `Top -> top_name
-
-  let isSimple x =
-    match x with
-    | `Int n ->  ID.isSimple n
-    | `LvalSet n ->  LS.isSimple n
-    | `ExprSet n ->  ES.isSimple n
-    | `ExpTriples n ->  PS.isSimple n
-    | `TypeSet n -> TS.isSimple n
-    | `Varinfo n -> VI.isSimple n
-    (* `MustBool and `MayBool should work by the following *)
-    | _ -> true
-
-  let pretty () x = pretty_f short () x
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-
-  let leq x y =
-    match (x,y) with
-    | (_, `Top) -> true
-    | (`Top, _) -> false
-    | (`Bot, _) -> true
-    | (_, `Bot) -> false
-    | (`Int x, `Int y) -> ID.leq x y
-    | (`LvalSet x, `LvalSet y) -> LS.leq x y
-    | (`ExprSet x, `ExprSet y) -> ES.leq x y
-    | (`ExpTriples x, `ExpTriples y) -> PS.leq x y
-    | (`TypeSet x, `TypeSet y) -> TS.leq x y
-    | (`Varinfo x, `Varinfo y) -> VI.leq x y
-    (* TODO: should these be more like IntDomain.Booleans? *)
-    | (`MustBool x, `MustBool y) -> x == y || x
-    | (`MayBool x, `MayBool y) -> x == y || y
-    | _ -> false
-
-  let join x y =
-    try match (x,y) with
-      | (`Top, _)
-      | (_, `Top) -> `Top
-      | (`Bot, x)
-      | (x, `Bot) -> x
-      | (`Int x, `Int y) -> `Int (ID.join x y)
-      | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.join x y)
-      | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.join x y)
-      | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.join x y)
-      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.join x y)
-      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.join x y)
-      | (`MustBool x, `MustBool y) -> `MustBool (x && y)
-      | (`MayBool x, `MayBool y) -> `MayBool (x || y)
-      | _ -> `Top
-    with IntDomain.Unknown -> `Top
-
-  let meet x y =
-    try match (x,y) with
-      | (`Bot, _)
-      | (_, `Bot) -> `Bot
-      | (`Top, x)
-      | (x, `Top) -> x
-      | (`Int x, `Int y) -> `Int (ID.meet x y)
-      | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.meet x y)
-      | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.meet x y)
-      | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.meet x y)
-      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.meet x y)
-      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.meet x y)
-      | (`MustBool x, `MustBool y) -> `MustBool (x || y)
-      | (`MayBool x, `MayBool y) -> `MayBool (x && y)
-      | _ -> `Bot
-    with IntDomain.Error -> `Bot
-
-  let widen x y =
-    try match (x,y) with
-      | (`Top, _)
-      | (_, `Top) -> `Top
-      | (`Bot, x)
-      | (x, `Bot) -> x
-      | (`Int x, `Int y) -> `Int (ID.widen x y)
-      | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.widen x y)
-      | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.widen x y)
-      | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.widen x y)
-      | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.widen x y)
-      | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.widen x y)
-      | (`MustBool x, `MustBool y) -> `MustBool (x && y)
-      | (`MayBool x, `MayBool y) -> `MustBool (x || y)
-      | _ -> `Top
-    with IntDomain.Unknown -> `Top
-
-  let narrow x y =
-    match (x,y) with
-    | (`Int x, `Int y) -> `Int (ID.narrow x y)
-    | (`LvalSet x, `LvalSet y) -> `LvalSet (LS.narrow x y)
-    | (`ExprSet x, `ExprSet y) -> `ExprSet (ES.narrow x y)
-    | (`ExpTriples x, `ExpTriples y) -> `ExpTriples (PS.narrow x y)
-    | (`TypeSet x, `TypeSet y) -> `TypeSet (TS.narrow x y)
-    | (`Varinfo x, `Varinfo y) -> `Varinfo (VI.narrow x y)
-    | (`MustBool x, `MustBool y) -> `MustBool (x || y)
-    | (`MayBool x, `MayBool y) -> `MayBool (x && y)
-    | (x,_) -> x
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  (* deriving ord doesn't work for GADTs (t and any_query) so this must be done manually... *)
+  let compare a b =
+    let order = function
+      | Any (EqualSet _) -> 0
+      | Any (MayPointTo _) -> 1
+      | Any (ReachableFrom _) -> 2
+      | Any (ReachableUkTypes _) -> 3
+      | Any (Regions _) -> 4
+      | Any (MayEscape _) -> 5
+      | Any (Priority _) -> 6
+      | Any (MayBePublic _) -> 7
+      | Any (MayBePublicWithout _) -> 8
+      | Any (MustBeProtectedBy _) -> 9
+      | Any CurrentLockset -> 10
+      | Any MustBeAtomic -> 11
+      | Any MustBeSingleThreaded -> 12
+      | Any MustBeUniqueThread -> 13
+      | Any CurrentThreadId -> 14
+      | Any MayBeThreadReturn -> 15
+      | Any (EvalFunvar _) -> 16
+      | Any (EvalInt _) -> 17
+      | Any (EvalStr _) -> 18
+      | Any (EvalLength _) -> 19
+      | Any (BlobSize _) -> 20
+      | Any PrintFullState -> 21
+      | Any (CondVars _) -> 22
+      | Any (PartAccess _) -> 23
+      | Any (IterPrevVars _) -> 24
+      | Any (IterVars _) -> 25
+      | Any (MustBeEqual _) -> 26
+      | Any (MayBeEqual _) -> 27
+      | Any (MayBeLess _) -> 28
+      | Any HeapVar -> 29
+      | Any (IsHeapVar _) -> 30
+      | Any (IsMultiple _) -> 31
+      | Any (EvalThread _) -> 32
+      | Any CreatedThreads -> 33
+      | Any MustJoinedThreads -> 34
+    in
+    let r = Stdlib.compare (order a) (order b) in
+    if r <> 0 then
+      r
+    else
+      match a, b with
+      | Any (EqualSet e1), Any (EqualSet e2) -> CilType.Exp.compare e1 e2
+      | Any (MayPointTo e1), Any (MayPointTo e2) -> CilType.Exp.compare e1 e2
+      | Any (ReachableFrom e1), Any (ReachableFrom e2) -> CilType.Exp.compare e1 e2
+      | Any (ReachableUkTypes e1), Any (ReachableUkTypes e2) -> CilType.Exp.compare e1 e2
+      | Any (Regions e1), Any (Regions e2) -> CilType.Exp.compare e1 e2
+      | Any (MayEscape vi1), Any (MayEscape vi2) -> CilType.Varinfo.compare vi1 vi2
+      | Any (Priority s1), Any (Priority s2) -> compare s1 s2
+      | Any (MayBePublic x1), Any (MayBePublic x2) -> compare_maybepublic x1 x2
+      | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) -> compare_maybepublicwithout x1 x2
+      | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
+      | Any (EvalFunvar e1), Any (EvalFunvar e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalInt e1), Any (EvalInt e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalStr e1), Any (EvalStr e2) -> CilType.Exp.compare e1 e2
+      | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
+      | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
+      | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
+      | Any (PartAccess p1), Any (PartAccess p2) -> compare_partaccess p1 p2
+      | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
+      | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
+      | Any (MustBeEqual (e1, e2)), Any (MustBeEqual (e3, e4)) ->
+        [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
+      | Any (MayBeEqual (e1, e2)), Any (MayBeEqual (e3, e4)) ->
+        [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
+      | Any (MayBeLess (e1, e2)), Any (MayBeEqual (e3, e4)) ->
+        [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
+      | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
+      | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
+      | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
+      (* only argumentless queries should remain *)
+      | _, _ -> Stdlib.compare (order a) (order b)
 end

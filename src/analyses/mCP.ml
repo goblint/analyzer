@@ -4,10 +4,13 @@ open Prelude.Ana
 open GobConfig
 open Analyses
 
-type spec_modules = { spec : (module Spec)
+module QuerySet = Set.Make (Queries.Any)
+
+type spec_modules = { spec : (module MCPSpec)
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
-                    ; cont : (module Printable.S) }
+                    ; cont : (module Printable.S)
+                    ; var  : (module Printable.S) }
 
 let analyses_list  : (int * spec_modules) list ref = ref []
 let analyses_list' : (int * spec_modules) list ref = ref []
@@ -18,11 +21,12 @@ let analyses_table = ref []
 
 let register_analysis =
   let count = ref 0 in
-  fun ?(dep=[]) (module S:Spec) ->
-    let s = { spec = (module S : Spec)
+  fun ?(dep=[]) (module S:MCPSpec) ->
+    let s = { spec = (module S : MCPSpec)
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
+            ; var  = (module S.V : Printable.S)
             }
     in
     let n = S.name () in
@@ -61,7 +65,7 @@ end
 exception DomListBroken of string
 
 module DomListPrintable (DLSpec : DomainListPrintableSpec)
-  (*  : Printable.S with type t = (string * unknown) list *)
+  : Printable.S with type t = (int * unknown) list
 =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
@@ -78,7 +82,7 @@ struct
     in
     fold_left (fun a (n,d) -> f a n d) a x
 
-  let pretty_f _ () x =
+  let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
     let xs = unop_fold f [] x in
     match xs with
@@ -88,20 +92,18 @@ struct
       let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
       text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 
-  let short w x =
-    let w2 = let n = List.length x in if n=0 then w else w / n in
-    (* width violated anyway? *)
+  let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
         let analysis_name = assoc n !analyses_table in
-        (analysis_name ^ ":(" ^ S.short w2 (obj x) ^ ")") :: a) [] x
+        (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
-  let to_yojson x =
-    let xs = unop_fold (fun a n (module S : Printable.S) x -> S.to_yojson (obj x) :: a) [] x in
-    [%to_yojson: Printable.json list] xs
-
-  let pretty = pretty_f short
+  let to_yojson xs =
+    let f a n (module S : Printable.S) x =
+      let name = BatList.assoc n !analyses_table in
+      (name, S.to_yojson (obj x)) :: a
+    in `Assoc (unop_fold f [] xs)
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
@@ -121,7 +123,6 @@ struct
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
 
   let hash     = unop_fold (fun a n (module S : Printable.S) x -> hashmul a @@ S.hash (obj x)) 0
-  let isSimple = unop_fold (fun a n (module S : Printable.S) x -> a && S.isSimple (obj x)) true
 
   let name () =
     let domain_name (n, (module D: Printable.S)) =
@@ -129,8 +130,6 @@ struct
       analysis_name ^ ":(" ^ D.name () ^ ")"
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
-
-  let pretty_diff () (x,y) = text "Please override me!"
 
   let printXml f xs =
     let print_one a n (module S : Printable.S) x : unit =
@@ -149,9 +148,77 @@ struct
     MyCheck.Arbitrary.sequence arbs
 end
 
-let _ =
-  let module Test : functor (DLSpec : DomainListPrintableSpec) -> Printable.S with type t = (int * unknown) list = DomListPrintable  in
-  ()
+module DomVariantPrintable (DLSpec : DomainListPrintableSpec)
+  : Printable.S with type t = int * unknown
+=
+struct
+  include Printable.Std (* for default invariant, tag, ... *)
+
+  open DLSpec
+  open List
+  open Obj
+
+  type t = int * unknown
+
+  let unop_map f ((n, d):t) =
+    f n (assoc_dom n) d
+
+  let pretty () = unop_map (fun n (module S: Printable.S) x ->
+      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x)
+    )
+
+  let show = unop_map (fun n (module S: Printable.S) x ->
+      let analysis_name = assoc n !analyses_table in
+      analysis_name ^ ":" ^ S.show (obj x)
+    )
+
+  let to_yojson x =
+    `Assoc [
+      unop_map (fun n (module S: Printable.S) x ->
+          let name = BatList.assoc n !analyses_table in
+          (name, S.to_yojson (obj x))
+        ) x
+    ]
+
+  let equal (n1, x1) (n2, x2) =
+    n1 = n2 && (
+      let module S = (val assoc_dom n1) in
+      S.equal (obj x1) (obj x2)
+    )
+
+  let compare (n1, x1) (n2, x2) =
+    let r = Stdlib.compare n1 n2 in
+    if r <> 0 then
+      r
+    else
+      let module S = (val assoc_dom n1) in
+      S.compare (obj x1) (obj x2)
+
+  let hash = unop_map (fun n (module S: Printable.S) x ->
+      Hashtbl.hash (n, S.hash (obj x))
+    )
+
+  let name () =
+    let domain_name (n, (module S: Printable.S)) =
+      let analysis_name = assoc n !analyses_table in
+      analysis_name ^ ":" ^ S.name ()
+    in
+    IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list ())
+
+  let printXml f = unop_map (fun n (module S: Printable.S) x ->
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
+      S.printXml f (obj x);
+      BatPrintf.fprintf f "</analysis>\n"
+    )
+
+  let invariant c = unop_map (fun n (module S: Printable.S) x ->
+      S.invariant c (obj x)
+    )
+
+  let arbitrary () =
+    let arbs = map (fun (n, (module S: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
+    QCheck.oneof arbs
+end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
   : Lattice.S with type t = (int * unknown) list
@@ -202,6 +269,46 @@ struct
     binop_fold f nil x y
 end
 
+module DomVariantLattice0 (DLSpec : DomainListLatticeSpec)
+  : Lattice.S with type t = int * unknown
+=
+struct
+  open DLSpec
+  open Obj
+
+  include DomVariantPrintable (PrintableOfLatticeSpec (DLSpec))
+
+  let binop_map' (f: int -> (module Lattice.S) -> Obj.t -> Obj.t -> 'a) (n1, d1) (n2, d2) =
+    if n1 <> n2
+    then raise (DomListBroken "binop_fold : differing variants")
+    else f n1 (assoc_dom n1) d1 d2
+
+  let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) =
+    binop_map' (fun n s d1 d2 -> (n, f s d1 d2))
+
+  let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
+  let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))
+  let meet   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y))
+  let join   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y))
+
+  let leq    = binop_map' (fun _ (module S : Lattice.S) x y -> S.leq (obj x) (obj y))
+
+  let is_top x = false
+  let is_bot x = false
+  let top () = failwith "DomVariantLattice0.top"
+  let bot () = failwith "DomVariantLattice0.bot"
+
+  let pretty_diff () (x, y) =
+    let f _ (module S : Lattice.S) x y =
+      if S.leq (obj x) (obj y) then nil
+      else S.pretty_diff () (obj x, obj y)
+    in
+    binop_map' f x y
+end
+
+module DomVariantLattice (DLSpec : DomainListLatticeSpec) =
+  Lattice.Lift (DomVariantLattice0 (DLSpec)) (Printable.DefaultNames)
+
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
   let assoc_dom n = (List.assoc n !analyses_list).dom
@@ -220,16 +327,34 @@ struct
   let domain_list () = List.map (fun (n,p) -> n, p.cont) !analyses_list
 end
 
+module VarListSpec : DomainListPrintableSpec =
+struct
+  let assoc_dom n = (List.assoc n !analyses_list).var
+  let domain_list () = List.map (fun (n,p) -> n, p.var) !analyses_list
+end
+
 module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
-   and module G = DomListLattice (GlobalDomainListSpec)
-   and module C = DomListPrintable (ContextListSpec) =
+   and module G = DomVariantLattice (GlobalDomainListSpec)
+   and module C = DomListPrintable (ContextListSpec)
+   and module V = DomVariantPrintable (VarListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
-  module G = DomListLattice (GlobalDomainListSpec)
+  module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
+  module V = DomVariantPrintable (VarListSpec)
 
   open List open Obj
+  let v_of n v = (n, repr v)
+  let g_to n = function
+    | `Lifted (n', g) ->
+      assert (n = n');
+      g
+    | `Bot ->
+      let module S = (val GlobalDomainListSpec.assoc_dom n) in
+      repr (S.bot ())
+    | `Top ->
+      failwith "MCP2.g_to: top"
 
   let name () = "MCP2"
 
@@ -256,27 +381,29 @@ struct
       if not (exists (fun (y',_) -> y=y') xs) then begin
         let xn = assoc x !analyses_table in
         let yn = assoc y !analyses_table in
-        Legacy.Printf.fprintf !Messages.warn_out "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
+        Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
         raise Exit
       end
     in
     let deps (x,_) = iter (check_dep x) @@ assoc x !dep_list in
     iter deps xs
 
-  let init () =
+
+  type marshal = Obj.t list
+  let init marshal =
     let map' f =
       let f x =
-        try Some (f x)
+        try f x
         with Not_found -> raise @@ ConfigError ("Analysis '"^x^"' not found. Abort!")
       in
-      List.filter_map f
+      List.map f
     in
-    let xs = map Json.string @@ get_list "ana.activated" in
+    let xs = get_string_list "ana.activated" in
     let xs = map' (flip assoc_inv !analyses_table) xs in
     base_id := assoc_inv "base" !analyses_table;
     analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
-    path_sens := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.path_sens";
-    cont_inse := map' (flip assoc_inv !analyses_table) @@ map Json.string @@ get_list "ana.ctx_insens";
+    path_sens := map' (flip assoc_inv !analyses_table) @@ get_string_list "ana.path_sens";
+    cont_inse := map' (flip assoc_inv !analyses_table) @@ get_string_list "ana.ctx_insens";
     dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
     check_deps !analyses_list;
     analyses_list := topo_sort_an !analyses_list;
@@ -284,9 +411,14 @@ struct
       Printf.printf "\n";
       iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
       Printf.printf "\n";*)
-    iter (fun (_,{spec=(module S:Spec); _}) -> S.init ()) !analyses_list
+    match marshal with
+    | Some marshal ->
+      combine !analyses_list marshal
+      |> iter (fun ((_,{spec=(module S:MCPSpec); _}), marshal) -> S.init (Some (Obj.obj marshal)))
+    | None ->
+      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init None) !analyses_list
 
-  let finalize () = iter (fun (_,{spec=(module S:Spec); _}) -> S.finalize ()) !analyses_list
+  let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !analyses_list
 
   let spec x = (assoc x !analyses_list).spec
   let spec_list xs =
@@ -295,16 +427,15 @@ struct
 
   let map_deadcode f xs =
     let dead = ref false in
-    let one_el xs (n,(module S:Spec),d) = try f xs (n,(module S:Spec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
+    let one_el xs (n,(module S:MCPSpec),d) = try f xs (n,(module S:MCPSpec),d) :: xs with Deadcode -> dead:=true; (n,repr @@ S.D.bot ()) :: xs in
     let ys = fold_left one_el [] xs in
     List.rev ys, !dead
 
-  let val_of = identity
-  let context x =
+  let context fd x =
     let x = spec_list x in
-    map (fun (n,(module S:Spec),d) ->
+    map (fun (n,(module S:MCPSpec),d) ->
         let d' = if mem n !cont_inse then S.D.top () else obj d in
-        n, repr @@ S.context d'
+        n, repr @@ S.context fd d'
       ) x
 
   let should_join x y =
@@ -314,7 +445,7 @@ struct
       | _,_ , []-> []
       | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs)
     in
-    let should_join ((_,(module S:Analyses.Spec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
+    let should_join ((_,(module S:Analyses.MCPSpec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
     (* obtain all analyses specs that are path sensitive and their values both in x and y *)
     let specs = filter (fun (x,_,_) -> mem x !path_sens) (spec_list x) in
     let xs = filter (fun (x,_) -> mem x !path_sens) x in
@@ -322,13 +453,13 @@ struct
     let zipped = zip3 specs xs ys in
     List.for_all should_join zipped
 
-  let exitstate  v = map (fun (n,{spec=(module S:Spec); _}) -> n, repr @@ S.exitstate  v) !analyses_list
-  let startstate v = map (fun (n,{spec=(module S:Spec); _}) -> n, repr @@ S.startstate v) !analyses_list
-  let morphstate v x = map (fun (n,(module S:Spec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
+  let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !analyses_list
+  let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !analyses_list
+  let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
   let call_descr f xs =
     let xs = filter (fun (x,_) -> x = !base_id) xs in
-    fold_left (fun a (n,(module S:Spec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
+    fold_left (fun a (n,(module S:MCPSpec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
 
 
   let rec assoc_replace (n,c) = function
@@ -336,10 +467,10 @@ struct
     | (n',c')::xs -> if n=n' then (n,c)::xs else (n',c') :: assoc_replace (n,c) xs
 
   (** [assoc_split_eq (=) 1 [(1,a);(1,b);(2,x)] = ([a,b],[(2,x)])] *)
-  let assoc_split_eq (=) (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
+  let assoc_split_eq eq (k:'a) (xs:('a * 'b) list) : ('b list) * (('a * 'b) list) =
     let rec f a b = function
       | [] -> a, b
-      | (k',v)::xs when k=k' -> f (v::a) b xs
+      | (k',v)::xs when eq k k' -> f (v::a) b xs
       | x::xs -> f a (x::b) xs
     in
     f [] [] xs
@@ -376,21 +507,18 @@ struct
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
 
-  let do_sideg ctx (xs:(varinfo * (int * Obj.t)) list) =
+  let do_sideg ctx (xs:(V.t * (int * Obj.t)) list) =
     let side_one v d =
-      let join_vals (n,(module S:Spec),d) =
-        n, repr @@ fold_left (fun x y -> S.G.join x (obj y)) (S.G.bot ()) d
-      in
-      ctx.sideg v @@ topo_sort_an @@ map join_vals @@ spec_list @@ group_assoc (d @ G.bot ())
+      ctx.sideg v @@ fold_left (fun x y -> G.join x (`Lifted y)) (G.bot ()) d
     in
-    iter (uncurry side_one) @@ group_assoc_eq Basetype.Variables.equal xs
+    iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
   let do_assigns ctx assigns (xs:(int * Obj.t) list) =
     if List.is_empty assigns then xs (* nothing to do *)
     else
       let spec_assign n d : Obj.t =
         (* spec of current analysis *)
-        let (module S:Spec) = spec n in
+        let (module S:MCPSpec) = spec n in
         let assign_one d (lval, exp, name, ctx) =
           match name with
           | Some x when x <> spec_name n -> obj d (* do nothing if current spec name is filtered out *)
@@ -406,36 +534,112 @@ struct
       List.map (fun (n,d) -> n, spec_assign n d) xs
 
   let finalize () =
-    finalize ();
-    Access.print_result ()
+    let r = finalize () in
+    Access.print_result ();
+    r
 
-  let rec do_splits ctx pv (xs:(int * (Obj.t * exp * bool)) list) =
-    let split_one n (d,e,tv) =
+  let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
+    let split_one n (d,emits) =
       let nv = assoc_replace (n,d) pv in
-      ctx.split (branch {ctx with local = nv} e tv) one true
+      ctx.split (do_emits ctx emits nv) []
     in
     iter (uncurry split_one) xs
 
-  and branch (ctx:(D.t, G.t, C.t) ctx) (e:exp) (tv:bool) =
+  and do_emits ctx emits xs =
+    let octx = ctx in
+    let ctx_with_local ctx local' =
+      (* let rec ctx' =
+        { ctx with
+          local = local';
+          ask = ask
+        }
+      and ask q = query ctx' q
+      in
+      ctx' *)
+      {ctx with local = local'}
+    in
+    let do_emit ctx = function
+      | Events.SplitBranch (exp, tv) ->
+        ctx_with_local ctx (branch ctx exp tv)
+      | e ->
+        let spawns = ref [] in
+        let splits = ref [] in
+        let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
+        let assigns = ref [] in
+        let emits = ref [] in
+        let f post_all (n,(module S:MCPSpec),d) =
+          let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+            { local  = obj d
+            ; node   = ctx.node
+            ; prev_node = ctx.prev_node
+            ; control_context = ctx.control_context
+            ; context = (fun () -> ctx.context () |> assoc n |> obj)
+            ; edge   = ctx.edge
+            ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+            ; emit   = (fun e -> emits := e :: !emits)
+            ; presub = filter_presubs n ctx.local
+            ; postsub= filter_presubs n post_all
+            ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
+            ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
+            ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+            ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
+            ; assign = (fun ?name v e    -> assigns := (v,e,name, repr ctx')::!assigns)
+            }
+          in
+          let rec octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+            { local  = obj (assoc n octx.local)
+            ; node   = octx.node
+            ; prev_node = octx.prev_node
+            ; control_context = octx.control_context
+            ; context = (fun () -> octx.context () |> assoc n |> obj)
+            ; edge   = octx.edge
+            ; ask    = (fun (type a) (q: a Queries.t) -> query octx q)
+            ; emit   = (fun e -> emits := e :: !emits)
+            ; presub = filter_presubs n octx.local
+            ; postsub= filter_presubs n post_all
+            ; global = (fun v      -> octx.global (v_of n v) |> g_to n |> obj)
+            ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
+            ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+            ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
+            ; assign = (fun ?name v e    -> assigns := (v,e,name, repr octx')::!assigns)
+            }
+          in
+          n, repr @@ S.event ctx' e octx'
+        in
+        let d, q = map_deadcode f @@ spec_list ctx.local in
+        if M.tracing then M.tracel "event" "%a\n  before: %a\n  after:%a\n" Events.pretty e D.pretty ctx.local D.pretty d;
+        do_sideg ctx !sides;
+        do_spawns ctx !spawns;
+        do_splits ctx d !splits;
+        let d = do_assigns ctx !assigns d in
+        let d = do_emits ctx !emits d in
+        if q then raise Deadcode else ctx_with_local ctx d
+    in
+    let ctx' = List.fold_left do_emit (ctx_with_local ctx xs) emits in
+    ctx'.local
+
+  and branch (ctx:(D.t, G.t, C.t, V.t) ctx) (e:exp) (tv:bool) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e    -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
@@ -446,156 +650,78 @@ struct
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  and query (ctx:(D.t, G.t, C.t) ctx) q =
-    let sides  = ref [] in
-    let f a (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; prev_node = ctx.prev_node
-        ; control_context = ctx.control_context
-        ; context = (fun () -> ctx.context () |> assoc n |> obj)
-        ; edge   = ctx.edge
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in query context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
-        }
+  (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
+  and query': type a. QuerySet.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun asked ctx q ->
+    let module Result = (val Queries.Result.lattice q) in
+    if QuerySet.mem (Any q) asked then
+      Result.top () (* query cycle *)
+    else
+      let asked' = QuerySet.add (Any q) asked in
+      let sides = ref [] in
+      let f a (n,(module S:MCPSpec),d) =
+        let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+          { local  = obj d
+          ; node   = ctx.node
+          ; prev_node = ctx.prev_node
+          ; control_context = ctx.control_context
+          ; context = (fun () -> ctx.context () |> assoc n |> obj)
+          ; edge   = ctx.edge
+          ; ask    = (fun (type b) (q: b Queries.t) -> query' asked' ctx q)
+          ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+          ; presub = filter_presubs n ctx.local
+          ; postsub= []
+          ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
+          ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+          ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+          ; sideg  = (fun v g    -> sides := (v_of n v, (n, repr g)) :: !sides)
+          (* sideg is discouraged in query, because they would bypass sides grouping in other transfer functions.
+             See https://github.com/goblint/analyzer/pull/214. *)
+          ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
+          }
+        in
+        (* meet results so that precision from all analyses is combined *)
+        Result.meet a @@ S.query ctx' q
       in
-      (* meet results so that precision from all analyses is combined *)
-      Queries.Result.meet a @@ S.query ctx' q
-    in
-    match q with
-    | Queries.PrintFullState ->
-      ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-      `Bot
-    | Queries.Access(e,b,reach,conf) ->
-      if reach || b then do_access ctx b reach conf e;
-      Access.distribute_access_exp (do_access ctx) false false conf e;
-      `Bot
-    | _ ->
-      let x = fold_left f `Top @@ spec_list ctx.local in
-      do_sideg ctx !sides;
-      x
+      match q with
+      | Queries.PrintFullState ->
+        ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
+        ()
+      (* | EvalInt e ->
+        (* TODO: only query others that actually respond to EvalInt *)
+        (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
+        f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
+      | _ ->
+        let r = fold_left f (Result.top ()) @@ spec_list ctx.local in
+        do_sideg ctx !sides;
+        r
 
-  and part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
-    let open Access in
-    let start = (LSSSet.singleton (LSSet.empty ()), LSSet.empty ()) in
-    let sides  = ref [] in
-    let f (po,lo) (n, (module S: Spec), d) : part =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
-        { local  = obj d
-        ; node   = ctx.node
-        ; prev_node = ctx.prev_node
-        ; control_context = ctx.control_context
-        ; context = (fun () -> ctx.context () |> assoc n |> obj)
-        ; edge   = ctx.edge
-        ; ask    = query ctx
-        ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v         -> ctx.global v |> assoc n |> obj)
-        ; spawn  = (fun v d       -> failwith "part_access::spawn")
-        ; split  = (fun d e tv    -> failwith "part_access::split")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
-        ; assign = (fun ?name v e -> failwith "part_access::assign")
-        }
-      in
-      let (pd, ld) = S.part_access ctx' e vo w in
-      let ln = LSSet.union lo ld in
-      let mult_po s = LSSSet.union (LSSSet.map (LSSet.union s) po) in
-      let pn = LSSSet.fold mult_po pd (LSSSet.empty ())  in
-      do_sideg ctx !sides;
-      (* printf "e=%a po=%a pd=%a pn=%a\n" d_exp e LSSSet.pretty po LSSSet.pretty pd LSSSet.pretty pn; *)
-      (pn, ln)
-      (* (LSSSet.map (LSSet.add pn) po, LSSet.union lo ln) *)
-    in
-    List.fold_left f start (spec_list ctx.local)
+  and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
+    query' QuerySet.empty ctx q
 
-  and do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
-    let open Queries in
-    let add_access conf vo oo =
-      let (po,pd) = part_access ctx e vo w in
-      Access.add e w conf vo oo (po,pd)
-    in
-    let add_access_struct conf ci =
-      let (po,pd) = part_access ctx e None w in
-      Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
-    in
-    let has_escaped g =
-      match ctx.ask (Queries.MayEscape g) with
-      | `MayBool false -> false
-      | _ -> true
-    in
-    (* The following function adds accesses to the lval-set ls
-       -- this is the common case if we have a sound points-to set. *)
-    let on_lvals ls includes_uk =
-      let ls = LS.filter (fun (g,_) -> g.vglob || has_escaped g) ls in
-      let conf = if reach then conf - 20 else conf in
-      let conf = if includes_uk then conf - 10 else conf in
-      let f (var, offs) =
-        let coffs = Lval.CilLval.to_ciloffs offs in
-        if var.vid = dummyFunDec.svar.vid then
-          add_access conf None (Some coffs)
-        else
-          add_access conf (Some var) (Some coffs)
-      in
-      LS.iter f ls
-    in
-    let reach_or_mpt = if reach then ReachableFrom e else MayPointTo e in
-    match ctx.ask reach_or_mpt with
-    | `Bot -> ()
-    | `LvalSet ls when not (LS.is_top ls) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) ls) ->
-      (* the case where the points-to set is non top and does not contain unknown values *)
-      on_lvals ls false
-    | `LvalSet ls when not (LS.is_top ls) ->
-      (* the case where the points-to set is non top and contains unknown values *)
-      let includes_uk = ref false in
-      (* now we need to access all fields that might be pointed to: is this correct? *)
-      begin match ctx.ask (ReachableUkTypes e) with
-        | `Bot -> ()
-        | `TypeSet ts when Queries.TS.is_top ts ->
-          includes_uk := true
-        | `TypeSet ts ->
-          if Queries.TS.is_empty ts = false then
-            includes_uk := true;
-          let f = function
-            | TComp (ci, _) ->
-              add_access_struct (conf - 50) ci
-            | _ -> ()
-          in
-          Queries.TS.iter f ts
-        | _ ->
-          includes_uk := true
-      end;
-      on_lvals ls !includes_uk
-    | _ ->
-      add_access (conf - 60) None None
-
-  let assign (ctx:(D.t, G.t, C.t) ctx) l e =
+  let assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
         }
       in
@@ -605,28 +731,31 @@ struct
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
 
-  let vdecl (ctx:(D.t, G.t, C.t) ctx) v =
+  let vdecl (ctx:(D.t, G.t, C.t, V.t) ctx) v =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in assign context (cycles?).")
         }
       in
@@ -636,28 +765,31 @@ struct
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let body (ctx:(D.t, G.t, C.t) ctx) f =
+  let body (ctx:(D.t, G.t, C.t, V.t) ctx) f =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
@@ -668,28 +800,31 @@ struct
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let return (ctx:(D.t, G.t, C.t) ctx) e f =
+  let return (ctx:(D.t, G.t, C.t, V.t) ctx) e f =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
@@ -700,28 +835,31 @@ struct
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let intrpt (ctx:(D.t, G.t, C.t) ctx) =
+  let intrpt (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
@@ -732,28 +870,31 @@ struct
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let asm (ctx:(D.t, G.t, C.t) ctx) =
+  let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
@@ -764,28 +905,31 @@ struct
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let skip (ctx:(D.t, G.t, C.t) ctx) =
+  let skip (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
@@ -796,28 +940,31 @@ struct
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let special (ctx:(D.t, G.t, C.t) ctx) r f a =
+  let special (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
@@ -828,57 +975,61 @@ struct
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
     let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let sync (ctx:(D.t, G.t, C.t) ctx) =
+  let sync (ctx:(D.t, G.t, C.t, V.t) ctx) reason =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let f (n,(module S:Spec),d) (dl,cs) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
-        ; postsub= []
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; postsub= filter_presubs n post_all
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> splits := (n,(repr d,e,tv)) :: !splits)
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in sync context.")
         }
       in
-      let d, ds = S.sync ctx' in
-      (n, repr d)::dl, (map (fun (v,d) -> v, (n,repr d)::(remove_assoc n @@ G.bot ())) ds) @ cs
+      n, repr @@ S.sync ctx' reason
     in
-    let d,cs = fold_right f (spec_list ctx.local) ([],[]) in
+    let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    d, cs
+    let d = do_emits ctx !emits d in
+    if q then raise Deadcode else d
 
-  let enter (ctx:(D.t, G.t, C.t) ctx) r f a =
+  let enter (ctx:(D.t, G.t, C.t, V.t) ctx) r f a =
     let spawns = ref [] in
     let sides  = ref [] in
-    let f (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let f (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter context.")
         ; presub = filter_presubs n ctx.local
         ; postsub= []
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun _ _    -> failwith "Cannot \"split\" in enter context." )
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in enter context.")
         }
       in
@@ -889,25 +1040,27 @@ struct
     do_spawns ctx !spawns;
     map (fun xs -> (topo_sort_an @@ map fst xs, topo_sort_an @@ map snd xs)) @@ n_cartesian_product css
 
-  let combine (ctx:(D.t, G.t, C.t) ctx) r fe f a fc fd =
+  let combine (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd =
     let spawns = ref [] in
     let sides  = ref [] in
     let assigns = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let rec ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in combine context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in combine context.")
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
@@ -917,68 +1070,75 @@ struct
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     let d = do_assigns ctx !assigns d in
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let threadenter (ctx:(D.t, G.t, C.t) ctx) lval f a =
+  let threadenter (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a =
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
-        ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; postsub= []
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadenter context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadenter context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in threadenter context.")
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadenter context.")
         }
       in
-      n, repr @@ S.threadenter ctx' lval f a
+      map (fun d -> (n, repr d)) @@ S.threadenter ctx' lval f a
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
+    let css = map f @@ spec_list ctx.local in
     do_sideg ctx !sides;
-    if q then raise Deadcode else d
+    (* TODO: this do_emits is now different from everything else *)
+    map (do_emits ctx !emits) @@ map topo_sort_an @@ n_cartesian_product css
 
-  let threadspawn (ctx:(D.t, G.t, C.t) ctx) lval f a fctx =
+  let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a fctx =
     let sides  = ref [] in
-    let f post_all (n,(module S:Spec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t) ctx =
+    let emits = ref [] in
+    let f post_all (n,(module S:MCPSpec),d) =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
         ; prev_node = ctx.prev_node
         ; control_context = ctx.control_context
         ; context = (fun () -> ctx.context () |> assoc n |> obj)
         ; edge   = ctx.edge
-        ; ask    = query ctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n ctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> ctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadspawn context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in threadspawn context.")
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadspawn context.")
         }
       in
-      let fctx' : (S.D.t, S.G.t, S.C.t) ctx =
+      let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj (assoc n fctx.local)
         ; node   = fctx.node
         ; prev_node = fctx.prev_node
         ; control_context = fctx.control_context
         ; context = (fun () -> fctx.context () |> assoc n |> obj)
         ; edge   = fctx.edge
-        ; ask    = query fctx
+        ; ask    = (fun (type a) (q: a Queries.t) -> query fctx q)
+        ; emit   = (fun e -> emits := e :: !emits)
         ; presub = filter_presubs n fctx.local
         ; postsub= filter_presubs n post_all
-        ; global = (fun v      -> fctx.global v |> assoc n |> obj)
+        ; global = (fun v      -> fctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
-        ; split  = (fun d e tv -> failwith "Cannot \"split\" in threadspawn context.")
-        ; sideg  = (fun v g    -> sides  := (v, (n, repr g)) :: !sides)
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in threadspawn context.")
+        ; sideg  = (fun v g    -> sides  := (v_of n v, (n, repr g)) :: !sides)
         ; assign = (fun ?name v e -> failwith "Cannot \"assign\" in threadspawn context.")
         }
       in
@@ -986,5 +1146,6 @@ struct
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
+    let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 end

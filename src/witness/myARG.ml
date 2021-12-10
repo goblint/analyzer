@@ -27,17 +27,17 @@ struct
 
   let embed e = e
   let cfgedge e = Some e
-  let to_string e = Pretty.sprint 80 (pretty_edge () e)
+  let to_string e = Pretty.sprint 80 (Edge.pretty_plain () e)
 end
 
 type inline_edge =
-  | CFGEdge of edge
-  | InlineEntry of Deriving.Cil.exp list
-  | InlineReturn of Deriving.Cil.lval option
+  | CFGEdge of Edge.t
+  | InlineEntry of CilType.Exp.t list
+  | InlineReturn of CilType.Lval.t option
   [@@deriving to_yojson]
 
 let pretty_inline_edge () = function
-  | CFGEdge e -> MyCFG.pretty_edge () e
+  | CFGEdge e -> Edge.pretty_plain () e
   | InlineEntry args -> Pretty.dprintf "InlineEntry '(%a)'" (Pretty.d_list ", " Cil.d_exp) args
   | InlineReturn None -> Pretty.dprintf "InlineReturn"
   | InlineReturn (Some ret) -> Pretty.dprintf "InlineReturn '%a'" Cil.d_lval ret
@@ -238,7 +238,7 @@ let partition_if_next if_next_n =
   in
   (* assert (List.length if_next <= 2); *)
   match test_next true, test_next false with
-  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when Expcompare.compareExp e_true e_false ->
+  | (Test (e_true, true), if_true_next_n), (Test (e_false, false), if_false_next_n) when Basetype.CilExp.equal e_true e_false ->
     (e_true, if_true_next_n, if_false_next_n)
   | _, _ -> failwith "partition_if_next: bad branches"
 
@@ -259,7 +259,7 @@ struct
     | Ret (exp1, f1), Ret (exp2, f2) -> exp1 = exp2 && f1 == f2 (* physical equality for fundec to avoid cycle *)
     | _, _ -> e1 = e2
   let rec is_equiv_chain n1 n2 =
-    MyCFG.Node.equal n1 n2 || (is_equiv_node n1 n2 && is_equiv_chain_next n1 n2)
+    Node.equal n1 n2 || (is_equiv_node n1 n2 && is_equiv_chain_next n1 n2)
   and is_equiv_chain_next n1 n2 = match Arg.next n1, Arg.next n2 with
     | [(e1, to_n1)], [(e2, to_n2)] ->
       is_equiv_edge e1 e2 && is_equiv_chain to_n1 to_n2
@@ -267,14 +267,14 @@ struct
 
 
   let rec next_opt' n = match n with
-    | Statement {sid; skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.witness.uncil" ->
+    | Statement {sid; skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "exp.witness.uncil" -> (* TODO: use elocs instead? *)
       let (e, if_true_next_n,  if_false_next_n) = partition_if_next (Arg.next n) in
       (* avoid infinite recursion with sid <> sid2 in if_nondet_var *)
       (* TODO: why physical comparison if_false_next_n != n doesn't work? *)
       (* TODO: need to handle longer loops? *)
       begin match if_true_next_n, if_false_next_n with
         (* && *)
-        | Statement {sid=sid2; skind=If (_, _, _, loc2); _}, _ when sid <> sid2 && loc = loc2 ->
+        | Statement {sid=sid2; skind=If (_, _, _, loc2, eloc2); _}, _ when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_true_next_true_next_n, if_true_next_false_next_n) = partition_if_next (next if_true_next_n) in
           if is_equiv_chain if_false_next_n if_true_next_false_next_n then
@@ -286,7 +286,7 @@ struct
           else
             None
         (* || *)
-        | _, Statement {sid=sid2; skind=If (_, _, _, loc2); _} when sid <> sid2 && loc = loc2 ->
+        | _, Statement {sid=sid2; skind=If (_, _, _, loc2, eloc2); _} when sid <> sid2 && loc = loc2 ->
           (* get e2 from edge because recursive next returns it there *)
           let (e2, if_false_next_true_next_n, if_false_next_false_next_n) = partition_if_next (next if_false_next_n) in
           if is_equiv_chain if_true_next_n if_false_next_true_next_n then
@@ -317,14 +317,14 @@ struct
       (* avoid unnecessary ternary *)
       e_cond
     else
-      Question(e_cond, e_true, e_false, typeOf e_false)
+      Question(e_cond, e_true, e_false, Cilfacade.typeOf e_false)
 
   let next_opt' n = match n with
-    | Statement {skind=If (_, _, _, loc); _} when GobConfig.get_bool "exp.witness.uncil" ->
+    | Statement {skind=If (_, _, _, loc, eloc); _} when GobConfig.get_bool "exp.witness.uncil" -> (* TODO: use eloc instead? *)
       let (e_cond, if_true_next_n, if_false_next_n) = partition_if_next (Arg.next n) in
-      if MyCFG.getLoc if_true_next_n = loc && MyCFG.getLoc if_false_next_n = loc then
+      if Node.location if_true_next_n = loc && Node.location if_false_next_n = loc then
         match Arg.next if_true_next_n, Arg.next if_false_next_n with
-        | [(Assign (v_true, e_true), if_true_next_next_n)], [(Assign (v_false, e_false), if_false_next_next_n)] when v_true = v_false && MyCFG.Node.equal if_true_next_next_n if_false_next_next_n ->
+        | [(Assign (v_true, e_true), if_true_next_next_n)], [(Assign (v_false, e_false), if_false_next_next_n)] when v_true = v_false && Node.equal if_true_next_next_n if_false_next_next_n ->
           let exp = ternary e_cond e_true e_false in
           Some [
             (Assign (v_true, exp), if_true_next_next_n)

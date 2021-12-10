@@ -1,7 +1,6 @@
 (** Local variable initialization analysis. *)
 
 module M = Messages
-module BS = Base.Main
 module AD = ValueDomain.AD
 module IdxDom = ValueDomain.IndexDomain
 module Offs = ValueDomain.Offs
@@ -17,7 +16,6 @@ struct
 
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-  module G = Lattice.Unit
 
   type trans_in  = D.t
   type trans_out = D.t
@@ -28,8 +26,8 @@ struct
   let should_join x y = D.equal x y
 
   let startstate v : D.t = D.empty ()
-  let threadenter ctx lval f args : D.t = D.empty ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.empty ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v : D.t = D.empty ()
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
@@ -37,19 +35,19 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
-  let access_address ask write lv : BS.extra =
-    match ask (Queries.MayPointTo (AddrOf lv)) with
-    | `LvalSet a when not (Queries.LS.is_top a) ->
+  let access_address (ask: Queries.ask) write lv =
+    match ask.f (Queries.MayPointTo (AddrOf lv)) with
+    | a when not (Queries.LS.is_top a) ->
       let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), write) :: xs  in
       Queries.LS.fold to_extra a []
     | _ ->
       M.warn "Access to unknown address could be global"; []
 
-  let rec access_one_byval a rw (exp:exp): BS.extra =
+  let rec access_one_byval a rw (exp:exp) =
     match exp with
     (* Integer literals *)
     | Const _ -> []
@@ -69,8 +67,8 @@ struct
     | CastE  (t, exp) -> access_one_byval a rw exp
     | _ -> []
   (* Accesses during the evaluation of an lval, not the lval itself! *)
-  and access_lv_byval a (lval:lval): BS.extra =
-    let rec access_offset (ofs: offset): BS.extra =
+  and access_lv_byval a (lval:lval) =
+    let rec access_offset (ofs: offset) =
       match ofs with
       | NoOffset -> []
       | Field (fld, ofs) -> access_offset ofs
@@ -80,15 +78,16 @@ struct
     | Var x, ofs -> access_offset ofs
     | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
 
-  let access_byval a (rw: bool) (exps: exp list): BS.extra =
+  let access_byval a (rw: bool) (exps: exp list) =
     List.concat (List.map (access_one_byval a rw) exps)
 
+  (* TODO: unused? remove? *)
   let access_byref ask (exps: exp list) =
     (* Find the addresses reachable from some expression, and assume that these
      * can all be written to. *)
     let do_exp e =
       match ask (Queries.ReachableFrom e) with
-      | `LvalSet a when not (Queries.LS.is_top a) ->
+      | a when not (Queries.LS.is_top a) ->
         let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
         Queries.LS.fold to_extra a []
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
@@ -108,10 +107,10 @@ struct
     let rec is_offs_prefix_of pr os =
       match (pr, os) with
       | (`NoOffset, _) -> true
-      | (`Field (f1, o1), `Field (f2,o2)) -> f1 == f2 && is_offs_prefix_of o1 o2
+      | (`Field (f1, o1), `Field (f2,o2)) -> CilType.Fieldinfo.equal f1 f2 && is_offs_prefix_of o1 o2
       | (_, _) -> false
     in
-    (v1.vid == v2.vid) && is_offs_prefix_of ofs1 ofs2
+    CilType.Varinfo.equal v1 v2 && is_offs_prefix_of ofs1 ofs2
 
 
   (* Does it contain non-initialized variables? *)
@@ -123,7 +122,7 @@ struct
         List.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
-        Messages.report ("Uninitialized variable " ^ (Addr.short 80 (Addr.from_var_offset a)) ^ " accessed.");
+        Messages.warn "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
         false
       end else
         t in
@@ -155,14 +154,14 @@ struct
     in
     let rec bothstruct (t:fieldinfo list) (tf:fieldinfo) (o:fieldinfo list) (no:lval_offs)  : var_offs list =
       match t, o with
-      | x::xs, y::ys when x.fcomp.ckey == tf.fcomp.ckey && x.fname == tf.fname ->
+      | x::xs, y::ys when CilType.Fieldinfo.equal x tf ->
         get_pfx v (`Field (y, cx)) no x.ftype y.ftype
-      | x::xs, y::ys when x.ftype == y.ftype ->
+      | x::xs, y::ys when CilType.Typ.equal x.ftype y.ftype -> (* different fields, same type? *)
         bothstruct xs tf ys no
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.warn ("Failed to analyze union at point " ^ (Addr.short 80 (Addr.from_var_offset (v,rev cx))) ^ " -- did not find " ^ tf.fname);
+        M.warn "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -190,17 +189,17 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.warn ("Failed to analyze union at point " ^ (Addr.short 80 (Addr.from_var_offset (v,rev cx))));
+      M.warn "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
       []
 
 
   (* Call to [init_lval lv st] results in state [st] where the variable evaluated form [lv] is initialized. *)
-  let init_lval a (lv: lval) (st: D.t) : D.t =
+  let init_lval (a: Queries.ask) (lv: lval) (st: D.t) : D.t =
     let init_vo (v: varinfo) (ofs: lval_offs) : D.t =
       List.fold_right remove_if_prefix (get_pfx v `NoOffset ofs v.vtype v.vtype) st
     in
-    match a (Queries.MayPointTo (AddrOf lv)) with
-    | `LvalSet a when Queries.LS.cardinal a = 1 ->  begin
+    match a.f (Queries.MayPointTo (AddrOf lv)) with
+    | a when Queries.LS.cardinal a = 1 ->  begin
         let var, ofs = Queries.LS.choose a in
         init_vo var (conv_offset ofs)
       end
@@ -222,11 +221,11 @@ struct
     | _ -> [Addr.from_var v]
 
 
-  let remove_unreachable ask (args: exp list) (st: D.t) : D.t =
+  let remove_unreachable (ask: Queries.ask) (args: exp list) (st: D.t) : D.t =
     let reachable =
       let do_exp e =
-        match ask (Queries.ReachableFrom e) with
-        | `LvalSet a when not (Queries.LS.is_top a) ->
+        match ask.f (Queries.ReachableFrom e) with
+        | a when not (Queries.LS.is_top a) ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
           Queries.LS.fold to_extra a []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
@@ -247,11 +246,11 @@ struct
     Transfer functions
   *)
   let assign ctx (lval:lval) (rval:exp) : trans_out =
-    ignore (is_expr_initd ctx.ask rval ctx.local);
-    init_lval ctx.ask lval ctx.local
+    ignore (is_expr_initd (Analyses.ask_of_ctx ctx) rval ctx.local);
+    init_lval (Analyses.ask_of_ctx ctx) lval ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : trans_out =
-    ignore (is_expr_initd ctx.ask exp ctx.local);
+    ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local);
     ctx.local
 
   let body ctx (f:fundec) : trans_out =
@@ -263,26 +262,26 @@ struct
       List.fold_right D.remove (to_addrs v) x in
     let nst = List.fold_left remove_var ctx.local (f.slocals @ f.sformals) in
     match exp with
-    | Some exp -> ignore (is_expr_initd ctx.ask exp ctx.local); nst
+    | Some exp -> ignore (is_expr_initd (Analyses.ask_of_ctx ctx) exp ctx.local); nst
     | _ -> nst
 
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
-    let nst = remove_unreachable ctx.ask args ctx.local in
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
+    let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     [ctx.local, nst]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : trans_out =
-    ignore (List.map (fun x -> is_expr_initd ctx.ask x ctx.local) args);
-    let cal_st = remove_unreachable ctx.ask args ctx.local in
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : trans_out =
+    ignore (List.map (fun x -> is_expr_initd (Analyses.ask_of_ctx ctx) x ctx.local) args);
+    let cal_st = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     let ret_st = D.union au (D.diff ctx.local cal_st) in
     match lval with
     | None -> ret_st
-    | Some lv -> init_lval ctx.ask lv ret_st
+    | Some lv -> init_lval (Analyses.ask_of_ctx ctx) lv ret_st
 
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match lval with
-    | Some lv -> init_lval ctx.ask lv ctx.local
+    | Some lv -> init_lval (Analyses.ask_of_ctx ctx) lv ctx.local
     | _ -> ctx.local
 
   (*  let fork ctx (lval: lval option) (f : varinfo) (args : exp list) : (varinfo * D.t) list =
@@ -291,4 +290,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

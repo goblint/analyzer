@@ -23,10 +23,10 @@ struct
   module Ctx = IntDomain.Flattened
   (* set of predecessor nodes *)
   module Pred = struct
-    include SetDomain.Make (Basetype.ProgLocation)
-    let of_node = singleton % MyCFG.getLoc
+    include SetDomain.Make (Basetype.ExtractLocation)
+    let of_node = singleton % Node.location
     let of_current_node () = of_node @@ Option.get !MyCFG.current_node
-    let string_of_elt = Basetype.ProgLocation.short 99
+    let string_of_elt = Basetype.ExtractLocation.show
   end
   module D = Lattice.Prod3 (Pid) (Ctx) (Pred)
   module C = D
@@ -106,7 +106,7 @@ struct
         "Fun_"^fname^":"
     in
     (* build adjacency matrix for all nodes of this process *)
-    let module HashtblN = Hashtbl.Make (Basetype.ProgLocation) in
+    let module HashtblN = Hashtbl.Make (Basetype.ExtractLocation) in
     let a2bs = HashtblN.create 97 in
     Set.iter (fun (a, _, b as edge) -> HashtblN.modify_def Set.empty a (Set.add edge) a2bs) (get_edges id);
     let nodes = HashtblN.keys a2bs |> List.of_enum in
@@ -134,7 +134,7 @@ struct
     let walk_edges (a, out_edges) =
       let edges = Set.elements out_edges |> List.map codegen_edge in
       (label a ^ ":") ::
-      if List.length edges > 1 then
+      if List.compare_length_with edges 1 > 0 then
         "if" :: (choice edges) @ ["fi"]
       else
         edges
@@ -193,9 +193,9 @@ struct
     proc_defs
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t) =
     match q with
-    | _ -> Queries.Result.top ()
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -208,7 +208,8 @@ struct
     match List.assoc "base" ctx.presub with
     | Some base ->
       let pid, ctxh, pred = ctx.local in
-      let base_context = Base.Main.context_cpa @@ Obj.obj base in
+      let module BaseMain = (val Base.get_main ()) in
+      let base_context = BaseMain.context_cpa f @@ Obj.obj base in
       let context_hash = Hashtbl.hash (base_context, pid) in
       pid, Ctx.of_int (Int64.of_int context_hash), pred
     | None -> ctx.local (* TODO when can this happen? *)
@@ -216,13 +217,13 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let d_caller = ctx.local in
     let pid, ctxh, pred = ctx.local in
     let d_callee = if D.is_bot ctx.local then ctx.local else pid, Ctx.top (), Pred.of_node (MyCFG.Function f) in (* set predecessor set to start node of function *)
     [d_caller, d_callee]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     if D.is_bot ctx.local || D.is_bot au then ctx.local else
       let pid, ctxh, pred = ctx.local in (* caller *)
       let _ , _, pred' = au in (* callee *)
@@ -243,20 +244,20 @@ struct
         let fname = str_remove "LAP_Se_" f.vname in
         let eval_int exp =
           match ctx.ask (Queries.EvalInt exp) with
-          | `Int x -> [Int64.to_string x]
+          | x when Queries.ID.is_int x -> [IntOps.BigIntOps.to_string (Option.get @@ Queries.ID.to_int x)]
           | _ -> failwith @@ "Could not evaluate int-argument "^sprint d_plainexp exp
         in
         let eval_str exp =
           match ctx.ask (Queries.EvalStr exp) with
-          | `Str x -> [x]
+          | `Lifted x -> [x]
           | _ -> failwith @@ "Could not evaluate string-argument "^sprint d_plainexp exp
         in
         let eval_id exp =
           let module LS = Queries.LS in
           match ctx.ask (Queries.MayPointTo exp) with
-          | `LvalSet x when not (LS.is_top x) ->
+          | x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
-            if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
+            if LS.mem top_elt x then M.debug "Query result for MayPointTo contains top!";
             let xs = LS.remove top_elt x |> LS.elements in
             List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
           | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
@@ -283,17 +284,17 @@ struct
             Some [string_of_int i]
         in
         let node = Option.get !MyCFG.current_node in
-        let fundec = MyCFG.getFun node in
+        let fundec = Node.find_fundec node in
         let id = pname, fundec.svar.vname in
         let extract_fun ?(info_args=[]) args =
           let comment = if List.is_empty info_args then "" else " /* " ^ String.concat ", " info_args ^ " */" in (* append additional info as comment *)
           let action = fname^"("^String.concat ", " args^");"^comment in
           print_endline @@ "EXTRACT in "^pname^": "^action;
-          Pred.iter (fun pred -> add_edge id (pred, Sys action, MyCFG.getLoc node)) pred;
+          Pred.iter (fun pred -> add_edge id (pred, Sys action, Node.location node)) pred;
           pid, ctx_hash, Pred.of_node node
         in
         match Pml.special_fun fname with
-        | None -> M.debug_each ("extract_osek: unhandled function "^fname); ctx.local
+        | None -> M.debug "extract_osek: unhandled function %s" fname; ctx.local
         | Some eval_args ->
           if M.tracing then M.trace "extract_osek" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
           let rec combine_opt f a b = match a, b with
@@ -315,17 +316,18 @@ struct
               extract_fun ~info_args:str_args args
             ) ctx.local args_product
 
-  let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main").svar)
-  let threadenter ctx lval f args = D.bot ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main"))
+  let threadenter ctx lval f args = [D.bot ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.bot ()
 
-  let init () = (* registers which functions to extract and writes out their definitions *)
+  let init marshal = (* registers which functions to extract and writes out their definitions *)
+    init (); (* TODO: why wasn't this called before? *)
     Osek.Spec.parse_oil ();
-    let mainfuns = List.map Json.string (GobConfig.get_list "mainfun") in
+    let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
-    assert (List.length mainfuns = 1); (* TODO? *)
+    assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
     output_file (Goblintutil.create_dir "result/" ^ "osek.os.pml") (snd (Pml_osek.init ()))
 
@@ -335,4 +337,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

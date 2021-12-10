@@ -13,9 +13,8 @@ struct
   let violations = ref false (*print negative warnings? *)
 
   let name () = "OSEK2"
-  module D = Lattice.Prod (Osektupel) (Osektupel) (* Summmary x Result *)
+  module D = Lattice.Prod (Osektupel) (Osektupel) (* Summary x Result *)
   module C = D
-  module G = Lattice.Unit
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
   let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((Set.String.empty  )  , Osektupel.bot())
@@ -42,8 +41,8 @@ struct
     let ((ctxs,ctxr): D.t) = ctx.local in
     let p = (pry_d (get_lockset ctx)) in
     let access_one_top = Osek.Spec.access_one_top in
-    let b1 = access_one_top ctx.ask true (Lval lval) in
-    let b2 = access_one_top ctx.ask false rval in
+    let b1 = access_one_top (Analyses.ask_of_ctx ctx) true (Lval lval) in
+    let b2 = access_one_top (Analyses.ask_of_ctx ctx) false rval in
     let stack = get_stack ctx in
     let addvars var fn = let (vars,t) = Hashtbl.find funs fn.vname in
       let _ = Hashtbl.replace funs fn.vname (Set.String.add var vars , Osektupel.join t ctxr) in
@@ -87,10 +86,10 @@ struct
   let eval_funvar ctx (fv:exp) : varinfo list =
     []
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     let (ctxs,ctxr) = ctx.local in
     let (aus,aur) = au in
     (ctxs, Osektupel.fcon ctxr aus)
@@ -114,8 +113,8 @@ struct
       (ctxs, ctxr)
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   (** Finalization and other result printing functions: *)
@@ -167,12 +166,9 @@ struct
     (* let _ = print_endline ( "Finalize trans") in *)
     let _ = Hashtbl.iter report_trans funs in
     if !transactional then
-      print_endline "Goblint did not find any non-transactional behavior in this program!";
-    Base.Main.finalize ()
-
-  let init () = ()
+      print_endline "Goblint did not find any non-transactional behavior in this program!"
 
 end
 
 let _ =
-  MCP.register_analysis ~dep:["OSEK"; "stack_trace_set"] (module Spec : Spec)
+  MCP.register_analysis ~dep:["OSEK"; "stack_trace_set"] (module Spec : MCPSpec)

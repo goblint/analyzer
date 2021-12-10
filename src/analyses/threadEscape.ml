@@ -5,6 +5,17 @@ open Analyses
 
 module M = Messages
 
+let has_escaped (ask: Queries.ask) (v: varinfo): bool =
+  assert (not v.vglob);
+  if not v.vaddrof then
+    false (* Cannot have escaped without taking address. Override provides extra precision for degenerate ask in base eval_exp used for partitioned arrays. *)
+  else
+    ask.f (Queries.MayEscape v)
+    (* | Top ->
+      M.warn @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
+      true *)
+
+
 module Spec =
 struct
   include Analyses.DefaultSpec
@@ -12,13 +23,12 @@ struct
   let name () = "escape"
   module D = EscapeDomain.EscapedVars
   module C = EscapeDomain.EscapedVars
-  module G = Lattice.Unit
 
   (* queries *)
-  let query ctx (q:Queries.t) : Queries.Result.t =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.MayEscape v -> `MayBool (D.mem v ctx.local)
-    | _ -> Queries.Result.top ()
+    | Queries.MayEscape v -> D.mem v ctx.local
+    | _ -> Queries.Result.top q
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -33,10 +43,10 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local,ctx.local]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
   let rec cut_offset x =
@@ -45,9 +55,9 @@ struct
     | `Index (_,o) -> `NoOffset
     | `Field (f,o) -> `Field (f, cut_offset o)
 
-  let reachable ask e: D.t =
-    match ask (Queries.ReachableFrom e) with
-    | `LvalSet a when not (Queries.LS.is_top a) ->
+  let reachable (ask: Queries.ask) e: D.t =
+    match ask.f (Queries.ReachableFrom e) with
+    | a when not (Queries.LS.is_top a) ->
       (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
       let to_extra (v,o) set = D.add v set in
       Queries.LS.fold to_extra a (D.empty ())
@@ -62,14 +72,23 @@ struct
 
   let threadenter ctx lval f args =
     match args with
-    | [ptc_arg] -> reachable ctx.ask ptc_arg
-    | _ -> D.bot ()
+    | [ptc_arg] ->
+      let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
+      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+        ctx.emit (Events.Escape escaped);
+      [escaped]
+    | _ -> [D.bot ()]
 
   let threadspawn ctx lval f args fctx =
-    match args with
-    | [ptc_arg] -> reachable ctx.ask ptc_arg (* TODO: just use fd? *)
-    | _ -> D.bot ()
+    D.join ctx.local @@
+      match args with
+      | [ptc_arg] ->
+        let escaped = fctx.local in (* reuse reachable computation from threadenter *)
+        if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+          ctx.emit (Events.Escape escaped);
+        escaped
+      | _ -> D.bot ()
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

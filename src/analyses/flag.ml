@@ -9,7 +9,6 @@ struct
 
   module D = Lattice.Unit
   module C = Lattice.Unit
-  module G = Lattice.Unit
 
   module Val = IntDomain.Flattened
   module VSet = SetDomain.ToppedSet(Val)(struct let topname = "Various" end)
@@ -55,14 +54,14 @@ struct
           let x = var.vname in if List.mem x !noflags then () else
             (* let _ = print_endline ( List.fold_left (fun acc a -> a ^ ", " ^ acc) "" !flags   ) in  *)
             (match rval with
-             | Const (CInt64 (i,_,_)) -> if List.mem x !flags then
+             | Const (CInt(i,_,_)) -> if List.mem x !flags then
                  let v = Hashtbl.find vars x in
                  (* let _ = print_endline ( "assign" ^ (Int64.to_string i)) in   *)
                  (* let _ = print_endline ( x ^ " has values " ^ VSet.fold (fun e str -> (Val.short 50 e) ^", " ^str  ) v " ") in       *)
-                 if (VSet.mem (Val.of_int i) v) then () else
+                 if (VSet.mem (Val.of_int (Cilint.int64_of_cilint i)) v) then () else (* dubious, but was already like this *)
                  if (VSet.cardinal v < flagmax) then
                    (* let _ = print_endline ( "add") in   *)
-                   Hashtbl.replace vars x (VSet.add (Val.of_int i) v)
+                   Hashtbl.replace vars x (VSet.add (Val.of_int (Cilint.int64_of_cilint i)) v) (* dubious, but was already like this *)
                  else begin
                    (* let _ = print_endline ( "remove") in   *)
                    flags := listrem x !flags;
@@ -72,7 +71,7 @@ struct
                  end
                else begin
                  flags := x ::!flags;
-                 Hashtbl.add vars x (VSet.add (Val.of_int i) (VSet.empty ()) )
+                 Hashtbl.add vars x (VSet.add (Val.of_int (Cilint.int64_of_cilint i)) (VSet.empty ())) (* dubious, but was already like this *)
                end
              | _ ->
                noflags := x::!noflags; if List.mem x !flags then begin
@@ -112,11 +111,11 @@ struct
 
   (*   let eval_funvar ctx (fv:exp) =  [(ctx.local,ctx.local)] *)
 
-  let enter ctx (lval: lval option) (f:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let _ = List.iter no_addr_of_flag args in
     [(D.top (),D.top ())]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (au:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     let _ = List.iter no_addr_of_flag args in
     let _ = no_addr_of_flag fexp in
     D.top ()
@@ -126,8 +125,8 @@ struct
     match f.vname with _ -> D.top ()
 
   let startstate v = D.top ()
-  let threadenter ctx lval f args = D.top ()
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadenter ctx lval f args = [D.top ()]
+  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
   let name () = "flag"
@@ -144,9 +143,7 @@ struct
     in
     BatFile.with_file_out "flags.json" print_flags_file
 
-  let init () =  ()
-
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

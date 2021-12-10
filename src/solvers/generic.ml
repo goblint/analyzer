@@ -2,102 +2,41 @@ open Prelude
 open GobConfig
 open Analyses
 
-(** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
-module SimpleSysConverter (S:IneqConstrSys)
-  : sig include EqConstrSys val conv : S.v -> S.v end
-  with type v = S.v
-   and type d = S.d
-   and module Var = S.Var
-   and module Dom = S.Dom
-=
-struct
-  type v = S.v
-  type d = S.d
-
-  module Var = S.Var
-  module Dom = S.Dom
-
-  let increment = S.increment
-
-  let box = S.box
-
-  let conv x = x
-
-  let system x =
-    match S.system x with
-    | [] -> None
-    | r::rs -> Some (fun get set -> List.fold_left (fun d r' -> Dom.join d (r' get set)) (r get set) rs)
-end
-
-(* move this to some other place! *)
-module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
-struct
-  type t = B.t * int
-  let relift x = x
-  let compare ((u1,u2):t) (v1,v2) =
-    match Stdlib.compare u2 v2 with
-    | 0 -> B.compare u1 v1
-    | n -> n
-  let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1
-  let category (u,_) = B.category u
-  let hash (u,v) = B.hash u + 131233 * v
-  let pretty_trace () (u,v:t) =
-    Pretty.dprintf "(%a,%d)" B.pretty_trace u v
-
-  let var_id (c,_) = B.var_id c
-  let printXml f (c,_) = B.printXml f c
-  let file_name (c,_) = B.file_name c
-  let line_nr (c,_) = B.line_nr c
-  let node (c,_) = B.node c
-end
+let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 
-(** Convert a an [IneqConstrSys] into an equation system. *)
-module NormalSysConverter (S:IneqConstrSys)
-  : sig include EqConstrSys val conv : S.v -> (S.v * int) end
-  with type v = S.v * int
-   and type d = S.d
-   and module Var = ExtendInt (S.Var)
-   and module Dom = S.Dom
-=
-struct
-  type v = S.v * int
-  type d = S.d
+module LoadRunSolver: GenericEqBoxSolver =
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    let solve box xs vs =
+      (* copied from Control.solve_and_postprocess *)
+      let solver_file = "solver.marshalled" in
+      let load_run = get_string "load_run" in
+      let solver = Filename.concat load_run solver_file in
+      if get_bool "dbg.verbose" then
+        print_endline ("Loading the solver result of a saved run from " ^ solver);
+      let vh: S.d VH.t = Serialize.unmarshal solver in
+      if get_bool "ana.opt.hashcons" then (
+        let vh' = VH.create (VH.length vh) in
+        VH.iter (fun x d ->
+            let x' = S.Var.relift x in
+            let d' = S.Dom.relift d in
+            VH.replace vh' x' d'
+          ) vh;
+        vh'
+      )
+      else
+        vh
+  end
 
-  module Var = ExtendInt (S.Var)
-  module Dom = S.Dom
-
-  let increment = S.increment
-
-  let box (x,n) = S.box x
-
-  let conv x = (x,-1)
-
-  let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option =
-    let fold_left1 f xs =
-      match xs with
-      | [] -> failwith "You promised!!!"
-      | x::xs -> List.fold_left f x xs
-    in
-    match S.system x with
-    | []           -> None
-    | [f] when n=0 -> Some (fun get set -> f (get % conv) (set % conv))
-    | xs when n=(-1) ->
-      let compute get set =
-        fold_left1 Dom.join (List.mapi (fun n _ -> get (x,n)) xs)
-      in
-      Some compute
-    | xs ->
-      try Some (fun get set -> List.at xs n (get % conv) (set % conv))
-      with Invalid_argument _ -> None
-end
-
+module LoadRunIncrSolver: GenericEqBoxIncrSolver =
+  Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 
 module SolverInteractiveWGlob
     (S:Analyses.GlobConstrSys)
-    (LH:Hash.H with type key=S.LVar.t)
-    (GH:Hash.H with type key=S.GVar.t) =
+    (LH:Hashtbl.S with type key=S.LVar.t)
+    (GH:Hashtbl.S with type key=S.GVar.t) =
 struct
   open S
   open Printf
@@ -140,12 +79,16 @@ struct
 
   let warning_id = ref 1
   let writeXmlWarnings () =
-    let one_text f (m,l) =
-      fprintf f "\n<text file=\"%s\" line=\"%d\">%s</text>" l.file l.line m
+    let one_text f Messages.Piece.{loc; text = m; _} =
+      match loc with
+      | Some l ->
+        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+      | None ->
+        () (* TODO: not outputting warning without location *)
     in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
+    let one_w f (m: Messages.Message.t) = match m.multipiece with
+      | Single piece  -> one_text f piece
+      | Group {group_text = n; pieces = e} ->
         fprintf f "<group name=\"%s\">%a</group>\n" n (List.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w x f = fprintf f "\n<warning>%a</warning>" one_w x in
@@ -155,11 +98,11 @@ struct
       incr warning_id;
       File.with_file_out ~mode:[`create;`excl;`text] full_name (one_w x)
     in
-    List.iter write_warning !Messages.warning_table
+    List.iter write_warning !Messages.Table.messages_list
 
   module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end)
   let funs = SSH.create 100
-  module NH = Hashtbl.Make (MyCFG.Node)
+  module NH = Hashtbl.Make (Node)
   let liveness = NH.create 100
   let updated_l = NH.create 100
   let updated_g = GH.create 100
@@ -197,8 +140,8 @@ struct
       NH.iter (fun v () -> fprintf f "%a</call>\n" Var.printXml v) updated_l;
       GH.iter (fun v () -> fprintf f "<global>\n%a</global>\n" GVar.printXml v) updated_g;
       let g n _ = fprintf f "<warning warn=\"warn%d\" />\n" (n + !warning_id) in
-      List.iteri g !Messages.warning_table;
-      (* List.iter write_warning !Messages.warning_table *)
+      List.iteri g !Messages.Table.messages_list;
+      (* List.iter write_warning !Messages.messages_list *)
       fprintf f "</updates>\n";
     in
     File.with_file_out ~mode:[`excl;`create;`text] full_name write_updates
@@ -228,14 +171,14 @@ struct
     if !stopped then
       write_updates ();
     writeXmlWarnings (); (* must be after write_update! *)
-    !MyCFG.write_cfgs (NH.mem liveness);
+    !write_cfgs (NH.mem liveness);
     NH.clear updated_l;
     GH.clear updated_g
 
   let update_var_event_local hl hg x o n =
     if !enabled && not (D.is_bot n) then begin
       let node = LVar.node x in
-      let file = (MyCFG.getFun node).svar in
+      let file = (Node.find_fundec node).svar in
       NH.replace updated_l node ();
       NH.replace liveness node ();
       SSH.replace funs file.vdecl.file (Set.add file.vname (SSH.find_default funs file.vdecl.file Set.empty));
@@ -254,7 +197,7 @@ struct
       write_all hl hg
 end
 
-module SolverStats (S:EqConstrSys) (HM:Hash.H with type key = S.v) =
+module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct
   open S
   open Messages
@@ -296,7 +239,6 @@ struct
 
   let eval_rhs_event x =
     if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
-    if Config.tracking then M.track "eval";
     Goblintutil.evals := !Goblintutil.evals + 1;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
@@ -307,37 +249,72 @@ struct
       if tracing then traceu "sol_max" "%a\n\n" Dom.pretty_diff (n, o)
     end
 
-  let print_stats = ref (fun () -> ())
+  (* solvers can assign this to print solver specific statistics using their data structures *)
+  let print_solver_stats = ref (fun () -> ())
+
+  (* this can be used in print_solver_stats *)
+  let ncontexts = ref 0
+  let print_context_stats rho =
+    let histo = Hashtbl.create 13 in (* histogram: node id -> number of contexts *)
+    let str k = S.Var.pretty_trace () k |> Pretty.sprint ~width:max_int in (* use string as key since k may have cycles which lead to exception *)
+    let is_fun k = match S.Var.node k with FunctionEntry _ -> true | _ -> false in (* only count function entries since other nodes in function will have leq number of contexts *)
+    HM.iter (fun k _ -> if is_fun k then Hashtbl.modify_def 1 (str k) ((+)1) histo) rho;
+    (* let max_k, n = Hashtbl.fold (fun k v (k',v') -> if v > v' then k,v else k',v') histo (Obj.magic (), 0) in *)
+    (* ignore @@ Pretty.printf "max #contexts: %d for %s\n" n max_k; *)
+    ncontexts := Hashtbl.fold (fun _ -> (+)) histo 0;
+    let topn = 5 in
+    Printf.printf "Found %d contexts for %d functions. Top %d functions:\n" !ncontexts (Hashtbl.length histo) topn;
+    Hashtbl.to_list histo
+    |> List.sort (fun (_,n1) (_,n2) -> compare n2 n1)
+    |> List.take topn
+    |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k
+
+  let stats_csv =
+    let save_run = GobConfig.get_string "save_run" in
+    if save_run <> "" then (
+      ignore @@ Goblintutil.create_dir save_run;
+      save_run ^ Filename.dir_sep ^ "solver_stats.csv" |> open_out |> Option.some
+    ) else None
+  let write_csv xs oc = output_string oc @@ String.concat ",\t" xs ^ "\n"
+
+  (* print generic and specific stats *)
+  let print_stats _ =
+    print_newline ();
+    (* print_endline "# Generic solver stats"; *)
+    Printf.printf "runtime: %s\n" (string_of_time ());
+    Printf.printf "vars: %d, evals: %d\n" !Goblintutil.vars !Goblintutil.evals;
+    Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a\n" !max_c Var.pretty_trace v) !max_var;
+    print_newline ();
+    (* print_endline "# Solver specific stats"; *)
+    !print_solver_stats ();
+    print_newline ();
+    (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
+    (* Gc.print_stat stdout; (* too verbose, slow and words instead of MB *) *)
+    let gc = Goblintutil.print_gc_quick_stat Legacy.stdout in
+    print_newline ();
+    Option.may (write_csv [string_of_time (); string_of_int !Goblintutil.vars; string_of_int !Goblintutil.evals; string_of_int !ncontexts; string_of_int gc.Gc.top_heap_words]) stats_csv;
+    (* print_string "Do you want to continue? [Y/n]"; *)
+    flush stdout
+    (* if read_line () = "n" then raise Break *)
+
   let () =
-    let open Sys in
-    let handler i =
-      print_newline ();
-      print_newline ();
-      (* print_endline "# Generic solver stats"; *)
-      Printf.printf "runtime: %s\n" (string_of_time ());
-      Printf.printf "vars: %d, evals %d\n" !Goblintutil.vars !Goblintutil.evals;
-      Option.may (fun v -> ignore @@ Pretty.printf "max updates: %d for var %a on line %d\n" !max_c Var.pretty_trace v (Var.line_nr v)) !max_var;
-      (* print_endline "# Solver specific stats"; *)
-      !print_stats ();
-      (* Stats.print (M.get_out "timing" Legacy.stdout) "Timings:\n"; *)
-      (* Gc.print_stat stdout;       *)
-      (* print_string "Do you want to continue? [Y/n]"; *)
-      flush stdout;
-      (* if read_line () = "n" then raise Break *)
-    in
-    let signal = match get_string "dbg.solver-signal" with
-      | "sigint" -> sigint
-      | "sigtstp" -> sigtstp
-      | "sigquit" -> sigquit
-      | _ -> failwith "Invalid value for dbg.solver-signal!"
-    in
-    set_signal signal (Signal_handle handler);
+    let write_header = write_csv ["runtime"; "vars"; "evals"; "contexts"; "max_heap"] (* TODO @ !solver_stats_headers *) in
+    Option.may write_header stats_csv;
+    (* call print_stats on dbg.solver-signal *)
+    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) (Signal_handle print_stats);
+    (* call print_stats every dbg.solver-stats-interval *)
+    Sys.set_signal Sys.sigvtalrm (Signal_handle print_stats);
+    (* https://ocaml.org/api/Unix.html#TYPEinterval_timer ITIMER_VIRTUAL is user time; sends sigvtalarm; ITIMER_PROF/sigprof is already used in Timeout.Unix.timeout *)
+    let ssi = get_int "dbg.solver-stats-interval" in
+    if ssi > 0 then
+      let it = float_of_int ssi in
+      ignore Unix.(setitimer ITIMER_VIRTUAL { it_interval = it; it_value = it });
 end
 
 (** use this if your [box] is [join] --- the simple solver *)
 module DirtyBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 
@@ -411,7 +388,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
 (* use this if you do widenings & narrowings (but no narrowings for globals) --- maybe outdated *)
 module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 
@@ -485,7 +462,7 @@ module SoundBoxSolverImpl =
           H.remove infl x;
           H.replace infl x [x];
           if full_trace
-          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps);
+          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: semgrep.trace-not-in-tracing *)
           (* solve all dependencies *)
           solve_all deps
         end
@@ -512,7 +489,7 @@ module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
 (* use this if you do widenings & narrowings for globals --- outdated *)
 module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 

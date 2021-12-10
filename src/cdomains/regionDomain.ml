@@ -9,14 +9,14 @@ module F = Lval.Fields
 module VF =
 struct
   include Printable.ProdSimple (V) (F)
-  let short w (v,fd) =
-    let v_str = V.short w v in let w = w - String.length v_str in
-    let fd_str = F.short w fd in
+  let show (v,fd) =
+    let v_str = V.show v in
+    let fd_str = F.show fd in
     v_str ^ fd_str
-  let pretty () x = pretty_f short () x
+  let pretty () x = Pretty.text (show x)
 
   let printXml f (v,fi) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (Goblintutil.escape (V.short 80 v)) F.printInnerXml fi
+    BatPrintf.fprintf f "<value>\n<data>\n%s%a\n</data>\n</value>\n" (XmlUtil.escape (V.show v)) F.printInnerXml fi
 
   (* Indicates if the two var * offset pairs should collapse or not. *)
   let collapse (v1,f1) (v2,f2) = V.equal v1 v2 && F.collapse f1 f2
@@ -200,7 +200,8 @@ struct
 
   let assign (lval: lval) (rval: exp) (st: t): t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
-    if isPointerType (typeOf rval) then begin
+    let t = Cilfacade.typeOf rval in
+    if isPointerType t then begin
       match eval_exp (Lval lval), eval_exp rval with
       (* TODO: should offs_x matter? *)
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
@@ -227,7 +228,7 @@ struct
               add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
           end
       | _ -> st
-    end else if isIntegralType (typeOf rval) then begin
+    end else if isIntegralType t then begin
       match lval with
       | Var x, NoOffset -> update x rval st
       | _ -> st
@@ -251,7 +252,7 @@ struct
         else
           RegMap.find vfd m
       in
-      (*           Messages.report ("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd)));  *)
+      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []

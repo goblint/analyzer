@@ -7,20 +7,17 @@ open Prelude.Ana
 open Analyses
 
 let is_multi (ask: Queries.ask): bool =
-  match ask Queries.MustBeSingleThreaded with
-  | `MustBool x -> not x
-  | `Top -> true
-  | _ -> failwith "ThreadFlag.is_multi"
+  if !GU.global_initialization then false else
+  not (ask.f Queries.MustBeSingleThreaded)
 
 
 module Spec =
 struct
   include Analyses.DefaultSpec
 
-  module Flag = ConcDomain.Simple
+  module Flag = ThreadFlagDomain.Simple
   module D = Flag
   module C = Flag
-  module G = Lattice.Unit
 
   let name () = "threadflag"
 
@@ -31,6 +28,8 @@ struct
 
   let create_tid v =
     Flag.get_multi ()
+
+  let should_join = D.equal
 
   let body ctx f = ctx.local
 
@@ -58,28 +57,34 @@ struct
   let special ctx lval f args =
     ctx.local
 
-  let query ctx x =
-    match x with
-    | Queries.MustBeSingleThreaded -> `MustBool (not (Flag.is_multi ctx.local))
-    | Queries.MustBeUniqueThread -> `MustBool (not (Flag.is_bad ctx.local))
-    (* This used to be in base but also commented out. *)
-    (* | Queries.MayBePublic _ -> `MayBool (Flag.is_multi ctx.local) *)
-    | _ -> `Top
-
   let part_access ctx e v w =
     let es = Access.LSSet.empty () in
-    if is_multi ctx.ask then
+    if is_multi (Analyses.ask_of_ctx ctx) then
       (Access.LSSSet.singleton es, es)
     else
       (* kill access when single threaded *)
       (Access.LSSSet.empty (), es)
 
+  let query ctx (type a) (x: a Queries.t): a Queries.result =
+    match x with
+    | Queries.MustBeSingleThreaded -> not (Flag.is_multi ctx.local)
+    | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
+    (* This used to be in base but also commented out. *)
+    (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
+    | Queries.PartAccess {exp; var_opt; write} ->
+      part_access ctx exp var_opt write
+    | _ -> Queries.Result.top x
+
   let threadenter ctx lval f args =
-    create_tid f
+    if not (is_multi (Analyses.ask_of_ctx ctx)) then
+      ctx.emit Events.EnterMultiThreaded;
+    [create_tid f]
 
   let threadspawn ctx lval f args fctx =
-    Flag.get_main ()
+    if not (is_multi (Analyses.ask_of_ctx ctx)) then
+      ctx.emit Events.EnterMultiThreaded;
+    D.join ctx.local (Flag.get_main ())
 end
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

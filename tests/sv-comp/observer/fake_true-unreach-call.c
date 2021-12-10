@@ -1,4 +1,4 @@
-// --sets ana.activated[+] "observer" --sets ana.path_sens[+] "observer"
+// --set ana.activated[+] observer --set ana.path_sens[+] observer
 
 extern void __VERIFIER_error() __attribute__ ((__noreturn__));
 extern int __VERIFIER_nondet_int();

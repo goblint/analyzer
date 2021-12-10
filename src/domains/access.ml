@@ -3,6 +3,8 @@ open Cil
 open Pretty
 open GobConfig
 
+module M = Messages
+
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
 
@@ -24,32 +26,47 @@ struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Pretty
-  type t = string [@@deriving to_yojson]
+  type t = string [@@deriving eq, ord, to_yojson]
   let hash (x:t) = Hashtbl.hash x
-  let equal (x:t) (y:t) = x=y
-  let compare (x:t) (y:t) = compare x y
-  let isSimple _ = true
-  let short _ x = x
-  let pretty_f sf () x = text (sf 80 x)
-  let pretty () x = pretty_f short () x
+  let show x = x
+  let pretty () x = text (show x)
   let name () = "strings"
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x =
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
-      (Goblintutil.escape (short 80 x))
+      (XmlUtil.escape (show x))
 end
 
 module LabeledString =
 struct
   include Printable.Prod (Ident) (Ident)
-  let pretty_f sf () (x,y) =
-    Pretty.text (sf Goblintutil.summary_length (x,y))
-  let short _ (x,y) = x^":"^y
-  let pretty () x = pretty_f short () x
+  let show (x,y) = x^":"^y
+  let pretty () (x,y) =
+    Pretty.text (show (x,y))
 end
 module LSSet = SetDomain.Make (LabeledString)
-module LSSSet = SetDomain.Make (LSSet)
+module LSSSet =
+struct
+  include SetDomain.Make (LSSet)
+  (* TODO: is this actually some partition domain? *)
+  let join po pd =
+    let mult_po s = union (map (LSSet.union s) po) in
+    fold mult_po pd (empty ())
+  let bot () = singleton (LSSet.empty ())
+  let is_bot x = cardinal x = 1 && LSSet.is_empty (choose x)
+  (* top & is_top come from SetDomain.Make *)
+
+  (* Since Queries.PartAccess and PartAccessResult are only used within MCP2,
+     these operations are never really called. *)
+  let leq _ _ = raise (Lattice.Unsupported "LSSSet.leq")
+  (* meet (i.e. join in PartAccessResult) for PathSensitive query joining
+     isn't needed, because accesses are handled only within MCP2. *)
+  let meet _ _ = raise (Lattice.Unsupported "LSSSet.meet")
+  let widen _ _ = raise (Lattice.Unsupported "LSSSet.widen")
+  let narrow _ _ = raise (Lattice.Unsupported "LSSSet.narrow")
+end
+
+(* Reverse because MCP2.query [meet]s. *)
+module PartAccessResult = Lattice.Reverse (Lattice.Prod (LSSSet) (LSSet))
 
 let typeVar  = Hashtbl.create 101
 let typeIncl = Hashtbl.create 101
@@ -74,33 +91,8 @@ let init (f:file) =
   in
   List.iter visit_glob f.globals
 
-(* from cil *)
-let rec compareOffset (off1: offset) (off2: offset) : bool =
-  match off1, off2 with
-  | Field (fld1, off1'), Field (fld2, off2') ->
-    fld1 == fld2 && compareOffset off1' off2'
-  | Index (e1, off1'), Index (e2, off2') ->
-    Expcompare.compareExp e1 e2 && compareOffset off1' off2'
-  | NoOffset, NoOffset -> true
-  | _ -> false
 
-type offs = [`NoOffset | `Index of 't | `Field of fieldinfo * 't] as 't
-
-let rec compareOffs (off1: offs) (off2: offs) : bool =
-  match off1, off2 with
-  | `Field (fld1, off1'), `Field (fld2, off2') ->
-    fld1 == fld2 && compareOffs off1' off2'
-  | `Index off1', `Index off2' ->
-    compareOffs off1' off2'
-  | `NoOffset, `NoOffset -> true
-  | _ -> false
-
-let rec offs_eq x y =
-  match x, y with
-  | `NoOffset, `NoOffset -> true
-  | `Index x, `Index y -> offs_eq x y
-  | `Field (f,x), `Field (g,y) -> f.fcomp.ckey = g.fcomp.ckey && f.fname = g.fname && offs_eq x y
-  | _ -> false
+type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq]
 
 let rec remove_idx : offset -> offs  = function
   | NoOffset    -> `NoOffset
@@ -118,7 +110,7 @@ let rec d_offs () : offs -> doc = function
   | `Index o -> dprintf "[?]%a" d_offs o
   | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
 
-type acc_typ = [ `Type of typ | `Struct of compinfo * offs ]
+type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq]
 
 let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
@@ -126,10 +118,13 @@ let d_acct () = function
 
 let file_re = Str.regexp "\\(.*/\\|\\)\\([^/]*\\)"
 let d_loc () loc =
-  if Str.string_match file_re loc.file 0 then
-    dprintf "%s:%d" (Str.matched_group 2 loc.file) loc.line
-  else
-    dprintf "%s:%d" loc.file loc.line
+  let loc =
+    if Str.string_match file_re loc.file 0 then
+      {loc with file = Str.matched_group 2 loc.file}
+    else
+      loc
+  in
+  CilType.Location.pretty () loc
 
 let d_memo () (t, lv) =
   match lv with
@@ -164,7 +159,7 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
   | Question (_,b,c,t) ->
     begin match get_type fb b, get_type fb c with
       | `Struct (s1,o1), `Struct (s2,o2)
-        when s1.ckey = s2.ckey && compareOffs o1 o2 ->
+        when CilType.Compinfo.equal s1 s2 && equal_offs o1 o2 ->
         `Struct (s1, o1)
       | _ -> `Type t
     end
@@ -224,14 +219,9 @@ end
 module Acc_typHashable
   : Hashtbl.HashedType with type t = acc_typ =
 struct
-  type t = acc_typ
-  let equal (x:t) y =
-    match x, y with
-    | `Type t, `Type v -> Basetype.CilType.equal t v
-    | `Struct (c1,o1), `Struct (c2,o2) -> c1.ckey = c2.ckey && compareOffs o1 o2
-    | _ -> false
+  type t = acc_typ [@@deriving eq]
   let hash = function
-    | `Type t -> Basetype.CilType.hash t
+    | `Type t -> CilType.Typ.hash t
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 end
 module TypeHash = HtF (Acc_typHashable)
@@ -239,12 +229,7 @@ module TypeHash = HtF (Acc_typHashable)
 module LvalOptHashable
   : Hashtbl.HashedType with type t = (varinfo * offs) option =
 struct
-  type t = (varinfo * offs) option
-  let equal (x:t) (y:t) =
-    match x, y with
-    | Some (v1,o1), Some (v2,o2) -> v1.vid = v2.vid && offs_eq o1 o2
-    | None, None -> true
-    | _ -> false
+  type t = (CilType.Varinfo.t * offs) option [@@deriving eq]
   let hash = function
     | None -> 435
     | Some (x,y) -> Hashtbl.hash (x.vid, Hashtbl.hash y)
@@ -254,12 +239,7 @@ module LvalOptHash = HtF (LvalOptHashable)
 module PartOptHashable
   : Hashtbl.HashedType with type t = LSSet.t option =
 struct
-  type t = LSSet.t option
-  let equal x y =
-    match x, y with
-    | Some x, Some y -> LSSet.equal x y
-    | None  , None   -> true
-    | _ -> false
+  type t = LSSet.t option [@@deriving eq]
 
   let hash = function
     | Some x -> LSSet.hash x
@@ -274,11 +254,12 @@ type off_o = offset  option
 type part  = LSSSet.t * LSSet.t
 
 let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
-  try (* FIXME: Cil's typeOf fails on our fake variables: (struct s).data *)
+  try (* FIXME: Cilfacade.typeOf fails on our fake variables: (struct s).data *)
+    let t = Cilfacade.typeOf e in
     match vo, oo with
-    | Some v, Some o -> get_type (typeOf e) (AddrOf (Var v, o))
-    | Some v, None -> get_type (typeOf e) (AddrOf (Var v, NoOffset))
-    | _ -> get_type (typeOf e) e
+    | Some v, Some o -> get_type t (AddrOf (Var v, o))
+    | Some v, None -> get_type t (AddrOf (Var v, NoOffset))
+    | _ -> get_type t e
   with _ -> get_type voidType e
 
 let some_accesses = ref false
@@ -359,7 +340,7 @@ let add_propagate e w conf ty ls p =
     let fi =
       match f with
       | `Field (fi,_) -> fi
-      | _ -> Messages.bailwith "add_propagate: no field found"
+      | _ -> failwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
@@ -505,35 +486,6 @@ let is_all_safe () =
   !safe
 
 
-let print_races_oldscool () =
-  let allglobs = get_bool "allglobs" in
-  let k ls (conf,w,loc,e,lp) =
-    let wt = if w then "write" else "read" in
-    match ls with
-    | Some ls ->
-      sprint 80 (dprintf "%s by ??? %a and lockset: %a" wt LSSet.pretty ls LSSet.pretty lp), loc
-    | None ->
-      sprint 80 (dprintf "%s by ??? ⊥ and lockset: %a" wt LSSet.pretty lp), loc
-  in
-  let g ty lv ls (accs,lp) (s,xs) =
-    let nxs  = Set.fold (fun e xs -> (k ls e) :: xs) accs xs in
-    let safe = s && not (partition_race ls (accs,lp)) in
-    (safe, nxs)
-  in
-  let h ty lv ht =
-    let safe, xs = PartOptHash.fold (g ty lv) ht (true, []) in
-    let groupname =
-      if safe then
-        sprint 80 (dprintf "Safely accessed %a (reasons ...)" d_memo (ty,lv))
-      else
-        sprint 80 (dprintf "Datarace at %a" d_memo (ty,lv))
-    in
-    if not safe || allglobs then
-      Messages.print_group groupname xs
-  in
-  let f ty = LvalOptHash.iter (h ty) in
-  TypeHash.iter f accs
-
 (* Commenting your code is for the WEAK! *)
 let print_summary () =
   let safe       = ref 0 in
@@ -559,91 +511,47 @@ let print_summary () =
 let print_accesses () =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  let g ls (acs,_) =
+  let g (ls, (acs,_)) =
     let h (conf,w,loc,e,lp) =
       let d_ls () = match ls with
-        | None -> Pretty.text " is ok"
+        | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
         | Some ls when LSSet.is_empty ls -> nil
         | Some ls -> text " in " ++ LSSet.pretty () ls
       in
       let atyp = if w then "write" else "read" in
-      ignore (printf "  %s@@%a%t with %a (conf. %d)" atyp d_loc loc
-                d_ls LSSet.pretty lp conf);
-      if debug then
-        ignore (printf "  (exp: %a)\n" d_exp e)
-      else
-        ignore (printf "\n")
+      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
+      let doc =
+        if debug then
+          dprintf "%t  (exp: %a)" d_msg d_exp e
+        else
+          d_msg ()
+      in
+      (doc, Some loc)
     in
-    Set.iter h acs
+    Set.enum acs
+    |> Enum.map h
   in
   let h ty lv ht =
+    let msgs () =
+      PartOptHash.enum ht
+      |> Enum.concat_map g
+      |> List.of_enum
+    in
     match PartOptHash.fold check_safe ht None with
     | None ->
-      if allglobs then begin
-        ignore(printf "Memory location %a (safe)\n" d_memo (ty,lv));
-        PartOptHash.iter g ht
-      end
+      if allglobs then
+        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
     | Some n ->
-      ignore(printf "Memory location %a (race with conf. %d)\n" d_memo (ty,lv) n);
-      PartOptHash.iter g ht
+      M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
   in
   let f ty ht =
     LvalOptHash.iter (h ty) ht
   in
   TypeHash.iter f accs
 
-let print_accesses_xml () =
-  let allglobs = get_bool "allglobs" in
-  let g ls (acs,_) =
-    let h (conf,w,loc,e,lp) =
-      let atyp = if w then "write" else "read" in
-      BatPrintf.printf "  <access type=\"%s\" loc=\"%s\" conf=\"%d\">\n"
-        atyp (Basetype.ProgLines.short 0 loc) conf;
-
-      let d_lp f (t,id) = BatPrintf.fprintf f "type=\"%s\" id=\"%s\"" t id in
-
-      let _ = match ls with
-        | None -> print_endline "    <partitions status=\"safe\" />"
-        (*| Some ls when LSSet.is_empty ls ->  print_endline "    <partitions status=\"none\" />" *)
-        | Some ls ->
-          print_endline "    <partitions>";
-          LSSet.iter (BatPrintf.printf "      <part %a />\n" d_lp) ls;
-          print_endline "    </partitions>";
-      in
-
-      print_endline "    <protectors>";
-      LSSet.iter (BatPrintf.printf "      <prot %a />\n" d_lp) lp;
-      print_endline "    </protectors>";
-      print_endline "  </access>"
-    in
-    Set.iter h acs
-  in
-  let h ty lv ht =
-    let memo = sprint ~width:0 (d_memo () (ty,lv)) in
-    match PartOptHash.fold check_safe ht None with
-    | None ->
-      if allglobs then begin
-        BatPrintf.printf "<mem id=\"%s\" status=\"safe\">\n" memo;
-        PartOptHash.iter g ht;
-        print_endline "</mem>"
-      end
-    | Some n ->
-      BatPrintf.printf "<mem id=\"%s\" status=\"race\" conf=\"%d\">\n" memo n;
-      PartOptHash.iter g ht;
-      print_endline "</mem>"
-  in
-  let f ty ht =
-    LvalOptHash.iter (h ty) ht
-  in
-  print_endline "<warnings>";
-  TypeHash.iter f accs;
-  print_endline "</warnings>"
 
 let print_result () =
-  if !some_accesses then
-    match get_string "warnstyle" with
-    | "legacy" -> print_races_oldscool ()
-    | "xml" -> print_accesses_xml ()
-    | _ ->
-      print_accesses ();
-      print_summary ()
+  if !some_accesses then (
+    print_accesses ();
+    print_summary ()
+  )

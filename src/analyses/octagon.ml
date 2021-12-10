@@ -12,13 +12,12 @@ let stripCastsDeep e =
   end
   in visitCilExpr v e
 
-module Spec : Analyses.Spec =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
   let name () = "octagon"
   module D = MapOctagonBot
   module C = D
-  module G = Lattice.Unit
 
   let return_varstore = ref dummyFunDec.svar
   let return_varinfo () = !return_varstore
@@ -29,19 +28,18 @@ struct
   let is_local_and_not_pointed_to v =
     (not (v.vglob ||
          v.vdecl.line = -1 || (* TODO: Why?  CIL says:The line number. -1 means "do not know"	*)
-         v.vdecl.line = -3 ||
-         v.vdecl.line = -4))
+         Cilfacade.is_varinfo_formal v))
     && (not v.vaddrof)  (* to avoid handling pointers, only vars whose address is never taken (i.e. can not be pointed to) *)
     && (Cil.isIntegralType v.vtype)
 
 
   let evaluate_sums oct exp =
     let match_exp = function
-      | BinOp(Mult, Lval(Var(var), _), Const(CInt64 (c, _, _)), _)
-      | BinOp(Mult, Const(CInt64 (c, _, _)), Lval(Var(var), NoOffset), _) ->
+      | BinOp(Mult, Lval(Var(var), _), Const(CInt (c, _, _)), _)
+      | BinOp(Mult, Const(CInt (c, _, _)), Lval(Var(var), NoOffset), _) ->
         Some (c, var)
       | Lval(Var(var), NoOffset) ->
-        Some (Int64.one, var)
+        Some (Cilint.one_cilint, var)
       | _ -> None
     in
 
@@ -49,8 +47,7 @@ struct
     | BinOp(op, expl, expr, _) when op = PlusA || op = MinusA ->
       begin match match_exp expl, match_exp expr with
         | Some(cl, varl), Some(cr, varr) when (BV.compare varl varr <> 0) -> (* this is needed as projection with varl=varr throws an exception (?) *)
-          let cr = if op = PlusA then cr else Int64.neg cr in
-          let cl, cr = Tuple2.mapn BI.of_int64 (cl, cr) in
+          let cr = if op = PlusA then cr else Cilint.neg_cilint cr in
           let cl, cr = INV.of_int oct_ik cl, INV.of_int oct_ik cr in
           let varSum = D.projection varl (Some (true, varr)) oct in
           let varDif1 = D.projection varl (Some (false, varr)) oct in
@@ -75,7 +72,7 @@ struct
     | None ->
       begin
         match exp with
-        | Const (CInt64 (i, _, _)) -> INV.of_int oct_ik (BI.of_int64 i)
+        | Const (CInt (i, _, _)) -> INV.of_int oct_ik i
         | Lval (Var var, NoOffset) -> D.projection var None oct
         | UnOp (Neg, exp, _) ->
           INV.neg (evaluate_exp oct exp)
@@ -117,19 +114,19 @@ struct
               D.set_constraint (var1, Some(ConstraintType.minus, v), CT.UpperAndLower, i) oct, true (* TODO: Is this ok, we need to be careful when to do closures *)
          in
          (match rval with
-          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt64 (integer, _, _)), _)
+          | BinOp(op, Lval(Var(var), NoOffset), Const(CInt (integer, _, _)), _)
             when (op = PlusA || op = MinusA) && is_local_and_not_pointed_to var ->
             begin
-              let integer = BI.of_int64 @@
+              let integer =
                 if op = MinusA then
-                  Int64.neg integer
+                  Cilint.neg_cilint integer
                 else
                   integer
               in
               assignVarPlusInt var integer
             end
-          | BinOp(PlusA, Const(CInt64 (integer, _, _)), Lval(Var(var), NoOffset), _) when is_local_and_not_pointed_to var ->
-            assignVarPlusInt var (BI.of_int64 integer)
+          | BinOp(PlusA, Const(CInt (integer, _, _)), Lval(Var(var), NoOffset), _) when is_local_and_not_pointed_to var ->
+            assignVarPlusInt var integer
           | Lval(Var var, NoOffset) when is_local_and_not_pointed_to var ->
             assignVarPlusInt var BI.zero
           | exp ->
@@ -246,7 +243,7 @@ struct
           start
     | None -> start
 
-  let make_entry (ctx:(D.t, G.t, C.t) Analyses.ctx) fn (args: exp list): D.t =
+  let make_entry (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fn (args: exp list): D.t =
     (* The normal haskell zip that throws no exception *)
     let rec zip x y  = match x,y with
     | (x::xs), (y::ys) -> (x,y) :: zip xs ys
@@ -260,7 +257,7 @@ struct
       | Lval(Var v, NoOffset) -> v
       | _ -> raise (Invalid_argument "only call with Lval(Var v, NoOffset)")
     in
-    let formals = (Cilfacade.getdec fn).sformals in
+    let formals = fn.sformals in
     let formals_and_exps = zip formals args in
     let relevant_vars_in_args = List.filter is_relevant_var args |> List.map get_var in
     let relevant_octagon_part = D.keep_only relevant_vars_in_args ctx.local in
@@ -279,10 +276,10 @@ struct
     let closed = D.strong_closure (List.fold_left add_const relevant_octagon_part formals_and_exps) in (* compute closure so relationships between formals are inferred. TODO: Is it ok to do this here? *)
     D.keep_only formals closed (* Remove vars that were only needed because they were in exp *)
 
-  let enter ctx (lval: lval option) (fn:varinfo) (args:exp list) : (D.t * D.t) list =
+  let enter ctx (lval: lval option) (fn:fundec) (args:exp list) : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
 
-  let combine ctx (lval:lval option) fexp (f:varinfo) (args:exp list) fc (after:D.t) : D.t =
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (after:D.t) : D.t =
     match lval with
     | Some (Var v, NoOffset) ->
         let retval = evaluate_exp after (Lval ((Var (return_varinfo ())), NoOffset)) in
@@ -300,23 +297,23 @@ struct
     | Some (Mem _, _)
     | None -> ctx.local
   let startstate v = D.top ()
-  let threadenter ctx lval f args = D.top ()
+  let threadenter ctx lval f args = [D.top ()]
   let exitstate  v = D.top ()
 
-  let query ctx q =
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
     let rec getSumAndDiffForVars exp1 exp2 =
-      let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int oct_ik (BI.of_int64 c))) x in
+      let addConstant x c = BatOption.map (OctagonDomain.INV.add (OctagonDomain.INV.of_int oct_ik c)) x in
       match exp1, exp2 with
-      | BinOp(PlusA, Lval l1, Const(CInt64(c,_,_)), _), Lval l2 ->
+      | BinOp(PlusA, Lval l1, Const(CInt(c,_,_)), _), Lval l2 ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
         addConstant sum c, addConstant diff c                         (* a+c <= (x+c)-y <= b+c (add c to all sides)    *)
-      | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(c,_,_)), _) ->
+      | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(c,_,_)), _) ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
-        addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* x-(y+c)= x-y-c --> a-c <= x-(y+c) <= b-c      *)
-      | BinOp(MinusA, Lval l1, Const(CInt64(c,_,_)), _), Lval l2 ->
+        addConstant sum (Cilint.neg_cilint c), addConstant diff (Cilint.neg_cilint c) (* x-(y+c)= x-y-c --> a-c <= x-(y+c) <= b-c      *)
+      | BinOp(MinusA, Lval l1, Const(CInt(c,_,_)), _), Lval l2 ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
-        addConstant sum (Int64.neg c), addConstant diff (Int64.neg c) (* (x-c)-y = x-y-c --> a-c <= (x-c)-y <= b-c     *)
-      | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(c,_,_)), _) ->
+        addConstant sum (Cilint.neg_cilint c), addConstant diff (Cilint.neg_cilint c) (* (x-c)-y = x-y-c --> a-c <= (x-c)-y <= b-c     *)
+      | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(c,_,_)), _) ->
         let sum, diff = getSumAndDiffForVars (Lval l1) (Lval l2) in   (* reason why this is correct a <= x-y <= b -->  *)
         addConstant sum c, addConstant diff c                         (* x-(y-c) = x-y+c --> a+c <= x-(y-c) <= b+c     *)
       | Lval(Var v1, NoOffset), Lval(Var v2, NoOffset) ->
@@ -324,7 +321,7 @@ struct
         if not flag then
           sum, diff
         else
-          sum, BatOption.map (OctagonDomain.INV.mul (INV.of_int oct_ik (BI.of_int64 Int64.minus_one))) diff
+          sum, BatOption.map (OctagonDomain.INV.mul (INV.of_int oct_ik Cilint.mone_cilint)) diff
       | _ -> None, None
     in
     match q with
@@ -334,22 +331,17 @@ struct
         | _, Some(x) ->
           begin
             match OctagonDomain.INV.to_int x with
-            | (Some i) -> `MustBool (BI.equal BI.zero i)
-            | _ -> `MustBool false
+            | (Some i) -> BI.equal BI.zero i
+            | _ -> false
           end
-        | _ -> `MustBool false
+        | _ -> false
       end
     | Queries.MayBeEqual (exp1,exp2) ->
       begin
         match getSumAndDiffForVars exp1 exp2 with
         | _, Some(x) ->
-          begin
-            if OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)) then
-              `MayBool false
-            else
-              `MayBool true
-          end
-        | _ -> `MayBool true
+          not (OctagonDomain.INV.is_bot (OctagonDomain.INV.meet x (OctagonDomain.INV.of_int oct_ik BI.zero)))
+        | _ -> true
       end
     | Queries.MayBeLess (exp1, exp2) ->
       (* TODO: Here the order of arguments actually matters, be careful *)
@@ -359,21 +351,22 @@ struct
           begin
             match OctagonDomain.INV.minimal x with
             | Some i when BI.compare i BI.zero >= 0 ->
-              `MayBool false
-            | _ -> `MayBool true
+              false
+            | _ -> true
           end
-        | _ -> `MayBool true
+        | _ -> true
       end
     | Queries.EvalInt exp ->
       let inv = evaluate_exp ctx.local exp in
       if INV.is_int inv
-      then `Int(INV.to_int inv |> Option.get |> BI.to_int64)
-      else `Top
-    | _ -> Queries.Result.top ()
+      then INV.to_int inv |> Option.get |> Queries.ID.of_int (Cilfacade.get_ikind_exp exp)
+      else Queries.Result.top q
+    (* TODO: support interval return based on removed InInterval in commit 8c4d6f261f7b007c19e6464419a43ea195d56a6c *)
+    | _ -> Queries.Result.top q
 
-  let threadspawn ctx lval f args fctx = D.bot ()
+  let threadspawn ctx lval f args fctx = ctx.local
 end
 
 
 let _ =
-  MCP.register_analysis (module Spec : Spec)
+  MCP.register_analysis (module Spec : MCPSpec)

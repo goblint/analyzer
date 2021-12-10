@@ -1,5 +1,4 @@
 open Cil
-open Deriving.Cil
 open Pretty
 
 module GU = Goblintutil
@@ -8,29 +7,28 @@ type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving to_yojson]
+] [@@deriving eq, ord]
 
 type ('a,'b) offs_uk = [
   | `NoOffset
   | `UnknownOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving to_yojson]
+]
 
 
 let rec listify ofs =
   match ofs with
   | `NoOffset -> []
   | `Field (x,ofs) -> x :: listify ofs
-  | _ -> Messages.bailwith "Indexing not supported here!"
+  | _ -> failwith "Indexing not supported here!"
 
 module Offset (Idx: IntDomain.Z) =
 struct
-  type t = (fieldinfo, Idx.t) offs [@@deriving to_yojson]
+  type t = (fieldinfo, Idx.t) offs
   include Printable.Std
 
-  let eq_field x y = compFullName x.fcomp ^ x.fname = compFullName y.fcomp ^ y.fname
-  let is_first_field x = try eq_field (List.hd x.fcomp.cfields) x with _ -> false
+  let is_first_field x = try CilType.Fieldinfo.equal (List.hd x.fcomp.cfields) x with _ -> false
 
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero
@@ -46,19 +44,18 @@ struct
     match x, y with
     | `NoOffset , `NoOffset -> true
     | `NoOffset, x
-    | x, `NoOffset -> cmp_zero_offset x = `MustZero
-    | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> equal o1 o2
+    | x, `NoOffset -> cmp_zero_offset x = `MustZero (* cannot derive due to this special case *)
+    | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> equal o1 o2
     | `Index (i1,o1), `Index (i2,o2) when Idx.equal i1 i2 -> equal o1 o2
     | _ -> false
 
-  let rec short w = function
+  let rec show = function
     | `NoOffset -> ""
-    | `Index (x,o) -> "[" ^ (Idx.short 80 x) ^ "]" ^ (short w o)
-    | `Field (x,o) -> "." ^ (x.fname) ^ (short w o)
+    | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
+    | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
 
-  let pretty_f sf () x = text (sf 80 x)
+  let pretty () x = text (show x)
 
-  let pretty x = pretty_f short x
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
@@ -85,9 +82,10 @@ struct
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
 
   let rec compare o1 o2 = match o1, o2 with
+    (* FIXME: forgets to check cmp_zero_offset like equal, cannot derive due to this special case *)
     | `NoOffset, `NoOffset -> 0
     | `Field (f1,o1), `Field (f2,o2) ->
-      let c = Stdlib.compare f1.fname f2.fname in
+      let c = CilType.Fieldinfo.compare f1 f2 in
       if c=0 then compare o1 o2 else c
     | `Index (i1,o1), `Index (i2,o2) ->
       let c = Idx.compare i1 i2 in
@@ -103,10 +101,8 @@ struct
     | `NoOffset, x -> cmp_zero_offset x <> `MustNonzero
     | x, `NoOffset -> cmp_zero_offset x = `MustZero
     | `Index (i1,o1), `Index (i2,o2) when Idx.leq i1 i2 -> leq o1 o2
-    | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> leq o1 o2
+    | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
     | _ -> false
-
-  let isSimple x = true
 
   let rec merge cop x y =
     let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
@@ -117,7 +113,7 @@ struct
       | (`Join | `Widen), (`MustZero | `MayZero) -> x
       | (`Meet | `Narrow), (`MustZero | `MayZero) -> `NoOffset
       | _ -> raise Lattice.Uncomparable)
-    | `Field (x1,y1), `Field (x2,y2) when x1.fname = x2.fname -> `Field (x1, merge cop y1 y2)
+    | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
     | _ -> raise Lattice.Uncomparable
 
@@ -137,7 +133,8 @@ struct
     | `Field (x, o) -> `Field (x, drop_ints o)
     | `NoOffset -> `NoOffset
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module type S =
@@ -150,8 +147,6 @@ sig
   val str_ptr: unit -> t
   val is_null: t -> bool
   val get_location: t -> location
-  val classify: t -> int
-  val class_name: int -> string
 
   val from_var: varinfo -> t
   (** Creates an address from variable. *)
@@ -175,12 +170,13 @@ end
 
 module Normal (Idx: IntDomain.Z) =
 struct
-  type field = fieldinfo [@@deriving to_yojson]
-  type idx = Idx.t [@@deriving to_yojson]
+  type field = fieldinfo
+  type idx = Idx.t
+  module Offs = Offset (Idx)
   (* A SafePtr is a pointer that does not point to any variables of the analyzed program (assuming external functions don't return random pointers but only pointers to things they can reach).
    * UnknownPtr includes SafePtr *)
-  type t = Addr of (varinfo * (field, idx) offs) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving to_yojson]
-  module Offs = Offset (Idx)
+  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving eq, ord]
+  (* TODO: StrPtr equals problematic if the same literal appears more than once *)
   include Printable.Std
   let name () = "Normal Lvals"
 
@@ -188,20 +184,11 @@ struct
     | Addr (x,_) -> x.vdecl
     | _ -> builtinLoc
 
-  let classify = function
-    | Addr (x,_) when x.vglob -> 2
-    | Addr (x,_) when x.vdecl.line = -1 -> -1
-    | Addr (x,_) when x.vdecl.line = -3 -> 5
-    | Addr (x,_) when x.vdecl.line = -4 -> 4
-    | _ -> 1
-
-  let class_name = function
-    |  1 -> "Local"
-    |  2 -> "Global"
-    |  4 -> "Context"
-    |  5 -> "Parameter"
-    | -1 -> "Temp"
-    |  _ -> "None"
+  type group = Basetype.Variables.group
+  let show_group = Basetype.Variables.show_group
+  let to_group = function
+    | Addr (x,_) -> Basetype.Variables.to_group x
+    | _ -> Some Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)
   let from_var_offset x = Addr x
@@ -228,12 +215,15 @@ struct
   let rec short_offs = function
     | `NoOffset -> ""
     | `Field (fld, o) -> "." ^ fld.fname ^ short_offs o
-    | `Index (v, o) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ short_offs o
+    | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
 
   let short_addr (x, o) =
-    GU.demangle x.vname ^ short_offs o
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
+      "(" ^ x.vname ^ ", " ^ description ^ ")"
+    else x.vname ^ short_offs o
 
-  let short _ = function
+  let show = function
     | Addr x     -> short_addr x
     | StrPtr x   -> "\"" ^ x ^ "\""
     | UnknownPtr -> "?"
@@ -268,7 +258,6 @@ struct
     | UnknownPtr -> voidPtrType
 
   let copy x = x
-  let isSimple _  = true
 
   let hash = function
     | Addr (v,o) -> v.vid + 2 * Offs.hash o
@@ -277,41 +266,7 @@ struct
 
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
-  let equal x y = match x, y with
-    | Addr (v,o), Addr (u,p) -> v.vid = u.vid && Offs.equal o p
-    | StrPtr a  , StrPtr b -> a=b (* TODO problematic if the same literal appears more than once *)
-    | UnknownPtr, UnknownPtr
-    | SafePtr   , SafePtr
-    | NullPtr   , NullPtr -> true
-    | _ -> false
-
-  let compare x y =
-    if equal x y
-      then 0
-      else
-        let order x = match x with
-          | Addr _ -> 0
-          | StrPtr _ -> 1
-          | UnknownPtr -> 2
-          | SafePtr -> 3
-          | NullPtr -> 4
-         in
-         let c = compare (order x) (order y) in
-         if c <> 0
-          then c
-          else
-            match (x, y) with
-            | Addr (v, o), Addr (u, p) ->
-              let vc = compare v.vid u.vid in
-              if vc <> 0
-                then vc
-                else Offs.compare o p
-            | StrPtr a, StrPtr b -> compare a b
-            | _, _ -> raise @@ Invalid_argument "Invalid argument for Normal.compare"
-
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty = pretty_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty () x = Pretty.text (show x)
 
   (* TODO: seems to be unused *)
   let to_exp (f:idx -> exp) x =
@@ -340,7 +295,8 @@ struct
     | `Index (i,o) -> `Index (i, remove_offset o)
     | `Field (f,o) -> `Field (f, remove_offset o)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
@@ -357,7 +313,7 @@ struct
   let leq x y = match x, y with
     | SafePtr, UnknownPtr    -> true
     | StrPtr a  , StrPtr b   -> a = b
-    | Addr (x,o), Addr (y,u) -> x.vid = y.vid && Offs.leq o u
+    | Addr (x,o), Addr (y,u) -> CilType.Varinfo.equal x y && Offs.leq o u
     | _                      -> x = y
 
   let drop_ints = function
@@ -372,7 +328,7 @@ struct
     | NullPtr   , NullPtr -> NullPtr
     | SafePtr   , SafePtr -> SafePtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when x.vid = y.vid -> Addr (x, Offs.merge cop o u)
+    | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable
 
   let join = merge `Join
@@ -380,7 +336,10 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module Stateless (Idx: Printable.S) =
@@ -390,48 +349,46 @@ struct
   type t = bool * varinfo * (field, idx) offs_uk
   include Printable.Std
 
-  let isSimple _  = true
-
-  let short _ (dest, x, offs) =
+  let show (dest, x, offs) =
     let rec off_str ofs =
       match ofs with
       | `NoOffset -> ""
       | `UnknownOffset -> "?"
       | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
-      | `Index (v, ofs) -> "[" ^ Idx.short Goblintutil.summary_length v ^ "]" ^ off_str ofs
+      | `Index (v, ofs) -> "[" ^ Idx.show v ^ "]" ^ off_str ofs
     in
-    (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
+    (if dest then "&" else "") ^ x.vname ^ off_str offs
 
-  let pretty_f sf () x = Pretty.text (sf max_int x)
-  let pretty () x = pretty_f short () x
-  let pretty_diff () (x,y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty () x = Pretty.text (show x)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 module Fields =
 struct
-  module F = Basetype.CilField
+  module F = CilType.Fieldinfo
   module I = Basetype.CilExp
   module FI = Printable.Either (F) (I)
   include Printable.Liszt (FI)
 
-  let rec short w x = match x with
+  let rec show x = match x with
     | [] -> ""
-    | (`Left x :: xs) -> "." ^ F.short w x ^ short w xs
-    | (`Right x :: xs) -> "[" ^ I.short w x ^ "]" ^ short w xs
+    | (`Left x :: xs) -> "." ^ F.show x ^ show xs
+    | (`Right x :: xs) -> "[" ^ I.show x ^ "]" ^ show xs
 
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (show x)
 
   let rec printInnerXml f = function
     | [] -> ()
     | (`Left x :: xs) ->
-      BatPrintf.fprintf f ".%s%a" (F.short 80 x) printInnerXml xs
+      BatPrintf.fprintf f ".%s%a" (F.show x) printInnerXml xs
     | (`Right x :: xs) ->
-      BatPrintf.fprintf f "[%s]%a" (I.short 80 x) printInnerXml xs
+      BatPrintf.fprintf f "[%s]%a" (I.show x) printInnerXml xs
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
+
+  let to_yojson x = `String (show x)
 
   let rec prefix x y = match x,y with
     | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
@@ -520,41 +477,32 @@ struct
     | [] -> true
     | `Left _ :: xs -> real_region xs typ
     | `Right i :: _ -> false
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
 
 module CilLval =
 struct
   include Printable.Std
-  type t = varinfo * (fieldinfo, exp) offs [@@deriving to_yojson]
-
-  let equal  (x1,o1) (x2,o2) =
-    let rec eq a b =
-      match a,b with
-      | `NoOffset , `NoOffset -> true
-      | `Field (f1,o1), `Field (f2,o2) when f1.fname = f2.fname -> eq o1 o2
-      | `Index (i1,o1), `Index (i2,o2) when Expcompare.compareExp i1 i2 -> eq o1 o2
-      | _ -> false
-    in
-    x1.vid=x2.vid && eq o1 o2
+  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord]
 
   let hash    = Hashtbl.hash
   let name () = "simplified lval"
-  let isSimple _ = true
 
   let class_tag (v,o) =
     match v with
     | _ when v.vglob -> `Global
     | _ when v.vdecl.line = -1 -> `Temp
-    | _ when v.vdecl.line = -3 -> `Parameter
-    | _ when v.vdecl.line = -4 -> `Context
+    | _ when Cilfacade.is_varinfo_formal v -> `Parameter
     | _ -> `Local
 
   let rec short_offs (o: (fieldinfo, exp) offs) a =
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (e,o) -> short_offs o (a^"["^Pretty.sprint 80 (dn_exp () e)^"]")
+    | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
     match x with
@@ -578,11 +526,10 @@ struct
     | `Field (_,o) -> has_index_offs o
   let has_index (v,o) = has_index_offs o
 
-  let short _ (v,o) = short_offs o (GU.demangle v.vname)
+  let show (v,o) = short_offs o v.vname
 
-  let pretty_f sf () x = text (sf 80 x)
-  let pretty  = pretty_f short
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let pretty () x = text (show x)
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (Goblintutil.escape (short 800 x))
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end

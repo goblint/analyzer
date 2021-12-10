@@ -7,12 +7,18 @@
       "interval": false,
       "trier ": true
     },
-    "hashcons": true
+    "hashcons": true,
+    "base": {
+      "context": {
+        "non-ptr": false
+      }
+    },
+    "context": {
+      "widen": true
+    }
   },
   "exp": {
     "earlyglobs": true,
-    "addr-context": true,
-    "widen-context": true,
     "solver": {
       "td3": {
         "term": true,
@@ -35,5 +41,5 @@
   "printstats": true,
   "result": "none",
   "solver": "td3",
-  "noverify": true
+  "verify": true
 }

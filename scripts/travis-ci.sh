@@ -37,6 +37,8 @@ else
     echo 'yes' | sudo add-apt-repository ppa:$ppa
     sudo apt-get update -qq
     sudo apt-get install -qq opam
+
+    sudo apt-get install -qq libmpfr-dev # for apron
 fi
 
 # install dependencies

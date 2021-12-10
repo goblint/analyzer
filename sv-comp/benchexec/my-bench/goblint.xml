@@ -10,7 +10,7 @@
   <option name="--enable">ana.int.enums</option>
   <option name="--enable">ana.int.interval</option>
   <!-- <option name="-sets solver td3"/> -->
-  <option name="--enable">exp.widen-context</option>
+  <option name="--enable">ana.context.widen</option>
   <option name="--enable">exp.partition-arrays.enabled</option>
 
 <rundefinition name="sv-comp20_prop-reachsafety">

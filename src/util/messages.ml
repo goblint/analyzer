@@ -1,21 +1,148 @@
-open Cil
-open Pretty
 open GobConfig
 module GU = Goblintutil
 
-exception Bailure of string
-let bailwith s = raise (Bailure s)
+module Category = MessageCategory
 
-let warning_table : [`text of string * location | `group of string * ((string * location) list)] list ref = ref []
-let warnings = ref false
-let soundness = ref true
-let warn_out = ref stdout
-let tracing = Config.tracing
+
+module Severity =
+struct
+  type t =
+    | Error
+    | Warning
+    | Info
+    | Debug
+    | Success
+  [@@deriving eq, show { with_path = false }]
+
+  let hash x = Hashtbl.hash x (* variants, so this is fine *)
+
+  let should_warn e =
+    let to_string = function
+      | Error -> "error"
+      | Warning -> "warning"
+      | Info -> "info"
+      | Debug -> "debug"
+      | Success -> "success"
+    in
+    get_bool ("warn." ^ (to_string e))
+
+  let to_yojson x = `String (show x)
+end
+
+module Piece =
+struct
+  type t = {
+    loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
+    text: string;
+    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))]) option; (* TODO: this equality is terrible... *)
+  } [@@deriving eq, to_yojson]
+
+  let hash {loc; text; context} =
+    7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
+
+  let text_with_context {text; context; _} =
+    match context with
+    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (Hashtbl.hash context) (* TODO: this is kind of useless *)
+    | _ -> text
+end
+
+module MultiPiece =
+struct
+  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, to_yojson]
+  type t =
+    | Single of Piece.t
+    | Group of group
+  [@@deriving eq, to_yojson]
+
+  let hash = function
+    | Single piece -> Piece.hash piece
+    | Group {group_text; pieces} ->
+      Hashtbl.hash group_text + 3 * (List.fold_left (fun xs x -> xs + Piece.hash x) 996699 pieces) (* copied from Printable.Liszt *)
+
+  let to_yojson = function
+    | Single piece -> Piece.to_yojson piece
+    | Group group -> group_to_yojson group
+end
+
+module Tag =
+struct
+  type t =
+    | Category of Category.t
+    | CWE of int
+  [@@deriving eq]
+
+  let hash = function
+    | Category category -> Category.hash category
+    | CWE n -> n
+
+  let pp ppf = function
+    | Category category -> Format.pp_print_string ppf (Category.show category)
+    | CWE n -> Format.fprintf ppf "CWE-%d" n
+
+  let should_warn = function
+    | Category category -> Category.should_warn category
+    | CWE _ -> false (* TODO: options for CWEs? *)
+
+  let to_yojson = function
+    | Category category -> `Assoc [("Category", Category.to_yojson category)]
+    | CWE n -> `Assoc [("CWE", `Int n)]
+end
+
+module Tags =
+struct
+  type t = Tag.t list [@@deriving eq, to_yojson]
+
+  let hash tags = List.fold_left (fun xs x -> xs + Tag.hash x) 996699 tags (* copied from Printable.Liszt *)
+
+  let pp =
+    let pp_tag_brackets ppf tag = Format.fprintf ppf "[%a]" Tag.pp tag in
+    Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_tag_brackets
+
+  let should_warn tags = List.exists Tag.should_warn tags
+end
+
+module Message =
+struct
+  type t = {
+    tags: Tags.t;
+    severity: Severity.t;
+    multipiece: MultiPiece.t;
+  } [@@deriving eq, to_yojson]
+
+  let should_warn {tags; severity; _} =
+    Tags.should_warn tags && Severity.should_warn severity
+
+  let hash {tags; severity; multipiece} =
+    3 * Tags.hash tags + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
+end
+
+module Table =
+struct
+  module MH = Hashtbl.Make (Message)
+
+  let messages_table = MH.create 113 (* messages without order for quick mem lookup *)
+  let messages_list = ref [] (* messages with reverse order (for cons efficiency) *)
+
+  let mem = MH.mem messages_table
+
+  let add m =
+    MH.replace messages_table m ();
+    messages_list := m :: !messages_list
+
+  let to_yojson () =
+    [%to_yojson: Message.t list] (List.rev !messages_list) (* reverse to get in addition order *)
+end
+
+
+let formatter = ref Format.std_formatter
+let () = AfterConfig.register (fun () ->
+    if !formatter == Format.std_formatter && MessageUtil.colors_on Unix.stdout then
+      GobFormat.pp_set_ansi_color_tags !formatter
+  )
+
 let xml_file_name = ref ""
 
-let track m =
-  let loc = !Tracing.current_loc in
-  Printf.fprintf !warn_out "Track (%s:%d); %s\n" loc.file loc.line m
+
 
 (*Warning files*)
 let warn_race = ref stdout
@@ -37,129 +164,99 @@ let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
 
-let colorize ?on:(on=get_bool "colors") msg =
-  let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
-                ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
-  let replace (color,code) =
-    let modes = [(fun x -> x), "0" (* normal *); String.uppercase_ascii, "1" (* bold *)] in
-    List.fold_right (fun (f,m) -> Str.global_replace (Str.regexp ("{"^f color^"}")) (if on then "\027["^m^";"^code^"m" else "")) modes
+
+
+
+let print ?(ppf= !formatter) (m: Message.t) =
+  let severity_stag = match m.severity with
+    | Error -> "red"
+    | Warning -> "yellow"
+    | Info -> "blue"
+    | Debug -> "white" (* non-bright white is actually some gray *)
+    | Success -> "green"
   in
-  let msg = List.fold_right replace colors msg in
-  msg^(if on then "\027[0;0;00m" else "") (* reset at end *)
-
-let print_msg msg loc =
-  let msgc = colorize msg in
-  let msg  = colorize ~on:false msg in
-  if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
-  if get_bool "gccwarn" then
-    Printf.printf "%s:%d:0: warning: %s\n" loc.file loc.line msg
-  else
-    let color = if get_bool "colors" then "{violet}" else "" in
-    let s = Printf.sprintf "%s %s(%s:%d)" msgc color loc.file loc.line in
-    Printf.fprintf !warn_out "%s\n%!" (colorize s)
-
-let print_err msg loc =
-  if (get_string "result") = "fast_xml" then warning_table := (`text (msg,loc))::!warning_table;
-  if get_bool "gccwarn" then
-    Printf.printf "%s:%d:0: error: %s\n" loc.file loc.line msg
-  else
-    Printf.fprintf !warn_out "%s (%s:%d)\n%!" msg loc.file loc.line
+  let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
+  let pp_piece ppf piece =
+    let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
+    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) piece.loc
+  in
+  let pp_multipiece ppf = match m.multipiece with
+    | Single piece ->
+      pp_piece ppf piece
+    | Group {group_text; pieces} ->
+      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece) pieces
+  in
+  Format.fprintf ppf "@[<v 2>%t %t@]\n%!" pp_prefix pp_multipiece
 
 
-let print_group group_name errors =
-  (* Add warnings to global warning list *)
-  if (get_string "result") = "fast_xml" then warning_table := (`group (group_name,errors))::!warning_table;
-  let f (msg,loc): doc = Pretty.dprintf "%s (%s:%d)" msg loc.file loc.line in
-  if (get_bool "ana.osek.warnfiles") then begin
+let add m =
+  if !GU.should_warn then (
+    if Message.should_warn m && not (Table.mem m) then (
+      print m;
+      Table.add m
+    )
+  )
+
+(** Adapts old [print_group] to new message structure.
+    Don't use for new (group) warnings. *)
+let msg_group_race_old severity group_name errors =
+  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None}) errors}} in
+  add m;
+
+  if (get_bool "ana.osek.warnfiles") then
+    let print ~out = print ~ppf:(Format.formatter_of_out_channel out) in
     match (String.sub group_name 0 6) with
-    | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    | "Safely" -> print ~out:!warn_safe m
+    | "Datara" -> print ~out:!warn_race m
+    | "High r" -> print ~out:!warn_higr m
+    | "High w" -> print ~out:!warn_higw m
+    | "Low re" -> print ~out:!warn_lowr m
+    | "Low wr" -> print ~out:!warn_loww m
     | _ -> ()
-  end;
-  ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
-let warn_urgent msg =
-  if !GU.should_warn then begin
-    soundness := false;
-    print_msg msg (!Tracing.current_loc)
-  end
+let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
-let warn_all msg =
-  if !GU.should_warn then begin
-    if !warnings then
-      print_msg msg (!Tracing.current_loc);
-    soundness := false
-  end
+let msg_context () =
+  if GobConfig.get_bool "dbg.warn_with_context" then
+    !current_context
+  else
+    None (* avoid identical messages from multiple contexts without any mention of context *)
 
-let worldStopped = ref false
-exception StopTheWorld
-let waitWhat s =
-  worldStopped := true;
-  print_msg s (!Tracing.current_loc);
-  raise StopTheWorld
+let msg severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc =
+    let text = Pretty.sprint ~width:max_int doc in
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = msg_context ()}}
+  in
+  Pretty.gprintf finish fmt
 
-let report_lin_hashtbl  = Hashtbl.create 10
+let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc =
+    let text = Pretty.sprint ~width:max_int doc in
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
+  in
+  Pretty.gprintf finish fmt
 
-let report ?loc:(loc= !Tracing.current_loc) msg =
-  if !GU.should_warn then begin
-    if (Hashtbl.mem report_lin_hashtbl (msg,loc) == false) then
-      begin
-        print_msg msg loc;
-        Hashtbl.add report_lin_hashtbl (msg,loc) true
-      end
-  end
+let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc msgs =
+    let group_text = Pretty.sprint ~width:max_int doc in
+    let piece_of_msg (doc, loc) =
+      let text = Pretty.sprint ~width:max_int doc in
+      Piece.{loc; text; context = None}
+    in
+    add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
+  in
+  Pretty.gprintf finish fmt
 
-let report_error msg =
-  if !GU.should_warn then begin
-    let loc = !Tracing.current_loc in
-    print_err msg loc
-  end
-
-let with_context msg = function
-  | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx)
-  | _ -> msg
-
-let warn_str_hashtbl = Hashtbl.create 10
-let warn_lin_hashtbl = Hashtbl.create 10
-
-let warn ?ctx msg =
-  if !GU.should_warn then begin
-    let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_str_hashtbl msg == false) then
-      begin
-        warn_all msg;
-        Hashtbl.add warn_str_hashtbl msg true
-      end
-  end
-
-let warn_each ?ctx msg =
-  if !GU.should_warn then begin
-    let loc = !Tracing.current_loc in
-    let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
-      begin
-        warn_all msg;
-        Hashtbl.add warn_lin_hashtbl (msg,loc) true
-      end
-  end
-
-(*
-let warn_each_ctx ctx msg = (* cyclic dependency... *)
-  if not @@ GobConfig.get_bool "dbg.warn_with_context" then warn_each msg else
-  (* let module S = (val Control.get_spec ()) in *)
-  (* warn_each (msg ^ " in context " ^ S.C.short 99999 (Obj.obj ctx.context ())) *)
-  (* warn_each (msg ^ " in context " ^ IO.to_string S.C.printXml (Obj.obj ctx.context ())) *)
-  warn_each (msg ^ " in context " ^ string_of_int (Hashtbl.hash (Obj.obj ctx.context ())))
-*)
-
-let debug msg =
-  if (get_bool "dbg.debug") then warn ("{BLUE}"^msg)
-
-let debug_each msg =
-  if (get_bool "dbg.debug") then warn_each ("{blue}"^msg)
+(* must eta-expand to get proper (non-weak) polymorphism for format *)
+let warn ?loc = msg Warning ?loc
+let warn_noloc ?tags = msg_noloc Warning ?tags
+let error ?loc = msg Error ?loc
+let error_noloc ?tags = msg_noloc Error ?tags
+let info ?loc = msg Info ?loc
+let info_noloc ?tags = msg_noloc Info ?tags
+let debug ?loc = msg Debug ?loc
+let debug_noloc ?tags = msg_noloc Debug ?tags
+let success ?loc = msg Success ?loc
+let success_noloc ?tags = msg_noloc Success ?tags
 
 include Tracing

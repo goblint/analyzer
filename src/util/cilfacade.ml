@@ -1,11 +1,35 @@
 (** Helpful functions for dealing with [Cil]. *)
 
 open GobConfig
-open Json
 open Cil
 module E = Errormsg
 module GU = Goblintutil
 
+
+let get_labelLoc = function
+  | Label (_, loc, _) -> loc
+  | Case (_, loc, _) -> loc
+  | CaseRange (_, _, loc, _) -> loc
+  | Default (loc, _) -> loc
+
+let rec get_labelsLoc = function
+  | [] -> Cil.locUnknown
+  | label :: labels ->
+    let loc = get_labelLoc label in
+    if CilType.Location.equal loc Cil.locUnknown then
+      get_labelsLoc labels (* maybe another label has known location *)
+    else
+      loc
+
+let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
+
+let get_stmtLoc stmt =
+  match stmt.skind with
+  (* Cil.get_stmtLoc returns Cil.locUnknown in these cases, so try labels instead *)
+  | Instr []
+  | Block {bstmts = []; _} ->
+    get_labelsLoc stmt.labels
+  | _ -> get_stmtkindLoc stmt.skind
 
 
 let init () =
@@ -16,8 +40,8 @@ let init () =
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
 
-let currentStatement = ref dummyStmt
-let ugglyImperativeHack = ref dummyFile
+let current_statement = ref dummyStmt
+let current_file = ref dummyFile
 let showtemps = ref false
 
 let parse fileName =
@@ -57,6 +81,7 @@ let end_basic_blocks f =
   let thisVisitor = new allBBVisitor in
   visitCilFileSameGlobals thisVisitor f
 
+
 let visitors = ref []
 let register_preprocess name visitor_fun =
   visitors := !visitors @ [name, visitor_fun]
@@ -64,7 +89,7 @@ let register_preprocess name visitor_fun =
 let do_preprocess ast =
   let f fd (name, visitor_fun) =
     (* this has to be done here, since the settings aren't available when register_preprocess is called *)
-    if List.mem name (List.map Json.string @@ get_list "ana.activated") then
+    if List.mem name (get_string_list "ana.activated") then
       ignore @@ visitCilFunction (visitor_fun fd) fd
   in
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
@@ -78,8 +103,11 @@ let createCFG (fileAST: file) =
   (* Since we want the output of justcil to compile, we do not run allBB visitor if justcil is enable, regardless of  *)
   (* exp.basic-blocks. This does not matter, as we will not run any analysis anyway, when justcil is enabled.         *)
   if not (get_bool "exp.basic-blocks") && not (get_bool "justcil") then end_basic_blocks fileAST;
-  (* Partial.calls_end_basic_blocks fileAST; *)
-  Partial.globally_unique_vids fileAST;
+
+  (* We used to renumber vids but CIL already generates them fresh, so no need.
+   * Renumbering is problematic for using [Cabs2cil.environment], e.g. in witness invariant generation to use original variable names.
+   * See https://github.com/goblint/cil/issues/31#issuecomment-824939793. *)
+
   iterGlobals fileAST (fun glob ->
       match glob with
       | GFun(fd,_) ->
@@ -89,24 +117,9 @@ let createCFG (fileAST: file) =
     );
   do_preprocess fileAST
 
-let partial fileAST =
-  Partial.partial fileAST "main" []
-
-let simplify fileAST =
-  iterGlobals fileAST Simplify.doGlobal
-
-let oneret fileAST =
-  iterGlobals fileAST (fun glob ->
-      match glob with
-      | GFun(fd,_) -> Oneret.oneret fd;
-      | _ -> ()
-    )
-
 let getAST fileName =
   let fileAST = parse fileName in
   (*  rmTemps fileAST; *)
-  (*  oneret fileAST;*)
-  (*  simplify fileAST;*)
   fileAST
 
 (* a visitor that puts calls to constructors at the starting points to main *)
@@ -114,9 +127,13 @@ class addConstructors cons = object
   inherit nopCilVisitor
   val mutable cons1 = cons
   method! vfunc fd =
-    if List.mem fd.svar.vname (List.map string (get_list "mainfun")) then begin
-      let loc = try get_stmtLoc (List.hd fd.sbody.bstmts).skind with Failure _ -> locUnknown in
-      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
+    if List.mem fd.svar.vname (get_string_list "mainfun") then begin
+      if get_bool "dbg.verbose" then ignore (Pretty.printf "Adding constructors to: %s\n" fd.svar.vname);
+      let loc = match fd.sbody.bstmts with
+        | s :: _ -> get_stmtLoc s
+        | [] -> locUnknown
+      in
+      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc,locUnknown)]) in (* TODO: fd declaration loc for eloc? *)
       let call_cons = List.map f cons1 in
       let body = mkBlock (call_cons @ fd.sbody.bstmts) in
       fd.sbody <- body;
@@ -148,20 +165,10 @@ let callConstructors ast =
       );
     !cons
   in
+  let d_fundec () fd = Pretty.text fd.svar.vname in
+  if get_bool "dbg.verbose" then ignore (Pretty.printf "Constructors: %a\n" (Pretty.d_list ", " d_fundec) constructors);
   visitCilFileSameGlobals (new addConstructors constructors) ast;
   ast
-
-exception Found of fundec
-let getFun fun_name =
-  try
-    iterGlobals !ugglyImperativeHack (fun glob ->
-        match glob with
-        | GFun({svar={vname=vn; _}; _} as def,_) when vn = fun_name -> raise (Found def)
-        | _ -> ()
-      );
-    failwith ("Function "^ fun_name ^ " not found!")
-  with
-  | Found def -> def
 
 let in_section check attr_list =
   let f attr = match attr with
@@ -201,39 +208,21 @@ let getFuns fileAST : startfuns =
   let add_other f (m,e,o) = (m,e,f::o) in
   let f acc glob =
     match glob with
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "mainfun")) -> add_main def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "mainfun") -> add_main def acc
     | GFun({svar={vname=mn; _}; _} as def,_) when mn="StartupHook" && !OilUtil.startuphook -> add_main def acc
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "exitfun")) -> add_exit def acc
-    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (List.map string (get_list "otherfun")) -> add_other def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "exitfun") -> add_exit def acc
+    | GFun({svar={vname=mn; _}; _} as def,_) when List.mem mn (get_string_list "otherfun") -> add_other def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_init attr ->
       Printf.printf "Start function: %s\n" mn; set_string "mainfun[+]" mn; add_main def acc
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
-    | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
+    | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
     | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
     | _ -> acc
   in
   foldGlobals fileAST f ([],[],[])
 
-let dec_table_ok = ref false
-let dec_table = Hashtbl.create 111
-let dec_make () : unit =
-  dec_table_ok := true ;
-  Hashtbl.clear dec_table;
-  iterGlobals !ugglyImperativeHack (fun glob ->
-      match glob with
-      | GFun({svar={vid=vid; _}; _} as def,_) -> Hashtbl.add dec_table vid def
-      | _ -> ()
-    )
-
-let rec getdec fv =
-  if !dec_table_ok then
-    Hashtbl.find dec_table fv.vid
-  else begin
-    dec_make ();
-    getdec fv
-  end
 
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
@@ -250,14 +239,58 @@ let rec get_ikind t =
   | TEnum ({ekind = ik; _},_) -> ik
   | TPtr _ -> get_ikind !Cil.upointType
   | _ ->
-    Messages.warn_each "Something that we expected to be an integer type has a different type, assuming it is an IInt";
+    Messages.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";
     Cil.IInt
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
 
+
+(** Cil.typeOf, etc reimplemented to raise sensible exceptions
+    instead of printing all errors directly... *)
+
+type typeOfError =
+  | RealImag_NonNumerical (** unexpected non-numerical type for argument to __real__/__imag__ *)
+  | StartOf_NonArray (** typeOf: StartOf on a non-array *)
+  | Mem_NonPointer of exp (** typeOfLval: Mem on a non-pointer (exp) *)
+  | Index_NonArray (** typeOffset: Index on a non-array *)
+  | Field_NonCompound (** typeOffset: Field on a non-compound *)
+
+exception TypeOfError of typeOfError
+
+let () = Printexc.register_printer (function
+    | TypeOfError error ->
+      let msg = match error with
+        | RealImag_NonNumerical -> "unexpected non-numerical type for argument to __real__/__imag__"
+        | StartOf_NonArray -> "typeOf: StartOf on a non-array"
+        | Mem_NonPointer exp -> Printf.sprintf "typeOfLval: Mem on a non-pointer (%s)" (CilType.Exp.show exp)
+        | Index_NonArray -> "typeOffset: Index on a non-array"
+        | Field_NonCompound -> "typeOffset: Field on a non-compound"
+      in
+      Some (Printf.sprintf "Cilfacade.TypeOfError(%s)" msg)
+    | _ -> None (* for other exceptions *)
+  )
+
+(* Cil doesn't expose this *)
+let stringLiteralType = ref charPtrType
+
+let typeOfRealAndImagComponents t =
+  match unrollType t with
+  | TInt _ -> t
+  | TFloat (fkind, attrs) ->
+    let newfkind = function
+      | FFloat -> FFloat      (* [float] *)
+      | FDouble -> FDouble     (* [double] *)
+      | FLongDouble -> FLongDouble (* [long double] *)
+      | FComplexFloat -> FFloat
+      | FComplexDouble -> FDouble
+      | FComplexLongDouble -> FLongDouble
+    in
+    TFloat (newfkind fkind, attrs)
+  | _ -> raise (TypeOfError RealImag_NonNumerical)
+
 let rec typeOf (e: exp) : typ =
   match e with
-  | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
+  | Const(CInt (_, ik, _)) -> TInt(ik, [])
 
   (* Character constants have type int.  ISO/IEC 9899:1999 (E),
    * section 6.4.4.4 [Character constants], paragraph 10, if you
@@ -267,28 +300,29 @@ let rec typeOf (e: exp) : typ =
   (* The type of a string is a pointer to characters ! The only case when
    * you would want it to be an array is as an argument to sizeof, but we
    * have SizeOfStr for that *)
-  | Const(CStr s) -> charPtrType
+  | Const(CStr s) -> !stringLiteralType
 
   | Const(CWStr s) -> TPtr(!wcharType,[])
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
   | Const(CEnum(tag, _, ei)) -> typeOf tag
-
+  | Real e -> typeOfRealAndImagComponents @@ typeOf e
+  | Imag e -> typeOfRealAndImagComponents @@ typeOf e
   | Lval(lv) -> typeOfLval lv
   | SizeOf _ | SizeOfE _ | SizeOfStr _ -> !typeOfSizeOf
   | AlignOf _ | AlignOfE _ -> !typeOfSizeOf
-  | UnOp (_, _, t) -> t
-  | BinOp (_, _, _, t) -> t
+  | UnOp (_, _, t)
+  | BinOp (_, _, _, t)
+  | Question (_, _, _, t)
   | CastE (t, _) -> t
   | AddrOf (lv) -> TPtr(typeOfLval lv, [])
+  | AddrOfLabel (lv) -> voidPtrType
   | StartOf (lv) -> begin
       match unrollType (typeOfLval lv) with
         TArray (t,_, a) -> TPtr(t, a)
-      | _ -> raise Not_found
+      | _ -> raise (TypeOfError StartOf_NonArray)
     end
-  | Question _ -> failwith "Logical operations should be compiled away by CIL."
-  | _ -> failwith "Unmatched pattern."
 
 and typeOfInit (i: init) : typ =
   match i with
@@ -300,13 +334,13 @@ and typeOfLval = function
   | Mem addr, off -> begin
       match unrollType (typeOf addr) with
         TPtr (t, _) -> typeOffset t off
-      | _ -> raise Not_found
+      | _ -> raise (TypeOfError (Mem_NonPointer addr))
     end
 
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
-      partitionAttributes ~default:(AttrName false) baseAttrs in
+      partitionAttributes ~default:AttrName baseAttrs in
     typeAddAttributes contageous
   in
   function
@@ -316,11 +350,195 @@ and typeOffset basetyp =
         TArray (t, _, baseAttrs) ->
         let elementType = typeOffset t o in
         blendAttributes baseAttrs elementType
-      | t -> raise Not_found
+      | t -> raise (TypeOfError Index_NonArray)
     end
   | Field (fi, o) ->
     match unrollType basetyp with
       TComp (_, baseAttrs) ->
       let fieldType = typeOffset fi.ftype o in
       blendAttributes baseAttrs fieldType
-    | _ -> raise Not_found
+    | _ -> raise (TypeOfError Field_NonCompound)
+
+
+let get_ikind_exp e = get_ikind (typeOf e)
+
+
+(** HashSet of line numbers *)
+let locs = Hashtbl.create 200
+
+(** Visitor to count locs appearing inside a fundec. *)
+class countFnVisitor = object
+    inherit nopCilVisitor
+    method! vstmt s =
+      match s.skind with
+      | Return (_, loc)
+      | Goto (_, loc)
+      | ComputedGoto (_, loc)
+      | Break loc
+      | Continue loc
+      | If (_,_,_,loc,_)
+      | Switch (_,_,_,loc,_)
+      | Loop (_,loc,_,_,_)
+        -> Hashtbl.replace locs loc.line (); DoChildren
+      | _ ->
+        DoChildren
+
+    method! vinst = function
+      | Set (_,_,loc,_)
+      | Call (_,_,_,loc,_)
+      | Asm (_,_,_,_,_,loc)
+        -> Hashtbl.replace locs loc.line (); SkipChildren
+      | _ -> SkipChildren
+
+    method! vvdec _ = SkipChildren
+    method! vexpr _ = SkipChildren
+    method! vlval _ = SkipChildren
+    method! vtype _ = SkipChildren
+end
+
+let fnvis = new countFnVisitor
+
+(** Count the number of unique locations appearing in fundec [fn].
+    Uses {!Cilfacade.locs} hashtable for intermediate computations
+*)
+let countLoc fn =
+  let _ = visitCilFunction fnvis fn in
+  let res = Hashtbl.length locs in
+  Hashtbl.clear locs;
+  res
+
+
+let fundec_return_type f =
+  match f.svar.vtype with
+  | TFun (return_type, _, _, _) -> return_type
+  | _ -> failwith "fundec_return_type: not TFun"
+
+
+module StmtH = Hashtbl.Make (CilType.Stmt)
+
+let stmt_fundecs: fundec StmtH.t Lazy.t =
+  lazy (
+    let h = StmtH.create 113 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          List.iter (fun stmt ->
+              StmtH.replace h stmt fd
+            ) fd.sallstmts
+        | _ -> ()
+      );
+    h
+  )
+
+let pseudo_return_to_fun = StmtH.create 113
+
+(** Find [fundec] which the [stmt] is in. *)
+let find_stmt_fundec stmt =
+  try StmtH.find pseudo_return_to_fun stmt
+  with Not_found -> StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+
+
+module VarinfoH = Hashtbl.Make (CilType.Varinfo)
+
+let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
+  lazy (
+    let h = VarinfoH.create 111 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          VarinfoH.replace h fd.svar fd
+        | _ -> ()
+      );
+    h
+  )
+
+(** Find [fundec] by the function's [varinfo] (has the function name and type). *)
+let find_varinfo_fundec vi = VarinfoH.find (Lazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+module StringH = Hashtbl.Make (Printable.Strings)
+
+let name_fundecs: fundec StringH.t Lazy.t =
+  lazy (
+    let h = StringH.create 111 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          StringH.replace h fd.svar.vname fd
+        | _ -> ()
+      );
+    h
+  )
+
+(** Find [fundec] by the function's name. *)
+let find_name_fundec name = StringH.find (Lazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
+
+
+type varinfo_role =
+  | Formal of fundec
+  | Local of fundec
+  | Function
+  | Global
+
+let varinfo_roles: varinfo_role VarinfoH.t Lazy.t =
+  lazy (
+    let h = VarinfoH.create 113 in
+    iterGlobals !current_file (function
+        | GFun (fd, _) ->
+          VarinfoH.replace h fd.svar Function; (* function itself can be used as a variable (function pointer) *)
+          List.iter (fun vi -> VarinfoH.replace h vi (Formal fd)) fd.sformals;
+          List.iter (fun vi -> VarinfoH.replace h vi (Local fd)) fd.slocals
+        | GVar (vi, _, _)
+        | GVarDecl (vi, _) ->
+          VarinfoH.replace h vi Global
+        | _ -> ()
+      );
+    h
+  )
+
+(** Find the role of the [varinfo]. *)
+let find_varinfo_role vi = VarinfoH.find (Lazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+let is_varinfo_formal vi =
+  match find_varinfo_role vi with
+  | Formal _ -> true
+  | exception Not_found
+  | _ -> false
+
+
+(** Find the scope of the [varinfo].
+    If [varinfo] is a local or a formal argument of [fundec], then returns [Some fundec].
+    If [varinfo] is a global or a function itself, then returns [None]. *)
+let find_scope_fundec vi =
+  match find_varinfo_role vi with
+  | Formal fd
+  | Local fd ->
+    Some fd
+  | Function
+  | Global
+  | exception Not_found ->
+    None
+
+
+let original_names: string VarinfoH.t Lazy.t =
+  (* only invert environment map when necessary (e.g. witnesses) *)
+  lazy (
+    let h = VarinfoH.create 113 in
+    Hashtbl.iter (fun original_name (envdata, _) ->
+        match envdata with
+        | Cabs2cil.EnvVar vi when vi.vname <> "" -> (* TODO: fix temporary variables with empty names being in here *)
+          VarinfoH.replace h vi original_name
+        | _ -> ()
+      ) Cabs2cil.environment;
+    h
+  )
+
+(** Find the original name (in input source code) of the [varinfo].
+    If it was renamed by CIL, then returns the original name before renaming.
+    If it wasn't renamed by CIL, then returns the same name.
+    If it was inserted by CIL (or Goblint), then returns [None]. *)
+let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+let stmt_pretty_short () x =
+  match x.skind with
+  | Instr (y::ys) -> dn_instr () y
+  | If (exp,_,_,_,_) -> dn_exp () exp
+  | _ -> dn_stmt () x

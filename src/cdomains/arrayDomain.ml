@@ -1,11 +1,15 @@
 open Pretty
 open Cil
 open GobConfig
+open FlagHelper
 
 module M = Messages
 module A = Array
 module Q = Queries
 module BI = IntOps.BigIntOps
+
+module LiftExp = Printable.Lift (CilType.Exp) (Printable.DefaultNames)
+
 module type S =
 sig
   include Lattice.S
@@ -44,8 +48,8 @@ struct
   type idx = Idx.t
   type value = Val.t
 
-  let short w x = "Array: " ^ Val.short (w - 7) x
-  let pretty () x = text "Array: " ++ pretty_f short () x
+  let show x = "Array: " ^ Val.show x
+  let pretty () x = text "Array: " ++ pretty () x
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v
@@ -114,16 +118,16 @@ struct
     else
       x
 
-  let short w ((e,(xl, xm, xr)) as x) =
+  let show ((e,(xl, xm, xr)) as x) =
     if is_not_partitioned x then
-      "Array (no part.): " ^ Val.short (w - 18) xl
+      "Array (no part.): " ^ Val.show xl
     else
-      "Array (part. by " ^ Expp.short (w-7) e ^ "): (" ^
-        Val.short ((w - 7)/3) xl ^ " -- " ^
-        Val.short ((w - 7)/3) xm ^ " -- " ^
-        Val.short ((w - 7)/3) xr ^ ")"
+      "Array (part. by " ^ Expp.show e ^ "): (" ^
+        Val.show xl ^ " -- " ^
+        Val.show xm ^ " -- " ^
+        Val.show xr ^ ")"
 
-  let pretty () x = text "Array: " ++ pretty_f short () x
+  let pretty () x = text "Array: " ++ text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
   let printXml f ((e, (xl, xm, xr)) as x) =
@@ -138,24 +142,32 @@ struct
           <key>r</key>\n%a\n\n
         </map></value>\n" Expp.printXml e Val.printXml xl Val.printXml xm Val.printXml xr
 
+  let to_yojson ((e, (l, m, r)) as x) =
+    if is_not_partitioned x then
+      let join_over_all = Val.join (Val.join l m) r in
+      `Assoc [ ("any", Val.to_yojson join_over_all) ]
+    else
+      let e' = Expp.to_yojson e in
+      let l' = Val.to_yojson l in
+      let m' = Val.to_yojson m in
+      let r' = Val.to_yojson r in
+      `Assoc [ ("partitioned by", e'); ("l", l'); ("m", m'); ("r", r') ]
+
   let get (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) =
     match e, i with
     | `Lifted e', `Lifted i' ->
       begin
-        let isEqual = match ask (Q.MustBeEqual (e',i')) with
-          | `MustBool true -> true
-          | _ -> false in
-        if isEqual then xm
+        if ask.f (Q.MustBeEqual (e',i')) then xm
         else
           begin
-            let contributionLess = match ask (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
-            | `MayBool false -> Val.bot ()
+            let contributionLess = match ask.f (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
+            | false -> Val.bot ()
             | _ -> xl in
-            let contributionEqual = match ask (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
-            | `MayBool false -> Val.bot ()
+            let contributionEqual = match ask.f (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
+            | false -> Val.bot ()
             | _ -> xm in
-            let contributionGreater =  match ask (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
-            | `MayBool false -> Val.bot ()
+            let contributionGreater =  match ask.f (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
+            | false -> Val.bot ()
             | _ -> xr in
             Val.join (Val.join contributionLess contributionEqual) contributionGreater
           end
@@ -236,14 +248,10 @@ struct
             match e with
             | `Lifted e' ->
               begin
-                match ask (Q.EvalInt e') with
-                | `Int n ->
-                  begin
-                    match Q.ID.to_int n with
-                    | Some i ->
-                      (`Lifted (Cil.kinteger64 IInt i), (xl, xm, xr))
-                    | _ -> default
-                  end
+                let n = ask.f (Q.EvalInt e') in
+                match Q.ID.to_int n with
+                | Some i ->
+                  (`Lifted (Cil.kinteger64 IInt (IntOps.BigIntOps.to_int64 i)), (xl, xm, xr))
                 | _ -> default
               end
             | _ -> default
@@ -265,19 +273,15 @@ struct
                 begin
                   match Idx.to_int l with
                   | Some i ->
-                    begin
-                      match ask (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) with
-                      | `MayBool false -> true (* !(e <_{may} length) => e >=_{must} length *)
-                      | _ -> false
-                    end
+                    let b = ask.f (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) in
+                    not b (* !(e <_{may} length) => e >=_{must} length *)
                   | None -> false
                 end
               | _ -> false
             in
             let e_must_less_zero =
-              match ask (Q.MayBeLess (Cil.mone, exp)) with
-              | `MayBool false -> true (* !(-1 <_{may} e) => e <=_{must} -1 *)
-              | _ -> false
+              let b = ask.f (Q.MayBeLess (Cil.mone, exp)) in
+              not b (* !(-1 <_{may} e) => e <=_{must} -1 *)
             in
             if e_must_bigger_max_index then
               (* Entire array is covered by left part, dropping partitioning. *)
@@ -294,8 +298,10 @@ struct
   let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pretty x LiftExp.pretty i Val.pretty a;
     if i = `Lifted MyCFG.all_array_index_exp then
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
+       (* the join is needed here! see e.g 30/04 *)
       let r =  Val.join xm a in
       (Expp.top(), (r, r, r)))
     else
@@ -304,11 +310,8 @@ struct
       let exp_value e =
         match e with
         | `Lifted e' ->
-            begin
-              match ask (Q.EvalInt e') with
-              | `Int n -> Option.map BI.of_int64 (Q.ID.to_int n)
-              | _ -> None
-            end
+          let n = ask.f (Q.EvalInt e') in
+          Option.map BI.of_bigint (Q.ID.to_int n)
         |_ -> None
       in
       let equals_zero e = BatOption.map_default (BI.equal BI.zero) false (exp_value e) in
@@ -332,24 +335,21 @@ struct
           let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
           (i, (l, a, r))
       else
-        let isEqual e' i' = match ask (Q.MustBeEqual (e',i')) with
-          | `MustBool true -> true
-          | _ -> false
-        in
+        let isEqual e' i' = ask.f (Q.MustBeEqual (e',i')) in
         match e, i with
         | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
             let default =
               let left =
-                match ask (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
-                | `MayBool false -> xl
+                match ask.f (Q.MayBeLess (i', e')) with     (* (may i < e) ? xl : bot *)
+                | false -> xl
                 | _ -> lubIfNotBot xl in
               let middle =
-                match ask (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
-                | `MayBool false -> xm
+                match ask.f (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
+                | false -> xm
                 | _ -> Val.join xm a in
               let right =
-                match ask (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
-                | `MayBool false -> xr
+                match ask.f (Q.MayBeLess (e', i')) with     (* (may i > e) ? xr : bot *)
+                | false -> xr
                 | _ -> lubIfNotBot xr in
               (e, (left, middle, right))
             in
@@ -379,34 +379,36 @@ struct
             (e,(xl,a,xr))
           else
             let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
-              (match ask (Q.MayBeEqual (e', i')) with
-              | `MayBool false -> Val.bot()
+              (match ask.f (Q.MayBeEqual (e', i')) with
+              | false -> Val.bot()
               | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
               (
-                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, Cil.typeOf e'),i')) with
-                | `MustBool true -> xm
+                let t = Cilfacade.typeOf e' in
+                let ik = Cilfacade.get_ikind t in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, t),i')) with
+                | true -> xm
                 | _ ->
                   begin
-                    match ask (Q.MayBeLess (e', i')) with
-                    | `MayBool false-> Val.bot()
+                    match ask.f (Q.MayBeLess (e', i')) with
+                    | false-> Val.bot()
                     | _ -> Val.join xm xr (* if e' may be less than i' then we also need xm for sure *)
                   end
               )
             in
             let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
-              (match ask (Q.MayBeEqual (e', i')) with
-              | `MayBool false -> Val.bot()
+              (match ask.f (Q.MayBeEqual (e', i')) with
+              | false -> Val.bot()
               | _ -> xm)
 
               (
-                let ik = Cilfacade.get_ikind (Cil.typeOf e') in
-                match ask (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), Cil.typeOf e'),i')) with
-                | `MustBool true -> xm
+                let t = Cilfacade.typeOf e' in
+                let ik = Cilfacade.get_ikind t in
+                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), t),i')) with
+                | true -> xm
                 | _ ->
                   begin
-                    match ask (Q.MayBeLess (i', e')) with
-                    | `MayBool false -> Val.bot()
+                    match ask.f (Q.MayBeLess (i', e')) with
+                    | false -> Val.bot()
                     | _ -> Val.join xl xm (* if e' may be less than i' then we also need xm for sure *)
                   end
               )
@@ -462,11 +464,12 @@ struct
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | `Lifted e1e, `Lifted e2e ->
       if get_string "exp.partition-arrays.keep-expr" = "last" || get_bool "exp.partition-arrays.smart-join" then
+        let op = Val.join in (* widen between different components isn't called validly *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
         let e1e_in_state_of_x2 = x2_eval_int e1e in
         let e2e_in_state_of_x1 = x1_eval_int e2e in
-        let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compareExp e1e e2e < 0 in
+        let e1e_is_better = (not (Cil.isConstant e1e) && Cil.isConstant e2e) || Basetype.CilExp.compare e1e e2e < 0 in (* TODO: why does this depend on exp comparison? probably to use "simpler" expression according to constructor order in compare *)
         if e1e_is_better then (* first try if the result can be partitioned by e1e *)
           if must_be_zero e1e_in_state_of_x2  then
             (e1, (xl1, op xm1 over_all_x2, op xr1 over_all_x2))
@@ -564,11 +567,46 @@ struct
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
-  let meet a b = normalize @@ meet a b
-  let narrow a b = normalize @@ narrow a b
+  let meet (e1,v1) (e2,v2) = normalize @@
+    match e1,e2 with
+    | `Lifted e1e, `Lifted e2e when not (Basetype.CilExp.equal e1e e2e) ->
+      (* partitioned according to two different expressions -> meet can not be element-wise *)
+      (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+      (* TODO: do smart things if the relationship between e1e and e2e is known *)
+      (e1,v1)
+    | _ -> meet (e1,v1) (e2,v2)
+
+  let narrow (e1,v1) (e2,v2) = normalize @@
+    match e1,e2 with
+    | `Lifted e1e, `Lifted e2e when not (Basetype.CilExp.equal e1e e2e) ->
+      (* partitioned according to two different expressions -> narrow can not be element-wise *)
+      (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+      (* TODO: do smart things if the relationship between e1e and e2e is known *)
+      (e1,v1)
+    | _ -> narrow (e1,v1) (e2,v2)
 
   let update_length _ x = x
 end
+(* This is the main array out of bounds check *)
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+  if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
+    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
+    (* For an explanation of the warning types check the Pull Request #255 *)
+    match(idx_after_start, idx_before_end) with
+    | Some true, Some true -> (* Certainly in bounds on both sides.*)
+      ()
+    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
+    | Some true, None ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
+    | Some false, Some true ->
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
+    | None, Some true ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
+    | _ ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+  else ()
 
 
 module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
@@ -577,7 +615,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
@@ -601,7 +642,9 @@ struct
   let update_length newl (x, l) = (x, newl)
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
 
@@ -611,7 +654,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
@@ -645,7 +691,9 @@ struct
   let update_length newl (x, l) = (x, newl)
 
   let printXml f (x,y) =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
@@ -655,47 +703,13 @@ struct
 
   type idx = Idx.t
   type value = Val.t
-  type t = P.t option * T.t option [@@deriving to_yojson]
 
-  let invariant _ _ = Invariant.none
-  let tag _ = failwith "FlagConfiguredArrayDomain: no tag"
-  let arbitrary () = failwith "FlagConfiguredArrayDomain: no arbitrary"
-
-  (* Helpers *)
-  let binop opp opt (p1,t1) (p2,t2) = match (p1, t1),(p2, t2) with
-    | (Some p1, None), (Some p2, None) -> opp p1 p2
-    | (None, Some t1), (None, Some t2) -> opt t1 t2
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  let binop_to_t opp opt (p1,t1) (p2,t2)= match (p1, t1),(p2, t2) with
-    | (Some p1, None), (Some p2, None) -> (Some (opp p1 p2), None)
-    | (None, Some t1), (None, Some t2) -> (None, Some(opt t1 t2))
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  let unop opp opt (p,t) = match (p, t) with
-    | (Some p, None) -> opp p
-    | (None, Some t) -> opt t
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  let unop_to_t opp opt (p,t) = match (p, t) with
-    | (Some p, None) -> (Some (opp p), None)
-    | (None, Some t) -> (None, Some(opt t))
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+  include LatticeFlagHelper(P)(T)(struct
+      let msg = "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+      let name = "FlagConfiguredArrayDomain"
+    end)
 
   (* Simply call appropriate function for component that is not None *)
-  let equal = binop P.equal T.equal
-  let hash = unop P.hash T.hash
-  let compare = binop P.compare T.compare
-  let short l = unop (P.short l) (T.short l)
-  let isSimple = unop P.isSimple T.isSimple
-  let pretty () = unop (P.pretty ()) (T.pretty ())
-  let leq = binop P.leq T.leq
-  let join = binop_to_t P.join T.join
-  let meet = binop_to_t P.meet T.meet
-  let widen = binop_to_t P.widen T.widen
-  let narrow = binop_to_t P.narrow T.narrow
-  let is_top = unop P.is_top T.is_top
-  let is_bot = unop P.is_bot T.is_bot
   let get a x (e,i) = unop (fun x ->
         if e = `Top then
           let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
@@ -713,18 +727,9 @@ struct
   let smart_join f g = binop_to_t (P.smart_join f g) (T.smart_join f g)
   let smart_widen f g = binop_to_t (P.smart_widen f g) (T.smart_widen f g)
   let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
-
-  let printXml f = unop (P.printXml f) (T.printXml f)
-  let pretty_f _ = pretty
-
   let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 
-  let pretty_diff () ((p1,t1),(p2,t2)) = match (p1, t1),(p2, t2) with
-    | (Some p1, None), (Some p2, None) -> P.pretty_diff () (p1, p2)
-    | (None, Some t1), (None, Some t2) -> T.pretty_diff () (t1, t2)
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  (* Functions that make us of the configuration flag *)
+  (* Functions that make use of the configuration flag *)
   let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "exp.partition-arrays.enabled" then P.name () else T.name ()
 
   let partition_enabled () = get_bool "exp.partition-arrays.enabled"

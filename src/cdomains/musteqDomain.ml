@@ -7,11 +7,11 @@ module F = Lval.Fields
 module EquAddr =
 struct
   include Printable.ProdSimple (V) (F)
-  let short w (v,fd) =
-    let v_str = V.short w v in let w = w - String.length v_str in
-    let fd_str = F.short w fd in
+  let show (v,fd) =
+    let v_str = V.show v in
+    let fd_str = F.show fd in
     v_str ^ fd_str
-  let pretty () x = pretty_f short () x
+  let pretty () x = text (show x)
 
   let prefix (v1,fd1: t) (v2,fd2: t): F.t option =
     if V.equal v1 v2 then F.prefix fd1 fd2 else None
@@ -19,21 +19,19 @@ end
 
 module P = Printable.ProdSimple (V) (V)
 
+(* TODO: unused, but should be used by something? region? *)
 module Equ =
 struct
   include MapDomain.MapTop (P) (F)
 
   let name () = "musteq"
 
-  let pretty_f short () mapping =
+  let show _ = "Equalities"
+  let pretty () mapping =
     let f (v1,v2) st dok: doc =
       dok ++ dprintf "%a = %a%a\n" V.pretty v1 V.pretty v2 F.pretty st in
     let content () = fold f mapping nil in
-    dprintf "@[%s {\n  @[%t@]}@]" (short 60 mapping) content
-
-  let short _ _ = "Equalities"
-
-  let pretty () x = pretty_f short () x
+    dprintf "@[%s {\n  @[%t@]}@]" (show mapping) content
 
   let add_old = add
   let rec add (x,y) fd d =

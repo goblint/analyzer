@@ -4,7 +4,7 @@ open Constraints
 
 module Make =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)
@@ -61,5 +61,4 @@ module Make =
 
 
 let _ =
-  let module S = GlobSolverFromIneqSolver (SLR.JoinContr (Make)) in
-  Selector.add_solver ("WL",  (module S : GenericGlobSolver));
+  Selector.add_solver ("WL",  (module EqIncrSolverFromEqSolver (Make)));

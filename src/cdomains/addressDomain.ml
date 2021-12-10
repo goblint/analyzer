@@ -5,6 +5,7 @@ open IntOps
 let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
+module M = Messages
 
 module type S =
 sig
@@ -25,7 +26,13 @@ struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   module Addr = Lval.NormalLat (Idx)
-  include SetDomain.HoarePO (Addr)
+  include HoareDomain.HoarePO (Addr)
+
+  let widen x y =
+    if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
+    let r = widen x y in
+    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
 
   type field = Addr.field
   type idx = Idx.t
@@ -40,6 +47,7 @@ struct
   let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
   let is_null x      = is_element Addr.NullPtr x
   let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
+  let may_be_null x = exists (fun e -> e = Addr.NullPtr) x
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
   let has_unknown x  = mem Addr.UnknownPtr x
 
@@ -70,14 +78,14 @@ struct
   let to_string x = List.concat (List.map Addr.to_string (elements x))
 
   (* add an & in front of real addresses *)
-  let short_addr w a =
+  let short_addr a =
     match Addr.to_var a with
-    | [_] -> "&" ^ Addr.short w a
-    | _ -> Addr.short w a
+    | [_] -> "&" ^ Addr.show a
+    | _ -> Addr.show a
 
-  let pretty_f w () x =
+  let pretty () x =
     try
-      let content = List.map (Addr.pretty_f short_addr ()) (elements x) in
+      let content = List.map (fun a -> text (short_addr a)) (elements x) in
       let rec separate x =
         match x with
         | [] -> []
@@ -87,16 +95,13 @@ struct
       let separated = separate content in
       let content = List.fold_left (++) nil separated in
       (text "{") ++ content ++ (text "}")
-    with SetDomain.Unsupported _ -> pretty_f w () x
+    with SetDomain.Unsupported _ -> pretty () x
 
-  let short w x : string =
+  let show x : string =
     try
-      let usable_length = w - 5 in
-      let all_elems : string list = List.map (short_addr usable_length) (elements x) in
-      Printable.get_short_list "{" "}" usable_length all_elems
-    with SetDomain.Unsupported _ -> short w x
-
-  let pretty () x = pretty_f short () x
+      let all_elems : string list = List.map short_addr (elements x) in
+      Printable.get_short_list "{" "}" all_elems
+    with SetDomain.Unsupported _ -> show x
 
   (*
   let leq = if not fast_addr_sets then leq else fun x y ->

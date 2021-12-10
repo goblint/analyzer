@@ -3,6 +3,24 @@ open Batteries
 let transformation_identifier = "expeval"
 let transformation_query_file_name_identifier = "trans." ^ transformation_identifier ^ ".query_file_name"
 
+type query =
+{
+
+  kind : CodeQuery.kind;
+  target : CodeQuery.target;
+  find : CodeQuery.find;
+  structure : (CodeQuery.structure [@default None_s]);
+  limitation : (CodeQuery.constr [@default None_c]);
+
+  expression : string;
+  mode : [ `Must | `May ];
+
+} [@@deriving yojson]
+
+(* These are meant to be used by Gobview *)
+let gv_query = ref None
+let gv_results = ref []
+
 module ExpEval : Transform.S =
   struct
 
@@ -23,19 +41,16 @@ module ExpEval : Transform.S =
       | None -> "UNKNOWN"
     let string_of_statement statement =
       statement
-        (* Pretty print *)
-        |> Cil.d_stmt ()
-        |> Pretty.sprint ~width:0
-        (* Split into lines *)
-        |> String.split_on_char '\n'
-        (* Remove preprocessor directives *)
-        |> List.filter (fun line -> line.[0] <> '#')
-        (* Remove indentation *)
-        |> List.map String.trim
-        (* Concatenate lines into one *)
-        |> List.fold_left (^) ""
+      (* Pretty print *)
+      |> CilType.Stmt.show
+      (* Split into lines *)
+      |> String.split_on_char '\n'
+      (* Remove indentation *)
+      |> List.map String.trim
+      (* Concatenate lines into one *)
+      |> List.fold_left (^) ""
 
-    class evaluator (file : Cil.file) (ask : Cil.location -> Queries.t -> Queries.Result.t) =
+    class evaluator (file : Cil.file) (ask : Cil.location -> Queries.ask) =
       object (self)
 
         val global_variables =
@@ -48,7 +63,7 @@ module ExpEval : Transform.S =
             |> List.map (fun (f : Cil.fundec) -> f.sallstmts |> List.map (fun s -> f, s))
             |> List.flatten
             (* Add locations *)
-            |> List.map (fun (f, (s : Cil.stmt)) -> (Cil.get_stmtLoc s.skind, f, s))
+            |> List.map (fun (f, (s : Cil.stmt)) -> (Cilfacade.get_stmtLoc s, f, s))
             (* Filter artificial ones by impossible location *)
             |> List.filter (fun ((l : Cil.location), _, _) -> l.line >= 0)
             (* Create hash table *)
@@ -87,7 +102,7 @@ module ExpEval : Transform.S =
                         fun (s : Cil.stmt) ->
                           succeeding_statement := Some s;
                           (* Evaluate at (directly before) a succeeding location *)
-                          Some(self#try_ask (Cil.get_stmtLoc s.skind) expression)
+                          Some(self#try_ask (Cilfacade.get_stmtLoc s) expression)
                       end
                       statement.succs
                     with Not_found -> None
@@ -109,90 +124,82 @@ module ExpEval : Transform.S =
                       value_after
 
         method private try_ask location expression =
-          match ~? (fun () -> ask location (Queries.EvalInt expression)) with
+          match ~? (fun () -> (ask location).Queries.f (Queries.EvalInt expression)) with
             (* Evaluable: Definite *)
-          | Some `Int value -> Some (Some (value <> Int64.zero))
-            (* Evaluable: Inconclusive *)
-          | Some `Top -> Some None
+          | Some x when Queries.ID.is_int x -> Some (Some (not(IntOps.BigIntOps.equal (Option.get @@ Queries.ID.to_int x) IntOps.BigIntOps.zero)))
             (* Inapplicable: Unreachable *)
-          | Some `Bot -> None
+          | Some x when Queries.ID.is_bot x -> None
+            (* Evaluable: Inconclusive *)
+          | Some x -> Some None
             (* Inapplicable: Unlisted *)
           | None -> None
-            (* Unexpected result *)
-          | Some _ -> raise Exit
 
       end
 
-    type query =
-      {
-
-        kind : CodeQuery.kind;
-        target : CodeQuery.target;
-        find : CodeQuery.find;
-        structure : (CodeQuery.structure [@default None_s]);
-        limitation : (CodeQuery.constr [@default None_c]);
-
-        expression : string;
-        mode : [ `Must | `May ];
-
-      } [@@deriving yojson]
-
-    let string_of_location (location : Cil.location) =
-      location.file ^ ":" ^ (location.line |> string_of_int) ^ " [" ^ (location.byte |> string_of_int) ^ "]"
-
-    let location_file_compare (location_1 : Cil.location) (location_2 : Cil.location) = compare location_1.file location_2.file
-    let location_byte_compare (location_1 : Cil.location) (location_2 : Cil.location) = compare location_1.byte location_2.byte
-
-    let transform (ask : Cil.location -> Queries.t -> Queries.Result.t) (file : Cil.file) =
-      (* Parse query file *)
-      let query_file_name = GobConfig.get_string transformation_query_file_name_identifier in
-      match ~? (fun () -> Yojson.Safe.from_file query_file_name) with
+    let query_from_file name =
+      match ~? (fun () -> Yojson.Safe.from_file name) with
       | None ->
-          prerr_endline ("ExpEval: Invalid JSON query file: \"" ^ query_file_name ^ "\". Specify via " ^ transformation_query_file_name_identifier ^ ".")
+          Error ("ExpEval: Invalid JSON query file: \"" ^ name ^ "\". Specify via " ^ transformation_query_file_name_identifier ^ ".")
       | Some query_yojson ->
           match query_yojson |> query_of_yojson with
           | Error message ->
-              prerr_endline ("ExpEval: Unable to parse JSON query file: \"" ^ query_file_name ^ "\" (" ^ message ^ ")")
+              Error ("ExpEval: Unable to parse JSON query file: \"" ^ name ^ "\" (" ^ message ^ ")")
           | Ok query ->
               if is_debug () then
-                print_endline ("Successfully parsed JSON query file: \"" ^ query_file_name ^ "\"");
-              (* Create an evaluator *)
-              let evaluator = new evaluator file ask in
-              (* Syntactic query *)
-              let query_syntactic : CodeQuery.query =
-                {
-                  sel = [];
-                  k = query.kind;
-                  tar = query.target;
-                  f = query.find;
-                  str = query.structure;
-                  lim = query.limitation;
-                }
-              in
-              let locations =
-                QueryMapping.map_query query_syntactic file
-                  (* Use only locations *)
-                  |> List.map (fun (_, l, _, _) -> l)
-                  (* Group by source files *)
-                  |> List.group location_file_compare
-                  (* Sort and remove duplicates *)
-                  |> List.map (fun ls -> List.sort_uniq location_byte_compare ls)
-                  (* Ungroup *)
-                  |> List.flatten
-              in
+                print_endline ("Successfully parsed JSON query file: \"" ^ name ^ "\"");
+              Ok query
+
+    let string_of_location (location : Cil.location) =
+      CilType.Location.show location ^ " [" ^ (location.byte |> string_of_int) ^ "]"
+
+    let file_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.file l'.file
+    let byte_compare (_, l, _, _) (_, l', _, _) = let open Cil in compare l.byte l'.byte
+
+    let transform (ask : Cil.location -> Queries.ask) (file : Cil.file) =
+      let query = match !gv_query with
+      | Some q -> Ok q
+      | _ -> query_from_file (GobConfig.get_string transformation_query_file_name_identifier)
+      in
+      match query with
+      | Ok query ->
+          (* Create an evaluator *)
+          let evaluator = new evaluator file ask in
+          (* Syntactic query *)
+          let query_syntactic : CodeQuery.query =
+            {
+              sel = [];
+              k = query.kind;
+              tar = query.target;
+              f = query.find;
+              str = query.structure;
+              lim = query.limitation;
+            }
+          in
+          let results =
+            QueryMapping.map_query query_syntactic file
+              (* Group by source files *)
+              |> List.group file_compare
+              (* Sort and remove duplicates *)
+              |> List.map (fun ls -> List.sort_uniq byte_compare ls)
+              (* Ungroup *)
+              |> List.flatten
               (* Semantic queries *)
-              let evaluate location =
-                match evaluator#evaluate location query.expression with
-                | Some value ->
-                    if value then
-                      print_endline (location |> string_of_location)
-                    else if is_debug () then
-                      print_endline ((location |> string_of_location) ^ " x")
-                | None ->
-                    if query.mode = `May || is_debug () then
-                      print_endline ((location |> string_of_location) ^ " ?")
-              in
-              List.iter evaluate locations
+              |> List.map (fun (n, l, s, i) -> ((n, l, s, i), evaluator#evaluate l query.expression))
+          in
+          let print ((_, loc, _, _), res) =
+            match res with
+            | Some value ->
+                if value then
+                  print_endline (loc |> string_of_location)
+                else if is_debug () then
+                  print_endline ((loc |> string_of_location) ^ " x")
+            | None ->
+                if query.mode = `May || is_debug () then
+                  print_endline ((loc |> string_of_location) ^ " ?")
+          in
+          gv_results := results;
+          List.iter print results
+      | Error e -> prerr_endline e
 
   end
 

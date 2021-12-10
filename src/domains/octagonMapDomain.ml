@@ -24,9 +24,38 @@ end
 
 
 let ikind = OctagonDomain.IKind.ikind
-module Liszt (B: Lattice.S) =
+
+module E = struct
+  module F = Lattice.Fake(BV)
+  include Lattice.Prod3 (IntDomain.Booleans) (F) (INV)
+
+  let compare_sign_and_var (lsign, lvar) (rsign, rvar) =
+    let cmp = BV.compare lvar rvar in
+    if cmp <> 0 then
+      cmp
+    else -(IntDomain.Booleans.compare lsign rsign)
+
+  let compare (lsign, lvar, linv) (rsign, rvar, rinv) =
+    let cmp = BV.compare lvar rvar in
+    if cmp <> 0 then
+      cmp
+    else let cmp = (IntDomain.Booleans.compare lsign rsign) in
+    if cmp <> 0 then
+      -cmp
+    else
+      INV.compare linv rinv
+
+  let leq ((lsign, lvar, linv):t) ((rsign, rvar, rinv):t) =
+    lsign = rsign && BV.equal lvar rvar && INV.leq linv rinv
+
+  let is_top (_, _, inv) = INV.is_top_of (ikind ()) inv
+end
+
+
+module OctLiszt =
 struct
-  include Lattice.Liszt (B)
+  include Lattice.Liszt (E)
+  module B = E
 
   let rec map2 keep f x y =
     let concat elt ls = if keep then elt::ls else ls in
@@ -34,14 +63,14 @@ struct
     | [], [] -> []
     | hd::tl, [] | [], hd::tl ->
       concat hd (map2 keep f [] tl)
-    | xh :: xs, yh :: ys when (B.compare xh yh) = 0 ->
+    | ((xhsign,xhvar,_ ) as xh) :: xs, ((yhsign,yhvar,_ ) as yh) :: ys when (B.compare_sign_and_var (xhsign,xhvar) (yhsign,yhvar)) = 0 ->
       let res = f xh yh in
       if B.is_top res then
         (map2 keep f xs ys)
       else
         res :: (map2 keep f xs ys)
-    | xh :: xs, yh :: ys ->
-      if B.compare xh yh < 0 then
+    | ((xhsign,xhvar,_ ) as xh) :: xs, ((yhsign,yhvar,_ ) as yh) :: ys ->
+      if (B.compare_sign_and_var (xhsign,xhvar) (yhsign,yhvar)) < 0 then
         concat xh (map2 keep f xs y)
       else
         concat yh (map2 keep f x ys)
@@ -67,8 +96,8 @@ struct
     match x, y with
     | _, [] -> true (* x has additional constraints (x leq y for all other constraints) => x leq y  *)
     | [], _ -> false (* y has additional constraints (x leq y for all other constraints) => not (x leq y) *)
-    | x :: xs, y :: ys
-      when (B.compare x y) = 0 -> (* Compare zero here if constraints are about the same var and sign *)
+    | ((xsign,xvar,xinv) as x) :: xs, ((ysign,yvar,yinv) as y) :: ys
+      when (B.compare_sign_and_var (xsign,xvar) (ysign,yvar)) = 0 -> (* Compare zero here if constraints are about the same var and sign *)
       B.leq x y && leq xs ys
     | _ :: xs, y ->
       leq xs y
@@ -102,32 +131,14 @@ sig
   val strong_closure  : t -> t
   val map_to_matrix   : t -> elt array array * (BV.t, int) Hashtbl.t
   val matrix_to_map   : elt array array -> (BV.t, int) Hashtbl.t -> t
-  val get_relation    : Deriving.Cil.varinfo -> Deriving.Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option * bool
-  val keep_only       : Deriving.Cil.varinfo list -> t -> t
+  val get_relation    : Cil.varinfo -> Cil.varinfo -> t -> OctagonDomain.INV.t option * OctagonDomain.INV.t option * bool
+  val keep_only       : Cil.varinfo list -> t -> t
   (* TODO: Currently last bool indicates if it was necessary to switch the order of vars and therefore multiplying diff by -1 in consumers may be necessary. *)
   (* This is ugly and needs to be fixed *)
 end
 
 
-module E = struct
-  module F = Lattice.Fake(BV)
-  include Lattice.Prod3 (IntDomain.Booleans) (F) (INV)
-
-  let compare (lsign, lvar, _) (rsign, rvar, _) =
-    let cmp = BV.compare lvar rvar in
-    if cmp <> 0 then
-      cmp
-    else
-      -(IntDomain.Booleans.compare lsign rsign)
-
-  let leq (lsign, lvar, linv) (rsign, rvar, rinv) =
-    lsign = rsign && BV.equal lvar rvar && INV.leq linv rinv
-
-  let is_top (_, _, inv) = INV.is_top_of (ikind ()) inv
-end
-
-
-module VD = Lattice.Prod (INV) (Liszt(E))
+module VD = Lattice.Prod (INV) (OctLiszt)
 module MapOctagon : S
   with type key = BV.t
 = struct
@@ -171,7 +182,7 @@ module MapOctagon : S
     in
     match ls with
     | ((sign2, v2, inv2) as x) :: xs ->
-      let cmp = E.compare (sign, v, value) x in
+      let cmp = E.compare_sign_and_var (sign,v) (sign2,v2) in
       if cmp = 0 then
         begin
           let inv = construct_inv inv2 in
@@ -202,7 +213,7 @@ module MapOctagon : S
   let rec delete_constraint (sign, v) ls =
     match ls with
     | ((sign2, v2, _) as x) :: xs ->
-      let cmp = E.compare (sign,v, INV.top ()) x in
+      let cmp = E.compare_sign_and_var (sign,v) (sign2, v2) in
       if cmp = 0 then
         xs
       else if cmp < 0 then
@@ -258,7 +269,7 @@ module MapOctagon : S
 
   let print_inv = function
     | None -> print_endline "None"
-    | Some i -> print_endline (INV.short 0 i)
+    | Some i -> print_endline (INV.show i)
 
   let rec set_constraint const oct =
     match const with
@@ -587,7 +598,7 @@ module MapOctagon : S
       let add_constraints (sign, var2, const) =
         let index2 = try (Hashtbl.find vars var2) * 2
           with Not_found ->
-          raise (Invalid_argument ("Not found var:" ^ var2.vname ^ "@" ^ var2.vdecl.file ^ ":" ^ (string_of_int var2.vdecl.line)))
+          raise (Invalid_argument ("Not found var:" ^ var2.vname ^ "@" ^ CilType.Location.show var2.vdecl))
         in
         let upper = OPT.default max_int (INV.maximal const) in
         let lower = OPT.default min_int (INV.minimal const) in
@@ -675,7 +686,7 @@ module MapOctagon : S
   let use_matrix_closure = true
 
   let remove_empty = filter (fun var (const, consts) ->
-      not (INV.is_top_of (ikind ()) const) || not ((List.length consts) = 0))
+      not (INV.is_top_of (ikind ()) const) || consts <> [])
 
   let strong_closure oct =
     if use_matrix_closure then
@@ -691,7 +702,9 @@ module MapOctagon : S
     let filter_constraints (inv, consts) = (inv, List.filter (fun (_,v,_) -> List.mem v vars) consts) in
     map filter_constraints oct_keys_filtered
 
-  let widen a b = widen a (strong_closure b) (* strong closure must not(!) be called for the result (https://arxiv.org/pdf/cs/0703084.pdf)  *)
+  (* TODO: why was strong_closure on b necessary at all? b should be joined already *)
+  (* TODO: strong_closure is not idempotent, somehow breaks valid widen use *)
+  let widen a b = widen a b (* strong closure must not(!) be called for the result (https://arxiv.org/pdf/cs/0703084.pdf)  *)
 
   let narrow a b =
     (* Some constraints may involve a variable that is not there in the result. These need to be removed *)
@@ -702,7 +715,7 @@ module MapOctagon : S
   let join a b = join a b                       (* a strong closure is useless here if the arguments are strongly closed *)
 
   let leq a b =
-    if !Goblintutil.in_verifying_stage then
+    if !Goblintutil.postsolving then
       leq a b || leq (strong_closure a) b
     else
       leq a b
