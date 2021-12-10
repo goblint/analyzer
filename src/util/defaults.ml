@@ -367,4 +367,4 @@ let default_schema = {schema|
 let _ =
   let v = Yojson.Safe.from_string default_schema in
   GobConfig.addenum_sch v;
-  JsonSchema2.convert_schema @@ List.map snd !registrar
+  JsonSchema2.convert_schema !GobConfig.json_conf @@ List.map snd !registrar

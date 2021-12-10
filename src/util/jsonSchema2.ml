@@ -203,12 +203,33 @@ let convert_opt name desc def: unit encoding =
   let path = parse_path name in
   convert_path path
 
+open Json_schema
 
-let convert_schema opts =
-  opts
-  |> List.map (fun (name, (desc, def)) -> convert_opt name desc def)
-  |> List.reduce (fun o1 o2 -> erase (merge_objs o1 o2))
-  |> fun el ->
-    let sch = schema el in
-    (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
-    Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch)
+let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element =
+  let element' ekind =
+    let (desc, def) = List.assoc (BatString.lchop prefix) opts in
+    (* let name = BatString.lchop @@ Filename.extension prefix in *)
+    {(element ekind) with title = Some (BatString.lchop prefix); description = Some desc}
+  in
+  match json with
+  | `String s ->
+    element' @@ String string_specs
+  | `Bool b ->
+    element' @@ Boolean
+  | `Int i ->
+    element' @@ Number numeric_specs
+  | `List xs ->
+    element' @@ Monomorphic_array (element Any, array_specs)
+  | `Assoc xs ->
+    let properties = List.map (fun (key, value) ->
+        (key, convert_schema' value opts (prefix ^ "." ^ key), false, None)
+      ) xs
+    in
+    element @@ Object { object_specs with properties; additional_properties = None }
+  | _ -> failwith (Format.asprintf "convert_schema': %a" Yojson.Safe.pp json)
+
+let convert_schema json opts =
+  let sch = create @@ convert_schema' json opts "" in
+  (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
+  (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JS.to_json sch)

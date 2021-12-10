@@ -79,6 +79,8 @@ sig
 
   (** Add a schema to the conf*)
   val addenum_sch: Yojson.Safe.t -> unit
+
+  val json_conf: Yojson.Safe.t ref
 end
 
 (** The implementation of the [gobConfig] module. *)
