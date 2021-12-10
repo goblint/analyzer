@@ -61,6 +61,7 @@ type partaccess = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write:
 
 (** GADT for queries with specific result type. *)
 type _ t =
+  | Assert: exp -> ES.t t
   | EqualSet: exp -> ES.t t
   | MayPointTo: exp -> LS.t t
   | ReachableFrom: exp -> LS.t t
@@ -112,6 +113,7 @@ struct
   let lattice (type a) (q: a t): (module Lattice.S with type t = a) =
     match q with
     (* Cannot group these GADTs... *)
+    | Assert _ -> (module ES)
     | EqualSet _ -> (module ES)
     | CondVars _ -> (module ES)
     | MayPointTo _ -> (module LS)
@@ -162,6 +164,7 @@ struct
        See benchmarks at: https://github.com/goblint/analyzer/pull/221#issuecomment-842351621. *)
     match q with
     (* Cannot group these GADTs... *)
+    | Assert _ -> ES.top ()
     | EqualSet _ -> ES.top ()
     | CondVars _ -> ES.top ()
     | MayPointTo _ -> LS.top ()
@@ -245,6 +248,7 @@ struct
       | Any (EvalThread _) -> 32
       | Any CreatedThreads -> 33
       | Any MustJoinedThreads -> 34
+      | Any (Assert _) -> 35
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then

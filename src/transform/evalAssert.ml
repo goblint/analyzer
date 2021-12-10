@@ -18,7 +18,7 @@ open Str
 module EvalAssert = struct
   let ass = ref (makeVarinfo true "unknown" (TVoid []))
   let locals = ref []
-  class visitor ask = object(self)
+  class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
 
     method! vfunc f =
@@ -36,12 +36,12 @@ module EvalAssert = struct
     method! vstmt s =
       let make_assert loc lval =
         try
-          match ask loc (Queries.Assert (Lval lval)) with
-          | `ExprSet s ->
-            let e = Queries.ES.choose s in
+          let res = (ask loc).f (Queries.Assert (Lval lval)) in
+          if Queries.ES.is_bot res then
+            [cInstr ("%v:assert (0);") loc [("assert", Fv !ass)]]
+          else
+            let e = Queries.ES.choose res in
             [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]]
-          | `Bot -> [cInstr ("%v:assert (0);") loc [("assert", Fv !ass)]]
-          | _ -> []
         with
           Not_found -> []
       in
@@ -50,8 +50,8 @@ module EvalAssert = struct
         | i1 :: i2 :: is ->
           begin
             match i1 with
-            | Set (lval, _, _)
-            | Call (Some lval, _, _, _) -> [i1] @ (make_assert (get_instrLoc i2) lval) @ instrument_instructions (i2 :: is) s
+            | Set (lval, _, _, _)
+            | Call (Some lval, _, _, _, _) -> [i1] @ (make_assert (get_instrLoc i2) lval) @ instrument_instructions (i2 :: is) s
             | _ -> i1 :: instrument_instructions (i2 :: is) s
           end
         | [i] ->
@@ -59,8 +59,8 @@ module EvalAssert = struct
             (* If the successor of this has more than one predecessor, it is a join point, and we can not query for the value there *)
             let loc = get_stmtLoc (List.hd s.succs).skind in
             match i with
-            | Set (lval, _, _)
-            | Call (Some lval, _, _, _) -> [i] @ (make_assert loc lval)
+            | Set (lval, _, _, _)
+            | Call (Some lval, _, _, _, _) -> [i] @ (make_assert loc lval)
             | _ -> [i]
           end
           else [i]
@@ -92,7 +92,7 @@ module EvalAssert = struct
         | Instr il ->
           s.skind <- Instr (instrument_instructions il s);
           s
-        | If (e, b1, b2, l) ->
+        | If (e, b1, b2, l,l2) ->
           let vars = get_vars e in
           let asserts loc vs = List.map (fun x -> make_assert loc (Var x,NoOffset)) vs |> List.concat in
           let add_asserts block =
@@ -114,7 +114,7 @@ module EvalAssert = struct
       in
       ChangeDoChildrenPost (s, instrument_statement)
   end
-  let transform ask file = begin
+  let transform (ask:Cil.location -> Queries.ask) file = begin
     visitCilFile (new visitor ask) file;
     let assert_filename = global_replace (regexp "\\(.*\\)\\(/[^/]+\\)\\(/[^/]+\\.c\\)") "\\1/assert_transform\\3" file.fileName in
     let assert_dir = global_replace (regexp "\\(.*\\)\\(/[^/]+\\)\\(/[^/]+\\.c\\)") "\\1/assert_transform" file.fileName in
