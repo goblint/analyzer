@@ -116,17 +116,7 @@ module EvalAssert = struct
   end
   let transform (ask:Cil.location -> Queries.ask) file = begin
     visitCilFile (new visitor ask) file;
-    let assert_filename = global_replace (regexp "\\(.*\\)\\(/[^/]+\\)\\(/[^/]+\\.c\\)") "\\1/assert_transform\\3" file.fileName in
-    let assert_dir = global_replace (regexp "\\(.*\\)\\(/[^/]+\\)\\(/[^/]+\\.c\\)") "\\1/assert_transform" file.fileName in
-    let _ =
-      try
-        Unix.mkdir assert_dir 0o770
-      with Unix.Unix_error(err, ctx1, ctx) as ex ->
-        if err != Unix.EEXIST then begin
-          print_endline ("Error, " ^ (Unix.error_message err));
-          raise ex
-        end
-    in
+    let assert_filename = "annotated.c" in
     let oc = Stdlib.open_out assert_filename in
     dumpFile defaultCilPrinter oc assert_filename file; end
 end
