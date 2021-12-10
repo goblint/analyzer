@@ -257,6 +257,8 @@ struct
           | Some (m) -> Some (dim_add (Environment.dimchange a.env env') m))
   in {d = d'; env = env'}
 
+  let assign_var_parallel' a l1 l2 = a
+
   let remove_vars a vars =
     let vs' = get_filtered_vars_remove (a.env) vars in
       let env' = Environment.remove a.env vs' in
@@ -278,6 +280,8 @@ struct
         | None -> None
         | Some (m) -> Some (dim_remove (Environment.dimchange a.env env') m))
   in {d = d'; env = env'}
+
+  let keep_vars a vs = a
 
   let forget_vars a l = (*ToDo Mem_var shouldn't be called*)
     remove_vars a l

@@ -467,12 +467,12 @@ struct
 end
 open RelationAnalysis
 
-module ExtendedSpecFunctor (CPriv: ApronPriv.SharedS) (RD: RelationDomain.RD) : Analyses.MCPSpec =
+module ExtendedSpecFunctor (CPriv: ApronPriv.S) (RD: RelationDomain.RD) : Analyses.MCPSpec =
 struct
 module OctApron = ApronPrecCompareUtil.OctagonD
 include RelationAnalysis.SpecFunctor (CPriv) (RD) (ApronPrecCompareUtil.Util)
 module AD = ApronDomain.D2Complete(OctApron.Man)
-module Priv = CPriv (AD)
+module Priv = CPriv (RD)
 module PCU = ApronPrecCompareUtil.Util(OctApron)
 
 let results = PCU.RH.create 103

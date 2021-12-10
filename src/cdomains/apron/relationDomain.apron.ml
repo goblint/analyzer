@@ -45,11 +45,13 @@ sig
   val add_vars : t -> var list -> t
   val remove_vars : t -> var list -> t
   val remove_filter : t -> (var -> bool) -> t
+  val keep_vars : t -> var list -> t
   val keep_filter : t -> (var -> bool) -> t
   val forget_vars : t -> var list -> t
   val assign_exp : t -> var -> exp -> t
   val assign_var : t -> var -> var -> t
   val assign_var_parallel : t -> (var * var) list -> t
+  val assign_var_parallel' : t -> var list -> var list -> t
   val substitute_exp : t -> var -> exp -> t
   val type_tracked : typ -> bool
   val varinfo_tracked : varinfo -> bool

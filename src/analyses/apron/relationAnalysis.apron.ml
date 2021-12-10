@@ -5,7 +5,7 @@ open RelationDomain
 
 module M = Messages
 
-module SpecFunctor (CPriv: ApronPriv.SharedS) (RD: RelationDomain.RD) (PCU: RelPrecCompareUtil.Util) : Analyses.MCPSpec =
+module SpecFunctor (CPriv: ApronPriv.S) (RD: RelationDomain.RD) (PCU: RelPrecCompareUtil.Util) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -13,7 +13,7 @@ struct
 
   let name () = AD.name ()
 
-  module Priv = CPriv (AD)
+  module Priv = CPriv (RD)
   module D = RelationDomain.RelComponent (AD) (Priv.D)
   module G = Priv.G
   module C = D
