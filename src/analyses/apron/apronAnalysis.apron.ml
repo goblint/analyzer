@@ -481,6 +481,7 @@ let init marshal =
   Priv.init ()
 
 let store_data file =
+  if M.tracing then M.trace "dbg" "data storing\n";
   let convert (m: AD.t PCU.RH.t): OctApron.t PCU.RH.t =
     let convert_single (a: AD.t): OctApron.t =
       let generator = AD.to_lincons_array a in
@@ -496,7 +497,6 @@ let store_data file =
   let name = name () ^ "(domain: " ^ (AD.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
   let results: PCU.dump = {marshalled = results; name } in
   Serialize.marshal results file
-
 
 end
 

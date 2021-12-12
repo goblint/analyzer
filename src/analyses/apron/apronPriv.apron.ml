@@ -760,7 +760,6 @@ end
 (** Clusters when clustering is downward-closed. *)
 module DownwardClosedCluster (ClusteringArg: ClusteringArg) =  functor (RD: RelationDomain.RD) ->
 struct
-  module AD = AD
   open CommonPerMutex(RD)
 
   module VS =
@@ -825,7 +824,6 @@ end
 (** Clusters when clustering is arbitrary (not necessarily downward-closed). *)
 module ArbitraryCluster (ClusteringArg: ClusteringArg): ClusterArg = functor (RD: RelationDomain.RD) ->
 struct
-  module AD = AD
   module DCCluster = (DownwardClosedCluster(ClusteringArg))(RD)
 
   open CommonPerMutex(RD)

@@ -355,13 +355,7 @@ struct
 
   let hash t =
     Hashtbl.hash t
-  let compare a b = (*ToDo Unequal is always -1. Is this correct?*)
-    if Environment.compare a.env b.env <> 0 then -1 else
-    match a.d, b.d with
-    | None, None -> 0
-    | Some([]), _ | _, Some([]) -> -1
-    | Some(x), Some(y) -> if Matrix.equal x y then 0 else -1
-    | _, _ -> -1
+  let compare a b = Stdlib.compare a b
 
   let compare a b =
     let res = compare a b in
@@ -577,7 +571,14 @@ struct
      let b = get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env exp) in
                 match b with
                   | None -> t
-                  | Some (x) -> meet t (assign_uninvertible_rel (Matrix.empty ()) var x t.env)
+                  | Some (x) ->
+                    let dim_var = Environment.dim_of_var t.env var in
+                      if Vector.get_val dim_var x = (to_rt 0) then
+                        meet t (assign_uninvertible_rel (Matrix.empty ()) var x t.env)
+                    else
+                        match t.d with
+                        | None -> t
+                        | Some (y) -> assign_invertible_rels y var x t.env
 
   let substitute_exp t var exp =
     let res = substitute_exp t var exp

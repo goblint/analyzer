@@ -5,7 +5,7 @@ open RelationDomain
 
 module M = Messages
 
-module SpecFunctor (CPriv: ApronPriv.S) (RD: RelationDomain.RD) (PCU: RelPrecCompareUtil.Util) : Analyses.MCPSpec =
+module SpecFunctor (CPriv: ApronPriv.S) (RD: RelationDomain.RD) (PCU: RelPrecCompareUtil.Util) =
 struct
   include Analyses.DefaultSpec
 
@@ -217,29 +217,36 @@ struct
     let assigned_new_apr = AD.assign_var_parallel new_apr local_assigns in (* doesn't need to be parallel since arg vars aren't local vars *)
     {st with apr = assigned_new_apr}
 
-  let return ctx e f =
-    let st = ctx.local in
-    let new_apr =
-      if AD.type_tracked (Cilfacade.fundec_return_type f) then (
-        let apr' = AD.add_vars st.apr [RV.return] in
-        match e with
-        | Some e ->
-          assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with apr = apr'} e (fun apr' e' ->
-              AD.assign_exp apr' RV.return e'
-            )
-        | None ->
-          apr' (* leaves RV.return unconstrained *)
-      )
-      else
-        st.apr
-    in
-    let local_vars =
-      f.sformals @ f.slocals
-      |> List.filter AD.varinfo_tracked
-      |> List.map RV.local
-    in
-    let rem_new_apr = AD.remove_vars new_apr local_vars in
-    {st with apr = rem_new_apr}
+    let return ctx e f =
+      let st = ctx.local in
+      let ask = Analyses.ask_of_ctx ctx in
+      let new_apr =
+        if AD.type_tracked (Cilfacade.fundec_return_type f) then (
+          let apr' = AD.add_vars st.apr [RV.return] in
+          match e with
+          | Some e ->
+            assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with apr = apr'} e (fun apr' e' ->
+                AD.assign_exp apr' RV.return e'
+              )
+          | None ->
+            apr' (* leaves V.return unconstrained *)
+        )
+        else
+          st.apr
+      in
+      let local_vars =
+        f.sformals @ f.slocals
+        |> List.filter AD.varinfo_tracked
+        |> List.map RV.local
+      in
+      let rem_new_apr = AD.remove_vars new_apr local_vars in
+      let st' = {st with apr = rem_new_apr} in
+      begin match ThreadId.get_current ask with
+        | `Lifted tid when ThreadReturn.is_current ask ->
+          Priv.thread_return ask ctx.global ctx.sideg tid st'
+        | _ ->
+          st'
+      end
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
