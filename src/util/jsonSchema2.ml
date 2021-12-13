@@ -205,11 +205,21 @@ let convert_opt name desc def: unit encoding =
 
 open Json_schema
 
+(** The ultimate convenience function for writing values. *)
+let one_quote = Str.regexp "\'"
+let parse_goblint_json s =
+  try
+    let s' = Str.global_replace one_quote "\"" s in
+    let v = Yojson.Safe.from_string s' in
+    v
+  with Yojson.Json_error _ ->
+    `String s
+
 let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element =
   let element' ekind =
     let (desc, def) = List.assoc (BatString.lchop prefix) opts in
     (* let name = BatString.lchop @@ Filename.extension prefix in *)
-    {(element ekind) with title = Some (BatString.lchop prefix); description = Some desc}
+    {(element ekind) with title = Some (BatString.lchop prefix); description = Some desc; default = Some (Json_repr.repr_to_any (module Json_repr.Yojson) (parse_goblint_json def))}
   in
   match json with
   | `String s ->
