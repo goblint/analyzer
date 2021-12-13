@@ -229,7 +229,12 @@ let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element =
   | `Int i ->
     element' @@ Number numeric_specs
   | `List xs ->
-    element' @@ Monomorphic_array (element Any, array_specs)
+    let element_schema = match prefix with
+      | ".phases" -> element Any (* TODO: mu? *)
+      | ".ana.activated" -> element Any (* TODO: old-style phases? *)
+      | _ -> element (String string_specs)
+    in
+    element' @@ Monomorphic_array (element_schema, array_specs)
   | `Assoc xs ->
     let properties = List.map (fun (key, value) ->
         (key, convert_schema' value opts (prefix ^ "." ^ key), false, None)
