@@ -230,7 +230,7 @@ let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element =
     element' @@ Number numeric_specs
   | `List xs ->
     let element_schema = match prefix with
-      | ".phases" -> element Any (* TODO: mu? *)
+      | ".phases" -> element (Id_ref "") (* refer to entire schema itself *)
       | ".ana.activated" -> element Any (* TODO: old-style phases? *)
       | _ -> element (String string_specs)
     in
@@ -244,7 +244,10 @@ let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element =
   | _ -> failwith (Format.asprintf "convert_schema': %a" Yojson.Safe.pp json)
 
 let convert_schema json opts =
-  let sch = create @@ convert_schema' json opts "" in
-  (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
-  (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
-  Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JS.to_json sch)
+  try
+    let sch = create @@ {(convert_schema' json opts "") with id = Some ""} in (* add id to make create defs check happy, doesn't get outputted apparently *)
+    (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
+    (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
+    Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JS.to_json sch)
+  with (Json_schema.Dangling_reference u as e) ->
+    Json_schema.print_error Format.err_formatter e
