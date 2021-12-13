@@ -136,7 +136,7 @@ let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element * D
   | `Bool b ->
     element' @@ Boolean
   | `Int i ->
-    element' @@ Number numeric_specs
+    element' @@ Integer numeric_specs
   | `List xs ->
     let element_schema = match prefix with
       | ".phases" -> element (Id_ref "") (* refer to entire schema itself *)
