@@ -9,8 +9,9 @@ typedef struct {
 } data;
 
 data *d;
+int main(void) __attribute__((goblint_precision("no-def_exc","interval","enums")));
 
-int main(void) __attribute__((goblint_precision("no-def_exc","interval","enums"))) {
+int main(void) {
     d = calloc(1,sizeof(data));
     d -> x = 0;
     d -> y = 0;

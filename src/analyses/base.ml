@@ -1100,8 +1100,8 @@ struct
     | `Struct _
     | `Union _ ->
       begin
-        let vars_in_paritioning = VD.affecting_vars value in
-        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_paritioning in
+        let vars_in_partitioning = VD.affecting_vars value in
+        let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_partitioning in
         { st with deps = dep_new }
       end
     (* `List and `Blob cannot contain arrays *)
@@ -1282,7 +1282,7 @@ struct
     { st with cpa = List.fold_left f st.cpa v_list; deps = List.fold_left g st.deps v_list }
 
   (* Removes all partitionings done according to this variable *)
-  let rem_many_paritioning a (st:store) (v_list: varinfo list):store =
+  let rem_many_partitioning a (st:store) (v_list: varinfo list):store =
     (* Removes the partitioning information from all affected arrays, call before removing locals *)
     let rem_partitioning a (st:store) (x:varinfo):store =
       let affected_arrays =
@@ -1849,7 +1849,7 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | _ ->
       let locals = List.filter (fun v -> not (WeakUpdates.mem v st.weak)) (fundec.sformals @ fundec.slocals) in
-      let nst_part = rem_many_paritioning (Analyses.ask_of_ctx ctx) ctx.local locals in
+      let nst_part = rem_many_partitioning (Analyses.ask_of_ctx ctx) ctx.local locals in
       let nst: store = rem_many (Analyses.ask_of_ctx ctx) nst_part locals in
       match exp with
       | None -> nst
