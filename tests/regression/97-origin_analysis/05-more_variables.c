@@ -30,7 +30,7 @@ int main() {
     }
     // join point label c:
     // x-> ([1, 8], {c}),  y -> ([1,2], {a}) 
-    assert (x < y);
+    // assert (x < y);
     return 0;
 
 }
