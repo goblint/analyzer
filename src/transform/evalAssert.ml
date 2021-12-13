@@ -16,7 +16,8 @@ open Str
         will be removed and they will fail on the next iteration
 *)
 module EvalAssert = struct
-  let ass = ref (makeVarinfo true "unknown" (TVoid []))
+  (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
+  let ass = ref (makeVarinfo true "assert" (TVoid []))
   let locals = ref []
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
