@@ -21,6 +21,7 @@ module EvalAssert = struct
   let locals = ref []
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
+    val full = GobConfig.get_bool "trans.assert.full"
 
     method! vfunc f =
       locals := !locals @ f.slocals;
@@ -40,9 +41,9 @@ module EvalAssert = struct
           let context: Invariant.context = {
             scope=Cilfacade.find_stmt_fundec s;
             i= -1; (* Not used here *)
-            lval=Some lval;
+            lval=lval;
             offset=Cil.NoOffset;
-            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+            deref_invariant=(fun _ _ _ -> Invariant.none)
           } in
 
           let res = (ask loc).f (Queries.Invariant context) in
@@ -60,7 +61,9 @@ module EvalAssert = struct
           begin
             match i1 with
             | Set (lval, _, _, _)
-            | Call (Some lval, _, _, _, _) -> [i1] @ (make_assert (get_instrLoc i2) lval) @ instrument_instructions (i2 :: is) s
+            | Call (Some lval, _, _, _, _) ->
+              let a = if full then (make_assert (get_instrLoc i2) None) else (make_assert (get_instrLoc i2) (Some lval)) in
+              [i1] @ a @ instrument_instructions (i2 :: is) s
             | _ -> i1 :: instrument_instructions (i2 :: is) s
           end
         | [i] ->
@@ -69,7 +72,9 @@ module EvalAssert = struct
             let loc = get_stmtLoc (List.hd s.succs).skind in
             match i with
             | Set (lval, _, _, _)
-            | Call (Some lval, _, _, _, _) -> [i] @ (make_assert loc lval)
+            | Call (Some lval, _, _, _, _) ->
+              let a = if full then make_assert loc None else make_assert loc (Some lval) in
+              [i] @ a
             | _ -> [i]
           end
           else [i]
@@ -88,9 +93,9 @@ module EvalAssert = struct
         match s.preds with
         | [p1; p2] ->
           (* exactly two predecessors -> join point, assert locals if they changed *)
-          (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch *)
           let join_loc = get_stmtLoc s.skind in
-          let asserts = List.map (fun x -> make_assert join_loc (Var x,NoOffset)) !locals |> List.concat in
+          (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if trans.assert.full is false *)
+          let asserts = make_assert join_loc None in
           self#queueInstr asserts; ()
         | _ -> ()
       in
@@ -103,7 +108,7 @@ module EvalAssert = struct
           s
         | If (e, b1, b2, l,l2) ->
           let vars = get_vars e in
-          let asserts loc vs = List.map (fun x -> make_assert loc (Var x,NoOffset)) vs |> List.concat in
+          let asserts loc vs = if full then make_assert loc None else List.map (fun x -> make_assert loc (Some (Var x,NoOffset))) vs |> List.concat in
           let add_asserts block =
             if List.length block.bstmts > 0 then
               let with_asserts =
@@ -125,7 +130,7 @@ module EvalAssert = struct
   end
   let transform (ask:Cil.location -> Queries.ask) file = begin
     visitCilFile (new visitor ask) file;
-    let assert_filename = "annotated.c" in
+    let assert_filename = GobConfig.get_string "trans.output" in
     let oc = Stdlib.open_out assert_filename in
     dumpFile defaultCilPrinter oc assert_filename file; end
 end

@@ -176,6 +176,8 @@ let _ = ()
 let _ = ()
       ; reg Transformations "trans.activated" "[]"  "Lists of activated transformations in this phase. Transformations happen after analyses."
       ; reg Transformations "trans.expeval.query_file_name" "''" "Path to the JSON file containing an expression evaluation query."
+      ; reg Transformations "trans.output" "transformed.c" "Output filename for transformations that output a transformed file"
+      ; reg Transformations "trans.assert.full" "true" "Whether to dump assertions about all local variables or limitting it to modified ones where possible"
 
 (* {4 category [Annotation]} *)
 let _ = ()
