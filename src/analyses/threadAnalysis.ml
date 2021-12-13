@@ -15,7 +15,7 @@ struct
   module C = D
   module G = ConcDomain.ThreadCreation
 
-  let should_join = D.equal
+  let should_join node = D.equal
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local

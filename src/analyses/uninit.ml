@@ -24,7 +24,7 @@ struct
 
   let name () = "uninit"
 
-  let should_join x y = D.equal x y
+  let should_join node x y = D.equal x y
 
   let startstate v : D.t = D.empty ()
   let threadenter ctx lval f args = [D.empty ()]

@@ -20,7 +20,7 @@ module type S =
     type apron_components_t := ApronDomain.ApronComponents (AD) (D).t
     val name: unit -> string
     val startstate: unit -> D.t
-    val should_join: apron_components_t -> apron_components_t -> bool
+    val should_join: Node.t option -> apron_components_t -> apron_components_t -> bool
 
     val read_global: Q.ask -> (varinfo -> G.t) -> apron_components_t -> varinfo -> varinfo -> AD.t
 
@@ -51,7 +51,7 @@ struct
 
   let name () = "Dummy"
   let startstate () = ()
-  let should_join _ _ = true
+  let should_join _ _ _ = true
 
   let read_global ask getg st g x = st.ApronDomain.apr
   let write_global ?(invariant=false) ask getg sideg st g x = st
@@ -149,7 +149,7 @@ struct
 
   let startstate () = (P.empty (), W.empty ())
 
-  let should_join (st1: apron_components_t) (st2: apron_components_t) =
+  let should_join (node: Node.t option) (st1: apron_components_t) (st2: apron_components_t) =
     if Param.path_sensitive then (
       let (p1, _) = st1.priv in
       let (p2, _) = st2.priv in
@@ -355,7 +355,7 @@ struct
 
   let startstate () = ()
 
-  let should_join _ _ = true
+  let should_join _ _ _ = true
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
 
@@ -809,7 +809,7 @@ struct
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
 
-  let should_join _ _ = true
+  let should_join _ _ _ = true
 
   let mutex_inits = RichVarinfo.single ~name:"MUTEX_INITS"
 

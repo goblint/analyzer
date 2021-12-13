@@ -17,7 +17,7 @@ struct
   module C = ValueDomain.AddrSetDomain
   module G = Lattice.Unit
 
-  let should_join x y = D.equal x y
+  let should_join node x y = D.equal x y
 
   (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
      element) answers with the string "unknown" on all non-concrete cases. *)

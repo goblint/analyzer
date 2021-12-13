@@ -30,7 +30,7 @@ struct
   let create_tid v =
     Flag.get_multi ()
 
-  let should_join = D.equal
+  let should_join node = D.equal
 
   let body ctx f = ctx.local
 

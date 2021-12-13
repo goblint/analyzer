@@ -337,7 +337,7 @@ sig
   val morphstate : varinfo -> D.t -> D.t
   val exitstate  : varinfo -> D.t
 
-  val should_join : D.t -> D.t -> bool
+  val should_join : Node.t option -> D.t -> D.t -> bool
   val context : fundec -> D.t -> C.t
   val call_descr : fundec -> C.t -> string
 
@@ -497,7 +497,7 @@ struct
   (* no inits nor finalize -- only analyses like Mutex, Base, ... need
      these to do postprocessing or other imperative hacks. *)
 
-  let should_join _ _ = true
+  let should_join _ _ _ = true
   (* hint for path sensitivity --- MCP no longer overrides this so if you want
     your analysis to be path sensitive, do override this. To obtain a behavior
     where all paths are kept apart, set this to D.equal x y                    *)

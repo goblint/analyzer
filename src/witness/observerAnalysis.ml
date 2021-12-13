@@ -31,7 +31,7 @@ struct
   module G = Lattice.Unit
   module C = D
 
-  let should_join x y = D.equal x y (* fully path-sensitive *)
+  let should_join node x y = D.equal x y (* fully path-sensitive *)
 
   let step d prev_node node =
     match d with

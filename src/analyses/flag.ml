@@ -132,7 +132,7 @@ struct
 
   let name () = "flag"
 
-  let should_join _ _ = true
+  let should_join _ _ _ = true
 
   (** postprocess and print races and other output *)
   let finalize () =

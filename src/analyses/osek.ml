@@ -899,7 +899,7 @@ struct
   let name () = "OSEK"
   let es_to_string f _ = f.svar.vname
 
-  let should_join x y = D.equal x y
+  let should_join node x y = D.equal x y
 
   (** Finalization and other result printing functions: *)
 

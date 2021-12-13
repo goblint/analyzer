@@ -25,7 +25,7 @@ struct
   let init = S.init
   let finalize = S.finalize
 
-  let should_join x y = S.should_join (D.unlift x) (D.unlift y)
+  let should_join node x y = S.should_join node (D.unlift x) (D.unlift y)
 
   let startstate v = D.lift (S.startstate v)
   let exitstate  v = D.lift (S.exitstate  v)
@@ -102,7 +102,7 @@ struct
   let init = S.init
   let finalize = S.finalize
 
-  let should_join = S.should_join
+  let should_join node = S.should_join node
 
   let startstate = S.startstate
   let exitstate  = S.exitstate
@@ -196,7 +196,7 @@ struct
 
   let finalize = S.finalize
 
-  let should_join (x,_) (y,_) = S.should_join x y
+  let should_join node (x,_) (y,_) = S.should_join node x y
 
   let startstate v = (S.startstate v, !start_level)
   let exitstate  v = (S.exitstate  v, !start_level)
@@ -330,7 +330,7 @@ struct
   let init = S.init
   let finalize = S.finalize
 
-  let should_join (x,_) (y,_) = S.should_join x y
+  let should_join node (x,_) (y,_) = S.should_join node x y
 
   let inj f x = f x, M.bot ()
 
@@ -398,9 +398,9 @@ struct
   let init = S.init
   let finalize = S.finalize
 
-  let should_join x y =
+  let should_join node x y =
     match x, y with
-    | `Lifted a, `Lifted b -> S.should_join a b
+    | `Lifted a, `Lifted b -> S.should_join node a b
     | _ -> true
 
   let startstate v = `Lifted (S.startstate v)
@@ -915,7 +915,8 @@ struct
       let rec loop js = function
         | [] -> js
         | x::xs -> let (j,r) = List.fold_left (fun (j,r) x ->
-            if Spec.should_join x j then Spec.D.join x j, r else j, x::r
+            let node = !MyCFG.current_node in
+            if Spec.should_join node x j then Spec.D.join x j, r else j, x::r
           ) (x,[]) xs in
           loop (j::js) r
       in
@@ -945,7 +946,7 @@ struct
   let init = Spec.init
   let finalize = Spec.finalize
 
-  let should_join x y = true
+  let should_join node x y = true
 
   let exitstate  v = D.singleton (Spec.exitstate  v)
   let startstate v = D.singleton (Spec.startstate v)
