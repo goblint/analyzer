@@ -38,7 +38,7 @@ module EvalAssert = struct
       let make_assert loc lval =
         try
           let context: Invariant.context = {
-            scope=MyCFG.dummy_func;
+            scope=Cilfacade.find_stmt_fundec s;
             i= -1; (* Not used here *)
             lval=Some lval;
             offset=Cil.NoOffset;
@@ -46,7 +46,7 @@ module EvalAssert = struct
           } in
 
           let res = (ask loc).f (Queries.Invariant context) in
-          if Queries.ES.is_bot res then
+          if Queries.ES.is_bot res || Queries.ES.is_top res then
             []
           else
             let e = Queries.ES.choose res in
