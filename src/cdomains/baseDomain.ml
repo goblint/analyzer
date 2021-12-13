@@ -15,7 +15,6 @@ struct
   include M
 
   let invariant (c:Invariant.context) (m:t) =
-    Printf.printf "reached base :)";
     (* VS is used to detect and break cycles in deref_invariant calls *)
     let module VS = Set.Make (Basetype.Variables) in
     let rec context vs = {c with
