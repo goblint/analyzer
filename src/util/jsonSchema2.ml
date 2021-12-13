@@ -254,11 +254,28 @@ let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element * D
     (el, cat)
   | _ -> failwith (Format.asprintf "convert_schema': %a" Yojson.Safe.pp json)
 
+
+let rec create_defaults (element: element): Yojson.Safe.t =
+  match element.default with
+  | Some default -> Json_repr.any_to_repr (module Json_repr.Yojson) default
+  | None ->
+    begin match element.kind with
+      | Object object_specs ->
+        `Assoc (List.map (fun (name, el, _, _) ->
+            (name, create_defaults el)
+          ) object_specs.properties)
+      | _ ->
+        Format.printf "%a\n" Json_schema.pp (create element);
+        failwith "create_defaults"
+    end
+
 let convert_schema json opts =
   try
     let sch = create @@ {(fst @@ convert_schema' json opts "") with id = Some ""} in (* add id to make create defs check happy, doesn't get outputted apparently *)
     (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
     (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
-    Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JS.to_json sch)
+    Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JS.to_json sch);
+    let defaults = create_defaults (root sch) in
+    Yojson.Safe.pretty_to_channel (Stdlib.open_out "defaults.json") defaults
   with (Json_schema.Dangling_reference u as e) ->
     Json_schema.print_error Format.err_formatter e
