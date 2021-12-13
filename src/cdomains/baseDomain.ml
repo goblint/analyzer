@@ -15,6 +15,7 @@ struct
   include M
 
   let invariant (c:Invariant.context) (m:t) =
+    Printf.printf "reached base :)";
     (* VS is used to detect and break cycles in deref_invariant calls *)
     let module VS = Set.Make (Basetype.Variables) in
     let rec context vs = {c with
@@ -32,9 +33,10 @@ struct
         Invariant.none
     in
 
-    let key_invariant k v =
-      key_invariant_lval k NoOffset (var k) v VS.empty in
-    fold (fun k v a ->
+    let key_invariant k v = key_invariant_lval k NoOffset (var k) v VS.empty in
+    match c.lval with
+    | None ->
+      fold (fun k v a ->
         let i =
           if not (InvariantCil.var_is_heap k) then
             key_invariant k v
@@ -43,6 +45,10 @@ struct
         in
         Invariant.(a && i)
       ) m Invariant.none
+    | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
+      (try key_invariant k (find k m) with _ -> Invariant.none)
+    | _ -> Invariant.none
+
 end
 
 
