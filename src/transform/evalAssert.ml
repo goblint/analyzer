@@ -38,7 +38,7 @@ module EvalAssert = struct
         try
           let res = (ask loc).f (Queries.Assert (Lval lval)) in
           if Queries.ES.is_bot res then
-            [cInstr ("%v:assert (0);") loc [("assert", Fv !ass)]]
+            []
           else
             let e = Queries.ES.choose res in
             [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]]
