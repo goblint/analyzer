@@ -42,6 +42,7 @@ struct
 
   (** We do not add global state, so just lift from [BS]*)
   module G = P.G
+  module V = VarinfoV
 
   let should_join x y = D.equal x y
 
@@ -50,7 +51,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_offset o)
+    | `Index (Const (CInt (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_offset o)
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -63,7 +64,7 @@ struct
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-    | Index (Const (CInt64 (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_const_offset o)
+    | Index (Const (CInt (i,_,s)),o) -> `Index (IntDomain.of_const (i,Cilfacade.ptrdiff_ikind (),s), conv_const_offset o)
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
@@ -112,16 +113,22 @@ struct
         ls
       else begin
         let nls = Lockset.add (e,rw) ls in
+        let changed = Lockset.compare ls nls <> 0 in
         match lv with
         | None ->
           if may_fail then
             ls
           else (
-            ctx.emit (Events.Lock e);
+            (* If the lockset did not change, do not emit Lock event *)
+            if changed then ctx.emit (Events.Lock e);
             nls
           )
         | Some lv ->
-          ctx.split nls [Events.SplitBranch (Lval lv, nonzero_return_when_aquired); Events.Lock e];
+          let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
+          if changed then
+            ctx.split nls [sb; Events.Lock e]
+          else
+            ctx.split nls [sb];
           if may_fail then (
             let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
             ctx.split ls [Events.SplitBranch (fail_exp, not nonzero_return_when_aquired)]
@@ -138,7 +145,7 @@ struct
 
   let arinc_analysis_activated = ref false
 
-  let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
       (*privatization*)
@@ -148,7 +155,7 @@ struct
             let ls = Lockset.filter snd ctx.local in
             let el = P.effect_fun ~write:w ls in
             ctx.sideg v el
-        | None -> M.warn "Write to unknown address: privatization is unsound."
+        | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       end;
 
       (*partitions & locks*)
@@ -410,9 +417,9 @@ struct
     end;
     ctx.local
 
-  let init () =
-    init ();
-    arinc_analysis_activated := List.exists (fun x -> Json.string x="arinc") (get_list "ana.activated")
+  let init marshal =
+    init marshal;
+    arinc_analysis_activated := List.mem "arinc" (get_string_list "ana.activated")
 
 end
 

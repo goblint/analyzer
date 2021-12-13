@@ -15,7 +15,6 @@ struct
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-  module G = Lattice.Unit
 
   let should_join x y = D.equal x y
 
@@ -24,7 +23,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -47,7 +46,7 @@ struct
       if D.exists (fun x -> List.exists (fun x -> is_prefix_of x v) (Addr.to_var_offset x)) st
       then
         let var = Addr.from_var_offset v in
-        Messages.report ("Possible dereferencing of null on variable '" ^ (Addr.show var) ^ "'.")
+        Messages.warn ~category:Messages.Category.Behavior.Undefined.nullpointer_dereference "Possible dereferencing of null on variable '%a'." Addr.pretty var
     with SetDomain.Unsupported _ -> ()
 
   (* Warn null-lval dereferences, but not normal (null-) lvals*)
@@ -229,7 +228,7 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.empty ()
 
-  let init () =
+  let init marshal =
     set_bool "exp.malloc.fail" true;
     return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end

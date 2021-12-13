@@ -47,7 +47,7 @@ struct
         (* Side effect to the function *)
         ctx.sideg current_fun.svar g
       with e ->
-        M.warn @@ "Warning: TypeCasts " ^ (G.show g) ^ " at node " ^ (Pretty.sprint ~width: 80 (Node.pretty_plain () ctx.node)) ^ " cannot be associated to a function." ;
+        M.warn "Warning: TypeCasts %a at node %a cannot be associated to a function." G.pretty g Node.pretty_plain ctx.node;
     end
 
   let side_effect_casts_lv ctx (lv: lval) =

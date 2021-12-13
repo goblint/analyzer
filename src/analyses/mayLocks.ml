@@ -10,7 +10,6 @@ struct
   let name () = "maylocks"
   module D = LockDomain.MayLockset
   module C = LockDomain.MayLockset
-  module G = Lattice.Unit
 
   (* transfer functions : usual operation just propagates the value *)
   let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
@@ -24,7 +23,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
+    | `Index (Const (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -34,7 +33,7 @@ struct
     match a.f (Queries.MayPointTo exp) with
     | a when not (Queries.LS.is_top a) ->
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | b -> Messages.warn ("Could not evaluate '"^sprint d_exp exp^"' to an points-to set, instead got '"^Queries.LS.show b^"'."); []
+    | b -> Messages.warn "Could not evaluate '%a' to an points-to set, instead got '%a'." d_exp exp Queries.LS.pretty b; []
 
   (* locking logic -- add all locks we can add *)
   let lock ctx rw may_fail return_value_on_success a lv arglist ls : D.ReverseAddrSet.t =

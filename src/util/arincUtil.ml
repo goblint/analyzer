@@ -1,7 +1,7 @@
 open Prelude
 open Cil
-(* we don't want to use M.debug_each because everything here should be done after the analysis, so the location would be some old value for all invocations *)
-let debug_each msg = print_endline @@ Messages.colorize @@ "{blue}"^msg
+(* we don't want to use M.debug because everything here should be done after the analysis, so the location would be some old value for all invocations *)
+let debug_each msg = print_endline @@ MessageUtil.colorize ~fd:Unix.stdout @@ "{blue}"^msg
 
 (* ARINC types and Hashtables for collecting CFG *)
 type resource = Process | Function | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard [@@deriving show { with_path = false }]
@@ -114,7 +114,7 @@ let str_resource id =
   let str_funs fs = "["^(List.map CilType.Varinfo.show fs |> String.concat ", ")^"]" in
   match id with
   | Process, "mainfun" ->
-    "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
+    "mainfun/["^String.concat ", " (GobConfig.get_string_list "mainfun")^"]"
   | Process, name ->
     name^"/"^str_funs @@ funs_for_process id
   | resource_type, name ->
@@ -345,7 +345,7 @@ let save_promela_model () =
       let walk_edges (a, out_edges) =
         let edges = Set.elements out_edges |> List.map str_edge in
         (label a ^ ":") ::
-        if List.length edges > 1 then
+        if List.compare_length_with edges 1 > 0 then
           "if" :: (choice edges) @ ["fi"]
         else
           edges

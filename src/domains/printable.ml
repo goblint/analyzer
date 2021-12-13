@@ -32,6 +32,23 @@ sig
   val relift: t -> t
 end
 
+module Empty: S =
+struct
+  type t = |
+  let equal (x: t) (_: t) = match x with _ -> .
+  let hash (x: t) = match x with _ -> .
+  let compare (x: t) (_: t) = match x with _ -> .
+  let show (x: t) = match x with _ -> .
+  let pretty () (x: t) = match x with _ -> .
+  let printXml _ (x: t) = match x with _ -> .
+  let name () = "empty"
+  let to_yojson (x: t) = match x with _ -> .
+  let invariant _ (x: t) = match x with _ -> .
+  let tag (x: t) = match x with _ -> .
+  let arbitrary () = failwith "Printable.Empty.arbitrary"
+  let relift (x: t) = match x with _ -> .
+end
+
 
 module Std =
 struct
@@ -41,7 +58,7 @@ struct
 
   (* start MapDomain.Groupable *)
   type group = |
-  let show_group (x: group)= match x with _ -> .
+  let show_group (x: group) = match x with _ -> .
   let to_group _ = None
   let trace_enabled = false
   (* end MapDomain.Groupable *)
@@ -50,13 +67,6 @@ struct
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
-end
-
-(* Only include where data is guaranteed to be non-cyclic *)
-module StdPolyCompare =
-struct
-  include Std
-  let compare = compare (* Careful, does not terminate on cyclic data *)
 end
 
 module Blank =
@@ -68,18 +78,14 @@ struct
   let printXml f _ = BatPrintf.fprintf f "<value>\n<data>\nOutput not supported!\n</data>\n</value>\n"
 end
 
-(* Only include where data is guaranteed to be non-cyclic *)
-module BlankPolyCompare =
-struct
-  include Blank
-  let compare = compare (* Careful, does not terminate on cyclic data *)
+
+module type Showable =
+sig
+  type t
+  val show: t -> string
 end
 
-module PrintSimple (P: sig
-    type t'
-    val show: t' -> string
-    val name: unit -> string
-  end) =
+module PrintSimple (P: Showable) =
 struct
   let pretty () x = text (P.show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
@@ -131,7 +137,6 @@ struct
   let name () = "HConsed "^Base.name ()
   let hash x = x.BatHashcons.hcode
   let tag x = x.BatHashcons.tag
-  let equal x y = x.BatHashcons.tag = y.BatHashcons.tag
   let compare x y =  Stdlib.compare x.BatHashcons.tag y.BatHashcons.tag
   let show = lift_f Base.show
   let to_yojson = lift_f (Base.to_yojson)
@@ -232,6 +237,10 @@ struct
     | `Lifted x -> Base.invariant c x
     | `Top | `Bot -> Invariant.none
 
+  let relift x = match x with
+    | `Bot |`Top -> x
+    | `Lifted v -> `Lifted (Base.relift v)
+
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
@@ -274,9 +283,43 @@ struct
   let to_yojson = function
     | `Left x -> `Assoc [ Base1.name (), Base1.to_yojson x ]
     | `Right x -> `Assoc [ Base2.name (), Base2.to_yojson x ]
+
+  let relift = function
+    | `Left x -> `Left (Base1.relift x)
+    | `Right x -> `Right (Base2.relift x)
 end
 
-module Option (Base: S) (N: Name) = Either (Base) (UnitConf (N))
+module Option (Base: S) (N: Name) =
+struct
+  type t = Base.t option [@@deriving eq, ord]
+  include Std
+
+  let hash state =
+    match state with
+    | None -> 7134679
+    | Some n -> 133 * Base.hash n
+
+  let pretty () (state:t) =
+    match state with
+    | None -> text N.name
+    | Some n -> Base.pretty () n
+
+  let show state =
+    match state with
+    | None -> N.name
+    | Some n -> Base.show n
+
+  let name () = Base.name () ^ " option"
+  let printXml f = function
+    | None -> BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape N.name)
+    | Some x -> Base.printXml f x
+
+  let to_yojson = function
+    | None -> `String N.name
+    | Some x -> Base.to_yojson x
+
+  let relift = Option.map Base.relift
+end
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
@@ -304,6 +347,11 @@ struct
     | `Lifted2 n ->  Base2.show n
     | `Bot -> bot_name
     | `Top -> top_name
+
+  let relift x = match x with
+    | `Lifted1 n -> `Lifted1 (Base1.relift n)
+    | `Lifted2 n -> `Lifted2 (Base2.relift n)
+    | `Bot | `Top -> x
 
   let name () = "lifted " ^ Base1.name () ^ " and " ^ Base2.name ()
   let printXml f = function
@@ -403,6 +451,7 @@ struct
 
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 
+  let relift (x,y,z) = (Base1.relift x, Base2.relift y, Base3.relift z)
   let invariant c (x, y, z) = Invariant.(Base1.invariant c x && Base2.invariant c y && Base3.invariant c z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
@@ -419,6 +468,8 @@ struct
 
   let pretty () x = text (show x)
 
+  let relift x = List.map Base.relift x
+
   let name () = Base.name () ^ " list"
   let printXml f xs =
     let rec loop n = function
@@ -430,6 +481,16 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n";
     loop 0 xs;
     BatPrintf.fprintf f "</map>\n</value>\n"
+
+  let common_prefix x y =
+    let rec helper acc x y =
+      match x,y with
+      | x::xs, y::ys when Base.equal x y-> helper (x::acc) xs ys
+      | _ -> acc
+    in
+    List.rev (helper [] x y)
+
+  let common_suffix x y = List.rev (common_prefix (List.rev x) (List.rev y))
 end
 
 module type ChainParams = sig
@@ -481,6 +542,10 @@ struct
   let to_yojson = function
     | `Bot -> `String "⊥"
     | `Lifted n -> Base.to_yojson n
+
+  let relift = function
+    | `Bot -> `Bot
+    | `Lifted n -> `Lifted (Base.relift n)
 end
 
 module LiftTop (Base : S) =
@@ -514,6 +579,10 @@ struct
     | `Top -> `String "⊤"
     | `Lifted n -> Base.to_yojson n
 
+  let relift = function
+    | `Top -> `Top
+    | `Lifted n -> `Lifted (Base.relift n)
+
   let arbitrary () =
     let open QCheck.Iter in
     let shrink = function
@@ -529,8 +598,8 @@ end
 
 module Strings =
 struct
-  type t = string [@@deriving eq, to_yojson]
-  include StdPolyCompare
+  type t = string [@@deriving eq, ord, to_yojson]
+  include Std
   let hash (x:t) = Hashtbl.hash x
   let pretty () n = text n
   let show n = n
@@ -559,7 +628,7 @@ let get_short_list begin_str end_str list =
   let cut_str_list_rev = List.map fst cut_str_pair_list_rev in
 
   let cut_str_list =
-    if ((List.length cut_str_list_rev) < (List.length list)) then
+    if List.compare_lengths cut_str_list_rev list < 0 then
       List.rev (continues::cut_str_list_rev)
     else
       List.rev cut_str_list_rev in

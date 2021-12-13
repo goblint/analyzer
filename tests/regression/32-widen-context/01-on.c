@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --enable exp.widen-context
+// PARAM: --set solver td3 --enable ana.int.interval --enable ana.context.widen
 #include <assert.h>
 
 int f(int x) {

@@ -1,51 +1,20 @@
 open Prelude
 
-let goblint_dirname = ".gob"
-
+let base_directory = ref (Sys.getcwd ()) (* base directory where incremental results are stored *)
+let goblint_dirname = "incremental_data"
 let version_map_filename = "version.data"
-
-let cilFileName = "ast.data"
-
-let src_direcotry = ref ""
-
-let gob_directory () = let src_dir = !src_direcotry in
+let cil_file_name = "ast.data"
+let solver_data_file_name = "solver.data"
+let results_dir = "results"
+let results_tmp_dir = "results_tmp"
+let gob_directory () = let src_dir = !base_directory in
   Filename.concat src_dir goblint_dirname
 
-let current_commit () =
-  Git.current_commit (!src_direcotry)
+let gob_results_dir () =
+  Filename.concat (gob_directory ()) results_dir
 
-let commit_dir src_files commit =
-  let gob_dir = gob_directory src_files in
-  Filename.concat gob_dir commit
-
-let current_commit_dir () = match current_commit () with
-  | Some commit -> (
-      try
-        let gob_dir = gob_directory () in
-        let _path  = Goblintutil.create_dir gob_dir in
-        let dir = Filename.concat gob_dir commit in
-        Some (Goblintutil.create_dir dir)
-      with e -> let error_message = (Printexc.to_string e) in
-        print_newline ();
-        print_string "The following error occurred while creating a directory: ";
-        print_endline error_message;
-        None)
-  | None -> None (* git-directory not clean *)
-
-(** A list of commits previously analyzed for the given src directory *)
-let get_analyzed_commits src_files =
-  let src_dir = gob_directory src_files in
-  Sys.readdir src_dir
-
-let last_analyzed_commit () =
-  try
-    let src_dir = !src_direcotry in
-    let commits = Git.git_log src_dir in
-    let commitList = String.split_on_char '\n' commits in
-    let analyzed = get_analyzed_commits () in
-    let analyzed_set = Set.of_array analyzed in
-    Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
-  with e -> None
+let gob_results_tmp_dir () =
+  Filename.concat (gob_directory ()) results_tmp_dir
 
 let marshal obj fileName  =
   let chan = open_out_bin fileName in
@@ -57,22 +26,34 @@ let unmarshal fileName =
   Marshal.input (open_in_bin fileName)
 
 let results_exist () =
-  last_analyzed_commit () <> None
+  (* If Goblint did not crash irregularly, the existence of the result directory indicates that there are results *)
+  let r = gob_results_dir () in
+  Sys.file_exists r && Sys.is_directory r
 
-let last_analyzed_commit_dir (src_files: string list) =
-  match last_analyzed_commit () with
-  | Some commit -> commit_dir () commit
-  | None -> failwith "No previous analysis results"
+(* Convenience enumeration of the different data types we store for incremental analysis, so file-name logic is concentrated in one place *)
+type incremental_data_kind = SolverData | CilFile | VersionData
 
-let load_latest_cil (src_files: string list) =
-  try
-    let dir = last_analyzed_commit_dir src_files in
-    let cil = Filename.concat dir cilFileName in
-    Some (unmarshal cil)
-  with e -> None
+let type_to_file_name = function
+  | SolverData -> solver_data_file_name
+  | CilFile -> cil_file_name
+  | VersionData -> version_map_filename
 
-let save_cil (file: Cil.file) = match current_commit_dir () with
-  | Some dir ->
-    let cilFile = Filename.concat dir cilFileName in
-    marshal file cilFile
-  | None -> print_endline "Failed saving cil: working directory is dirty"
+(** Loads data for incremental runs from the appropriate file *)
+let load_data (data_type: incremental_data_kind) =
+  let p = Filename.concat (gob_results_dir ()) (type_to_file_name data_type) in
+  unmarshal p
+
+(** Stores data for future incremental runs at the appropriate file, given the data and what kind of data it is. *)
+let store_data (data: 'a) (data_type: incremental_data_kind) =
+  ignore @@ Goblintutil.create_dir (gob_directory ());
+  let d = gob_results_tmp_dir () in
+  ignore @@ Goblintutil.create_dir d;
+  let p = Filename.concat (d) (type_to_file_name data_type) in
+  marshal data p
+
+(** Deletes previous analysis results and moves the freshly created results there.*)
+let move_tmp_results_to_results () =
+  if Sys.file_exists (gob_results_dir ()) then begin
+    Goblintutil.rm_rf (gob_results_dir ());
+  end;
+  Sys.rename (gob_results_tmp_dir ()) (gob_results_dir ())

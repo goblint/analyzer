@@ -21,7 +21,7 @@ let rec listify ofs =
   match ofs with
   | `NoOffset -> []
   | `Field (x,ofs) -> x :: listify ofs
-  | _ -> Messages.bailwith "Indexing not supported here!"
+  | _ -> failwith "Indexing not supported here!"
 
 module Offset (Idx: IntDomain.Z) =
 struct
@@ -230,7 +230,10 @@ struct
     | `Index (v, o) -> "[" ^ Idx.show v ^ "]" ^ short_offs o
 
   let short_addr (x, o) =
-    GU.demangle x.vname ^ short_offs o
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
+      "(" ^ x.vname ^ ", " ^ description ^ ")"
+    else x.vname ^ short_offs o
 
   let show = function
     | Addr x     -> short_addr x
@@ -376,7 +379,7 @@ struct
       | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
       | `Index (v, ofs) -> "[" ^ Idx.show v ^ "]" ^ off_str ofs
     in
-    (if dest then "&" else "") ^ GU.demangle x.vname ^ off_str offs
+    (if dest then "&" else "") ^ x.vname ^ off_str offs
 
   let pretty () x = Pretty.text (show x)
 
@@ -521,7 +524,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
-    | `Index (e,o) -> short_offs o (a^"["^Pretty.sprint 80 (dn_exp () e)^"]")
+    | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
     match x with
@@ -545,7 +548,7 @@ struct
     | `Field (_,o) -> has_index_offs o
   let has_index (v,o) = has_index_offs o
 
-  let show (v,o) = short_offs o (GU.demangle v.vname)
+  let show (v,o) = short_offs o v.vname
 
   let pretty () x = text (show x)
 

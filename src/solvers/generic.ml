@@ -5,99 +5,38 @@ open Analyses
 let write_cfgs : ((MyCFG.node -> bool) -> unit) ref = ref (fun _ -> ())
 
 
-(** Convert a an [IneqConstrSys] into an equation system by joining all right-hand sides. *)
-module SimpleSysConverter (S:IneqConstrSys)
-  : sig include EqConstrSys val conv : S.v -> S.v end
-  with type v = S.v
-   and type d = S.d
-   and module Var = S.Var
-   and module Dom = S.Dom
-=
-struct
-  type v = S.v
-  type d = S.d
+module LoadRunSolver: GenericEqBoxSolver =
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  struct
+    let solve box xs vs =
+      (* copied from Control.solve_and_postprocess *)
+      let solver_file = "solver.marshalled" in
+      let load_run = get_string "load_run" in
+      let solver = Filename.concat load_run solver_file in
+      if get_bool "dbg.verbose" then
+        print_endline ("Loading the solver result of a saved run from " ^ solver);
+      let vh: S.d VH.t = Serialize.unmarshal solver in
+      if get_bool "ana.opt.hashcons" then (
+        let vh' = VH.create (VH.length vh) in
+        VH.iter (fun x d ->
+            let x' = S.Var.relift x in
+            let d' = S.Dom.relift d in
+            VH.replace vh' x' d'
+          ) vh;
+        vh'
+      )
+      else
+        vh
+  end
 
-  module Var = S.Var
-  module Dom = S.Dom
-
-  let increment = S.increment
-
-  let box = S.box
-
-  let conv x = x
-
-  let system x =
-    match S.system x with
-    | [] -> None
-    | r::rs -> Some (fun get set -> List.fold_left (fun d r' -> Dom.join d (r' get set)) (r get set) rs)
-end
-
-(* move this to some other place! *)
-module ExtendInt (B:Analyses.VarType) : Analyses.VarType with type t = B.t * int =
-struct
-  type t = B.t * int
-  let relift x = x
-  let compare ((u1,u2):t) (v1,v2) =
-    match Stdlib.compare u2 v2 with (* cannot derive, compares snd first for efficiency *)
-    | 0 -> B.compare u1 v1
-    | n -> n
-  let equal ((u1,u2):t) (v1,v2) = u2=v2 && B.equal u1 v1 (* cannot derive, compares snd first for efficiency *)
-  let hash (u,v) = B.hash u + 131233 * v
-  let pretty_trace () (u,v:t) =
-    Pretty.dprintf "(%a,%d)" B.pretty_trace u v
-
-  let var_id (c,_) = B.var_id c
-  let printXml f (c,_) = B.printXml f c
-  let node (c,_) = B.node c
-end
-
-
-(** Convert a an [IneqConstrSys] into an equation system. *)
-module NormalSysConverter (S:IneqConstrSys)
-  : sig include EqConstrSys val conv : S.v -> (S.v * int) end
-  with type v = S.v * int
-   and type d = S.d
-   and module Var = ExtendInt (S.Var)
-   and module Dom = S.Dom
-=
-struct
-  type v = S.v * int
-  type d = S.d
-
-  module Var = ExtendInt (S.Var)
-  module Dom = S.Dom
-
-  let increment = S.increment
-
-  let box (x,n) = S.box x
-
-  let conv x = (x,-1)
-
-  let system (x,n) : ((v -> d) -> (v -> d -> unit) -> d) option =
-    let fold_left1 f xs =
-      match xs with
-      | [] -> failwith "You promised!!!"
-      | x::xs -> List.fold_left f x xs
-    in
-    match S.system x with
-    | []           -> None
-    | [f] when n=0 -> Some (fun get set -> f (get % conv) (set % conv))
-    | xs when n=(-1) ->
-      let compute get set =
-        fold_left1 Dom.join (List.mapi (fun n _ -> get (x,n)) xs)
-      in
-      Some compute
-    | xs ->
-      try Some (fun get set -> List.at xs n (get % conv) (set % conv))
-      with Invalid_argument _ -> None
-end
-
+module LoadRunIncrSolver: GenericEqBoxIncrSolver =
+  Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
 
 
 module SolverInteractiveWGlob
     (S:Analyses.GlobConstrSys)
-    (LH:Hash.H with type key=S.LVar.t)
-    (GH:Hash.H with type key=S.GVar.t) =
+    (LH:Hashtbl.S with type key=S.LVar.t)
+    (GH:Hashtbl.S with type key=S.GVar.t) =
 struct
   open S
   open Printf
@@ -140,12 +79,16 @@ struct
 
   let warning_id = ref 1
   let writeXmlWarnings () =
-    let one_text f (m,l) =
-      fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column m
+    let one_text f Messages.Piece.{loc; text = m; _} =
+      match loc with
+      | Some l ->
+        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
+      | None ->
+        () (* TODO: not outputting warning without location *)
     in
-    let one_w f = function
-      | `text (m,l)  -> one_text f (m,l)
-      | `group (n,e) ->
+    let one_w f (m: Messages.Message.t) = match m.multipiece with
+      | Single piece  -> one_text f piece
+      | Group {group_text = n; pieces = e} ->
         fprintf f "<group name=\"%s\">%a</group>\n" n (List.print ~first:"" ~last:"" ~sep:"" one_text) e
     in
     let one_w x f = fprintf f "\n<warning>%a</warning>" one_w x in
@@ -155,7 +98,7 @@ struct
       incr warning_id;
       File.with_file_out ~mode:[`create;`excl;`text] full_name (one_w x)
     in
-    List.iter write_warning !Messages.warning_table
+    List.iter write_warning !Messages.Table.messages_list
 
   module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end)
   let funs = SSH.create 100
@@ -197,8 +140,8 @@ struct
       NH.iter (fun v () -> fprintf f "%a</call>\n" Var.printXml v) updated_l;
       GH.iter (fun v () -> fprintf f "<global>\n%a</global>\n" GVar.printXml v) updated_g;
       let g n _ = fprintf f "<warning warn=\"warn%d\" />\n" (n + !warning_id) in
-      List.iteri g !Messages.warning_table;
-      (* List.iter write_warning !Messages.warning_table *)
+      List.iteri g !Messages.Table.messages_list;
+      (* List.iter write_warning !Messages.messages_list *)
       fprintf f "</updates>\n";
     in
     File.with_file_out ~mode:[`excl;`create;`text] full_name write_updates
@@ -254,7 +197,7 @@ struct
       write_all hl hg
 end
 
-module SolverStats (S:EqConstrSys) (HM:Hash.H with type key = S.v) =
+module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct
   open S
   open Messages
@@ -371,7 +314,7 @@ end
 (** use this if your [box] is [join] --- the simple solver *)
 module DirtyBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 
@@ -445,7 +388,7 @@ module DirtyBoxSolver : GenericEqBoxSolver =
 (* use this if you do widenings & narrowings (but no narrowings for globals) --- maybe outdated *)
 module SoundBoxSolverImpl =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 
@@ -519,7 +462,7 @@ module SoundBoxSolverImpl =
           H.remove infl x;
           H.replace infl x [x];
           if full_trace
-          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps);
+          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: semgrep.trace-not-in-tracing *)
           (* solve all dependencies *)
           solve_all deps
         end
@@ -546,7 +489,7 @@ module SoundBoxSolver : GenericEqBoxSolver = SoundBoxSolverImpl
 (* use this if you do widenings & narrowings for globals --- outdated *)
 module PreciseSideEffectBoxSolver : GenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   struct
     include SolverStats (S) (H)
 

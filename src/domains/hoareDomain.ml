@@ -27,6 +27,11 @@ struct
       | [] -> [e]
       | x::xs -> try op e x :: xs with Lattice.Uncomparable -> x :: join op e xs
 
+    (* widen element e with bucket using op *)
+    let rec widen op e = function
+      | [] -> []
+      | x::xs -> try if E.leq e x then [op e x] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *)
+
     (* meet element e with bucket using op *)
     let rec meet op e = function
       | [] -> []
@@ -64,6 +69,15 @@ struct
           if r = [] then None else Some r
         | _ -> None
       ) x y
+  let merge_widen f x y =
+    Map.merge (fun i a b -> match a, b with
+        | Some a, Some b ->
+          let r = List.concat @@ List.map (fun x -> B.widen f x b) a in (* a, b switched compared to merge_meet to ensure correct order of widen arguments inside B.widen *)
+          let r = List.fold_left (fun r x -> B.join E.join x r) r b in (* join b per bucket *)
+          if r = [] then None else Some r
+        | None, Some b -> Some b (* join b per bucket *)
+        | _ -> None
+      ) x y
 
   (* join all elements from the smaller map into their bucket in the other one.
    * this doesn't need to go over all elements of both maps as the general merge above. *)
@@ -72,9 +86,9 @@ struct
     List.fold_left (flip (B.merge_element (B.join f))) y (elements x)
 
   let join   x y = merge_join E.join x y
-  let widen  x y = merge_join E.widen x y
+  let widen  x y = merge_widen E.widen x y
   let meet   x y = merge_meet E.meet x y
-  let narrow x y = merge_meet E.narrow x y
+  let narrow x y = merge_meet E.narrow x y (* TODO: fix narrow like widen? see Set *)
 
   (* Set *)
   let of_list_by f es = List.fold_left (flip (B.merge_element (B.join f))) Map.empty es
@@ -289,15 +303,21 @@ struct
     let a,b = elements a, elements b in
     List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
   (* why are type annotations needed for product_widen? *)
+  (* TODO: unused now *)
   let product_widen op op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
     List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
+  let product_widen2 op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
+    let xs,ys = elements a, elements b in
+    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) ys) xs |> List.flatten |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
   (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
   (* TODO: move PathSensitive3-specific narrow out of HoareMap *)
   let narrow = product_bot2 (fun (x, xr) (y, yr) -> if SpecD.leq y x then (SpecD.narrow x y, yr) else (x, xr))
-  let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
+  (* let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen *)
+  (* TODO: move PathSensitive3-specific widen out of HoareMap *)
+  let widen = product_widen2 (fun (x, xr) (y, yr) -> if SpecD.leq x y then (SpecD.widen x y, yr) else (y, yr)) (* TODO: is this right now? *)
 
   (* TODO: shouldn't this also reduce? *)
   let apply_list f s = elements s |> f |> of_list

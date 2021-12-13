@@ -3,6 +3,8 @@ open Cil
 open Pretty
 open GobConfig
 
+module M = Messages
+
 (* Some helper functions to avoid flagging race warnings on atomic types, and
  * other irrelevant stuff, such as mutexes and functions. *)
 
@@ -338,7 +340,7 @@ let add_propagate e w conf ty ls p =
     let fi =
       match f with
       | `Field (fi,_) -> fi
-      | _ -> Messages.bailwith "add_propagate: no field found"
+      | _ -> failwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
@@ -484,35 +486,6 @@ let is_all_safe () =
   !safe
 
 
-let print_races_oldscool () =
-  let allglobs = get_bool "allglobs" in
-  let k ls (conf,w,loc,e,lp) =
-    let wt = if w then "write" else "read" in
-    match ls with
-    | Some ls ->
-      sprint 80 (dprintf "%s by ??? %a and lockset: %a" wt LSSet.pretty ls LSSet.pretty lp), loc
-    | None ->
-      sprint 80 (dprintf "%s by ??? ⊥ and lockset: %a" wt LSSet.pretty lp), loc
-  in
-  let g ty lv ls (accs,lp) (s,xs) =
-    let nxs  = Set.fold (fun e xs -> (k ls e) :: xs) accs xs in
-    let safe = s && not (partition_race ls (accs,lp)) in
-    (safe, nxs)
-  in
-  let h ty lv ht =
-    let safe, xs = PartOptHash.fold (g ty lv) ht (true, []) in
-    let groupname =
-      if safe then
-        sprint 80 (dprintf "Safely accessed %a (reasons ...)" d_memo (ty,lv))
-      else
-        sprint 80 (dprintf "Datarace at %a" d_memo (ty,lv))
-    in
-    if not safe || allglobs then
-      Messages.print_group groupname xs
-  in
-  let f ty = LvalOptHash.iter (h ty) in
-  TypeHash.iter f accs
-
 (* Commenting your code is for the WEAK! *)
 let print_summary () =
   let safe       = ref 0 in
@@ -538,92 +511,47 @@ let print_summary () =
 let print_accesses () =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  let g ls (acs,_) =
+  let g (ls, (acs,_)) =
     let h (conf,w,loc,e,lp) =
       let d_ls () = match ls with
-        | None -> Pretty.text " is ok"
+        | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
         | Some ls when LSSet.is_empty ls -> nil
         | Some ls -> text " in " ++ LSSet.pretty () ls
       in
       let atyp = if w then "write" else "read" in
-      ignore (printf "  %s@@%a%t with %a (conf. %d)" atyp d_loc loc
-                d_ls LSSet.pretty lp conf);
-      if debug then
-        ignore (printf "  (exp: %a)\n" d_exp e)
-      else
-        ignore (printf "\n")
+      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
+      let doc =
+        if debug then
+          dprintf "%t  (exp: %a)" d_msg d_exp e
+        else
+          d_msg ()
+      in
+      (doc, Some loc)
     in
-    Set.iter h acs
+    Set.enum acs
+    |> Enum.map h
   in
   let h ty lv ht =
+    let msgs () =
+      PartOptHash.enum ht
+      |> Enum.concat_map g
+      |> List.of_enum
+    in
     match PartOptHash.fold check_safe ht None with
     | None ->
-      if allglobs then begin
-        ignore(printf "Memory location %a (safe)\n" d_memo (ty,lv));
-        PartOptHash.iter g ht
-      end
+      if allglobs then
+        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
     | Some n ->
-      ignore(printf "Memory location %a (race with conf. %d)\n" d_memo (ty,lv) n);
-      PartOptHash.iter g ht
+      M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
   in
   let f ty ht =
     LvalOptHash.iter (h ty) ht
   in
   TypeHash.iter f accs
 
-(* TODO: this races xml output is unused, remove? *)
-let print_accesses_xml () =
-  let allglobs = get_bool "allglobs" in
-  let g ls (acs,_) =
-    let h (conf,w,loc,e,lp) =
-      let atyp = if w then "write" else "read" in
-      BatPrintf.printf "  <access type=\"%s\" loc=\"%s\" conf=\"%d\">\n"
-        atyp (CilType.Location.show loc) conf;
-
-      let d_lp f (t,id) = BatPrintf.fprintf f "type=\"%s\" id=\"%s\"" t id in
-
-      let _ = match ls with
-        | None -> print_endline "    <partitions status=\"safe\" />"
-        (*| Some ls when LSSet.is_empty ls ->  print_endline "    <partitions status=\"none\" />" *)
-        | Some ls ->
-          print_endline "    <partitions>";
-          LSSet.iter (BatPrintf.printf "      <part %a />\n" d_lp) ls;
-          print_endline "    </partitions>";
-      in
-
-      print_endline "    <protectors>";
-      LSSet.iter (BatPrintf.printf "      <prot %a />\n" d_lp) lp;
-      print_endline "    </protectors>";
-      print_endline "  </access>"
-    in
-    Set.iter h acs
-  in
-  let h ty lv ht =
-    let memo = sprint ~width:0 (d_memo () (ty,lv)) in
-    match PartOptHash.fold check_safe ht None with
-    | None ->
-      if allglobs then begin
-        BatPrintf.printf "<mem id=\"%s\" status=\"safe\">\n" memo;
-        PartOptHash.iter g ht;
-        print_endline "</mem>"
-      end
-    | Some n ->
-      BatPrintf.printf "<mem id=\"%s\" status=\"race\" conf=\"%d\">\n" memo n;
-      PartOptHash.iter g ht;
-      print_endline "</mem>"
-  in
-  let f ty ht =
-    LvalOptHash.iter (h ty) ht
-  in
-  print_endline "<warnings>";
-  TypeHash.iter f accs;
-  print_endline "</warnings>"
 
 let print_result () =
-  if !some_accesses then
-    match get_string "warnstyle" with
-    | "legacy" -> print_races_oldscool ()
-    | "xml" -> print_accesses_xml ()
-    | _ ->
-      print_accesses ();
-      print_summary ()
+  if !some_accesses then (
+    print_accesses ();
+    print_summary ()
+  )

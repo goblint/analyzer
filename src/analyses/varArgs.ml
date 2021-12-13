@@ -13,6 +13,7 @@ struct
   module D = Lattice.Unit
   module G = TypeSet (* Set of types that are extracted from varargs within a function *)
   module C = Lattice.Unit
+  module V = Analyses.VarinfoV
 
   let builtin_va_arg_str =  "__builtin_va_arg"
 
@@ -39,11 +40,11 @@ struct
     let current_fun = (Node.find_fundec ctx.node).svar in
     (if f.vname = builtin_va_arg_str then
       if List.length args <> 3 then
-        M.warn @@ "Unexpected number of arguments to " ^ builtin_va_arg_str ^ ". Length was:" ^ (string_of_int (List.length args))
+        M.warn "Unexpected number of arguments to %s. Length was: %i"  builtin_va_arg_str (List.length args)
       else begin
         match List.nth args 1 with
         | SizeOf t -> ctx.sideg current_fun (TypeSet.singleton t)
-        | _ ->  M.warn @@ "Unexpected argument to " ^ builtin_va_arg_str ^ ".";
+        | _ ->  M.warn "Unexpected argument to %s." builtin_va_arg_str;
       end);
     ctx.local
 

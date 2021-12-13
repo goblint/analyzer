@@ -1,6 +1,9 @@
 (** Abstract Domains for integers. These are domains that support the C
   * operations on integer values. *)
 
+val should_wrap: Cil.ikind -> bool
+val should_ignore_overflow: Cil.ikind -> bool
+
 module type Arith =
 sig
   type t
@@ -267,6 +270,8 @@ sig
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
+
+  val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -293,6 +298,8 @@ sig
   val ending     : Cil.ikind -> int_t -> t
 
   val is_top_of: Cil.ikind -> t -> bool
+
+  val project: PrecisionUtil.precision -> t -> t
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
@@ -316,7 +323,7 @@ module IntDomTuple : sig
   val no_interval: t -> t
 end
 
-val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
+val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t
 
 
 module Size : sig

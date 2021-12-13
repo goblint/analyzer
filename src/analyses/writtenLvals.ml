@@ -24,12 +24,13 @@ struct
   module Map = BaseDomain.LvalMap
   module G = Lattice.Prod (B.G) (Map)
   module C = B.C
+  module V = B.V
 
   let project_first (f: ('a -> ('b * 'c))) = function x -> fst (f x)
 
   let project_side sideg = function x -> function v -> sideg x (v, Map.bot ())
 
-  let project_ctx (ctx: (D.t, G.t, C.t) ctx) : (D.t, B.G.t, C.t) ctx =
+  let project_ctx ctx =
     {ctx with global = project_first ctx.global; sideg = project_side ctx.sideg}
 
   let init = B.init
@@ -39,9 +40,9 @@ struct
   let event ctx e fctx = B.event (project_ctx ctx) e (project_ctx fctx)
   let sync ctx = B.sync (project_ctx ctx)
   let context = B.context
-  let val_of = B.val_of
+  (* let val_of = B.val_of *)
 
-  let side_to_f (ctx: ('a, G.t, 'b) ctx) (side: Map.t) =
+  let side_to_f (ctx: ('a, G.t, 'b, V.t) ctx) (side: Map.t) =
     let get_current_fun () = Option.map Node.find_fundec !MyCFG.current_node in
     let f = get_current_fun () in
     match f with
@@ -52,10 +53,10 @@ struct
   (* Returns the set of argument and global vars within the set of lvalues *)
   let filter_outer_vars ctx (s: Q.LS.t): Q.LS.t = Q.LS.filter (fun (v,offset) -> v.vglob && not (is_allocated_var ctx v)) s
 
-  let add_written_lval (ctx: ('a, G.t, 'b) ctx) (lval:lval) (v: VD.t): unit =
+  let add_written_lval (ctx: ('a, G.t, 'b, V.t) ctx) (lval:lval) (v: VD.t): unit =
     (* If we write to a top address, we warn here *)
     let query_may_point_to_handle_top e = match ctx.ask (Q.MayPointTo e) with
-      | `Top -> M.warn @@ "Write to top address occurs in expression " ^ (Pretty.sprint ~width:100 (Cil.d_exp () e)) ^ "\n"; LS.bot ()
+      | `Top -> M.warn "Write to top address occurs in expression %a\n" Cil.d_exp e; LS.bot ()
       | s -> s
     in
     let written = match lval with
@@ -84,7 +85,7 @@ struct
     if M.tracing then M.tracel "written" "Map has value %a, for lval %a in state %a\n" Map.pretty side Cil.d_lval lval B.D.pretty ctx.local;
     side_to_f ctx side
 
-  let add_written_lval_with_exp (ctx: ('a, G.t, 'b) ctx) (lval:lval) (exp: exp): unit =
+  let add_written_lval_with_exp (ctx: ('a, G.t, 'b, V.t) ctx) (lval:lval) (exp: exp): unit =
     let value = B.eval_rv (Analyses.ask_of_ctx ctx) (project_first ctx.global) ctx.local exp in
     if M.tracing then M.tracel "written" "Got value %a, for expression %a in state %a\n" VD.pretty value Cil.d_exp exp B.D.pretty ctx.local;
     add_written_lval ctx lval value

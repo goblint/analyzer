@@ -21,17 +21,16 @@ end
 
 module PrintableChar =
 struct
-  type t = char [@@deriving eq, to_yojson]
+  type t = char [@@deriving eq, ord, to_yojson]
   let name () = "char"
   let show x = String.make 1 x
 
   module P =
   struct
-    type t' = t
-    let name = name
+    type nonrec t = t
     let show = show
   end
-  include Printable.StdPolyCompare
+  include Printable.Std
   include Printable.PrintSimple (P)
 
   let hash = Char.code

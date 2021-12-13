@@ -1,3 +1,4 @@
+open Prelude
 open Unix
 
 let buff_size = 1024
@@ -27,10 +28,6 @@ let exec_command ?path (command: string) =
     Sys.chdir current_dir;
     (exit_code, output)
 
-let string_of_process_status = function
-  | WEXITED n -> "terminated with exit code " ^ string_of_int n
-  | WSIGNALED n -> "was killed by signal " ^ string_of_int n
-  | WSTOPPED n -> "was stopped by signal " ^ string_of_int n
 
 (* BFS for a file with a given suffix in a directory or any subdirectoy *)
 let find_file_by_suffix (dir: string) (file_name_suffix: string) =
@@ -47,27 +44,49 @@ let find_file_by_suffix (dir: string) (file_name_suffix: string) =
   in
   search dir (list_files dir)
 
-let run_cilly (path: string) =
+(* Delete all *_comb.c files in the directory *)
+let remove_comb_files path =
+  try
+    while true do
+      let comb = find_file_by_suffix path comb_suffix in
+      if GobConfig.get_bool "dbg.verbose" then print_endline ("deleting " ^ comb);
+      Sys.remove comb;
+    done
+  with Failure e -> ()
+
+let run_cilly (path: string) ~all_cppflags =
   if Sys.file_exists path && Sys.is_directory path then (
     (* We need to `make clean` if `make` was run manually, otherwise it would say there is nothing to do and cilly would not be run and no combined C file would be created. *)
     let _ = exec_command ~path "make clean" in
-    (try
-       while true do
-         let comb = find_file_by_suffix path comb_suffix in
-         if GobConfig.get_bool "dbg.verbose" then print_endline ("deleting " ^ comb);
-         Sys.remove comb;
-       done
-     with Failure e -> ()); (* Deleted all *_comb.c files in the directory *)
+    remove_comb_files path;
     (* Combine source files with make using cilly as compiler *)
     let gcc_path = GobConfig.get_string "exp.gcc_path" in
-    let command = ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" " ^
+    let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" CFLAGS+=" ^ String.join " " (List.map Filename.quote all_cppflags) ^ " " ^
                                                   "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
-    print_endline @@ "Trying to build project in directory: " ^ path;
-    print_endline command;
-    let (exit_code, output) = exec_command ~path command in
-
     print_string output;
     (* fail if make failed *)
     if exit_code <> WEXITED 0 then
-      failwith ("Failed combining files. Make " ^ (string_of_process_status exit_code) ^ ".")
+      failwith ("Failed combining files. Make was " ^ (GobUnix.string_of_process_status exit_code) ^ ".")
   )
+
+let generate_and_combine makefile ~all_cppflags =
+  let path = Filename.dirname makefile in
+  (* make sure the Makefile exists or try to generate it *)
+  if not (Sys.file_exists makefile) then (
+    print_endline ("Given " ^ makefile ^ " does not exist! Try to generate it.");
+    let configure = ("configure", "./configure", Filename.concat path "configure") in
+    let autogen = ("autogen", "sh autogen.sh && ./configure", Filename.concat path "autogen.sh") in
+    let exception MakefileNotGenerated in
+    let generate_makefile_with (name, command, file) = if Sys.file_exists file then (
+        print_endline ("Trying to run " ^ name ^ " to generate Makefile");
+        let exit_code, output = exec_command ~path command in
+        print_endline (command ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
+        if not (Sys.file_exists makefile) then raise MakefileNotGenerated
+      ); raise MakefileNotGenerated in
+    try generate_makefile_with configure
+    with MakefileNotGenerated ->
+    try generate_makefile_with autogen
+    with MakefileNotGenerated -> failwith ("Could neither find given " ^ makefile ^ " nor generate it - abort!");
+  );
+  run_cilly path ~all_cppflags;
+  find_file_by_suffix path comb_suffix

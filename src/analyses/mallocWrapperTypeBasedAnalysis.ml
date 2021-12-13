@@ -80,7 +80,7 @@ struct
         match ctx.node with
           | Node.Statement s -> (match s.skind with
             Instr [i] -> (match i with
-              | Set (_,e,_) -> Some e
+              | Set (_,e,_, _) -> Some e
               | _ -> None)
             | _ -> None)
           | _ -> None
@@ -99,9 +99,11 @@ struct
       Hashtbl.mem heap_vars v.vid || Hashtbl.mem arg_vars v.vid
     | _ -> Q.Result.top q
 
-    let init () =
-      Hashtbl.clear heap_hash;
-      Hashtbl.clear heap_vars
+    let init = function
+      | Some _ ->
+          Hashtbl.clear heap_hash;
+          Hashtbl.clear heap_vars
+      | None -> ()
 end
 
 let _ =

@@ -1,9 +1,20 @@
 open Prelude
+open PrecCompareUtil
 
-module LVH = Hashtbl.Make (Printable.Prod (CilType.Location) (Basetype.Variables))
-module VD = BaseDomain.VD
+module LV =
+struct
+  include Printable.Prod (CilType.Location) (Basetype.Variables)
+  let name () = "location variables"
+  type marshal = t
+  let pretty () (l, v) = Pretty.dprintf "%a %a" CilType.Location.pretty l Basetype.Variables.pretty v
+  let to_location = fst
+end
 
-type dump = {
-  name: string;
-  lvh: VD.t LVH.t;
-}
+module Util =
+struct
+  include Util (LV) (BaseDomain.VD)
+  let init () =
+    Cil.initCIL (); (* ValueDomain.Compound.leq depends on ptrdiffType initialization *)
+end
+
+include Util

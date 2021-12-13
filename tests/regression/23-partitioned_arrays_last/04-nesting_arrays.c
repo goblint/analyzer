@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --sets exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']"
+// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none
 struct kala {
   int i;
   int a[5];

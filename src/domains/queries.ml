@@ -76,7 +76,7 @@ type _ t =
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
-  | CurrentThreadId: VI.t t
+  | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
   | WrittenLvals: varinfo -> LS.t t
@@ -94,10 +94,14 @@ type _ t =
   | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | ArgVarTyp: typ -> VI.t t
-  | IsHeapVar: varinfo -> MustBool.t t (* TODO: is may or must? *)
   | IsAllocatedVar: varinfo -> MustBool.t t
   | TypeCasts: varinfo -> TypeCastMap.t t
   | VarArgSet: varinfo -> TypeSetTopped.t t
+  | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
+  | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
+  | EvalThread: exp -> ConcDomain.ThreadSet.t t
+  | CreatedThreads: ConcDomain.ThreadSet.t t
+  | MustJoinedThreads: ConcDomain.MustThreadSet.t t
 
 type 'a result = 'a
 
@@ -140,7 +144,7 @@ struct
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
     | BlobSize _ -> (module ID)
-    | CurrentThreadId -> (module VI)
+    | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
     | ArgVarTyp _ -> (module VI)
     | EvalStr _ -> (module SD)
@@ -150,6 +154,10 @@ struct
     | PartAccess _ -> (module PartAccessResult)
     | TypeCasts _ -> (module TypeCastMap)
     | VarArgSet _ -> (module TypeSetTopped)
+    | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
+    | EvalThread _ -> (module ConcDomain.ThreadSet)
+    | CreatedThreads ->  (module ConcDomain.ThreadSet)
+    | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -191,7 +199,7 @@ struct
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
     | BlobSize _ -> ID.top ()
-    | CurrentThreadId -> VI.top ()
+    | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
     | ArgVarTyp _ -> VI.top ()
     | EvalStr _ -> SD.top ()
@@ -201,6 +209,10 @@ struct
     | PartAccess _ -> PartAccessResult.top ()
     | TypeCasts _ -> TypeCastMap.top ()
     | VarArgSet _ -> TypeSetTopped.top  ()
+    | IsMultiple _ -> MustBool.top ()
+    | EvalThread _ -> ConcDomain.ThreadSet.top ()
+    | CreatedThreads -> ConcDomain.ThreadSet.top ()
+    | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -250,6 +262,10 @@ struct
       | Any (IsAllocatedVar _) -> 33
       | Any (TypeCasts _) -> 34
       | Any (VarArgSet _) -> 35
+      | Any (IsMultiple _) -> 31
+      | Any (EvalThread _) -> 32
+      | Any CreatedThreads -> 33
+      | Any MustJoinedThreads -> 34
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -287,6 +303,8 @@ struct
       | Any (IsAllocatedVar v1), Any (IsAllocatedVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (TypeCasts v1), Any (TypeCasts v2)-> CilType.Varinfo.compare v1 v2
       | Any (VarArgSet v1), Any (VarArgSet v2) -> CilType.Varinfo.compare v1 v2
+      | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
+      | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end

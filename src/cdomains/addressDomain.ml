@@ -5,6 +5,7 @@ open IntOps
 let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
+module M = Messages
 
 module type S =
 sig
@@ -27,6 +28,12 @@ struct
   module Addr = Lval.NormalLat (Idx)
   include HoareDomain.HoarePO (Addr)
 
+  let widen x y =
+    if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
+    let r = widen x y in
+    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
+
   type field = Addr.field
   type idx = Idx.t
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
@@ -40,6 +47,7 @@ struct
   let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
   let is_null x      = is_element Addr.NullPtr x
   let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
+  let may_be_null x = exists (fun e -> e = Addr.NullPtr) x
   let to_bool x      = if is_null x then Some false else if is_not_null x then Some true else None
   let has_unknown x  = mem Addr.UnknownPtr x
 

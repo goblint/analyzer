@@ -1,11 +1,15 @@
 open Pretty
 open Cil
 open GobConfig
+open FlagHelper
 
 module M = Messages
 module A = Array
 module Q = Queries
 module BI = IntOps.BigIntOps
+
+module LiftExp = Printable.Lift (CilType.Exp) (Printable.DefaultNames)
+
 module type S =
 sig
   include Lattice.S
@@ -294,8 +298,10 @@ struct
   let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
+    if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pretty x LiftExp.pretty i Val.pretty a;
     if i = `Lifted MyCFG.all_array_index_exp then
       (assert !Goblintutil.global_initialization; (* just joining with xm here assumes that all values will be set, which is guaranteed during inits *)
+       (* the join is needed here! see e.g 30/04 *)
       let r =  Val.join xm a in
       (Expp.top(), (r, r, r)))
     else
@@ -458,6 +464,7 @@ struct
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | `Lifted e1e, `Lifted e2e ->
       if get_string "exp.partition-arrays.keep-expr" = "last" || get_bool "exp.partition-arrays.smart-join" then
+        let op = Val.join in (* widen between different components isn't called validly *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
         let e1e_in_state_of_x2 = x2_eval_int e1e in
@@ -560,11 +567,46 @@ struct
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
-  let meet a b = normalize @@ meet a b
-  let narrow a b = normalize @@ narrow a b
+  let meet (e1,v1) (e2,v2) = normalize @@
+    match e1,e2 with
+    | `Lifted e1e, `Lifted e2e when not (Basetype.CilExp.equal e1e e2e) ->
+      (* partitioned according to two different expressions -> meet can not be element-wise *)
+      (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+      (* TODO: do smart things if the relationship between e1e and e2e is known *)
+      (e1,v1)
+    | _ -> meet (e1,v1) (e2,v2)
+
+  let narrow (e1,v1) (e2,v2) = normalize @@
+    match e1,e2 with
+    | `Lifted e1e, `Lifted e2e when not (Basetype.CilExp.equal e1e e2e) ->
+      (* partitioned according to two different expressions -> narrow can not be element-wise *)
+      (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+      (* TODO: do smart things if the relationship between e1e and e2e is known *)
+      (e1,v1)
+    | _ -> narrow (e1,v1) (e2,v2)
 
   let update_length _ x = x
 end
+(* This is the main array out of bounds check *)
+let array_oob_check ( type a ) (module Idx: IntDomain.Z with type t = a) (x, l) (e, v) =
+  if GobConfig.get_bool "ana.arrayoob" then (* The purpose of the following 2 lines is to give the user extra info about the array oob *)
+    let idx_before_end = Idx.to_bool (Idx.lt v l) (* check whether index is before the end of the array *)
+    and idx_after_start = Idx.to_bool (Idx.ge v (Idx.of_int Cil.ILong BI.zero)) in (* check whether the index is non-negative *)
+    (* For an explanation of the warning types check the Pull Request #255 *)
+    match(idx_after_start, idx_before_end) with
+    | Some true, Some true -> (* Certainly in bounds on both sides.*)
+      ()
+    | Some true, Some false -> (* The following matching differentiates the must and may cases*)
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "Must access array past end"
+    | Some true, None ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.past_end "May access array past end"
+    | Some false, Some true ->
+      M.error ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "Must access array before start"
+    | None, Some true ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.before_start "May access array before start"
+    | _ ->
+      M.warn ~category:M.Category.Behavior.Undefined.ArrayOutOfBounds.unknown "May access array out of bounds"
+  else ()
 
 
 module TrivialWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
@@ -573,7 +615,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get (ask: Q.ask) (x ,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
@@ -609,7 +654,10 @@ struct
   include Lattice.Prod (Base) (Idx)
   type idx = Idx.t
   type value = Val.t
-  let get ask (x,l) i = Base.get ask x i (* TODO check if in-bounds *)
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
   let make l x = Base.make l x, l
   let length (_,l) = Some l
@@ -655,46 +703,13 @@ struct
 
   type idx = Idx.t
   type value = Val.t
-  type t = P.t option * T.t option
 
-  let invariant _ _ = Invariant.none
-  let tag _ = failwith "FlagConfiguredArrayDomain: no tag"
-  let arbitrary () = failwith "FlagConfiguredArrayDomain: no arbitrary"
-
-  (* Helpers *)
-  let binop opp opt (p1,t1) (p2,t2) = match (p1, t1),(p2, t2) with
-    | (Some p1, None), (Some p2, None) -> opp p1 p2
-    | (None, Some t1), (None, Some t2) -> opt t1 t2
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  let binop_to_t opp opt (p1,t1) (p2,t2)= match (p1, t1),(p2, t2) with
-    | (Some p1, None), (Some p2, None) -> (Some (opp p1 p2), None)
-    | (None, Some t1), (None, Some t2) -> (None, Some(opt t1 t2))
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  let unop opp opt (p,t) = match (p, t) with
-    | (Some p, None) -> opp p
-    | (None, Some t) -> opt t
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  let unop_to_t opp opt (p,t) = match (p, t) with
-    | (Some p, None) -> (Some (opp p), None)
-    | (None, Some t) -> (None, Some(opt t))
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+  include LatticeFlagHelper(P)(T)(struct
+      let msg = "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+      let name = "FlagConfiguredArrayDomain"
+    end)
 
   (* Simply call appropriate function for component that is not None *)
-  let equal = binop P.equal T.equal
-  let hash = unop P.hash T.hash
-  let compare = binop P.compare T.compare
-  let show = unop P.show T.show
-  let pretty () = unop (P.pretty ()) (T.pretty ())
-  let leq = binop P.leq T.leq
-  let join = binop_to_t P.join T.join
-  let meet = binop_to_t P.meet T.meet
-  let widen = binop_to_t P.widen T.widen
-  let narrow = binop_to_t P.narrow T.narrow
-  let is_top = unop P.is_top T.is_top
-  let is_bot = unop P.is_bot T.is_bot
   let get a x (e,i) = unop (fun x ->
         if e = `Top then
           let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
@@ -712,18 +727,9 @@ struct
   let smart_join f g = binop_to_t (P.smart_join f g) (T.smart_join f g)
   let smart_widen f g = binop_to_t (P.smart_widen f g) (T.smart_widen f g)
   let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
-
-  let printXml f = unop (P.printXml f) (T.printXml f)
-  let to_yojson = unop (P.to_yojson) (T.to_yojson)
-
   let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 
-  let pretty_diff () ((p1,t1),(p2,t2)) = match (p1, t1),(p2, t2) with
-    | (Some p1, None), (Some p2, None) -> P.pretty_diff () (p1, p2)
-    | (None, Some t1), (None, Some t2) -> T.pretty_diff () (t1, t2)
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-
-  (* Functions that make us of the configuration flag *)
+  (* Functions that make use of the configuration flag *)
   let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "exp.partition-arrays.enabled" then P.name () else T.name ()
 
   let partition_enabled () = get_bool "exp.partition-arrays.enabled"
@@ -745,6 +751,4 @@ struct
       (Some (P.make i v), None)
     else
       (None, Some (T.make i v))
-
-  let relift = unop_to_t P.relift T.relift
 end

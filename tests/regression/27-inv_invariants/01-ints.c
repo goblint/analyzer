@@ -1,5 +1,5 @@
-// PARAM: --enable ana.int.interval --enable ana.int.wrap_on_signed_overflow
-// With enabled wrap_on_signed_overflow to assume two's complement representation for signed ints and don't go to top on every signed overflow.
+// PARAM: --enable ana.int.interval --set sem.int.signed_overflow assume_wraparound
+// With sem.int.signed_overflow set to assume_wraparound to assume two's complement representation for signed ints and don't go to top on every signed overflow.
 #include <assert.h>
 
 #define RANGE(x, l, u) x >= l && x <= u
@@ -55,8 +55,7 @@ int main() {
     // xl could also be -3
     assert(xl == -2 && yl >= 1); //UNKNOWN!
   if (xl > 1 && xl < 5 && xl % 2 == 1) {
-    // UNKNOWN due to Interval32 not being able to represent long
-    // assert(xl != 2); // [2,4] -> [3,4] TO-DO x % 2 == 1
+    assert(xl != 2); // [2,4] -> [3,4] TO-DO x % 2 == 1
   }
 
 
@@ -156,8 +155,7 @@ int main2() {
     // xl could also be -three
     assert(xl == -two && yl >= one); //UNKNOWN!
   if (xl > one && xl < five && xl % two == one) {
-    // UNKNOWN due to Intervalthreetwo not being able to represent long
-    // assert(xl != two); // [two,four] -> [three,four] TO-DO x % two == one
+    assert(xl != two); // [two,four] -> [three,four] TO-DO x % two == one
   }
 
 

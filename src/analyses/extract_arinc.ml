@@ -33,7 +33,7 @@ struct
   module C = D
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
-  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
+  module V = Printable.UnitConf (struct let name = "tasks" end)
 
   type pname = string (* process name *)
   type fname = string (* function name *)
@@ -135,7 +135,7 @@ struct
     let walk_edges (a, out_edges) =
       let edges = Set.elements out_edges |> List.map codegen_edge in
       (label a ^ ":") ::
-      if List.length edges > 1 then
+      if List.compare_length_with edges 1 > 0 then
         "if" :: (choice edges) @ ["fi"]
       else
         edges
@@ -216,7 +216,7 @@ struct
     | Some base ->
       let pid, ctxh, pred = ctx.local in
       let module BaseMain = (val Base.get_main ()) in
-      let base_context = BaseMain.context_cpa @@ Obj.obj base in
+      let base_context = BaseMain.context_cpa f @@ Obj.obj base in
       let context_hash = Hashtbl.hash (base_context, pid) in
       pid, Ctx.of_int (Int64.of_int context_hash), pred
     | None -> ctx.local (* TODO when can this happen? *)
@@ -264,7 +264,7 @@ struct
           match ctx.ask (Queries.MayPointTo exp) with
           | x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
-            if LS.mem top_elt x then M.debug_each "Query result for MayPointTo contains top!";
+            if LS.mem top_elt x then M.debug "Query result for MayPointTo contains top!";
             let xs = LS.remove top_elt x |> LS.elements in
             List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
           | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
@@ -333,15 +333,15 @@ struct
               let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_loc f.vdecl in
               List.iter (fun f -> Pfuns.add name f.vname) funs;
               Prios.add name pri;
-              let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-              ctx.sideg tasks_var tasks;
+              let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+              ctx.sideg () tasks;
               let v,i = Res.get ("process", name) in
               assign_id pid' v;
               List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
-            | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail M.debug_each (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local (* TODO: f *)
+            | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail (M.debug "%s") (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local (* TODO: f *)
           end
         | _ -> match Pml.special_fun fname with
-          | None -> M.debug_each ("extract_arinc: unhandled function "^fname); ctx.local
+          | None -> M.debug "extract_arinc: unhandled function %s" fname; ctx.local
           | Some eval_args ->
             if M.tracing then M.trace "extract_arinc" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
             let rec combine_opt f a b = match a, b with
@@ -362,7 +362,7 @@ struct
                 (* some calls have side effects *)
                 begin match fname, args with
                   | "SetPartitionMode", "NORMAL"::_ ->
-                    let tasks = ctx.global tasks_var in
+                    let tasks = ctx.global () in
                     ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
                     Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
                   | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
@@ -375,11 +375,12 @@ struct
   let startstate v = Pid.of_int 0L, Ctx.top (), Pred.of_node (MyCFG.Function (emptyFunction "main"))
   let exitstate  v = D.bot ()
 
-  let init () = (* registers which functions to extract and writes out their definitions *)
-    let mainfuns = List.map Json.string (GobConfig.get_list "mainfun") in
+  let init marshal = (* registers which functions to extract and writes out their definitions *)
+    init (); (* TODO: why wasn't this called before? *)
+    let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
-    assert (List.length mainfuns = 1); (* TODO? *)
+    assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
     if GobConfig.get_bool "ana.arinc.export" then output_file (Goblintutil.create_dir "result/" ^ "arinc.os.pml") (snd (Pml_arinc.init ()))
 
@@ -393,7 +394,7 @@ struct
     )
 
   let threadenter ctx lval f args =
-    let tasks = ctx.global tasks_var in
+    let tasks = ctx.global () in
     (* TODO: optimize finding *)
     let tasks_f = Tasks.filter (fun (fs,f_d) ->
         Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs

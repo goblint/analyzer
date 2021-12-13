@@ -252,7 +252,7 @@ struct
         else
           RegMap.find vfd m
       in
-      (*           Messages.report ("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd)));  *)
+      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []

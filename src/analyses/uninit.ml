@@ -16,7 +16,6 @@ struct
 
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-  module G = Lattice.Unit
 
   type trans_in  = D.t
   type trans_out = D.t
@@ -36,7 +35,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -123,7 +122,7 @@ struct
         List.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
-        Messages.report ("Uninitialized variable " ^ (Addr.show (Addr.from_var_offset a)) ^ " accessed.");
+        Messages.warn "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
         false
       end else
         t in
@@ -162,7 +161,7 @@ struct
       | x::xs, y::ys ->
         [] (* found a mismatch *)
       | _ ->
-        M.warn ("Failed to analyze union at point " ^ (Addr.show (Addr.from_var_offset (v,rev cx))) ^ " -- did not find " ^ tf.fname);
+        M.warn "Failed to analyze union at point %a -- did not find %s" Addr.pretty (Addr.from_var_offset (v,rev cx)) tf.fname;
         []
     in
     let utar, uoth = unrollType target, unrollType other in
@@ -190,7 +189,7 @@ struct
       (* step into all other fields *)
       List.concat (List.rev_map (fun oth_f -> get_pfx v (`Field (oth_f, cx)) ofs utar oth_f.ftype) c2.cfields)
     | _ ->
-      M.warn ("Failed to analyze union at point " ^ (Addr.show (Addr.from_var_offset (v,rev cx))));
+      M.warn "Failed to analyze union at point %a" Addr.pretty (Addr.from_var_offset (v,rev cx));
       []
 
 

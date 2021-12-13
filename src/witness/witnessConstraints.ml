@@ -32,9 +32,8 @@ struct
 
   include Printable.PrintSimple (
     struct
-      type t' = t
+      type nonrec t = t
       let show = show
-      let name = name
     end
     )
 
@@ -153,9 +152,11 @@ struct
 
   module G = Spec.G
   module C = Spec.C
+  module V = Spec.V
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
+  type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
 
@@ -167,12 +168,11 @@ struct
 
   let call_descr = Spec.call_descr
 
-  let val_of c = (Dom.singleton (Spec.val_of c) (R.bot ()), Sync.bot ())
-  let context (l, _) =
+  let context fd (l, _) =
     if Dom.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."
     else
-      Spec.context @@ Dom.choose l
+      Spec.context fd @@ Dom.choose l
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)

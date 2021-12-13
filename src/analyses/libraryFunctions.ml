@@ -19,41 +19,45 @@ type categories = [
 let osek_renames = ref false
 
 let classify' fn exps =
+  let strange_arguments () =
+    M.warn "%s arguments are strange!" fn;
+    `Unknown fn
+  in
   match fn with
   | "pthread_create" ->
     begin match exps with
       | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
-      | _ -> M.bailwith "pthread_create arguments are strange."
+      | _ -> strange_arguments ()
     end
   | "pthread_join" ->
     begin match exps with
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
-      | _ -> M.bailwith "pthread_join arguments are strange!"
+      | _ -> strange_arguments ()
     end
   | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> strange_arguments ()
     end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> strange_arguments ()
     end
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> strange_arguments ()
     end
   | "realloc" ->
     begin match exps with
       | p::size::_ -> `Realloc (p, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> strange_arguments ()
     end
   | "assert" ->
     begin match exps with
       | [e] -> `Assert e
-      | _ -> M.bailwith "Assert argument mismatch!"
+      | _ -> M.warn "Assert argument mismatch!"; `Unknown fn
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
     -> `Lock(true, true, true)
@@ -190,6 +194,8 @@ let invalidate_actions = ref [
     "_spin_unlock_irqrestore", readsAll;(*safe*)
     "pthread_mutex_init", readsAll;(*safe*)
     "pthread_mutex_destroy", readsAll;(*safe*)
+    "pthread_mutexattr_settype", readsAll;(*safe*)
+    "pthread_mutexattr_init", readsAll;(*safe*)
     "pthread_self", readsAll;(*safe*)
     "read", writes [2];(*keep [2]*)
     "recv", writes [2];(*keep [2]*)
@@ -396,7 +402,7 @@ let invalidate_actions = ref [
     "dev_driver_string", readsAll;
     "__spin_lock_init", writes [1];
     "kmem_cache_create", readsAll;
-    "pthread_create", onlyWrites [1];
+    "pthread_create", onlyWrites [0; 2]; (* TODO: onlyWrites/keep is 0-indexed now, WTF? *)
     "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
