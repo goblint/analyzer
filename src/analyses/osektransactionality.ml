@@ -20,7 +20,7 @@ struct
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
   let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((Set.String.empty  )  , Osektupel.bot())
 
-  let should_join x y = D.equal x y
+  let should_join node x y = D.equal x y
 
   let get_lockset ctx = Obj.obj (List.assoc "OSEK" ctx.postsub)
   let get_stack   ctx = Obj.obj (List.assoc "stack_trace_set" ctx.postsub)
