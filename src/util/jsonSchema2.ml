@@ -153,7 +153,7 @@ let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element * D
     in
     let cat = Option.get !cat' in
     let el = match BatString.index_after_n '.' 2 prefix with
-      | exception Not_found when prefix = ".interact" -> (* isn't Std *)
+      | exception Not_found when prefix = ".interact" || prefix = "" -> (* isn't Std; is root *)
         element @@ Object { object_specs with properties; additional_properties = None}
       | exception Not_found ->
         {(element @@ Object { object_specs with properties; additional_properties = None}) with title = Some (DefaultsCategory.show_category cat); description = Some (DefaultsCategory.catDescription cat)}
