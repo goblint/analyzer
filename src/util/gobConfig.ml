@@ -228,10 +228,17 @@ struct
     let rec set_value v o pth =
       match o, pth with
       | `Assoc m, Select (key,pth) ->
-        begin try `Assoc ((key, set_value v (List.assoc key m) pth) :: List.remove_assoc key m)
+        let rec modify = function
+          | [] -> raise Not_found
+          | (key', v') :: kvs when key' = key ->
+            (key, set_value v v' pth) :: kvs
+          | (key', v') :: kvs ->
+            (key', v') :: modify kvs
+        in
+        begin try `Assoc (modify m)
           with Not_found ->
             if !build_config then
-              `Assoc ((key, create_new v pth) :: m)
+              `Assoc (m @ [(key, create_new v pth)])
             else
               raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
         end
