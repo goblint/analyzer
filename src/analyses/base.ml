@@ -934,52 +934,6 @@ struct
         (*          Messages.warn ~msg:("Base: I should know it! "^string_of_int (List.length fs)) ();*)
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
-    (* | Q.Assert e ->
-      begin
-        let i = query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-        let tmp = match e with | Lval l -> Some l | _ -> None in
-        let context: Invariant.context = {
-          scope=MyCFG.dummy_func;
-          i= -1; (* Not used here *)
-          lval=tmp;
-          offset=Cil.NoOffset;
-          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-        }
-        in
-        match (VD.invariant context (`Int i)) with
-        | Some s -> Queries.ES.singleton s
-        | None -> `Top
-      end *)
-      (*
-      begin
-        (* For the assert, we need to remove things that might be in the local state, but ought to removed *)
-        (* because they are not private *)
-        let multi = not (ctx.ask Queries.MustBeSingleThreaded) in
-        let (cpa, dep) = ctx.local in
-        let cpa' = if !GU.earlyglobs || multi then fst (globalize ctx.ask ctx.local) else cpa in
-        let store' = (cpa', dep) in
-
-
-
-        match eval_rv ctx.ask ctx.global store' e with
-        | `Int i ->
-            let v = (`Int i) in
-            begin
-              let tmp = match e with | Lval l -> Some l | _ -> None in
-              let context: Invariant.context = {
-                scope=MyCFG.dummy_func;
-                i= -1; (* Not used here *)
-                lval=tmp;
-                offset=Cil.NoOffset;
-                deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-              }
-              in
-              match (VD.invariant context v) with
-              | Some s -> Queries.ES.singleton s
-              | None -> `Top
-            end;
-        | v -> `Top
-      end *)
     | Q.EvalInt e ->
       query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e
     | Q.EvalLength e -> begin
