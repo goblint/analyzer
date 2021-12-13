@@ -231,7 +231,6 @@ let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element =
   | `List xs ->
     let element_schema = match prefix with
       | ".phases" -> element (Id_ref "") (* refer to entire schema itself *)
-      | ".ana.activated" -> element Any (* TODO: old-style phases? *)
       | _ -> element (String string_specs)
     in
     element' @@ Monomorphic_array (element_schema, array_specs)
