@@ -2,18 +2,18 @@
 open Prelude.Ana
 open Analyses
 
-(** An analysis specification for didactic purposes.
-It only considers definite values of local variables.
-We do not pass information interprocedurally. *)
+(** An analysis that tracks the origin of a value.
+    It only considers definite values of local variables.
+    We do not pass information interprocedurally. *)
 module Spec : Analyses.MCPSpec =
 struct
   let name () = "origin"
 
   module PL = Lattice.Flat (Node) (struct
-    let top_name = "Unknown node"
-    let bot_name = "Unreachable node"
-  end)
-  
+      let top_name = "Unknown node"
+      let bot_name = "Unreachable node"
+    end)
+
   module I = IntDomain.Flattened
 
   module Origin = Lattice.Prod (I) (PL)
@@ -34,9 +34,9 @@ struct
 
   let is_pointer_or_integer_var (v: varinfo) =
     match v.vtype with
-      | TInt _ -> true
-      | TPtr _ -> true
-      | _ -> false
+    | TInt _ -> true
+    | TPtr _ -> true
+    | _ -> false
 
   let get_local = function
     | Var v, NoOffset when is_pointer_or_integer_var v && not v.vglob -> Some v (* local integer or pointer variable whose address is maybe taken *)
@@ -44,23 +44,23 @@ struct
 
   (** Evaluates expressions *)
   (* let rec eval (state : D.t) (e: exp) (node: PL.t) =
-    let int_val = match e with
-    | Const c -> (match c with
-      | CInt64 (i,_,_) -> I.of_int i
-      | _ -> I.top ()
+      let int_val = match e with
+      | Const c -> (match c with
+        | CInt64 (i,_,_) -> I.of_int i
+        | _ -> I.top ()
+        )
+      | Lval lv -> (match get_local lv with
+        | Some v -> fst (D.find v state)
+        | _ -> I.top ()
+        )
+      | BinOp (PlusA, e1, e2, t) -> (
+        let v1 = fst (eval state e1 node) in
+        let v2 = fst (eval state e2 node) in
+        I.add v1 v2
       )
-    | Lval lv -> (match get_local lv with
-      | Some v -> fst (D.find v state)
+      | AddrOf (Var v, _) -> fst (D.find v state)
       | _ -> I.top ()
-      )
-    | BinOp (PlusA, e1, e2, t) -> (
-      let v1 = fst (eval state e1 node) in
-      let v2 = fst (eval state e2 node) in
-      I.add v1 v2
-    )
-    | AddrOf (Var v, _) -> fst (D.find v state)
-    | _ -> I.top ()
-    in (int_val, node) *)
+      in (int_val, node) *)
 
   (* Taken from arinc *)
   let mayPointTo ctx exp =
@@ -76,7 +76,7 @@ struct
     | v ->
       M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       []
-  
+
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let node = match !MyCFG.current_node with
@@ -84,25 +84,25 @@ struct
       | _ -> PL.top ()
     in
     match get_local lval with
-        (* | Some loc -> D.add loc (eval ctx.local rval node) ctx.local *)
-        | Some loc -> 
-          let curr_set = D.find loc ctx.local in
-          (* let value = IntDomain.IntDomTuple.tag (ctx.ask (Queries.EvalInt rval)) in *)
-          let values = mayPointTo ctx rval in
-          let new_set = List.fold_left (fun s x -> OriginSet.add (`Lifted (Int64.of_int (Lval.CilLval.hash x)), node) s) curr_set values in 
-          (*let new_set = values OriginSet.add (value, node) curr_set in*)
-          D.add loc new_set ctx.local
-        | None -> ctx.local
+    (* | Some loc -> D.add loc (eval ctx.local rval node) ctx.local *)
+    | Some loc -> 
+      let curr_set = D.find loc ctx.local in
+      (* let value = IntDomain.IntDomTuple.tag (ctx.ask (Queries.EvalInt rval)) in *)
+      let values = mayPointTo ctx rval in
+      let new_set = List.fold_left (fun s x -> OriginSet.add (`Lifted (Int64.of_int (Lval.CilLval.hash x)), node) s) curr_set values in 
+      (*let new_set = values OriginSet.add (value, node) curr_set in*)
+      D.add loc new_set ctx.local
+    | None -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
-    (*let node = match !MyCFG.current_node with
-      | Some n -> (`Lifted n)
-      | _ -> PL.top ()
+  (*let node = match !MyCFG.current_node with
+    | Some n -> (`Lifted n)
+    | _ -> PL.top ()
     in
     let v = eval ctx.local exp node in
     match I.to_bool (fst v) with
-      | Some b when b <> tv -> raise Deadcode (* if the expression evaluates to not tv, the tv branch is not reachable *)
-      | _ -> ctx.local *)
+    | Some b when b <> tv -> raise Deadcode (* if the expression evaluates to not tv, the tv branch is not reachable *)
+    | _ -> ctx.local *)
 
   let body ctx (f:fundec) : D.t =
     (* Initialize locals to top *)
@@ -119,17 +119,17 @@ struct
 
   let set_local_int_lval_top (state: D.t) (lval: lval option) =
     match lval with
-      | Some lv ->
-        (match get_local lv with
-          | Some local -> D.add local (OriginSet.empty ()) state
-          | _ -> state
-        )
-      |_ -> state
+    | Some lv ->
+      (match get_local lv with
+       | Some local -> D.add local (OriginSet.empty ()) state
+       | _ -> state
+      )
+    |_ -> state
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* If we have a function call with assignment
         x = f (e1, ... , ek)
-      with a local int variable x on the left, we set it to top *)
+        with a local int variable x on the left, we set it to top *)
     set_local_int_lval_top ctx.local lval
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
