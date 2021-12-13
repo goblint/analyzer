@@ -55,6 +55,9 @@ jobs:
       - name: Test domains
         run: ./goblint.domaintest
 
+      - name: Test incremental regression
+        run: ruby scripts/update_suite.rb -i
+
   gobview:
     strategy:
       fail-fast: false
