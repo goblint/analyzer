@@ -61,7 +61,6 @@ type partaccess = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write:
 
 (** GADT for queries with specific result type. *)
 type _ t =
-  | Assert: exp -> ES.t t
   | EqualSet: exp -> ES.t t
   | MayPointTo: exp -> LS.t t
   | ReachableFrom: exp -> LS.t t
@@ -97,6 +96,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | Invariant: Invariant.context -> ES.t t
 
 type 'a result = 'a
 
@@ -113,7 +113,6 @@ struct
   let lattice (type a) (q: a t): (module Lattice.S with type t = a) =
     match q with
     (* Cannot group these GADTs... *)
-    | Assert _ -> (module ES)
     | EqualSet _ -> (module ES)
     | CondVars _ -> (module ES)
     | MayPointTo _ -> (module LS)
@@ -149,6 +148,7 @@ struct
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | Invariant _ -> (module ES)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -164,7 +164,6 @@ struct
        See benchmarks at: https://github.com/goblint/analyzer/pull/221#issuecomment-842351621. *)
     match q with
     (* Cannot group these GADTs... *)
-    | Assert _ -> ES.top ()
     | EqualSet _ -> ES.top ()
     | CondVars _ -> ES.top ()
     | MayPointTo _ -> LS.top ()
@@ -200,6 +199,7 @@ struct
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | Invariant _ -> ES.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -248,7 +248,7 @@ struct
       | Any (EvalThread _) -> 32
       | Any CreatedThreads -> 33
       | Any MustJoinedThreads -> 34
-      | Any (Assert _) -> 35
+      | Any (Invariant _) -> 35
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then

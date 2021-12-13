@@ -37,7 +37,15 @@ module EvalAssert = struct
     method! vstmt s =
       let make_assert loc lval =
         try
-          let res = (ask loc).f (Queries.Assert (Lval lval)) in
+          let context: Invariant.context = {
+            scope=MyCFG.dummy_func;
+            i= -1; (* Not used here *)
+            lval=Some lval;
+            offset=Cil.NoOffset;
+            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+          } in
+
+          let res = (ask loc).f (Queries.Invariant context) in
           if Queries.ES.is_bot res then
             []
           else
