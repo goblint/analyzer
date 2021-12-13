@@ -178,12 +178,31 @@ let rec create_defaults (element: element): Yojson.Safe.t =
         failwith "create_defaults"
     end
 
+let rec require_all (element: element): element =
+  let element_kind' = match element.kind with
+    | String _
+    | Boolean
+    | Id_ref _
+    | Integer _
+    | Number _ -> element.kind
+    | Monomorphic_array (el, array_specs) ->
+      Monomorphic_array (require_all el, {array_specs with additional_items = Option.map require_all array_specs.additional_items})
+    | Object object_specs ->
+      Object {object_specs with properties = List.map (fun (name, el, req, something) -> (name, require_all el, true, something)) object_specs.properties}
+    | _ ->
+      Format.printf "%a\n" Json_schema.pp (create element);
+      failwith "require_all"
+  in
+  {element with kind = element_kind'}
+
 let convert_schema json opts =
   try
     let sch = create @@ {(fst @@ convert_schema' json opts "") with id = Some ""} in (* add id to make create defs check happy, doesn't get outputted apparently *)
     (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
     (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
     Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JS.to_json sch);
+    let sch_req = create @@ {(require_all (root sch)) with id = Some ""} in
+    Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema_require.json") (JS.to_json sch_req);
     let defaults = create_defaults (root sch) in
     Yojson.Safe.pretty_to_channel (Stdlib.open_out "defaults.json") defaults
   with (Json_schema.Dangling_reference u as e) ->
