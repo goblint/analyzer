@@ -934,7 +934,7 @@ struct
         (*          Messages.warn ~msg:("Base: I should know it! "^string_of_int (List.length fs)) ();*)
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
-    | Q.Assert e ->
+    (* | Q.Assert e ->
       begin
         let i = query_evalint (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
         let tmp = match e with | Lval l -> Some l | _ -> None in
@@ -949,7 +949,7 @@ struct
         match (VD.invariant context (`Int i)) with
         | Some s -> Queries.ES.singleton s
         | None -> `Top
-      end
+      end *)
       (*
       begin
         (* For the assert, we need to remove things that might be in the local state, but ought to removed *)
