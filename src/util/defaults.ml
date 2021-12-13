@@ -3,34 +3,10 @@
 open Prelude
 open Printf
 open List
+open DefaultsCategory
 
 (* TODO: add consistency checking *)
 
-(** Main categories of configuration variables. *)
-type category = Std             (** Parsing input, includes, standard stuff, etc. *)
-              | Analyses        (** Analyses                                      *)
-              | Incremental     (** Incremental features                          *)
-              | Semantics       (** Semantics                                     *)
-              | Transformations (** Transformations                               *)
-              | Annotation      (** Features for annotations                       *)
-              | Experimental    (** Experimental features of analyses             *)
-              | Debugging       (** Debugging, tracing, etc.                      *)
-              | Warnings        (** Filtering warnings                            *)
-              [@@deriving enum]
-
-let all_categories = min_category -- max_category |> of_enum |> map (Option.get % category_of_enum)
-
-(** Description strings for categories. *)
-let catDescription = function
-  | Std             -> "Standard options for configuring input/output"
-  | Analyses        -> "Options for analyses"
-  | Semantics       -> "Options for semantics"
-  | Transformations -> "Options for transformations"
-  | Annotation      -> "Options for annotations"
-  | Experimental    -> "Experimental features"
-  | Debugging       -> "Debugging options"
-  | Incremental     -> "Incremental analysis options"
-  | Warnings        -> "Filtering of warnings"
 
 (** A place to store registered variables *)
 let registrar = ref []
@@ -367,4 +343,4 @@ let default_schema = {schema|
 let _ =
   let v = Yojson.Safe.from_string default_schema in
   GobConfig.addenum_sch v;
-  JsonSchema2.convert_schema !GobConfig.json_conf @@ List.map snd !registrar
+  JsonSchema2.convert_schema !GobConfig.json_conf @@ List.map (fun (c, (n, p)) -> (n, (c, p))) !registrar

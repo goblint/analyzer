@@ -215,11 +215,11 @@ let parse_goblint_json s =
   with Yojson.Json_error _ ->
     `String s
 
-let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element =
+let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element * DefaultsCategory.category =
   let element' ekind =
-    let (desc, def) = List.assoc (BatString.lchop prefix) opts in
+    let (cat, (desc, def)) = List.assoc (BatString.lchop prefix) opts in
     (* let name = BatString.lchop @@ Filename.extension prefix in *)
-    {(element ekind) with title = Some (BatString.lchop prefix); description = Some desc; default = Some (Json_repr.repr_to_any (module Json_repr.Yojson) (parse_goblint_json def))}
+    ({(element ekind) with title = Some (BatString.lchop prefix); description = Some desc; default = Some (Json_repr.repr_to_any (module Json_repr.Yojson) (parse_goblint_json def))}, cat)
   in
   match json with
   | `String s ->
@@ -235,16 +235,28 @@ let rec convert_schema' (json: Yojson.Safe.t) opts (prefix: string): element =
     in
     element' @@ Monomorphic_array (element_schema, array_specs)
   | `Assoc xs ->
+    let cat' = ref None in
     let properties = List.map (fun (key, value) ->
-        (key, convert_schema' value opts (prefix ^ "." ^ key), false, None)
+        let (inner, cat) = convert_schema' value opts (prefix ^ "." ^ key) in
+        cat' := Some cat;
+        (key, inner, false, None)
       ) xs
     in
-    element @@ Object { object_specs with properties; additional_properties = None }
+    let cat = Option.get !cat' in
+    let el = match BatString.index_after_n '.' 2 prefix with
+      | exception Not_found when prefix = ".interact" -> (* isn't Std *)
+        element @@ Object { object_specs with properties; additional_properties = None}
+      | exception Not_found ->
+        {(element @@ Object { object_specs with properties; additional_properties = None}) with title = Some (DefaultsCategory.show_category cat); description = Some (DefaultsCategory.catDescription cat)}
+      | _ ->
+        element @@ Object { object_specs with properties; additional_properties = None}
+    in
+    (el, cat)
   | _ -> failwith (Format.asprintf "convert_schema': %a" Yojson.Safe.pp json)
 
 let convert_schema json opts =
   try
-    let sch = create @@ {(convert_schema' json opts "") with id = Some ""} in (* add id to make create defs check happy, doesn't get outputted apparently *)
+    let sch = create @@ {(fst @@ convert_schema' json opts "") with id = Some ""} in (* add id to make create defs check happy, doesn't get outputted apparently *)
     (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
     (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
     Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JS.to_json sch)
