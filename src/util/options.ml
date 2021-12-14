@@ -72,9 +72,16 @@ let rec element_category_of_defaults_json (defaults: defaults) (json: Yojson.Saf
   | _ ->
     failwith (Format.asprintf "element_category_of_defaults_json: %a" Yojson.Safe.pp json)
 
+let create_schema element =
+  create @@ { element with id = Some "" } (* add id to make create defs check happy, doesn't get outputted apparently *)
+
+let schema_of_defaults_json defaults json =
+  let (element, _) = element_category_of_defaults_json defaults json "" in
+  create_schema element
+
 let convert_schema opts json =
   try
-    let sch = create @@ {(fst @@ element_category_of_defaults_json opts json "") with id = Some ""} in (* add id to make create defs check happy, doesn't get outputted apparently *)
+    let sch = schema_of_defaults_json opts json in
     JsonSchema2.global_schema := sch;
     (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
     (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
