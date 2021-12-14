@@ -50,8 +50,11 @@ struct
   (* TODO: make some smart check here *)
   let should_split node =
     let name: string = Node.show node in
-    ignore (Pretty.printf "Checking %s\n" name);
-    contains name "node 11" || contains name "node 14"
+    let we_split = contains name "node 11" || contains name "node 14" in
+    let _ = if we_split then
+      ignore (Pretty.printf "Spliting at %s\n" name);
+    in
+    we_split
 
   let should_join node x y = 
     match node with
