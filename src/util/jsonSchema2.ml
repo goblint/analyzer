@@ -82,27 +82,34 @@ let default_schema = {schema|
 
 let schema = JS.of_json (Yojson.Safe.from_string default_schema)
 
-let erase: type t. t Json_encoding.encoding -> unit Json_encoding.encoding = fun encoding -> Json_encoding.conv (fun _ -> failwith "asd") (fun _ -> ()) encoding
+let erase: type t. t Json_encoding.encoding -> unit Json_encoding.encoding = fun encoding -> Json_encoding.conv (fun _ -> failwith "erase construct") (fun _ -> ()) encoding
 
-let rec encoding_of_schema_element (schema_element: Json_schema.element): unit Json_encoding.encoding =
+let rec encoding_of_schema_element (top: unit Json_encoding.encoding) (schema_element: Json_schema.element): unit Json_encoding.encoding =
   let open Json_encoding in
   match schema_element.kind with
   | Any -> unit
   | String string_specs -> erase string
+  | Boolean -> erase bool
+  | Integer numeric_specs -> erase int
+  | Monomorphic_array (el, array_specs) ->
+    erase @@ array (encoding_of_schema_element top el)
+  | Id_ref "" ->
+    top
   | Object object_specs ->
     List.fold_left (fun acc (name, element, required, _) ->
         let field =
           if required then
-            req name (encoding_of_schema_element element)
+            req name (encoding_of_schema_element top element)
           else
-            dft name (encoding_of_schema_element element) ()
+            dft name (encoding_of_schema_element top element) ()
         in
         erase @@ merge_objs acc (obj1 field)
-      ) (Option.map_default encoding_of_schema_element empty object_specs.additional_properties) object_specs.properties
+      ) (Option.map_default (encoding_of_schema_element top) empty object_specs.additional_properties) object_specs.properties
   | _ -> failwith (Format.asprintf "encoding_of_schema_element: %a" Json_schema.pp (Json_schema.create schema_element))
 
 let encoding_of_schema (schema: Json_schema.schema): unit Json_encoding.encoding =
-  encoding_of_schema_element (Json_schema.root schema)
+  let root = Json_schema.root schema in
+  Json_encoding.mu "" (fun top -> encoding_of_schema_element top root)
 
 let validate json =
   match JE.destruct (encoding_of_schema schema) json with
@@ -204,6 +211,10 @@ let convert_schema json opts =
     let sch_req = create @@ {(require_all (root sch)) with id = Some ""} in
     Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema_require.json") (JS.to_json sch_req);
     let defaults = create_defaults (root sch) in
-    Yojson.Safe.pretty_to_channel (Stdlib.open_out "defaults.json") defaults
+    Yojson.Safe.pretty_to_channel (Stdlib.open_out "defaults.json") defaults;
+    (* let defaults2 = JE.construct ~include_default_fields:`Always (encoding_of_schema sch) () in *)
+    (* erase construct fails *)
+    (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "defaults2.json") defaults2; *)
+    ()
   with (Json_schema.Dangling_reference u as e) ->
     Json_schema.print_error Format.err_formatter e
