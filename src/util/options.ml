@@ -72,29 +72,20 @@ let rec element_category_of_defaults_json (defaults: defaults) (json: Yojson.Saf
   | _ ->
     failwith (Format.asprintf "element_category_of_defaults_json: %a" Yojson.Safe.pp json)
 
-
 let schema_of_defaults_json defaults json =
   let (element, _) = element_category_of_defaults_json defaults json "" in
   JsonSchema2.create_schema element
 
-let convert_schema opts json =
-  try
-    let sch = schema_of_defaults_json opts json in
-    JsonSchema2.global_schema := sch;
-    (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
-    (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
-    Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JsonSchema2.JS.to_json sch);
-    let sch_req = JsonSchema2.schema_require_all sch in
-    Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema_require.json") (JsonSchema2.JS.to_json sch_req);
-    let defaults = JsonSchema2.schema_defaults sch in
-    Yojson.Safe.pretty_to_channel (Stdlib.open_out "defaults.json") defaults;
-    (* let defaults2 = JE.construct ~include_default_fields:`Always (encoding_of_schema sch) () in *)
-    (* erase construct fails *)
-    (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "defaults2.json") defaults2; *)
-    ()
-  with (Json_schema.Dangling_reference u as e) ->
-    Json_schema.print_error Format.err_formatter e
 
 let () =
   let defaults = List.map (fun (c, (n, (desc, def))) -> (n, (c, desc, def))) !Defaults.registrar in (* transform for assoc list lookup by name *)
-  convert_schema defaults !GobConfig.json_conf
+
+  let schema = schema_of_defaults_json defaults !GobConfig.json_conf in
+  JsonSchema2.global_schema := schema;
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.JS.to_json schema);
+
+  let require_all = JsonSchema2.schema_require_all schema in
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.JS.to_json require_all);
+
+  let defaults = JsonSchema2.schema_defaults schema in
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults
