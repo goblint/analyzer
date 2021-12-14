@@ -49,22 +49,36 @@ let rec create_defaults (element: element): Yojson.Safe.t =
         failwith "create_defaults"
     end
 
-let rec require_all (element: element): element =
-  let element_kind' = match element.kind with
+let create_schema element =
+  create @@ { element with id = Some "" } (* add id to make create defs check happy for phases Id_ref, doesn't get outputted apparently *)
+
+let rec element_require_all (element: element): element =
+  let kind' = match element.kind with
     | String _
     | Boolean
     | Id_ref _
     | Integer _
     | Number _ -> element.kind
-    | Monomorphic_array (el, array_specs) ->
-      Monomorphic_array (require_all el, {array_specs with additional_items = Option.map require_all array_specs.additional_items})
+    | Monomorphic_array (element_element, array_specs) ->
+      let array_specs' = { array_specs with
+        additional_items = Option.map element_require_all array_specs.additional_items;
+      }
+      in
+      Monomorphic_array (element_require_all element_element, array_specs')
     | Object object_specs ->
-      Object {object_specs with properties = List.map (fun (name, el, req, something) -> (name, require_all el, true, something)) object_specs.properties}
+      let properties' = List.map (fun (name, field_element, required, unknown) ->
+          (name, element_require_all field_element, true, unknown) (* change required to true *)
+        ) object_specs.properties
+      in
+      Object { object_specs with properties = properties' }
     | _ ->
       Format.printf "%a\n" Json_schema.pp (create element);
-      failwith "require_all"
+      failwith "element_require_all"
   in
-  {element with kind = element_kind'}
+  { element with kind = kind' }
+
+let schema_require_all (schema: schema): schema =
+  create_schema (element_require_all (root schema))
 
 let global_schema = ref any
 
