@@ -42,6 +42,22 @@ struct
     | Var v, NoOffset when is_pointer_or_integer_var v && not v.vglob -> Some v (* local integer or pointer variable whose address is maybe taken *)
     | _, _ -> None
 
+  let contains s1 s2 =
+    let re = Str.regexp_string s2 in
+    try ignore (Str.search_forward re s1 0); true
+    with Not_found -> false
+
+  (* TODO: make some smart check here *)
+  let should_split node =
+    let name: string = Node.show node in
+    ignore (Pretty.printf "Checking %s\n" name);
+    contains name "node 11" || contains name "node 14"
+
+  let should_join node x y = 
+    match node with
+    | Some (n: Node.t) -> should_split n
+    | _ -> true
+
   (** Evaluates expressions *)
   (* let rec eval (state : D.t) (e: exp) (node: PL.t) =
       let int_val = match e with
