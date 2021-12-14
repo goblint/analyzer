@@ -985,12 +985,14 @@ struct
         match eval_rv_address (Analyses.ask_of_ctx ctx) ctx.global ctx.local e with
         | `Top -> Queries.Result.top q
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
-        | `Address a when AD.is_top a || AD.mem Addr.UnknownPtr a ->
-          Q.LS.top ()
         | `Address a ->
-          let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a] ctx.global ctx.local) in
+          let a' = AD.remove Addr.UnknownPtr a in (* run reachable_vars without unknown just to be safe *)
+          let xs = List.map addrToLvalSet (reachable_vars (Analyses.ask_of_ctx ctx) [a'] ctx.global ctx.local) in
           let addrs = List.fold_left (Q.LS.join) (Q.LS.empty ()) xs in
-          addrs
+          if AD.mem Addr.UnknownPtr a then
+            Q.LS.add (dummyFunDec.svar, `NoOffset) addrs (* add unknown back *)
+          else
+            addrs
         | _ -> Q.LS.empty ()
       end
     | Q.ReachableUkTypes e -> begin
