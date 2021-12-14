@@ -13,8 +13,7 @@ let registrar = ref []
 
 (** A function to register a variable *)
 let reg (c:category) (n:string) (def:string) (desc:string) =
-  registrar := (c,(n,(desc,def))) :: !registrar;
-  GobConfig.(build_config := true; set_auto n def; build_config := false)
+  registrar := (c,(n,(desc,def))) :: !registrar
 
 (** find all associations in the list *)
 let rec assoc_all k = function
@@ -339,8 +338,3 @@ let default_schema = {schema|
   , "gobview"         : {}
   }
 }|schema}
-
-let _ =
-  let v = Yojson.Safe.from_string default_schema in
-  GobConfig.addenum_sch v;
-  JsonSchema2.convert_schema !GobConfig.json_conf @@ List.map (fun (c, (n, p)) -> (n, (c, p))) !registrar

@@ -370,3 +370,12 @@ struct
 end
 
 include Impl
+
+let () =
+  build_config := true;
+  List.iter (fun (c, (n, (desc, def))) -> set_auto n def) !Defaults.registrar;
+  build_config := false;
+
+  addenum_sch (Yojson.Safe.from_string Defaults.default_schema);
+
+  JsonSchema2.convert_schema !json_conf @@ List.map (fun (c, (n, p)) -> (n, (c, p))) !Defaults.registrar
