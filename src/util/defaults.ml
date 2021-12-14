@@ -262,6 +262,10 @@ let _ = ()
       ; reg Warnings "warn.debug"           "false" "Debug severity messages"
       ; reg Warnings "warn.success"         "true"  "Success severity messages"
 
+
+let () =
+  registrar := List.rev !registrar
+
 let default_schema = {schema|
 { "id"              : "root"
 , "type"            : "object"
