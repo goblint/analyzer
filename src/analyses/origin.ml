@@ -55,7 +55,7 @@ struct
 
   let should_join node x y = 
     match node with
-    | Some (n: Node.t) -> should_split n
+    | Some (n: Node.t) -> not (should_split n)
     | _ -> true
 
   (** Evaluates expressions *)
