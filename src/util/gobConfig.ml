@@ -270,8 +270,8 @@ struct
     o := set_value v !o orig_pth;
     validate conf_schema !json_conf;
 
-    (* if not !build_config then (* object incomplete during building *)
-      JsonSchema2.validate !json_conf *)
+    if not !build_config then (* object incomplete during building *)
+      JsonSchema2.validate !json_conf;
     ()
 
   (** Helper function for reading values. Handles error messages. *)
@@ -362,7 +362,9 @@ struct
   (** Merge configurations form a file with current. *)
   let merge_file fn =
     let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
+    JsonSchema2.validate v;
     json_conf := GobYojson.merge !json_conf v;
+    JsonSchema2.validate !json_conf;
     drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
 end

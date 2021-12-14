@@ -111,13 +111,6 @@ let encoding_of_schema (schema: Json_schema.schema): unit Json_encoding.encoding
   let root = Json_schema.root schema in
   Json_encoding.mu "" (fun top -> encoding_of_schema_element top root)
 
-let validate json =
-  match JE.destruct (encoding_of_schema schema) json with
-    | _ -> ()
-    | exception (Json_encoding.Cannot_destruct _ as e) ->
-      Format.printf "validate: %a\n" (Json_encoding.print_error ?print_unknown:None) e;
-      failwith "JsonSchema2.validate"
-
 open Json_encoding
 open Json_schema
 
@@ -202,9 +195,12 @@ let rec require_all (element: element): element =
   in
   {element with kind = element_kind'}
 
+let global_schema = ref any
+
 let convert_schema json opts =
   try
     let sch = create @@ {(fst @@ convert_schema' json opts "") with id = Some ""} in (* add id to make create defs check happy, doesn't get outputted apparently *)
+    global_schema := sch;
     (* Format.printf "schema: %a\n" Json_schema.pp sch; *)
     (* Format.printf "schema2: %a\n" (Yojson.Safe.pretty_print ~std:true) (JS.to_json sch) *)
     Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JS.to_json sch);
@@ -218,3 +214,10 @@ let convert_schema json opts =
     ()
   with (Json_schema.Dangling_reference u as e) ->
     Json_schema.print_error Format.err_formatter e
+
+let validate json =
+  match JE.destruct (encoding_of_schema !global_schema) json with
+    | _ -> ()
+    | exception (Json_encoding.Cannot_destruct _ as e) ->
+      Format.printf "validate: %a\n" (Json_encoding.print_error ?print_unknown:None) e;
+      failwith "JsonSchema2.validate"
