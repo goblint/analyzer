@@ -35,19 +35,23 @@ let encoding_of_schema (schema: Json_schema.schema): unit Json_encoding.encoding
 open Json_encoding
 open Json_schema
 
-let rec create_defaults (element: element): Yojson.Safe.t =
+let rec element_defaults (element: element): Yojson.Safe.t =
   match element.default with
-  | Some default -> Json_repr.any_to_repr (module Json_repr.Yojson) default
+  | Some default ->
+    Json_repr.any_to_repr (module Json_repr.Yojson) default
   | None ->
     begin match element.kind with
       | Object object_specs ->
-        `Assoc (List.map (fun (name, el, _, _) ->
-            (name, create_defaults el)
+        `Assoc (List.map (fun (name, field_element, _, _) ->
+            (name, element_defaults field_element)
           ) object_specs.properties)
       | _ ->
         Format.printf "%a\n" Json_schema.pp (create element);
-        failwith "create_defaults"
+        failwith "element_defaults"
     end
+
+let schema_defaults (schema: schema): Yojson.Safe.t =
+  element_defaults (root schema)
 
 let create_schema element =
   create @@ { element with id = Some "" } (* add id to make create defs check happy for phases Id_ref, doesn't get outputted apparently *)

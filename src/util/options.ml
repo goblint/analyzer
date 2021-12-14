@@ -86,7 +86,7 @@ let convert_schema opts json =
     Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema.json") (JsonSchema2.JS.to_json sch);
     let sch_req = JsonSchema2.schema_require_all sch in
     Yojson.Safe.pretty_to_channel (Stdlib.open_out "schema_require.json") (JsonSchema2.JS.to_json sch_req);
-    let defaults = JsonSchema2.create_defaults (root sch) in
+    let defaults = JsonSchema2.schema_defaults sch in
     Yojson.Safe.pretty_to_channel (Stdlib.open_out "defaults.json") defaults;
     (* let defaults2 = JE.construct ~include_default_fields:`Always (encoding_of_schema sch) () in *)
     (* erase construct fails *)
