@@ -102,6 +102,8 @@ let option_spec_list =
   ; "--version"            , Arg.Unit print_version, ""
   ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; exit 0), ""
   ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; exit 0), ""
+  ; "--options"            , Arg.Unit (fun () -> Options.print_options (); exit 0), ""
+  ; "--all-options"        , Arg.Unit (fun () -> Options.print_all_options (); exit 0), ""
   ; "--trace"              , Arg.String set_trace, ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""

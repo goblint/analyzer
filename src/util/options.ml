@@ -17,8 +17,8 @@ let parse_goblint_json s =
 type defaults = (string * (DefaultsCategory.category * string * string)) list
 
 let rec element_category_of_defaults_json (defaults: defaults) (json: Yojson.Safe.t) (path: string): element * DefaultsCategory.category =
+  let name = BatString.lchop path in (* chop initial . *)
   let element_defaults kind = (* element with metadata from defaults *)
-    let name = BatString.lchop path in (* chop initial . *)
     let (category, description, default) = List.assoc name defaults in
     let default_json = parse_goblint_json default in
     let element = { (element kind) with
@@ -58,7 +58,11 @@ let rec element_category_of_defaults_json (defaults: defaults) (json: Yojson.Saf
       }
     in
     let element = match BatString.index_after_n '.' 2 path with
-      | exception Not_found when path = ".interact" || path = "" -> (* interact isn't Std or is root *)
+      | exception Not_found when path = ".interact" -> (* interact isn't Std *)
+        { element with
+          title = Some name;
+        }
+      | exception Not_found when path = "" -> (* is root *)
         element
       | exception Not_found -> (* category *)
         { element with
@@ -66,7 +70,9 @@ let rec element_category_of_defaults_json (defaults: defaults) (json: Yojson.Saf
           description = Some (DefaultsCategory.catDescription category);
         }
       | _ -> (* inner object, not category *)
-        element
+        { element with
+          title = Some name;
+        }
     in
     (element, category)
   | _ ->
@@ -77,15 +83,56 @@ let schema_of_defaults_json defaults json =
   JsonSchema2.create_schema element
 
 
-let () =
-  let defaults = List.map (fun (c, (n, (desc, def))) -> (n, (c, desc, def))) !Defaults.registrar in (* transform for assoc list lookup by name *)
 
-  let schema = schema_of_defaults_json defaults !GobConfig.json_conf in
+let schema =
+  let defaults = List.map (fun (c, (n, (desc, def))) -> (n, (c, desc, def))) !Defaults.registrar in (* transform for assoc list lookup by name *)
+  schema_of_defaults_json defaults !GobConfig.json_conf
+
+let require_all = JsonSchema2.schema_require_all schema
+
+let defaults = JsonSchema2.schema_defaults schema
+
+let () =
   JsonSchema2.global_schema := schema;
   Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.JS.to_json schema);
 
-  let require_all = JsonSchema2.schema_require_all schema in
   Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.JS.to_json require_all);
 
-  let defaults = JsonSchema2.schema_defaults schema in
   Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults
+
+let rec pp_options ~levels ppf (element: element) =
+  match element.kind with
+  | String _
+  | Boolean
+  | Integer _
+  | Number _
+  | Monomorphic_array _ ->
+    (* Format.fprintf ppf "%s: %s (%a)" (Option.get element.title) (Option.get element.description) (Yojson.Safe.pretty_print ~std:false) (Json_repr.any_to_repr (module Json_repr.Yojson) (Option.get element.default)) *)
+    (* Yojson screws up box indentation somehow... *)
+    Format.fprintf ppf "%s: %s (%s)" (Option.get element.title) (Option.get element.description) (Yojson.Safe.to_string (Json_repr.any_to_repr (module Json_repr.Yojson) (Option.get element.default)))
+  | Object object_specs when levels > 0 ->
+    let properties = List.filter (fun (name, field_element, _, _) ->
+        match field_element.kind with
+        | Object _ when levels = 1 -> false (* avoid empty lines with --options *)
+        | _ -> true
+      ) object_specs.properties
+    in
+    let pp_property ppf (name, field_element, _, _) =
+      Format.fprintf ppf "%a" (pp_options ~levels:(levels - 1)) field_element
+    in
+    begin match element.title with
+      | Some title ->
+        Format.fprintf ppf "@[<v 0>%s:@,  @[<v 0>%a@]@]" title (Format.pp_print_list pp_property) properties
+      | None ->
+        Format.fprintf ppf "@[<v 0>%a@]" (Format.pp_print_list pp_property) properties
+    end
+  | Object _ ->
+    ()
+  | _ ->
+    failwith "pp_options"
+
+let print_options () =
+  Format.printf "%a\n" (pp_options ~levels:1) (root schema)
+
+let print_all_options () =
+  Format.printf "%a\n" (pp_options ~levels:max_int) (root schema)
