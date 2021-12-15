@@ -461,8 +461,8 @@ class ProjectMarshal < Project
   end
   def run ()
     filename = File.basename(@path)
-    cmd1 = "#{$goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{@testset.statsfile}"
-    cmd2 = "#{$goblint} #{filename} #{p.params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --conf run/config.json --set save_run '' --set load_run run  2>#{@testset.statsfile}"
+    cmd1 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --set save_run run  2>#{@testset.statsfile}"
+    cmd2 = "#{$goblint} #{filename} #{@params} #{ENV['gobopt']} 1>#{@testset.warnfile} --set printstats true --enable dbg.print_dead_code --conf run/config.json --set save_run '' --set load_run run  2>#{@testset.statsfile}"
     starttime = Time.now
     run_testset(@testset, cmd1, starttime)
     run_testset(@testset, cmd2, starttime)
@@ -515,6 +515,8 @@ regs.sort.each do |d|
           conf = f[0..-3] + ".json"
           conf_path = File.expand_path(conf, grouppath)
           ProjectIncr.new(id, testname, groupname, path, params, patch_path, conf_path)
+        elsif marshal then
+          ProjectMarshal.new(id, testname, groupname, path, params)
         else
           Project.new(id, testname, groupname, path, params)
         end
