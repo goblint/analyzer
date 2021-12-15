@@ -1301,7 +1301,7 @@
                   "description":
                     "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.",
                   "type": "integer",
-                  "default": 1.0
+                  "default": 1
                 }
               },
               "additionalProperties": false
@@ -1569,7 +1569,7 @@
           "description":
             "Interval in seconds to print statistics while solving. Set to 0 to deactivate.",
           "type": "integer",
-          "default": 10.0
+          "default": 10
         },
         "solver-signal": {
           "title": "dbg.solver-signal",
@@ -1619,7 +1619,7 @@
               "title": "dbg.slice.n",
               "description": "How deep function stack do we analyze.",
               "type": "integer",
-              "default": 10.0
+              "default": 10
             }
           },
           "additionalProperties": false
@@ -1633,7 +1633,7 @@
               "description":
                 "Limit for number of widenings per node (0 = no limit).",
               "type": "integer",
-              "default": 0.0
+              "default": 0
             }
           },
           "additionalProperties": false

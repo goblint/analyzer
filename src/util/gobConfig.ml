@@ -381,9 +381,10 @@ end
 include Impl
 
 let () =
-  build_config := true;
+  (* build_config := true;
   List.iter (fun (c, (n, (desc, def))) -> set_auto n def) !Defaults.registrar;
-  build_config := false;
+  build_config := false; *)
+  json_conf := Options.defaults;
   ValidatorRequireAll.validate_exn !json_conf;
 
   addenum_sch (Yojson.Safe.from_string Defaults.default_schema)
