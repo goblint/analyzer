@@ -978,7 +978,7 @@ struct
       try D.add (g (f (conv ctx x))) xs
       with Deadcode -> xs
     in
-    let d = D.fold h ctx.local (D.empty ()) in
+    let d = D.fold h ctx.local (D.empty ()) |> D.join_reduce in
     if D.is_bot d then raise Deadcode else d
 
   let fold ctx f g h a =
@@ -1037,7 +1037,7 @@ struct
         if M.tracing then M.traceu "combine" "combined function: dead\n";
         y
     in
-    let d = D.fold k d (D.bot ()) in
+    let d = D.fold k d (D.bot ()) |> D.join_reduce in
     if D.is_bot d then raise Deadcode else d
 end
 

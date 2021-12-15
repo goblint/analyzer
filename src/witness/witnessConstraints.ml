@@ -199,7 +199,7 @@ struct
       try Dom.add (g (f (conv ctx x))) (step_ctx_edge ctx x) xs
       with Deadcode -> xs
     in
-    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce in
+    let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce |> Dom.join_reduce in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
   let fold ctx f g h a =
@@ -255,6 +255,7 @@ struct
     fold'' ctx Spec.sync (fun h -> h reason) (fun (a, async) x r a' ->
         (Dom.add a' r a, Sync.add a' (SyncSet.singleton x) async)
       ) (Dom.empty (), Sync.bot ())
+    (* TODO: join_reduce here? what about correspondance with Sync? *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -322,6 +323,6 @@ struct
       try Dom.add (Spec.combine (conv ctx cd) l fe f a fc x) r y
       with Deadcode -> y
     in
-    let d = Dom.fold k (fst d) (Dom.bot ()) in
+    let d = Dom.fold k (fst d) (Dom.bot ()) |> Dom.join_reduce in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 end
