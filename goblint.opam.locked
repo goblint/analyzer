@@ -58,6 +58,7 @@ depends: [
   "ocamlfind" {= "1.9.1"}
   "odoc" {= "1.5.2" & with-doc}
   "ounit2" {= "2.2.4" & with-test}
+  "ppx_blob" {= "0.7.2"}
   "ppx_derivers" {= "1.2.1"}
   "ppx_deriving" {= "5.2.1"}
   "ppx_deriving_yojson" {= "3.6.1"}

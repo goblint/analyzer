@@ -112,7 +112,8 @@ let schema_of_yojson json =
   JsonSchema2.create_schema element
 
 let schema =
-  schema_of_yojson (Yojson.Safe.from_file "options.schema.json")
+  (* schema_of_yojson (Yojson.Safe.from_file "options.schema.json") *)
+  schema_of_yojson (Yojson.Safe.from_string [%blob "options.schema.json"])
 
 let require_all = JsonSchema2.schema_require_all schema
 

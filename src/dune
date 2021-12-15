@@ -35,7 +35,8 @@
   )
   (preprocess
     (staged_pps ppx_deriving.std ppx_deriving_yojson
-      ppx_distr_guards ocaml-monadic))
+      ppx_distr_guards ocaml-monadic ppx_blob))
+  (preprocessor_deps (file util/options.schema.json))
 )
 
 ; Workaround for alternative dependencies with unqualified subdirs.
