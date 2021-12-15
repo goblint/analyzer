@@ -1,4 +1,4 @@
-// SKIP PARAM: --enable exp.solver.td3.restart.wpoint.enabled --enable exp.solver.td3.abort
+// PARAM: --enable exp.solver.td3.restart.wpoint.enabled --enable exp.solver.td3.abort
 
 #include<stdlib.h>
 struct a {
