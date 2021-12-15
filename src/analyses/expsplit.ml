@@ -13,6 +13,9 @@ struct
 
   include Analyses.IdentitySpec (* TODO: implement others correctly instead of identity *)
 
+  (* after IdentitySpec, because that would override... *)
+  let should_join = D.equal
+
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) =
     match f.vname with
     | "__goblint_split_begin" ->
