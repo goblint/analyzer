@@ -84,14 +84,28 @@ let rec element_require_all (element: element): element =
 let schema_require_all (schema: schema): schema =
   create_schema (element_require_all (root schema))
 
+
+module type Schema =
+sig
+  val schema: schema
+end
+
+module Validator (Schema: Schema) =
+struct
+  let schema_encoding = encoding_of_schema Schema.schema
+
+  let validate_exn json = JE.destruct schema_encoding json
+
+  (* TODO: bool-returning validate? *)
+end
+
+
 let global_schema = ref any
 
 let validate json =
-  match JE.destruct (encoding_of_schema !global_schema) json with
-    | _ -> ()
-    | exception (Json_encoding.Cannot_destruct _ as e) ->
-      Format.printf "validate: %a\n" (Json_encoding.print_error ?print_unknown:None) e;
-      failwith "JsonSchema2.validate"
+  let module Validator = Validator (struct let schema = !global_schema end) in
+  Validator.validate_exn json
+
 
 let () = Printexc.register_printer (function
     | Json_encoding.Unexpected _
