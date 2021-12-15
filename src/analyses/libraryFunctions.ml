@@ -413,7 +413,9 @@ let invalidate_actions = ref [
     (* prevent base from spawning ARINC processes early, handled by arinc/extract_arinc *)
     (* "LAP_Se_SetPartitionMode", writes [2]; *)
     "LAP_Se_CreateProcess", writes [2; 3];
-    "LAP_Se_CreateErrorHandler", writes [2; 3]
+    "LAP_Se_CreateErrorHandler", writes [2; 3];
+    "__goblint_split_begin", readsAll;
+    "__goblint_split_end", readsAll;
   ]
 let add_invalidate_actions xs = invalidate_actions := xs @ !invalidate_actions
 
