@@ -104,13 +104,6 @@ struct
 end
 
 
-let global_schema = ref any
-
-let validate json =
-  let module Validator = Validator (struct let schema = !global_schema end) in
-  Validator.validate_exn json
-
-
 let () = Printexc.register_printer (function
     | Json_encoding.Unexpected _
     | Json_encoding.No_case_matched _

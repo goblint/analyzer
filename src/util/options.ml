@@ -119,8 +119,6 @@ let require_all = JsonSchema2.schema_require_all schema
 let defaults = JsonSchema2.schema_defaults schema
 
 let () =
-  JsonSchema2.global_schema := schema;
-
   Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.schema_to_yojson require_all);
 
   Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults
