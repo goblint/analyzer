@@ -4,13 +4,12 @@ open Analyses
 module M = Messages
 
 module ID = Queries.ID
-module BD = Basetype.Bools
 
 module Spec : Analyses.MCPSpec =
 struct
   let name () = "expsplit"
 
-  module D = MapDomain.MapBot (Basetype.CilExp) (BD)
+  module D = MapDomain.MapBot (Basetype.CilExp) (ID)
   module C = D
 
   let startstate v = D.bot ()
@@ -33,7 +32,9 @@ struct
     match f.vname with
     | "__goblint_split_begin" ->
       let exp = List.hd arglist in
-      D.add exp (BD.top ()) ctx.local (* TODO: immediately split *)
+      let ik = Cilfacade.get_ikind_exp exp in
+      (* TODO: something different for pointers, currently casts pointers to ints and loses precision (other than NULL) *)
+      D.add exp (ID.top_of ik) ctx.local (* TODO: immediately split *)
       (* TODO: emit update splits _after_ adding expression, then doesn't have to eval for something better than top here (?) *)
     | "__goblint_split_end" ->
       let exp = List.hd arglist in
@@ -44,12 +45,8 @@ struct
   let event ctx (event: Events.t) octx =
     match event with
     | UpdateExpSplit exp ->
-      begin match ID.to_bool (ctx.ask (EvalInt exp)) with
-        | Some b ->
-          D.add exp (`Lifted b) ctx.local
-        | None -> (* unknown *)
-          ctx.local
-      end
+      let value = ctx.ask (EvalInt exp) in
+      D.add exp value ctx.local
     | _ ->
       ctx.local
 end
