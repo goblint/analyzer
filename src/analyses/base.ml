@@ -24,6 +24,7 @@ module CPA    = BaseDomain.CPA
 module Dep    = BaseDomain.PartDeps
 module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
+module Prec = BaseDomain.Prec
 
 
 
@@ -72,9 +73,9 @@ struct
   type glob_diff = (V.t * G.t) list
 
   let name () = "base"
-  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
-  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
-  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
+  let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); prec = Prec.bot (); priv = Priv.startstate ()}
+  let otherstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); prec = Prec.bot (); priv = Priv.startstate ()}
+  let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); prec = Prec.bot (); priv = Priv.startstate ()}
 
   (**************************************************************************
    * Helpers
@@ -1952,19 +1953,17 @@ struct
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
     (* Projection to Precision of the Callee *)
-    let p = PU.precision_from_fundec fundec in
-    let new_cpa = project (Some p) new_cpa in
+    let new_prec = PU.precision_from_fundec fundec in
+    let new_cpa = project (Some new_prec) new_cpa in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
     let reachable_other_copies = List.filter (fun v -> match Cilfacade.find_scope_fundec v with Some scope -> CilType.Fundec.equal scope fundec | None -> false) reachable in
     (* Add to the set of weakly updated variables *)
     let new_weak = WeakUpdates.join st.weak (WeakUpdates.of_list reachable_other_copies) in
-    {st' with cpa = new_cpa; weak = new_weak}
+    {st' with cpa = new_cpa; weak = new_weak; prec = Prec.of_precision new_prec}
 
   let enter ctx lval fn args : (D.t * D.t) list =
     [ctx.local, make_entry ctx fn args]
-
-
 
   let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
     let create_thread lval arg v =

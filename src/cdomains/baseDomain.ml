@@ -69,18 +69,26 @@ struct
   let name () = "Vars with Weak Update"
 end
 
+module Prec =
+struct
+  include Lattice.Liszt (Basetype.Bools)
+  let lift_bool b = `Lifted b
+  let of_precision ((x1, x2, x3, x4): PrecisionUtil.precision): t =
+    List.map lift_bool [x1; x2; x3; x4]
+end
 
 type 'a basecomponents_t = {
   cpa: CPA.t;
   deps: PartDeps.t;
   weak: WeakUpdates.t;
+  prec: Prec.t; (* precision of integer operations *)
   priv: 'a;
 } [@@deriving eq, ord]
 
 module BaseComponents (PrivD: Lattice.S):
 sig
   include Lattice.S with type t = PrivD.t basecomponents_t
-  val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+  val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (Prec.t -> Prec.t -> Prec.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
   type t = PrivD.t basecomponents_t [@@deriving eq, ord]
@@ -124,16 +132,17 @@ struct
   let invariant c {cpa; deps; weak; priv} =
     Invariant.(CPA.invariant c cpa && PartDeps.invariant c deps && WeakUpdates.invariant c weak && PrivD.invariant c priv)
 
-  let of_tuple(cpa, deps, weak, priv):t = {cpa; deps; weak; priv}
+  let of_tuple(cpa, deps, weak, prec, priv):t = {cpa; deps; weak; prec; priv}
   let to_tuple r = (r.cpa, r.deps, r.weak, r.priv)
 
   let arbitrary () =
-    let tr = QCheck.quad (CPA.arbitrary ()) (PartDeps.arbitrary ()) (WeakUpdates.arbitrary ()) (PrivD.arbitrary ()) in
-    QCheck.map ~rev:to_tuple of_tuple tr
+    (* let tr = QCheck.quad (CPA.arbitrary ()) (PartDeps.arbitrary ()) (WeakUpdates.arbitrary ()) (Prec.arbitrary ()) (PrivD.arbitrary ()) in
+    QCheck.map ~rev:to_tuple of_tuple tr *)
+    failwith "not implemented"
 
-  let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); weak = WeakUpdates.bot (); priv = PrivD.bot ()}
+  let bot () = { cpa = CPA.bot (); deps = PartDeps.bot (); weak = WeakUpdates.bot (); prec = Prec.bot ();  priv = PrivD.bot ()}
   let is_bot {cpa; deps; weak; priv} = CPA.is_bot cpa && PartDeps.is_bot deps && WeakUpdates.is_bot weak && PrivD.is_bot priv
-  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; priv = PrivD.bot ()}
+  let top () = {cpa = CPA.top (); deps = PartDeps.top ();  weak = WeakUpdates.top () ; prec = Prec.bot (); priv = PrivD.bot ()}
   let is_top {cpa; deps; weak; priv} = CPA.is_top cpa && PartDeps.is_top deps && WeakUpdates.is_top weak && PrivD.is_top priv
 
   let leq {cpa=x1; deps=x2; weak=x3; priv=x4 } {cpa=y1; deps=y2; weak=y3; priv=y4} =
@@ -149,12 +158,12 @@ struct
     else
       PrivD.pretty_diff () (x4,y4)
 
-  let op_scheme op1 op2 op3 op4 {cpa=x1; deps=x2; weak=x3; priv=x4} {cpa=y1; deps=y2; weak=y3; priv=y4}: t =
-    {cpa = op1 x1 y1; deps = op2 x2 y2; weak = op3 x3 y3; priv = op4 x4 y4 }
-  let join = op_scheme CPA.join PartDeps.join WeakUpdates.join PrivD.join
-  let meet = op_scheme CPA.meet PartDeps.meet WeakUpdates.meet PrivD.meet
-  let widen = op_scheme CPA.widen PartDeps.widen WeakUpdates.widen PrivD.widen
-  let narrow = op_scheme CPA.narrow PartDeps.narrow WeakUpdates.narrow PrivD.narrow
+  let op_scheme op1 op2 op3 op4 op5 {cpa=x1; deps=x2; weak=x3; prec=x4; priv=x5} {cpa=y1; deps=y2; weak=y3; prec=y4; priv=y5}: t =
+    {cpa = op1 x1 y1; deps = op2 x2 y2; weak = op3 x3 y3; prec = op4 x4 y4; priv = op5 x5 y5 }
+  let join = op_scheme CPA.join PartDeps.join WeakUpdates.join Prec.join PrivD.join
+  let meet = op_scheme CPA.meet PartDeps.meet WeakUpdates.meet Prec.meet PrivD.meet
+  let widen = op_scheme CPA.widen PartDeps.widen WeakUpdates.widen Prec.widen PrivD.widen
+  let narrow = op_scheme CPA.narrow PartDeps.narrow WeakUpdates.narrow Prec.narrow PrivD.narrow
 end
 
 module type ExpEvaluator =
@@ -172,7 +181,7 @@ struct
   let eval_exp x = Option.map BI.to_int64 % (ExpEval.eval_exp x)
   let join (one:t) (two:t): t =
     let cpa_join = CPA.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) in
-    op_scheme cpa_join PartDeps.join WeakUpdates.join PrivD.join one two
+    op_scheme cpa_join PartDeps.join WeakUpdates.join Prec.join PrivD.join one two
 
   let leq one two =
     let cpa_leq = CPA.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) in
@@ -180,7 +189,7 @@ struct
 
   let widen one two: t =
     let cpa_widen = CPA.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) in
-    op_scheme cpa_widen PartDeps.widen WeakUpdates.widen PrivD.widen one two
+    op_scheme cpa_widen PartDeps.widen WeakUpdates.widen Prec.widen PrivD.widen one two
 end
 
 
