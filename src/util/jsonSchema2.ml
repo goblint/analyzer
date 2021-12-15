@@ -3,6 +3,9 @@ open Prelude
 module JS = Json_schema.Make (Json_repr.Yojson)
 module JE = Json_encoding.Make (Json_repr.Yojson)
 
+let schema_to_yojson = JS.to_json
+let schema_of_yojson = JS.of_json ?definitions_path:None
+
 let erase: type t. t Json_encoding.encoding -> unit Json_encoding.encoding = fun encoding -> Json_encoding.conv (fun _ -> failwith "erase construct") (fun _ -> ()) encoding
 
 let rec encoding_of_schema_element (top: unit Json_encoding.encoding) (schema_element: Json_schema.element): unit Json_encoding.encoding =

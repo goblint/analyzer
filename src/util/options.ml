@@ -94,9 +94,9 @@ let defaults = JsonSchema2.schema_defaults schema
 
 let () =
   JsonSchema2.global_schema := schema;
-  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.JS.to_json schema);
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.schema_to_yojson schema);
 
-  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.JS.to_json require_all);
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.schema_to_yojson require_all);
 
   Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults
 
