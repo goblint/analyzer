@@ -119,9 +119,9 @@ let require_all = JsonSchema2.schema_require_all schema
 let defaults = JsonSchema2.schema_defaults schema
 
 let () =
-  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.schema_to_yojson require_all);
-
-  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults
+  (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.schema_to_yojson require_all); *)
+  (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults; *)
+  ()
 
 let rec pp_options ~levels ppf (element: element) =
   match element.kind with
