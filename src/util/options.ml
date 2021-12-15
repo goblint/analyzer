@@ -83,12 +83,12 @@ let schema_of_defaults_json defaults json =
   JsonSchema2.create_schema element
 
 
-let defaults_schema =
+(* let defaults_schema =
   let defaults = List.map (fun (c, (n, (desc, def))) -> (n, (c, desc, def))) !Defaults.registrar in (* transform for assoc list lookup by name *)
   schema_of_defaults_json defaults !GobConfig.json_conf
 
 let () =
-  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.schema_to_yojson defaults_schema)
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.schema_to_yojson defaults_schema) *)
 
 let schema_of_yojson json =
   (* workaround for json-data-encoding not handling recursive root reference correctly *)

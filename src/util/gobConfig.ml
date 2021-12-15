@@ -30,6 +30,12 @@ let build_config = ref false
 (* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
 let phase = ref 0
 
+
+module Validator = JsonSchema2.Validator (struct let schema = Options.schema end)
+module ValidatorRequireAll = JsonSchema2.Validator (struct let schema = Options.require_all end)
+(* module Validator = JsonSchema2.Validator (struct let schema = Json_schema.any end)
+module ValidatorRequireAll = JsonSchema2.Validator (struct let schema = Json_schema.any end) *)
+
 (** The type for [gobConfig] module. *)
 module type S =
 sig
@@ -270,9 +276,10 @@ struct
     o := set_value v !o orig_pth;
     validate conf_schema !json_conf;
 
-    if not !build_config then (* object incomplete during building *)
-      JsonSchema2.validate !json_conf;
-    ()
+    if not !build_config then ( (* object incomplete during building *)
+      Validator.validate_exn !json_conf;
+      (* JsonSchema2.validate !json_conf; *)
+    )
 
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f st =
@@ -362,9 +369,11 @@ struct
   (** Merge configurations form a file with current. *)
   let merge_file fn =
     let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
-    JsonSchema2.validate v;
+    (* JsonSchema2.validate v; *)
+    Validator.validate_exn v;
     json_conf := GobYojson.merge !json_conf v;
-    JsonSchema2.validate !json_conf;
+    (* JsonSchema2.validate !json_conf; *)
+    ValidatorRequireAll.validate_exn !json_conf;
     drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
 end
@@ -375,5 +384,6 @@ let () =
   build_config := true;
   List.iter (fun (c, (n, (desc, def))) -> set_auto n def) !Defaults.registrar;
   build_config := false;
+  ValidatorRequireAll.validate_exn !json_conf;
 
   addenum_sch (Yojson.Safe.from_string Defaults.default_schema)
