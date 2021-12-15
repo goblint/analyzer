@@ -298,11 +298,15 @@ struct
 
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
-    if get_string "load_run" <> "" then (
-      Spec.init (Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal")))
-    )
-    else
-      Spec.init None;
+    let marshal =
+      if get_string "load_run" <> "" then
+        Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal"))
+      else if Serialize.results_exist () && get_bool "incremental.load" then
+        Some (Serialize.load_data Serialize.AnalysisData)
+      else
+        None
+    in
+    Spec.init marshal;
     Access.init file;
 
     let test_domain (module D: Lattice.S): unit =
@@ -508,10 +512,6 @@ struct
       (* Most warnings happen before durin postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       Goblintutil.should_warn := PostSolverArg.should_warn;
 
-      if GobConfig.get_bool "incremental.save" then (
-        Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
-      );
-
       let insrt k _ s = match k with
         | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
         | (MyCFG.FunctionEntry fn,_) -> if (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
@@ -643,7 +643,10 @@ struct
     if get_string "save_run" <> "" then (
       Serialize.marshal marshal (Filename.concat (get_string "save_run") "spec_marshal")
     );
-
+    if get_bool "incremental.save" then (
+      Serialize.store_data marshal Serialize.AnalysisData;
+      Serialize.move_tmp_results_to_results ()
+    );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Result.output (lazy local_xml) gh make_global_fast_xml file
 end

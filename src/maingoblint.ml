@@ -433,7 +433,7 @@ let check_arguments () =
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.rename-load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
