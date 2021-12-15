@@ -92,3 +92,24 @@ let validate json =
     | exception (Json_encoding.Cannot_destruct _ as e) ->
       Format.printf "validate: %a\n" (Json_encoding.print_error ?print_unknown:None) e;
       failwith "JsonSchema2.validate"
+
+let () = Printexc.register_printer (function
+    | Json_encoding.Unexpected _
+    | Json_encoding.No_case_matched _
+    | Json_encoding.Bad_array_size _
+    | Json_encoding.Missing_field _
+    | Json_encoding.Unexpected_field _
+    | Json_encoding.Bad_schema _
+    | Json_encoding.Cannot_destruct _
+    | Json_schema.Cannot_parse _
+    | Json_schema.Dangling_reference _
+    | Json_schema.Bad_reference _
+    | Json_schema.Unexpected _
+    | Json_schema.Duplicate_definition _
+    | Json_query.Illegal_pointer_notation _
+    | Json_query.Unsupported_path_item _
+    | Json_query.Cannot_merge _ as exn ->
+      let msg = Format.asprintf "Json_encoding: %a" (Json_encoding.print_error ?print_unknown:None) exn in
+      Some msg
+    | _ -> None (* for other exceptions *)
+  )
