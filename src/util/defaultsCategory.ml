@@ -7,7 +7,7 @@ type category = Std             (** Parsing input, includes, standard stuff, etc
               | Incremental     (** Incremental features                          *)
               | Semantics       (** Semantics                                     *)
               | Transformations (** Transformations                               *)
-              | Annotation      (** Features for annotations                       *)
+              | Annotation      (** Features for annotations                      *)
               | Experimental    (** Experimental features of analyses             *)
               | Debugging       (** Debugging, tracing, etc.                      *)
               | Warnings        (** Filtering warnings                            *)

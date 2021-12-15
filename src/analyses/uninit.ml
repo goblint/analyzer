@@ -89,7 +89,7 @@ struct
       match ask (Queries.ReachableFrom e) with
       | a when not (Queries.LS.is_top a) ->
         let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
-        Queries.LS.fold to_extra a []
+        Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> []
     in
@@ -227,7 +227,7 @@ struct
         match ask.f (Queries.ReachableFrom e) with
         | a when not (Queries.LS.is_top a) ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
-          Queries.LS.fold to_extra a []
+          Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in

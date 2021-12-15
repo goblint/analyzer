@@ -156,6 +156,24 @@ let _ = ()
 let _ = ()
       ; reg Annotation "annotation.int.enabled"   "false" "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains."
       ; reg Annotation "annotation.int.privglobs" "true"  "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true."
+      ; reg Annotation "annotation.goblint_context.base.no-non-ptr" "[]" ""
+      ; reg Annotation "annotation.goblint_context.base.non-ptr" "[]" ""
+      ; reg Annotation "annotation.goblint_context.base.no-int" "[]" ""
+      ; reg Annotation "annotation.goblint_context.base.int" "[]" ""
+      ; reg Annotation "annotation.goblint_context.base.no-interval" "[]" ""
+      ; reg Annotation "annotation.goblint_context.base.interval" "[]" ""
+      ; reg Annotation "annotation.goblint_context.apron.no-context" "[]" ""
+      ; reg Annotation "annotation.goblint_context.apron.context" "[]" ""
+      ; reg Annotation "annotation.goblint_context.no-widen" "[]" ""
+      ; reg Annotation "annotation.goblint_context.widen" "[]" ""
+      ; reg Annotation "annotation.goblint_precision.no-def_exc" "[]" ""
+      ; reg Annotation "annotation.goblint_precision.def_exc" "[]" ""
+      ; reg Annotation "annotation.goblint_precision.no-interval" "[]" ""
+      ; reg Annotation "annotation.goblint_precision.interval" "[]" ""
+      ; reg Annotation "annotation.goblint_precision.no-enums" "[]" ""
+      ; reg Annotation "annotation.goblint_precision.enums" "[]" ""
+      ; reg Annotation "annotation.goblint_precision.no-congruence" "[]" ""
+      ; reg Annotation "annotation.goblint_precision.congruence" "[]" ""
 
 (* {4 category [Experimental]} *)
 let _ = ()

@@ -1,5 +1,21 @@
 // PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','octagon','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
-void main(void) __attribute__((goblint_precision("no-interval"))) {
+
+void main(void) __attribute__((goblint_precision("no-interval")));
+void example1(void) __attribute__((goblint_precision("no-def_exc")));
+void example2(void) __attribute__((goblint_precision("no-def_exc")));
+void example3(void) __attribute__((goblint_precision("no-def_exc")));
+void example4(void) __attribute__((goblint_precision("no-def_exc")));
+void example4a(void) __attribute__((goblint_precision("no-def_exc")));
+void example4b(void) __attribute__((goblint_precision("no-def_exc")));
+void example4c(void) __attribute__((goblint_precision("no-def_exc")));
+void example5(void) __attribute__((goblint_precision("no-def_exc")));
+void example6(void) __attribute__((goblint_precision("no-def_exc")));
+void example7(void) __attribute__((goblint_precision("no-def_exc")));
+void example8(void) __attribute__((goblint_precision("no-def_exc")));
+void mineEx1(void) __attribute__((goblint_precision("no-def_exc")));
+
+
+void main(void) {
   example1();
   example2();
   example3();
@@ -14,7 +30,7 @@ void main(void) __attribute__((goblint_precision("no-interval"))) {
   mineEx1();
 }
 
-void example1(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example1(void) {
   int a[20];
   int i = 0;
   int j = 0;
@@ -56,7 +72,7 @@ void example1(void) __attribute__((goblint_precision("no-def_exc"))) {
   assert(a[z] == 0); //FAIL
 }
 
-void example2(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example2(void) {
   int a[20];
   int i = 0;
   int j = 0;
@@ -99,7 +115,7 @@ void example2(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Simple example (employing MustBeEqual)
-void example3(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example3(void) {
   int a[42];
   int i = 0;
   int x;
@@ -114,7 +130,7 @@ void example3(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Simple example (employing MayBeEqual / MayBeSmaller)
-void example4(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example4(void) {
   int a[42];
   int i = 0;
 
@@ -139,7 +155,7 @@ void example4(void) __attribute__((goblint_precision("no-def_exc"))) {
   }
 }
 // Just like the example before except that it tests correct behavior when variable order is reversed
-void example4a(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example4a(void) {
   int a[42];
   int j;
   int i = 0;
@@ -162,7 +178,7 @@ void example4a(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Just like the example before except that it tests correct behavior when operands for + are reversed
-void example4b(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example4b(void) {
   int a[42];
   int j;
   int i = 0;
@@ -185,7 +201,7 @@ void example4b(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Like example before but iterating backwards
-void example4c(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example4c(void) {
   int a[42];
   int j;
   int i = 41;
@@ -202,7 +218,7 @@ void example4c(void) __attribute__((goblint_precision("no-def_exc"))) {
   }
 }
 
-void example5(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example5(void) {
   int a[40];
   int i = 0;
 
@@ -228,7 +244,7 @@ void example5(void) __attribute__((goblint_precision("no-def_exc"))) {
   }
 }
 
-void example6(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example6(void) {
   int a[42];
   int i = 0;
   int top;
@@ -247,7 +263,7 @@ void example6(void) __attribute__((goblint_precision("no-def_exc"))) {
   }
 }
 
-void example7(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example7(void) {
   int top;
 
   int a[42];
@@ -271,7 +287,7 @@ void example7(void) __attribute__((goblint_precision("no-def_exc"))) {
   }
 }
 
-void example8(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example8(void) {
   int a[42];
   int i = 0;
   int j = i;
@@ -307,7 +323,7 @@ void example8(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf
-void mineEx1(void) __attribute__((goblint_precision("no-def_exc"))) {
+void mineEx1(void) {
   int X = 0;
   int N = rand();
   if(N < 0) { N = 0; }
