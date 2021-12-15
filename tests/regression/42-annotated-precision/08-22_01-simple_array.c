@@ -2,7 +2,20 @@
 // skipped because https://github.com/goblint/analyzer/issues/468
 int global;
 
-int main(void) __attribute__((goblint_precision("no-interval")))
+int main(void) __attribute__((goblint_precision("no-interval")));
+void example1(void) __attribute__((goblint_precision("no-def_exc")));
+void example2(void) __attribute__((goblint_precision("no-def_exc")));
+void example3(void) __attribute__((goblint_precision("no-def_exc")));
+void example4(void) __attribute__((goblint_precision("no-def_exc")));
+void example5(void) __attribute__((goblint_precision("no-def_exc")));
+void example6(void) __attribute__((goblint_precision("no-def_exc")));
+void example7(void) __attribute__((goblint_precision("no-def_exc")));
+void example8() __attribute__((goblint_precision("no-def_exc")));
+void example9() __attribute__((goblint_precision("no-def_exc")));
+void example10() __attribute__((goblint_precision("no-def_exc")));
+
+
+int main(void)
 {
     example1();
     example2();
@@ -18,7 +31,7 @@ int main(void) __attribute__((goblint_precision("no-interval")))
 }
 
 // Simple example
-void example1(void) __attribute__((goblint_precision("no-def_exc")))
+void example1(void)
 {
     int a[42];
     int i = 0;
@@ -38,7 +51,7 @@ void example1(void) __attribute__((goblint_precision("no-def_exc")))
 }
 
 // More complicated expression to index rather than just a variable
-void example2(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example2(void) {
     int a[42];
     int i = 1;
 
@@ -55,7 +68,7 @@ void example2(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Two values initialized in one loop
-void example3(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example3(void) {
     int a[42];
     int i = 0;
 
@@ -73,7 +86,7 @@ void example3(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Example where initialization proceeds backwards
-void example4(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example4(void) {
     int a[42];
     int i = 41;
 
@@ -89,7 +102,7 @@ void example4(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Example having two arrays partitioned according to one expression
-void example5(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example5(void) {
     int a[42];
     int b[42];
     int i = 0;
@@ -110,7 +123,7 @@ void example5(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Example showing array becoming partitioned according to different expressions
-void example6(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example6(void) {
     int a[42];
     int i = 0;
     int j = 0;
@@ -140,7 +153,7 @@ void example6(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // This was the case where we thought we needed path-splitting
-void example7(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example7(void) {
     int a[42];
     int i = 0;
     int top;
@@ -160,7 +173,7 @@ void example7(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Check that the global variable is not used for partitioning
-void example8() __attribute__((goblint_precision("no-def_exc"))) {
+void example8() {
     int a[10];
 
     a[global] = 4;
@@ -178,7 +191,7 @@ void example8() __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Check that arrays of types different from int are handeled correctly
-void example9() __attribute__((goblint_precision("no-def_exc"))) {
+void example9() {
     char a[10];
     int n;
     assert(a[3] == 800); // FAIL
@@ -197,7 +210,7 @@ void example9() __attribute__((goblint_precision("no-def_exc"))) {
     assert(a[3] == -129); //FAIL
 }
 
-void example10() __attribute__((goblint_precision("no-def_exc"))) {
+void example10() {
     int a[20];
     a[5] = 3;
 

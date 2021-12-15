@@ -289,7 +289,7 @@ let preprocess_files () =
 let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
-  let files_AST = List.rev_map Cilfacade.getAST cpp_file_names in
+  let files_AST = List.map Cilfacade.getAST cpp_file_names in
   remove_temp_dir ();
 
   let cilout =

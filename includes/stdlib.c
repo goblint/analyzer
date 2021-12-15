@@ -30,8 +30,8 @@ void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const 
 }
 
 
-void* bsearch(const void *key, void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*))  __attribute__((goblint_stub));
-void* bsearch(const void *key, void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
+void* bsearch(const void *key, const void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*))  __attribute__((goblint_stub));
+void* bsearch(const void *key, const void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
   // linear search for simplicity
   for (size_t i = 0; i < count; i++) {
     const void *a = ptr + i * size;

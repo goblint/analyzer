@@ -60,9 +60,11 @@ struct
     | a when not (Queries.LS.is_top a) ->
       (* let to_extra (v,o) set = D.add (Addr.from_var_offset (v, cut_offset o)) set in *)
       let to_extra (v,o) set = D.add v set in
-      Queries.LS.fold to_extra a (D.empty ())
+      Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) (D.empty ())
     (* Ignore soundness warnings, as invalidation proper will raise them. *)
-    | _ -> D.empty ()
+    | a ->
+      if M.tracing then M.tracel "escape" "reachable %a: %a\n" d_exp e Queries.LS.pretty a;
+      D.empty ()
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     ctx.local
@@ -84,6 +86,7 @@ struct
       match args with
       | [ptc_arg] ->
         let escaped = fctx.local in (* reuse reachable computation from threadenter *)
+        if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
         if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
           ctx.emit (Events.Escape escaped);
         escaped

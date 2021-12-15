@@ -567,8 +567,23 @@ struct
   let smart_widen = smart_widen_with_length None
   let smart_leq = smart_leq_with_length None
 
-  let meet a b = normalize @@ meet a b
-  let narrow a b = normalize @@ narrow a b
+  let meet (e1,v1) (e2,v2) = normalize @@
+    match e1,e2 with
+    | `Lifted e1e, `Lifted e2e when not (Basetype.CilExp.equal e1e e2e) ->
+      (* partitioned according to two different expressions -> meet can not be element-wise *)
+      (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+      (* TODO: do smart things if the relationship between e1e and e2e is known *)
+      (e1,v1)
+    | _ -> meet (e1,v1) (e2,v2)
+
+  let narrow (e1,v1) (e2,v2) = normalize @@
+    match e1,e2 with
+    | `Lifted e1e, `Lifted e2e when not (Basetype.CilExp.equal e1e e2e) ->
+      (* partitioned according to two different expressions -> narrow can not be element-wise *)
+      (* arrays can not be partitioned according to multiple expressions, arbitrary prefer the first one here *)
+      (* TODO: do smart things if the relationship between e1e and e2e is known *)
+      (e1,v1)
+    | _ -> narrow (e1,v1) (e2,v2)
 
   let update_length _ x = x
 end
