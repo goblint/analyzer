@@ -336,7 +336,8 @@ class Project
         puts stats.last(5).itemize
       elsif status == 2 then # if stats[0] =~ /exception/ then
         lastline = (File.readlines testset.warnfile).last()
-        puts lastline.strip().sub filename, relpath(filepath).to_s unless lastline.nil?
+        filename = File.basename(@path)
+        puts lastline.strip().sub filename, relpath(@path).to_s unless lastline.nil?
         puts stats[0..9].itemize
       elsif status == 3 then
         warn = File.readlines testset.warnfile
