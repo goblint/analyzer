@@ -30,8 +30,8 @@
     (select relationAnalysis.ml from
       (apron -> relationAnalysis.apron.ml)
     )
-    (select affineEqAnalysis.ml from
-      (apron -> affineEqAnalysis.apron.ml)
+    (select affineEqualityAnalysis.ml from
+      (apron -> affineEqualityAnalysis.apron.ml)
     )
     (select apronPriv.ml from
       (apron -> apronPriv.apron.ml)
@@ -40,8 +40,8 @@
     (select relationDomain.ml from
       (apron -> relationDomain.apron.ml)
     )
-    (select myDomain.ml from
-      (apron -> myDomain.apron.ml)
+    (select affineEqualityDomain.ml from
+      (apron -> affineEqualityDomain.apron.ml)
     )
     (select envDomain.ml from
       (apron -> envDomain.apron.ml)

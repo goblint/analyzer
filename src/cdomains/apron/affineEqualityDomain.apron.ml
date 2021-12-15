@@ -305,13 +305,13 @@ struct
     type_tracked vi.vtype && not vi.vaddrof
 end
 
-module DummyBounds: EnvDomain.ConvBounds with type d = VarManagement.t = (* ToDo Implement proper bounds calculation*)
+module ExpressionBounds: EnvDomain.ConvBounds with type d = VarManagement.t = (* ToDo Implement proper bounds calculation*)
 struct
   type d = VarManagement.t
-  let bound_texpr t texpr = (Some (Z.of_int 0), Some (Z.of_int 0))
+  let bound_texpr t texpr = (None, None)
 end
 
-module Convert = EnvDomain.Convert (DummyBounds)
+module Convert = EnvDomain.Convert (ExpressionBounds)
 open Apron.Texpr1
 
 module MyD2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
@@ -319,14 +319,6 @@ struct
 
   include VarManagement
   type lconsarray
-
-  type marshal = t
-
-  let marshal t = t
-
-  let unmarshal t = t
-
-  let relift t = t
 
   let of_lincons_array t = failwith "Does not exist"
 
@@ -593,11 +585,18 @@ struct
 (** Assert a constraint expression. *)
   let rec meet_with_tcons d tcons =
     match Tcons1.get_typ tcons with
-    | EQ -> begin match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+    | EQ ->
+      if M.tracing then M.tracel "asserts" "EQ meet_with_tcons %s\n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
+      begin match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
             | None -> d
             | Some (e) ->  meet d {d = Some ([e]); env = d.env}
             end
-    | _ -> d
+    | DISEQ ->
+      if M.tracing then M.tracel "asserts" "DISEQ meet_with_tcons %s\n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
+      d
+    | SUP -> if M.tracing then M.tracel "asserts" "SUP meet_with_tcons: %s \n" (Format.asprintf "%a" (Texpr1.print: Format.formatter -> Texpr1.t -> unit) (Tcons1.get_texpr1 tcons)); d
+    | SUPEQ -> if M.tracing then M.tracel "asserts" "SUPEQ meet_with_tcons: %s \n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons); d
+    | EQMOD _ -> if M.tracing then M.tracel "asserts" "EQMOD meet_with_tcons: %s \n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons); d
 
   let rec assert_cons d e negate =
       begin match Convert.tcons1_of_cil_exp d (d.env) e negate with
@@ -617,7 +616,14 @@ struct
     in
     assert_cons d e' negate
 
-  let check_assert d e =
+
+  let assert_inv d e negate =
+    let res = assert_inv d e negate in
+      if M.tracing then M.tracel "assert" "assert_inv: d: %s expression: %s negate: %b -> %s\n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) negate (show res);
+      res
+
+
+  let check_asserts d e =
     if is_bot_env (assert_inv d e false) then
       `False
     else if is_bot_env (assert_inv d e true) then
@@ -625,30 +631,41 @@ struct
     else
       `Top
 
+  let check_assert d e =
+    let res = check_asserts d e in
+      if M.tracing then M.tracel "assert" "check_assert: %s \n" (show d);
+      res
+
+
   (** Evaluate non-constraint expression as interval. *)
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (d.env) e with
     | texpr1 ->
-      DummyBounds.bound_texpr d texpr1
+      ExpressionBounds.bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp ->
       (None, None)
+
 
 (** Evaluate constraint or non-constraint expression as integer. *)
   let eval_int d e =
     let module ID = Queries.ID in
     let ik = Cilfacade.get_ikind_exp e in
     if exp_is_cons e then
-      match check_assert d e with
+      match check_asserts d e with
       | `True -> ID.of_bool ik true
       | `False -> ID.of_bool ik false
       | `Top -> ID.top ()
-    else (*ToDo Implement proper bounds calculation and determine limits*)
-      (* match eval_interval_expr d e with
+    else
+      match eval_interval_expr d e with
       | (Some min, Some max) -> ID.of_interval ik (min, max)
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top () *)
-      ID.top ()
+      | (None, None) -> ID.top ()
+
+  let eval_int d e =
+    let res = eval_int d e in
+    if M.tracing then M.tracel "assert" "Eval Int: matrix: %s expr: %s -> %s \n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) (IntDomain.IntDomTuple.show res) ;
+    res
 
 
   let unify a b =
@@ -673,4 +690,12 @@ struct
     let res = unify a b in
       if M.tracing then M.tracel "ops" "unify\n";
       res
+
+  type marshal = t
+
+  let marshal t = t
+
+  let unmarshal t = t
+
+  let relift t = t
 end

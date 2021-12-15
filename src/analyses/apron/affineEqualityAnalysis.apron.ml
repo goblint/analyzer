@@ -10,8 +10,8 @@ open RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let open MyDomain in
-    let module AD = MyDomain.MyD2 in
+    let open AffineEqualityDomain in
+    let module AD = AffineEqualityDomain.MyD2 in
     let module RD: RelationDomain.RD =
       struct
         module Var = EnvDomain.Var
