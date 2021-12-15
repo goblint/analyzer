@@ -83,10 +83,36 @@ let schema_of_defaults_json defaults json =
   JsonSchema2.create_schema element
 
 
-
-let schema =
+let defaults_schema =
   let defaults = List.map (fun (c, (n, (desc, def))) -> (n, (c, desc, def))) !Defaults.registrar in (* transform for assoc list lookup by name *)
   schema_of_defaults_json defaults !GobConfig.json_conf
+
+let () =
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.schema_to_yojson defaults_schema)
+
+let schema_of_yojson json =
+  (* workaround for json-data-encoding not handling recursive root reference correctly *)
+  (* remove the reference before parsing, hack it back afterwards *)
+  let json = JsonSchema2.JQ.replace [`Field "properties"; `Field "phases"; `Field "items"] (`Assoc []) json in
+  let schema = JsonSchema2.schema_of_yojson json in (* definitions_path doesn't work, "definitions" field still hardcoded *)
+  let element = Json_schema.root schema in
+  let element = match element with
+    | { kind = Object ({properties; _} as object_specs); _} ->
+      let rec modify = function
+        | [] -> assert false
+        | ("phases", ({ Json_schema.kind = Monomorphic_array (_, array_specs); _} as field_element), required, unknown) :: props ->
+          ("phases", {field_element with Json_schema.kind = Monomorphic_array (Json_schema.element (Id_ref ""), array_specs)}, required, unknown) :: props
+        | prop :: props ->
+          prop :: modify props
+      in
+      {element with kind = Object {object_specs with properties = modify properties}}
+    | _ ->
+      assert false
+  in
+  JsonSchema2.create_schema element
+
+let schema =
+  schema_of_yojson (Yojson.Safe.from_file "options.schema.json")
 
 let require_all = JsonSchema2.schema_require_all schema
 
@@ -94,7 +120,6 @@ let defaults = JsonSchema2.schema_defaults schema
 
 let () =
   JsonSchema2.global_schema := schema;
-  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.schema_to_yojson schema);
 
   Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.schema_to_yojson require_all);
 

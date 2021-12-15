@@ -2,6 +2,7 @@ open Prelude
 
 module JS = Json_schema.Make (Json_repr.Yojson)
 module JE = Json_encoding.Make (Json_repr.Yojson)
+module JQ = Json_query.Make (Json_repr.Yojson)
 
 let schema_to_yojson = JS.to_json
 let schema_of_yojson = JS.of_json ?definitions_path:None
