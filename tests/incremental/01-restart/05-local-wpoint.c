@@ -15,7 +15,7 @@ int main() {
     int x;
     x = g;
     while (1) {
-        assert(x == 1); // unknown before, success after
+        assert(x == 1); // TODO unknown before, success after
         x = g;
     }
 

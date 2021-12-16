@@ -5,7 +5,7 @@ int g;
 
 void* t_fun1(void *arg) {
     int x = g;
-    assert(x <= 8);
+    assert(x <= 8); // TODO
     return NULL;
 }
 
@@ -17,7 +17,7 @@ void* t_fun2(void *arg) {
 int main() {
     pthread_t id1, id2;
     pthread_create(&id1, NULL, t_fun1, NULL);
-    
+
 
     int i = 0;
     int j;

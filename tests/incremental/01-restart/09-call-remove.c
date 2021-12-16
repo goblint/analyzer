@@ -13,7 +13,7 @@ void* t_fun(void *arg) {
 }
 
 void* t_fun2(void *arg) {
-    assert(g == 1); // unknown before, success after
+    assert(g == 1); // TODO unknown before, success after
     return NULL;
 }
 
