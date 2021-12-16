@@ -1390,7 +1390,7 @@ struct
     | `Excluded (xs,xr), `Excluded (ys,yr) ->
       Exclusion.(leq (Exc (xs,xr)) (Exc (ys, yr)))
 
-  let join ik x y =
+  let join' ?range ik x y =
     match (x,y) with
     (* The least upper bound with the bottom element: *)
     | `Bot, x -> x
@@ -1414,9 +1414,10 @@ struct
       else
         `Excluded (S.remove x s, r)
     (* For two exclusion sets, only their intersection can be excluded: *)
-    | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, R.join wx wy)
+    | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, range |? R.join wx wy)
 
-  let widen = join
+  let join ik = join' ik
+  let widen ik = join' ~range:(size ik) ik
 
   let meet ik x y =
     match (x,y) with
