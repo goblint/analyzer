@@ -1,5 +1,3 @@
-// SKIP
-
 int a;
 void b();
 

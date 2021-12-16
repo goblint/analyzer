@@ -1,5 +1,5 @@
 diff --git a/tests/incremental/02-abort/11-abort_aget.c b/tests/incremental/02-abort/11-abort_aget.c
-@@ -6,7 +6,7 @@ void b();
+@@ -4,7 +4,7 @@ void b();
  void c() {}
 
  int d() {
