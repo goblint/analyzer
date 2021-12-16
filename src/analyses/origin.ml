@@ -32,11 +32,23 @@ struct
   (* Map of Variable -> Pair (AddressSet, OriginSet) *)
   module D = struct
     include MapDomain.MapBot (Basetype.Variables) (ValueOriginPair)
+    
     type t = MapDomain.MapBot(Basetype.Variables)(ValueOriginPair).t
+    
+    let check_precision_loss (m1: t) (m2: t) (res: t) =
+      (*let s: bool = MapDomain.MapBot.for_all (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) -> (MapDomain.MapBot.find key t m1) == v) res in s*)
+      m1 != res or m2 != res
+    
     let join_with_fct f (m1: t) (m2: t) =
-      let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in
-      if m1 == m2 then m1 else long_map2 f m1 m2
-    let join = join_with_fct ValueOriginPair.join
+      (*let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in*)
+      let res =  if m1 == m2 then m1 else long_map2 f m1 m2 in
+      if check_precision_loss m1 m2 res then
+        (match !MyCFG.current_node with
+          | Some n -> ignore @@ Pretty.printf "Precision lost at node %s\n\n" (Node.show n)
+          | _ -> ignore @@ Pretty.printf "Precision lost at unknown node\n\n");
+      res
+    
+      let join = join_with_fct ValueOriginPair.join
   end
   (* No information about globals*)
   module G = Lattice.Unit
