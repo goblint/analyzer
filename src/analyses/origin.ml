@@ -2,6 +2,9 @@
 open Prelude.Ana
 open Analyses
 
+(* For different kinds of value domains, like addresses, indexes... *)
+include PreValueDomain
+
 (** An analysis that tracks the origin of a value.
     It only considers definite values of local variables.
     We do not pass information interprocedurally. *)
@@ -9,20 +12,26 @@ module Spec : Analyses.MCPSpec =
 struct
   let name () = "origin"
 
+  (* Program point lattice *)
   module PL = Lattice.Flat (Node) (struct
       let top_name = "Unknown node"
       let bot_name = "Unreachable node"
     end)
 
-  module I = IntDomain.Flattened
+  (* Variable lattice *)
+  module VL = Lattice.Flat (Basetype.Variables) (struct
+    let top_name = "Unknown variable"
+    let bot_name = "Unreachable variable"
+  end)
 
-  module Origin = Lattice.Prod (I) (PL)
+  (* Origin is Variable and Node *)
+  module Origin = Lattice.Prod (VL) (PL)
   module OriginSet = SetDomain.ToppedSet (Origin) (struct let topname = "All" end)
+  module ValueOriginPair = Lattice.Prod (AD) (OriginSet)
 
-  (* Map of (local int) variables to flat integers *)
-  (*module D = MapDomain.MapBot (Basetype.Variables) (Origin)*)
+  (* Map of Variable -> Pair (AddressSet, OriginSet) *)
   module D = struct
-    include MapDomain.MapBot (Basetype.Variables) (OriginSet)
+    include MapDomain.MapBot (Basetype.Variables) (ValueOriginPair)
   end
   (* No information about globals*)
   module G = Lattice.Unit
@@ -32,14 +41,13 @@ struct
   include Analyses.IdentitySpec
   let context _ _ = ()
 
-  let is_pointer_or_integer_var (v: varinfo) =
+  let is_pointer_var (v: varinfo) =
     match v.vtype with
-    | TInt _ -> true
     | TPtr _ -> true
     | _ -> false
 
   let get_local = function
-    | Var v, NoOffset when is_pointer_or_integer_var v && not v.vglob -> Some v (* local integer or pointer variable whose address is maybe taken *)
+    | Var v, NoOffset when is_pointer_var v && not v.vglob -> Some v (* local pointer variable whose address is maybe taken *)
     | _, _ -> None
 
   let contains s1 s2 =
@@ -48,13 +56,13 @@ struct
     with Not_found -> false
 
   (* TODO: make some smart check here *)
-  let should_split node =
-    let name: string = Node.show node in
+  let should_split node = false
+    (* let name: string = Node.show node in
     let we_split = contains name "node 11" || contains name "node 14" in
     let _ = if we_split then
       ignore (Pretty.printf "Spliting at %s\n" name);
     in
-    we_split
+    we_split *)
 
   let should_join node x y = 
     match node with
@@ -95,6 +103,7 @@ struct
     | v ->
       M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       []
+      (*`Top*)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -105,12 +114,23 @@ struct
     match get_local lval with
     (* | Some loc -> D.add loc (eval ctx.local rval node) ctx.local *)
     | Some loc -> 
-      let curr_set = D.find loc ctx.local in
+      let curr_val_origin_pair = D.find loc ctx.local in
+      let curr_val = fst curr_val_origin_pair in
+      let curr_origin_set = snd curr_val_origin_pair in
       (* let value = IntDomain.IntDomTuple.tag (ctx.ask (Queries.EvalInt rval)) in *)
-      let values = mayPointTo ctx rval in
-      let new_set = List.fold_left (fun s x -> OriginSet.add (`Lifted (Int64.of_int (Lval.CilLval.hash x)), node) s) curr_set values in 
+      let values: Addr.t list = List.map (
+        fun x -> 
+        let vinfo: varinfo = fst x in 
+        Addr.Addr (vinfo, `NoOffset)
+        ) (mayPointTo ctx rval) in
+      (*let module AddrMap = BatMap.Make (AD.Addr) in*)
+      let address_set = List.fold_left (fun s (x: Addr.t) -> AD.add x s) curr_val values in
+      let new_pair = (address_set, curr_origin_set) in 
+      let _ = Pretty.printf "assign %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in
       (*let new_set = values OriginSet.add (value, node) curr_set in*)
-      D.add loc new_set ctx.local
+      let ret = D.add loc new_pair ctx.local in
+      let _ = Pretty.printf "after %s\n" (Pretty.sprint 80 (D.pretty () ret)) in
+      ret
     | None -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
@@ -125,7 +145,7 @@ struct
 
   let body ctx (f:fundec) : D.t =
     (* Initialize locals to top *)
-    List.fold (fun m l -> D.add l (OriginSet.empty ()) m) ctx.local f.slocals
+    List.fold (fun m l -> D.add l (AD.empty (), OriginSet.empty ()) m) ctx.local f.slocals
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
@@ -133,14 +153,14 @@ struct
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* Set the formal int arguments to top *)
-    let callee_state = List.fold (fun m l -> D.add l (OriginSet.empty ()) m) (D.bot ()) f.sformals in
+    let callee_state = List.fold (fun m l -> D.add l (AD.empty (), OriginSet.empty ()) m) (D.bot ()) f.sformals in
     [(ctx.local, callee_state)]
 
   let set_local_int_lval_top (state: D.t) (lval: lval option) =
     match lval with
     | Some lv ->
       (match get_local lv with
-       | Some local -> D.add local (OriginSet.empty ()) state
+       | Some local -> D.add local (AD.empty (), OriginSet.empty ()) state
        | _ -> state
       )
     |_ -> state
