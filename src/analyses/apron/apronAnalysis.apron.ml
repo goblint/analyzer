@@ -367,16 +367,16 @@ struct
       r
     | Queries.MustBeEqual (exp1,exp2) ->
       let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
-      let must_eq = eval_int exp in
-      Option.default false (ID.to_bool must_eq)
+      let is_eq = eval_int exp in
+      Option.default false (ID.to_bool is_eq)
     | Queries.MayBeEqual (exp1,exp2) ->
       let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
-      let must_neq = eval_int exp in
-      Option.default true (ID.to_bool must_neq)
+      let is_neq = eval_int exp in
+      Option.default true (ID.to_bool is_neq)
     | Queries.MayBeLess (exp1, exp2) ->
       let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
-      let must_ge = eval_int exp in
-      Option.default true (ID.to_bool must_ge)
+      let is_lt = eval_int exp in
+      Option.default true (ID.to_bool is_lt)
     | _ -> Result.top q
 
 
