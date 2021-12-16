@@ -537,6 +537,9 @@ module WP =
             (* restart side-effected var *)
             restart_leaf x;
 
+            (* add side_dep to front to prevent them from being aborted *)
+            destabilize_front ~front:true x w;
+
             (* destabilize side dep to redo side effects *)
             VS.iter (fun y ->
                 if tracing then trace "sol2" "destabilize_with_side %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
