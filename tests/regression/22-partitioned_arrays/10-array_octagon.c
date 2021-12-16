@@ -49,8 +49,8 @@ void example0(void) {
   z = j;
 
   // Values that may be read are 1 or 2
-  assert(a[z] == 1); //UNKNOWN
-  assert(a[z] == 2); //UNKNOWN
+  assert(a[z] == 1); // FAIL
+  assert(a[z] == 2);
   assert(z >= 0);
   assert(z <= j);
   assert(a[z] == 0); //FAIL
@@ -96,8 +96,10 @@ void example1(void) {
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 2); //UNKNOWN
   assert(z >= 0);
-  assert(z <= j);
-  assert(a[z] == 0); //FAIL
+  assert(z <= j); //UNKNOWN
+
+  // Used to work with the custom octagon analysis, does not work with apron octagons
+  assert(a[z] != 0); //UNKNOWN
 }
 
 void example2(void) {
@@ -139,7 +141,9 @@ void example2(void) {
   // Values that may be read are 1 or 0
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 0); //UNKNOWN
-  assert(a[z] == 2); //FAIL
+
+  // Used to work with the custom octagon analysis, does not work with apron octagons
+  assert(a[z] != 2); //UNKNOWN
 }
 
 // Simple example (employing MustBeEqual)

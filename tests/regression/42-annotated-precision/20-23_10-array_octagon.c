@@ -68,7 +68,9 @@ void example1(void) {
   // Values that may be read are 1 or 2
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 2); //UNKNOWN
-  assert(a[z] == 0); //FAIL
+
+  // Used to work with the custom octagon analysis, does not work with apron octagons
+  assert(a[z] != 0); //UNKNOWN
 }
 
 void example2(void) {
@@ -110,7 +112,9 @@ void example2(void) {
   // Values that may be read are 1 or 0
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 0); //UNKNOWN
-  assert(a[z] == 2); //FAIL
+
+  // Used to work with the custom octagon analysis, does not work with apron octagons
+  assert(a[z] != 2); //UNKNOWN
 }
 
 // Simple example (employing MustBeEqual)
@@ -310,8 +314,8 @@ void example8(void) {
     j++;      // Octagon knows -1 <= i-j <= -1
     i = j;    // Without octagons, we lose partitioning here because we don't know how far the move has been
 
-    assert(a[i-1] == 0); //UNKNOWN
-    assert(a[i-2] == 0); //UNKNOWN
+    assert(a[i-1] == 0);
+    assert(a[i-2] == 0);
   }
 
   j = 0;
