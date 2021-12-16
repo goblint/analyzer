@@ -1,5 +1,6 @@
 // PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none
 void main(void) {
+  example0();
   example1();
   example2();
   example3();
@@ -12,6 +13,47 @@ void main(void) {
   example7();
   example8();
   mineEx1();
+}
+
+void example0(void) {
+  int a[20];
+  int i = 0;
+  int j = 0;
+  int top;
+  int z;
+
+  // Necessary so we can not answer the queries below from the base domain
+  // and actually test the behavior of the octagons
+  int between1and8;
+  if(between1and8 < 1) {
+    between1and8 = 1;
+  }
+
+  if(between1and8 > 8) {
+    between1and8 = 8;
+  }
+
+  while(i < 20) {
+    a[i] = 0;
+    i++;
+  }
+
+  while(j < between1and8) {
+    a[j] = 1;
+    j++;
+  }
+
+  a[j] = 2; // a -> (j,([1,1],[2,2],[0,0]))
+
+
+  z = j;
+
+  // Values that may be read are 1 or 2
+  assert(a[z] == 1); //UNKNOWN
+  assert(a[z] == 2); //UNKNOWN
+  assert(z >= 0);
+  assert(z <= j);
+  assert(a[z] == 0); //FAIL
 }
 
 void example1(void) {
@@ -53,6 +95,8 @@ void example1(void) {
   // Values that may be read are 1 or 2
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 2); //UNKNOWN
+  assert(z >= 0);
+  assert(z <= j);
   assert(a[z] == 0); //FAIL
 }
 
