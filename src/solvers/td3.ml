@@ -104,7 +104,7 @@ module WP =
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
       and solve ?reuse_eq x phase =
-        if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
+        if tracing then trace "sol2" "solve %a, called: %b, stable: %b, wpoint: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x) (HM.mem wpoint x);
         init x;
         assert (S.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
