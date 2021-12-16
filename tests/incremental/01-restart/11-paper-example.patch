@@ -1,4 +1,19 @@
-32c32
-<     fp = bad;
----
->     fp = good;
+diff --git a/tests/incremental/01-restart/11-paper-example.c b/tests/incremental/01-restart/11-paper-example.c
+@@ -20,7 +20,7 @@ void* consumer(void *arg) {
+         res = fp();
+     }
+     pthread_mutex_unlock(&mutex);
+-    assert(res >= 0); // UNKNOWN before, success after
++    assert(res >= 0); // unknown before, SUCCESS after
+     res = 0;
+     // change absorbed
+     return NULL;
+@@ -29,7 +29,7 @@ void* consumer(void *arg) {
+ void* producer(void *arg) {
+     int res = 0;
+     pthread_mutex_lock(&mutex);
+-    fp = bad;
++    fp = good;
+     pthread_mutex_unlock(&mutex);
+     return NULL;
+ }

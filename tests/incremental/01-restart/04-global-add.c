@@ -4,6 +4,7 @@
 int g = 1;
 
 void* t_fun(void *arg) {
+
     return NULL;
 }
 
@@ -11,6 +12,6 @@ int main() {
     pthread_t id;
     pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
 
-    assert(g == 1); // TODO success before, unknown after
+    assert(g == 1); // SUCCESS before, unknown after
     return 0;
 }

@@ -12,8 +12,8 @@ int main() {
     pthread_t id;
     pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
 
-    assert(g == 1); // UNKNOWN unknown before, unknown after
-    assert(g == 2); // TODO unknown before, fail after
-    assert(g == 0); // TODO fail before, unknown after
+    assert(g == 1); // UNKNOWN before, unknown after
+    assert(g == 2); // UNKNOWN before, fail after
+    assert(g == 0); // FAIL before, unknown after
     return 0;
 }

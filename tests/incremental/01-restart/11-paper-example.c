@@ -20,7 +20,7 @@ void* consumer(void *arg) {
         res = fp();
     }
     pthread_mutex_unlock(&mutex);
-    assert(res >= 0); // TODO success after
+    assert(res >= 0); // UNKNOWN before, success after
     res = 0;
     // change absorbed
     return NULL;

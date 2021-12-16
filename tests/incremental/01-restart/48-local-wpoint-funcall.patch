@@ -4,10 +4,24 @@ index 1de02a51b..bdcb2875f 100644
 +++ b/tests/incremental/48-local-wpoint-funcall.c
 @@ -1,7 +1,7 @@
  #include <assert.h>
- 
+
  int f(int x) {
 -    return 1;
 +    return 0;
  }
- 
+
  int main() {
+
+@@ -10,9 +10,9 @@ int main() {
+     while (x < 10) {
+         y = f(x);
+         x = x + y;
+-        assert(x == 0); // FAIL before, success after
++        assert(x == 0); // fail before, SUCCESS after
+     }
+
+-    assert(0); // FAIL before, nothing after
++    assert(0); // fail before, NOWARN after
+     return 0;
+ }
+\ No newline at end of file

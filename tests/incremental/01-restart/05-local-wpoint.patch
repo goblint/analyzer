@@ -8,3 +8,12 @@
 +
      return NULL;
  }
+
+@@ -15,7 +15,7 @@ int main() {
+     int x;
+     x = g;
+     while (1) {
+-        assert(x == 1); // UNKNOWN before, success after
++        assert(x == 1); // unknown before, SUCCESS after
+         x = g;
+     }
