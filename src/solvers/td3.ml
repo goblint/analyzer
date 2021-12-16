@@ -244,6 +244,7 @@ module WP =
             match reuse_eq with
             | Some d when narrow_reuse && not narrow_reuse_verify ->
               if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
+              incr Goblintutil.narrow_reuses;
               d
             | _ ->
               try
