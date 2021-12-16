@@ -370,17 +370,13 @@ struct
       let must_eq = eval_int exp in
       Option.default false (ID.to_bool must_eq)
     | Queries.MayBeEqual (exp1,exp2) ->
-      (* We transform the may be equal into a must query to apron using this equivalence:
-         exp1 MayBeEqual exp2  <=> not (exp1 MustBeUnequal exp2 *)
-      let exp = (BinOp (Cil.Ne, exp1, exp2, TInt (IInt, []))) in
+      let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
       let must_neq = eval_int exp in
-      Option.map_default not true (ID.to_bool must_neq)
+      Option.default true (ID.to_bool must_neq)
     | Queries.MayBeLess (exp1, exp2) ->
-      (* We transform the may be less into a must query to apron using this equivalence:
-         exp1 MayBeLess exp2  <=> not (exp1 MustBeGreaterOrEqual exp2 *)
-      let exp = (BinOp (Cil.Ge, exp1, exp2, TInt (IInt, []))) in
+      let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
       let must_ge = eval_int exp in
-      Option.map_default not true (ID.to_bool must_ge)
+      Option.default true (ID.to_bool must_ge)
     | _ -> Result.top q
 
 
