@@ -240,12 +240,12 @@ module WP =
                 let (d, changed) = eval l x y in
                 d
           in
-          let tmp =
+          let (tmp, aborted) =
             match reuse_eq with
             | Some d when narrow_reuse && not narrow_reuse_verify ->
               if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
               incr Goblintutil.narrow_reuses;
-              d
+              (d, false)
             | _ ->
               try
                 if abort && abort_verify then (
@@ -258,16 +258,16 @@ module WP =
                   in
                   let tmp = eq x eval' (side ~x) in
                   HM.replace prev_dep_vals x new_dep_vals_x;
-                  tmp
+                  (tmp, false)
                 )
                 else
-                  eq x eval' (side ~x)
+                  (eq x eval' (side ~x), false)
               with AbortEq ->
                 abort_rhs_event x;
                 if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
                 HM.remove destab_dep x; (* TODO: safe to remove here? doesn't prevent some aborts? *)
                 (* prev_dep_vals remain the same *)
-                HM.find rho x (* old *)
+                (HM.find rho x, true) (* old *)
           in
           begin match reuse_eq with
             | Some reuse_eq when narrow_reuse_verify && not (S.Dom.equal tmp reuse_eq) ->
@@ -340,7 +340,12 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
                 HM.remove stable x;
                 HM.remove superstable x;
-                (solve[@tailcall]) ~reuse_eq:new_eq ~abortable:false x Narrow changed
+                let reuse_eq = if not aborted then
+                    Some new_eq
+                  else
+                    None (* TODO: for some reason cannot reuse aborted rhs, see 34-localwn_restart/02-hybrid *)
+                in
+                (solve[@tailcall]) ?reuse_eq ~abortable:false x Narrow changed
               ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
                 HM.remove wpoint x;
