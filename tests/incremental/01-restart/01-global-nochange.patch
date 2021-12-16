@@ -1,1 +1,10 @@
+diff --git a/tests/incremental/01-restart/01-global-nochange.c b/tests/incremental/01-restart/01-global-nochange.c
+@@ -2,7 +2,7 @@
+ #include <pthread.h>
 
+ int g = 1;
+-
++// cmt
+ void* t_fun(void *arg) {
+     g = 2;
+     return NULL;
