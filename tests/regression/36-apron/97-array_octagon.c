@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none --set sem.int.signed_overflow assume_none
 void main(void) {
   example0();
   example1();
@@ -96,9 +96,9 @@ void example1(void) {
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 2); //UNKNOWN
   assert(z >= 0);
-  assert(z <= j); //UNKNOWN
 
-  // Used to work with the custom octagon analysis, does not work with apron octagons
+  // Relies on option sem.int.signed_overflow assume_none
+  assert(z <= j); //UNKNOWN
   assert(a[z] != 0); //UNKNOWN
 }
 
@@ -142,7 +142,7 @@ void example2(void) {
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 0); //UNKNOWN
 
-  // Used to work with the custom octagon analysis, does not work with apron octagons
+  // Relies on option sem.int.signed_overflow assume_none
   assert(a[z] != 2); //UNKNOWN
 }
 

@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint --set sem.int.signed_overflow assume_none
 
 void main(void) __attribute__((goblint_precision("no-interval")));
 void example1(void) __attribute__((goblint_precision("no-def_exc")));
@@ -69,7 +69,7 @@ void example1(void) {
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 2); //UNKNOWN
 
-  // Used to work with the custom octagon analysis, does not work with apron octagons
+  // Relies on option sem.int.signed_overflow assume_none
   assert(a[z] != 0); //UNKNOWN
 }
 
@@ -113,7 +113,7 @@ void example2(void) {
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 0); //UNKNOWN
 
-  // Used to work with the custom octagon analysis, does not work with apron octagons
+  // Relies on option sem.int.signed_overflow assume_none
   assert(a[z] != 2); //UNKNOWN
 }
 
