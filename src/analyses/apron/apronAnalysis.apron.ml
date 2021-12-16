@@ -353,15 +353,34 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
+    let eval_int e =
+      read_from_globals_wrapper
+        (Analyses.ask_of_ctx ctx)
+        ctx.global st e
+        (fun apr' e' -> AD.eval_int apr' e')
+    in
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
-      let r = read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun apr' e' ->
-          AD.eval_int apr' e'
-        )
-      in
+      let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
+    | Queries.MustBeEqual (exp1,exp2) ->
+      let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
+      let must_eq = eval_int exp in
+      Option.default false (ID.to_bool must_eq)
+    | Queries.MayBeEqual (exp1,exp2) ->
+      (* We transform the may be equal into a must query to apron using this equivalence:
+         exp1 MayBeEqual exp2  <=> not (exp1 MustBeUnequal exp2 *)
+      let exp = (BinOp (Cil.Ne, exp1, exp2, TInt (IInt, []))) in
+      let must_neq = eval_int exp in
+      Option.map_default not true (ID.to_bool must_neq)
+    | Queries.MayBeLess (exp1, exp2) ->
+      (* We transform the may be less into a must query to apron using this equivalence:
+         exp1 MayBeLess exp2  <=> not (exp1 MustBeGreaterOrEqual exp2 *)
+      let exp = (BinOp (Cil.Ge, exp1, exp2, TInt (IInt, []))) in
+      let must_ge = eval_int exp in
+      Option.map_default not true (ID.to_bool must_ge)
     | _ -> Result.top q
 
 
