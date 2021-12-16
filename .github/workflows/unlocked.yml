@@ -18,7 +18,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          # - 4.13.x # TODO: re-enable when Batteries gets support: https://github.com/ocaml-batteries-team/batteries-included/issues/1045
+          - 4.13.x # TODO: re-enable when Batteries gets support: https://github.com/ocaml-batteries-team/batteries-included/issues/1045
           - 4.12.x
           - 4.09.x
         apron:
