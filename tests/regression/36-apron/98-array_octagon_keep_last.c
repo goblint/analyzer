@@ -1,20 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
-
-void main(void) __attribute__((goblint_precision("no-interval")));
-void example1(void) __attribute__((goblint_precision("no-def_exc")));
-void example2(void) __attribute__((goblint_precision("no-def_exc")));
-void example3(void) __attribute__((goblint_precision("no-def_exc")));
-void example4(void) __attribute__((goblint_precision("no-def_exc")));
-void example4a(void) __attribute__((goblint_precision("no-def_exc")));
-void example4b(void) __attribute__((goblint_precision("no-def_exc")));
-void example4c(void) __attribute__((goblint_precision("no-def_exc")));
-void example5(void) __attribute__((goblint_precision("no-def_exc")));
-void example6(void) __attribute__((goblint_precision("no-def_exc")));
-void example7(void) __attribute__((goblint_precision("no-def_exc")));
-void example8(void) __attribute__((goblint_precision("no-def_exc")));
-void mineEx1(void) __attribute__((goblint_precision("no-def_exc")));
-
-
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none
 void main(void) {
   example1();
   example2();
@@ -144,15 +128,15 @@ void example4(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    assert(a[i] == 9); // UNKNOWN
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
       int k = a[i-1];
-      assert(k == 9);
+      assert(k == 9); // UNKNOWN
 
       int l = a[0];
-      assert(l == 9);
+      assert(l == 9); // UNKNOWN
     }
 
     i++;
@@ -170,11 +154,11 @@ void example4a(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    assert(a[i] == 9); //UNKNOWN
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
-      assert(a[i-1] == 9);
+      assert(a[i-1] == 9); //UNKNOWN
     }
 
     i++;
@@ -193,11 +177,11 @@ void example4b(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    assert(a[i] == 9); //UNKNOWN
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
-      assert(a[i-1] == 9);
+      assert(a[i-1] == 9); //UNKNOWN
     }
 
     i++;
@@ -215,7 +199,7 @@ void example4c(void) {
     a[i-2] = 31;
 
     if(i < 41) {
-      assert(a[i+1] == 7);
+      assert(a[i+1] == 7); //UNKNOWN
     }
 
     i--;
@@ -321,7 +305,7 @@ void example8(void) {
 
   j = 0;
   while(j < N) {
-    assert(a[j] == 0);
+    assert(a[j] == 0); //UNKNOWN
     j++;
   }
 }

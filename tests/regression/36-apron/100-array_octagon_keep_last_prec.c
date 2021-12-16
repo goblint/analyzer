@@ -1,4 +1,19 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+
+void main(void) __attribute__((goblint_precision("no-interval")));
+void example1(void) __attribute__((goblint_precision("no-def_exc")));
+void example2(void) __attribute__((goblint_precision("no-def_exc")));
+void example3(void) __attribute__((goblint_precision("no-def_exc")));
+void example4(void) __attribute__((goblint_precision("no-def_exc")));
+void example4a(void) __attribute__((goblint_precision("no-def_exc")));
+void example4b(void) __attribute__((goblint_precision("no-def_exc")));
+void example4c(void) __attribute__((goblint_precision("no-def_exc")));
+void example5(void) __attribute__((goblint_precision("no-def_exc")));
+void example6(void) __attribute__((goblint_precision("no-def_exc")));
+void example8(void) __attribute__((goblint_precision("no-def_exc")));
+void mineEx1(void) __attribute__((goblint_precision("no-def_exc")));
+
+
 void main(void) {
   example1();
   example2();
