@@ -24,7 +24,7 @@ depends: [
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
-  "batteries" {= "3.3.0"}
+  "batteries" {= "3.4.0"}
   "benchmark" {= "1.6" & with-test}
   "biniou" {= "1.2.1"}
   "camlidl" {= "1.09"}
