@@ -237,6 +237,8 @@ let _ = ()
       ; reg Experimental "exp.solver.td3.space"  "false" "Should the td3 solver only keep values at widening points?"
       ; reg Experimental "exp.solver.td3.space_cache" "true" "Should the td3-space solver cache values?"
       ; reg Experimental "exp.solver.td3.space_restore" "true" "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!"
+      ; reg Experimental "exp.solver.td3.narrow-reuse" "true" "TODO"
+      ; reg Experimental "exp.solver.td3.narrow-reuse-verify" "false" "TODO"
       ; reg Experimental "exp.solver.td3.restart.wpoint.enabled" "true" "TODO"
       ; reg Experimental "exp.solver.td3.restart.wpoint.once" "false" "TODO"
       ; reg Experimental "exp.solver.td3.abort" "false" "TODO"
