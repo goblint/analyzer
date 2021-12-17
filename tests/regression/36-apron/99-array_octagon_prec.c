@@ -71,7 +71,7 @@ void example1(void) {
   assert(a[z] == 2); //UNKNOWN
 
   // Relies on option sem.int.signed_overflow assume_none
-  assert(a[z] != 0); //UNKNOWN
+  assert(a[z] != 0);
 }
 
 void example2(void) {
@@ -115,7 +115,7 @@ void example2(void) {
   assert(a[z] == 0); //UNKNOWN
 
   // Relies on option sem.int.signed_overflow assume_none
-  assert(a[z] != 2); //UNKNOWN
+  assert(a[z] != 2);
 }
 
 // Simple example (employing MustBeEqual)
