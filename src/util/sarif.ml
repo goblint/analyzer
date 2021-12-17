@@ -141,6 +141,6 @@ let to_yojson messages =
         artifacts = artifacts_of_messages messages;
         tool = goblintTool;
         defaultSourceLanguage = "C";
-        results = List.flatten (List.map result_of_message messages);
+        results = List.concat_map result_of_message messages;
       }]
   }

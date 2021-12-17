@@ -4,7 +4,6 @@ module All = struct
   module Format = Batteries.Legacy.Format
   let comp2 f g a b = f (g a) (g b)
   let compareBy ?cmp:(cmp=compare) f = comp2 cmp f
-  let flat_map f = List.flatten % List.map f
   let str_remove m s = String.nreplace ~str:s ~sub:m ~by:""
   let try_opt f a = try Some (f a) with _ -> None (* reason: match .. with _ does not include exceptions, or-patterns currently not supported for exceptions *)
 
