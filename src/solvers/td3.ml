@@ -123,7 +123,11 @@ module WP =
             if not wp then eqd
             else
               if term then
-                match phase with Widen -> S.Dom.widen old (S.Dom.join old eqd) | Narrow -> assert (S.Dom.leq eqd old); S.Dom.narrow old eqd (* eqd > old would be unsound *)
+                match phase with
+                | Widen -> S.Dom.widen old (S.Dom.join old eqd)
+                | Narrow ->
+                  assert S.Dom.(leq eqd old || not (leq old eqd)); (* eqd > old would be unsound, but can be incomparable *)
+                  S.Dom.narrow old eqd
               else
                 box x old eqd
           in
