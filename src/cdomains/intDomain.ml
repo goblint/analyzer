@@ -2845,7 +2845,7 @@ module IntDomTupleImpl = struct
    * We have to deactivate IntDomains after the refinement, since we might
    * lose information if we do it before. E.g. only "Interval" is active
    * and shall be projected to only "Def_Exc". By seting "Interval" to None
-   * before refinment we have no information for "Def_Exc".
+   * before refinement we have no information for "Def_Exc".
    *
    * Thus we have 3 Steps:
    * 1. Add padding to t by setting `None` to `I.top_of ik` if p is true for this element
