@@ -10,7 +10,7 @@
         }
     },
     "incremental" : {
-        "force_reanalysis" : {
+        "force-reanalyze" : {
             "funs": ["f"]
         }
     }
