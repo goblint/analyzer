@@ -1,2 +1,10 @@
-8a9
->   case 3:
+--- tests/incremental/00-basic/04-rename_ids.c
++++ tests/incremental/00-basic/04-rename_ids.c
+@@ -6,6 +6,7 @@ void d();
+ void c() {
+   switch (a) {
+   case 2:
++  case 3:
+     d();
+   }
+   b();
