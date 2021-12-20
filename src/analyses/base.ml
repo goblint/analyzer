@@ -686,7 +686,7 @@ struct
     in
     let r =
       (* query functions were no help ... now try with values*)
-      match (if get_bool "exp.lower-constants" then constFold true exp else exp) with
+      match constFold true exp with
       (* Integer literals *)
       (* seems like constFold already converts CChr to CInt *)
       | Const (CChr x) -> eval_rv a gs st (Const (charConstToInt x)) (* char becomes int, see Cil doc/ISO C 6.4.4.4.10 *)
