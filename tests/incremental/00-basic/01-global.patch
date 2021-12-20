@@ -1,5 +1,5 @@
---- a/tests/incremental/00-basic/01-global.c
-+++ b/tests/incremental/00-basic/01-global.c
+--- tests/incremental/00-basic/01-global.c
++++ tests/incremental/00-basic/01-global.c
 @@ -1,6 +1,6 @@
  // Previosuly, the function was erroneously not reanalyzed when the global initializer/the start state changed
  // when hash-consing is activated.
