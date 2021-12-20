@@ -113,7 +113,7 @@ struct
     let nodes = HashtblN.keys a2bs |> List.of_enum in
     (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
     let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
-    let in_edges node = HashtblN.filter (Set.mem node % Set.map Tuple3.third) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
+    let in_edges node = HashtblN.filter (Set.mem node % Set.map Tuple3.third) a2bs |> HashtblN.values |> List.of_enum |> List.concat_map Set.elements in
     let is_end_node = List.is_empty % out_edges in
     let is_start_node = List.is_empty % in_edges in
     let start_node = OList.find is_start_node nodes in (* node with no incoming edges is the start node *)
@@ -141,7 +141,7 @@ struct
         edges
     in
     let locals = [] in (* TODO *)
-    let body = locals @ goto (label start_node) :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if is_proc then " status[tid] = DONE" else " ret_"^fname^"()"] in
+    let body = locals @ goto (label start_node) :: (List.concat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if is_proc then " status[tid] = DONE" else " ret_"^fname^"()"] in
     String.concat "\n" @@ head :: List.map indent body @ [if is_proc then "}\n" else ""]
 
   let codegen () =
@@ -184,7 +184,7 @@ struct
           let debug_str = if GobConfig.get_bool "ana.pml.debug" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false) " else "" in
           ("#define ret_"^name^"() if \\") :: entries @ [debug_str ^ "fi"]
       in
-      FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> flat_map fun_map
+      FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> List.concat_map fun_map
     in
     String.concat "\n" @@
     ("#define nproc "^string_of_int nproc) ::

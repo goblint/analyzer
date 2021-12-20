@@ -67,8 +67,8 @@ let load_and_preprocess ~all_cppflags filename =
           | (o_i, _) ->
             begin match List.split_at o_i arguments with
               | (arguments_program :: arguments_init, _ :: o_file :: arguments_tl) ->
-                let preprocess_arguments = arguments_program :: all_cppflags @ "-E" :: arguments_init @ "-o" :: preprocessed_file :: arguments_tl in
-                String.join " " (List.map Filename.quote preprocess_arguments) (* TODO: use quote_command after OCaml 4.10 *)
+                let preprocess_arguments = all_cppflags @ "-E" :: arguments_init @ "-o" :: preprocessed_file :: arguments_tl in
+                Filename.quote_command arguments_program preprocess_arguments
               | _ ->
                 failwith "CompilationDatabase.preprocess: no -o argument value found for " ^ file
             end
