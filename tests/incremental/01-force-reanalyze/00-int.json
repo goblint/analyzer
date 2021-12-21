@@ -12,6 +12,9 @@
     "incremental" : {
         "force-reanalyze" : {
             "funs": ["f"]
+        },
+        "reluctant" : {
+          "on" : false
         }
     }
 }
