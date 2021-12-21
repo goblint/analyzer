@@ -1,5 +1,6 @@
 extern int printf();
 extern int scanf();
+int g;
 
 int proov(int x) {
   int a;
@@ -17,6 +18,7 @@ int proov(int x) {
     default:
       a--;
   }
+  g = a;
   return a;
 }
 
@@ -24,5 +26,5 @@ int main() {
   int i;
   scanf("%d",&i);
   printf("%d\n",proov(i));
+  assert(g == 0); //FAIL
 }
-

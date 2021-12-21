@@ -7,5 +7,6 @@ main() {
     sum += i;
     i++;
   }
+  assert(i == 11);
   printf("%d\n",sum);
 }

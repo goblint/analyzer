@@ -10,6 +10,6 @@ int proc() {
 
 main () {
   i = proc();
+  assert(i == 0);
   printf("%d\n", i);
 }
-
