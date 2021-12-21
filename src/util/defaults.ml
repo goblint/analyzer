@@ -102,8 +102,6 @@ let _ = ()
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       (* apron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
-      ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
-      ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
       ; reg Analyses "ana.osek.oil"        "''"    "Oil file for the analyzed program"
       ; reg Analyses "ana.osek.defaults"   "true"  "Generate default definitions for TASK and ISR"
       (* ; reg Analyses "ana.osek.tramp"      "''"    "Resource-ID-headers for the analyzed program" *)
