@@ -614,16 +614,13 @@ struct
 
   let substitute_exp t var exp =
     let b = get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env exp) in
-    match b with
-    | None -> t
-    | Some (x) ->
-      let dim_var = Environment.dim_of_var t.env var in
+    match b, t.d with
+    | Some (x), Some(m) -> let dim_var = Environment.dim_of_var t.env var in
       if Vector.get_val dim_var x = (to_rt 0) then
-        meet t (assign_uninvertible_rel (Matrix.empty ()) var x t.env)
-      else
-        match t.d with
-        | None -> t
-        | Some (y) -> assign_invertible_rels y var x t.env
+        meet {d = Some (remove_rels_with_var m var t.env); env = t.env} {d = Some [x]; env = t.env}
+      else assign_invertible_rels m var x t.env
+    | None, Some(m) -> {d = Some (Matrix.normalize (remove_rels_with_var m var t.env)); env = t.env}
+    | _, _ -> t
 
   let substitute_exp t var exp =
     let res = substitute_exp t var exp
@@ -766,4 +763,4 @@ struct
 
   let relift t = t
 
-  end
+end
