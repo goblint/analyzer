@@ -246,7 +246,7 @@ let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * off
       let one_field fld =
         List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
       in
-      List.concat (List.map one_field ci.cfields)
+      List.concat_map one_field ci.cfields
     | TArray (t,_,_) ->
       List.map (fun x -> `Index x) (dist_fields t)
     | _ -> [`NoOffset]

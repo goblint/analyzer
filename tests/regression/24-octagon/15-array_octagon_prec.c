@@ -1,4 +1,20 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','octagon','mallocWrapper']" --set exp.privatization none
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint --set sem.int.signed_overflow assume_none
+
+void main(void) __attribute__((goblint_precision("no-interval")));
+void example1(void) __attribute__((goblint_precision("no-def_exc")));
+void example2(void) __attribute__((goblint_precision("no-def_exc")));
+void example3(void) __attribute__((goblint_precision("no-def_exc")));
+void example4(void) __attribute__((goblint_precision("no-def_exc")));
+void example4a(void) __attribute__((goblint_precision("no-def_exc")));
+void example4b(void) __attribute__((goblint_precision("no-def_exc")));
+void example4c(void) __attribute__((goblint_precision("no-def_exc")));
+void example5(void) __attribute__((goblint_precision("no-def_exc")));
+void example6(void) __attribute__((goblint_precision("no-def_exc")));
+void example7(void) __attribute__((goblint_precision("no-def_exc")));
+void example8(void) __attribute__((goblint_precision("no-def_exc")));
+void mineEx1(void) __attribute__((goblint_precision("no-def_exc")));
+
+
 void main(void) {
   example1();
   example2();
@@ -53,7 +69,9 @@ void example1(void) {
   // Values that may be read are 1 or 2
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 2); //UNKNOWN
-  assert(a[z] == 0); //FAIL
+
+  // Relies on option sem.int.signed_overflow assume_none
+  assert(a[z] != 0);
 }
 
 void example2(void) {
@@ -95,7 +113,9 @@ void example2(void) {
   // Values that may be read are 1 or 0
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 0); //UNKNOWN
-  assert(a[z] == 2); //FAIL
+
+  // Relies on option sem.int.signed_overflow assume_none
+  assert(a[z] != 2);
 }
 
 // Simple example (employing MustBeEqual)

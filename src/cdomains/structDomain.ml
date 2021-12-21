@@ -172,8 +172,7 @@ struct
     in
     let x_list = HS.elements x in
     let y_list = HS.elements y in
-    List.map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
-    |> List.flatten
+    List.concat_map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
     |> List.filter (fun (ssx, ssy) -> maps_overlap ssx ssy)
     |> List.map (fun (ssx, ssy) -> f ssx ssy)
     |> HS.of_list
@@ -191,7 +190,7 @@ struct
   let widen_with_fct f =
     let product_widen op a b = (* assumes b to be bigger than a *) (* from HS.product_widen *)
       let xs,ys = HS.elements a, HS.elements b in
-      List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> HS.of_list (List.append x ys)
+      List.concat_map (fun x -> List.map (fun y -> op x y) ys) xs |> fun x -> HS.of_list (List.append x ys)
     in
     product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ())
 
@@ -362,8 +361,7 @@ struct
       let ((sx, kx), (sy, ky)) = (x, y) in
       let x_list = HS.elements sx in
       let y_list = HS.elements sy in
-      let s = List.map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
-              |> List.flatten
+      let s = List.concat_map (fun xss -> List.map (fun yss -> (xss, yss)) y_list) x_list
               |> List.filter (fun (ssx, ssy) -> maps_overlap ssx ssy)
               |> List.map (fun (ssx, ssy) -> f ssx ssy)
               |> HS.of_list
@@ -391,7 +389,7 @@ struct
   let widen_with_fct f (x, kx) (y, ky) =
     let product_widen op a b = (* assumes b to be bigger than a *) (* from HS.product_widen *)
       let xs,ys = HS.elements a, HS.elements b in
-      List.map (fun x -> List.map (op x) ys) xs |> List.flatten |> fun x -> HS.of_list (List.append x ys)
+      List.concat_map (fun x -> List.map (op x) ys) xs |> fun x -> HS.of_list (List.append x ys)
     in
     let s = product_widen (fun x y -> if SS.leq x y then (SS.widen_with_fct f) x y else SS.bot ()) x y
     in reduce_key (s, take_some_key kx ky s)

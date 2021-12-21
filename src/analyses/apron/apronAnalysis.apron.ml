@@ -353,15 +353,30 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
+    let eval_int e =
+      read_from_globals_wrapper
+        (Analyses.ask_of_ctx ctx)
+        ctx.global st e
+        (fun apr' e' -> AD.eval_int apr' e')
+    in
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
-      let r = read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun apr' e' ->
-          AD.eval_int apr' e'
-        )
-      in
+      let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
+    | Queries.MustBeEqual (exp1,exp2) ->
+      let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
+      let is_eq = eval_int exp in
+      Option.default false (ID.to_bool is_eq)
+    | Queries.MayBeEqual (exp1,exp2) ->
+      let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
+      let is_neq = eval_int exp in
+      Option.default true (ID.to_bool is_neq)
+    | Queries.MayBeLess (exp1, exp2) ->
+      let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
+      let is_lt = eval_int exp in
+      Option.default true (ID.to_bool is_lt)
     | _ -> Result.top q
 
 

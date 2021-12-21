@@ -1,20 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','octagon','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
-
-void main(void) __attribute__((goblint_precision("no-interval")));
-void example1(void) __attribute__((goblint_precision("no-def_exc")));
-void example2(void) __attribute__((goblint_precision("no-def_exc")));
-void example3(void) __attribute__((goblint_precision("no-def_exc")));
-void example4(void) __attribute__((goblint_precision("no-def_exc")));
-void example4a(void) __attribute__((goblint_precision("no-def_exc")));
-void example4b(void) __attribute__((goblint_precision("no-def_exc")));
-void example4c(void) __attribute__((goblint_precision("no-def_exc")));
-void example5(void) __attribute__((goblint_precision("no-def_exc")));
-void example6(void) __attribute__((goblint_precision("no-def_exc")));
-void example8(void) __attribute__((goblint_precision("no-def_exc")));
-void mineEx1(void) __attribute__((goblint_precision("no-def_exc")));
-
-
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set exp.privatization none --set sem.int.signed_overflow assume_none
 void main(void) {
+  example0();
   example1();
   example2();
   example3();
@@ -27,6 +13,47 @@ void main(void) {
   example7();
   example8();
   mineEx1();
+}
+
+void example0(void) {
+  int a[20];
+  int i = 0;
+  int j = 0;
+  int top;
+  int z;
+
+  // Necessary so we can not answer the queries below from the base domain
+  // and actually test the behavior of the octagons
+  int between1and8;
+  if(between1and8 < 1) {
+    between1and8 = 1;
+  }
+
+  if(between1and8 > 8) {
+    between1and8 = 8;
+  }
+
+  while(i < 20) {
+    a[i] = 0;
+    i++;
+  }
+
+  while(j < between1and8) {
+    a[j] = 1;
+    j++;
+  }
+
+  a[j] = 2; // a -> (j,([1,1],[2,2],[0,0]))
+
+
+  z = j;
+
+  // Values that may be read are 1 or 2
+  assert(a[z] == 1); // FAIL
+  assert(a[z] == 2);
+  assert(z >= 0);
+  assert(z <= j);
+  assert(a[z] == 0); //FAIL
 }
 
 void example1(void) {
@@ -68,7 +95,11 @@ void example1(void) {
   // Values that may be read are 1 or 2
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 2); //UNKNOWN
-  assert(a[z] == 0); //FAIL
+  assert(z >= 0);
+
+  // Relies on option sem.int.signed_overflow assume_none
+  assert(z <= j);
+  assert(a[z] != 0);
 }
 
 void example2(void) {
@@ -110,7 +141,9 @@ void example2(void) {
   // Values that may be read are 1 or 0
   assert(a[z] == 1); //UNKNOWN
   assert(a[z] == 0); //UNKNOWN
-  assert(a[z] == 2); //FAIL
+
+  // Relies on option sem.int.signed_overflow assume_none
+  assert(a[z] != 2);
 }
 
 // Simple example (employing MustBeEqual)
@@ -139,15 +172,15 @@ void example4(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9); // UNKNOWN
+    assert(a[i] == 9);
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
       int k = a[i-1];
-      assert(k == 9); // UNKNOWN
+      assert(k == 9);
 
       int l = a[0];
-      assert(l == 9); // UNKNOWN
+      assert(l == 9);
     }
 
     i++;
@@ -165,11 +198,11 @@ void example4a(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9); //UNKNOWN
+    assert(a[i] == 9);
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
-      assert(a[i-1] == 9); //UNKNOWN
+      assert(a[i-1] == 9);
     }
 
     i++;
@@ -188,11 +221,11 @@ void example4b(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9); //UNKNOWN
+    assert(a[i] == 9);
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
-      assert(a[i-1] == 9); //UNKNOWN
+      assert(a[i-1] == 9);
     }
 
     i++;
@@ -210,7 +243,7 @@ void example4c(void) {
     a[i-2] = 31;
 
     if(i < 41) {
-      assert(a[i+1] == 7); //UNKNOWN
+      assert(a[i+1] == 7);
     }
 
     i--;
@@ -310,13 +343,13 @@ void example8(void) {
     j++;      // Octagon knows -1 <= i-j <= -1
     i = j;    // Without octagons, we lose partitioning here because we don't know how far the move has been
 
-    assert(a[i-1] == 0); //UNKNOWN
-    assert(a[i-2] == 0); //UNKNOWN
+    assert(a[i-1] == 0);
+    assert(a[i-2] == 0);
   }
 
   j = 0;
   while(j < N) {
-    assert(a[j] == 0); //UNKNOWN
+    assert(a[j] == 0);
     j++;
   }
 }

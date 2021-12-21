@@ -79,7 +79,7 @@ struct
     | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
 
   let access_byval a (rw: bool) (exps: exp list) =
-    List.concat (List.map (access_one_byval a rw) exps)
+    List.concat_map (access_one_byval a rw) exps
 
   (* TODO: unused? remove? *)
   let access_byref ask (exps: exp list) =
@@ -93,7 +93,7 @@ struct
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> []
     in
-    List.concat (List.map do_exp exps)
+    List.concat_map do_exp exps
 
   (* list accessed addresses *)
   let varoffs a (rval:exp) =
@@ -116,7 +116,7 @@ struct
   (* Does it contain non-initialized variables? *)
   let is_expr_initd a (expr:exp) (st:D.t) : bool =
     let variables = vars a expr in
-    let raw_vars = List.concat (List.map Addr.to_var_offset variables) in
+    let raw_vars = List.concat_map Addr.to_var_offset variables in
     let will_addr_init (t:bool) a =
       let f addr =
         List.exists (is_prefix_of a) (Addr.to_var_offset addr)
@@ -231,11 +231,11 @@ struct
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in
-      List.concat (List.map do_exp args)
+      List.concat_map do_exp args
     in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat (List.map to_addrs vars)) many
+      List.fold_right AD.add (List.concat_map to_addrs vars) many
     in
     let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st

@@ -104,7 +104,7 @@ type 'a result = 'a
     To be used when passing entire [ctx] around seems inappropriate.
     Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
 (* Must be in a singleton record due to second-order polymorphism.
-   See https://ocaml.org/releases/4.12/htmlman/polymorphism.html#s%3Ahigher-rank-poly. *)
+   See https://ocaml.org/manual/polymorphism.html#s%3Ahigher-rank-poly. *)
 type ask = { f: 'a. 'a t -> 'a result }
 
 (* Result cannot implement Lattice.S because the function types are different due to GADT. *)

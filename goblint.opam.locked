@@ -24,7 +24,7 @@ depends: [
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
-  "batteries" {= "3.3.0"}
+  "batteries" {= "3.4.0"}
   "benchmark" {= "1.6" & with-test}
   "biniou" {= "1.2.1"}
   "camlidl" {= "1.09"}
@@ -38,19 +38,23 @@ depends: [
   "dune-private-libs" {= "2.9.1"}
   "dune-site" {= "2.9.1"}
   "easy-format" {= "1.3.2"}
+  "fmt" {= "0.9.0" & with-doc}
   "fpath" {= "0.7.3" & with-doc}
   "goblint-cil" {= "1.8.2"}
+  "logs" {= "0.7.0" & with-doc}
   "mlgmpidl" {= "1.2.13"}
   "num" {= "1.4"}
-  "ocaml" {= "4.12.0"}
-  "ocaml-base-compiler" {= "4.12.0"}
+  "ocaml" {= "4.13.1"}
+  "ocaml-base-compiler" {= "4.13.1"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
+  "ocaml-migrate-parsetree" {= "2.2.0" & with-doc}
   "ocaml-monadic" {= "0.5"}
   "ocaml-options-vanilla" {= "1"}
   "ocamlbuild" {= "0.14.0"}
   "ocamlfind" {= "1.9.1"}
-  "odoc" {= "1.5.2" & with-doc}
+  "odoc" {= "2.0.2" & with-doc}
+  "odoc-parser" {= "0.9.0" & with-doc}
   "ounit2" {= "2.2.4" & with-test}
   "ppx_derivers" {= "1.2.1"}
   "ppx_deriving" {= "5.2.1"}
@@ -94,7 +98,7 @@ version: "dev"
 pin-depends: [
   [
     "goblint-cil.1.8.2"
-    "git+https://github.com/goblint/cil.git#a6aa225b362e7bdd140810041901e5e2e85a436e"
+    "git+https://github.com/goblint/cil.git#19dd76823c870b621942ef980282dc1abf0d4f89"
   ]
   [
     "apron.v0.9.13"

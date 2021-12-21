@@ -242,8 +242,8 @@ let preprocess_files () =
   );
 
   let include_args =
-    List.flatten (List.map (fun include_dir -> ["-I"; include_dir]) !include_dirs) @
-    List.flatten (List.map (fun include_file -> ["-include"; include_file]) !include_files)
+    List.concat_map (fun include_dir -> ["-I"; include_dir]) !include_dirs @
+    List.concat_map (fun include_file -> ["-include"; include_file]) !include_files
   in
 
   let all_cppflags = !cppflags @ include_args in
@@ -283,7 +283,7 @@ let preprocess_files () =
   if get_bool "ana.sv-comp.functions" then
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
 
-  List.flatten (List.map preprocess_arg_file (!extra_arg_files @ !arg_files))
+  List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files)
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
