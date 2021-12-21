@@ -16,7 +16,7 @@ main () {
   d = c;
   x = d.im;
   printf("%d\n",x);
-  assert_unknown(x);
+  assert(x); //UNKNOWN!
   assert(d.re == 1);
   return 0;
 }
