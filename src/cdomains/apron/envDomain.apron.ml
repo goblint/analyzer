@@ -22,7 +22,7 @@ end
 module type ConvBounds =
 sig
   type d
-  val bound_texpr: d -> Texpr1.t -> Z.t option * Z.t option
+  val bound_texpr: d -> Texpr1.t -> ikind -> Z.t option * Z.t option
 end
 
 module Tracked =
@@ -90,7 +90,7 @@ struct
         if not (IntDomain.should_ignore_overflow ik) then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
           let texpr1 = Texpr1.of_expr env expr in
-          match Bounds.bound_texpr d texpr1 with
+          match Bounds.bound_texpr d texpr1 ik with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
           | _ ->
             (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
@@ -139,16 +139,16 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     make (of_expr env texpr1') typ
 
-    let int_of_cst cst =
-      let open Coeff in
-      match cst with
-      | Interval _ -> failwith "Not a constant"
-      | Scalar x -> (match x with
-                     | Float x -> int_of_float x
-                     | Mpqf x -> int_of_float(Mpqf.to_float x)
-                     | Mpfrf x -> int_of_float(Mpfr.to_float x))
-
 end
+
+let int_of_cst cst =
+  let open Coeff in
+  match cst with
+  | Interval _ -> failwith "Not a constant"
+  | Scalar x -> (match x with
+                 | Float x -> int_of_float x
+                 | Mpqf x -> int_of_float(Mpqf.to_float x)
+                 | Mpfrf x -> int_of_float(Mpfr.to_float x))
 
 module EnvOps =
 struct

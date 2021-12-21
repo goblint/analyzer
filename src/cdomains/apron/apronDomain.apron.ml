@@ -190,7 +190,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
 module Bounds (Man: Manager) =
 struct
   type d = Man.mt A.t
-  let bound_texpr d texpr1 =
+  let bound_texpr d texpr1 ik =
     let bounds = A.bound_texpr Man.mgr d texpr1 in
     let min = int_of_scalar ~round:`Ceil bounds.inf in
     let max = int_of_scalar ~round:`Floor bounds.sup in
@@ -704,7 +704,7 @@ struct
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (A.env d) e with
     | texpr1 ->
-      SBounds.bound_texpr d texpr1
+      SBounds.bound_texpr d texpr1  (Cilfacade.get_ikind_exp e)
     | exception Convert.Unsupported_CilExp ->
       (None, None)
 

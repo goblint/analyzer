@@ -206,6 +206,16 @@ struct
   let rec remove_zero_rows t =
     List.filter (function x -> not (Vector.is_only_zero x)) t
 
+  let switch_rows t =
+    let sort v1 v2 =
+      let f = Vector.find_opt_with_index (function x -> x =: to_rt 1) in
+       let res_v1, res_v2 = f v1, f v2 in
+        match res_v1, res_v2 with
+        | Some (i1, _), Some (i2, _) -> Int.compare i1 i2
+        | _, _ -> failwith "Matrix has not been reduced yet"
+    in List.sort sort t
+
+
    (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows*)
     let normalize t =
       let rec create_rref new_t curr_row =
@@ -217,7 +227,7 @@ struct
                             let res = List.map2i (function row_i -> function y -> function z ->
                               if row_i <> curr_row then subtract_rows_c y p z else p) new_t col in
                                 create_rref res (curr_row + 1)
-                            in remove_zero_rows (create_rref t 0)
+                            in switch_rows (remove_zero_rows (create_rref t 0))
 
   let normalize t =
     let res = normalize t in
@@ -305,14 +315,58 @@ struct
     type_tracked vi.vtype && not vi.vaddrof
 end
 
+open Apron.Texpr1
+
+  let calc_const (t:Matrix.t) env texp =
+    let exception NoConst in
+                    let rec parse_replace m exp =
+                      if t = [] then raise (NoConst) else
+                    match exp with
+                    | Cst x -> to_rt (EnvDomain.int_of_cst x)
+                    | Var x -> let n = Environment.dim_of_var env x in
+                                  let row = List.find_opt (function x -> List.nth x n = (to_rt 1)) m in
+                                      begin match row with
+                                      | None -> raise (NoConst)
+                                      | Some (y) -> if Vector.is_constant y then Vector.get_val ((List.length y) - 1) y
+                                                    else raise (NoConst)  end
+                    | Unop (u, e, _, _) ->(
+                            match u with
+                            | Neg -> (to_rt (-1)) *: parse_replace m e
+                            | Cast -> parse_replace m e (*Ignore*)
+                            | Sqrt -> raise (NoConst) )(*fails*)
+                    | Binop (b, e1, e2, _, _) ->
+                              begin match b with
+                              | Add -> (parse_replace m e1) +: (parse_replace m e2)
+                              | Sub -> (parse_replace m e1) -: (parse_replace m e2)
+                              | Mul -> (parse_replace m e1) *: (parse_replace m e2)
+                              | Div -> (parse_replace m e1) /: (parse_replace m e2)
+                              | Mod -> raise (NoConst) (*ToDO calculate mod*)
+                              | Pow -> raise (NoConst) (*ToDo calculate pow*)
+                                end
+  in
+  match parse_replace t texp with
+    | c -> Some (c)
+    | exception NoConst -> None
+
 module ExpressionBounds: EnvDomain.ConvBounds with type d = VarManagement.t = (* ToDo Implement proper bounds calculation*)
 struct
+
   type d = VarManagement.t
-  let bound_texpr t texpr = (None, None)
+
+  let bound_texpr (t :d) texpr ik =
+    let min,max = IntDomain.Size.range_big_int ik in
+    let texpr = Texpr1.to_expr texpr
+    in
+    match t.d with
+    | None -> Some(min), Some(max)
+    | Some (m) -> ( match calc_const m t.env texpr  with
+                  | None -> Some (min), Some (max)
+                  | Some (c) -> let c_float = Mpqf.to_float c in
+                                  let c_min, c_max = Float.to_int (Float.floor c_float), Float.to_int (Float.ceil c_float) in
+                                    Some(IntOps.BigIntOps.of_int c_min), Some(IntOps.BigIntOps.of_int c_max))
 end
 
 module Convert = EnvDomain.Convert (ExpressionBounds)
-open Apron.Texpr1
 
 module MyD2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
 struct
@@ -325,12 +379,10 @@ struct
   let to_lincons_array t = failwith "Does not exist"
   let tag t = failwith "No tag"
   let show a =
-    let d_str = (match a.d with
-    | None -> "⟂"
-    | Some ([]) -> "⊤"
-    | Some (m) -> Matrix.show m)
-    in
-   Format.asprintf "%s (env: %a)" d_str (Environment.print:Format.formatter -> Environment.t -> unit) a.env
+    match a.d with
+    | None -> Format.asprintf "⟂ (env: %a)" (Environment.print:Format.formatter -> Environment.t -> unit) a.env
+    | Some ([]) -> Format.asprintf "⊤ (env: %a)" (Environment.print:Format.formatter -> Environment.t -> unit) a.env
+    | Some (m) -> Matrix.show m
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
@@ -459,36 +511,31 @@ struct
 
   (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.*)
   let get_coeff_vec env texp =
+    let exception NotLinear in
     let zero_vec = Vector.create_zero_vec ((Environment.size env) + 1) in
     let rec convert_texpr env texp =
     (match texp with
-    | Cst x ->  Some (Vector.set_val zero_vec ((List.length zero_vec) - 1) (to_rt (Convert.int_of_cst x)))
-    | Var x ->  Some (Vector.set_val zero_vec (Environment.dim_of_var env x) (to_rt 1))
+    | Cst x ->  Vector.set_val zero_vec ((List.length zero_vec) - 1) (to_rt (EnvDomain.int_of_cst x))
+    | Var x ->  Vector.set_val zero_vec (Environment.dim_of_var env x) (to_rt 1)
     | Unop (u, e, _, _) -> (
       match u with
-      | Neg -> (match convert_texpr env e with
-            | None -> None
-            | Some (x) -> Some (Vector.neg x)) (* Multiply by -1*)
+      | Neg -> Vector.neg (convert_texpr env e) (* Multiply by -1*)
       | Cast -> convert_texpr env e (*Ignore*)
-      | Sqrt -> None )(*Return None - Maybe works if only constant?*)
+      | Sqrt -> raise NotLinear )(*Maybe works if only constant?*)
       | Binop (b, e1, e2, _, _) -> (
         match b with
-        | Add -> (match convert_texpr env e1, convert_texpr env e2 with
-            | None, _ -> None
-            | _, None -> None
-            | Some (x1), Some (x2) -> Some (Vector.add_vecs x1 x2)) (*Simply add vectors*)
-        | Sub -> (match convert_texpr env  e1, convert_texpr env e2 with
-             | None, _ -> None
-             | _, None -> None
-            | Some (x1), Some (x2) -> Some (Vector.add_vecs x1 (Vector.neg x2))) (*Subtract them*)
-    | Mul -> (match convert_texpr env  e1, convert_texpr env e2 with
-            | None, _ -> None
-            | _, None -> None
-            | Some (x1), Some (x2) -> if Vector.is_constant x1 || Vector.is_constant x2
-                                      then Some (Vector.mul_vecs x1 x2)
-                                      else None ) (*Var * Var is invalid!*)
-    | _ -> None (*None, rest is not valid!*)) )
-                                    in convert_texpr env texp
+        | Add ->  Vector.add_vecs (convert_texpr env e1) (convert_texpr env e2) (*Simply add vectors*)
+        | Sub -> Vector.add_vecs (convert_texpr env  e1) (Vector.neg (convert_texpr env e2)) (*Subtract them*)
+        | Mul -> let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
+              if Vector.is_constant x1 || Vector.is_constant x2
+                then Vector.mul_vecs x1 x2
+                 else raise NotLinear (*Var * Var is invalid!*)
+    | _ -> raise NotLinear (*rest is not valid!*)) )
+      in match convert_texpr env texp with
+         | exception NotLinear -> None
+         | x -> Some(x)
+
+
   let get_coeff_vec env texp =
     let res = get_coeff_vec env texp in
     (match res with
@@ -538,8 +585,14 @@ struct
       | _, _ -> t
 
   let assign_exp t var exp  =
-   let res = assign_texpr t var (Convert.texpr1_expr_of_cil_exp t t.env exp)
-    in if M.tracing then M.tracel "affEq" "assign_exp \n %s:\n" (show res); res
+  match Convert.texpr1_expr_of_cil_exp t t.env exp with
+  | exp -> let res = assign_texpr t var exp
+              in if M.tracing then M.tracel "affEq" "assign_exp \n %s:\n" (show res); res
+  | exception Convert.Unsupported_CilExp -> match t.d with
+                                            | None -> t
+                                            | Some(x) ->
+                                              if M.tracing then M.tracel "affEq" "Deleting var: %s from %s " (Var.to_string var) (show t);
+                                              forget_vars t [var]
 
   let assign_var t v v' =
   let texpr1 = Texpr1.of_expr (t.env) (Var v') in
@@ -582,8 +635,9 @@ struct
   (* expression *)
   | _ -> false
 
+
 (** Assert a constraint expression. *)
-  let rec meet_with_tcons d tcons =
+  let rec meet_with_tcons d tcons original_expr negate =
     match Tcons1.get_typ tcons with
     | EQ ->
       if M.tracing then M.tracel "asserts" "EQ meet_with_tcons %s\n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
@@ -593,14 +647,30 @@ struct
             end
     | DISEQ ->
       if M.tracing then M.tracel "asserts" "DISEQ meet_with_tcons %s\n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
-      d
-    | SUP -> if M.tracing then M.tracel "asserts" "SUP meet_with_tcons: %s \n" (Format.asprintf "%a" (Texpr1.print: Format.formatter -> Texpr1.t -> unit) (Tcons1.get_texpr1 tcons)); d
-    | SUPEQ -> if M.tracing then M.tracel "asserts" "SUPEQ meet_with_tcons: %s \n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons); d
+       let new_tcons = Convert.tcons1_of_cil_exp d (d.env) original_expr (Bool.neg negate) in
+        meet_with_tcons d new_tcons original_expr (Bool.neg negate)
+    | SUP -> if M.tracing then M.tracel "asserts" "SUP meet_with_tcons: %s \n" (Format.asprintf "%a" (Texpr1.print: Format.formatter -> Texpr1.t -> unit) (Tcons1.get_texpr1 tcons));
+             let coeff_vec = get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) in
+               begin match coeff_vec, d.d with
+               | Some (vec), Some (m) when meet {d = Some [vec]; env = d.env} d = d -> {d = None; env = d.env} (*e.g: x + y > 0 = None if x + y = 0*)
+               | None, Some(m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+                        | None -> d
+                        | Some (c) -> if c <=: (to_rt 0) then {d = None; env = d.env} else d end
+               | _ -> d
+              end
+    | SUPEQ -> if M.tracing then M.tracel "asserts" "SUPEQ meet_with_tcons: %s \n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
+    let coeff_vec = get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) in
+           begin match coeff_vec, d.d with
+           | None, Some(m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+                    | None -> d
+                    | Some (c) -> if c <: (to_rt 0) then {d = None; env = d.env} else d end
+           | _ -> d
+          end
     | EQMOD _ -> if M.tracing then M.tracel "asserts" "EQMOD meet_with_tcons: %s \n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons); d
 
   let rec assert_cons d e negate =
       begin match Convert.tcons1_of_cil_exp d (d.env) e negate with
-        | tcons1 -> meet_with_tcons d tcons1
+        | tcons1 -> meet_with_tcons d tcons1 e negate
         | exception Convert.Unsupported_CilExp ->
           d
       end
@@ -640,10 +710,8 @@ struct
   (** Evaluate non-constraint expression as interval. *)
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (d.env) e with
-    | texpr1 ->
-      ExpressionBounds.bound_texpr d texpr1
-    | exception Convert.Unsupported_CilExp ->
-      (None, None)
+    | texpr1 -> ExpressionBounds.bound_texpr d texpr1 (Cilfacade.get_ikind_exp e)
+    | exception Convert.Unsupported_CilExp -> (None, None)
 
 
 (** Evaluate constraint or non-constraint expression as integer. *)
@@ -666,7 +734,6 @@ struct
     let res = eval_int d e in
     if M.tracing then M.tracel "assert" "Eval Int: matrix: %s expr: %s -> %s \n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) (IntDomain.IntDomTuple.show res) ;
     res
-
 
   let unify a b =
     let new_env, a_change, b_change  = Environment.lce_change a.env b.env in
