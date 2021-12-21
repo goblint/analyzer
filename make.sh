@@ -63,7 +63,7 @@ rule() {
     ;; deps)
       eval $(opam config env)
       {
-        opam install -y . --deps-only --locked --update-invariant
+        opam install -y . --deps-only --locked --update-invariant &&
         opam upgrade -y $(opam list --pinned -s)
       } || {
         opam update
