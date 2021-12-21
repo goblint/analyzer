@@ -1,5 +1,8 @@
 #include <pthread.h>
-#include "/home/psi/nestra/kodu/mat/inf/p/teor/anal/DAEDALUS/tmp/errors.h"
+
+void err_abort(int i, char* ptr) {
+  exit(0);
+}
 
 void *thread_routine (void *arg) {
   return arg;

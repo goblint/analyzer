@@ -2,10 +2,10 @@
 
 extern void *malloc(size_t);
 extern int putchar(int);
-extern int printf();
+
 
 struct ListElm {
-  char cAtom; 
+  char cAtom;
   struct ListElm *next;
 };
 
@@ -30,4 +30,3 @@ main () {
   printf("2. %c\n", tail -> cAtom);
   return 0;
 }
-
