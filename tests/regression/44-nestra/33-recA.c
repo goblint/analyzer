@@ -1,3 +1,4 @@
+//PARAM: --enable ana.context.widen
 extern int scanf(char *, ...);
 extern int printf(char *, ...);
 
