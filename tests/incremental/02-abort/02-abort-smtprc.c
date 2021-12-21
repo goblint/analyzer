@@ -1,4 +1,3 @@
-// SKIP
 struct {
   unsigned a;
 } b;

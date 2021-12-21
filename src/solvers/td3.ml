@@ -824,7 +824,20 @@ module WP =
         let finalize ~vh ~reachable =
           VH.filteri_inplace (fun x _ ->
               VH.mem reachable x
-            ) stable
+            ) stable;
+
+          (* filter both keys and value sets of a VS.t HM.t *)
+          let filter_vs_hm hm =
+            VH.filter_map_inplace (fun x vs ->
+                if VH.mem reachable x then
+                  Some (VS.filter (VH.mem reachable) vs)
+                else
+                  None
+              ) hm
+          in
+          filter_vs_hm infl;
+          filter_vs_hm side_infl;
+          filter_vs_hm side_dep;
           (* TODO: prune other data structures? *)
       end
       in
