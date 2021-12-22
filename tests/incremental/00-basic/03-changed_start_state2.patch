@@ -1,5 +1,5 @@
---- a/tests/incremental/00-basic/03-changed_start_state2.c
-+++ b/tests/incremental/00-basic/03-changed_start_state2.c
+--- tests/incremental/00-basic/03-changed_start_state2.c
++++ tests/incremental/00-basic/03-changed_start_state2.c
 @@ -1,13 +1,13 @@
  #include <assert.h>
 
