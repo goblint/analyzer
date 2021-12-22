@@ -80,9 +80,10 @@ let rec element_require_all (element: element): element =
     | Integer _
     | Number _ -> element.kind
     | Monomorphic_array (element_element, array_specs) ->
-      let array_specs' = { array_specs with
-        additional_items = Option.map element_require_all array_specs.additional_items;
-      }
+      let array_specs' =
+        { array_specs with
+          additional_items = Option.map element_require_all array_specs.additional_items;
+        }
       in
       Monomorphic_array (element_require_all element_element, array_specs')
     | Object object_specs ->

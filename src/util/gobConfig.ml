@@ -226,9 +226,9 @@ struct
           with Not_found ->
             (* TODO: allow unknown paths to create subobjects, will be validated against schema anyway *)
             (* if !build_config then
-              `Assoc (m @ [(key, create_new v pth)])
-            else *)
-              raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
+                 `Assoc (m @ [(key, create_new v pth)])
+               else *)
+            raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
         end
       | `List a, Index (Int i, pth) ->
         `List (List.modify_at i (fun o -> set_value v o pth) a)
