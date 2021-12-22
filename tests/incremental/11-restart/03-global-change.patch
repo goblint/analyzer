@@ -1,5 +1,5 @@
---- tests/incremental/03-global-change.c	2021-09-29 14:09:02.080670467 +0300
-+++ "tests/incremental/03-global-change copy.c"	2021-09-29 14:09:11.456724953 +0300
+--- a/tests/incremental/11-restart/03-global-change.patch
++++ b/tests/incremental/11-restart/03-global-change.patch
 @@ -4,7 +4,7 @@
  int g = 1;
 

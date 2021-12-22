@@ -1,5 +1,5 @@
---- tests/incremental/06-call-remove.c	2021-10-05 10:49:27.305643809 +0300
-+++ "tests/incremental/06-call-remove copy.c"	2021-10-05 10:49:37.397808651 +0300
+--- a/tests/incremental/11-restart/09-call-remove.patch
++++ b/tests/incremental/11-restart/09-call-remove.patch
 @@ -8,7 +8,7 @@
  }
 

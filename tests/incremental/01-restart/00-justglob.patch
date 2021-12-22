@@ -1,8 +1,0 @@
-diff --git a/tests/incremental/00-justglob.c b/tests/incremental/00-justglob.c
-index 55c1e2271..ec1c6d041 100644
---- a/tests/incremental/00-justglob.c
-+++ b/tests/incremental/00-justglob.c
-@@ -1,2 +1,2 @@
--int max_domains = 0;
-+int max_domains = 4;
- int main() {}

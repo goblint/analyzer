@@ -1,4 +1,5 @@
-diff --git a/tests/incremental/01-restart/02-global-remove.c b/tests/incremental/01-restart/02-global-remove.c
+--- a/tests/incremental/11-restart/02-global-remove.patch
++++ b/tests/incremental/11-restart/02-global-remove.patch
 @@ -4,7 +4,7 @@
  int g = 1;
 

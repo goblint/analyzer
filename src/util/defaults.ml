@@ -102,8 +102,6 @@ let _ = ()
       ; reg Analyses "ana.path_sens"  "['OSEK','OSEK2','mutex','malloc_null','uninit']"  "List of path-sensitive analyses"
       (* apron adds itself to ana.path_sens such that there can be one defaults.ml both for the Apron and No-Apron configuration *)
       ; reg Analyses "ana.ctx_insens" "['OSEK2','stack_loc','stack_trace_set']"                      "List of context-insensitive analyses"
-      ; reg Analyses "ana.cont.localclass" "false" "Analyzes classes defined in main Class."
-      ; reg Analyses "ana.cont.class"      "''"    "Analyzes all the member functions of the class (CXX.json file required)."
       ; reg Analyses "ana.osek.oil"        "''"    "Oil file for the analyzed program"
       ; reg Analyses "ana.osek.defaults"   "true"  "Generate default definitions for TASK and ISR"
       (* ; reg Analyses "ana.osek.tramp"      "''"    "Resource-ID-headers for the analyzed program" *)
@@ -205,7 +203,6 @@ let _ = ()
 
 (* {4 category [Experimental]} *)
 let _ = ()
-      ; reg Experimental "exp.lower-constants"   "true"  "Use Cil.lowerConstants to simplify some constant? (assumes wrap-around for signed int)"
       (* TODO: priv subobject *)
       ; reg Experimental "exp.privatization"     "'protection-read'" "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock"
       ; reg Experimental "exp.priv-prec-dump"    "''"    "File to dump privatization precision data to."

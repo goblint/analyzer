@@ -1,5 +1,5 @@
---- tests/incremental/06-local-wpoint-read.c	2021-09-29 16:55:20.461556453 +0300
-+++ "tests/incremental/06-local-wpoint-read copy.c"	2021-09-29 16:55:51.013749361 +0300
+--- a/tests/incremental/11-restart/06-local-wpoint-read.patch
++++ b/tests/incremental/11-restart/06-local-wpoint-read.patch
 @@ -4,7 +4,7 @@
  int g = 1;
 

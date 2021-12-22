@@ -1,20 +1,10 @@
---- tests/incremental/01-global.c	2021-09-29 11:07:05.155250278 +0300
-+++ "tests/incremental/01-global copy.c"	2021-09-29 11:07:21.507273052 +0300
-@@ -1,7 +1,7 @@
- #include <assert.h>
- #include <pthread.h>
- 
--int g = 1;
-+int g = 2;
- 
- void* t_fun(void *arg) {
-     return NULL;
-@@ -11,6 +11,6 @@
-     pthread_t id;
-     pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
- 
--    assert(g == 1); // success before, success after
-+    assert(g == 2); // success before, success after
-     return 0;
- }
-\ No newline at end of file
+--- tests/incremental/00-basic/01-global.c
++++ tests/incremental/00-basic/01-global.c
+@@ -1,6 +1,6 @@
+ // Previosuly, the function was erroneously not reanalyzed when the global initializer/the start state changed
+ // when hash-consing is activated.
+-int g = 0;
++int g = 35;
+
+ int main(){
+     int x = g;

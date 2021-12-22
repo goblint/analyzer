@@ -1,0 +1,11 @@
+--- a/tests/incremental/12-abort/01-abort_aget.patch
++++ b/tests/incremental/12-abort/01-abort_aget.patch
+@@ -4,7 +4,7 @@ void b();
+ void c() {}
+
+ int d() {
+-  return 0;
++  return 1;
+ }
+
+ main() {

@@ -489,10 +489,6 @@ let main () =
 
     Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
 
-    (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
-      for overflows, as this will replace potential overflows with constants after wrap-around *)
-    (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
-      set_bool "exp.lower-constants" false);
     Cilfacade.init ();
 
     handle_extraspecials ();

@@ -1,4 +1,5 @@
-diff --git a/tests/incremental/02-abort/02-abort-smtprc.c b/tests/incremental/02-abort/02-abort-smtprc.c
+--- a/tests/incremental/12-abort/02-abort-smtprc.patch
++++ b/tests/incremental/12-abort/02-abort-smtprc.patch
 @@ -26,7 +26,7 @@ int i(int l) {
    while (m) {
      f(l);

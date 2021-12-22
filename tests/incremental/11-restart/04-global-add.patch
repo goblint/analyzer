@@ -1,7 +1,5 @@
-diff --git a/tests/incremental/01-restart/04-global-add.c b/tests/incremental/01-restart/04-global-add.c
-index 312987db6..f8ddc4bf0 100644
---- a/tests/incremental/01-restart/04-global-add.c
-+++ b/tests/incremental/01-restart/04-global-add.c
+--- a/tests/incremental/11-restart/04-global-add.patch
++++ b/tests/incremental/11-restart/04-global-add.patch
 @@ -4,7 +4,7 @@
  int g = 1;
  

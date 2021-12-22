@@ -1,16 +1,8 @@
-#include <assert.h>
-#include <pthread.h>
+// Previosuly, the function was erroneously not reanalyzed when the global initializer/the start state changed
+// when hash-consing is activated.
+int g = 0;
 
-int g = 1;
-
-void* t_fun(void *arg) {
-    return NULL;
-}
-
-int main() {
-    pthread_t id;
-    pthread_create(&id, NULL, t_fun, NULL); // just go multithreaded
-
-    assert(g == 1); // success before, success after
-    return 0;
+int main(){
+    int x = g;
+    return x;
 }
