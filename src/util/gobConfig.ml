@@ -32,8 +32,6 @@ let phase = ref 0
 
 module Validator = JsonSchema.Validator (struct let schema = Options.schema end)
 module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.require_all end)
-(* module Validator = JsonSchema.Validator (struct let schema = Json_schema.any end)
-module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Json_schema.any end) *)
 
 (** The type for [gobConfig] module. *)
 module type S =
@@ -259,10 +257,8 @@ struct
     in
     o := set_value v !o orig_pth;
 
-    if not !build_config then ( (* object incomplete during building *)
-      Validator.validate_exn !json_conf;
-      (* JsonSchema.validate !json_conf; *)
-    )
+    if not !build_config then (* object incomplete during building *)
+      Validator.validate_exn !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f st =
@@ -352,10 +348,8 @@ struct
   (** Merge configurations form a file with current. *)
   let merge_file fn =
     let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
-    (* JsonSchema.validate v; *)
     Validator.validate_exn v;
     json_conf := GobYojson.merge !json_conf v;
-    (* JsonSchema.validate !json_conf; *)
     ValidatorRequireAll.validate_exn !json_conf;
     drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
