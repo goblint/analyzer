@@ -83,10 +83,10 @@ let option_spec_list =
     set_bool "dbg.print_dead_code" true;
     set_string "result" "sarif"
   in
-  let defaults_spec_list = List.map (fun (_, (name, (_, _))) ->
+  let defaults_spec_list = List.map (fun path ->
       (* allow "--option value" as shorthand for "--set option value" *)
-      ("--" ^ name, Arg.String (set_auto name), "")
-    ) !Defaults.registrar
+      ("--" ^ path, Arg.String (set_auto path), "")
+    ) Options.paths
   in
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""

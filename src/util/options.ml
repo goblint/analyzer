@@ -124,6 +124,28 @@ let () =
   (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults; *)
   ()
 
+let rec element_paths (element: element): string list =
+  match element.kind with
+  | String _
+  | Boolean
+  | Integer _
+  | Number _
+  | Monomorphic_array _ ->
+    [""]
+  | Object object_specs ->
+    List.concat_map (fun (name, field_element, _, _) ->
+        List.map (fun path -> name ^ "." ^ path) (element_paths field_element)
+      ) object_specs.properties
+  | _ ->
+    Format.printf "%a\n" Json_schema.pp (create element);
+    failwith "element_paths"
+
+let schema_paths (schema: schema): string list =
+  element_paths (root schema)
+  |> List.map BatString.rchop (* remove trailing '.' *)
+
+let paths = schema_paths schema
+
 let rec pp_options ~levels ppf (element: element) =
   match element.kind with
   | String _
