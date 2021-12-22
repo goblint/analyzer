@@ -268,26 +268,6 @@
           "items": { "type": "string" },
           "default": [ "OSEK2", "stack_loc", "stack_trace_set" ]
         },
-        "cont": {
-          "title": "ana.cont",
-          "type": "object",
-          "properties": {
-            "localclass": {
-              "title": "ana.cont.localclass",
-              "description": "Analyzes classes defined in main Class.",
-              "type": "boolean",
-              "default": false
-            },
-            "class": {
-              "title": "ana.cont.class",
-              "description":
-                "Analyzes all the member functions of the class (CXX.json file required).",
-              "type": "string",
-              "default": ""
-            }
-          },
-          "additionalProperties": false
-        },
         "osek": {
           "title": "ana.osek",
           "type": "object",
@@ -1048,13 +1028,6 @@
       "description": "Experimental features",
       "type": "object",
       "properties": {
-        "lower-constants": {
-          "title": "exp.lower-constants",
-          "description":
-            "Use Cil.lowerConstants to simplify some constant? (assumes wrap-around for signed int)",
-          "type": "boolean",
-          "default": true
-        },
         "privatization": {
           "title": "exp.privatization",
           "description":
