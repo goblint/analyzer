@@ -80,7 +80,7 @@ let rec element_category_of_defaults_json (defaults: defaults) (json: Yojson.Saf
 
 let schema_of_defaults_json defaults json =
   let (element, _) = element_category_of_defaults_json defaults json "" in
-  JsonSchema2.create_schema element
+  JsonSchema.create_schema element
 
 
 (* let defaults_schema =
@@ -88,13 +88,13 @@ let schema_of_defaults_json defaults json =
   schema_of_defaults_json defaults !GobConfig.json_conf
 
 let () =
-  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema2.schema_to_yojson defaults_schema) *)
+  Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.schema.json") (JsonSchema.schema_to_yojson defaults_schema) *)
 
 let schema_of_yojson json =
   (* workaround for json-data-encoding not handling recursive root reference correctly *)
   (* remove the reference before parsing, hack it back afterwards *)
-  let json = JsonSchema2.JQ.replace [`Field "properties"; `Field "phases"; `Field "items"] (`Assoc []) json in
-  let schema = JsonSchema2.schema_of_yojson json in (* definitions_path doesn't work, "definitions" field still hardcoded *)
+  let json = JsonSchema.JQ.replace [`Field "properties"; `Field "phases"; `Field "items"] (`Assoc []) json in
+  let schema = JsonSchema.schema_of_yojson json in (* definitions_path doesn't work, "definitions" field still hardcoded *)
   let element = Json_schema.root schema in
   let element = match element with
     | { kind = Object ({properties; _} as object_specs); _} ->
@@ -109,18 +109,18 @@ let schema_of_yojson json =
     | _ ->
       assert false
   in
-  JsonSchema2.create_schema element
+  JsonSchema.create_schema element
 
 let schema =
   (* schema_of_yojson (Yojson.Safe.from_file "options.schema.json") *)
   schema_of_yojson (Yojson.Safe.from_string [%blob "options.schema.json"])
 
-let require_all = JsonSchema2.schema_require_all schema
+let require_all = JsonSchema.schema_require_all schema
 
-let defaults = JsonSchema2.schema_defaults schema
+let defaults = JsonSchema.schema_defaults schema
 
 let () =
-  (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema2.schema_to_yojson require_all); *)
+  (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema.schema_to_yojson require_all); *)
   (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.defaults.json") defaults; *)
   ()
 
