@@ -406,8 +406,13 @@ class ProjectIncr < Project
     super(lines)
     @testset.p = self
     `patch -p0 -b <#{patch_path}`
+    status = $?.exitstatus
     lines_incr = IO.readlines(path)
     `patch -p0 -b -R <#{patch_path}`
+    if status != 0
+      puts "Failed to apply patch: #{patch_path}"
+      exit 1
+    end
     @testset_incr = parse_tests(lines_incr)
     @testset_incr.p = self
     @testset_incr.warnfile = File.join($testresults, group, name + ".incr.warn.txt")
