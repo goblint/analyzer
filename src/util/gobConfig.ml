@@ -24,7 +24,6 @@ open Printf
 
 exception ConfigError of string
 
-let build_config = ref false
 
 (* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
 let phase = ref 0
@@ -225,9 +224,10 @@ struct
         in
         begin try `Assoc (modify m)
           with Not_found ->
-            if !build_config then
+            (* TODO: allow unknown paths to create subobjects, will be validated against schema anyway *)
+            (* if !build_config then
               `Assoc (m @ [(key, create_new v pth)])
-            else
+            else *)
               raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
         end
       | `List a, Index (Int i, pth) ->
@@ -256,9 +256,7 @@ struct
         new_v
     in
     o := set_value v !o orig_pth;
-
-    if not !build_config then (* object incomplete during building *)
-      Validator.validate_exn !json_conf
+    Validator.validate_exn !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f st =
@@ -309,7 +307,7 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
-    if not !build_config then drop_memo ();
+    drop_memo ();
     if tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
     set_path_string st v
 
@@ -319,7 +317,7 @@ struct
   let set_string st i = set_path_string_trace st (`String i)
   let set_null   st   = set_path_string_trace st `Null
   let set_list   st l =
-    if not !build_config then drop_memo ();
+    drop_memo ();
     set_value (`List l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
@@ -358,8 +356,5 @@ end
 include Impl
 
 let () =
-  (* build_config := true;
-  List.iter (fun (c, (n, (desc, def))) -> set_auto n def) !Defaults.registrar;
-  build_config := false; *)
   json_conf := Options.defaults;
   ValidatorRequireAll.validate_exn !json_conf
