@@ -25,7 +25,7 @@ int main(){
     }
 
     // arr[0] ... arr[STOP - 1] should be 1, the others equal to 0
-    assert(arr[0] == 1);
+    assert(arr[0] == 1); // UNKNOWN
     assert(arr[INT_MAX + 1l] == 1);
 
     // j is the smallest index that checking triggers the unsoundness
@@ -34,10 +34,10 @@ int main(){
     assert(0 < j);
     assert(j < STOP);
 
-    // This check still works
-    assert(arr[j - 1] == 1);
+    // This check is imprecise, but not unsound
+    assert(arr[j - 1] == 1); //UNKNOWN
 
-    // These two fail somehow
+    // These two asserts fail somehow
     assert(arr[j] == 1);
     assert(arr[STOP - 1] == 1);
 
