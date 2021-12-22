@@ -168,18 +168,16 @@ module DomFunctor (PrivD: Lattice.S) (ExpEval: ExpEvaluator with type t = BaseCo
 struct
   include BaseComponents (PrivD)
 
-  let (%) = Batteries.(%)
-  let eval_exp x = Option.map BI.to_int64 % (ExpEval.eval_exp x)
   let join (one:t) (two:t): t =
-    let cpa_join = CPA.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) in
+    let cpa_join = CPA.join_with_fct (VD.smart_join (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
     op_scheme cpa_join PartDeps.join WeakUpdates.join PrivD.join one two
 
   let leq one two =
-    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) in
+    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
     cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && WeakUpdates.leq one.weak two.weak && PrivD.leq one.priv two.priv
 
   let widen one two: t =
-    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) in
+    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
     op_scheme cpa_widen PartDeps.widen WeakUpdates.widen PrivD.widen one two
 end
 
