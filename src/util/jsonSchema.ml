@@ -13,7 +13,19 @@ let rec encoding_of_schema_element (top: unit Json_encoding.encoding) (schema_el
   let open Json_encoding in
   match schema_element.kind with
   | Any -> unit
-  | String string_specs -> erase string
+  | String string_specs ->
+    begin match schema_element.enum with
+      | None ->
+        erase string
+      | Some enum ->
+        enum
+        |> List.map (fun value ->
+            match Json_repr.any_to_repr (module Json_repr.Yojson) value with
+            | `String value -> (value, ())
+            | _ -> failwith "encoding_of_schema_element: string_enum"
+          )
+        |> string_enum
+    end
   | Boolean -> erase bool
   | Integer numeric_specs -> erase int
   | Monomorphic_array (el, array_specs) ->
