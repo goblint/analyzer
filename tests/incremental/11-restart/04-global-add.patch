@@ -1,5 +1,5 @@
---- a/tests/incremental/11-restart/04-global-add.c
-+++ b/tests/incremental/11-restart/04-global-add.c
+--- tests/incremental/11-restart/04-global-add.c
++++ tests/incremental/11-restart/04-global-add.c
 @@ -4,7 +4,7 @@
  int g = 1;
 
