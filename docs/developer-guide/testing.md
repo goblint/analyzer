@@ -27,6 +27,28 @@ gobopt='--set exp.privatization write+lock' ./scripts/update_suite.rb
 * Add parameters to a regression test in the first line: `// PARAM: --set dbg.debug true`
 * Annotate lines inside the regression test with comments: `arr[9] = 10; // WARN`
 
+## Incremental tests
+The incremental tests are regression tests that are first run with the option `incremental.save` and then again
+incrementally (activating the option `incremental.load`) with some changes to the program or refinements in the
+configuration. The respective `asserts` and expected results are checked in both runs.
+
+### Running
+The incremental tests can be run with `./scripts/update_suite.rb -i`.
+
+### Writing
+An incremental test case consists of three files with the same file name: the `.c` file with the initial program, a
+`.json` file for the initial configuration and a `.patch` file with the changes for the incremental run. Asserts and
+expected results are encoded in the program as for other regression tests.
+
+The patch file can contain changes to multiple files. This allows for modifications of code, asserts or expected results
+in the program file as well as refinements in the configuration for the incremental run. A suitable patch can be created
+with:
+```
+git diff --no-prefix relative/path/to/test.c relative/path/to/test.json > relative/path/to/test.patch
+```
+
+The comparison input and the metadata in the patch headers are not necessary and can be removed.
+
 ## Domain tests
 Property-based testing (a la QuickCheck) is used to test some domains (`Lattice.S` implementations) for their lattice properties.
 On integer domains the integer operations are also tested for being a valid abstraction of sets of integers.
