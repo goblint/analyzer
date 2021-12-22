@@ -21,7 +21,6 @@
 open Prelude
 open Tracing
 open Printf
-open JsonSchema
 
 exception ConfigError of string
 
@@ -81,9 +80,6 @@ sig
 
   (** Merge configurations form a file with current. *)
   val merge_file : string -> unit
-
-  (** Add a schema to the conf*)
-  val addenum_sch: Yojson.Safe.t -> unit
 
   val json_conf: Yojson.Safe.t ref
 end
@@ -172,18 +168,6 @@ struct
 
   (** Here we store the actual configuration. *)
   let json_conf : Yojson.Safe.t ref = ref `Null
-
-  (** The schema for the conf [json_conf] *)
-  let conf_schema : jschema =
-    { sid      = Some "root"
-    ; sdescr   = Some "Configuration root for the Goblint."
-    ; stype    = None
-    ; sdefault = None
-    ; saddenum = []
-    }
-
-  (** Add the schema to [conf_schema]. *)
-  let addenum_sch jv = addenum conf_schema @@ fromJson jv
 
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
@@ -274,7 +258,6 @@ struct
         new_v
     in
     o := set_value v !o orig_pth;
-    validate conf_schema !json_conf;
 
     if not !build_config then ( (* object incomplete during building *)
       Validator.validate_exn !json_conf;
@@ -385,6 +368,4 @@ let () =
   List.iter (fun (c, (n, (desc, def))) -> set_auto n def) !Defaults.registrar;
   build_config := false; *)
   json_conf := Options.defaults;
-  ValidatorRequireAll.validate_exn !json_conf;
-
-  addenum_sch (Yojson.Safe.from_string Defaults.default_schema)
+  ValidatorRequireAll.validate_exn !json_conf
