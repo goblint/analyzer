@@ -125,6 +125,7 @@
       "description":
         "Result style: none, fast_xml, json, pretty, json-messages.",
       "type": "string",
+      "enum": ["none", "fast_xml", "json", "pretty", "json-messages"],
       "default": "none"
     },
     "solver": {
@@ -163,6 +164,7 @@
       "description":
         "Colored output (via ANSI escape codes). 'auto': enabled if stdout is a terminal (instead of a pipe); 'always', 'never'.",
       "type": "string",
+      "enum": ["auto", "always", "never"],
       "default": "auto"
     },
     "g2html": {
@@ -230,6 +232,7 @@
       "description":
         "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing).",
       "type": "string",
+      "enum": ["post", "never", "early"],
       "default": "post"
     },
     "gobview": {
@@ -410,6 +413,7 @@
               "description":
                 "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'",
               "type": "string",
+              "enum": ["never", "once", "fixpoint"],
               "default": "never"
             }
           },
@@ -618,6 +622,7 @@
               "description":
                 "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'",
               "type": "string",
+              "enum": ["octagon", "interval", "polyhedra"],
               "default": "octagon"
             },
             "threshold_widening": {
@@ -653,6 +658,7 @@
               "description":
                 "Which domain should be used for the thread ids. Can be 'history' or 'plain'",
               "type": "string",
+              "enum": ["history", "plain"],
               "default": "history"
             }
           },
@@ -716,6 +722,7 @@
               "description":
                 "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old.",
               "type": "string",
+              "enum": ["leq", "equal"],
               "default": "leq"
             }
           },
@@ -726,6 +733,7 @@
           "description":
             "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)",
           "type": "string",
+          "enum": ["ast", "cfg"],
           "default": "ast"
         },
         "force-reanalyze": {
@@ -802,6 +810,7 @@
               "description":
                 "How to handle overflows of signed types. Values: 'assume_top' (default): Assume signed overflow results in a top value; 'assume_none': Assume program is free of signed overflows;  'assume_wraparound': Assume signed types wrap-around and two's complement representation of signed integers",
               "type": "string",
+              "enum": ["assume_top", "assume_none", "assume_wraparound"],
               "default": "assume_top"
             }
           },
@@ -1033,6 +1042,7 @@
           "description":
             "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
           "type": "string",
+          "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
           "default": "protection-read"
         },
         "priv-prec-dump": {
@@ -1057,6 +1067,7 @@
               "description":
                 "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
               "type": "string",
+              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
               "default": "mutex-meet"
             },
             "priv": {
@@ -1240,6 +1251,7 @@
                   "description":
                     "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
                   "type": "string",
+                  "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
                   "default": "sides"
                 },
                 "space": {
@@ -1317,6 +1329,7 @@
               "title": "exp.witness.id",
               "description": "Which witness node IDs to use? node/enumerate",
               "type": "string",
+              "enum": ["node", "enumerate"],
               "default": "node"
             },
             "invariant": {
@@ -1328,6 +1341,7 @@
                   "description":
                     "Which witness nodes to add invariants to? all/loop_heads/none",
                   "type": "string",
+                  "enum": ["all", "loop_heads", "none"],
                   "default": "all"
                 }
               },
@@ -1383,6 +1397,7 @@
               "description":
                 "When using the partitioning which expression should be used for partitioning ('first', 'last')",
               "type": "string",
+              "enum": ["first", "last"],
               "default": "first"
             },
             "partition-by-const-on-return": {
@@ -1411,6 +1426,7 @@
               "description":
                 "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk",
               "type": "string",
+              "enum": ["simple", "sets", "keyed", "combined-all", "combined-sk"],
               "default": "simple"
             },
             "key": {
