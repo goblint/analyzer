@@ -89,7 +89,7 @@ end
 
 module MakeDump (Util: PrecCompareUtil.S) =
 struct
-  open! Defaults (* CircInterval / Enums / ... need initialized conf *)
+  (* open! Defaults (* CircInterval / Enums / ... need initialized conf *) *)
   open! Batteries
   open Util
 

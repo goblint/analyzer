@@ -1,187 +1,143 @@
-(** A simpler schema than http://json-schema.org *)
-
 open Prelude
 
-(** type of a [jvalue] *)
-type jtype =
-  | JBool | JInt | JNum | JNull | JString
-  | JArray of jarray
-  | JObj   of jobj
+module JS = Json_schema.Make (Json_repr.Yojson)
+module JE = Json_encoding.Make (Json_repr.Yojson)
+module JQ = Json_query.Make (Json_repr.Yojson)
 
-(** a schema for a [jvalue] *)
-and jschema =
-  {         sid      : string option (** identificator *)
-  ;         sdescr   : string option (** description  *)
-  ;         stype    : jtype  option (** a type with possibly extra information *)
-  ;         sdefault : Yojson.Safe.t option (** the default value *)
-  ; mutable saddenum : jschema list  (** additional schemata that were loaded separately *)
-  }
+let schema_to_yojson schema = JS.to_json schema
+let schema_of_yojson json = JS.of_json json
 
-(** extra schema information for an array [jvalue] *)
-and jarray =
-  { sitem : jschema (** the schema for all array elements *)
-  }
+let erase: type t. t Json_encoding.encoding -> unit Json_encoding.encoding = fun encoding -> Json_encoding.conv (fun _ -> failwith "erase construct") (fun _ -> ()) encoding
 
-(** extra schema information for an object [jvalue] *)
-and jobj  =
-  { sprops           : (string * jschema) list (** properties *)
-  ; spatternprops    : (string * jschema) list (** regular expression properties *)
-  ; sadditionalprops : bool                    (** are all properties acounted in the schema *)
-  ; srequired        : string list             (** list of required properties *)
-  }
+let rec encoding_of_schema_element (top: unit Json_encoding.encoding) (schema_element: Json_schema.element): unit Json_encoding.encoding =
+  let open Json_encoding in
+  match schema_element.kind with
+  | Any -> unit
+  | String string_specs ->
+    begin match schema_element.enum with
+      | None ->
+        erase string
+      | Some enum ->
+        enum
+        |> List.map (fun value ->
+            match Json_repr.any_to_repr (module Json_repr.Yojson) value with
+            | `String value -> (value, ())
+            | _ -> failwith "encoding_of_schema_element: string_enum"
+          )
+        |> string_enum
+    end
+  | Boolean -> erase bool
+  | Integer numeric_specs -> erase int
+  | Monomorphic_array (el, array_specs) ->
+    erase @@ array (encoding_of_schema_element top el)
+  | Id_ref "" ->
+    top
+  | Object object_specs ->
+    List.fold_left (fun acc (name, element, required, _) ->
+        let field =
+          if required then
+            req name (encoding_of_schema_element top element)
+          else
+            dft name (encoding_of_schema_element top element) ()
+        in
+        erase @@ merge_objs acc (obj1 field)
+      ) (Option.map_default (encoding_of_schema_element top) empty object_specs.additional_properties) object_specs.properties
+  | _ -> failwith (Format.asprintf "encoding_of_schema_element: %a" Json_schema.pp (Json_schema.create schema_element))
 
-(** An exception that indicates that some [jschema] is was invalid. *)
-exception JsonSchemaMalformed of string
+let encoding_of_schema (schema: Json_schema.schema): unit Json_encoding.encoding =
+  let root = Json_schema.root schema in
+  Json_encoding.mu "" (fun top -> encoding_of_schema_element top root)
 
-(** An exception that indicates that some [jvalue] was not valid according to some [jschema]. *)
-exception JsonMalformed       of string
+open Json_encoding
+open Json_schema
 
+let rec element_defaults (element: element): Yojson.Safe.t =
+  match element.default with
+  | Some default ->
+    Json_repr.any_to_repr (module Json_repr.Yojson) default
+  | None ->
+    begin match element.kind with
+      | Object object_specs ->
+        `Assoc (List.map (fun (name, field_element, _, _) ->
+            (name, element_defaults field_element)
+          ) object_specs.properties)
+      | _ ->
+        Format.printf "%a\n" Json_schema.pp (create element);
+        failwith "element_defaults"
+    end
 
-(** Collect all ids from the [jschema]. *)
-let collectIds (s:jschema) : string list =
-  let acc = ref [] in
-  let rec f_sc s =
-    let add_id id =
-      if List.mem id !acc
-      then raise (JsonSchemaMalformed "collectIds")
-      else acc := id :: !acc
-    in
-    Option.may add_id s.sid;
-    List.iter f_sc s.saddenum;
-    Option.may f_ty s.stype
-  and f_ty = function
-    | JBool | JInt | JNum  | JNull | JString  -> ()
-    | JArray a -> f_sc a.sitem
-    | JObj   o ->
-      List.iter (f_sc % snd) o.sprops;
-      List.iter (f_sc % snd) o.spatternprops;
-  in f_sc s; !acc
+let schema_defaults (schema: schema): Yojson.Safe.t =
+  element_defaults (root schema)
 
-(** Call to [validate s v] validates the [jvalue] [v] in the [jschema] [s].
-    Invalidness is communicated using the exception [JsonMalformed]. *)
-let validate (s:jschema) (v:Yojson.Safe.t) : unit =
-  let matches x y = Str.string_match (Str.regexp x) y 0 in
-  let rec assoc_regex k = function
-    | [] -> raise Not_found
-    | (k',c)::xs when matches k' k -> c
-    | _::xs -> assoc_regex k xs
+let create_schema element =
+  create @@ { element with id = Some "" } (* add id to make create defs check happy for phases Id_ref, doesn't get outputted apparently *)
+
+let rec element_require_all (element: element): element =
+  let kind' = match element.kind with
+    | String _
+    | Boolean
+    | Id_ref _
+    | Integer _
+    | Number _ -> element.kind
+    | Monomorphic_array (element_element, array_specs) ->
+      let array_specs' =
+        { array_specs with
+          additional_items = Option.map element_require_all array_specs.additional_items;
+        }
+      in
+      Monomorphic_array (element_require_all element_element, array_specs')
+    | Object object_specs ->
+      let properties' = List.map (fun (name, field_element, required, unknown) ->
+          (name, element_require_all field_element, true, unknown) (* change required to true *)
+        ) object_specs.properties
+      in
+      Object { object_specs with properties = properties' }
+    | _ ->
+      Format.printf "%a\n" Json_schema.pp (create element);
+      failwith "element_require_all"
   in
-  let err n r = raise (JsonMalformed ("Json Validate: "^n^" is not "^r)) in
-  let rec f_sc n v s =
-    Option.may (f_ty n v) s.stype;
-    List.iter  (f_sc n v) s.saddenum
-  and f_ty (n:string) (v:Yojson.Safe.t) (t:jtype) =
-    match (t,v) with
-    | JBool, `Bool _ -> ()
-    | JBool,_      -> err n "of type boolean."
-    | JInt, `Int _
-    | JInt, `Intlit _ -> ()
-    | JInt, _      -> err n "of type integer."
-    | JNum, `Int _
-    | JNum, `Intlit _
-    | JNum, `Float _ -> ()
-    | JNum, _      -> err n "of type number."
-    | JNull, `Null  -> ()
-    | JNull, _     -> err n "of type null."
-    | JString, `String _ -> ()
-    | JString, _   -> err n "of type string."
-    | JArray a, `List b -> List.iter (fun x -> f_sc ("element of "^n) x a.sitem) b
-    | JArray _, _  -> err n "of type array."
-    | JObj o, `Assoc i ->
-      List.iter (one_map o) i;
-      let r = List.filter (not % flip List.mem_assoc i) o.srequired in
-      if r<>[] then err (List.hd r) "present."
-    | JObj o, _    -> err n "of type object."
-  and one_map o (k, v) =
-    try
-      f_sc k v (List.assoc k o.sprops)
-    with Not_found ->
-    try
-      f_sc k v (assoc_regex k o.spatternprops)
-    with Not_found ->
-      if not o.sadditionalprops then err k "in the mapping."
-  in
-  f_sc "root" v s
+  { element with kind = kind' }
 
-(** Convert a [jvalue] to a [jschema] if possible. Raise [JsonSchemaMalformed] otherwise. *)
-let rec fromJson (jv: Yojson.Safe.t) : jschema =
-  let open Yojson.Safe.Util in
-  let jarrayFromJson jv =
-    let item = try jv |> member "item" with Yojson.Safe.Util.Type_error _ -> raise (JsonSchemaMalformed "jarrayFromJson") in
-    { sitem = fromJson item }
-  in
-  let jobjFromJson jv =
-    let addit =
-      try jv |> member "additionalProps" |> to_bool
-      with Yojson.Safe.Util.Type_error _ -> raise (JsonSchemaMalformed "jobjFromJson.addit")
-    in
-    let req   =
-      try jv |> member "required" |> to_list |> List.map to_string
-      with Yojson.Safe.Util.Type_error _ -> []
-    in
-    let props =
-      try jv |> member "properties" |> to_assoc |> List.map (Tuple2.map2 fromJson)
-      with Yojson.Safe.Util.Type_error _ -> []
-    in
-    let pprops =
-      try jv |> member "patternProperties" |> to_assoc |> List.map (Tuple2.map2 fromJson)
-      with Yojson.Safe.Util.Type_error _ -> []
-    in
-    { sprops           = props
-    ; spatternprops    = pprops
-    ; sadditionalprops = addit
-    ; srequired        = req
-    }
-  in
-  let typeFromJson jv =
-    let typ = try Some (jv |> member "type" |> to_string) with Yojson.Safe.Util.Type_error _ -> None in
-    Option.bind typ @@ fun typ ->
-    match typ with
-    | "string"  -> Some JString
-    | "boolean" -> Some JBool
-    | "integer" -> Some JInt
-    | "number"  -> Some JNum
-    | "null"    -> Some JNull
-    | "array"   -> Some (JArray (jarrayFromJson jv))
-    | "object"  -> Some (JObj   (jobjFromJson   jv))
-    | _ -> raise (JsonSchemaMalformed "typeFromJson")
-  in
-  let id     = try Some (jv |> member "id" |> to_string) with Yojson.Safe.Util.Type_error _ -> None in
-  let descr  = try Some (jv |> member "description" |> to_string) with Yojson.Safe.Util.Type_error _ -> None in
-  let def    = jv |> member "default" |> to_option Fun.id in
-  let typ    = typeFromJson jv in
-  let r =
-    { sid      = id
-    ; sdescr   = descr
-    ; stype    = typ
-    ; sdefault = def
-    ; saddenum = []
-    }
-  in
-  Option.may (validate r) def; r
+let schema_require_all (schema: schema): schema =
+  create_schema (element_require_all (root schema))
 
-(** Call to [addenum x y] extends [x] with [y] at the id [Option.get y.sid] *)
-let addenum (r:jschema) (l:jschema) =
-  let addingJson s id l =
-    let rec f_sc s =
-      if Some id = s.sid then
-        s.saddenum <- l :: s.saddenum
-      else begin
-        List.iter f_sc s.saddenum;
-        Option.may f_ty s.stype
-      end
-    and f_ty = function
-      | JBool | JInt | JNum  | JNull | JString  -> ()
-      | JArray a -> f_sc a.sitem
-      | JObj   o ->
-        List.iter (f_sc % snd) o.sprops;
-        List.iter (f_sc % snd) o.spatternprops;
-    in f_sc r
-  in
-  match l.sid with
-  | None -> raise (JsonSchemaMalformed "addenum")
-  | Some id ->
-    if not @@ List.mem id @@ collectIds r then
-      raise (JsonSchemaMalformed "addenum")
-    else
-      addingJson r id l
+
+module type Schema =
+sig
+  val schema: schema
+end
+
+module Validator (Schema: Schema) =
+struct
+  let schema_encoding = encoding_of_schema Schema.schema
+
+  let validate_exn json = JE.destruct schema_encoding json
+
+  (* TODO: bool-returning validate? *)
+end
+
+
+let () = Printexc.register_printer (function
+    | Json_encoding.Unexpected _
+    | Json_encoding.No_case_matched _
+    | Json_encoding.Bad_array_size _
+    | Json_encoding.Missing_field _
+    | Json_encoding.Unexpected_field _
+    | Json_encoding.Bad_schema _
+    | Json_encoding.Cannot_destruct _ as exn ->
+      let msg = Format.asprintf "Json_encoding: %a" (Json_encoding.print_error ?print_unknown:None) exn in
+      Some msg
+    | Json_schema.Cannot_parse _
+    | Json_schema.Dangling_reference _
+    | Json_schema.Bad_reference _
+    | Json_schema.Unexpected _
+    | Json_schema.Duplicate_definition _ as exn ->
+      let msg = Format.asprintf "Json_schema: %a" (Json_encoding.print_error ?print_unknown:None) exn in
+      Some msg
+    | Json_query.Illegal_pointer_notation _
+    | Json_query.Unsupported_path_item _
+    | Json_query.Cannot_merge _ as exn ->
+      let msg = Format.asprintf "Json_query: %a" (Json_encoding.print_error ?print_unknown:None) exn in
+      Some msg
+    | _ -> None (* for other exceptions *)
+  )

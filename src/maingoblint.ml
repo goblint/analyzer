@@ -2,7 +2,6 @@
 
 open Prelude
 open GobConfig
-open Defaults
 open Printf
 open Goblintutil
 
@@ -83,10 +82,10 @@ let option_spec_list =
     set_bool "dbg.print_dead_code" true;
     set_string "result" "sarif"
   in
-  let defaults_spec_list = List.map (fun (_, (name, (_, _))) ->
+  let defaults_spec_list = List.map (fun path ->
       (* allow "--option value" as shorthand for "--set option value" *)
-      ("--" ^ name, Arg.String (set_auto name), "")
-    ) !Defaults.registrar
+      ("--" ^ path, Arg.String (set_auto path), "")
+    ) Options.paths
   in
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""
@@ -100,8 +99,8 @@ let option_spec_list =
   ; "--conf"               , Arg.String merge_file, ""
   ; "--writeconf"          , Arg.String (fun fn -> writeconffile := fn), ""
   ; "--version"            , Arg.Unit print_version, ""
-  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; exit 0), ""
-  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; exit 0), ""
+  ; "--print_options"      , Arg.Unit (fun () -> Options.print_options (); exit 0), ""
+  ; "--print_all_options"  , Arg.Unit (fun () -> Options.print_all_options (); exit 0), ""
   ; "--trace"              , Arg.String set_trace, ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
@@ -362,13 +361,12 @@ let do_analyze change_info merged_AST =
           Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
           (* Cilfacade.current_file := ast'; *)
       in
-      (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
-         new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
+      (* new style is phases[i].ana.activated = [ana_1, ...]
          phases[i].ana.x overwrites setting ana.x *)
       let num_phases =
         let np,na,nt = Tuple3.mapn (List.length % get_list) ("phases", "ana.activated", "trans.activated") in
-        phase_config := np > 0; (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
-        if get_bool "dbg.verbose" then print_endline @@ "Using " ^ if !phase_config then "new" else "old" ^ " format for phases!";
+        (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
+        if get_bool "dbg.verbose" then print_endline @@ "Using new format for phases!";
         if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
         max np 1
       in

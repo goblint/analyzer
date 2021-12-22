@@ -32,10 +32,12 @@
     (ppx_distr_guards (>= 0.2))
     ppx_deriving
     ppx_deriving_yojson
+    (ppx_blob (>= 0.6.0))
     (ocaml-monadic (>= 0.5))
     (ounit2 :with-test)
     (odoc :with-doc)
     dune-site
+    json-data-encoding
     (sha (>= 1.12))
     (conf-gmp (>= 3)) ; only needed transitively, but they don't have lower bound, which is needed on MacOS
     (conf-ruby :with-test)
