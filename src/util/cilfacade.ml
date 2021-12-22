@@ -34,7 +34,7 @@ let get_stmtLoc stmt =
 
 let init () =
   initCIL ();
-  lowerConstants := GobConfig.get_bool "exp.lower-constants";
+  lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;

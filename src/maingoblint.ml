@@ -244,8 +244,8 @@ let preprocess_files () =
   );
 
   let include_args =
-    List.flatten (List.map (fun include_dir -> ["-I"; include_dir]) !include_dirs) @
-    List.flatten (List.map (fun include_file -> ["-include"; include_file]) !include_files)
+    List.concat_map (fun include_dir -> ["-I"; include_dir]) !include_dirs @
+    List.concat_map (fun include_file -> ["-include"; include_file]) !include_files
   in
 
   let all_cppflags = !cppflags @ include_args in
@@ -285,7 +285,7 @@ let preprocess_files () =
   if get_bool "ana.sv-comp.functions" then
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
 
-  List.flatten (List.map preprocess_arg_file (!extra_arg_files @ !arg_files))
+  List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files)
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
@@ -490,10 +490,6 @@ let main () =
 
     Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
 
-    (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
-      for overflows, as this will replace potential overflows with constants after wrap-around *)
-    (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
-      set_bool "exp.lower-constants" false);
     Cilfacade.init ();
 
     handle_extraspecials ();

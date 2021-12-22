@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-base-compiler.4.12.0 --locked
+  opam switch -y create . --deps-only ocaml-base-compiler.4.13.1 --locked
 }
 
 rule() {
@@ -63,7 +63,7 @@ rule() {
     ;; deps)
       eval $(opam config env)
       {
-        opam install -y . --deps-only --locked --update-invariant
+        opam install -y . --deps-only --locked --update-invariant &&
         opam upgrade -y $(opam list --pinned -s)
       } || {
         opam update

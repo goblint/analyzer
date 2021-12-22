@@ -702,7 +702,7 @@ struct
   let access_one_top = access_one_byval
 
   let access_byval a (rw: bool) (exps: exp list): accesses =
-    List.concat (List.map (access_one_top a rw) exps)
+    List.concat_map (access_one_top a rw) exps
 
   (* TODO: unused? remove? *)
   let access_reachable ask (exps: exp list) =
@@ -719,7 +719,7 @@ struct
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> [Unknown (e,true)]
     in
-    List.concat (List.map do_exp exps)
+    List.concat_map do_exp exps
 
   let startstate v = D.top ()
   let exitstate  v = D.top ()
@@ -1078,7 +1078,7 @@ struct
           (* let _ = print_endline ("accpry: " ^ (string_of_int acc_pry)) in *)
           let flag_list = List.filter (fun f -> (valid_flag f) <= acc_pry) (get_flags acc_list') in
           (* let _ = print_endline ("flaglist: " ^ (List.fold_left (fun x y -> (y.vname ^", " ^x) ) "" flag_list)) in *)
-          List.flatten (List.map (check_one_flag acc_list') flag_list)
+          List.concat_map (check_one_flag acc_list') flag_list
         in (*/check_flags*)
         let check_high_acc acc_list = (*check high_accs (mark if higher only reads/writes*)
           let filter_pry p acc =  not ((offpry [acc]) = p) in

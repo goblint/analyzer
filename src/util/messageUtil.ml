@@ -5,12 +5,11 @@ let ansi_color_table =
                 ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
   let modes = [(Fun.id, "0" (* normal *)); (String.uppercase_ascii, "1" (* bold *))] in
   colors
-  |> List.map (fun (color, color_code) ->
+  |> List.concat_map (fun (color, color_code) ->
       List.map (fun (mode_fn, mode_code) ->
           (mode_fn color, Format.sprintf "\027[%s;%sm" mode_code color_code)
         ) modes
     )
-  |> List.concat
 
 let colors_on fd = (* use colors? *)
   let c = get_string "colors" in

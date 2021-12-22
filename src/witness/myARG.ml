@@ -180,17 +180,16 @@ struct
   (* too aggressive, duplicates some interesting edges *)
   (* let rec next node =
        Arg.next node
-       |> List.map (fun (edge, to_node) ->
+       |> List.concat_map (fun (edge, to_node) ->
            if IsInteresting.is_interesting node edge to_node then
              [(edge, to_node)]
            else
              next to_node
-         )
-       |> List.flatten *)
+         ) *)
 
   let rec next node =
     Arg.next node
-    |> List.map (fun (edge, to_node) ->
+    |> List.concat_map (fun (edge, to_node) ->
         if IsInteresting.is_interesting node edge to_node then
           [(edge, to_node)]
         else begin
@@ -203,7 +202,6 @@ struct
             to_node_next
         end
       )
-    |> List.flatten
 end
 
 
@@ -222,10 +220,9 @@ module CfgIntra (Cfg:CfgForward): SIntraOpt =
 struct
   let next node =
     Cfg.next node
-    |> List.map (fun (es, to_n) ->
+    |> List.concat_map (fun (es, to_n) ->
         List.map (fun (_, e) -> (e, to_n)) es
       )
-    |> List.flatten
   let next_opt _ = None
 end
 

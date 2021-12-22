@@ -66,16 +66,16 @@ struct
 
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
-  let to_var_may x = List.concat (List.map Addr.to_var_may (elements x))
-  let to_var_must x = List.concat (List.map Addr.to_var_must (elements x))
-  let to_var_offset x = List.concat (List.map Addr.to_var_offset (elements x))
+  let to_var_may x = List.concat_map Addr.to_var_may (elements x)
+  let to_var_must x = List.concat_map Addr.to_var_must (elements x)
+  let to_var_offset x = List.concat_map Addr.to_var_offset (elements x)
   let is_definite x = match elements x with
     | [x] when Addr.is_definite x -> true
     | _ -> false
 
   (* strings *)
   let from_string x = singleton (Addr.from_string x)
-  let to_string x = List.concat (List.map Addr.to_string (elements x))
+  let to_string x = List.concat_map Addr.to_string (elements x)
 
   (* add an & in front of real addresses *)
   let short_addr a =

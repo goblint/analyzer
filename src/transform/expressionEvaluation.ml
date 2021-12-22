@@ -60,8 +60,7 @@ module ExpEval : Transform.S =
           file.globals
             |> List.filter_map (function Cil.GFun (f, _) -> Some f | _ -> None)
             (* Take all statements *)
-            |> List.map (fun (f : Cil.fundec) -> f.sallstmts |> List.map (fun s -> f, s))
-            |> List.flatten
+            |> List.concat_map (fun (f : Cil.fundec) -> f.sallstmts |> List.map (fun s -> f, s))
             (* Add locations *)
             |> List.map (fun (f, (s : Cil.stmt)) -> (Cilfacade.get_stmtLoc s, f, s))
             (* Filter artificial ones by impossible location *)
@@ -179,10 +178,8 @@ module ExpEval : Transform.S =
             QueryMapping.map_query query_syntactic file
               (* Group by source files *)
               |> List.group file_compare
-              (* Sort and remove duplicates *)
-              |> List.map (fun ls -> List.sort_uniq byte_compare ls)
-              (* Ungroup *)
-              |> List.flatten
+              (* Sort, remove duplicates, ungroup *)
+              |> List.concat_map (fun ls -> List.sort_uniq byte_compare ls)
               (* Semantic queries *)
               |> List.map (fun (n, l, s, i) -> ((n, l, s, i), evaluator#evaluate l query.expression))
           in
