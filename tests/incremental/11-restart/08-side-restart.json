@@ -7,12 +7,17 @@
     "incremental": {
         "reluctant": {
             "on": false
-        },
-        "restart": {
-            "wpoint": {
-                "enabled": false
+        }
+    },
+    "exp": {
+        "solver": {
+            "td3": {
+                "restart": {
+                    "wpoint": {
+                        "enabled": false
+                    }
+                }
             }
         }
-
     }
 }
