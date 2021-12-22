@@ -1,5 +1,5 @@
---- a/tests/incremental/11-restart/48-local-wpoint-funcall.patch
-+++ b/tests/incremental/11-restart/48-local-wpoint-funcall.patch
+--- a/tests/incremental/11-restart/48-local-wpoint-funcall.c
++++ b/tests/incremental/11-restart/48-local-wpoint-funcall.c
 @@ -1,7 +1,7 @@
  #include <assert.h>
 

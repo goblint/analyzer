@@ -1,5 +1,5 @@
---- a/tests/incremental/11-restart/09-call-remove.patch
-+++ b/tests/incremental/11-restart/09-call-remove.patch
+--- a/tests/incremental/11-restart/09-call-remove.c
++++ b/tests/incremental/11-restart/09-call-remove.c
 @@ -8,7 +8,7 @@
  }
 

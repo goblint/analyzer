@@ -1,5 +1,5 @@
---- a/tests/incremental/11-restart/02-global-remove.patch
-+++ b/tests/incremental/11-restart/02-global-remove.patch
+--- a/tests/incremental/11-restart/02-global-remove.c
++++ b/tests/incremental/11-restart/02-global-remove.c
 @@ -4,7 +4,7 @@
  int g = 1;
 

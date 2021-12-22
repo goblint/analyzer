@@ -1,5 +1,5 @@
---- a/tests/incremental/11-restart/06-local-wpoint-read.patch
-+++ b/tests/incremental/11-restart/06-local-wpoint-read.patch
+--- a/tests/incremental/11-restart/06-local-wpoint-read.c
++++ b/tests/incremental/11-restart/06-local-wpoint-read.c
 @@ -4,7 +4,7 @@
  int g = 1;
 
