@@ -25,9 +25,9 @@ sig
   val invalidate_value: Q.ask -> typ -> t -> t
   val is_safe_cast: typ -> typ -> bool
   val cast: ?torg:typ -> typ -> t -> t
-  val smart_join: (exp -> int64 option) -> (exp -> int64 option) -> t -> t ->  t
-  val smart_widen: (exp -> int64 option) -> (exp -> int64 option) ->  t -> t -> t
-  val smart_leq: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
+  val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t ->  t
+  val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) ->  t -> t -> t
+  val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val is_immediate_type: typ -> bool
   val bot_value: typ -> t
   val is_bot_value: t -> bool

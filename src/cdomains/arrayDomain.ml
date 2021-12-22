@@ -26,18 +26,18 @@ sig
   val map: (value -> value) -> t -> t
   val fold_left: ('a -> value -> 'a) -> 'a -> t -> 'a
   val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
-  val smart_join: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
-  val smart_widen: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
-  val smart_leq: (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
+  val smart_join: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
+  val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
+  val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val update_length: idx -> t -> t
 end
 
 module type LatticeWithSmartOps =
 sig
   include Lattice.S
-  val smart_join: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
-  val smart_widen: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
-  val smart_leq: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> bool
+  val smart_join: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
+  val smart_widen: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> t
+  val smart_leq: (Cil.exp -> BI.t option) -> (Cil.exp -> BI.t option) -> t -> t -> bool
 end
 
 
@@ -77,9 +77,9 @@ module type SPartitioned =
 sig
   include S
   val set_with_length: idx option -> Q.ask -> t -> ExpDomain.t * idx -> value -> t
-  val smart_join_with_length: idx option -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> t
-  val smart_widen_with_length: idx option -> (exp -> int64 option) -> (exp -> int64 option)  -> t -> t-> t
-  val smart_leq_with_length: idx option -> (exp -> int64 option) -> (exp -> int64 option) -> t -> t -> bool
+  val smart_join_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> t
+  val smart_widen_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option)  -> t -> t-> t
+  val smart_leq_with_length: idx option -> (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val move_if_affected_with_length: ?replace_with_const:bool -> idx option -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
 end
 
@@ -251,7 +251,7 @@ struct
                 let n = ask.f (Q.EvalInt e') in
                 match Q.ID.to_int n with
                 | Some i ->
-                  (`Lifted (Cil.kinteger64 IInt (IntOps.BigIntOps.to_int64 i)), (xl, xm, xr))
+                  (`Lifted (Cil.kintegerCilint IInt i), (xl, xm, xr))
                 | _ -> default
               end
             | _ -> default
@@ -273,7 +273,7 @@ struct
                 begin
                   match Idx.to_int l with
                   | Some i ->
-                    let b = ask.f (Q.MayBeLess (exp, Cil.kinteger64 Cil.IInt (IntOps.BigIntOps.to_int64 i))) in
+                    let b = ask.f (Q.MayBeLess (exp, Cil.kintegerCilint Cil.IInt i)) in
                     not b (* !(e <_{may} length) => e >=_{must} length *)
                   | None -> false
                 end
@@ -515,14 +515,13 @@ struct
 
   let (%) = Batteries.(%)
   let smart_join_with_length length x1_eval_int x2_eval_int x1 x2 =
-    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 ((Option.map BI.of_int64) % x1_eval_int) ((Option.map BI.of_int64) % x2_eval_int)
+    smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
   let smart_widen_with_length length x1_eval_int x2_eval_int x1 x2  =
-    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 ((Option.map BI.of_int64) % x1_eval_int) ((Option.map BI.of_int64) %x2_eval_int)
+    smart_op (Val.smart_widen x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 
   let smart_leq_with_length length x1_eval_int x2_eval_int ((e1, (xl1,xm1,xr1)) as x1) (e2, (xl2, xm2, xr2)) =
     let leq' = Val.smart_leq x1_eval_int x2_eval_int in
-    let x1_eval_int = (Option.map BI.of_int64) % x1_eval_int in
     let must_be_zero v = (v = Some BI.zero) in
     let must_be_length_minus_one v =  match length with
       | Some l ->
@@ -712,7 +711,7 @@ struct
   (* Simply call appropriate function for component that is not None *)
   let get a x (e,i) = unop (fun x ->
         if e = `Top then
-          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
+          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint IInt x)) (`Top) (Idx.to_int i) in
           P.get a x (e', i)
         else
           P.get a x (e, i)
