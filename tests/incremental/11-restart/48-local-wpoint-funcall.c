@@ -13,6 +13,6 @@ int main() {
         assert(x == 0); // FAIL before, success after
     }
 
-    assert(0); // FAIL before, nothing after
+    assert(0); // FAIL before, nowarn after
     return 0;
 }

@@ -5,5 +5,5 @@ do
   echo $file
   cfile="${file%.patch}.c"
   efile="${cfile//\//\\/}"
-  perl -0777 -i -pe "s/.*?@/--- a\/$efile\n+++ b\/$efile\n@/is" $file
+  perl -0777 -i -pe "s/.*?@/--- $efile\n+++ $efile\n@/is" $file
 done

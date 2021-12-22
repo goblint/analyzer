@@ -1,5 +1,5 @@
---- a/tests/incremental/11-restart/05-local-wpoint.c
-+++ b/tests/incremental/11-restart/05-local-wpoint.c
+--- tests/incremental/11-restart/05-local-wpoint.c
++++ tests/incremental/11-restart/05-local-wpoint.c
 @@ -4,7 +4,7 @@
  int g = 1;
 
