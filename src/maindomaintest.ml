@@ -1,4 +1,4 @@
-open! Defaults (* Enums / ... need initialized conf *)
+(* open! Defaults (* Enums / ... need initialized conf *) *)
 
 module type FiniteSetElems =
 sig
