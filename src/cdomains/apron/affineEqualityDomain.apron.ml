@@ -422,7 +422,7 @@ struct
     res
 
   let case_two a r col_b =
-    let rec append_zeros v r = if List.length v < r then append_zeros (List.append v [to_rt 0]) r else v in
+    let rec append_zeros v r = if List.compare_length_with v r = (-1) then append_zeros (List.append v [to_rt 0]) r else v in
     let a_r = Matrix.get_row a r in
     let mapping = List.map2i (function i -> function x -> function y -> if i < r then
           Vector.add_vecs x (Vector.mul_by_constant y a_r) else x ) a (append_zeros col_b (List.length a))
