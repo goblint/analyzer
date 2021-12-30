@@ -982,8 +982,6 @@ sig
   val eval_int : t -> exp -> Queries.ID.t
 end
 
-
-
 module D2Complete (Man: Manager)=
 struct
   type var = EnvDomain.Var.t

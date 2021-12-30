@@ -472,7 +472,6 @@ struct
 module OctApron = ApronPrecCompareUtil.OctagonD
 include RelationAnalysis.SpecFunctor (CPriv) (RD) (ApronPrecCompareUtil.Util)
 module AD = ApronDomain.D2Complete(OctApron.Man)
-module Priv = CPriv (RD)
 module PCU = ApronPrecCompareUtil.Util(OctApron)
 
 let results = PCU.RH.create 103
@@ -508,6 +507,7 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module RD: RelationDomain.RD =
       struct
         module Var = EnvDomain.Var
+        module V = RelationDomain.V(Var)
         module D2 = AD
       end in
     let module Priv = (val ApronPriv.get_priv ()) in

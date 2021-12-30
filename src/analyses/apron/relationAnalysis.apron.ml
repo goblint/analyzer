@@ -18,11 +18,10 @@ struct
   module G = Priv.G
   module C = D
   module V = Priv.V
-  module RV = RelationDomain.V (RD.Var)
+  module RV = RD.V
   module PCU = PCU(AD)
 
   open AD
-  open PrecCompareUtil
 
   let results = PCU.RH.create 103
 

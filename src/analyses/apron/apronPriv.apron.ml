@@ -102,7 +102,7 @@ struct
 
   module D = Lattice.Prod (P) (W)
   module G = RD.D2
-  module RelV = RelationDomain.V(RD.Var)
+  module RelV = RD.V
   module V = Printable.UnitConf (struct let name = "global" end)
 
   type apron_components_t = RelationComponents (RD.D2) (D).t
@@ -349,7 +349,7 @@ end
 module CommonPerMutex = functor(RD: RelationDomain.RD) ->
   struct
     include Protection
-    module V = RelationDomain.V(RD.Var)
+    module V = RD.V
 
   let remove_globals_unprotected_after_unlock ask m oct =
     let newly_unprot var = match V.find_metadata var with
@@ -521,7 +521,7 @@ struct
 
     type apron_components_t = RelationDomain.RelComponent (RD.D2) (D).t
 
-    module AV = RelationDomain.V(RD.Var)
+    module AV = RD.V
 
     let name () = "PerMutexMeetPriv"
 
@@ -942,7 +942,7 @@ struct
     let create_thread thread = `Lifted2 thread
   end
 
-  module AV = RelationDomain.V(RD.Var)
+  module AV = RD.V
   module TID = ThreadIdDomain.Thread
 
   module V =

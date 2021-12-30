@@ -15,6 +15,7 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module RD: RelationDomain.RD =
       struct
         module Var = EnvDomain.Var
+        module V = RelationDomain.V(Var)
         module D2 = AD
       end in
     let module Priv = (val ApronPriv.get_priv ()) in
