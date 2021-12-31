@@ -74,7 +74,7 @@ struct
   let rec remove_val n (v:t) =
     match v with
     | [] -> failwith "Entry does not exist"
-    | x :: xs -> if n > 0 then remove_val (n-1) xs else xs
+    | x :: xs -> if n > 0 then x :: remove_val (n-1) xs else xs
 
   let rec set_val t n new_val :t =
     match t with
@@ -201,7 +201,8 @@ struct
     let non_zero = Vector.find_opt_with_index (function x -> x <> (to_rt 0)) row in
     match non_zero with
     | None -> None
-    | Some (i, p) -> Some (i, List.map (function x -> x /: p) row)
+    | Some (i, p) -> if List.compare_length_with row (i + 1) <= 0 then None else
+                      Some (i, List.map (function x -> x /: p) row)
 
   let rec remove_zero_rows t =
     List.filter (function x -> not (Vector.is_only_zero x)) t
@@ -222,18 +223,18 @@ struct
       if curr_row >= num_rows new_t then new_t else
         let pivot_row = obtain_pivot (List.nth new_t curr_row) in
         match pivot_row with
-        | None -> create_rref new_t (curr_row + 1)
+        | None -> create_rref (remove_row new_t curr_row) (curr_row)
         | Some (i, p) -> let col = get_col new_t i in
           let res = List.map2i (function row_i -> function y -> function z ->
               if row_i <> curr_row then subtract_rows_c y p z else p) new_t col in
           create_rref res (curr_row + 1)
-    in switch_rows (remove_zero_rows (create_rref t 0))
+    in switch_rows (create_rref t 0)
 
   let normalize t =
     let res = normalize t in
     if M.tracing then M.tracel "norm" "normalize %s -> %s" (show t) (show res); res
 
-  (*Checks if the rows of t1 are also present in t2*)
+  (*Checks if the rows of t2 are also present in t1*)
   let rec is_contained_in t1 t2 =
     match t1, t2 with
     | [], _ -> true
@@ -257,7 +258,7 @@ struct
 
   let dim_remove (ch: Apron.Dim.change) m =
     let to_remove = Array.to_list ch.dim in
-    List.fold_left (function m -> function x -> Matrix.normalize (Matrix.remove_column_ex m x)) m to_remove
+    List.fold_left (function y -> function x -> Matrix.normalize (Matrix.remove_column_ex y x)) m to_remove
 
   let add_vars a vars =
     let vs' = get_filtered_vars_add (a.env) vars in
@@ -368,7 +369,7 @@ end
 
 module Convert = EnvDomain.Convert (ExpressionBounds)
 
-module MyD2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
+module D2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
 struct
 
   include VarManagement
@@ -414,7 +415,7 @@ struct
     match a.d, b.d with
     | None, _ ->  true
     | _ , Some ([]) -> true
-    | Some (x), Some (y) -> Matrix.is_contained_in y x
+    | Some (x), Some (y) -> Matrix.is_contained_in y x (*Not sufficient! There could be rows inbetween*)
     | _ -> false
   let leq a b =
     let res = leq a b in
@@ -584,7 +585,7 @@ struct
         assign_uninvertible_rel new_x var v t.env
     | _, _ -> t
 
-  let assign_exp t var exp  =
+  let assign_exp t var exp =
     match Convert.texpr1_expr_of_cil_exp t t.env exp with
     | exp -> let res = assign_texpr t var exp
       in if M.tracing then M.tracel "affEq" "assign_exp \n %s:\n" (show res); res
@@ -593,6 +594,11 @@ struct
       | Some(x) ->
         if M.tracing then M.tracel "affEq" "Deleting var: %s from %s " (Var.to_string var) (show t);
         forget_vars t [var]
+
+  let assign_exp t var exp =
+    let res = assign_exp t var exp
+      in if M.tracing then M.tracel "affEq" "Assignment of expr successful";
+      res
 
   let assign_var t v v' =
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
