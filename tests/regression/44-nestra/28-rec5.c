@@ -11,7 +11,7 @@ void rec (int **u, int i) {
     i++;
     u = &a;
     rec(u, i);
-    assert(u == &a); //UNKNOWN!
+    assert(u == &a); // Holds here, we are not dereferencing u
     return;
   }
 }
