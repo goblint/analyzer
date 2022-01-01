@@ -2,8 +2,10 @@ extern int scanf(char *, ...);
 
 int *rec(int i) {
   int *p;
-  if (!i)
+  if (!i) {
+    assert(i == 0);
     p = rec(i + 1);
+  }
   return &i;
 }
 

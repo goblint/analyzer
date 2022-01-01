@@ -6,8 +6,10 @@ void q (int *);
 struct bad {int cont; int *away;};
 
 void p (int *i) {
-  if (*i)
+  if (*i) {
+    assert(i != 0);
     printf ("%d\n",*i);
+  }
   else {
     int a;
     q(&a);

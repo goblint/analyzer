@@ -8,5 +8,9 @@ main () {
   strcpy (s, "Hello, strings!\n");
   strcpy (t, "Bye-bye!\n");
   y = strcpy (s, t);
+
+  assert(*y == 'B'); //TODO
+  char c = *y; //TODO
+
   printf ("%s", y);
 }

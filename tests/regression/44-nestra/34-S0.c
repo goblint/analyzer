@@ -20,6 +20,7 @@ main () {
   init(&c, 1, 4);
   init(&d, 2, 2);
   c = d;
-  d.im = -3;  
+  d.im = -3;
+  assert(d.re == 1); // TODO (float)
   print(&c);
 }

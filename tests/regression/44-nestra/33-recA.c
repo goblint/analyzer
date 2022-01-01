@@ -1,4 +1,5 @@
 //PARAM: --enable ana.context.widen
+//Needs context widening even with only def_exc
 extern int scanf(char *, ...);
 extern int printf(char *, ...);
 

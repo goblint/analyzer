@@ -7,5 +7,12 @@ void p (int *x) {
 
 main() {
   int z;
-  p(&z);
+  int ind = 0;
+  if(z) {
+    p(&z);
+    // p does not return
+    ind = 1;
+  }
+
+  assert(ind == 0);
 }

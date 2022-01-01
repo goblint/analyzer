@@ -16,5 +16,6 @@ main () {
   c->re = 1;
   d = c;
   x = d->im;
+  assert(d->re == 1); //TODO (floats)
   printf("%d\n",x);
 }
