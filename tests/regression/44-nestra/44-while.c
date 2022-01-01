@@ -1,3 +1,4 @@
+//PARAM: --enable ana.int.interval
 extern int printf(char *, ...);
 
 main() {
