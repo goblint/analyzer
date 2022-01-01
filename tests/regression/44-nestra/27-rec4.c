@@ -12,7 +12,9 @@ void rec (int **u, int i) {
   else {
     i++;
     u = (int **)malloc(sizeof(int *));
+    int** v = u;
     rec(u, i);
+    assert(v == u); //UNKNOWN
     return;
   }
 }

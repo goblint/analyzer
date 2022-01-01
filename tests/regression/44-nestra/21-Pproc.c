@@ -1,3 +1,4 @@
+//PARAM: --enable ana.int.interval
 extern int printf();
 
 void add (int *a, int *b) {
@@ -21,6 +22,7 @@ main () {
   i = 1;
   while (i < 11)
     a(&sum, &i);
+
+  assert(i == 11);
   printf("%d\n", sum);
 }
-

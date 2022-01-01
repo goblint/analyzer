@@ -18,4 +18,5 @@ main () {
   int a;
   scanf("%d",&a);
   rec(&a, a);
+  assert(a != 0);
 }

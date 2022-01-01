@@ -1,12 +1,14 @@
-void rec (int x) {
+char rec (int x) {
   char v;
   if (x) {
     v = 'a';
-    rec (0);
+    return rec(0);
   } else
     v = 'b';
+    return v;
 }
 
 main () {
-  rec(1);
+  char c = rec(1);
+  assert(c == 'b');
 }

@@ -11,6 +11,7 @@ void rec (int *p) {
     i = (*p);
     p = &i;
     rec(p);
+    assert(p == &i); //UNKNOWN!
     return;
   }
 }

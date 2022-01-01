@@ -6,7 +6,10 @@ void rec (int **u, int i) {
   if (i >= 2)
     return;
   else {
+    **u = 12;
     rec(u, i + 1);
+    // u may be changed in the recursive call!
+    assert(**u == 12); //UNKNOWN!
     (*u) = &i;
     return;
   }
