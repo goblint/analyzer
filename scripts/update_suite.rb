@@ -405,9 +405,9 @@ class ProjectIncr < Project
   def create_test_set(lines)
     super(lines)
     @testset.p = self
-    `patch -b #{path} #{patch_path}`
+    `patch -p0 -b <#{patch_path}`
     lines_incr = IO.readlines(path)
-    `patch -b -R #{path} #{patch_path}`
+    `patch -p0 -b -R <#{patch_path}`
     @testset_incr = parse_tests(lines_incr)
     @testset_incr.p = self
     @testset_incr.warnfile = File.join($testresults, group, name + ".incr.warn.txt")
@@ -423,19 +423,19 @@ class ProjectIncr < Project
     starttime = Time.now
     run_testset(@testset_incr, cmd, starttime)
     # apply patch
-    `patch -b #{@path} #{@patch_path}`
+    `patch -p3 -b <#{@patch_path}`
     starttime = Time.now
     run_testset(@testset_incr, cmd_incr, starttime)
     # revert patch
-    `patch -b -R #{@path} #{@patch_path}`
+    `patch -p3 -b -R <#{@patch_path}`
     FileUtils.rm_rf('incremental_data')
   end
 
   def report
     testset.report
-    `patch -b #{path} #{patch_path}`
+    `patch -p0 -b <#{patch_path}`
     testset_incr.report
-    `patch -b -R #{path} #{patch_path}`
+    `patch -p0 -b -R <#{patch_path}`
   end
 
   def collect_warnings

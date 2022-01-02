@@ -11,7 +11,7 @@ let all_tests _ = ("" >:::
 
 let _ =
   (* first we need to load the default config which is done at the toplevel in Defaults *)
-  let module Ignore = Defaults in
+  (* let module Ignore = Defaults in *)
   let verbose = ref false in
   let set_verbose _ = verbose := true in
   Arg.parse
