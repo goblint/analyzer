@@ -251,7 +251,7 @@ struct
                 let n = ask.f (Q.EvalInt e') in
                 match Q.ID.to_int n with
                 | Some i ->
-                  (`Lifted (Cil.kintegerCilint IInt i), (xl, xm, xr))
+                  (`Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i), (xl, xm, xr))
                 | _ -> default
               end
             | _ -> default
@@ -273,7 +273,7 @@ struct
                 begin
                   match Idx.to_int l with
                   | Some i ->
-                    let b = ask.f (Q.MayBeLess (exp, Cil.kintegerCilint Cil.IInt i)) in
+                    let b = ask.f (Q.MayBeLess (exp, Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) i)) in
                     not b (* !(e <_{may} length) => e >=_{must} length *)
                   | None -> false
                 end
@@ -711,7 +711,7 @@ struct
   (* Simply call appropriate function for component that is not None *)
   let get a x (e,i) = unop (fun x ->
         if e = `Top then
-          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint IInt x)) (`Top) (Idx.to_int i) in
+          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x)) (`Top) (Idx.to_int i) in
           P.get a x (e', i)
         else
           P.get a x (e, i)

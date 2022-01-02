@@ -14,19 +14,15 @@ int main(){
     // Check that ptrdiff_t is at least as big as long, so we can index arrays with non-negative longs
     assert(sizeof(ptrdiff_t) >= sizeof(long));
 
-    char *arr = calloc(LENGTH, sizeof(char));
-    if(arr == NULL){
-        printf("Could not allocate array, exiting.\n");
-        return 1;
-    }
+    char arr[LENGTH];
 
     for(unsigned long i = 0; i < STOP; i++){
         arr[i] = 1;
     }
 
     // arr[0] ... arr[STOP - 1] should be 1, the others equal to 0
-    assert(arr[0] == 1); // UNKNOWN
-    assert(arr[INT_MAX + 1l] == 1); //UNKNOWN
+    assert(arr[0] == 1);
+    assert(arr[INT_MAX + 1l] == 1);
 
     // j is the smallest index that checking triggers the unsoundness
     // long j = ((long) INT_MAX) * INT_MAX * 2 + INT_MAX - 1;
@@ -34,14 +30,12 @@ int main(){
     assert(0 < j);
     assert(j < STOP);
 
-    // This check is imprecise, but not unsound
-    assert(arr[j - 1] == 1); //UNKNOWN
+    assert(arr[j - 1] == 1);
 
-    // These two asserts used to fail somehow
-    assert(arr[j] == 1); //UNKNOWN
-    assert(arr[STOP - 1] == 1); //UNKNOWN
+    assert(arr[j] == 1);
+    assert(arr[STOP - 1] == 1);
 
-    assert(arr[STOP] == 0); //UNKNOWN
-    assert(arr[LENGTH - 1] == 0); //UNKNOWN
+    assert(arr[STOP] == 0); //UNKNOWN!
+    assert(arr[LENGTH - 1] == 0); //UNKNOWN!
     return 0;
 }
