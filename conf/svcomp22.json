@@ -27,10 +27,6 @@
     }
   },
   "exp": {
-    "witness": {
-      "id": "enumerate",
-      "unknown": false
-    },
     "partition-arrays": {
       "enabled": true
     },
@@ -60,5 +56,9 @@
     "int": {
       "signed_overflow": "assume_none"
     }
+  },
+  "witness": {
+    "id": "enumerate",
+    "unknown": false
   }
 }

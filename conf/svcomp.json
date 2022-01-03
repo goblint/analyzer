@@ -28,10 +28,6 @@
     }
   },
   "exp": {
-    "witness": {
-      "id": "enumerate",
-      "unknown": false
-    },
     "partition-arrays": {
       "enabled": true
     },
@@ -56,6 +52,10 @@
         "ldv_calloc"
       ]
     }
+  },
+  "witness": {
+    "id": "enumerate",
+    "unknown": false
   },
   "solver": "td3",
   "sem": {

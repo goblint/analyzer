@@ -1746,6 +1746,66 @@
         }
       },
       "additionalProperties": false
+    },
+    "witness": {
+      "title": "witness",
+      "type": "object",
+      "properties": {
+        "path": {
+          "title": "witness.path",
+          "description": "Witness output path",
+          "type": "string",
+          "default": "witness.graphml"
+        },
+        "id": {
+          "title": "witness.id",
+          "description": "Which witness node IDs to use? node/enumerate",
+          "type": "string",
+          "enum": ["node", "enumerate"],
+          "default": "node"
+        },
+        "invariant": {
+          "title": "witness.invariant",
+          "type": "object",
+          "properties": {
+            "nodes": {
+              "title": "witness.invariant.nodes",
+              "description":
+                "Which witness nodes to add invariants to? all/loop_heads/none",
+              "type": "string",
+              "enum": ["all", "loop_heads", "none"],
+              "default": "all"
+            }
+          },
+          "additionalProperties": false
+        },
+        "minimize": {
+          "title": "witness.minimize",
+          "description": "Try to minimize the witness",
+          "type": "boolean",
+          "default": false
+        },
+        "uncil": {
+          "title": "witness.uncil",
+          "description":
+            "Try to undo CIL control flow transformations in witness",
+          "type": "boolean",
+          "default": false
+        },
+        "stack": {
+          "title": "witness.stack",
+          "description": "Construct stacktrace-based witness nodes",
+          "type": "boolean",
+          "default": true
+        },
+        "unknown": {
+          "title": "witness.unknown",
+          "description": "Output witness for unknown result",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
