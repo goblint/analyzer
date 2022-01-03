@@ -1231,69 +1231,6 @@
           "type": "boolean",
           "default": false
         },
-        "solver": {
-          "title": "exp.solver",
-          "type": "object",
-          "properties": {
-            "td3": {
-              "title": "exp.solver.td3",
-              "type": "object",
-              "properties": {
-                "term": {
-                  "title": "exp.solver.td3.term",
-                  "description":
-                    "Should the td3 solver use the phased/terminating strategy?",
-                  "type": "boolean",
-                  "default": true
-                },
-                "side_widen": {
-                  "title": "exp.solver.td3.side_widen",
-                  "description":
-                    "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
-                  "type": "string",
-                  "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
-                  "default": "sides"
-                },
-                "space": {
-                  "title": "exp.solver.td3.space",
-                  "description":
-                    "Should the td3 solver only keep values at widening points?",
-                  "type": "boolean",
-                  "default": false
-                },
-                "space_cache": {
-                  "title": "exp.solver.td3.space_cache",
-                  "description": "Should the td3-space solver cache values?",
-                  "type": "boolean",
-                  "default": true
-                },
-                "space_restore": {
-                  "title": "exp.solver.td3.space_restore",
-                  "description":
-                    "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
-                  "type": "boolean",
-                  "default": true
-                }
-              },
-              "additionalProperties": false
-            },
-            "slr4": {
-              "title": "exp.solver.slr4",
-              "type": "object",
-              "properties": {
-                "restart_count": {
-                  "title": "exp.solver.slr4.restart_count",
-                  "description":
-                    "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.",
-                  "type": "integer",
-                  "default": 1
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
-        },
         "fast_global_inits": {
           "title": "exp.fast_global_inits",
           "description":
@@ -1314,66 +1251,6 @@
             "Assume that pointer arithmetic only yields safe addresses.",
           "type": "boolean",
           "default": false
-        },
-        "witness": {
-          "title": "exp.witness",
-          "type": "object",
-          "properties": {
-            "path": {
-              "title": "exp.witness.path",
-              "description": "Witness output path",
-              "type": "string",
-              "default": "witness.graphml"
-            },
-            "id": {
-              "title": "exp.witness.id",
-              "description": "Which witness node IDs to use? node/enumerate",
-              "type": "string",
-              "enum": ["node", "enumerate"],
-              "default": "node"
-            },
-            "invariant": {
-              "title": "exp.witness.invariant",
-              "type": "object",
-              "properties": {
-                "nodes": {
-                  "title": "exp.witness.invariant.nodes",
-                  "description":
-                    "Which witness nodes to add invariants to? all/loop_heads/none",
-                  "type": "string",
-                  "enum": ["all", "loop_heads", "none"],
-                  "default": "all"
-                }
-              },
-              "additionalProperties": false
-            },
-            "minimize": {
-              "title": "exp.witness.minimize",
-              "description": "Try to minimize the witness",
-              "type": "boolean",
-              "default": false
-            },
-            "uncil": {
-              "title": "exp.witness.uncil",
-              "description":
-                "Try to undo CIL control flow transformations in witness",
-              "type": "boolean",
-              "default": false
-            },
-            "stack": {
-              "title": "exp.witness.stack",
-              "description": "Construct stacktrace-based witness nodes",
-              "type": "boolean",
-              "default": true
-            },
-            "unknown": {
-              "title": "exp.witness.unknown",
-              "description": "Output witness for unknown result",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
         },
         "architecture": {
           "title": "exp.architecture",
@@ -1803,6 +1680,69 @@
           "description": "Success severity messages",
           "type": "boolean",
           "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "solvers": {
+      "title": "solvers",
+      "type": "object",
+      "properties": {
+        "td3": {
+          "title": "solvers.td3",
+          "type": "object",
+          "properties": {
+            "term": {
+              "title": "solvers.td3.term",
+              "description":
+                "Should the td3 solver use the phased/terminating strategy?",
+              "type": "boolean",
+              "default": true
+            },
+            "side_widen": {
+              "title": "solvers.td3.side_widen",
+              "description":
+                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
+              "type": "string",
+              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
+              "default": "sides"
+            },
+            "space": {
+              "title": "solvers.td3.space",
+              "description":
+                "Should the td3 solver only keep values at widening points?",
+              "type": "boolean",
+              "default": false
+            },
+            "space_cache": {
+              "title": "solvers.td3.space_cache",
+              "description": "Should the td3-space solver cache values?",
+              "type": "boolean",
+              "default": true
+            },
+            "space_restore": {
+              "title": "solvers.td3.space_restore",
+              "description":
+                "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "slr4": {
+          "title": "solvers.slr4",
+          "type": "object",
+          "properties": {
+            "restart_count": {
+              "title": "solvers.slr4.restart_count",
+              "description":
+                "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.",
+              "type": "integer",
+              "default": 1
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
