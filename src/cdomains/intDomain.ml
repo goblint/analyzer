@@ -1417,7 +1417,12 @@ struct
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, range |? R.join wx wy)
 
   let join ik = join' ik
-  let widen ik = join' ~range:(size ik) ik
+
+  let widen ik =
+    if get_bool "ana.int.def_exc_widen_by_join" then
+      join' ik
+    else
+      join' ~range:(size ik) ik
 
   let meet ik x y =
     match (x,y) with
