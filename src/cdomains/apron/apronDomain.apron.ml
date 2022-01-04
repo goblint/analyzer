@@ -16,7 +16,7 @@ module M = Messages
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
 let widening_thresholds_apron = lazy (
-  let t = WideningThresholds.thresholds () in
+  let t = WideningThresholds.thresholds_incl_mul2 () in
   let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_string @@ Z.to_string x) t in
   Array.of_list r
 )
