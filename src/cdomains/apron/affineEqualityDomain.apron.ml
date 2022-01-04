@@ -268,8 +268,6 @@ struct
         | Some (m) -> Some (dim_add (Environment.dimchange a.env env') m))
     in {d = d'; env = env'}
 
-  let assign_var_parallel' a l1 l2 = a
-
   let remove_vars a vars =
     let vs' = get_filtered_vars_remove (a.env) vars in
     let env' = Environment.remove a.env vs' in
@@ -292,7 +290,12 @@ struct
         | Some (m) -> Some (dim_remove (Environment.dimchange a.env env') m))
     in {d = d'; env = env'}
 
-  let keep_vars a vs = a
+  let keep_vars a vs =
+    let env' = keep_vars_with a.env vs in
+    let d' = (match a.d with
+        | None -> None
+        | Some (m) -> Some (dim_remove (Environment.dimchange a.env env') m))
+    in {d = d'; env = env'}
 
   let forget_vars a l = (*ToDo Mem_var shouldn't be called*)
     remove_vars a l
@@ -373,11 +376,6 @@ module D2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
 struct
 
   include VarManagement
-  type lconsarray
-
-  let of_lincons_array t = failwith "Does not exist"
-
-  let to_lincons_array t = failwith "Does not exist"
   let tag t = failwith "No tag"
   let show a =
     match a.d with
@@ -596,9 +594,9 @@ struct
         forget_vars t [var]
 
   let assign_exp t var exp =
-    let res = assign_exp t var exp
-      in if M.tracing then M.tracel "affEq" "Assignment of expr successful";
-      res
+    let res = assign_exp t var exp in
+    if M.tracing then M.tracel "affEq" "Assignment of expr successful";
+    res
 
   let assign_var t v v' =
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
@@ -613,9 +611,18 @@ struct
     let new_t's = List.map (function (v,v') -> assign_var t v v') vv's in
     List.fold_left join t new_t's
 
-  let assign_var_parallel a b =
-    let res = assign_var_parallel a b in
+  let assign_var_parallel t vv's =
+    let res = assign_var_parallel t vv's in
     if M.tracing then M.tracel "ops" "assign_var parallel\n";
+    res
+
+  let assign_var_parallel' t vs1 vs2 =
+    let vv's = List.combine vs1 vs2 in
+      assign_var_parallel t vv's
+
+  let assign_var_parallel' t vv's =
+    let res = assign_var_parallel' t vv's in
+    if M.tracing then M.tracel "ops" "assign_var parallel'\n";
     res
 
   let substitute_exp t var exp =
