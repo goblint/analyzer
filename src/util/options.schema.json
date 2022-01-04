@@ -173,31 +173,6 @@
       "type": "boolean",
       "default": false
     },
-    "interact": {
-      "title": "interact",
-      "type": "object",
-      "properties": {
-        "out": {
-          "title": "interact.out",
-          "description": "The result directory in interactive mode.",
-          "type": "string",
-          "default": "result"
-        },
-        "enabled": {
-          "title": "interact.enabled",
-          "description": "Is interactive mode enabled.",
-          "type": "boolean",
-          "default": false
-        },
-        "paused": {
-          "title": "interact.paused",
-          "description": "Start interactive in pause mode.",
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "additionalProperties": false
-    },
     "phases": {
       "title": "phases",
       "description":

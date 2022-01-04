@@ -636,7 +636,7 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
       match glob with
       | GFun (fd,loc) ->
         (* ignore (Printf.printf "fun: %s\n" fd.svar.vname); *)
-        let base_dir = Goblintutil.create_dir ((if get_bool "interact.enabled" then get_string "interact.out"^"/" else "")^"cfgs") in
+        let base_dir = Goblintutil.create_dir "cfgs" in
         let c_file_name = Str.global_substitute (Str.regexp Filename.dir_sep) (fun _ -> "%2F") fd.svar.vdecl.file in
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = Goblintutil.create_dir (Filename.concat base_dir c_file_name) in
