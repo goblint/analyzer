@@ -1,8 +1,11 @@
 #include <pthread.h>
+#include <stdio.h>
 
-void err_abort(int i, char* ptr) {
-  exit(0);
-}
+#define err_abort(code,text) do { \
+    fprintf (stderr, "%s at \"%s\":%d: %s\n", \
+        text, __FILE__, __LINE__, strerror (code)); \
+    abort (); \
+    } while (0)
 
 void *thread_routine (void *arg) {
   return arg;
