@@ -10,7 +10,7 @@ main () {
   y = strcpy (s, t);
 
   assert(*y == 'B'); //TODO
-  char c = *y; //TODO
+  char c = *y;
 
   printf ("%s", y);
 }
