@@ -14,11 +14,13 @@ let definitely_not_started (current, created) other =
     else
       not @@ ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
 
+(** Must the thread with thread id other be already joined  *)
 let must_be_joined other joined =
   try
     List.mem other (ConcDomain.ThreadSet.elements joined)
   with _ -> false
 
+(** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =
   let {tid=tid; created=created; must_joined=must_joined} = one in
   let {tid=tid2; created=created2; must_joined=must_joined2} = two in
