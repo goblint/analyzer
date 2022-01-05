@@ -91,8 +91,6 @@ let init (f:file) =
   in
   List.iter visit_glob f.globals
 
-type mhp = { tid:ThreadIdDomain.ThreadLifted.t; created:ConcDomain.ThreadSet.t; must_joined:ConcDomain.ThreadSet.t}
-
 type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq]
 
 let rec remove_idx : offset -> offs  = function
@@ -264,7 +262,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
   with _ -> get_type voidType e
 
 let some_accesses = ref false
-let add_one (e:exp) (w:bool) (conf:int) (mhp:mhp) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
+let add_one (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
     Printf.printf "adding %s\n" (ThreadIdDomain.ThreadLifted.show mhp.tid);
     some_accesses := true;
@@ -301,7 +299,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct (e:exp) (w:bool) (conf:int) (mhp:mhp) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
+let add_struct (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -457,44 +455,13 @@ let check_accs (prev_r,prev_lp,prev_w) (conf,mhp,w,loc,e,lp) =
     (new_r, new_lp, new_w)
   | _ -> (prev_r,prev_lp,prev_w)
 
-let may_be_in_parallel mhp mhp2 =
-  let module TID = ThreadIdDomain.FlagConfiguredTID in
-  let definetly_not_started tid1 tid2 created1 =
-    if (not (TID.is_must_parent tid1 tid2)) then
-      false
-    else
-      let ident_or_may_be_created creator = TID.equal creator tid2 || TID.may_create creator tid2 in
-      if ConcDomain.ThreadSet.is_top created1 then
-        false
-      else
-        not @@ ConcDomain.ThreadSet.exists (ident_or_may_be_created) created1
-  in
-  let must_be_joined tid joined =
-    try
-      List.mem tid (ConcDomain.ThreadSet.elements joined)
-    with _ -> false
-  in
-  let {tid=tid; created=created; must_joined=must_joined} = mhp in
-  let {tid=tid2; created=created2; must_joined=must_joined2} = mhp2 in
-  match tid,tid2 with
-  | `Lifted tid, `Lifted tid2 ->
-    if (TID.is_unique tid) && (TID.equal tid tid2) then
-      false
-    else if definetly_not_started tid tid2 created || definetly_not_started tid2 tid created2 then
-      false
-    else if must_be_joined tid2 must_joined || must_be_joined tid must_joined2 then
-      false
-    else
-      true
-  | _ -> true
-
 (* Check if two accesses race and if yes with which confidence *)
 let conflict2 (conf,mhp,w,loc,e,lp) (conf2,mhp2,w2,loc2,e2,lp2) =
   if (not w) && (not w2) then
     None (* two read/read accesses do not conflict *)
   else if not (LSSet.is_empty @@ LSSet.inter lp lp2) then
     None (* the labelled string set excludes that these conflict *)
-  else if not (may_be_in_parallel mhp mhp2) then
+  else if not (MHP.may_happen_in_parallel mhp mhp2) then
     None (* They may not be in parallel *)
   else
     Some (max conf conf2)

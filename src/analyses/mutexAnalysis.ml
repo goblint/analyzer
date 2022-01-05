@@ -150,7 +150,7 @@ struct
     let tid = ctx.ask CurrentThreadId in
     let created = ctx.ask CreatedThreads in
     let joined = ctx.ask MustJoinedThreads in
-    let mhp:Access.mhp = {tid=tid; created=created; must_joined=joined } in
+    let mhp:MHP.t = {tid=tid; created=created; must_joined=joined } in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
       (*privatization*)
       begin match vo with
