@@ -147,6 +147,10 @@ struct
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
+    let tid = ctx.ask CurrentThreadId in
+    let created = ctx.ask CreatedThreads in
+    let joined = ctx.ask MustJoinedThreads in
+    let mhp:Access.mhp = {tid=tid; created=created; must_joined=joined } in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
       (*privatization*)
       begin match vo with
@@ -163,11 +167,11 @@ struct
     in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in
-      Access.add e w conf vo oo (po,pd)
+      Access.add e w conf mhp vo oo (po,pd)
     in
     let add_access_struct conf ci =
       let (po,pd) = part_access ctx e None w in
-      Access.add_struct e w conf (`Struct (ci,`NoOffset)) None (po,pd)
+      Access.add_struct e w conf mhp (`Struct (ci,`NoOffset)) None (po,pd)
     in
     let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls

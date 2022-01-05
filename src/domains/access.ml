@@ -91,6 +91,7 @@ let init (f:file) =
   in
   List.iter visit_glob f.globals
 
+type mhp = { tid:ThreadIdDomain.ThreadLifted.t; created:ConcDomain.ThreadSet.t; must_joined:ConcDomain.ThreadSet.t}
 
 type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq]
 
@@ -263,20 +264,21 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
   with _ -> get_type voidType e
 
 let some_accesses = ref false
-let add_one (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
+let add_one (e:exp) (w:bool) (conf:int) (mhp:mhp) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
+    Printf.printf "adding %s\n" (ThreadIdDomain.ThreadLifted.show mhp.tid);
     some_accesses := true;
     let tyh = TypeHash.find_def accs  ty (lazy (LvalOptHash.create 10)) in
     let lvh = LvalOptHash.find_def tyh lv (lazy (PartOptHash.create 10)) in
     let loc = !Tracing.current_loc in
     let add_part ls =
       PartOptHash.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
+          (Set.add (conf,mhp, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     in
     if LSSSet.is_empty pp then
       PartOptHash.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (conf, w,loc,e,lp) s, LSSet.inter lp o_lp)
+          (Set.add (conf,mhp, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     else
       LSSSet.iter add_part pp
@@ -299,7 +301,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
+let add_struct (e:exp) (w:bool) (conf:int) (mhp:mhp) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -319,17 +321,17 @@ let add_struct (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) op
     in
     begin try
         let oss = dist_fields (type_from_type_offset ty) in
-        List.iter (fun os -> add_one e w conf (`Struct (s,addOffs os2 os)) (add_lv os) p) oss
+        List.iter (fun os -> add_one e w conf mhp (`Struct (s,addOffs os2 os)) (add_lv os) p) oss
       with Failure _ ->
-        add_one e w conf ty lv p
+        add_one e w conf mhp ty lv p
     end
   | _ when lv = None && !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
   | _ ->
-    add_one e w conf ty lv p
+    add_one e w conf mhp ty lv p
 
-let add_propagate e w conf ty ls p =
+let add_propagate e w conf mhp ty ls p =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true
@@ -345,14 +347,14 @@ let add_propagate e w conf ty ls p =
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
-    let add_vars v = add_struct e w conf (`Struct (fi.fcomp, f)) (Some (v, f)) p in
+    let add_vars v = add_struct e w conf mhp (`Struct (fi.fcomp, f)) (Some (v, f)) p in
     List.iter add_vars vars;
-    add_struct e w conf (`Struct (fi.fcomp, f)) None p;
+    add_struct e w conf mhp (`Struct (fi.fcomp, f)) None p;
   in
   let just_vars t v =
-    add_struct e w conf (`Type t) (Some (v, `NoOffset)) p;
+    add_struct e w conf mhp (`Type t) (Some (v, `NoOffset)) p;
   in
-  add_struct e w conf ty None p;
+  add_struct e w conf mhp ty None p;
   match ty with
   | `Struct (c,os) when only_fields os && os <> `NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
@@ -416,18 +418,18 @@ and distribute_access_exp f w r c = function
     distribute_access_exp f w     r c e
   | _ -> ()
 
-let add e w conf vo oo p =
+let add e w conf mhp vo oo p =
   if !Goblintutil.should_warn then begin
     let ty = get_val_type e vo oo in
     (* let loc = !Tracing.current_loc in *)
     (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
     match vo, oo with
-    | Some v, Some o -> add_struct e w conf ty (Some (v, remove_idx o)) p
+    | Some v, Some o -> add_struct e w conf mhp ty (Some (v, remove_idx o)) p
     | _ ->
       if !unsound && isArithmeticType (type_from_type_offset ty) then
-        add_struct e w conf ty None p
+        add_struct e w conf mhp ty None p
       else
-        add_propagate e w conf ty None p
+        add_propagate e w conf mhp ty None p
   end
 
 let partition_race ps (accs,ls) =
@@ -444,7 +446,7 @@ let common_resource ps (accs,ls) =
 let bot_partition ps _ =
   ps = None
 
-let check_accs (prev_r,prev_lp,prev_w) (conf,w,loc,e,lp) =
+let check_accs (prev_r,prev_lp,prev_w) (conf,mhp,w,loc,e,lp) =
   match prev_r with
   | None ->
     let new_w  = prev_w || w in
@@ -455,14 +457,55 @@ let check_accs (prev_r,prev_lp,prev_w) (conf,w,loc,e,lp) =
     (new_r, new_lp, new_w)
   | _ -> (prev_r,prev_lp,prev_w)
 
-let check_safe ls (accs,lp) prev_safe =
-  if ls = None then
+let may_be_in_parallel mhp mhp2 =
+  let module TID = ThreadIdDomain.FlagConfiguredTID in
+  let definetly_not_started tid1 tid2 created1 =
+    if (not (TID.is_must_parent tid1 tid2)) then
+      false
+    else
+      let ident_or_may_be_created creator = TID.equal creator tid2 || TID.may_create creator tid2 in
+      if ConcDomain.ThreadSet.is_top created1 then
+        false
+      else
+        not @@ ConcDomain.ThreadSet.exists (ident_or_may_be_created) created1
+  in
+  let must_be_joined tid joined =
+    try
+      List.mem tid (ConcDomain.ThreadSet.elements joined)
+    with _ -> false
+  in
+  let {tid=tid; created=created; must_joined=must_joined} = mhp in
+  let {tid=tid2; created=created2; must_joined=must_joined2} = mhp2 in
+  match tid,tid2 with
+  | `Lifted tid, `Lifted tid2 ->
+    if (TID.is_unique tid) && (TID.equal tid tid2) then
+      false
+    else if definetly_not_started tid tid2 created || definetly_not_started tid2 tid created2 then
+      false
+    else if must_be_joined tid2 must_joined || must_be_joined tid must_joined2 then
+      false
+    else
+      true
+  | _ -> true
+
+let conflict2 (conf,mhp,w,loc,e,lp) (conf2,mhp2,w2,loc2,e2,lp2) =
+  if (not w) && (not w2) then
+    false (* two read/read accesses do not conflict *)
+  else if not (LSSet.is_empty @@ LSSet.inter lp lp2) then
+    false (* the labelled string set excludes that these conflict *)
+  else
+    may_be_in_parallel mhp mhp2
+
+let check_safe ls (accs,_) prev_safe =
+  let existsconflict = Set.exists (fun x -> Set.exists (conflict2 x) accs) accs in
+  if ls = None || not existsconflict then
     prev_safe
   else
     let ord_enum = Set.backwards accs in (* hope that it is not nil *)
-    let lp_start = (fun (_,_,_,_,lp) -> lp) (BatOption.get (BatEnum.peek ord_enum)) in
+    let lp_start = (fun (_,_,_,_,_,lp) -> lp) (BatOption.get (BatEnum.peek ord_enum)) in
     (* ignore(printf "starting with lockset %a\n" LSSet.pretty lp_start); *)
-    match BatEnum.fold check_accs (None, lp_start, false) (Set.backwards accs), prev_safe with
+    let safe = BatEnum.fold check_accs (None, lp_start, false) ord_enum in
+    match safe, prev_safe with
     | (None, _,_), _ ->
       (* ignore(printf "this batch is safe\n"); *)
       prev_safe
@@ -512,7 +555,7 @@ let print_accesses () =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let g (ls, (acs,_)) =
-    let h (conf,w,loc,e,lp) =
+    let h (conf,mhp,w,loc,e,lp) =
       let d_ls () = match ls with
         | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
         | Some ls when LSSet.is_empty ls -> nil
