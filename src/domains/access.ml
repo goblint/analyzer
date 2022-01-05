@@ -488,33 +488,30 @@ let may_be_in_parallel mhp mhp2 =
       true
   | _ -> true
 
+(* Check if two accesses race and if yes with which confidence *)
 let conflict2 (conf,mhp,w,loc,e,lp) (conf2,mhp2,w2,loc2,e2,lp2) =
   if (not w) && (not w2) then
-    false (* two read/read accesses do not conflict *)
+    None (* two read/read accesses do not conflict *)
   else if not (LSSet.is_empty @@ LSSet.inter lp lp2) then
-    false (* the labelled string set excludes that these conflict *)
+    None (* the labelled string set excludes that these conflict *)
+  else if not (may_be_in_parallel mhp mhp2) then
+    None (* They may not be in parallel *)
   else
-    may_be_in_parallel mhp mhp2
+    Some (max conf conf2)
 
 let check_safe ls (accs,_) prev_safe =
-  let existsconflict = Set.exists (fun x -> Set.exists (conflict2 x) accs) accs in
-  if ls = None || not existsconflict then
+  if ls = None then
     prev_safe
   else
-    let ord_enum = Set.backwards accs in (* hope that it is not nil *)
-    let lp_start = (fun (_,_,_,_,_,lp) -> lp) (BatOption.get (BatEnum.peek ord_enum)) in
-    (* ignore(printf "starting with lockset %a\n" LSSet.pretty lp_start); *)
-    let safe = BatEnum.fold check_accs (None, lp_start, false) ord_enum in
-    match safe, prev_safe with
-    | (None, _,_), _ ->
-      (* ignore(printf "this batch is safe\n"); *)
+    let cart = BatSet.cartesian_product accs accs in
+    let conf = BatSet.filter_map (fun (x,y) -> conflict2 x y) cart in
+    if BatSet.cardinal conf = 0 then
       prev_safe
-    | (Some n,_,_), Some m ->
-      (* ignore(printf "race with %d and %d \n" n m); *)
-      Some (max n m)
-    | (Some n,_,_), None ->
-      (* ignore(printf "race with %d\n" n); *)
-      Some n
+    else
+      let maxconf = BatSet.max_elt conf in
+      match prev_safe with
+      | None -> Some maxconf
+      | Some prev -> Some (max maxconf prev)
 
 let is_all_safe () =
   let safe = ref true in
