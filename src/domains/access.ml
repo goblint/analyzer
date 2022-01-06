@@ -264,7 +264,6 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
 let some_accesses = ref false
 let add_one (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
-    Printf.printf "adding %s\n" (ThreadIdDomain.ThreadLifted.show mhp.tid);
     some_accesses := true;
     let tyh = TypeHash.find_def accs  ty (lazy (LvalOptHash.create 10)) in
     let lvh = LvalOptHash.find_def tyh lv (lazy (PartOptHash.create 10)) in
