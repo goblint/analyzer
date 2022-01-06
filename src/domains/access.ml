@@ -246,6 +246,12 @@ struct
 end
 module PartOptHash = HtF (PartOptHashable)
 
+module Accs = struct
+  type t = int * MHP.t * bool * CilType.Location.t * CilType.Exp.t * LSSet.t [@@deriving ord]
+end
+
+module AccsSets = BatSet.Make(Accs)
+
 let accs = TypeHash.create 100
 
 type var_o = varinfo option
@@ -269,13 +275,13 @@ let add_one (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv:(varinfo*of
     let lvh = LvalOptHash.find_def tyh lv (lazy (PartOptHash.create 10)) in
     let loc = !Tracing.current_loc in
     let add_part ls =
-      PartOptHash.modify_def lvh (Some(ls)) (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (conf,mhp, w,loc,e,lp) s, LSSet.inter lp o_lp)
+      PartOptHash.modify_def lvh (Some(ls)) (lazy (AccsSets.empty,lp)) (fun (s,o_lp) ->
+          (AccsSets.add (conf,mhp, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     in
     if LSSSet.is_empty pp then
-      PartOptHash.modify_def lvh None (lazy (Set.empty,lp)) (fun (s,o_lp) ->
-          (Set.add (conf,mhp, w,loc,e,lp) s, LSSet.inter lp o_lp)
+      PartOptHash.modify_def lvh None (lazy (AccsSets.empty,lp)) (fun (s,o_lp) ->
+          (AccsSets.add (conf,mhp, w,loc,e,lp) s, LSSet.inter lp o_lp)
         )
     else
       LSSSet.iter add_part pp
@@ -444,12 +450,13 @@ let check_safe ls (accs,_) prev_safe =
   if ls = None then
     prev_safe
   else
-    let cart = BatSet.cartesian_product accs accs in
-    let conf = BatSet.filter_map (fun (x,y) -> conflict2 x y) cart in
-    if BatSet.is_empty conf then
+    let e = AccsSets.elements accs in
+    let cart = List.cartesian_product e e in
+    let conf = List.filter_map (fun (x,y) -> conflict2 x y) cart in
+    if conf = [] then
       prev_safe
     else
-      let maxconf = BatSet.max_elt conf in
+      let maxconf = List.max conf in
       match prev_safe with
       | None -> Some maxconf
       | Some prev -> Some (max maxconf prev)
@@ -509,7 +516,7 @@ let print_accesses () =
       in
       (doc, Some loc)
     in
-    Set.enum acs
+    AccsSets.enum acs
     |> Enum.map h
   in
   let h ty lv ht =
