@@ -452,7 +452,7 @@ let check_safe ls (accs,_) prev_safe =
   else
     let e = AccsSets.elements accs in
     let cart = List.cartesian_product e e in
-    let conf = List.filter_map (fun (x,y) -> conflict2 x y) cart in
+    let conf = List.filter_map (fun (x,y) -> if Accs.compare x y <= 0 then conflict2 x y else None) cart in
     if conf = [] then
       prev_safe
     else
