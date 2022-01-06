@@ -16,9 +16,10 @@ let definitely_not_started (current, created) other =
 
 (** Must the thread with thread id other be already joined  *)
 let must_be_joined other joined =
-  try
+  if ConcDomain.ThreadSet.is_top joined then
+    false
+  else
     List.mem other (ConcDomain.ThreadSet.elements joined)
-  with _ -> false
 
 (** May two program points with respective MHP information happen in parallel *)
 let may_happen_in_parallel one two =
