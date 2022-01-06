@@ -428,21 +428,7 @@ let add e w conf mhp vo oo p =
       else
         add_propagate e w conf mhp ty None p
   end
-
-let partition_race ps (accs,ls) =
-  let write (conf,w,loc,e,lp) = w in
-  ps <> None && LSSet.is_empty ls && Set.exists write accs
-
-let only_read ps (accs,ls) =
-  let read (conf,w,loc,e,lp) = not w in
-  Set.for_all read accs
-
-let common_resource ps (accs,ls) =
-  not (LSSet.is_empty ls)
-
-let bot_partition ps _ =
-  ps = None
-
+  
 (* Check if two accesses race and if yes with which confidence *)
 let conflict2 (conf,mhp,w,loc,e,lp) (conf2,mhp2,w2,loc2,e2,lp2) =
   if (not w) && (not w2) then
