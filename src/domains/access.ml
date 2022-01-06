@@ -443,17 +443,6 @@ let common_resource ps (accs,ls) =
 let bot_partition ps _ =
   ps = None
 
-let check_accs (prev_r,prev_lp,prev_w) (conf,mhp,w,loc,e,lp) =
-  match prev_r with
-  | None ->
-    let new_w  = prev_w || w in
-    let new_lp = LSSet.inter lp prev_lp in
-    let union_empty = LSSet.is_empty new_lp in
-    (* ignore(printf "intersection with %a = %a\n" LSSet.pretty lp LSSet.pretty new_lp); *)
-    let new_r  = if union_empty && new_w then Some conf else None in
-    (new_r, new_lp, new_w)
-  | _ -> (prev_r,prev_lp,prev_w)
-
 (* Check if two accesses race and if yes with which confidence *)
 let conflict2 (conf,mhp,w,loc,e,lp) (conf2,mhp2,w2,loc2,e2,lp2) =
   if (not w) && (not w2) then
@@ -471,7 +460,7 @@ let check_safe ls (accs,_) prev_safe =
   else
     let cart = BatSet.cartesian_product accs accs in
     let conf = BatSet.filter_map (fun (x,y) -> conflict2 x y) cart in
-    if BatSet.cardinal conf = 0 then
+    if BatSet.is_empty conf then
       prev_safe
     else
       let maxconf = BatSet.max_elt conf in
