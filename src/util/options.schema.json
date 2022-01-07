@@ -592,6 +592,85 @@
                 }
               },
               "additionalProperties": false
+            },
+            "partition-arrays": {
+              "title": "ana.base.partition-arrays",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.partition-arrays.enabled",
+                  "description":
+                    "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "keep-expr": {
+                  "title": "ana.base.partition-arrays.keep-expr",
+                  "description":
+                    "When using the partitioning which expression should be used for partitioning ('first', 'last')",
+                  "type": "string",
+                  "enum": ["first", "last"],
+                  "default": "first"
+                },
+                "partition-by-const-on-return": {
+                  "title": "ana.base.partition-arrays.partition-by-const-on-return",
+                  "description":
+                    "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?",
+                  "type": "boolean",
+                  "default": false
+                },
+                "smart-join": {
+                  "title": "ana.base.partition-arrays.smart-join",
+                  "description":
+                    "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "structs": {
+              "title": "ana.base.structs",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.structs.domain",
+                  "description":
+                    "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk",
+                  "type": "string",
+                  "enum": ["simple", "sets", "keyed", "combined-all", "combined-sk"],
+                  "default": "simple"
+                },
+                "key": {
+                  "title": "ana.base.structs.key",
+                  "type": "object",
+                  "properties": {
+                    "forward": {
+                      "title": "ana.base.structs.key.forward",
+                      "description":
+                        "Whether the struct key should be picked going from first field to last.",
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "avoid-ints": {
+                      "title": "ana.base.structs.key.avoid-ints",
+                      "description":
+                        "Whether integers should be avoided for key.",
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "prefer-ptrs": {
+                      "title": "ana.base.structs.key.prefer-ptrs",
+                      "description":
+                        "Whether pointers should be preferred for key.",
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -1260,85 +1339,6 @@
           "description": "Architecture for analysis, currently for witness",
           "type": "string",
           "default": "64bit"
-        },
-        "partition-arrays": {
-          "title": "exp.partition-arrays",
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "title": "exp.partition-arrays.enabled",
-              "description":
-                "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
-              "type": "boolean",
-              "default": false
-            },
-            "keep-expr": {
-              "title": "exp.partition-arrays.keep-expr",
-              "description":
-                "When using the partitioning which expression should be used for partitioning ('first', 'last')",
-              "type": "string",
-              "enum": ["first", "last"],
-              "default": "first"
-            },
-            "partition-by-const-on-return": {
-              "title": "exp.partition-arrays.partition-by-const-on-return",
-              "description":
-                "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?",
-              "type": "boolean",
-              "default": false
-            },
-            "smart-join": {
-              "title": "exp.partition-arrays.smart-join",
-              "description":
-                "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "additionalProperties": false
-        },
-        "structs": {
-          "title": "exp.structs",
-          "type": "object",
-          "properties": {
-            "domain": {
-              "title": "exp.structs.domain",
-              "description":
-                "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk",
-              "type": "string",
-              "enum": ["simple", "sets", "keyed", "combined-all", "combined-sk"],
-              "default": "simple"
-            },
-            "key": {
-              "title": "exp.structs.key",
-              "type": "object",
-              "properties": {
-                "forward": {
-                  "title": "exp.structs.key.forward",
-                  "description":
-                    "Whether the struct key should be picked going from first field to last.",
-                  "type": "boolean",
-                  "default": true
-                },
-                "avoid-ints": {
-                  "title": "exp.structs.key.avoid-ints",
-                  "description":
-                    "Whether integers should be avoided for key.",
-                  "type": "boolean",
-                  "default": true
-                },
-                "prefer-ptrs": {
-                  "title": "exp.structs.key.prefer-ptrs",
-                  "description":
-                    "Whether pointers should be preferred for key.",
-                  "type": "boolean",
-                  "default": true
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
         },
         "gcc_path": {
           "title": "exp.gcc_path",

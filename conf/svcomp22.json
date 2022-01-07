@@ -1,5 +1,10 @@
 {
   "ana": {
+    "base": {
+      "partition-arrays": {
+        "enabled": true
+      }
+    },
     "sv-comp": {
       "enabled": true,
       "functions": true
@@ -24,13 +29,7 @@
     ],
     "context": {
       "widen": false
-    }
-  },
-  "exp": {
-    "partition-arrays": {
-      "enabled": true
     },
-    "region-offsets": true,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -47,6 +46,9 @@
         "kcalloc"
       ]
     }
+  },
+  "exp": {
+    "region-offsets": true
   },
   "solver": "td3",
   "sem": {
