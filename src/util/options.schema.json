@@ -818,6 +818,20 @@
             }
           },
           "additionalProperties": false
+        },
+        "locks": {
+          "title": "sem.locks",
+          "type": "object",
+          "properties": {
+            "fail": {
+              "title": "sem.locks.fail",
+              "description":
+                "Takes the possible failing of locking operations into account.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1119,13 +1133,6 @@
           "title": "exp.earlyglobs",
           "description":
             "Side-effecting of globals right after initialization.",
-          "type": "boolean",
-          "default": false
-        },
-        "failing-locks": {
-          "title": "exp.failing-locks",
-          "description":
-            "Takes the possible failing of locking operations into account.",
           "type": "boolean",
           "default": false
         },

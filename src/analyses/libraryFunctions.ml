@@ -70,12 +70,12 @@ let classify' fn exps =
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
-    -> `Lock (get_bool "exp.failing-locks", true, true)
+    -> `Lock (get_bool "sem.locks.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
-    -> `Lock (get_bool "exp.failing-locks", true, false)
+    -> `Lock (get_bool "sem.locks.fail", true, false)
   | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
   | "down_read"
-    -> `Lock (get_bool "exp.failing-locks", false, true)
+    -> `Lock (get_bool "sem.locks.fail", false, true)
   | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
