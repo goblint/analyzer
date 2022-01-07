@@ -5,6 +5,7 @@ open IntOps
 let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
+module M = Messages
 
 module type S =
 sig
@@ -26,6 +27,12 @@ struct
 
   module Addr = Lval.NormalLat (Idx)
   include HoareDomain.HoarePO (Addr)
+
+  let widen x y =
+    if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
+    let r = widen x y in
+    if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
+    r
 
   type field = Addr.field
   type idx = Idx.t
@@ -59,16 +66,16 @@ struct
 
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
-  let to_var_may x = List.concat (List.map Addr.to_var_may (elements x))
-  let to_var_must x = List.concat (List.map Addr.to_var_must (elements x))
-  let to_var_offset x = List.concat (List.map Addr.to_var_offset (elements x))
+  let to_var_may x = List.concat_map Addr.to_var_may (elements x)
+  let to_var_must x = List.concat_map Addr.to_var_must (elements x)
+  let to_var_offset x = List.concat_map Addr.to_var_offset (elements x)
   let is_definite x = match elements x with
     | [x] when Addr.is_definite x -> true
     | _ -> false
 
   (* strings *)
   let from_string x = singleton (Addr.from_string x)
-  let to_string x = List.concat (List.map Addr.to_string (elements x))
+  let to_string x = List.concat_map Addr.to_string (elements x)
 
   (* add an & in front of real addresses *)
   let short_addr a =

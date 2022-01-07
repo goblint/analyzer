@@ -26,7 +26,7 @@ let unmarshal fileName =
   Marshal.input (open_in_bin fileName)
 
 let results_exist () =
-  (* If Goblint did not crash irregularly, the existance of the result directory indicates that there are results *)
+  (* If Goblint did not crash irregularly, the existence of the result directory indicates that there are results *)
   let r = gob_results_dir () in
   Sys.file_exists r && Sys.is_directory r
 
@@ -38,7 +38,7 @@ let type_to_file_name = function
   | CilFile -> cil_file_name
   | VersionData -> version_map_filename
 
-(** Loads data for incremntal runs from the appropriate file *)
+(** Loads data for incremental runs from the appropriate file *)
 let load_data (data_type: incremental_data_kind) =
   let p = Filename.concat (gob_results_dir ()) (type_to_file_name data_type) in
   unmarshal p

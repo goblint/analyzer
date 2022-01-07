@@ -94,7 +94,9 @@ type _ t =
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
-  | WarnGlobal: CilType.Varinfo.t -> Unit.t t
+  | CreatedThreads: ConcDomain.ThreadSet.t t
+  | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
 
 type 'a result = 'a
 
@@ -102,7 +104,7 @@ type 'a result = 'a
     To be used when passing entire [ctx] around seems inappropriate.
     Use [Analyses.ask_of_ctx] to convert [ctx] to [ask]. *)
 (* Must be in a singleton record due to second-order polymorphism.
-   See https://ocaml.org/releases/4.12/htmlman/polymorphism.html#s%3Ahigher-rank-poly. *)
+   See https://ocaml.org/manual/polymorphism.html#s%3Ahigher-rank-poly. *)
 type ask = { f: 'a. 'a t -> 'a result }
 
 (* Result cannot implement Lattice.S because the function types are different due to GADT. *)
@@ -144,6 +146,8 @@ struct
     | PartAccess _ -> (module PartAccessResult)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
+    | CreatedThreads ->  (module ConcDomain.ThreadSet)
+    | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | WarnGlobal _ -> (module Unit)
 
   (** Get bottom result for query. *)
@@ -193,6 +197,8 @@ struct
     | PartAccess _ -> PartAccessResult.top ()
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
+    | CreatedThreads -> ConcDomain.ThreadSet.top ()
+    | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | WarnGlobal _ -> Unit.top ()
 end
 
@@ -240,7 +246,9 @@ struct
       | Any (IsHeapVar _) -> 30
       | Any (IsMultiple _) -> 31
       | Any (EvalThread _) -> 32
-      | Any (WarnGlobal _) -> 33
+      | Any CreatedThreads -> 33
+      | Any MustJoinedThreads -> 34
+      | Any (WarnGlobal _) -> 35
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -275,7 +283,7 @@ struct
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
-      | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> CilType.Varinfo.compare vi1 vi2
+      | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end

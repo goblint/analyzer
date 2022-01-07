@@ -10,9 +10,7 @@ goblint
 goblint.byte
 goblint.json
 goblint.domaintest
-src/version.ml
-src/config.ml
-src/goblint.ml
+src/config*.ml
 tests/bench.txt
 .DS_Store
 .tm_properties
@@ -58,6 +56,7 @@ goblint.bc.js
 sv-comp/goblint.zip
 
 privPrecCompare*
+apronPrecCompare
 tests/regression/*/run
 
 # csmith
@@ -71,3 +70,10 @@ incremental_data/
 
 # test-incremental.sh
 *.log
+
+# make relocatable
+relocatable/
+
+*.sarif
+
+dune-workspace

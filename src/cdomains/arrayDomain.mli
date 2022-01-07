@@ -1,3 +1,4 @@
+open IntOps
 
 (** Abstract domains representing arrays. *)
 module type S =
@@ -40,18 +41,18 @@ sig
   val fold_left2: ('a -> value -> value -> 'a) -> 'a -> t -> t -> 'a
   (** Left fold over the elements of two arrays (like List.fold_left2 *)
 
-  val smart_join: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t  -> t
-  val smart_widen: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
-  val smart_leq: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t  -> bool
+  val smart_join: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> t
+  val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
+  val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t  -> bool
   val update_length: idx -> t -> t
 end
 
 module type LatticeWithSmartOps =
 sig
   include Lattice.S
-  val smart_join: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t ->  t
-  val smart_widen: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> t
-  val smart_leq: (Cil.exp -> int64 option) -> (Cil.exp -> int64 option) -> t -> t -> bool
+  val smart_join: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t ->  t
+  val smart_widen: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> t
+  val smart_leq: (Cil.exp -> BigIntOps.t option) -> (Cil.exp -> BigIntOps.t option) -> t -> t -> bool
 end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t

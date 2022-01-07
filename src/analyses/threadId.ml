@@ -6,6 +6,8 @@ module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
 
+let (let+) xs f = List.map f xs (* TODO: move to general library *)
+
 module Thread = ThreadIdDomain.Thread
 module ThreadLifted = ThreadIdDomain.ThreadLifted
 
@@ -26,22 +28,29 @@ struct
 
   module D = Lattice.Prod (ThreadLifted) (TD)
   module C = D
-  module G = Lattice.Unit
+
+  let tids = ref (Hashtbl.create 20)
 
   let name () = "threadid"
 
   let startstate v = (ThreadLifted.bot (), TD.bot ())
   let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
 
-  let morphstate v _ = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
+  let morphstate v _ =
+    let tid = Thread.threadinit v ~multiple:false in
+    if GobConfig.get_bool "dbg.print_tids" then
+      Hashtbl.replace !tids tid ();
+    (`Lifted (tid), TD.bot ())
 
-  let create_tid (current, td) v =
+  let create_tid (current, td) (node: Node.t) v =
     match current with
     | `Lifted current ->
-      let loc = !Tracing.current_loc in
-      `Lifted (Thread.threadenter (current, td) loc v)
+      let+ tid = Thread.threadenter (current, td) node v in
+      if GobConfig.get_bool "dbg.print_tids" then
+        Hashtbl.replace !tids tid ();
+      `Lifted tid
     | _ ->
-      `Lifted (Thread.threadinit v ~multiple:true)
+      [`Lifted (Thread.threadinit v ~multiple:true)]
 
   let body ctx f = ctx.local
 
@@ -78,9 +87,15 @@ struct
     else
       (Access.LSSSet.singleton es, es)
 
-  let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
+  let created (current, td) =
+    match current with
+    | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
+    | _ -> ConcDomain.ThreadSet.top ()
+
+  let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.CurrentThreadId -> fst ctx.local
+    | Queries.CreatedThreads -> created ctx.local
     | Queries.PartAccess {exp; var_opt; write} ->
       part_access ctx exp var_opt write
     | Queries.MustBeUniqueThread ->
@@ -91,11 +106,36 @@ struct
     | _ -> Queries.Result.top x
 
   let threadenter ctx lval f args =
-    [(create_tid ctx.local f, TD.bot ())]
+    let+ tid = create_tid ctx.local ctx.prev_node f in
+    (tid, TD.bot ())
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
-    (current, Thread.threadspawn td !Tracing.current_loc f)
+    (current, Thread.threadspawn td ctx.prev_node f)
+
+  type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
+  let init (m:marshal option): unit =
+    match m with
+    | Some y -> tids := y
+    | None -> ()
+
+
+  let print_tid_info () =
+    let tids = Hashtbl.to_list !tids in
+    let uniques = List.filter_map (fun (a,b) -> if Thread.is_unique a then Some a else None) tids in
+    let non_uniques = List.filter_map (fun (a,b) -> if not (Thread.is_unique a) then Some a else None) tids in
+    let uc = List.length uniques in
+    let nc = List.length non_uniques in
+    Printf.printf "Encountered number of thread IDs (unique): %i (%i)\n" (uc+nc) uc;
+    Printf.printf "unique: ";
+    List.iter (fun tid -> Printf.printf " %s " (Thread.show tid)) uniques;
+    Printf.printf "\nnon-unique: ";
+    List.iter (fun tid -> Printf.printf " %s " (Thread.show tid)) non_uniques;
+    Printf.printf "\n"
+
+  let finalize () =
+    if GobConfig.get_bool "dbg.print_tids" then print_tid_info ();
+    !tids
 end
 
 let _ =

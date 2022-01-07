@@ -13,7 +13,7 @@ open Prelude
 open Analyses
 open Constraints
 open Messages
-open CompareAST
+open CompareCIL
 open Cil
 
 module WP =
@@ -112,7 +112,7 @@ module WP =
             HM.remove stable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
-      and solve x phase =
+      and solve ?reuse_eq x phase =
         if tracing then trace "sol2" "solve %a, called: %b, stable: %b\n" S.Var.pretty_trace x (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
@@ -122,8 +122,13 @@ module WP =
           let wp = HM.mem wpoint x in
           let old = HM.find rho x in
           let l = HM.create 10 in
-          let tmp = eq x (eval l x) (side x) in
-          (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
+          let tmp =
+            match reuse_eq with
+            | Some d -> d
+            | None -> eq x (eval l x) (side ~x)
+          in
+          let new_eq = tmp in
+          (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would unnecessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
@@ -150,7 +155,7 @@ module WP =
           ) else if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
             if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
             HM.remove stable x;
-            (solve[@tailcall]) x Narrow;
+            (solve[@tailcall]) ~reuse_eq:new_eq x Narrow;
           ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
             if tracing then trace "sol2" "solve removing wpoint %a\n" S.Var.pretty_trace x;
             HM.remove wpoint x;
@@ -171,7 +176,7 @@ module WP =
         if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          let tmp = eq y (eval l x) (side x) in
+          let tmp = eq y (eval l x) (side ~x) in
           HM.remove called y;
           if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
           else (if cache then HM.replace l y tmp; tmp)
@@ -183,14 +188,14 @@ module WP =
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         tmp
-      and side x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
-        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) S.Var.pretty_trace x S.Dom.pretty d;
+      and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
+        if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
         if S.system y <> None then (
           ignore @@ Pretty.printf "side-effect to unknown w/ rhs: %a, contrib: %a\n" S.Var.pretty_trace y S.Dom.pretty d;
         );
         assert (S.system y = None);
         init y;
-        if side_widen = "unstable_self" then add_infl x y;
+        (match x with None -> () | Some x -> if side_widen = "unstable_self" then add_infl x y);
         let op =
           if HM.mem wpoint y then fun a b ->
             if M.tracing then M.traceli "sol2" "side widen %a %a\n" S.Dom.pretty a S.Dom.pretty b;
@@ -204,8 +209,14 @@ module WP =
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
-          let sided = VS.mem x (HM.find_default sides y VS.empty) in
-          if not sided then add_sides y x;
+          let old_sides = HM.find_default sides y VS.empty in
+          let sided = match x with
+            | Some x ->
+              let sided = VS.mem x old_sides in
+              if not sided then add_sides y x;
+              sided
+            | None -> false
+          in
           (* HM.replace rho y ((if HM.mem wpoint y then S.Dom.widen old else identity) (S.Dom.join old d)); *)
           HM.replace rho y tmp;
           if side_widen <> "cycle" then destabilize y;
@@ -218,6 +229,13 @@ module WP =
             wpoint_if false
           | "sides" -> (* x caused more than one update to y. >=3 partial context calls will be precise since sides come from different x. TODO this has 8 instead of 5 phases of `solver` for side_cycle.c *)
             wpoint_if sided
+          | "sides-pp" ->
+            (match x with
+            | Some x ->
+              let n = S.Var.node x in
+              let sided = VS.exists (fun v -> Node.equal (S.Var.node v) n) old_sides in
+              wpoint_if sided
+            | None -> ())
           | "cycle" -> (* destabilized a called or start var. Problem: two partial context calls will be precise, but third call will widen the state. *)
             (* if this side destabilized some of the initial unknowns vs, there may be a side-cycle between vs and we should make y a wpoint *)
             let destabilized_vs = destabilize_vs y in
@@ -250,52 +268,34 @@ module WP =
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
-        (* If a global changes because of some assignment inside a function, we reanalyze,
-         * but if it changes because of a different global initializer, then
-         *   if not exp.earlyglobs: the contexts of start functions will change, we don't find the value in rho and reanalyze;
-         *   if exp.earlyglobs: the contexts will be the same since they don't contain the global, but the start state will be different!
-         *)
-        print_endline "Destabilizing start functions if their start state changed...";
-        (* record whether any function's start state changed. In that case do not use reluctant destabilization *)
-        let any_changed_start_state = ref false in
-        (* ignore @@ Pretty.printf "st: %d, data.st: %d\n" (List.length st) (List.length data.st); *)
-        List.iter (fun (v,d) ->
-          match GU.assoc_eq v data.st S.Var.equal with
-          | Some d' ->
-              if S.Dom.equal d d' then
-                (* ignore @@ Pretty.printf "Function %a has the same state %a\n" S.Var.pretty_trace v S.Dom.pretty d *)
-                ()
-              else (
-                ignore @@ Pretty.printf "Function %a has changed start state: %a\n" S.Var.pretty_trace v S.Dom.pretty_diff (d, d');
-                any_changed_start_state := true;
-                destabilize v
-              )
-          | None -> any_changed_start_state := true; ignore @@ Pretty.printf "New start function %a not found in old list!\n" S.Var.pretty_trace v
-        ) st;
 
-        print_endline "Destabilizing changed functions...";
-
-        (* We need to destabilize all nodes in changed functions *)
         let filter_map f l =
           List.fold_left (fun acc el -> match f el with Some x -> x::acc | _ -> acc) [] l
         in
-        let obsolete_funs = filter_map (fun c -> match c.old with GFun (f,l) -> Some f | _ -> None) S.increment.changes.changed in
+        let changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), None -> Some f | _ -> None) S.increment.changes.changed in
+        let part_changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), Some nd -> Some (f,nd.primObsoleteNodes,nd.unchangedNodes) | _ -> None) S.increment.changes.changed in
+        let prim_old_nodes_ids = Set.of_list (List.concat_map (fun (_,pn,_) -> List.map Node.show_id pn) part_changed_funs) in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
         (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
-        let obsolete_ret = Set.of_list (List.map (fun f -> Node.show_id (Function f))  obsolete_funs) in
-        let obsolete_entry = Set.of_list (List.map (fun f -> Node.show_id (FunctionEntry f)) obsolete_funs) in
+        let obsolete_ret = Set.union (Set.of_list (List.map (fun f -> Node.show_id (Function f)) changed_funs))
+                                     (Set.of_list (List.map (fun (f,_,_) -> Node.show_id (Function f)) part_changed_funs)) in
+        let obsolete_entry = Set.of_list (List.map (fun f -> Node.show_id (FunctionEntry f)) changed_funs) in
 
-        List.iter (fun a -> print_endline ("Obsolete function: " ^ a.svar.vname)) obsolete_funs;
+        List.iter (fun a -> print_endline ("Completely changed function: " ^ a.svar.vname)) changed_funs;
+        List.iter (fun (f,_,_) -> print_endline ("Partially changed function: " ^ (f.svar.vname))) part_changed_funs;
 
         let old_ret = Hashtbl.create 103 in
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+        if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
-            let old_rho = HM.find rho k in
-            let old_infl = HM.find_default infl k VS.empty in
-            Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
+              let old_rho = HM.find rho k in
+              let old_infl = HM.find_default infl k VS.empty in
+              Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
         ) else (
-          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry then destabilize k) stable
+          (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
+             and the primary obsolete nodes of partly changed functions *)
+          print_endline "Destabilizing changed functions and primary old nodes ...";
+          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry || Set.mem (S.Var.var_id k) prim_old_nodes_ids then destabilize k) stable;
         );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
@@ -308,8 +308,15 @@ module WP =
         in
 
         let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun obsolete_funs marked_for_deletion (!any_changed_start_state || not (GobConfig.get_bool "incremental.reluctant.on"));
+        add_nodes_of_fun changed_funs marked_for_deletion (not (GobConfig.get_bool "incremental.reluctant.on"));
         add_nodes_of_fun removed_funs marked_for_deletion true;
+        (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
+        let add_pseudo_return f un =
+          let pid = CfgTools.get_pseudo_return_id f in
+          let is_pseudo_return n = match n with MyCFG.Statement s -> s.sid = pid | _ -> false in
+          if not (List.exists (fun x -> is_pseudo_return @@ fst @@ x) un)
+          then Hashtbl.replace marked_for_deletion (string_of_int pid) () in
+        List.iter (fun (f,_,un) -> Hashtbl.replace marked_for_deletion (Node.show_id (Function f)) (); add_pseudo_return f un) part_changed_funs;
 
         print_endline "Removing data for changed and removed functions...";
         let delete_marked s = HM.filteri_inplace (fun k _ -> not (Hashtbl.mem  marked_for_deletion (S.Var.var_id k))) s in (* TODO: don't use string-based nodes *)
@@ -321,9 +328,11 @@ module WP =
 
         print_data data "Data after clean-up";
 
-        List.iter set_start st;
+        (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
+         * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
+        List.iter (fun (v,d) -> side v d) st;
 
-        if not !any_changed_start_state && GobConfig.get_bool "incremental.reluctant.on" then (
+        if GobConfig.get_bool "incremental.reluctant.on" then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
@@ -332,6 +341,7 @@ module WP =
               ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
               solve x Widen;
               if not (op (HM.find rho x) old_rho) then (
+                print_endline "Destabilization required...";
                 HM.replace infl x old_infl;
                 destabilize x;
                 HM.replace stable x ()

@@ -1,7 +1,7 @@
 open Prelude
 open Cil
 open Pretty
-(* For Apron implementation of octagons *)
+(* A binding to a selection of Apron-Domains *)
 open Apron
 
 module BI = IntOps.BigIntOps
@@ -15,6 +15,11 @@ module M = Messages
     - C API docs PDF (alternative mathematical descriptions): https://antoinemine.github.io/Apron/doc/api/c/apron.pdf
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
+let widening_thresholds_apron = lazy (
+  let t = WideningThresholds.thresholds () in
+  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_string @@ Z.to_string x) t in
+  Array.of_list r
+)
 
 module Var =
 struct
@@ -23,21 +28,65 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
+module type Manager =
+sig
+  type mt
+  type t = mt Apron.Manager.t
+  val mgr : mt Apron.Manager.t
+  val name : unit -> string
+end
 
-module Man =
+(** Manager for the Oct domain, i.e. an octagon domain.
+    For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Oct.html *)
+module OctagonManager =
 struct
-  (* Manager type, parameter for the command below *)
   type mt = Oct.t
-  (* type mt = Polka.equalities Polka.t *)
-  (* type mt = Polka.loose Polka.t *)
-  (* A type of manager allocated by the underlying octagon domain *)
+
+  (* Type of the manager *)
   type t = mt Manager.t
 
-  (* Allocate a new manager to manipulate octagons *)
-  let mgr = Oct.manager_alloc ()
-  (* let mgr = Polka.manager_alloc_equalities () *)
-  (* let mgr = Polka.manager_alloc_loose () *)
+  (* Create the manager *)
+  let mgr =  Oct.manager_alloc ()
+  let name () = "Octagon"
 end
+
+(** Manager for the Polka domain, i.e. a polyhedra domain.
+    For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Polka.html *)
+module PolyhedraManager =
+struct
+  (** We chose a the loose polyhedra here, i.e. with polyhedra with no strict inequalities *)
+  type mt = Polka.loose Polka.t
+  type t = mt Manager.t
+  (* Create manager that fits to loose polyhedra *)
+  let mgr = Polka.manager_alloc_loose ()
+  let name () = "Polyhedra"
+end
+
+(** Manager for the Box domain, i.e. an interval domain.
+    For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Box.html*)
+module IntervalManager =
+struct
+  type mt = Box.t
+  type t = mt Manager.t
+  let mgr = Box.manager_alloc ()
+  let name () = "Interval"
+end
+
+let manager =
+  lazy (
+    let options =
+      ["octagon", (module OctagonManager: Manager);
+       "interval", (module IntervalManager: Manager);
+       "polyhedra", (module PolyhedraManager: Manager)]
+    in
+    let domain = (GobConfig.get_string "ana.apron.domain") in
+    match List.assoc_opt domain options with
+    | Some man -> man
+    | None -> failwith @@ "Apron domain " ^ domain ^ " is not supported. Please check the ana.apron.domain setting."
+  )
+
+let get_manager (): (module Manager) =
+  Lazy.force manager
 
 module type Tracked =
 sig
@@ -53,7 +102,15 @@ let int_of_scalar ?round (scalar: Scalar.t) =
     None
   else
     match scalar with
-    | Mpqf scalar ->
+    | Float f -> (* octD, boxD *)
+      (* bound_texpr on bottom also gives Float even with MPQ *)
+      let f_opt = match round with
+        | Some `Floor -> Some (Float.floor f)
+        | Some `Ceil -> Some (Float.ceil f)
+        | None -> None
+      in
+      Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
+    | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
       let n = Mpqf.get_num scalar in
       let d = Mpqf.get_den scalar in
       let z_opt =
@@ -68,20 +125,23 @@ let int_of_scalar ?round (scalar: Scalar.t) =
       in
       Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
     | _ ->
-      failwith ("int_of_scalar: not rational: " ^ Scalar.to_string scalar)
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
-let bound_texpr d texpr1 =
-  let bounds = A.bound_texpr Man.mgr d texpr1 in
-  let min = int_of_scalar ~round:`Ceil bounds.inf in
-  let max = int_of_scalar ~round:`Floor bounds.sup in
-  (min, max)
+module Bounds (Man: Manager) =
+struct
+  let bound_texpr d texpr1 =
+    let bounds = A.bound_texpr Man.mgr d texpr1 in
+    let min = int_of_scalar ~round:`Ceil bounds.inf in
+    let max = int_of_scalar ~round:`Floor bounds.sup in
+    (min, max)
+end
 
 (** Conversion from CIL expressions to Apron. *)
-module Convert (Tracked: Tracked) =
+module Convert (Tracked: Tracked) (Man: Manager)=
 struct
   open Texpr1
   open Tcons1
-
+  module Bounds = Bounds(Man)
   exception Unsupported_CilExp
 
   (* TODO: move this into some general place *)
@@ -102,11 +162,8 @@ struct
             raise Unsupported_CilExp
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
-      | Const (CInt64 (i, _, s)) ->
-        let str = match s with
-          | Some s -> s
-          | None -> Int64.to_string i
-        in
+      | Const (CInt (i, _, _)) ->
+        let str = Cilint.string_of_cilint i in
         Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
       | exp ->
         let expr =
@@ -132,7 +189,7 @@ struct
         if not (IntDomain.should_ignore_overflow ik) then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
           let texpr1 = Texpr1.of_expr env expr in
-          match bound_texpr d texpr1 with
+          match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
           | _ ->
             (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
@@ -184,18 +241,35 @@ end
 
 
 (** Convenience operations on A. *)
-module AOps (Tracked: Tracked) =
+module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = Convert (Tracked)
+  module Convert = Convert (Tracked) (Man)
 
   type t = Man.mt A.t
 
   let copy = A.copy Man.mgr
 
-  let vars d =
+  let vars_as_array d =
     let ivs, fvs = Environment.vars (A.env d) in
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    ivs
+
+  let vars d =
+    let ivs = vars_as_array d in
     List.of_enum (Array.enum ivs)
+
+  (* marshal type: Abstract0.t and an array of var names *)
+  type marshal = Man.mt Abstract0.t * string array
+
+  let unmarshal ((abstract0, vs): marshal): t =
+    let vars = Array.map Var.of_string vs in
+    (* We do not have real-valued vars, so we pass an empty array in their place. *)
+    let env = Environment.make vars [||] in
+    {abstract0; env}
+
+  let marshal (x: t): marshal =
+    let vars = Array.map Var.to_string (vars_as_array x) in
+    x.abstract0, vars
 
   let mem_var d v = Environment.mem_var (A.env d) v
 
@@ -418,13 +492,18 @@ struct
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     A.meet_tcons_array Man.mgr d earray
+
+  let to_lincons_array d =
+    A.to_lincons_array Man.mgr d
+
+  let of_lincons_array (a: Apron.Lincons1.earray) =
+    A.of_lincons_array Man.mgr a.array_env a
 end
 
 
 module type SPrintable =
 sig
-  include Printable.S with type t = Man.mt A.t
-
+  include Printable.S
   (* Functions for bot and top for particular environment. *)
   val top_env: Environment.t -> t
   val bot_env: Environment.t -> t
@@ -432,7 +511,7 @@ sig
   val is_bot_env: t -> bool
 end
 
-module DBase: SPrintable =
+module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
 struct
   type t = Man.mt A.t
 
@@ -475,9 +554,10 @@ sig
   include Lattice.S with type t := t
 end
 
-module DWithOps (D: SLattice) =
+module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
+  module Bounds = Bounds (Man)
 
   module Tracked =
   struct
@@ -489,7 +569,7 @@ struct
       type_tracked vi.vtype && not vi.vaddrof
   end
 
-  include AOps (Tracked)
+  include AOps (Tracked) (Man)
 
   include Tracked
 
@@ -543,7 +623,7 @@ struct
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (A.env d) e with
     | texpr1 ->
-      bound_texpr d texpr1
+      Bounds.bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp ->
       (None, None)
 
@@ -565,9 +645,9 @@ struct
 end
 
 
-module DLift: SLattice =
+module DLift (Man: Manager): SLattice with type t = Man.mt A.t =
 struct
-  include DBase
+  include DBase (Man)
 
   let lift_var = Var.of_string "##LIFT##"
 
@@ -626,13 +706,15 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module D = DWithOps (DLift)
+module D (Man: Manager) = DWithOps (Man) (DLift (Man))
 
 
 (** With heterogeneous environments. *)
-module DHetero: SLattice =
+module DHetero (Man: Manager): SLattice with type t = Man.mt A.t =
 struct
-  include DBase
+  include DBase (Man)
+
+
 
   let gce (x: Environment.t) (y: Environment.t): Environment.t =
     let (xi, xf) = Environment.vars x in
@@ -733,7 +815,8 @@ struct
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a\n" pretty j;
-      let j = strengthening j x y in
+      (* TODO: optimize strengthening, currently disabled because relational traces doesn't join different environments *)
+      (* let j = strengthening j x y in *)
       if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
       j
     )
@@ -756,8 +839,16 @@ struct
   let widen x y =
     let x_env = A.env x in
     let y_env = A.env y in
-    if Environment.equal x_env y_env then
-      A.widening Man.mgr x y (* widen if env didn't increase *)
+    if Environment.equal x_env y_env  then
+      if GobConfig.get_bool "ana.apron.threshold_widening" && Oct.manager_is_oct Man.mgr then
+        let octmgr = Oct.manager_to_oct Man.mgr in
+        let ts = Lazy.force widening_thresholds_apron in
+        let x_oct = Oct.Abstract1.to_oct x in
+        let y_oct = Oct.Abstract1.to_oct y in
+        let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+        Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+      else
+        A.widening Man.mgr x y
     else
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 
@@ -768,71 +859,89 @@ struct
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
-module D2 = DWithOps (DHetero)
-
-
-(* Copy-paste from BaseDomain... *)
-type 'a aproncomponents_t = {
-  oct: D2.t; (* TODO: rename not to be just "oct" *)
-  priv: 'a;
-} [@@deriving eq, ord, to_yojson]
-
-module ApronComponents (PrivD: Lattice.S):
+module type S2 =
 sig
-  include Lattice.S with type t = PrivD.t aproncomponents_t
+  module Man: Manager
+  module Tracked : Tracked
+  module Bounds : module type of Bounds (Man)
+  include module type of AOps (Tracked) (Man)
+  include Tracked
+  include SLattice with type t = Man.mt A.t
+
+
+  val exp_is_cons : exp -> bool
+  val assert_cons : t -> exp -> bool -> t
+  val assert_inv : t -> exp -> bool -> t
+  val check_assert : t -> exp -> [> `False | `Top | `True ]
+  val eval_interval_expr : t -> exp -> Z.t option * Z.t option
+  val eval_int : t -> exp -> IntDomain.IntDomTuple.t
+end
+
+type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, to_yojson]
+
+module D2 (Man: Manager) : S2 with module Man = Man =
+struct
+  include DWithOps (Man) (DHetero (Man))
+  module Man = Man
+end
+
+module ApronComponents (D2: S2) (PrivD: Lattice.S):
+sig
+  module AD: S2 with type Man.mt = D2.Man.mt
+  include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
   val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t aproncomponents_t [@@deriving eq, ord, to_yojson]
+  module AD = D2
+  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, to_yojson]
 
   include Printable.Std
   open Pretty
-  let hash r  = D2.hash r.oct + PrivD.hash r.priv * 33
-
+  let hash (r: t)  = D2.hash r.apr + PrivD.hash r.priv * 33
 
   let show r =
-    let first  = D2.show r.oct in
+    let first  = D2.show r.apr in
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
-    D2.pretty () r.oct
+    D2.pretty () r.apr
     ++ text ", " ++
     PrivD.pretty () r.priv
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.oct (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
   let name () = D2.name () ^ " * " ^ PrivD.name ()
 
-  let invariant c {oct; priv} =
-    Invariant.(D2.invariant c oct && PrivD.invariant c priv)
+  let invariant c {apr; priv} =
+    Invariant.(D2.invariant c apr && PrivD.invariant c priv)
 
-  let of_tuple(oct, priv):t = {oct; priv}
-  let to_tuple r = (r.oct, r.priv)
+  let of_tuple(apr, priv):t = {apr; priv}
+  let to_tuple r = (r.apr, r.priv)
 
   let arbitrary () =
     let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = { oct = D2.bot (); priv = PrivD.bot ()}
-  let is_bot {oct; priv} = D2.is_bot oct && PrivD.is_bot priv
-  let top () = {oct = D2.top (); priv = PrivD.bot ()}
-  let is_top {oct; priv} = D2.is_top oct && PrivD.is_top priv
+  let bot () = {apr = D2.bot (); priv = PrivD.bot ()}
+  let is_bot {apr; priv} = D2.is_bot apr && PrivD.is_bot priv
+  let top () = {apr = D2.top (); priv = PrivD.bot ()}
+  let is_top {apr; priv} = D2.is_top apr && PrivD.is_top priv
 
-  let leq {oct=x1; priv=x3 } {oct=y1; priv=y3} =
+  let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
     D2.leq x1 y1 && PrivD.leq x3 y3
 
-  let pretty_diff () (({oct=x1; priv=x3}:t),({oct=y1; priv=y3}:t)): Pretty.doc =
+  let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
     if not (D2.leq x1 y1) then
       D2.pretty_diff () (x1,y1)
     else
       PrivD.pretty_diff () (x3,y3)
 
-  let op_scheme op1 op3 {oct=x1; priv=x3} {oct=y1; priv=y3}: t =
-    {oct = op1 x1 y1; priv = op3 x3 y3 }
+  let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
+    {apr = op1 x1 y1; priv = op3 x3 y3 }
   let join = op_scheme D2.join PrivD.join
   let meet = op_scheme D2.meet PrivD.meet
   let widen = op_scheme D2.widen PrivD.widen

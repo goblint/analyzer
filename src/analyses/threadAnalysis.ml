@@ -14,6 +14,7 @@ struct
   module D = ConcDomain.CreatedThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
+  module V = T
 
   let should_join = D.equal
 
@@ -24,7 +25,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     begin match tid with
-      | `Lifted tid -> ctx.sideg (T.to_varinfo tid) (false, TS.bot (), not (D.is_empty ctx.local))
+      | `Lifted tid -> ctx.sideg tid (false, TS.bot (), not (D.is_empty ctx.local))
       | _ -> ()
     end;
     ctx.local
@@ -32,7 +33,7 @@ struct
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
   let rec is_not_unique ctx tid =
-    let (rep, parents, _) = ctx.global (T.to_varinfo tid) in
+    let (rep, parents, _) = ctx.global tid in
     let n = TS.cardinal parents in
     (* A thread is not unique if it is
       * a) repeatedly created,
@@ -45,8 +46,9 @@ struct
     match LibraryFunctions.classify f.vname arglist with
     | `ThreadJoin (id, ret_var) ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
+      (* TODO: elements might throw an exception *)
       let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in
-      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global (T.to_varinfo tid))) in
+      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
       let join_thread s tid =
         if has_clean_exit tid && not (is_not_unique ctx tid) then
           D.remove tid s
@@ -84,40 +86,9 @@ struct
       | `Top         -> (true,     TS.bot (),         false)
       | `Bot         -> (false,    TS.bot (),         false)
     in
-    ctx.sideg (T.to_varinfo tid) eff;
+    ctx.sideg tid eff;
     D.join ctx.local (D.singleton tid)
   let exitstate  v = D.bot ()
 end
 
-(* really stupid thread-ids *)
-module StartLocIDs =
-struct
-  include Analyses.DefaultSpec
-
-  let name () = "thread-id-location"
-  module D = ConcDomain.ThreadStringSet
-  module C = D
-  module G = Lattice.Unit
-
-  (* transfer functions *)
-  let assign ctx (lval:lval) (rval:exp) : D.t = ctx.local
-  let branch ctx (exp:exp) (tv:bool) : D.t =  ctx.local
-  let body ctx (f:fundec) : D.t =  ctx.local
-  let return ctx (exp:exp option) (f:fundec) : D.t = ctx.local
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list = [ctx.local,ctx.local]
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = ctx.local
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ctx.local
-
-  let main = D.singleton "main"
-  let startstate v = main
-  let exitstate  v = D.top ()
-
-  let threadenter ctx lval f args =
-    let location x = let l = !Tracing.current_loc in CilType.Location.show l ^ ":" ^ x.vname in
-    [D.singleton (location f)]
-
-  let threadspawn ctx lval f args fctx = ctx.local
-end
-
-let _ = MCP.register_analysis (module StartLocIDs : MCPSpec)
 let _ = MCP.register_analysis ~dep:["threadid"] (module Spec : MCPSpec)

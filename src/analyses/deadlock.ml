@@ -15,7 +15,6 @@ struct
   (* The domain for the analysis *)
   module D = DeadlockDomain.Lockset (* MayLockset *)
   module C = DeadlockDomain.Lockset
-  module G = Lattice.Unit
 
   let addLockingInfo newLock lockList =
     let add_comb a b =
@@ -79,7 +78,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
+    | `Index (Const (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -102,7 +101,7 @@ struct
         ) ctx.local (eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist))
       | `Unlock ->
         let lockAddrs = eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist) in
-        if List.length lockAddrs = 1 then
+        if List.compare_length_with lockAddrs 1 = 0 then
           let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
           D.filter (neg inLockAddrs) ctx.local
         else ctx.local

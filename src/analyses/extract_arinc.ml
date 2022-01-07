@@ -33,7 +33,7 @@ struct
   module C = D
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
-  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
+  module V = Printable.UnitConf (struct let name = "tasks" end)
 
   type pname = string (* process name *)
   type fname = string (* function name *)
@@ -113,7 +113,7 @@ struct
     let nodes = HashtblN.keys a2bs |> List.of_enum in
     (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
     let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
-    let in_edges node = HashtblN.filter (Set.mem node % Set.map Tuple3.third) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
+    let in_edges node = HashtblN.filter (Set.mem node % Set.map Tuple3.third) a2bs |> HashtblN.values |> List.of_enum |> List.concat_map Set.elements in
     let is_end_node = List.is_empty % out_edges in
     let is_start_node = List.is_empty % in_edges in
     let start_node = OList.find is_start_node nodes in (* node with no incoming edges is the start node *)
@@ -135,13 +135,13 @@ struct
     let walk_edges (a, out_edges) =
       let edges = Set.elements out_edges |> List.map codegen_edge in
       (label a ^ ":") ::
-      if List.length edges > 1 then
+      if List.compare_length_with edges 1 > 0 then
         "if" :: (choice edges) @ ["fi"]
       else
         edges
     in
     let locals = [] in (* TODO *)
-    let body = locals @ goto (label start_node) :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if is_proc then " status[tid] = DONE" else " ret_"^fname^"()"] in
+    let body = locals @ goto (label start_node) :: (List.concat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if is_proc then " status[tid] = DONE" else " ret_"^fname^"()"] in
     String.concat "\n" @@ head :: List.map indent body @ [if is_proc then "}\n" else ""]
 
   let codegen () =
@@ -184,7 +184,7 @@ struct
           let debug_str = if GobConfig.get_bool "ana.pml.debug" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false) " else "" in
           ("#define ret_"^name^"() if \\") :: entries @ [debug_str ^ "fi"]
       in
-      FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> flat_map fun_map
+      FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> List.concat_map fun_map
     in
     String.concat "\n" @@
     ("#define nproc "^string_of_int nproc) ::
@@ -333,8 +333,8 @@ struct
               let f_d = Pid.of_int (Int64.of_int (Pids.get name)), Ctx.top (), Pred.of_loc f.vdecl in
               List.iter (fun f -> Pfuns.add name f.vname) funs;
               Prios.add name pri;
-              let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-              ctx.sideg tasks_var tasks;
+              let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+              ctx.sideg () tasks;
               let v,i = Res.get ("process", name) in
               assign_id pid' v;
               List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
@@ -362,7 +362,7 @@ struct
                 (* some calls have side effects *)
                 begin match fname, args with
                   | "SetPartitionMode", "NORMAL"::_ ->
-                    let tasks = ctx.global tasks_var in
+                    let tasks = ctx.global () in
                     ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
                     Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
                   | "SetPartitionMode", x::_ -> failwith @@ "SetPartitionMode: arg "^x
@@ -380,7 +380,7 @@ struct
     let mainfuns = GobConfig.get_string_list "mainfun" in
     ignore @@ List.map Pids.get mainfuns;
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
-    assert (List.length mainfuns = 1); (* TODO? *)
+    assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
     if GobConfig.get_bool "ana.arinc.export" then output_file (Goblintutil.create_dir "result/" ^ "arinc.os.pml") (snd (Pml_arinc.init ()))
 
@@ -394,7 +394,7 @@ struct
     )
 
   let threadenter ctx lval f args =
-    let tasks = ctx.global tasks_var in
+    let tasks = ctx.global () in
     (* TODO: optimize finding *)
     let tasks_f = Tasks.filter (fun (fs,f_d) ->
         Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs

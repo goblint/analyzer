@@ -8,9 +8,9 @@ module GU = Goblintutil
 
 let get_labelLoc = function
   | Label (_, loc, _) -> loc
-  | Case (_, loc) -> loc
-  | CaseRange (_, _, loc) -> loc
-  | Default loc -> loc
+  | Case (_, loc, _) -> loc
+  | CaseRange (_, _, loc, _) -> loc
+  | Default (loc, _) -> loc
 
 let rec get_labelsLoc = function
   | [] -> Cil.locUnknown
@@ -34,7 +34,7 @@ let get_stmtLoc stmt =
 
 let init () =
   initCIL ();
-  lowerConstants := GobConfig.get_bool "exp.lower-constants";
+  lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
@@ -80,6 +80,7 @@ end
 let end_basic_blocks f =
   let thisVisitor = new allBBVisitor in
   visitCilFileSameGlobals thisVisitor f
+
 
 let visitors = ref []
 let register_preprocess name visitor_fun =
@@ -132,7 +133,7 @@ class addConstructors cons = object
         | s :: _ -> get_stmtLoc s
         | [] -> locUnknown
       in
-      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc)]) in
+      let f fd = mkStmt (Instr [Call (None,Lval (Var fd.svar, NoOffset),[],loc,locUnknown)]) in (* TODO: fd declaration loc for eloc? *)
       let call_cons = List.map f cons1 in
       let body = mkBlock (call_cons @ fd.sbody.bstmts) in
       fd.sbody <- body;
@@ -216,7 +217,7 @@ let getFuns fileAST : startfuns =
     | GFun({svar={vname=mn; vattr=attr; _}; _} as def, _) when get_bool "kernel" && is_exit attr ->
       Printf.printf "Cleanup function: %s\n" mn; set_string "exitfun[+]" mn; add_exit def acc
     | GFun ({svar={vstorage=NoStorage; _}; _} as def, _) when (get_bool "nonstatic") -> add_other def acc
-    | GFun (def, _) when ((get_bool "allfuns")) ->  add_other def  acc
+    | GFun ({svar={vattr; _}; _} as def, _) when get_bool "allfuns" && not (Cil.hasAttribute "goblint_stub" vattr) ->  add_other def  acc
     | GFun (def, _) when get_string "ana.osek.oil" <> "" && OilUtil.is_starting def.svar.vname -> add_other def acc
     | _ -> acc
   in
@@ -289,7 +290,7 @@ let typeOfRealAndImagComponents t =
 
 let rec typeOf (e: exp) : typ =
   match e with
-  | Const(CInt64 (_, ik, _)) -> TInt(ik, [])
+  | Const(CInt (_, ik, _)) -> TInt(ik, [])
 
   (* Character constants have type int.  ISO/IEC 9899:1999 (E),
    * section 6.4.4.4 [Character constants], paragraph 10, if you
@@ -339,7 +340,7 @@ and typeOfLval = function
 and typeOffset basetyp =
   let blendAttributes baseAttrs =
     let (_, _, contageous) =
-      partitionAttributes ~default:(AttrName false) baseAttrs in
+      partitionAttributes ~default:AttrName baseAttrs in
     typeAddAttributes contageous
   in
   function
@@ -375,18 +376,16 @@ class countFnVisitor = object
       | ComputedGoto (_, loc)
       | Break loc
       | Continue loc
-      | If (_,_,_,loc)
-      | Switch (_,_,_,loc)
-      | Loop (_,loc,_,_)
-      | TryFinally (_,_,loc)
-      | TryExcept (_,_,_,loc)
+      | If (_,_,_,loc,_)
+      | Switch (_,_,_,loc,_)
+      | Loop (_,loc,_,_,_)
         -> Hashtbl.replace locs loc.line (); DoChildren
       | _ ->
         DoChildren
 
     method! vinst = function
-      | Set (_,_,loc)
-      | Call (_,_,_,loc)
+      | Set (_,_,loc,_)
+      | Call (_,_,_,loc,_)
       | Asm (_,_,_,_,_,loc)
         -> Hashtbl.replace locs loc.line (); SkipChildren
       | _ -> SkipChildren
@@ -430,8 +429,12 @@ let stmt_fundecs: fundec StmtH.t Lazy.t =
     h
   )
 
+let pseudo_return_to_fun = StmtH.create 113
+
 (** Find [fundec] which the [stmt] is in. *)
-let find_stmt_fundec stmt = StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+let find_stmt_fundec stmt =
+  try StmtH.find pseudo_return_to_fun stmt
+  with Not_found -> StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
 
 
 module VarinfoH = Hashtbl.Make (CilType.Varinfo)
@@ -537,5 +540,5 @@ let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* 
 let stmt_pretty_short () x =
   match x.skind with
   | Instr (y::ys) -> dn_instr () y
-  | If (exp,_,_,_) -> dn_exp () exp
+  | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x

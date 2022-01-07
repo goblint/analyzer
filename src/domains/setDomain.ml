@@ -1,8 +1,6 @@
 (** Abstract domains representing sets. *)
 open Pretty
 
-module GU = Goblintutil
-
 (* Exception raised when the set domain can not support the requested operation.
  * This will be raised, when trying to iterate a set that has been set to Top *)
 exception Unsupported of string
@@ -338,7 +336,7 @@ end
 (** Functor for creating artificially topped set domains. *)
 module ToppedSet (Base: Printable.S) (N: ToppedSetNames): S with
   type elt = Base.t and
-  type t = [`Top | `Lifted of Make (Base).t] = (* TODO: don't expose t for ShapeDomain *)
+  type t = [`Top | `Lifted of Make (Base).t] = (* TODO: don't expose t *)
 struct
   module S = Make (Base)
   include LiftTop (S) (N)

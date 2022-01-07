@@ -32,15 +32,40 @@ struct
   (* Output *)
   let show x =
     (* TODO: add special output for locUnknown *)
-    x.file ^ ":" ^ string_of_int x.line ^ ":" ^ string_of_int x.column
+    x.file ^ ":" ^ string_of_int x.line ^ (
+      if x.column >= 0 then
+        ":" ^ string_of_int x.column
+      else
+        ""
+    ) ^ (
+      if x.endByte >= 0 then
+        "-" ^ string_of_int x.endLine ^ (
+          if x.endColumn >= 0 then
+            ":" ^ string_of_int x.endColumn
+          else
+            ""
+        )
+      else
+        ""
+    )
 
   let pretty () x = Pretty.text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `Assoc [
-      ("file", `String x.file);
-      ("line", `Int x.line);
-      ("column", `Int x.column);
-    ]
+  let to_yojson x = `Assoc (
+      [
+        ("file", `String x.file);
+        ("line", `Int x.line);
+        ("column", `Int x.column);
+      ]
+      @
+      if x.endByte >= 0 then
+        [
+          ("endLine", `Int x.endLine);
+          ("endColumn", `Int x.endColumn);
+        ]
+      else
+        []
+    )
   let pp fmt x = Format.fprintf fmt "%s" (show x) (* for Messages *)
 end
 

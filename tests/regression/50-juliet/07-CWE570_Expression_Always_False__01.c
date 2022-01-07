@@ -5,7 +5,7 @@ bool gFalse = false;
 
 void main()
 {
-    if (gFalse) // TODO WARN: expression is always false
+    if (gFalse) // WARN: expression is always false
     {
         printf("Never prints");
     }

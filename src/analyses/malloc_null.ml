@@ -15,7 +15,6 @@ struct
   module Addr = ValueDomain.Addr
   module D = ValueDomain.AddrSetDomain
   module C = ValueDomain.AddrSetDomain
-  module G = Lattice.Unit
 
   let should_join x y = D.equal x y
 
@@ -24,7 +23,7 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (IdxDom.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
@@ -109,15 +108,15 @@ struct
         match ask.f (Queries.ReachableFrom e) with
         | a when not (Queries.LS.is_top a)  ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
-          Queries.LS.fold to_extra a []
+          Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in
-      List.concat (List.map do_exp args)
+      List.concat_map do_exp args
     in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat (List.map to_addrs vars)) many
+      List.fold_right AD.add (List.concat_map to_addrs vars) many
     in
     let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st

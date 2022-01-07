@@ -12,7 +12,6 @@ struct
   let name()  = "spec"
   module D = SpecDomain.Dom
   module C = SpecDomain.Dom
-  module G = Lattice.Unit
 
   (* special variables *)
   let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
@@ -61,8 +60,7 @@ struct
         if not change_state then m
         else if may then D.may_goto key loc state m else D.goto key loc state m
 
-    (* match spec_exp, cil_exp *)
-    let equal_exp ctx = function
+    let equal_exp ctx spec_exp cil_exp = match spec_exp, cil_exp with
       (* TODO match constants right away to avoid queries? *)
       | `String a, Const(CStr b) -> M.debug "EQUAL String Const: %s = %s" a b; a=b
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
@@ -130,7 +128,7 @@ struct
           (* everything matches the constraint -> go to new state and increase counter *)
           else
             (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
-            let may = (List.length keys > 1) in
+            let may = (List.compare_length_with keys 1 > 0) in
             (* do not change state for reflexive edges where the key is not assigned to (e.g. *$p = _) *)
             let change_state = not (old_a=b && SC.get_lval c <> Some `Var) in
             M.debug "GOTO ~may:%B ~change_state:%B. %s -> %s: %s" may change_state a b (SC.stmt_to_string c);
@@ -228,9 +226,9 @@ struct
       SC.equal_form (Some lval) c &&
       (* check for constraints *p = _ where p is the key *)
       match lval, SC.get_lval c with
-      | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c, rval) ->
+      | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c) rval ->
         let keys = D.keys_from_lval x (Analyses.ask_of_ctx ctx) in
-        if List.length keys <> 1 then failwith "not implemented"
+        if List.compare_length_with keys 1 <> 0 then failwith "not implemented"
         else true
       | _ -> false (* nothing to do *)
     in
@@ -294,14 +292,14 @@ struct
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
       match a, b with
-      | Const (CInt64(i, kind, str)), Lval lval
-      | Lval lval, Const (CInt64(i, kind, str)) ->
+      | Const (CInt(i, kind, str)), Lval lval
+      | Lval lval, Const (CInt(i, kind, str)) ->
         (* let binop = BinOp (Eq, a, b, Cil.intType) in *)
         (* standardize the format of the expression to 'lval==i'. -> spec needs to follow that format, the code is mapped to it. *)
-        let binop = BinOp (Eq, Lval lval, Const (CInt64(i, kind, str)), Cil.intType) in
+        let binop = BinOp (Eq, Lval lval, Const (CInt(i, kind, str)), Cil.intType) in
         let key = D.key_from_lval lval in
         let value = D.find key m in
-        if i = Int64.zero && tv then (
+        if Cilint.is_zero_cilint i && tv then (
           M.debug "error-branch";
           (* D.remove key m *)
         )else(
@@ -332,14 +330,14 @@ struct
           (* filter those edges that are branches, start with a state from states and have the same branch expression and the same tv *)
           let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem a states && branch_exp_eq c exp tv) !edges in
           (* there should be only one such edge or none *)
-          if List.length branch_edges <> 1 then ( (* call of branch for an actual branch *)
+          if List.compare_length_with branch_edges 1 <> 0 then ( (* call of branch for an actual branch *)
             M.debug "branch: branch_edges length is not 1! -> actual branch";
             M.debug "%s -> branch_edges1: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun () x -> Pretty.text (SC.def_to_string (SC.Edge x)))) branch_edges;
             (* filter those edges that are branches, end with a state from states have the same branch expression and the same tv *)
             (* TODO they should end with any predecessor of the current state, not only the direct predecessor *)
             let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem b states && branch_exp_eq c exp tv) !edges in
             M.debug "%s -> branch_edges2: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun () x -> Pretty.text (SC.def_to_string (SC.Edge x)))) branch_edges;
-            if List.length branch_edges <> 1 then m else
+            if List.compare_length_with branch_edges 1 <> 0 then m else
               (* meet current value with the target state. this is tricky: we can not simply take the target state, since there might have been more than one element already before the branching.
                  -> find out what the alternative branch target was and remove it *)
               let (a,ws,fwd,b,c) = List.hd branch_edges in
@@ -471,13 +469,13 @@ struct
     in
     let matches (a,ws,fwd,b,c) =
       let equal_args spec_args cil_args =
-        if List.length spec_args = 1 && List.hd spec_args = `Free then
+        if List.compare_length_with spec_args 1 = 0 && List.hd spec_args = `Free then
           true (* wildcard as an argument matches everything *)
-        else if List.length arglist <> List.length spec_args then (
+        else if List.compare_lengths arglist spec_args <> 0 then (
           M.debug "SKIP the number of arguments doesn't match the specification!";
           false
         )else
-          List.for_all (SpecCheck.equal_exp ctx) (List.combine spec_args cil_args) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
+          List.for_all2 (SpecCheck.equal_exp ctx) spec_args cil_args (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
       in
       (* function name must fit the constraint *)
       SC.fname_is f.vname c &&

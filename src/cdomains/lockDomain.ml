@@ -140,7 +140,11 @@ struct
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.union addrs st
-  let remove ask e st = S.diff st (eq_set ask e)
+  let remove ask e st = 
+    (* TODO: Removing based on must-equality sets is not sound! *)
+    let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
+    let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
+    S.diff st addrs
   let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
 
   let kill_lval (host,offset) st =

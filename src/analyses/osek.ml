@@ -263,6 +263,7 @@ struct
   module D = M.D
   module C = M.C
   module G = M.G
+  module V = M.V
 
   let offensivepriorities : (string,int) Hashtbl.t= Hashtbl.create 16
   let off_pry_with_flag : (string,(Flags.t*int) list) Hashtbl.t = Hashtbl.create 16
@@ -608,14 +609,14 @@ struct
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
+    | `Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_offset o)
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-    | Index (Const (CInt64 (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_const_offset o)
+    | Index (Const (CInt (i,ik,s)),o) -> `Index (IntDomain.of_const (i,ik,s), conv_const_offset o)
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
@@ -639,14 +640,14 @@ struct
         let to_accs (v,o) xs =
           Concrete (Some (Lval lv), v, Offs.from_offset (conv_offset o), write) :: xs
         in
-        if List.length regs = 0 then begin
+        if regs = [] then begin
           if Queries.LS.mem (dummyFunDec.svar,`NoOffset) a
           then [Unknown (Lval lv,write)]
                @ Queries.LS.fold to_accs (Queries.LS.remove (dummyFunDec.svar,`NoOffset) a) []
           else Queries.LS.fold to_accs a []
         end else List.map add_reg regs
       | _ ->
-        if List.length regs = 0
+        if regs = []
         then [Unknown (Lval lv,write)]
         else List.map add_reg regs
 
@@ -701,7 +702,7 @@ struct
   let access_one_top = access_one_byval
 
   let access_byval a (rw: bool) (exps: exp list): accesses =
-    List.concat (List.map (access_one_top a rw) exps)
+    List.concat_map (access_one_top a rw) exps
 
   (* TODO: unused? remove? *)
   let access_reachable ask (exps: exp list) =
@@ -718,7 +719,7 @@ struct
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> [Unknown (e,true)]
     in
-    List.concat (List.map do_exp exps)
+    List.concat_map do_exp exps
 
   let startstate v = D.top ()
   let exitstate  v = D.top ()
@@ -850,8 +851,8 @@ struct
         if not (D.is_empty regular) then (
           let res = List.fold_left (fun rs r -> (names r) ^ ", " ^ rs) "" (D.ReverseAddrSet.elements regular) in
           let ev = match arglist with
-            | [CastE (_, Const (CInt64 (c,_,_))) | Const (CInt64 (c,_,_))] ->
-              fst @@ Hashtbl.find events (Int64.to_string c)
+            | [CastE (_, Const (CInt (c,_,_))) | Const (CInt (c,_,_))] ->
+              fst @@ Hashtbl.find events (Cilint.string_of_cilint c)
             | _ -> print_endline "No event found for argument of WaitEvent"; "_not_found_"
           in
           print_endline (task ^ " waited for event "^ ev ^ " while holding resource(s) " ^ res)
@@ -1077,7 +1078,7 @@ struct
           (* let _ = print_endline ("accpry: " ^ (string_of_int acc_pry)) in *)
           let flag_list = List.filter (fun f -> (valid_flag f) <= acc_pry) (get_flags acc_list') in
           (* let _ = print_endline ("flaglist: " ^ (List.fold_left (fun x y -> (y.vname ^", " ^x) ) "" flag_list)) in *)
-          List.flatten (List.map (check_one_flag acc_list') flag_list)
+          List.concat_map (check_one_flag acc_list') flag_list
         in (*/check_flags*)
         let check_high_acc acc_list = (*check high_accs (mark if higher only reads/writes*)
           let filter_pry p acc =  not ((offpry [acc]) = p) in
@@ -1130,7 +1131,7 @@ struct
           let lock_str = Lockset.show dom_elem in
           let my_locks = List.map (function (LockDomain.Addr.Addr (x,_) ,_) -> x.vname | _ -> failwith "This (hopefully2) never happens!" ) (Lockset.ReverseAddrSet.elements dom_elem) in
           let pry = List.fold_left (fun y x -> if pry x > y then pry x else y) (min_int) my_locks in
-          let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Pretty.sprint 80 (Flags.pretty () flagstate)) else "" in
+          let flag_str = if !Errormsg.verboseFlag then " and flag state: " ^ (Flags.show flagstate) else "" in
           let action = if write then "write" else "read" in
           let thread = "\"" ^ Flag.show fl ^ "\"" in
           let warn = action ^ " in " ^ thread ^ " with priority: " ^ (string_of_int pry) ^ ", lockset: " ^ lock_str ^ flag_str in

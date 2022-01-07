@@ -21,6 +21,7 @@ let get_spec () : (module Spec) =
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
             |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
+            |> lift (get_bool "dbg.print_dead_code") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -108,29 +109,40 @@ struct
     dead_lines := StringMap.mapi (fun fi -> StringMap.mapi (fun fu ded -> BatISet.diff ded (live fi fu))) !dead_lines;
     dead_lines := StringMap.map (StringMap.filter (fun _ x -> not (BatISet.is_empty x))) !dead_lines;
     dead_lines := StringMap.filter (fun _ x -> not (StringMap.is_empty x)) !dead_lines;
-    let print_func f xs =
-      let one_range b e first =
-        count := !count + (e - b + 1);
-        if not first then printf ", ";
-        if b=e then
-          printf "%d" b
-        else
-          printf "%d..%d" b e;
-        false
+    let warn_func file f xs =
+      let warn_range b e =
+        count := !count + (e - b + 1); (* for total count below *)
+        let doc =
+          if b = e then
+            Pretty.dprintf "on line %d" b
+          else
+            Pretty.dprintf "on lines %d..%d" b e
+        in
+        let loc: Cil.location = {
+          file;
+          line = b;
+          column = -1; (* not shown *)
+          byte = 0; (* wrong, but not shown *)
+          endLine = e;
+          endColumn = -1; (* not shown *)
+          endByte = 0; (* wrong, but not shown *)
+        }
+        in
+        (doc, Some loc)
       in
-      printf "  function '%s' has dead code on lines: " f;
-      ignore (BatISet.fold_range one_range xs true);
-      printf "\n"
+      let msgs =
+        BatISet.fold_range (fun b e acc ->
+            warn_range b e :: acc
+          ) xs []
+      in
+      M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
     in
-    let print_file f =
-      printf "File '%s':\n" f;
-      StringMap.iter print_func
-    in
+    let warn_file f = StringMap.iter (warn_func f) in
     if get_bool "dbg.print_dead_code" then (
       if StringMap.is_empty !dead_lines
       then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
       else (
-        StringMap.iter print_file !dead_lines; (* populates count by side-effect *)
+        StringMap.iter warn_file !dead_lines; (* populates count by side-effect *)
         let total_dead = !count + uncalled_fn_loc in
         printf "Found dead code on %d line%s%s!\n" total_dead (if total_dead>1 then "s" else "") (if uncalled_fn_loc > 0 then Printf.sprintf " (including %d in uncalled functions)" uncalled_fn_loc else "")
       );
@@ -138,11 +150,10 @@ struct
     );
     let str = function true -> "then" | false -> "else" in
     let report tv (loc, dead) =
-      if Deadcode.Locmap.mem dead_locations loc then
-        match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-        | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
-        | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
-        | _ -> ()
+      match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
+      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
+      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
+      | _ -> ()
     in
     if get_bool "dbg.print_dead_code" then (
       let by_fst (a,_) (b,_) = Stdlib.compare a b in
@@ -187,7 +198,7 @@ struct
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
-        fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (Basetype.Variables.show k)) Spec.G.printXml v;
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (Spec.V.show k)) Spec.G.printXml v;
       in
       GHT.iter print_globals g
     in
@@ -215,7 +226,7 @@ struct
     let gh = GHT.create 13 in
     let getg v = GHT.find_default gh v (Spec.G.bot ()) in
     let sideg v d =
-      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Prelude.Ana.d_varinfo v Spec.G.pretty d;
+      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Spec.V.pretty v Spec.G.pretty d;
       GHT.replace gh v (Spec.G.join (getg v) d)
     in
     (* Old-style global function for context.
@@ -411,15 +422,29 @@ struct
           match compare_runs with
           | d1::d2::[] -> (* the directories of the runs *)
             if d1 = d2 then print_endline "Beware that you are comparing a run with itself! There should be no differences.";
-            let r1, r2 = Tuple2.mapn (fun d ->
+            (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
+            let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
+            let module S2 = Splitter.S2 in
+            let module VH = Splitter.VH in
+            let (r1, r1'), (r2, r2') = Tuple2.mapn (fun d ->
                 let vh = Serialize.unmarshal (d ^ Filename.dir_sep ^ solver_file) in
-                (* TODO: no need to relift here? *)
-                (* instead of rewriting Compare for EqConstrSys, just transform unmarshaled EqConstrSys solutions to GlobConstrSys soltuions *)
-                let module Splitter = GlobConstrSolFromEqConstrSol (EQSys) (LHT) (GHT) in
-                Splitter.split_solution vh
+
+                let vh' = VH.create (VH.length vh) in
+                VH.iter (fun k v ->
+                    VH.replace vh' (S2.Var.relift k) (S2.Dom.relift v)
+                  ) vh;
+
+                (Splitter.split_solution vh', vh')
               ) (d1, d2)
             in
-            Comp.compare (d1, d2) r1 r2;
+
+            if get_bool "dbg.compare_runs.glob" then
+              Comp.compare (d1, d2) r1 r2;
+
+            let module Compare2 = Constraints.CompareEq (S2) (VH) in
+            if get_bool "dbg.compare_runs.eq" then
+              Compare2.compare (d1, d2) r1' r2';
+
             r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
           | _ -> failwith "Currently only two runs can be compared!";
         ) else (
@@ -497,7 +522,8 @@ struct
       let is_bad_uncalled fn loc =
         not (Set.Int.mem fn.vid calledFuns) &&
         not (Str.last_chars loc.file 2 = ".h") &&
-        not (LibraryFunctions.is_safe_uncalled fn.vname)
+        not (LibraryFunctions.is_safe_uncalled fn.vname) &&
+        not (Cil.hasAttribute "goblint_stub" fn.vattr)
       in
       let print_and_calculate_uncalled = function
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
@@ -519,7 +545,7 @@ struct
 
       (* run activated transformations with the analysis result *)
       let active_transformations = get_string_list "trans.activated" in
-      (if List.length active_transformations > 0 then
+      (if active_transformations <> [] then
         (* Transformations work using Cil visitors which use the location, so we join all contexts per location. *)
         let joined =
           let open Batteries in let open Enum in
@@ -606,7 +632,7 @@ struct
         ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
-      Spec.query ctx (WarnGlobal g)
+      Spec.query ctx (WarnGlobal (Obj.repr g))
     in
     Stats.time "warn_global" (GHT.iter warn_global) gh;
 

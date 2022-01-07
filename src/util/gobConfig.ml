@@ -20,17 +20,17 @@
 
 open Prelude
 open Tracing
-open Config
 open Printf
-open JsonSchema
 
 exception ConfigError of string
 
-let build_config = ref false
 
 (* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
 let phase = ref 0
-let phase_config = ref true
+
+
+module Validator = JsonSchema.Validator (struct let schema = Options.schema end)
+module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.require_all end)
 
 (** The type for [gobConfig] module. *)
 module type S =
@@ -78,8 +78,7 @@ sig
   (** Merge configurations form a file with current. *)
   val merge_file : string -> unit
 
-  (** Add a schema to the conf*)
-  val addenum_sch: Yojson.Safe.t -> unit
+  val json_conf: Yojson.Safe.t ref
 end
 
 (** The implementation of the [gobConfig] module. *)
@@ -167,18 +166,6 @@ struct
   (** Here we store the actual configuration. *)
   let json_conf : Yojson.Safe.t ref = ref `Null
 
-  (** The schema for the conf [json_conf] *)
-  let conf_schema : jschema =
-    { sid      = Some "root"
-    ; sdescr   = Some "Configuration root for the Goblint."
-    ; stype    = None
-    ; sdefault = None
-    ; saddenum = []
-    }
-
-  (** Add the schema to [conf_schema]. *)
-  let addenum_sch jv = addenum conf_schema @@ fromJson jv
-
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
     GobYojson.print ch !json_conf
@@ -228,12 +215,20 @@ struct
     let rec set_value v o pth =
       match o, pth with
       | `Assoc m, Select (key,pth) ->
-        begin try `Assoc ((key, set_value v (List.assoc key m) pth) :: List.remove_assoc key m)
+        let rec modify = function
+          | [] -> raise Not_found
+          | (key', v') :: kvs when key' = key ->
+            (key, set_value v v' pth) :: kvs
+          | (key', v') :: kvs ->
+            (key', v') :: modify kvs
+        in
+        begin try `Assoc (modify m)
           with Not_found ->
-            if !build_config then
-              `Assoc ((key, create_new v pth) :: m)
-            else
-              raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
+            (* TODO: allow unknown paths to create subobjects, will be validated against schema anyway *)
+            (* if !build_config then
+                 `Assoc (m @ [(key, create_new v pth)])
+               else *)
+            raise @@ ConfigError ("Unknown path "^ (sprintf2 "%a" print_path orig_pth))
         end
       | `List a, Index (Int i, pth) ->
         `List (List.modify_at i (fun o -> set_value v o pth) a)
@@ -261,7 +256,7 @@ struct
         new_v
     in
     o := set_value v !o orig_pth;
-    validate conf_schema !json_conf
+    Validator.validate_exn !json_conf
 
   (** Helper function for reading values. Handles error messages. *)
   let get_path_string f st =
@@ -269,11 +264,8 @@ struct
       let st = String.trim st in
       let st, x =
         let g st = st, get_value !json_conf (parse_path st) in
-        if !phase_config then
-          try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
-          with _ -> g st (* do global lookup if undefined *)
-        else
-          g st (* just use the old format *)
+        try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
+        with _ -> g st (* do global lookup if undefined *)
       in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
@@ -315,7 +307,7 @@ struct
 
   (** Helper functions for writing values. Handels the tracing. *)
   let set_path_string_trace st v =
-    if not !build_config then drop_memo ();
+    drop_memo ();
     if tracing then trace "conf" "Setting '%s' to %a.\n" st GobYojson.pretty v;
     set_path_string st v
 
@@ -325,7 +317,7 @@ struct
   let set_string st i = set_path_string_trace st (`String i)
   let set_null   st   = set_path_string_trace st `Null
   let set_list   st l =
-    if not !build_config then drop_memo ();
+    drop_memo ();
     set_value (`List l) json_conf (parse_path st)
 
   (** A convenience functions for writing values. *)
@@ -354,9 +346,15 @@ struct
   (** Merge configurations form a file with current. *)
   let merge_file fn =
     let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
+    Validator.validate_exn v;
     json_conf := GobYojson.merge !json_conf v;
+    ValidatorRequireAll.validate_exn !json_conf;
     drop_memo ();
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
 end
 
 include Impl
+
+let () =
+  json_conf := Options.defaults;
+  ValidatorRequireAll.validate_exn !json_conf

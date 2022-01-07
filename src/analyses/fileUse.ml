@@ -10,7 +10,6 @@ struct
   let name () = "file"
   module D = FileDomain.Dom
   module C = FileDomain.Dom
-  module G = Lattice.Unit
 
   (* special variables *)
   let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
@@ -89,11 +88,11 @@ struct
     let check a b tv =
       (* ignore(printf "check: %a = %a, %B\n" d_plainexp a d_plainexp b tv); *)
       match a, b with
-      | Const (CInt64(i, kind, str)), Lval lval
-      | Lval lval, Const (CInt64(i, kind, str)) ->
+      | Const (CInt(i, kind, str)), Lval lval
+      | Lval lval, Const (CInt(i, kind, str)) ->
         (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
         let k = D.key_from_lval lval in
-        if i = Int64.zero && tv then (
+        if Cilint.compare_cilint i Cilint.zero_cilint = 0 && tv then (
           (* ignore(printf "error-branch\n"); *)
           D.error k m
         )else
@@ -218,8 +217,8 @@ struct
     (* fold possible keys on domain *)
     let ret_all f lval =
       let xs = D.keys_from_lval lval (Analyses.ask_of_ctx ctx) in (* get all possible keys for a given lval *)
-      if List.length xs = 0 then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
-      else if List.length xs = 1 then f (List.hd xs) m true
+      if xs = [] then (D.warn @@ "could not resolve "^sprint d_exp (Lval lval); m)
+      else if List.compare_length_with xs 1 = 0 then f (List.hd xs) m true
       (* else List.fold_left (fun m k -> D.join m (f k m)) m xs *)
       else
         (* if there is more than one key, join all values and do warnings on the result *)

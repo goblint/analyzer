@@ -18,6 +18,7 @@ struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name () ^" hashconsed"
 
@@ -95,6 +96,7 @@ struct
   module D = S.D
   module G = S.G
   module C = Printable.HConsed (S.C)
+  module V = S.V
 
   let name () = S.name () ^" context hashconsed"
 
@@ -182,6 +184,7 @@ struct
   module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name ()^" level sliced"
 
@@ -322,6 +325,7 @@ struct
   end
   module G = S.G
   module C = S.C
+  module V = S.V
 
 
   let name () = S.name ()^" with widened contexts"
@@ -365,7 +369,7 @@ struct
   let enter ctx r f args =
     let m = snd ctx.local in
     let d' v_cur =
-      if ContextUtil.should_keep ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
+      if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
         let v_old = M.find f.svar m in (* S.D.bot () if not found *)
         let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
         Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
@@ -391,6 +395,7 @@ struct
   module D = Dom (S.D)
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name ()^" lifted"
 
@@ -451,10 +456,10 @@ end
 module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
-                           and module GVar = Basetype.Variables
+                           and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = S.G
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t
   end
 =
 struct
@@ -463,7 +468,7 @@ struct
   type ld = S.D.t
   (* type gd = S.G.t *)
   module LVar = VarF (S.C)
-  module GVar = Basetype.Variables
+  module GVar = GVarF (S.V)
   module D = S.D
   module G = S.G
 
@@ -475,7 +480,7 @@ struct
     | _ :: _ :: _ -> S.sync ctx `Join
     | _ -> S.sync ctx `Normal
 
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
+  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
@@ -509,7 +514,7 @@ struct
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            M.warn "Created a thread from unknown function %s" f.vname
+            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname
             (* actual implementation (e.g. invalidation) is done by threadenter *)
         ) ds
     in
@@ -710,7 +715,9 @@ struct
         let tf' eu = tf (v,c) eu getl sidel getg sideg in
 
         match NodeH.find_option CfgTools.node_scc_global v with
-        | Some scc when NodeH.mem scc.prev v ->
+        | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
+          (* Limited to loops with only one entry node. Otherwise unsound as is. *)
+          (* TODO: Is it possible to do soundly for multi-entry loops? *)
           let stricts = NodeH.find_all scc.prev v in
           let xs_stricts = List.map tf' stricts in
           if List.for_all S.D.is_bot xs_stricts then
@@ -895,6 +902,7 @@ module PathSensitive2 (Spec:Spec)
     with type D.t = HoareDomain.Set(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
+     and module V = Spec.V
 =
 struct
   module D =
@@ -936,6 +944,7 @@ struct
 
   module G = Spec.G
   module C = Spec.C
+  module V = Spec.V
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
@@ -1032,10 +1041,37 @@ struct
     if D.is_bot d then raise Deadcode else d
 end
 
+module DeadBranchLifter (S: Spec): Spec =
+struct
+  include S
+
+  let name () = "DeadBranch (" ^ name () ^ ")"
+
+  module Locmap = Deadcode.Locmap
+
+  let dead_branches = function true -> Deadcode.dead_branches_then | false -> Deadcode.dead_branches_else
+
+  let branch ctx exp tv =
+    if !GU.postsolving then (
+      Locmap.replace Deadcode.dead_branches_cond !Tracing.current_loc exp;
+      try
+        let r = branch ctx exp tv in
+        (* branch is live *)
+        Locmap.replace (dead_branches tv) !Tracing.current_loc false; (* set to live (false) *)
+        r
+      with Deadcode ->
+        (* branch is dead *)
+        Locmap.modify_def true !Tracing.current_loc Fun.id (dead_branches tv); (* set to dead (true) if not mem, otherwise keep existing (Fun.id) since it may be live (false) in another context *)
+        raise Deadcode
+    )
+    else
+      branch ctx exp tv
+end
+
 module Compare
     (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = Basetype.Variables
+                        and module GVar = GVarF (S.V)
                         and module D = S.D
                         and module G = S.G)
     (LH:Hashtbl.S with type key=Sys.LVar.t)
@@ -1141,9 +1177,30 @@ struct
     let h2 = PP.create 113 in
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
-    Printf.printf "\nComparing precision of %s (left) with %s (right):\n" name1 name2;
+    Printf.printf "\nComparing precision of %s (left) with %s (right) as GlobConstrSys:\n" name1 name2;
     compare_globals g1 g2;
     compare_locals h1 h2;
     compare_locals_ctx l1 l2;
+    print_newline ();
+end
+
+module CompareEq (Sys: EqConstrSys) (VH: Hashtbl.S with type key = Sys.Var.t) =
+struct
+  module Var =
+  struct
+    include Printable.Std
+    include Sys.Var
+    let pretty = pretty_trace
+
+    let show x = Pretty.sprint ~width:max_int (pretty () x)
+    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+    let to_yojson x = `String (show x)
+  end
+  module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
+
+  let compare (name1, name2) vh1 vh2 =
+    Printf.printf "\nComparing precision of %s (left) with %s (right) as EqConstrSys:\n" name1 name2;
+    let (_, msg) = Compare.compare ~name1 vh1 ~name2 vh2 in
+    ignore (Pretty.printf "Comparison summary: %t\n" (fun () -> msg));
     print_newline ();
 end

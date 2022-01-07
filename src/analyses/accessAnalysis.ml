@@ -24,6 +24,7 @@ struct
 
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
+  module V = VarinfoV (* TODO: change to abstract type-based struct accesses, etc *)
 
   let none_varinfo = ref dummyFunDec.svar
 
@@ -38,8 +39,8 @@ struct
     unsafe := 0
 
   let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
+    let (g, o) = lv_opt |? (!none_varinfo, `NoOffset) in
     if !GU.should_warn then (
-      let (g, o) = lv_opt |? (!none_varinfo, `NoOffset) in
       let d =
         let open Access in
         OM.singleton o (
@@ -52,8 +53,10 @@ struct
       in
       ctx.sideg g d
     )
+    else
+      ctx.sideg g (G.bot ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
 
-  let do_access (ctx: (D.t, G.t, C.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
       ctx.emit (Access {var_opt=vo; write=w});
@@ -219,6 +222,7 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
       (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
       let v =
         if CilType.Varinfo.equal g !none_varinfo then (

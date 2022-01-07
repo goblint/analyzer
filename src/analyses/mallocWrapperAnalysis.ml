@@ -4,8 +4,6 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
-include PreMallocWrapperAnalysis
-
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
@@ -15,6 +13,19 @@ struct
       let bot_name = "Unreachable node"
     end)
 
+  module Node = struct
+    include Node
+    (* Description that gets appended to the varinfo-name in user ouptut. *)
+    let describe_varinfo (v: varinfo) node =
+      let loc = UpdateCil.getLoc node in
+      CilType.Location.show loc
+
+    let name_varinfo node = match node with
+      | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
+      | _ -> failwith "A function entry or return node can not be the node after a malloc"
+  end
+
+  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(Node)
   let name () = "mallocWrapper"
   module D = PL
   module G = BoolDomain.MayBool
@@ -57,52 +68,31 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
+  type marshal = NodeVarinfoMap.marshal
 
-  type marshal = {
-    heap_hash: varinfo NH.t;
-    heap_vars: Node.t VH.t;
-  }
-
-  let get_heap_var node =
-    (* Use existing varinfo instead of allocating a duplicate,
-       which would be equal by determinism of create_var though. *)
-    (* TODO: is this poor man's hashconsing? *)
-    try NH.find !heap_hash node
-    with Not_found ->
-      let name = match node with
-        | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
-        | _ -> failwith "A function entry or return node can not be the node after a malloc" in
-      let newvar = Goblintutil.create_var (makeGlobalVar name voidType) in
-      NH.add !heap_hash node newvar;
-      VH.add !heap_vars newvar node;
-      newvar
-
-  let query (ctx: (D.t, G.t, C.t) ctx) (type a) (q: a Q.t): a Queries.result =
+  let get_heap_var = NodeVarinfoMap.to_varinfo
+  let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Queries.result =
     match q with
     | Q.HeapVar ->
       let node = match ctx.local with
         | `Lifted vinfo -> vinfo
-        | _ -> ctx.node in
-      `Lifted (get_heap_var node)
+        | _ -> ctx.node
+      in
+      let var = get_heap_var node in
+      var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
+      `Lifted var
     | Q.IsHeapVar v ->
-      VH.mem !heap_vars v
+      NodeVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
-      VH.mem !heap_vars v
+      NodeVarinfoMap.mem_varinfo v
     | _ -> Queries.Result.top q
 
   let init marshal =
     List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
-    match marshal with
-    | Some m ->
-      heap_hash := m.heap_hash;
-      heap_vars := m.heap_vars
-    | None ->
-      (* TODO: is this necessary? resetting between multiple analyze_loop-s/phases? *)
-      NH.clear !heap_hash;
-      VH.clear !heap_vars
+    NodeVarinfoMap.unmarshal marshal
 
   let finalize () =
-    {heap_hash = !heap_hash; heap_vars = !heap_vars}
+    NodeVarinfoMap.marshal ()
 end
 
 let _ =
