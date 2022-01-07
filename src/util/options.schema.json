@@ -725,6 +725,35 @@
                 "Use constants appearing in program as threshold for widening",
               "type": "boolean",
               "default": false
+            },
+            "privatization": {
+              "title": "ana.apron.privatization",
+              "description":
+                "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+              "type": "string",
+              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "default": "mutex-meet"
+            },
+            "priv": {
+              "title": "ana.apron.priv",
+              "type": "object",
+              "properties": {
+                "not-started": {
+                  "title": "ana.apron.priv.not-started",
+                  "description":
+                    "Exclude writes from threads that may not be started yet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "must-joined": {
+                  "title": "ana.apron.priv.must-joined",
+                  "description":
+                    "Exclude writes from threads that must have been joined",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -1176,35 +1205,6 @@
           "title": "exp.apron",
           "type": "object",
           "properties": {
-            "privatization": {
-              "title": "exp.apron.privatization",
-              "description":
-                "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
-              "type": "string",
-              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
-              "default": "mutex-meet"
-            },
-            "priv": {
-              "title": "exp.apron.priv",
-              "type": "object",
-              "properties": {
-                "not-started": {
-                  "title": "exp.apron.priv.not-started",
-                  "description":
-                    "Exclude writes from threads that may not be started yet",
-                  "type": "boolean",
-                  "default": true
-                },
-                "must-joined": {
-                  "title": "exp.apron.priv.must-joined",
-                  "description":
-                    "Exclude writes from threads that must have been joined",
-                  "type": "boolean",
-                  "default": true
-                }
-              },
-              "additionalProperties": false
-            },
             "prec-dump": {
               "title": "exp.apron.prec-dump",
               "description": "File to dump apron precision data to.",

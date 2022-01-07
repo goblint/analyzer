@@ -813,7 +813,7 @@ struct
     let thread x = `Right x
   end
 
-  let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "exp.apron.priv.must-joined" then  ",join"  else "") ^ ")"
+  let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.apron.priv.must-joined" then  ",join"  else "") ^ ")"
 
 
   let compatible (ask:Q.ask) current must_joined other =
@@ -836,7 +836,7 @@ struct
           not @@ List.mem other (ConcDomain.ThreadSet.elements must_joined)
         with _ -> true
       in
-      not_self_read && (not (GobConfig.get_bool "exp.apron.priv.not-started") || (may_be_running ())) && (not (GobConfig.get_bool "exp.apron.priv.must-joined") || (may_not_be_joined ()))
+      not_self_read && (not (GobConfig.get_bool "ana.apron.priv.not-started") || (may_be_running ())) && (not (GobConfig.get_bool "ana.apron.priv.must-joined") || (may_not_be_joined ()))
     | _ -> true
 
   let get_relevant_writes (ask:Q.ask) m v =
@@ -1166,7 +1166,7 @@ end
 let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
-      (val match get_string "exp.apron.privatization" with
+      (val match get_string "ana.apron.privatization" with
          | "dummy" -> (module Dummy : S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
@@ -1176,7 +1176,7 @@ let priv_module: (module S) Lazy.t =
          | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (ArbitraryCluster (Clustering2)))
          | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (ArbitraryCluster (ClusteringMax)))
          | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (ClusteringPower)))
-         | _ -> failwith "exp.apron.privatization: illegal value"
+         | _ -> failwith "ana.apron.privatization: illegal value"
       )
     in
     let module Priv = TracingPriv (Priv)  in
