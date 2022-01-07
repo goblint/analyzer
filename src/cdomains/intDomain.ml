@@ -22,6 +22,9 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
   * Always false for unsigned types, true for signed types if 'sem.int.signed_overflow' is 'assume_none'  *)
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
+let widening_thresholds = lazy (WideningThresholds.thresholds ())
+let widening_thresholds_desc = lazy (List.rev (Lazy.force widening_thresholds)) (* Lazy.map in 4.13*)
+
 module type Arith =
 sig
   type t
@@ -642,11 +645,26 @@ struct
   let cast_to ?torg ?no_ov t = norm ~cast:true t (* norm does all overflow handling *)
 
   let widen ik x y =
+    let threshold = get_bool "ana.int.interval_threshold_widening" in
+    let upper_threshold u =
+      let ts = Lazy.force widening_thresholds in
+      let u = Ints_t.to_bigint u in
+      let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
+      BatOption.map_default Ints_t.of_bigint (max_int ik) t
+    in
+    let lower_threshold l =
+      let ts = Lazy.force widening_thresholds_desc in
+      let l = Ints_t.to_bigint l in
+      let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
+      BatOption.map_default Ints_t.of_bigint (min_int ik) t
+    in
     match x, y with
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
-      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else min l1 (min_int ik) in
-      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else max u1 (max_int ik) in
+      let lt = if threshold then lower_threshold l1 else min_int ik in
+      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else min l1 (max lt (min_int ik)) in
+      let ut = if threshold then upper_threshold u1 else max_int ik in
+      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else max u1 (min ut (max_int ik)) in
       norm ik @@ Some (l2,u2)
   let widen ik x y =
     let r = widen ik x y in
@@ -1417,7 +1435,12 @@ struct
     | `Excluded (x,wx), `Excluded (y,wy) -> `Excluded (S.inter x y, range |? R.join wx wy)
 
   let join ik = join' ik
-  let widen ik = join' ~range:(size ik) ik
+
+  let widen ik =
+    if get_bool "ana.int.def_exc_widen_by_join" then
+      join' ik
+    else
+      join' ~range:(size ik) ik
 
   let meet ik x y =
     match (x,y) with

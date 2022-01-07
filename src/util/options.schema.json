@@ -173,31 +173,6 @@
       "type": "boolean",
       "default": false
     },
-    "interact": {
-      "title": "interact",
-      "type": "object",
-      "properties": {
-        "out": {
-          "title": "interact.out",
-          "description": "The result directory in interactive mode.",
-          "type": "string",
-          "default": "result"
-        },
-        "enabled": {
-          "title": "interact.enabled",
-          "description": "Is interactive mode enabled.",
-          "type": "boolean",
-          "default": false
-        },
-        "paused": {
-          "title": "interact.paused",
-          "description": "Start interactive in pause mode.",
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "additionalProperties": false
-    },
     "phases": {
       "title": "phases",
       "description":
@@ -415,6 +390,20 @@
               "type": "string",
               "enum": ["never", "once", "fixpoint"],
               "default": "never"
+            },
+            "def_exc_widen_by_join": {
+              "title": "ana.int.def_exc_widen_by_join",
+              "description":
+                "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_threshold_widening": {
+              "title": "ana.int.interval_threshold_widening",
+              "description":
+                "Use constants appearing in program as threshold for widening",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

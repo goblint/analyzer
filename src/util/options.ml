@@ -1,4 +1,3 @@
-open Json_encoding
 open Json_schema
 
 

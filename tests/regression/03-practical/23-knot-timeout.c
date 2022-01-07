@@ -1,4 +1,5 @@
-// SKIP (time-out with cb439e0, see https://github.com/goblint/analyzer/pull/502)
+// PARAM: --enable ana.int.def_exc_widen_by_join
+// time-out without def_exc_widen_by_join, see https://github.com/goblint/analyzer/pull/502)
 #include<pthread.h>
 
 struct a {
