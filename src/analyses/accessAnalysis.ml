@@ -1,4 +1,4 @@
-(** Acces and data race analysis. *)
+(** Access and data race analysis. *)
 
 module M = Messages
 module LF = LibraryFunctions
@@ -7,7 +7,7 @@ open Analyses
 open GobConfig
 
 
-(** Access and rata race analyzer without base --- this is the new standard *)
+(** Access and data race analyzer without base --- this is the new standard *)
 module Spec =
 struct
   include Analyses.DefaultSpec
