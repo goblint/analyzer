@@ -596,6 +596,24 @@
           },
           "additionalProperties": false
         },
+        "malloc": {
+          "title": "ana.malloc",
+          "type": "object",
+          "properties": {
+            "wrappers": {
+              "title": "ana.malloc.wrappers",
+              "description":
+                "Loads a list of known malloc wrapper functions.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
+                "kzalloc"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
         "apron": {
           "title": "ana.apron",
           "type": "object",
@@ -1155,24 +1173,6 @@
             "Use implicit forward propagation instead of the demand driven approach.",
           "type": "boolean",
           "default": false
-        },
-        "malloc": {
-          "title": "exp.malloc",
-          "type": "object",
-          "properties": {
-            "wrappers": {
-              "title": "exp.malloc.wrappers",
-              "description":
-                "Loads a list of known malloc wrapper functions.",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": [
-                "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
-                "kzalloc"
-              ]
-            }
-          },
-          "additionalProperties": false
         },
         "volatiles_are_top": {
           "title": "exp.volatiles_are_top",

@@ -24,13 +24,7 @@
     ],
     "context": {
       "widen": false
-    }
-  },
-  "exp": {
-    "partition-arrays": {
-      "enabled": true
     },
-    "region-offsets": true,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -47,6 +41,12 @@
         "kcalloc"
       ]
     }
+  },
+  "exp": {
+    "partition-arrays": {
+      "enabled": true
+    },
+    "region-offsets": true
   },
   "solver": "td3",
   "sem": {

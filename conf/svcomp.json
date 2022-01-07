@@ -25,13 +25,7 @@
     ],
     "context": {
       "widen": false
-    }
-  },
-  "exp": {
-    "partition-arrays": {
-      "enabled": true
     },
-    "region-offsets": true,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -52,6 +46,12 @@
         "ldv_calloc"
       ]
     }
+  },
+  "exp": {
+    "partition-arrays": {
+      "enabled": true
+    },
+    "region-offsets": true,
   },
   "witness": {
     "id": "enumerate",
