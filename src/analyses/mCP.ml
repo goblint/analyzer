@@ -533,11 +533,6 @@ struct
       in
       List.map (fun (n,d) -> n, spec_assign n d) xs
 
-  let finalize () =
-    let r = finalize () in
-    Access.print_result ();
-    r
-
   let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
     let split_one n (d,emits) =
       let nv = assoc_replace (n,d) pv in
@@ -661,7 +656,7 @@ struct
     else
       let asked' = QuerySet.add (Any q) asked in
       let sides = ref [] in
-      let f a (n,(module S:MCPSpec),d) =
+      let f ~q a (n,(module S:MCPSpec),d) =
         let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
           { local  = obj d
           ; node   = ctx.node
@@ -689,12 +684,16 @@ struct
       | Queries.PrintFullState ->
         ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
         ()
+      | Queries.WarnGlobal g ->
+        (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
+        let (n, g): V.t = Obj.obj g in
+        f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
       (* | EvalInt e ->
         (* TODO: only query others that actually respond to EvalInt *)
         (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
         f (Result.top ()) (!base_id, spec !base_id, assoc !base_id ctx.local) *)
       | _ ->
-        let r = fold_left f (Result.top ()) @@ spec_list ctx.local in
+        let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
         do_sideg ctx !sides;
         r
 
