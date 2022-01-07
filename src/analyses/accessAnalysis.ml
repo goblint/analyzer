@@ -14,7 +14,6 @@ struct
 
   let name () = "access"
 
-  (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
   module D = Lattice.Unit
   module C = Lattice.Unit
 
