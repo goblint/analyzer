@@ -2236,7 +2236,7 @@ struct
         match lv with
         | Some lv ->
           let heap_var =
-            if (get_bool "exp.malloc.fail")
+            if (get_bool "sem.malloc.fail")
             then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
             else AD.from_var (heap_var ctx)
           in
@@ -2250,7 +2250,7 @@ struct
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = heap_var ctx in
           let add_null addr =
-            if get_bool "exp.malloc.fail"
+            if get_bool "sem.malloc.fail"
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)

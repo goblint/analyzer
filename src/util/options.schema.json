@@ -804,6 +804,20 @@
             }
           },
           "additionalProperties": false
+        },
+        "malloc": {
+          "title": "sem.malloc",
+          "type": "object",
+          "properties": {
+            "fail": {
+              "title": "sem.malloc.fail",
+              "description":
+                "Consider the case where malloc or calloc fails.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1139,13 +1153,6 @@
           "title": "exp.malloc",
           "type": "object",
           "properties": {
-            "fail": {
-              "title": "exp.malloc.fail",
-              "description":
-                "Consider the case where malloc or calloc fails.",
-              "type": "boolean",
-              "default": false
-            },
             "wrappers": {
               "title": "exp.malloc.wrappers",
               "description":
