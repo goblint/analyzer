@@ -671,6 +671,14 @@
                 }
               },
               "additionalProperties": false
+            },
+            "privatization": {
+              "title": "ana.base.privatization",
+              "description":
+                "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+              "type": "string",
+              "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "default": "protection-read"
             }
           },
           "additionalProperties": false
@@ -1151,14 +1159,6 @@
       "description": "Experimental features",
       "type": "object",
       "properties": {
-        "privatization": {
-          "title": "exp.privatization",
-          "description":
-            "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
-          "type": "string",
-          "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
-          "default": "protection-read"
-        },
         "priv-prec-dump": {
           "title": "exp.priv-prec-dump",
           "description": "File to dump privatization precision data to.",

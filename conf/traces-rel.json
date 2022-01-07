@@ -27,6 +27,9 @@
         "ldv_xzalloc",
         "ldv_calloc"
       ]
+    },
+    "base" : {
+      "privatization": "mutex-meet"
     }
   },
   "sem": {
@@ -41,7 +44,6 @@
     }
   },
   "exp": {
-    "privatization": "mutex-meet",
     "priv-distr-init": false,
     "solver" : {
       "td3": {
