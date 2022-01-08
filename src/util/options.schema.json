@@ -953,12 +953,12 @@
           },
           "additionalProperties": false
         },
-        "locks": {
-          "title": "sem.locks",
+        "lock": {
+          "title": "sem.lock",
           "type": "object",
           "properties": {
             "fail": {
-              "title": "sem.locks.fail",
+              "title": "sem.lock.fail",
               "description":
                 "Takes the possible failing of locking operations into account.",
               "type": "boolean",

@@ -1,4 +1,4 @@
-// PARAM: --set sem.locks.fail true
+// PARAM: --set sem.lock.fail true
 #include <pthread.h>
 #include <stdio.h>
 
