@@ -531,7 +531,7 @@ struct
         let next _ = []
       end
       in
-      if Access.is_all_safe () then (
+      if !Access.is_all_safe then (
         let module TaskResult =
         struct
           module Arg = TrivialArg

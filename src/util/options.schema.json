@@ -229,7 +229,7 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutex", "mallocWrapper"
+            "escape", "mutex", "access", "mallocWrapper"
           ]
         },
         "path_sens": {
