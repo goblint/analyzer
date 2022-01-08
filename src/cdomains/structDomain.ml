@@ -256,12 +256,12 @@ struct
     if fields = []
     then None
     else
-      let fields = if get_bool "exp.structs.key.forward" then fields else List.rev fields in
+      let fields = if get_bool "ana.base.structs.key.forward" then fields else List.rev fields in
       let rec first_appropriate_key (rem_fields: field list) (second_choice: field): field =
         match rem_fields with
         | [] -> second_choice
         | h::t -> begin
-            match (h.ftype, get_bool "exp.structs.key.prefer-ptrs", get_bool "exp.structs.key.avoid-ints") with
+            match (h.ftype, get_bool "ana.base.structs.key.prefer-ptrs", get_bool "ana.base.structs.key.avoid-ints") with
             | (TPtr (_, _), _, _) -> h
             | (TInt (_, _), true, _)
             | (TInt (_, _), _, true) -> first_appropriate_key t second_choice
@@ -489,7 +489,7 @@ struct
   let fold f = unop' (S.fold f) (HS.fold f) (KS.fold f)
 
   (* Functions that make us of the configuration flag *)
-  let chosen_domain () = get_string "exp.structs.domain"
+  let chosen_domain () = get_string "ana.base.structs.domain"
 
   let pick_combined setting (comp: compinfo) =
     let all_bool () = List.for_all (fun f -> match f.ftype with TInt(IBool, _) -> true | _ -> false) comp.cfields in

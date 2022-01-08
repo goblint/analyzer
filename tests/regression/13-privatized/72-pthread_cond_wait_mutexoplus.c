@@ -1,4 +1,4 @@
-// PARAM: --sets exp.privatization mutex-oplus
+// PARAM: --sets ana.base.privatization mutex-oplus
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>

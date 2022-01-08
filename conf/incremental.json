@@ -9,6 +9,9 @@
     },
     "opt": {
       "hashcons": false
+    },
+    "base": {
+      "privatization": "none"
     }
   },
   "incremental": {
@@ -19,7 +22,6 @@
   },
   "exp": {
     "earlyglobs": true,
-    "privatization": "none",
     "solver": {
       "td3": {
         "term": true,

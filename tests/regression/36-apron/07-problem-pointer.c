@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron']" --set exp.privatization none --set exp.apron.privatization dummy
+// SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron']" --set ana.base.privatization none --set ana.apron.privatization dummy
 extern int __VERIFIER_nondet_int();
 
 void change(int *p) {

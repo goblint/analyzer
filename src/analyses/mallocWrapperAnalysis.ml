@@ -88,7 +88,7 @@ struct
     | _ -> Queries.Result.top q
 
   let init marshal =
-    List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "exp.malloc.wrappers");
+    List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "ana.malloc.wrappers");
     NodeVarinfoMap.unmarshal marshal
 
   let finalize () =

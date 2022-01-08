@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set exp.privatization protection --set exp.solver.td3.side_widen sides-pp
+// PARAM: --enable ana.int.interval --set ana.base.privatization protection --set solvers.td3.side_widen sides-pp
 // also needs sides-pp now that protected and unprotected use different global constraint variables
 #include <pthread.h>
 #include <stdio.h>

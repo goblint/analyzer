@@ -1,5 +1,10 @@
 {
   "ana": {
+    "base": {
+      "partition-arrays": {
+        "enabled": true
+      }
+    },
     "sv-comp": {
       "enabled": true,
       "functions": true
@@ -25,17 +30,7 @@
     ],
     "context": {
       "widen": false
-    }
-  },
-  "exp": {
-    "witness": {
-      "id": "enumerate",
-      "unknown": false
     },
-    "partition-arrays": {
-      "enabled": true
-    },
-    "region-offsets": true,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -53,6 +48,9 @@
       ]
     }
   },
+  "exp": {
+    "region-offsets": true
+  },
   "solver": "td3",
   "sem": {
     "unknown_function": {
@@ -61,5 +59,9 @@
     "int": {
       "signed_overflow": "assume_none"
     }
+  },
+  "witness": {
+    "id": "enumerate",
+    "unknown": false
   }
 }
