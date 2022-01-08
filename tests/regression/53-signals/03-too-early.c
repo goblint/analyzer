@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] 'pthreadSignals'
+// PARAM: --set ana.activated[+] 'pthreadSignals' --set ana.activated[+] 'threadJoins'
 #include<pthread.h>
 #include<stdio.h>
 #include<unistd.h>
@@ -12,10 +12,8 @@ pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 void* f1(void* ptr) {
     int top;
     pthread_mutex_lock(&mut);
-    g = 1;
-    if(top) {
-        pthread_cond_wait(&cond,&mut); //NOWARN
-    }
+    int res = 0;
+    pthread_cond_wait(&cond,&mut); //WARN
     pthread_mutex_unlock(&mut);
     return NULL;
 }
@@ -32,12 +30,9 @@ int main(int argc, char const *argv[])
     pthread_t t1;
     pthread_t t2;
 
-    pthread_create(&t1,NULL,f1,NULL);
-    sleep(1);
     pthread_create(&t2,NULL,f2,NULL);
-
-    pthread_join(t1, NULL);
-    pthread_join(t2, NULL);
+    pthread_join(t2,NULL);
+    pthread_create(&t1,NULL,f1,NULL);
 
     return 0;
 }
