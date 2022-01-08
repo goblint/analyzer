@@ -173,31 +173,6 @@
       "type": "boolean",
       "default": false
     },
-    "interact": {
-      "title": "interact",
-      "type": "object",
-      "properties": {
-        "out": {
-          "title": "interact.out",
-          "description": "The result directory in interactive mode.",
-          "type": "string",
-          "default": "result"
-        },
-        "enabled": {
-          "title": "interact.enabled",
-          "description": "Is interactive mode enabled.",
-          "type": "boolean",
-          "default": false
-        },
-        "paused": {
-          "title": "interact.paused",
-          "description": "Start interactive in pause mode.",
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "additionalProperties": false
-    },
     "phases": {
       "title": "phases",
       "description":
@@ -254,7 +229,7 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutex", "mallocWrapper"
+            "escape", "mutex", "access", "mallocWrapper"
           ]
         },
         "path_sens": {
@@ -415,6 +390,20 @@
               "type": "string",
               "enum": ["never", "once", "fixpoint"],
               "default": "never"
+            },
+            "def_exc_widen_by_join": {
+              "title": "ana.int.def_exc_widen_by_join",
+              "description":
+                "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_threshold_widening": {
+              "title": "ana.int.interval_threshold_widening",
+              "description":
+                "Use constants appearing in program as threshold for widening",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -603,6 +592,111 @@
                 }
               },
               "additionalProperties": false
+            },
+            "partition-arrays": {
+              "title": "ana.base.partition-arrays",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.partition-arrays.enabled",
+                  "description":
+                    "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "keep-expr": {
+                  "title": "ana.base.partition-arrays.keep-expr",
+                  "description":
+                    "When using the partitioning which expression should be used for partitioning ('first', 'last')",
+                  "type": "string",
+                  "enum": ["first", "last"],
+                  "default": "first"
+                },
+                "partition-by-const-on-return": {
+                  "title": "ana.base.partition-arrays.partition-by-const-on-return",
+                  "description":
+                    "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?",
+                  "type": "boolean",
+                  "default": false
+                },
+                "smart-join": {
+                  "title": "ana.base.partition-arrays.smart-join",
+                  "description":
+                    "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "structs": {
+              "title": "ana.base.structs",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.structs.domain",
+                  "description":
+                    "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk",
+                  "type": "string",
+                  "enum": ["simple", "sets", "keyed", "combined-all", "combined-sk"],
+                  "default": "simple"
+                },
+                "key": {
+                  "title": "ana.base.structs.key",
+                  "type": "object",
+                  "properties": {
+                    "forward": {
+                      "title": "ana.base.structs.key.forward",
+                      "description":
+                        "Whether the struct key should be picked going from first field to last.",
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "avoid-ints": {
+                      "title": "ana.base.structs.key.avoid-ints",
+                      "description":
+                        "Whether integers should be avoided for key.",
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "prefer-ptrs": {
+                      "title": "ana.base.structs.key.prefer-ptrs",
+                      "description":
+                        "Whether pointers should be preferred for key.",
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "privatization": {
+              "title": "ana.base.privatization",
+              "description":
+                "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+              "type": "string",
+              "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "default": "protection-read"
+            }
+          },
+          "additionalProperties": false
+        },
+        "malloc": {
+          "title": "ana.malloc",
+          "type": "object",
+          "properties": {
+            "wrappers": {
+              "title": "ana.malloc.wrappers",
+              "description":
+                "Loads a list of known malloc wrapper functions.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
+                "kzalloc"
+              ]
             }
           },
           "additionalProperties": false
@@ -631,6 +725,35 @@
                 "Use constants appearing in program as threshold for widening",
               "type": "boolean",
               "default": false
+            },
+            "privatization": {
+              "title": "ana.apron.privatization",
+              "description":
+                "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+              "type": "string",
+              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "default": "mutex-meet"
+            },
+            "priv": {
+              "title": "ana.apron.priv",
+              "type": "object",
+              "properties": {
+                "not-started": {
+                  "title": "ana.apron.priv.not-started",
+                  "description":
+                    "Exclude writes from threads that may not be started yet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "must-joined": {
+                  "title": "ana.apron.priv.must-joined",
+                  "description":
+                    "Exclude writes from threads that must have been joined",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -812,6 +935,34 @@
               "type": "string",
               "enum": ["assume_top", "assume_none", "assume_wraparound"],
               "default": "assume_top"
+            }
+          },
+          "additionalProperties": false
+        },
+        "malloc": {
+          "title": "sem.malloc",
+          "type": "object",
+          "properties": {
+            "fail": {
+              "title": "sem.malloc.fail",
+              "description":
+                "Consider the case where malloc or calloc fails.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "lock": {
+          "title": "sem.lock",
+          "type": "object",
+          "properties": {
+            "fail": {
+              "title": "sem.lock.fail",
+              "description":
+                "Takes the possible failing of locking operations into account.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1037,14 +1188,6 @@
       "description": "Experimental features",
       "type": "object",
       "properties": {
-        "privatization": {
-          "title": "exp.privatization",
-          "description":
-            "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
-          "type": "string",
-          "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
-          "default": "protection-read"
-        },
         "priv-prec-dump": {
           "title": "exp.priv-prec-dump",
           "description": "File to dump privatization precision data to.",
@@ -1062,35 +1205,6 @@
           "title": "exp.apron",
           "type": "object",
           "properties": {
-            "privatization": {
-              "title": "exp.apron.privatization",
-              "description":
-                "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
-              "type": "string",
-              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
-              "default": "mutex-meet"
-            },
-            "priv": {
-              "title": "exp.apron.priv",
-              "type": "object",
-              "properties": {
-                "not-started": {
-                  "title": "exp.apron.priv.not-started",
-                  "description":
-                    "Exclude writes from threads that may not be started yet",
-                  "type": "boolean",
-                  "default": true
-                },
-                "must-joined": {
-                  "title": "exp.apron.priv.must-joined",
-                  "description":
-                    "Exclude writes from threads that must have been joined",
-                  "type": "boolean",
-                  "default": true
-                }
-              },
-              "additionalProperties": false
-            },
             "prec-dump": {
               "title": "exp.apron.prec-dump",
               "description": "File to dump apron precision data to.",
@@ -1119,13 +1233,6 @@
           "type": "boolean",
           "default": false
         },
-        "failing-locks": {
-          "title": "exp.failing-locks",
-          "description":
-            "Takes the possible failing of locking operations into account.",
-          "type": "boolean",
-          "default": false
-        },
         "region-offsets": {
           "title": "exp.region-offsets",
           "description": "Considers offsets for region accesses.",
@@ -1145,31 +1252,6 @@
             "Use implicit forward propagation instead of the demand driven approach.",
           "type": "boolean",
           "default": false
-        },
-        "malloc": {
-          "title": "exp.malloc",
-          "type": "object",
-          "properties": {
-            "fail": {
-              "title": "exp.malloc.fail",
-              "description":
-                "Consider the case where malloc or calloc fails.",
-              "type": "boolean",
-              "default": false
-            },
-            "wrappers": {
-              "title": "exp.malloc.wrappers",
-              "description":
-                "Loads a list of known malloc wrapper functions.",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": [
-                "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
-                "kzalloc"
-              ]
-            }
-          },
-          "additionalProperties": false
         },
         "volatiles_are_top": {
           "title": "exp.volatiles_are_top",
@@ -1231,69 +1313,6 @@
           "type": "boolean",
           "default": false
         },
-        "solver": {
-          "title": "exp.solver",
-          "type": "object",
-          "properties": {
-            "td3": {
-              "title": "exp.solver.td3",
-              "type": "object",
-              "properties": {
-                "term": {
-                  "title": "exp.solver.td3.term",
-                  "description":
-                    "Should the td3 solver use the phased/terminating strategy?",
-                  "type": "boolean",
-                  "default": true
-                },
-                "side_widen": {
-                  "title": "exp.solver.td3.side_widen",
-                  "description":
-                    "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
-                  "type": "string",
-                  "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
-                  "default": "sides"
-                },
-                "space": {
-                  "title": "exp.solver.td3.space",
-                  "description":
-                    "Should the td3 solver only keep values at widening points?",
-                  "type": "boolean",
-                  "default": false
-                },
-                "space_cache": {
-                  "title": "exp.solver.td3.space_cache",
-                  "description": "Should the td3-space solver cache values?",
-                  "type": "boolean",
-                  "default": true
-                },
-                "space_restore": {
-                  "title": "exp.solver.td3.space_restore",
-                  "description":
-                    "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
-                  "type": "boolean",
-                  "default": true
-                }
-              },
-              "additionalProperties": false
-            },
-            "slr4": {
-              "title": "exp.solver.slr4",
-              "type": "object",
-              "properties": {
-                "restart_count": {
-                  "title": "exp.solver.slr4.restart_count",
-                  "description":
-                    "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.",
-                  "type": "integer",
-                  "default": 1
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
-        },
         "fast_global_inits": {
           "title": "exp.fast_global_inits",
           "description":
@@ -1315,150 +1334,11 @@
           "type": "boolean",
           "default": false
         },
-        "witness": {
-          "title": "exp.witness",
-          "type": "object",
-          "properties": {
-            "path": {
-              "title": "exp.witness.path",
-              "description": "Witness output path",
-              "type": "string",
-              "default": "witness.graphml"
-            },
-            "id": {
-              "title": "exp.witness.id",
-              "description": "Which witness node IDs to use? node/enumerate",
-              "type": "string",
-              "enum": ["node", "enumerate"],
-              "default": "node"
-            },
-            "invariant": {
-              "title": "exp.witness.invariant",
-              "type": "object",
-              "properties": {
-                "nodes": {
-                  "title": "exp.witness.invariant.nodes",
-                  "description":
-                    "Which witness nodes to add invariants to? all/loop_heads/none",
-                  "type": "string",
-                  "enum": ["all", "loop_heads", "none"],
-                  "default": "all"
-                }
-              },
-              "additionalProperties": false
-            },
-            "minimize": {
-              "title": "exp.witness.minimize",
-              "description": "Try to minimize the witness",
-              "type": "boolean",
-              "default": false
-            },
-            "uncil": {
-              "title": "exp.witness.uncil",
-              "description":
-                "Try to undo CIL control flow transformations in witness",
-              "type": "boolean",
-              "default": false
-            },
-            "stack": {
-              "title": "exp.witness.stack",
-              "description": "Construct stacktrace-based witness nodes",
-              "type": "boolean",
-              "default": true
-            },
-            "unknown": {
-              "title": "exp.witness.unknown",
-              "description": "Output witness for unknown result",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
-        },
         "architecture": {
           "title": "exp.architecture",
           "description": "Architecture for analysis, currently for witness",
           "type": "string",
           "default": "64bit"
-        },
-        "partition-arrays": {
-          "title": "exp.partition-arrays",
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "title": "exp.partition-arrays.enabled",
-              "description":
-                "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
-              "type": "boolean",
-              "default": false
-            },
-            "keep-expr": {
-              "title": "exp.partition-arrays.keep-expr",
-              "description":
-                "When using the partitioning which expression should be used for partitioning ('first', 'last')",
-              "type": "string",
-              "enum": ["first", "last"],
-              "default": "first"
-            },
-            "partition-by-const-on-return": {
-              "title": "exp.partition-arrays.partition-by-const-on-return",
-              "description":
-                "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?",
-              "type": "boolean",
-              "default": false
-            },
-            "smart-join": {
-              "title": "exp.partition-arrays.smart-join",
-              "description":
-                "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "additionalProperties": false
-        },
-        "structs": {
-          "title": "exp.structs",
-          "type": "object",
-          "properties": {
-            "domain": {
-              "title": "exp.structs.domain",
-              "description":
-                "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk",
-              "type": "string",
-              "enum": ["simple", "sets", "keyed", "combined-all", "combined-sk"],
-              "default": "simple"
-            },
-            "key": {
-              "title": "exp.structs.key",
-              "type": "object",
-              "properties": {
-                "forward": {
-                  "title": "exp.structs.key.forward",
-                  "description":
-                    "Whether the struct key should be picked going from first field to last.",
-                  "type": "boolean",
-                  "default": true
-                },
-                "avoid-ints": {
-                  "title": "exp.structs.key.avoid-ints",
-                  "description":
-                    "Whether integers should be avoided for key.",
-                  "type": "boolean",
-                  "default": true
-                },
-                "prefer-ptrs": {
-                  "title": "exp.structs.key.prefer-ptrs",
-                  "description":
-                    "Whether pointers should be preferred for key.",
-                  "type": "boolean",
-                  "default": true
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
         },
         "gcc_path": {
           "title": "exp.gcc_path",
@@ -1801,6 +1681,129 @@
         "success": {
           "title": "warn.success",
           "description": "Success severity messages",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "solvers": {
+      "title": "solvers",
+      "type": "object",
+      "properties": {
+        "td3": {
+          "title": "solvers.td3",
+          "type": "object",
+          "properties": {
+            "term": {
+              "title": "solvers.td3.term",
+              "description":
+                "Should the td3 solver use the phased/terminating strategy?",
+              "type": "boolean",
+              "default": true
+            },
+            "side_widen": {
+              "title": "solvers.td3.side_widen",
+              "description":
+                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
+              "type": "string",
+              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
+              "default": "sides"
+            },
+            "space": {
+              "title": "solvers.td3.space",
+              "description":
+                "Should the td3 solver only keep values at widening points?",
+              "type": "boolean",
+              "default": false
+            },
+            "space_cache": {
+              "title": "solvers.td3.space_cache",
+              "description": "Should the td3-space solver cache values?",
+              "type": "boolean",
+              "default": true
+            },
+            "space_restore": {
+              "title": "solvers.td3.space_restore",
+              "description":
+                "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "slr4": {
+          "title": "solvers.slr4",
+          "type": "object",
+          "properties": {
+            "restart_count": {
+              "title": "solvers.slr4.restart_count",
+              "description":
+                "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.",
+              "type": "integer",
+              "default": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "witness": {
+      "title": "witness",
+      "type": "object",
+      "properties": {
+        "path": {
+          "title": "witness.path",
+          "description": "Witness output path",
+          "type": "string",
+          "default": "witness.graphml"
+        },
+        "id": {
+          "title": "witness.id",
+          "description": "Which witness node IDs to use? node/enumerate",
+          "type": "string",
+          "enum": ["node", "enumerate"],
+          "default": "node"
+        },
+        "invariant": {
+          "title": "witness.invariant",
+          "type": "object",
+          "properties": {
+            "nodes": {
+              "title": "witness.invariant.nodes",
+              "description":
+                "Which witness nodes to add invariants to? all/loop_heads/none",
+              "type": "string",
+              "enum": ["all", "loop_heads", "none"],
+              "default": "all"
+            }
+          },
+          "additionalProperties": false
+        },
+        "minimize": {
+          "title": "witness.minimize",
+          "description": "Try to minimize the witness",
+          "type": "boolean",
+          "default": false
+        },
+        "uncil": {
+          "title": "witness.uncil",
+          "description":
+            "Try to undo CIL control flow transformations in witness",
+          "type": "boolean",
+          "default": false
+        },
+        "stack": {
+          "title": "witness.stack",
+          "description": "Construct stacktrace-based witness nodes",
+          "type": "boolean",
+          "default": true
+        },
+        "unknown": {
+          "title": "witness.unknown",
+          "description": "Output witness for unknown result",
           "type": "boolean",
           "default": true
         }

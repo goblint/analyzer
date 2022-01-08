@@ -1,6 +1,6 @@
 module TID = ThreadIdDomain.FlagConfiguredTID
 
-type t = { tid:ThreadIdDomain.ThreadLifted.t; created:ConcDomain.ThreadSet.t; must_joined:ConcDomain.ThreadSet.t} [@@deriving ord]
+type t = { tid:ThreadIdDomain.ThreadLifted.t; created:ConcDomain.ThreadSet.t; must_joined:ConcDomain.ThreadSet.t} [@@deriving eq,ord]
 
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)

@@ -16,7 +16,7 @@ on:
       tag:
         description: Docker tag
         required: true
-        default: latest
+        default: nightly
 
 env:
   REGISTRY: ghcr.io

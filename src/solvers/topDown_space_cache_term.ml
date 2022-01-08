@@ -172,7 +172,7 @@ module WP =
         )
       in
       (* restore values for non-widening-points *)
-      if GobConfig.get_bool "exp.solver.wp.restore" then (
+      if GobConfig.get_bool "solvers.wp.restore" then (
         if (GobConfig.get_bool "dbg.verbose") then
           print_endline ("Restoring missing values.");
         let restore () =
