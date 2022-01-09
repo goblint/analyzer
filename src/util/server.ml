@@ -75,7 +75,7 @@ let start file do_analyze =
 
 let change_info file = match !Serialize.solver_data with
   | Some solver_data ->
-    let changes = CompareCIL.empty_change_info () in
+    let changes = CompareCIL.compareCilFiles file file in
     let old_data = Some { Analyses.cil_file = file; solver_data } in
     { Analyses.changes; old_data; new_file = file }
   | _ -> Analyses.empty_increment_data file  
