@@ -70,15 +70,21 @@ let make file do_analyze : t = { file; do_analyze }
 
 let start file do_analyze =
   GobConfig.set_bool "incremental.save" true;
-  GobConfig.set_bool "incremental.load" true;
   serve (make file do_analyze)
 
-let change_info file = match !Serialize.solver_data with
-  | Some solver_data ->
-    let changes = CompareCIL.compareCilFiles file file in
-    let old_data = Some { Analyses.cil_file = file; solver_data } in
-    { Analyses.changes; old_data; new_file = file }
-  | _ -> Analyses.empty_increment_data file  
+let analyze ?(reset=false) { file; do_analyze } =
+  if reset then
+    Serialize.solver_data := None;
+  let increment_data, fresh = match !Serialize.solver_data with
+    | Some solver_data ->
+      let changes = CompareCIL.compareCilFiles file file in
+      let old_data = Some { Analyses.cil_file = file; solver_data } in
+      { Analyses.changes; old_data; new_file = file }, false
+    | _ -> Analyses.empty_increment_data file, true
+  in
+  GobConfig.set_bool "incremental.load" (not fresh);
+  do_analyze increment_data file;
+  GobConfig.set_bool "incremental.load" true
 
 let () =
   let register = Registry.register registry in
@@ -87,13 +93,7 @@ let () =
     let name = "analyze"
     type args = bool * unit [@@deriving of_yojson]
     type result = unit [@@deriving to_yojson]
-    let process (reset, ()) serve =
-      if reset then (
-        Serialize.solver_data := None;
-        GobConfig.set_bool "incremental.load" false);
-      serve.do_analyze (change_info serve.file) serve.file;
-      if reset then
-        GobConfig.set_bool "incremental.load" true
+    let process (reset, ()) serve = analyze serve ~reset
   end);
 
   register (module struct
@@ -115,6 +115,19 @@ let () =
     type args = unit [@@deriving of_yojson]
     type result = Messages.Message.t list [@@deriving to_yojson]
     let process () _ = !Messages.Table.messages_list
+  end);
+
+  register (module struct
+    let name = "exp_eval"
+    type args = ExpressionEvaluation.query [@@deriving of_yojson]
+    type result =
+      ((string * CilType.Location.t * string * int) * bool option) list [@@deriving to_yojson]
+    let process query serv =
+      GobConfig.set_auto "trans.activated[+]" "'expeval'";
+      ExpressionEvaluation.gv_query := Some query;
+      analyze serv;
+      GobConfig.set_auto "trans.activated[-]" "'expeval'";
+      !ExpressionEvaluation.gv_results
   end);
 
   register (module struct
