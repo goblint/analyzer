@@ -68,10 +68,33 @@ let serve serv =
 
 let make file do_analyze : t = { file; do_analyze }
 
-let start file do_analyze = serve (make file do_analyze)
+let start file do_analyze =
+  GobConfig.set_bool "incremental.save" true;
+  GobConfig.set_bool "incremental.load" true;
+  serve (make file do_analyze)
+
+let change_info file = match !Serialize.solver_data with
+  | Some solver_data ->
+    let changes = CompareCIL.empty_change_info () in
+    let old_data = Some { Analyses.cil_file = file; solver_data } in
+    { Analyses.changes; old_data; new_file = file }
+  | _ -> Analyses.empty_increment_data file  
 
 let () =
   let register = Registry.register registry in
+
+  register (module struct
+    let name = "analyze"
+    type args = bool * unit [@@deriving of_yojson]
+    type result = unit [@@deriving to_yojson]
+    let process (reset, ()) serve =
+      if reset then (
+        Serialize.solver_data := None;
+        GobConfig.set_bool "incremental.load" false);
+      serve.do_analyze (change_info serve.file) serve.file;
+      if reset then
+        GobConfig.set_bool "incremental.load" true
+  end);
 
   register (module struct
     let name = "config"
