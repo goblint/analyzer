@@ -217,6 +217,12 @@
       "type": "boolean",
       "default": false
     },
+    "server": {
+      "title": "server",
+      "description": "Server mode",
+      "type": "boolean",
+      "default": false
+    },
     "ana": {
       "title": "Analyses",
       "description": "Options for analyses",
