@@ -108,9 +108,9 @@ let () =
 
   register (module struct
     let name = "analyze"
-    type args = bool [@@deriving of_yojson]
+    type args = { reset: bool [@default false] } [@@deriving of_yojson]
     type result = unit [@@deriving to_yojson]
-    let process reset serve = analyze serve ~reset
+    let process { reset } serve = analyze serve ~reset
   end);
 
   register (module struct
