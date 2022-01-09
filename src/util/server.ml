@@ -88,6 +88,13 @@ let () =
   end);
 
   register (module struct
+    let name = "messages"
+    type args = unit [@@deriving of_yojson]
+    type result = Messages.Message.t list [@@deriving to_yojson]
+    let process () _ = !Messages.Table.messages_list
+  end);
+
+  register (module struct
     let name = "ping"
     type args = unit [@@deriving of_yojson]
     type result = [`Pong] [@@deriving to_yojson]
