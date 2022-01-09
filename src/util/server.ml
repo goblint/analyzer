@@ -98,9 +98,9 @@ let () =
 
   register (module struct
     let name = "config"
-    type args = string * string [@@deriving of_yojson]
+    type args = string * Yojson.Safe.t [@@deriving of_yojson]
     type result = unit [@@deriving to_yojson]
-    let process (var, value) _ = GobConfig.set_auto var value
+    let process (conf, json) _ = GobConfig.set_auto conf (Yojson.Safe.to_string json)
   end);
 
   register (module struct
