@@ -72,6 +72,21 @@ let start file do_analyze = serve (make file do_analyze)
 
 let () =
   let register = Registry.register registry in
+
+  register (module struct
+    let name = "config"
+    type args = string * string [@@deriving of_yojson]
+    type result = unit [@@deriving to_yojson]
+    let process (var, value) _ = GobConfig.set_auto var value
+  end);
+
+  register (module struct
+    let name = "merge_config"
+    type args = Yojson.Safe.t * unit [@@deriving of_yojson]
+    type result = unit [@@deriving to_yojson]
+    let process (json, ()) _ = GobConfig.merge json
+  end);
+
   register (module struct
     let name = "ping"
     type args = unit [@@deriving of_yojson]
