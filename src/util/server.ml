@@ -21,7 +21,7 @@ end
 module Registry = struct
   type t = (string, (module Command)) Hashtbl.t
   let make () : t = Hashtbl.create 32
-  let register (reg : t) (module R : Command) = Hashtbl.add reg R.name (module R)
+  let register (reg: t) (module R : Command) = Hashtbl.add reg R.name (module R)
 end
 
 let registry = Registry.make ()
@@ -48,7 +48,7 @@ module ParamParser (C : Command) = struct
       | _ -> Error err
 end
 
-let handle_request (serv : t) (message: Message.either) (id: Id.t) =
+let handle_request (serv: t) (message: Message.either) (id: Id.t) =
   let cmd = Hashtbl.find_option registry message.method_ in
   let response = match cmd with
     | Some (module C) ->
