@@ -20,6 +20,8 @@ module Vector =
 struct
   type t = Mpqf.t list
 
+  let length = List.length
+
   let create_zero_vec n : t =
     let rec zero_vec t n =
       if n > 0 then zero_vec (Mpqf.of_int 0 :: t) (n-1)
@@ -70,7 +72,8 @@ struct
   let rec keep_rows (v:t) n =
     match v with
     | [] -> if n = 0 then [] else failwith "Number exceeds list"
-    | x :: xs -> if n > 0 then x :: keep_rows xs (n-1) else x :: []
+    | x :: xs -> if n > 0 then x :: keep_rows xs (n-1) else []
+
   let rec remove_val n (v:t) =
     match v with
     | [] -> failwith "Entry does not exist"
@@ -110,15 +113,19 @@ struct
     in find_opt_i v 0
 
 
-  let get_colnum_not_zero t =
+  let get_rownum_not_zero t =
     let rev_list = List.rev t in
-    find_opt_with_index (function x -> x <> (to_rt 0)) rev_list
+    match find_opt_with_index (function x -> x <> (to_rt 0)) rev_list with
+    | Some (i, c) -> Some (List.length t - (i + 1), c)
+    | x -> x
 
 end
 
 module Matrix =
 struct
   type t = Mpqf.t list list
+
+  exception NoSolution
   let empty () = ([] : t)
 
   let show (x:t) =
@@ -181,9 +188,6 @@ struct
     | x1 :: xs1, x2 :: xs2 -> if List.equal Mpqf.equal x1 x2 then equal xs1 xs2 else false
     | _ -> false
 
-  let subtract_rows row1 row2 =
-    List.map2 (function x -> function y -> x -: y) row1 row2
-
   let add_rows row1 row2 =
     List.map2 (function x -> function y -> x +: y) row1 row2
 
@@ -192,17 +196,17 @@ struct
     in Vector.sub_vecs row1 subtr_vec
 
 
-  let reduce_row_to_zero t row_n : t =
-    if M.tracing then M.tracel "affEq" "Starting reduction to zero row_n: %i , t: %s\n" row_n (show t);
-    let red_row = List.nth t row_n
-    in List.map (function x -> subtract_rows x red_row) t
+  let reduce_row_to_zero (t :t) row_n col_n =
+    let red_row = List.nth t row_n in
+    let c = List.nth red_row col_n in
+    List.map (function x -> subtract_rows_c x red_row ((Vector.get_val col_n x) /: c)) t
 
   let obtain_pivot row =
     let non_zero = Vector.find_opt_with_index (function x -> x <> (to_rt 0)) row in
     match non_zero with
     | None -> None
-    | Some (i, p) -> if List.compare_length_with row (i + 1) <= 0 then None else
-                      Some (i, List.map (function x -> x /: p) row)
+    | Some (i, p) -> if List.compare_length_with row (i + 1) <= 0 then raise NoSolution else
+        Some (i, List.map (function x -> x /: p) row)
 
   let rec remove_zero_rows t =
     List.filter (function x -> not (Vector.is_only_zero x)) t
@@ -216,23 +220,34 @@ struct
       | _, _ -> failwith "Matrix has not been reduced yet"
     in List.sort sort t
 
-
-  (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows*)
-  let normalize t =
+  (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution*)
+  let normalize_opt t =
     let rec create_rref new_t curr_row =
       if curr_row >= num_rows new_t then new_t else
-        let pivot_row = obtain_pivot (List.nth new_t curr_row) in
+        let pivot_row = (match obtain_pivot (List.nth new_t curr_row) with
+            | c -> c
+            | exception NoSolution -> raise NoSolution) (*Perhaps not the most elegant way to handle this*)
+        in
         match pivot_row with
         | None -> create_rref (remove_row new_t curr_row) (curr_row)
         | Some (i, p) -> let col = get_col new_t i in
           let res = List.map2i (function row_i -> function y -> function z ->
               if row_i <> curr_row then subtract_rows_c y p z else p) new_t col in
           create_rref res (curr_row + 1)
-    in switch_rows (create_rref t 0)
+    in match create_rref t 0 with
+    | c -> Some (switch_rows c)
+    | exception NoSolution -> None
+
+
+  (*Normalize and fail if there is no solution*)
+  let normalize t =
+    match normalize_opt t with
+    | Some (x) -> x
+    | None -> failwith "Matrix does not have a solution"
 
   let normalize t =
     let res = normalize t in
-    if M.tracing then M.tracel "norm" "normalize %s -> %s" (show t) (show res); res
+    if M.tracing then M.tracel "norm" "normalize \n %s -> %s" (show t) (show res); res
 
   (*Checks if the rows of t2 are also present in t1*)
   let rec is_contained_in t1 t2 =
@@ -365,9 +380,11 @@ struct
     | None -> Some(min), Some(max)
     | Some (m) -> ( match calc_const m t.env texpr  with
         | None -> Some (min), Some (max)
-        | Some (c) -> let c_float = Mpqf.to_float c in
-          let c_min, c_max = Float.to_int (Float.floor c_float), Float.to_int (Float.ceil c_float) in
-          Some(IntOps.BigIntOps.of_int c_min), Some(IntOps.BigIntOps.of_int c_max))
+        | Some (c) -> if (Mpqf.get_den c) = (Mpzf.of_int 1) then
+            let int_val = IntOps.BigIntOps.of_string (Mpzf.to_string (Mpqf.get_num c)) in
+            Some(int_val), Some (int_val)
+          else (None, None))
+
 end
 
 module Convert = EnvDomain.Convert (ExpressionBounds)
@@ -402,7 +419,7 @@ struct
 
   let compare a b =
     let res = compare a b in
-    if M.tracing then M.tracel "ops" "compare a: %s b: %s -> %i \n" (show a) (show b) res ;
+    if M.tracing then M.tracel "cmp" "compare a: %s b: %s -> %i \n" (show a) (show b) res ;
     res
 
   let name () = "affeq"
@@ -471,12 +488,10 @@ struct
 
   let join a b =
     match a.d, b.d with
-    | Some ([]), _
-    | _, Some ([]) -> {d = Some ([]); env = a.env}
-    | Some (x), Some(y) -> if Matrix.equal x y
-      then {d = Some (x); env = a.env}
-      else  {d = Some(lin_disjunc 0 0 x y); env = a.env}
-    | _, _ -> {d = None; env = a.env}
+    | None, m -> b
+    | m, None -> a
+    | Some (x), Some (y) when x = [] || y = [] -> {d = Some ([]); env = a.env}
+    | Some (x), Some(y) -> {d = Some(lin_disjunc 0 0 x y); env = a.env}
 
   let join a b =
     let res = join a b in
@@ -487,7 +502,9 @@ struct
     match (a.d, b.d) with
     | Some([]), y -> {d = y; env = a.env}
     | x , Some([])  -> {d = x; env = a.env}
-    | Some(x), Some(y) -> {d = Some (Matrix.normalize (Matrix.append_matrices x y)); env = a.env}
+    | Some(x), Some(y) ->
+      let rref_matr = Matrix.normalize_opt (Matrix.append_matrices x y) in
+      {d = rref_matr; env = a.env}
     | _, _ -> {d = None; env = a.env}
   let meet a b =
     let res = meet a b in
@@ -514,7 +531,7 @@ struct
     let zero_vec = Vector.create_zero_vec ((Environment.size env) + 1) in
     let rec convert_texpr env texp =
       (match texp with
-       | Cst x ->  Vector.set_val zero_vec ((List.length zero_vec) - 1) (to_rt (EnvDomain.int_of_cst x))
+       | Cst x ->  Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (to_rt (EnvDomain.int_of_cst x))
        | Var x ->  Vector.set_val zero_vec (Environment.dim_of_var env x) (to_rt 1)
        | Unop (u, e, _, _) -> (
            match u with
@@ -534,15 +551,7 @@ struct
     | exception NotLinear -> None
     | x -> Some(x)
 
-
-  let get_coeff_vec env texp =
-    let res = get_coeff_vec env texp in
-    (match res with
-     | None -> if M.tracing then M.tracel "affEq" "Invalid expr created\n"
-     | Some (x) -> if M.tracing then M.tracel "affEq" "Created expr vector: %s\n" (Vector.show x))
-  ;res
-
-  let assign_invertible_rels x var b env=
+  let assign_invertible_rels x var b env =
     let j0 = Environment.dim_of_var env var in
     let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
     let b0 = (Vector.get_val j0 b) in
@@ -552,23 +561,23 @@ struct
       | [], [] -> []
       | x::xs, y::ys -> List.map2i (function j -> function z -> function d ->
           if j = j0 then y
-          else if j < ((List.length b) -1) then z -: y *: d
+          else if j < ((Vector.length b) -1) then z -: y *: d
           else z +: y *: d) x b :: recalc_entries xs ys
       | _, _ -> failwith "Unequal sizes"
     in {d = Some (recalc_entries x reduced_a); env = env}
 
   let assign_uninvertible_rel x var b env =
-    let neg_vec = List.mapi (function i -> function z -> if i < (List.length b) - 1 then to_rt (-1) *: z else z) b
+    let neg_vec = List.mapi (function i -> function z -> if i < (Vector.length b) - 1 then to_rt (-1) *: z else z) b
     in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) (to_rt 1)
     in {d = Some (Matrix.normalize (Matrix.append_row x var_vec)); env = env}
 
   let remove_rels_with_var x var env =
     let j0 = Environment.dim_of_var env var
-    in let n = Vector.get_colnum_not_zero (Matrix.get_col x j0)
+    in let n = Vector.get_rownum_not_zero (Matrix.get_col x j0)
     in
     match n with
     | None -> x
-    | Some (r, _) -> Matrix.reduce_row_to_zero x r
+    | Some (r, _) -> Matrix.reduce_row_to_zero x r j0
 
   let assign_texpr t var texp =
     let is_invertible v = Vector.get_val (Environment.dim_of_var t.env var) v <> (to_rt 0)
@@ -585,17 +594,13 @@ struct
 
   let assign_exp t var exp =
     match Convert.texpr1_expr_of_cil_exp t t.env exp with
-    | exp -> let res = assign_texpr t var exp
-      in if M.tracing then M.tracel "affEq" "assign_exp \n %s:\n" (show res); res
+    | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp -> match t.d with
       | None -> t
-      | Some(x) ->
-        if M.tracing then M.tracel "affEq" "Deleting var: %s from %s " (Var.to_string var) (show t);
-        forget_vars t [var]
+      | Some(x) -> forget_vars t [var]
 
   let assign_exp t var exp =
     let res = assign_exp t var exp in
-    if M.tracing then M.tracel "affEq" "Assignment of expr successful";
     res
 
   let assign_var t v v' =
@@ -618,7 +623,7 @@ struct
 
   let assign_var_parallel' t vs1 vs2 =
     let vv's = List.combine vs1 vs2 in
-      assign_var_parallel t vv's
+    assign_var_parallel t vv's
 
   let assign_var_parallel' t vv's =
     let res = assign_var_parallel' t vv's in
@@ -657,8 +662,10 @@ struct
       end
     | DISEQ ->
       if M.tracing then M.tracel "asserts" "DISEQ meet_with_tcons %s\n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
-      let new_tcons = Convert.tcons1_of_cil_exp d (d.env) original_expr (Bool.neg negate) in
-      meet_with_tcons d new_tcons original_expr (Bool.neg negate)
+      begin match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+        | None -> d
+        | Some (e) -> if equal (meet d {d = Some ([e]); env = d.env}) d then {d = None; env = d.env} else d
+      end
     | SUP -> if M.tracing then M.tracel "asserts" "SUP meet_with_tcons: %s \n" (Format.asprintf "%a" (Texpr1.print: Format.formatter -> Texpr1.t -> unit) (Tcons1.get_texpr1 tcons));
       let coeff_vec = get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) in
       begin match coeff_vec, d.d with
@@ -676,7 +683,7 @@ struct
             | Some (c) -> if c <: (to_rt 0) then {d = None; env = d.env} else d end
         | _ -> d
       end
-    | EQMOD _ -> if M.tracing then M.tracel "asserts" "EQMOD meet_with_tcons: %s \n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons); d
+    | _ -> d
 
   let rec assert_cons d e negate =
     begin match Convert.tcons1_of_cil_exp d (d.env) e negate with
