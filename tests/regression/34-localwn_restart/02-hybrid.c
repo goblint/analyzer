@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set solver td3 --enable exp.solver.td3.restart.wpoint.enabled --disable exp.solver.td3.restart.wpoint.once --set sem.int.signed_overflow assume_none
+// PARAM: --enable ana.int.interval --set solver td3 --enable solvers.td3.restart.wpoint.enabled --disable solvers.td3.restart.wpoint.once --set sem.int.signed_overflow assume_none
 // ALSO:  --enable ana.int.interval --set solver sl4 --set sem.int.signed_overflow assume_none
 // Example from Amato-Scozzari, SAS 2013, based on Halbwachs-Henry, SAS 2012.
 // Localized narrowing with restart policy should be able to prove that

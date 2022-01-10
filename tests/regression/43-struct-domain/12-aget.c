@@ -1,4 +1,4 @@
-// PARAM: --set exp.structs.domain "sets"
+// PARAM: --set ana.base.structs.domain "sets"
 
 // This is shortened from aget.c in the bench repository
 // There was an issue when testing arrays, as they init to bottom and this code triggers narrowing.

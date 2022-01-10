@@ -32,7 +32,7 @@ They have corresponding XML files for benchexec and table-generator.
 ## Run Goblint in SV-COMP mode
 Command:
 ```
-./goblint --enable ana.sv-comp --enable exp.witness.uncil --enable ana.int.interval ./tests/sv-comp/basic/if_mod_true-unreach-call.c
+./goblint --enable ana.sv-comp --enable witness.uncil --enable ana.int.interval ./tests/sv-comp/basic/if_mod_true-unreach-call.c
 ```
 
 There's a bunch of very simple files to test with in `./tests/sv-comp/` with the expected results in the filename (old SV-COMP task definition format).
@@ -43,17 +43,17 @@ There's a bunch of very simple files to test with in `./tests/sv-comp/` with the
 
   Adds SV-COMP `__VERIFIER_*` functions, outputs verdict to stdout and outputs witness to `witness.graphml` in current (Goblint root) directory.
 
-* `exp.witness.path`
+* `witness.path`
 
   Override witness output filename.
 
-* `exp.witness.uncil`
+* `witness.uncil`
 
   Cil transforms `&&` and `||` into `if`s, which causes the witness to contain spurious conditional control edges where the original program didn't. I'm guessing this would mix up things for witness validators.
 
   This option does some hacks to try to undo that transformation when writing the witness.
 
-* `exp.witness.minimize`
+* `witness.minimize`
 
   Minimizes the witness graph by skipping nodes and edges without any useful witness data to make witnesses easier to inspect.
 

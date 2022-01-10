@@ -1,7 +1,7 @@
 (** Incremental terminating top down solver that optionally only keeps values at widening points and restores other values afterwards. *)
 (* Incremental: see paper 'Incremental Abstract Interpretation' https://link.springer.com/chapter/10.1007/978-3-030-41103-9_5 *)
 (* TD3: see paper 'Three Improvements to the Top-Down Solver' https://dl.acm.org/doi/10.1145/3236950.3236967
- * Option exp.solver.td3.* (default) ? true : false (solver in paper):
+ * Option solvers.td3.* (default) ? true : false (solver in paper):
  * - term (true) ? use phases for widen+narrow (TDside) : use box (TDwarrow)
  * - space (false) ? only keep values at widening points (TDspace + side) in rho : keep all values in rho
  * - space_cache (true) ? local cache l for eval calls in each solve (TDcombined) : no cache
@@ -92,10 +92,10 @@ module WP =
     exception AbortEq
 
     let solve box st vs data =
-      let term  = GobConfig.get_bool "exp.solver.td3.term" in
-      let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
-      let space = GobConfig.get_bool "exp.solver.td3.space" in
-      let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
+      let term  = GobConfig.get_bool "solvers.td3.term" in
+      let side_widen = GobConfig.get_string "solvers.td3.side_widen" in
+      let space = GobConfig.get_bool "solvers.td3.space" in
+      let cache = GobConfig.get_bool "solvers.td3.space_cache" in
       let called = HM.create 10 in
       let called_changed = HM.create 10 in
 
@@ -105,8 +105,8 @@ module WP =
       let wpoint = data.wpoint in
       let stable = data.stable in
 
-      let narrow_reuse = GobConfig.get_bool "exp.solver.td3.narrow-reuse" in
-      let narrow_reuse_verify = GobConfig.get_bool "exp.solver.td3.narrow-reuse-verify" in
+      let narrow_reuse = GobConfig.get_bool "solvers.td3.narrow-reuse" in
+      let narrow_reuse_verify = GobConfig.get_bool "solvers.td3.narrow-reuse-verify" in
 
       let side_dep = data.side_dep in
       let side_infl = data.side_infl in
@@ -119,10 +119,10 @@ module WP =
 
       (* If true, wpoint will be restarted to bot when added.
          This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
-      let restart_wpoint = GobConfig.get_bool "exp.solver.td3.restart.wpoint.enabled" in
+      let restart_wpoint = GobConfig.get_bool "solvers.td3.restart.wpoint.enabled" in
       (* If true, each wpoint will be restarted once when added.
          If false, it will be restarted each time it is added again (wpoints are removed after Narrow). *)
-      let restart_once = GobConfig.get_bool "exp.solver.td3.restart.wpoint.once" in
+      let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
       let restarted_wpoint = HM.create 10 in
 
       let incr_verify = GobConfig.get_bool "incremental.verify" in
@@ -132,12 +132,12 @@ module WP =
 
       let var_messages = data.var_messages in
 
-      let abort = GobConfig.get_bool "exp.solver.td3.abort" in
+      let abort = GobConfig.get_bool "solvers.td3.abort" in
       let destab_infl = HM.create 10 in
       let destab_front = HM.create 10 in
       let destab_dep = HM.create 10 in
 
-      let abort_verify = GobConfig.get_bool "exp.solver.td3.abort-verify" in
+      let abort_verify = GobConfig.get_bool "solvers.td3.abort-verify" in
       let prev_dep_vals = HM.create 10 in
 
       let () = print_solver_stats := fun () ->
@@ -466,7 +466,7 @@ module WP =
             wpoint_if @@ not (HM.mem stable y)
           | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. Expensive! *)
             wpoint_if @@ exists_key (neg (HM.mem stable)) called (* this is very expensive since it folds over called! see https://github.com/goblint/analyzer/issues/265#issuecomment-880748636 *)
-          | x -> failwith ("Unknown value '" ^ x ^ "' for option exp.solver.td3.side_widen!")
+          | x -> failwith ("Unknown value '" ^ x ^ "' for option solvers.td3.side_widen!")
         )
       and init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
@@ -789,7 +789,7 @@ module WP =
         )
       in
       (* restore values for non-widening-points *)
-      if space && GobConfig.get_bool "exp.solver.td3.space_restore" then (
+      if space && GobConfig.get_bool "solvers.td3.space_restore" then (
         if GobConfig.get_bool "dbg.verbose" then
           print_endline ("Restoring missing values.");
         let restore () =

@@ -1,4 +1,4 @@
-(** Acces and data race analysis. *)
+(** Access and data race analysis. *)
 
 module M = Messages
 module LF = LibraryFunctions
@@ -7,14 +7,13 @@ open Analyses
 open GobConfig
 
 
-(** Access and rata race analyzer without base --- this is the new standard *)
+(** Access and data race analyzer without base --- this is the new standard *)
 module Spec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "access"
 
-  (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
   module D = Lattice.Unit
   module C = Lattice.Unit
 

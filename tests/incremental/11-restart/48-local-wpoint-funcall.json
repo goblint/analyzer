@@ -4,19 +4,16 @@
             "interval": true
         }
     },
-    "exp": {
-		"solver": {
-			"td3": {
-				"restart": {
-					"wpoint": {
-						"enabled": true,
-						"once": true
-					}
-				},
-				"abort": false,
-				"abort-verify": false
-			}
+	"solvers": {
+		"td3": {
+			"restart": {
+				"wpoint": {
+					"enabled": true,
+					"once": true
+				}
+			},
+			"abort": false,
+			"abort-verify": false
 		}
 	}
-
 }

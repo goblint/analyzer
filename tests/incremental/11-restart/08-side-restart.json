@@ -9,13 +9,11 @@
             "on": false
         }
     },
-    "exp": {
-        "solver": {
-            "td3": {
-                "restart": {
-                    "wpoint": {
-                        "enabled": false
-                    }
+    "solvers": {
+        "td3": {
+            "restart": {
+                "wpoint": {
+                    "enabled": false
                 }
             }
         }

@@ -229,7 +229,7 @@ struct
   let exitstate  v = D.empty ()
 
   let init marshal =
-    set_bool "exp.malloc.fail" true;
+    set_bool "sem.malloc.fail" true;
     return_addr_ :=  Addr.from_var (Goblintutil.create_var @@ makeVarinfo false "RETURN" voidType)
 end
 

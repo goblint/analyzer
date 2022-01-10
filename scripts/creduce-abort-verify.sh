@@ -5,7 +5,7 @@ set -e
 gcc -c -Werror=implicit-function-declaration ./abort-verify.c
 
 GOBLINTDIR="/mnt/goblint-svcomp/sv-comp/goblint"
-OPTS="--conf $GOBLINTDIR/conf/svcomp.json --enable exp.solver.td3.abort --enable exp.solver.td3.abort-verify --sets ana.specification /mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp --sets exp.architecture 64bit ./abort-verify.c"
+OPTS="--conf $GOBLINTDIR/conf/svcomp.json --enable solvers.td3.abort --enable solvers.td3.abort-verify --sets ana.specification /mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp --sets exp.architecture 64bit ./abort-verify.c"
 INTERESTING="TD3 abort verify: should not abort"
 OUTDIR="creduce-abort-verify"
 

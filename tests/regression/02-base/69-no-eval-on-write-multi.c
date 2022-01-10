@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.interval --enable ana.int.enums --exp.privatization "write" -v
+//PARAM: --enable ana.int.interval --enable ana.int.enums --ana.base.privatization "write" -v
 
 #include<pthread.h>
 

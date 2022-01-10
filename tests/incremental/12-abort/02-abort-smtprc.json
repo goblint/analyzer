@@ -17,18 +17,16 @@
 	"dbg": {
 		"debug": false
 	},
-	"exp": {
-		"solver": {
-			"td3": {
-				"restart": {
-					"wpoint": {
-						"enabled": false,
-						"once": true
-					}
-				},
-				"abort": true,
-				"abort-verify": false
-			}
+	"solvers": {
+		"td3": {
+			"restart": {
+				"wpoint": {
+					"enabled": false,
+					"once": true
+				}
+			},
+			"abort": true,
+			"abort-verify": false
 		}
 	},
 	"incremental": {

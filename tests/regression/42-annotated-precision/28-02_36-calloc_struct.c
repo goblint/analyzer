@@ -1,4 +1,4 @@
-// PARAM: --enable exp.partition-arrays.enabled --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --enable ana.base.partition-arrays.enabled --enable annotation.int.enabled --set ana.int.refinement fixpoint
 
 #include<stdlib.h>
 #include<assert.h>

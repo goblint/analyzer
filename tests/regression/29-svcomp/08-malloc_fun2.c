@@ -1,4 +1,4 @@
-// PARAM: --set exp.malloc.wrappers "['myalloc','myalloc2']"
+// PARAM: --set ana.malloc.wrappers "['myalloc','myalloc2']"
 
 // Copied & modified from 02/20.
 #include <stdlib.h>
