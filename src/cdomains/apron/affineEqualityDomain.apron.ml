@@ -279,7 +279,7 @@ struct
     let vs' = get_filtered_vars_add (a.env) vars in
     let env' = Environment.add a.env vs' [||] in
     let d' = (match a.d with
-        | None -> None
+        | None -> Some ([])
         | Some (m) -> Some (dim_add (Environment.dimchange a.env env') m))
     in {d = d'; env = env'}
 
@@ -398,7 +398,7 @@ struct
     match a.d with
     | None -> Format.asprintf "⟂ (env: %a)" (Environment.print:Format.formatter -> Environment.t -> unit) a.env
     | Some ([]) -> Format.asprintf "⊤ (env: %a)" (Environment.print:Format.formatter -> Environment.t -> unit) a.env
-    | Some (m) -> Matrix.show m
+    | Some (m) -> Format.asprintf "%s env %a" (Matrix.show m) (Environment.print:Format.formatter -> Environment.t -> unit) a.env
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
