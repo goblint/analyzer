@@ -21,15 +21,7 @@
     "stable": true
   },
   "exp": {
-    "earlyglobs": true,
-    "solver": {
-      "td3": {
-        "term": true,
-        "space": false,
-        "space_cache": true,
-        "space_restore": true
-      }
-    }
+    "earlyglobs": true
   },
   "dbg": {
     "verbose": true,
@@ -41,5 +33,13 @@
   "printstats": true,
   "result": "none",
   "solver": "td3",
+  "solvers": {
+    "td3": {
+      "term": true,
+      "space": false,
+      "space_cache": true,
+      "space_restore": true
+    }
+  },
   "verify": false
 }
