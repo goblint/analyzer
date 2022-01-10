@@ -123,9 +123,9 @@
     "result": {
       "title": "result",
       "description":
-        "Result style: none, fast_xml, json, pretty, json-messages.",
+        "Result style: none, fast_xml, json, pretty, json-messages, sarif.",
       "type": "string",
-      "enum": ["none", "fast_xml", "json", "pretty", "json-messages"],
+      "enum": ["none", "fast_xml", "json", "pretty", "json-messages", "sarif"],
       "default": "none"
     },
     "solver": {
