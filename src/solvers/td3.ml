@@ -903,6 +903,8 @@ module WP =
 
       Post.post st vs rho;
 
+      print_data data "Data after postsolve";
+
       {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages}
 
     let solve box st vs =
