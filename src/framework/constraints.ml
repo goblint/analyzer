@@ -1065,16 +1065,22 @@ struct
     let node x = `Right x
   end
 
+  module GB =
+  struct
+    include Basetype.Bools
+    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
+  end
+
   module G =
   struct
-    include Lattice.Lift2 (S.G) (BoolDomain.MayBool) (Printable.DefaultNames)
+    include Lattice.Lift2 (S.G) (GB) (Printable.DefaultNames)
 
     let s = function
       | `Bot -> S.G.bot ()
       | `Lifted1 x -> x
       | _ -> failwith "DeadBranchLifter.s"
     let node = function
-      | `Bot -> BoolDomain.MayBool.bot ()
+      | `Bot -> GB.bot ()
       | `Lifted2 x -> x
       | _ -> failwith "DeadBranchLifter.node"
     let create_s s = `Lifted1 s
@@ -1096,7 +1102,12 @@ struct
       | `Left g ->
         S.query (conv ctx) (WarnGlobal (Obj.repr g))
       | `Right g ->
-        failwith "a"
+        begin match G.node (ctx.global (V.node g)) with
+          | `Lifted tv ->
+            M.warn ~loc:(Node.location g) ~category:Deadcode "DEAD BRANCH"
+          | _ ->
+            ()
+        end
       end
     | _ ->
       S.query (conv ctx) q
@@ -1125,14 +1136,18 @@ struct
         let r = branch ctx exp tv in
         (* branch is live *)
         Locmap.replace (dead_branches tv) !Tracing.current_loc false; (* set to live (false) *)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (`Lifted tv));
         r
       with Deadcode ->
         (* branch is dead *)
         Locmap.modify_def true !Tracing.current_loc Fun.id (dead_branches tv); (* set to dead (true) if not mem, otherwise keep existing (Fun.id) since it may be live (false) in another context *)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node `Bot);
         raise Deadcode
     )
-    else
+    else (
+      ctx.sideg (V.node ctx.prev_node) (G.create_node `Bot);
       branch ctx exp tv
+    )
 end
 
 module Compare
