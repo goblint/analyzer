@@ -148,20 +148,6 @@ struct
       );
       printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled_fn_loc); (* We can only give total LoC if we counted dead code *)
     );
-    let str = function true -> "then" | false -> "else" in
-    let report tv (loc, dead) =
-      match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
-      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
-      | _ -> ()
-    in
-    if get_bool "dbg.print_dead_code" then (
-      let by_fst (a,_) (b,_) = Stdlib.compare a b in
-      Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
-      Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
-      Deadcode.Locmap.clear Deadcode.dead_branches_then;
-      Deadcode.Locmap.clear Deadcode.dead_branches_else
-    );
     NH.mem live_nodes
 
   (* convert result that can be out-put *)
