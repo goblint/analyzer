@@ -1058,6 +1058,62 @@ struct
 
   let name () = "DeadBranch (" ^ name () ^ ")"
 
+  module V =
+  struct
+    include Printable.Either (S.V) (Node)
+    let s x = `Left x
+    let node x = `Right x
+  end
+
+  module G =
+  struct
+    include Lattice.Lift2 (S.G) (BoolDomain.MayBool) (Printable.DefaultNames)
+
+    let s = function
+      | `Bot -> S.G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "DeadBranchLifter.s"
+    let node = function
+      | `Bot -> BoolDomain.MayBool.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "DeadBranchLifter.node"
+    let create_s s = `Lifted1 s
+    let create_node node = `Lifted2 node
+  end
+
+  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
+    { ctx with
+      global = (fun v -> G.s (ctx.global (V.s v)));
+      sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
+    }
+
+  let sync ctx = S.sync (conv ctx)
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+      | `Left g ->
+        S.query (conv ctx) (WarnGlobal (Obj.repr g))
+      | `Right g ->
+        failwith "a"
+      end
+    | _ ->
+      S.query (conv ctx) q
+  let assign ctx = S.assign (conv ctx)
+  let vdecl ctx = S.vdecl (conv ctx)
+  let branch ctx = S.branch (conv ctx)
+  let body ctx = S.body (conv ctx)
+  let return ctx = S.return (conv ctx)
+  let intrpt ctx = S.intrpt (conv ctx)
+  let asm ctx = S.asm (conv ctx)
+  let skip ctx = S.skip (conv ctx)
+  let special ctx = S.special (conv ctx)
+  let enter ctx = S.enter (conv ctx)
+  let combine ctx = S.combine (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
+
   module Locmap = Deadcode.Locmap
 
   let dead_branches = function true -> Deadcode.dead_branches_then | false -> Deadcode.dead_branches_else
