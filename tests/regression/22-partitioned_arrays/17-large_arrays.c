@@ -28,7 +28,7 @@ int main(){
     assert(arr[0] == 1); // UNKNOWN
     assert(arr[INT_MAX + 1l] == 1); //UNKNOWN
 
-    // j is the smallest index that checking triggers the unsoundness
+    // j is the smallest index where checking it used to yield an unsound value
     // long j = ((long) INT_MAX) * INT_MAX * 2 + INT_MAX - 1;
     long j = LONG_MAX - 6442450943;
     assert(0 < j);
