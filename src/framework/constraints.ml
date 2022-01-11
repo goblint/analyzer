@@ -1056,7 +1056,7 @@ module DeadBranchLifter (S: Spec): Spec =
 struct
   include S
 
-  let name () = "DeadBranch (" ^ name () ^ ")"
+  let name () = "DeadBranch (" ^ S.name () ^ ")"
 
   module V =
   struct
@@ -1093,7 +1093,6 @@ struct
       sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
     }
 
-  let sync ctx = S.sync (conv ctx)
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | WarnGlobal g ->
@@ -1107,43 +1106,47 @@ struct
             match tv with
             | `Lifted tv ->
               M.warn ~loc:(Node.location g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
-            | _ ->
+            | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
+            | `Top -> (* may be both true and false *)
               ()
           ) em;
       end
     | _ ->
       S.query (conv ctx) q
-  let assign ctx = S.assign (conv ctx)
-  let vdecl ctx = S.vdecl (conv ctx)
-  let branch ctx = S.branch (conv ctx)
-  let body ctx = S.body (conv ctx)
-  let return ctx = S.return (conv ctx)
-  let intrpt ctx = S.intrpt (conv ctx)
-  let asm ctx = S.asm (conv ctx)
-  let skip ctx = S.skip (conv ctx)
-  let special ctx = S.special (conv ctx)
-  let enter ctx = S.enter (conv ctx)
-  let combine ctx = S.combine (conv ctx)
-  let threadenter ctx = S.threadenter (conv ctx)
-  let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
 
+
+  let branch ctx = S.branch (conv ctx)
 
   let branch ctx exp tv =
     if !GU.postsolving then (
       try
         let r = branch ctx exp tv in
         (* branch is live *)
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp (`Lifted tv)));
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp (`Lifted tv))); (* record expression with reached tv *)
         r
       with Deadcode ->
         (* branch is dead *)
-        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp `Bot));
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp `Bot)); (* record expression without reached tv *)
         raise Deadcode
     )
     else (
-      ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.bot ()));
+      ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.bot ())); (* create global variable during solving, to allow postsolving leq hack to pass verify *)
       branch ctx exp tv
     )
+
+  let assign ctx = S.assign (conv ctx)
+  let vdecl ctx = S.vdecl (conv ctx)
+  let enter ctx = S.enter (conv ctx)
+  let body ctx = S.body (conv ctx)
+  let return ctx = S.return (conv ctx)
+  let combine ctx = S.combine (conv ctx)
+  let special ctx = S.special (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
+  let sync ctx = S.sync (conv ctx)
+  let skip ctx = S.skip (conv ctx)
+  let asm ctx = S.asm (conv ctx)
+  let intrpt ctx = S.intrpt (conv ctx)
 end
 
 module Compare
