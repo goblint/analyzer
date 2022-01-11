@@ -1085,6 +1085,11 @@ struct
       | _ -> failwith "DeadBranchLifter.node"
     let create_s s = `Lifted1 s
     let create_node node = `Lifted2 node
+
+    let printXml f = function
+      | `Lifted1 x -> S.G.printXml f x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"dead-branch\">%a</analysis>" EM.printXml x
+      | x -> BatPrintf.fprintf f "<analysis name=\"dead-branch-lifter\">%a</analysis>" printXml x
   end
 
   let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
