@@ -70,8 +70,6 @@ struct
 
   (* print out information about dead code *)
   let print_dead_code (xs:Result.t) uncalled_fn_loc =
-    let module Locmap = BatHashtbl.Make (CilType.Location) in
-    let dead_locations : unit Locmap.t = Locmap.create 10 in
     let module NH = Hashtbl.Make (Node) in
     let live_nodes : unit NH.t = NH.create 10 in
     let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
@@ -88,8 +86,7 @@ struct
       let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
       let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
       if is_dead then (
-        dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines;
-        Locmap.add dead_locations l ();
+        dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
       ) else (
         live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
         NH.add live_nodes n ()
