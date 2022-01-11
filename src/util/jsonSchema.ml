@@ -48,7 +48,6 @@ let encoding_of_schema (schema: Json_schema.schema): unit Json_encoding.encoding
   let root = Json_schema.root schema in
   Json_encoding.mu "" (fun top -> encoding_of_schema_element top root)
 
-open Json_encoding
 open Json_schema
 
 let rec element_defaults (element: element): Yojson.Safe.t =

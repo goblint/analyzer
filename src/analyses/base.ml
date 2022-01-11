@@ -1293,7 +1293,7 @@ struct
       in
       let effect_on_array arr st =
         let v = CPA.find arr st in
-        let nval = VD.affect_move ~replace_with_const:(get_bool ("exp.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
+        let nval = VD.affect_move ~replace_with_const:(get_bool ("ana.base.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
         update_variable arr arr.vtype nval st
       in
       { st with cpa = List.fold_left (fun x y -> effect_on_array y x) st.cpa affected_arrays }
@@ -2236,7 +2236,7 @@ struct
         match lv with
         | Some lv ->
           let heap_var =
-            if (get_bool "exp.malloc.fail")
+            if (get_bool "sem.malloc.fail")
             then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
             else AD.from_var (heap_var ctx)
           in
@@ -2250,7 +2250,7 @@ struct
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = heap_var ctx in
           let add_null addr =
-            if get_bool "exp.malloc.fail"
+            if get_bool "sem.malloc.fail"
             then AD.join addr AD.null_ptr (* calloc can fail and return NULL *)
             else addr in
           (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)

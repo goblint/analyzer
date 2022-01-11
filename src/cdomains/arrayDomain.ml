@@ -306,7 +306,7 @@ struct
       (Expp.top(), (r, r, r)))
     else
       normalize @@
-      let use_last = get_string "exp.partition-arrays.keep-expr" = "last" in
+      let use_last = get_string "ana.base.partition-arrays.keep-expr" = "last" in
       let exp_value e =
         match e with
         | `Lifted e' ->
@@ -463,7 +463,7 @@ struct
     | `Lifted e1e, `Lifted e2e when Basetype.CilExp.equal e1e e2e ->
       (e1, (op xl1 xl2, op xm1 xm2, op xr1 xr2))
     | `Lifted e1e, `Lifted e2e ->
-      if get_string "exp.partition-arrays.keep-expr" = "last" || get_bool "exp.partition-arrays.smart-join" then
+      if get_string "ana.base.partition-arrays.keep-expr" = "last" || get_bool "ana.base.partition-arrays.smart-join" then
         let op = Val.join in (* widen between different components isn't called validly *)
         let over_all_x1 = op (op xl1 xm1) xr1 in
         let over_all_x2 = op (op xl2 xm2) xr2 in
@@ -729,9 +729,9 @@ struct
   let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
 
   (* Functions that make use of the configuration flag *)
-  let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "exp.partition-arrays.enabled" then P.name () else T.name ()
+  let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "ana.base.partition-arrays.enabled" then P.name () else T.name ()
 
-  let partition_enabled () = get_bool "exp.partition-arrays.enabled"
+  let partition_enabled () = get_bool "ana.base.partition-arrays.enabled"
 
   let bot () =
     if partition_enabled () then

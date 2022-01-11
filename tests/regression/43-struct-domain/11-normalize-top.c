@@ -1,4 +1,4 @@
-// PARAM: --set exp.structs.domain "sets"
+// PARAM: --set ana.base.structs.domain "sets"
 
 #include<assert.h>
 
