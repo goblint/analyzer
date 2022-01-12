@@ -210,21 +210,14 @@ struct
     Queries.ES.fold do_lockstep matching_exps
       (Queries.ES.fold do_perel matching_exps (LSSet.empty ()))
 
-  let part_access ctx e v _ =
-    let open OldAccess in
-    let ls = add_per_element_access ctx e false in
-    (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
-    (LSSSet.singleton (LSSet.empty ()), ls)
-
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    (* | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write *)
-    | _ -> Queries.Result.top q
-
-  module A = OldAccess.OldA
-  let access ctx {Queries.exp; var_opt; write} =
-    part_access ctx exp var_opt write
+  module A =
+  struct
+    include OldAccess.LSSet
+    let name () = "symblock"
+    let conflict lp lp2 = is_empty @@ inter lp lp2
+  end
+  let access ctx {Queries.exp=e; var_opt=v; write=w} =
+    add_per_element_access ctx e false
 end
 
 let _ =
