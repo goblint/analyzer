@@ -365,6 +365,7 @@ let invalidate_actions = ref [
     "strtoul", readsAll; (*safe*)
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
+    "strsignal", readsAll;
     "popen", readsAll; (*safe*)
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
