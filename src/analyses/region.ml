@@ -43,7 +43,7 @@ struct
       Some (regions e regpart ctx.local)
 
   let part_access ctx e _ _ = (*todo: remove regions that cannot be reached from the var*)
-    let open Access in
+    let open OldAccess in
     let rec pretty_offs () = function
       | `NoOffset     -> dprintf ""
       | `Field (f,os) -> dprintf ".%s%a" f.fname pretty_offs os
@@ -76,7 +76,7 @@ struct
       part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top q
 
-  module A = OldA
+  module A = OldAccess.OldA
   let access ctx {Queries.exp; var_opt; write} =
     part_access ctx exp var_opt write
 

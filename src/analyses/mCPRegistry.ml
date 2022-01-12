@@ -65,6 +65,18 @@ struct
     List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
+module PrintableOfMCPASpec (D:DomainListMCPASpec) : DomainListPrintableSpec =
+struct
+  let assoc_dom n =
+    let f (module L:MCPA) = (module L : Printable.S)
+    in
+    f (D.assoc_dom n)
+
+  let domain_list () =
+    let f (module L:MCPA) = (module L : Printable.S) in
+    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+end
+
 exception DomListBroken of string
 
 module DomListPrintable (DLSpec : DomainListPrintableSpec)

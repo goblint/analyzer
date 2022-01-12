@@ -21,53 +21,6 @@ let is_ignorable = function
     try isFunctionType v.vtype || is_ignorable_type v.vtype
     with Not_found -> false
 
-module Ident : Printable.S with type t = string =
-struct
-  include Printable.Std (* for default invariant, tag, ... *)
-
-  open Pretty
-  type t = string [@@deriving eq, ord, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
-  let show x = x
-  let pretty () x = text (show x)
-  let name () = "strings"
-  let printXml f x =
-    BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
-      (XmlUtil.escape (show x))
-end
-
-module LabeledString =
-struct
-  include Printable.Prod (Ident) (Ident)
-  let show (x,y) = x^":"^y
-  let pretty () (x,y) =
-    Pretty.text (show (x,y))
-end
-module LSSet = SetDomain.Make (LabeledString)
-module LSSSet =
-struct
-  include SetDomain.Make (LSSet)
-  (* TODO: is this actually some partition domain? *)
-  let join po pd =
-    let mult_po s = union (map (LSSet.union s) po) in
-    fold mult_po pd (empty ())
-  let bot () = singleton (LSSet.empty ())
-  let is_bot x = cardinal x = 1 && LSSet.is_empty (choose x)
-  (* top & is_top come from SetDomain.Make *)
-
-  (* Since Queries.PartAccess and PartAccessResult are only used within MCP2,
-     these operations are never really called. *)
-  let leq _ _ = raise (Lattice.Unsupported "LSSSet.leq")
-  (* meet (i.e. join in PartAccessResult) for PathSensitive query joining
-     isn't needed, because accesses are handled only within MCP2. *)
-  let meet _ _ = raise (Lattice.Unsupported "LSSSet.meet")
-  let widen _ _ = raise (Lattice.Unsupported "LSSSet.widen")
-  let narrow _ _ = raise (Lattice.Unsupported "LSSSet.narrow")
-end
-
-(* Reverse because MCP2.query [meet]s. *)
-module PartAccessResult = Lattice.Reverse (Lattice.Prod (LSSSet) (LSSet))
-
 let typeVar  = Hashtbl.create 101
 let typeIncl = Hashtbl.create 101
 let unsound = ref false
@@ -198,7 +151,6 @@ end
 
 type var_o = varinfo option
 type off_o = offset  option
-type part  = LSSSet.t * LSSet.t
 
 let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
   try (* FIXME: Cilfacade.typeOf fails on our fake variables: (struct s).data *)
@@ -367,12 +319,12 @@ let add side e w conf mhp vo oo a =
 module A =
 struct
   include Printable.Std
-  type t = int * MHP.t * bool * CilType.Location.t * CilType.Exp.t * PartAccessResult.t [@@deriving eq, ord] (* TODO: replace with MCPAccess.A *)
+  type t = int * MHP.t * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord]
 
   let hash (conf, mhp, w, loc, e, lp) = 0 (* TODO: never hashed? *)
 
   let pretty () (conf, mhp, w, loc, e, lp) = (* TODO:Print MHP? *)
-    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e PartAccessResult.pretty lp
+    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
 
   let show x = Pretty.sprint ~width:max_int (pretty () x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
@@ -413,15 +365,12 @@ end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
-let conflict (pp, lp) (pp2, lp2) =
-  not (LSSSet.is_empty @@ LSSSet.inter pp pp2) &&
-  LSSet.is_empty @@ LSSet.inter lp lp2
 
 (* Check if two accesses race and if yes with which confidence *)
 let conflict2 (conf,mhp,w,loc,e,a) (conf2,mhp2,w2,loc2,e2,a2) =
   if (not w) && (not w2) then
     None (* two read/read accesses do not conflict *)
-  else if not (conflict a a2) then (* TODO: deduplicate with Analyses.OldA *)
+  else if not (MCPAccess.A.conflict a a2) then
     None (* the labelled string set excludes that these conflict *)
   else if not (MHP.may_happen_in_parallel mhp mhp2) then
     None (* They may not be in parallel *)
@@ -455,7 +404,7 @@ let print_accesses (lv, ty) accs =
   let msgs () =
     let h (conf,mhp,w,loc,e,a) =
       let atyp = if w then "write" else "read" in
-      let d_msg () = dprintf "%s with %a (conf. %d)" atyp PartAccessResult.pretty a conf in
+      let d_msg () = dprintf "%s with %a (conf. %d)" atyp MCPAccess.A.pretty a conf in
       let doc =
         if debug then
           dprintf "%t  (exp: %a)" d_msg d_exp e

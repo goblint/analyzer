@@ -516,13 +516,6 @@ struct
   let conflict _ _ = false
 end
 
-module OldA =
-struct
-  include Access.PartAccessResult
-  let conflict (pp, lp) (pp2, lp2) =
-    not (Access.LSSSet.is_empty @@ Access.LSSSet.inter pp pp2) &&
-    Access.LSSet.is_empty @@ Access.LSSet.inter lp lp2
-end
 
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
@@ -570,10 +563,10 @@ struct
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
-  module A = OldA
+  module A = OldAccess.OldA
   let access _ _ =
-    let es = Access.LSSet.empty () in
-    (Access.LSSSet.singleton es, es)
+    let es = OldAccess.LSSet.empty () in
+    (OldAccess.LSSSet.singleton es, es)
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

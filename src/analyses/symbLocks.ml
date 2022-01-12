@@ -143,7 +143,7 @@ struct
       ust
 
   let add_per_element_access ctx e rw =
-    let module LSSet = Access.LSSet in
+    let module LSSet = OldAccess.LSSet in
     (* Per-element returns a triple of exps, first are the "element" pointers,
        in the second and third positions are the respectively access and mutex.
        Access and mutex expressions have exactly the given "elements" as "prefixes".
@@ -211,7 +211,7 @@ struct
       (Queries.ES.fold do_perel matching_exps (LSSet.empty ()))
 
   let part_access ctx e v _ =
-    let open Access in
+    let open OldAccess in
     let ls = add_per_element_access ctx e false in
     (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
     (LSSSet.singleton (LSSet.empty ()), ls)
@@ -222,7 +222,7 @@ struct
       part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top q
 
-  module A = OldA
+  module A = OldAccess.OldA
   let access ctx {Queries.exp; var_opt; write} =
     part_access ctx exp var_opt write
 end

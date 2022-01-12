@@ -378,7 +378,6 @@ struct
     query' QuerySet.empty ctx q
 
   and access (ctx:(D.t, G.t, C.t, V.t) ctx) ({Queries.exp=e; var_opt=vo; write=w} as a): MCPAccess.A.t =
-    let start = MCPAccess.A.top () in
     let f (acc: MCPAccess.A.t) (n, (module S: MCPSpec), d) : MCPAccess.A.t =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
@@ -398,9 +397,9 @@ struct
         ; assign = (fun ?name v e -> failwith "part_access::assign")
         }
       in
-      MCPAccess.A.meet acc (Obj.magic (S.access ctx' a)) (* TODO: REMOVE MAGIC!!! *)
+      (n, repr (S.access ctx' a)) :: acc
     in
-    List.fold_left f start (spec_list ctx.local)
+    List.fold_left f [] (spec_list ctx.local)
 
   let assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in

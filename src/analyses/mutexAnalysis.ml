@@ -55,7 +55,7 @@ struct
 
 
   let part_access ctx e v w =
-    let open Access in
+    let open OldAccess in
     let ps = LSSSet.singleton (LSSet.empty ()) in
     let add_lock l =
       let ls = Lockset.Lock.show l in
@@ -173,7 +173,7 @@ struct
       part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top q
 
-  module A = OldA
+  module A = OldAccess.OldA
 
   let access ctx {Queries.exp; var_opt; write} =
     part_access ctx exp var_opt write

@@ -58,12 +58,12 @@ struct
     ctx.local
 
   let part_access ctx e v w =
-    let es = Access.LSSet.empty () in
+    let es = OldAccess.LSSet.empty () in
     if is_multi (Analyses.ask_of_ctx ctx) then
-      (Access.LSSSet.singleton es, es)
+      (OldAccess.LSSSet.singleton es, es)
     else
       (* kill access when single threaded *)
-      (Access.LSSSet.empty (), es)
+      (OldAccess.LSSSet.empty (), es)
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
@@ -75,7 +75,7 @@ struct
       part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top x
 
-  module A = OldA
+  module A = OldAccess.OldA
   let access ctx {Queries.exp; var_opt; write} =
     part_access ctx exp var_opt write
 

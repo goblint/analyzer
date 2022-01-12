@@ -79,13 +79,13 @@ struct
     ctx.ask Queries.MustBeUniqueThread
 
   let part_access ctx e v w =
-    let es = Access.LSSet.empty () in
+    let es = OldAccess.LSSet.empty () in
     if is_unique ctx then
       let tid = fst ctx.local in
       let tid = ThreadLifted.show tid in
-      (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
+      (OldAccess.LSSSet.singleton es, OldAccess.LSSet.add ("thread",tid) es)
     else
-      (Access.LSSSet.singleton es, es)
+      (OldAccess.LSSSet.singleton es, es)
 
   let created (current, td) =
     match current with
@@ -105,7 +105,7 @@ struct
       end
     | _ -> Queries.Result.top x
 
-  module A = OldA
+  module A = OldAccess.OldA
   let access ctx {Queries.exp; var_opt; write} =
     part_access ctx exp var_opt write
 
