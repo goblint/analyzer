@@ -502,6 +502,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
+    | `Index (e,o) when CilType.Exp.equal e MyCFG.unknown_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
