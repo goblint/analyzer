@@ -96,18 +96,23 @@ struct
 
   module A =
   struct
-    include Printable.Option (ThreadLifted) (struct let name = "nonunique" end)
-    let name () = "thread"
-    let conflict t1 t2 = match t1, t2 with
-      | Some t1, Some t2 when ThreadLifted.equal t1 t2 -> false
-      | _, _ -> true
+    include Printable.Prod (Printable.Option (ThreadLifted) (struct let name = "nonunique" end)) (Printable.Prod3 (ThreadLifted) (ConcDomain.ThreadSet) (ConcDomain.ThreadSet))
+    let name () = "thread * mhp"
+    let conflict (t1: t) (t2: t) = match t1, t2 with
+      | (Some t1, _), (Some t2, _) when ThreadLifted.equal t1 t2 -> false
+      | (_, (t1, c1, j1)), (_, (t2, c2, j2)) when not (MHP.may_happen_in_parallel {tid=t1; created=c1; must_joined=j1} {tid=t2; created=c2; must_joined=j2}) -> false
+      | (_, _), (_, _) -> true
   end
   let access ctx {Queries.exp=e; var_opt=v; write=w} =
-    if is_unique ctx then
-      let tid = fst ctx.local in
-      Some tid
-    else
-      None
+    let unique =
+      if is_unique ctx then
+        let tid = fst ctx.local in
+        Some tid
+      else
+        None
+    in
+    let mhp = (fst ctx.local, created ctx.local, ctx.ask MustJoinedThreads) in
+    (unique, mhp)
 
   let threadenter ctx lval f args =
     let+ tid = create_tid ctx.local ctx.prev_node f in

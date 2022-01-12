@@ -372,8 +372,6 @@ let conflict2 (conf,mhp,w,loc,e,a) (conf2,mhp2,w2,loc2,e2,a2) =
     None (* two read/read accesses do not conflict *)
   else if not (MCPAccess.A.conflict a a2) then
     None (* the labelled string set excludes that these conflict *)
-  else if not (MHP.may_happen_in_parallel mhp mhp2) then
-    None (* They may not be in parallel *)
   else
     Some (max conf conf2)
 
