@@ -36,3 +36,6 @@ let may_happen_in_parallel one two =
     else
       true
   | _ -> true
+
+let show x =
+  Printf.sprintf "{ tid=%s; created=%s; must_joined=%s }" (ThreadIdDomain.ThreadLifted.show x.tid) (ConcDomain.ThreadSet.show x.created) (ConcDomain.ThreadSet.show x.must_joined)

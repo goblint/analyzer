@@ -378,8 +378,8 @@ struct
 
   let hash (conf, mhp, w, loc, e, lp) = 0 (* TODO: never hashed? *)
 
-  let pretty () (conf, mhp, w, loc, e, lp) = (* TODO:Print MHP? *)
-    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e LSSet.pretty lp
+  let pretty () (conf, (mhp:MHP.t), w, loc, e, lp) =
+    Pretty.dprintf "%d, %B, %a, %a, %a, %s" conf w CilType.Location.pretty loc CilType.Exp.pretty e LSSet.pretty lp  (MHP.show mhp)
 
   let show x = Pretty.sprint ~width:max_int (pretty () x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
@@ -469,7 +469,7 @@ let print_accesses (lv, ty) pm =
         | Some ls -> text " in " ++ LSSet.pretty () ls
       in
       let atyp = if w then "write" else "read" in
-      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
+      let d_msg () = dprintf "%s%t with %a and MHP %s (conf. %d)" atyp d_ls LSSet.pretty lp (MHP.show mhp) conf in
       let doc =
         if debug then
           dprintf "%t  (exp: %a)" d_msg d_exp e
