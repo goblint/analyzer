@@ -520,7 +520,7 @@ module OldA =
 struct
   include Access.PartAccessResult
   let conflict (_, lp) (_, lp2) =
-    not (Access.LSSet.is_empty @@ Access.LSSet.inter lp lp2)
+    Access.LSSet.is_empty @@ Access.LSSet.inter lp lp2
 end
 
 (** Relatively safe default implementations of some boring Spec functions. *)

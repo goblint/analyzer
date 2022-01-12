@@ -209,17 +209,10 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
     | _ -> get_type t e
   with _ -> get_type voidType e
 
-let add_one side (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
+let add_one side (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin
     let loc = !Tracing.current_loc in
-    let add_part ls =
-      side ty lv (Some ls) (conf, mhp, w, loc, e, lp)
-    in
-    if LSSSet.is_empty pp then (
-      side ty lv None (conf, mhp, w, loc, e, lp)
-    )
-    else
-      LSSSet.iter add_part pp
+    side ty lv (Some (LSSet.empty ())) (conf, mhp, w, loc, e, a) (* TODO: remove Some empty *)
   end
 
 let type_from_type_offset : acc_typ -> typ = function
@@ -239,7 +232,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct side (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
+let add_struct side (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -259,17 +252,17 @@ let add_struct side (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv: (v
     in
     begin try
         let oss = dist_fields (type_from_type_offset ty) in
-        List.iter (fun os -> add_one side e w conf mhp (`Struct (s,addOffs os2 os)) (add_lv os) p) oss
+        List.iter (fun os -> add_one side e w conf mhp (`Struct (s,addOffs os2 os)) (add_lv os) a) oss
       with Failure _ ->
-        add_one side e w conf mhp ty lv p
+        add_one side e w conf mhp ty lv a
     end
   | _ when lv = None && !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
   | _ ->
-    add_one side e w conf mhp ty lv p
+    add_one side e w conf mhp ty lv a
 
-let add_propagate side e w conf mhp ty ls p =
+let add_propagate side e w conf mhp ty ls a =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true
@@ -285,14 +278,14 @@ let add_propagate side e w conf mhp ty ls p =
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
-    let add_vars v = add_struct side e w conf mhp (`Struct (fi.fcomp, f)) (Some (v, f)) p in
+    let add_vars v = add_struct side e w conf mhp (`Struct (fi.fcomp, f)) (Some (v, f)) a in
     List.iter add_vars vars;
-    add_struct side e w conf mhp (`Struct (fi.fcomp, f)) None p;
+    add_struct side e w conf mhp (`Struct (fi.fcomp, f)) None a;
   in
   let just_vars t v =
-    add_struct side e w conf mhp (`Type t) (Some (v, `NoOffset)) p;
+    add_struct side e w conf mhp (`Type t) (Some (v, `NoOffset)) a;
   in
-  add_struct side e w conf mhp ty None p;
+  add_struct side e w conf mhp ty None a;
   match ty with
   | `Struct (c,os) when only_fields os && os <> `NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
@@ -356,17 +349,17 @@ and distribute_access_exp f w r c = function
     distribute_access_exp f w     r c e
   | _ -> ()
 
-let add side e w conf mhp vo oo p =
+let add side e w conf mhp vo oo a =
   let ty = get_val_type e vo oo in
   (* let loc = !Tracing.current_loc in *)
   (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
   match vo, oo with
-  | Some v, Some o -> add_struct side e w conf mhp ty (Some (v, remove_idx o)) p
+  | Some v, Some o -> add_struct side e w conf mhp ty (Some (v, remove_idx o)) a
   | _ ->
     if !unsound && isArithmeticType (type_from_type_offset ty) then
-      add_struct side e w conf mhp ty None p
+      add_struct side e w conf mhp ty None a
     else
-      add_propagate side e w conf mhp ty None p
+      add_propagate side e w conf mhp ty None a
 
 
 (* Access table as Lattice. *)
@@ -374,12 +367,12 @@ let add side e w conf mhp vo oo p =
 module A =
 struct
   include Printable.Std
-  type t = int * MHP.t * bool * CilType.Location.t * CilType.Exp.t * LSSet.t [@@deriving eq, ord]
+  type t = int * MHP.t * bool * CilType.Location.t * CilType.Exp.t * PartAccessResult.t [@@deriving eq, ord] (* TODO: replace with MCPAccess.A *)
 
   let hash (conf, mhp, w, loc, e, lp) = 0 (* TODO: never hashed? *)
 
   let pretty () (conf, mhp, w, loc, e, lp) = (* TODO:Print MHP? *)
-    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e LSSet.pretty lp
+    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e PartAccessResult.pretty lp
 
   let show x = Pretty.sprint ~width:max_int (pretty () x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
@@ -421,11 +414,14 @@ end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
+let conflict (_, lp) (_, lp2) =
+  LSSet.is_empty @@ LSSet.inter lp lp2
+
 (* Check if two accesses race and if yes with which confidence *)
-let conflict2 (conf,mhp,w,loc,e,lp) (conf2,mhp2,w2,loc2,e2,lp2) =
+let conflict2 (conf,mhp,w,loc,e,a) (conf2,mhp2,w2,loc2,e2,a2) =
   if (not w) && (not w2) then
     None (* two read/read accesses do not conflict *)
-  else if not (LSSet.is_empty @@ LSSet.inter lp lp2) then
+  else if not (conflict a a2) then (* TODO: deduplicate with Analyses.OldA *)
     None (* the labelled string set excludes that these conflict *)
   else if not (MHP.may_happen_in_parallel mhp mhp2) then
     None (* They may not be in parallel *)
@@ -462,14 +458,14 @@ let print_accesses (lv, ty) pm =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let g (ls, acs) =
-    let h (conf,mhp,w,loc,e,lp) =
+    let h (conf,mhp,w,loc,e,a) =
       let d_ls () = match ls with
         | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
         | Some ls when LSSet.is_empty ls -> nil
         | Some ls -> text " in " ++ LSSet.pretty () ls
       in
       let atyp = if w then "write" else "read" in
-      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
+      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls PartAccessResult.pretty a conf in
       let doc =
         if debug then
           dprintf "%t  (exp: %a)" d_msg d_exp e

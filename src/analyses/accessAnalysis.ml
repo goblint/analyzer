@@ -59,12 +59,12 @@ struct
       Obj.obj (ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}))
     in
     let add_access conf vo oo =
-      let (po,pd) = part_access ctx e vo w in
-      Access.add (side_access ctx) e w conf mhp vo oo (po,pd);
+      let a = part_access ctx e vo w in
+      Access.add (side_access ctx) e w conf mhp vo oo a;
     in
     let add_access_struct conf ci =
-      let (po,pd) = part_access ctx e None w in
-      Access.add_struct (side_access ctx) e w conf mhp (`Struct (ci,`NoOffset)) None (po,pd)
+      let a = part_access ctx e None w in
+      Access.add_struct (side_access ctx) e w conf mhp (`Struct (ci,`NoOffset)) None a
     in
     let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls
