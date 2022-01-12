@@ -519,7 +519,8 @@ end
 module OldA =
 struct
   include Access.PartAccessResult
-  let conflict (_, lp) (_, lp2) =
+  let conflict (pp, lp) (pp2, lp2) =
+    not (Access.LSSSet.is_empty @@ Access.LSSSet.inter pp pp2) &&
     Access.LSSet.is_empty @@ Access.LSSet.inter lp lp2
 end
 

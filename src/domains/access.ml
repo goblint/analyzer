@@ -414,7 +414,8 @@ end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
-let conflict (_, lp) (_, lp2) =
+let conflict (pp, lp) (pp2, lp2) =
+  not (LSSSet.is_empty @@ LSSSet.inter pp pp2) &&
   LSSet.is_empty @@ LSSet.inter lp lp2
 
 (* Check if two accesses race and if yes with which confidence *)
