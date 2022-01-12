@@ -397,6 +397,10 @@ let invalidate_actions = ref [
     "pthread_rwlock_init", readsAll;
     "pthread_rwlock_unlock", readsAll;
     "__builtin_object_size", readsAll;
+    "__builtin_bswap16", readsAll;
+    "__builtin_bswap32", readsAll;
+    "__builtin_bswap64", readsAll;
+    "__builtin_bswap128", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
     "dev_driver_string", readsAll;
     "dev_driver_string", readsAll;
