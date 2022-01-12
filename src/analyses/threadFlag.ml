@@ -57,27 +57,22 @@ struct
   let special ctx lval f args =
     ctx.local
 
-  let part_access ctx e v w =
-    let es = OldAccess.LSSet.empty () in
-    if is_multi (Analyses.ask_of_ctx ctx) then
-      (OldAccess.LSSSet.singleton es, es)
-    else
-      (* kill access when single threaded *)
-      (OldAccess.LSSSet.empty (), es)
-
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.MustBeSingleThreaded -> not (Flag.is_multi ctx.local)
     | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
-    (* | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top x
 
-  module A = OldAccess.OldA
-  let access ctx {Queries.exp; var_opt; write} =
-    part_access ctx exp var_opt write
+  module A =
+  struct
+    include BoolDomain.Bool
+    let name () = "multi"
+    let conflict m1 m2 = m1 && m2 (* kill access when single threaded *)
+  end
+  let access ctx {Queries.exp=e; var_opt=v; write=w} =
+    is_multi (Analyses.ask_of_ctx ctx)
 
   let threadenter ctx lval f args =
     if not (is_multi (Analyses.ask_of_ctx ctx)) then
