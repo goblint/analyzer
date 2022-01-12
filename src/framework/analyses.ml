@@ -513,7 +513,7 @@ module EmptyV = Printable.Empty
 module UnitA =
 struct
   include Printable.Unit
-  let conflict _ _ = false
+  let conflict _ _ = true
 end
 
 
@@ -563,10 +563,8 @@ struct
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
-  module A = OldAccess.OldA
-  let access _ _ =
-    let es = OldAccess.LSSet.empty () in
-    (OldAccess.LSSSet.singleton es, es)
+  module A = UnitA
+  let access _ _ = ()
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)
