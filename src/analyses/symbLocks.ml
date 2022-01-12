@@ -218,9 +218,13 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
+    (* | Queries.PartAccess {exp; var_opt; write} ->
+      part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top q
+
+  module A = OldA
+  let access ctx {Queries.exp; var_opt; write} =
+    part_access ctx exp var_opt write
 end
 
 let _ =

@@ -53,10 +53,10 @@ struct
     let joined = ctx.ask MustJoinedThreads in
     let mhp:MHP.t = {tid=tid; created=created; must_joined=joined } in
     let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
+    let part_access ctx (e:exp) (vo:varinfo option) (w: bool): MCPAccess.A.t =
       ctx.emit (Access {var_opt=vo; write=w});
       (*partitions & locks*)
-      ctx.ask (PartAccess {exp=e; var_opt=vo; write=w})
+      Obj.obj (ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}))
     in
     let add_access conf vo oo =
       let (po,pd) = part_access ctx e vo w in

@@ -6,35 +6,7 @@ open Analyses
 
 module QuerySet = Set.Make (Queries.Any)
 
-type spec_modules = { spec : (module MCPSpec)
-                    ; dom  : (module Lattice.S)
-                    ; glob : (module Lattice.S)
-                    ; cont : (module Printable.S)
-                    ; var  : (module Printable.S) }
-
-let analyses_list  : (int * spec_modules) list ref = ref []
-let analyses_list' : (int * spec_modules) list ref = ref []
-let dep_list       : (int * (int list)) list ref   = ref []
-let dep_list'      : (int * (string list)) list ref= ref []
-
-let analyses_table = ref []
-
-let register_analysis =
-  let count = ref 0 in
-  fun ?(dep=[]) (module S:MCPSpec) ->
-    let s = { spec = (module S : MCPSpec)
-            ; dom  = (module S.D : Lattice.S)
-            ; glob = (module S.G : Lattice.S)
-            ; cont = (module S.C : Printable.S)
-            ; var  = (module S.V : Printable.S)
-            }
-    in
-    let n = S.name () in
-    analyses_table := (!count,n) :: !analyses_table;
-    analyses_list' := (!count,s) :: !analyses_list';
-    dep_list'      := (!count,dep) :: !dep_list';
-    count := !count + 1
-
+include MCPRegistry
 
 type unknown = Obj.t
 
@@ -688,6 +660,8 @@ struct
         (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
         let (n, g): V.t = Obj.obj g in
         f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+      | Queries.PartAccess a ->
+        Obj.repr (access ctx a)
       (* | EvalInt e ->
         (* TODO: only query others that actually respond to EvalInt *)
         (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
@@ -699,6 +673,31 @@ struct
 
   and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
     query' QuerySet.empty ctx q
+
+  and access (ctx:(D.t, G.t, C.t, V.t) ctx) ({Queries.exp=e; var_opt=vo; write=w} as a): MCPAccess.A.t =
+    let start = MCPAccess.A.top () in
+    let f (acc: MCPAccess.A.t) (n, (module S: MCPSpec), d) : MCPAccess.A.t =
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
+        { local  = obj d
+        ; node   = ctx.node
+        ; prev_node = ctx.prev_node
+        ; control_context = ctx.control_context
+        ; context = (fun () -> ctx.context () |> assoc n |> obj)
+        ; edge   = ctx.edge
+        ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in access context.")
+        ; presub = filter_presubs n ctx.local
+        ; postsub= []
+        ; global = (fun v         -> ctx.global (v_of n v) |> g_to n |> obj)
+        ; spawn  = (fun v d       -> failwith "part_access::spawn")
+        ; split  = (fun d es      -> failwith "part_access::split")
+        ; sideg  = (fun v g       -> failwith "Cannot \"sideg\" in access context.")
+        ; assign = (fun ?name v e -> failwith "part_access::assign")
+        }
+      in
+      MCPAccess.A.meet acc (Obj.magic (S.access ctx' a)) (* TODO: REMOVE MAGIC!!! *)
+    in
+    List.fold_left f start (spec_list ctx.local)
 
   let assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in

@@ -71,9 +71,13 @@ struct
     | Queries.MustBeUniqueThread -> not (Flag.is_not_main ctx.local)
     (* This used to be in base but also commented out. *)
     (* | Queries.MayBePublic _ -> Flag.is_multi ctx.local *)
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
+    (* | Queries.PartAccess {exp; var_opt; write} ->
+      part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top x
+
+  module A = OldA
+  let access ctx {Queries.exp; var_opt; write} =
+    part_access ctx exp var_opt write
 
   let threadenter ctx lval f args =
     if not (is_multi (Analyses.ask_of_ctx ctx)) then

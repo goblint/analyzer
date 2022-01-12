@@ -169,10 +169,14 @@ struct
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       Mutexes.mem verifier_atomic held_locks
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
+    (* | Queries.PartAccess {exp; var_opt; write} ->
+      part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top q
 
+  module A = OldA
+
+  let access ctx {Queries.exp; var_opt; write} =
+    part_access ctx exp var_opt write
 
   (** Transfer functions: *)
 

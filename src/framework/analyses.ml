@@ -375,10 +375,19 @@ sig
   val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
+module type MCPA =
+sig
+  include Printable.S
+  val conflict: t -> t -> bool
+end
+
 module type MCPSpec =
 sig
   include Spec
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  module A: MCPA
+  val access: (D.t, G.t, C.t, V.t) ctx -> Queries.partaccess -> A.t
 end
 
 type analyzed_data = {
@@ -501,6 +510,19 @@ end
 module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
 module EmptyV = Printable.Empty
 
+module UnitA =
+struct
+  include Printable.Unit
+  let conflict _ _ = false
+end
+
+module OldA =
+struct
+  include Access.PartAccessResult
+  let conflict (_, lp) (_, lp2) =
+    not (Access.LSSet.is_empty @@ Access.LSSet.inter lp lp2)
+end
+
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
@@ -546,6 +568,11 @@ struct
 
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+
+  module A = OldA
+  let access _ _ =
+    let es = Access.LSSet.empty () in
+    (Access.LSSSet.singleton es, es)
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

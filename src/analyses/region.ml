@@ -72,9 +72,13 @@ struct
       if is_bullet e regpart ctx.local then Queries.Result.bot q (* TODO: remove bot *) else
         let ls = List.fold_right Queries.LS.add (regions e regpart ctx.local) (Queries.LS.empty ()) in
         ls
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
+    (* | Queries.PartAccess {exp; var_opt; write} ->
+      part_access ctx exp var_opt write *)
     | _ -> Queries.Result.top q
+
+  module A = OldA
+  let access ctx {Queries.exp; var_opt; write} =
+    part_access ctx exp var_opt write
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

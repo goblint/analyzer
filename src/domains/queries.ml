@@ -39,7 +39,9 @@ module VI = Lattice.Flat (Basetype.Variables) (struct
   let bot_name = "Unreachable line"
 end)
 
-module PartAccessResult = Access.PartAccessResult
+(* module PartAccessResult = Access.PartAccessResult *)
+(* module PartAccessResult = MCPAccess.A *)
+module PartAccessResult = Obj
 
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
@@ -143,7 +145,7 @@ struct
     | PrintFullState -> (module Unit)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
-    | PartAccess _ -> (module PartAccessResult)
+    | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* HACK: WTF *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
@@ -194,7 +196,7 @@ struct
     | PrintFullState -> Unit.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
-    | PartAccess _ -> PartAccessResult.top ()
+    | PartAccess _ -> failwith "Queries.Result.top: PartAccess"
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()

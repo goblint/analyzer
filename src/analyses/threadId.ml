@@ -96,14 +96,18 @@ struct
     match x with
     | Queries.CurrentThreadId -> fst ctx.local
     | Queries.CreatedThreads -> created ctx.local
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
+    (* | Queries.PartAccess {exp; var_opt; write} ->
+      part_access ctx exp var_opt write *)
     | Queries.MustBeUniqueThread ->
       begin match fst ctx.local with
         | `Lifted tid -> Thread.is_unique tid
         | _ -> Queries.MustBool.top ()
       end
     | _ -> Queries.Result.top x
+
+  module A = OldA
+  let access ctx {Queries.exp; var_opt; write} =
+    part_access ctx exp var_opt write
 
   let threadenter ctx lval f args =
     let+ tid = create_tid ctx.local ctx.prev_node f in
