@@ -19,7 +19,7 @@ struct
 
   module G =
   struct
-    include Access.PM
+    include Access.AS
 
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
@@ -34,13 +34,11 @@ struct
     vulnerable := 0;
     unsafe := 0
 
-  let side_access ctx ty lv_opt ls_opt (conf, mhp, w, loc, e, lp) =
+  let side_access ctx ty lv_opt (conf, mhp, w, loc, e, a) =
     if !GU.should_warn then (
       let d =
         let open Access in
-        PM.singleton ls_opt (
-          AS.singleton (conf, mhp, w, loc, e, lp)
-        )
+        AS.singleton (conf, mhp, w, loc, e, a)
       in
       ctx.sideg (lv_opt, ty) d
     )
@@ -213,9 +211,9 @@ struct
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-      let pm = ctx.global g in
-      Access.print_accesses g pm;
-      Access.incr_summary safe vulnerable unsafe g pm
+      let accs = ctx.global g in
+      Access.print_accesses g accs;
+      Access.incr_summary safe vulnerable unsafe g accs
     | _ -> Queries.Result.top q
 
   let finalize () =

@@ -212,7 +212,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
 let add_one side (e:exp) (w:bool) (conf:int) (mhp:MHP.t) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin
     let loc = !Tracing.current_loc in
-    side ty lv (Some (LSSet.empty ())) (conf, mhp, w, loc, e, a) (* TODO: remove Some empty *)
+    side ty lv (conf, mhp, w, loc, e, a)
   end
 
 let type_from_type_offset : acc_typ -> typ = function
@@ -379,7 +379,6 @@ struct
   let to_yojson x = `String (show x)
 end
 module AS = SetDomain.Make (A)
-module PM = MapDomain.MapBot (Printable.Option (LSSet) (struct let name = "None" end)) (AS)
 module T =
 struct
   include Printable.Std
@@ -429,44 +428,34 @@ let conflict2 (conf,mhp,w,loc,e,a) (conf2,mhp2,w2,loc2,e2,a2) =
   else
     Some (max conf conf2)
 
-let check_safe ls accs prev_safe =
-  if ls = None then
-    prev_safe
+let check_safe accs =
+  let accs = AS.elements accs in
+  let cart = List.cartesian_product accs accs in
+  let conf = List.filter_map (fun (x,y) -> if A.compare x y <= 0 then conflict2 x y else None) cart in
+  if conf = [] then
+    None
   else
-    let accs = AS.elements accs in
-    let cart = List.cartesian_product accs accs in
-    let conf = List.filter_map (fun (x,y) -> if A.compare x y <= 0 then conflict2 x y else None) cart in
-    if conf = [] then
-      prev_safe
-    else
-      let maxconf = List.max conf in
-      match prev_safe with
-      | None -> Some maxconf
-      | Some prev -> Some (max maxconf prev)
+    let maxconf = List.max conf in
+    Some maxconf
 
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe (lv, ty) pm =
+let incr_summary safe vulnerable unsafe (lv, ty) accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
-  let safety = PM.fold check_safe pm None in
+  let safety = check_safe accs in
   match safety with
   | None -> incr safe
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses (lv, ty) pm =
+let print_accesses (lv, ty) accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  let g (ls, acs) =
+  let msgs () =
     let h (conf,mhp,w,loc,e,a) =
-      let d_ls () = match ls with
-        | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
-        | Some ls when LSSet.is_empty ls -> nil
-        | Some ls -> text " in " ++ LSSet.pretty () ls
-      in
       let atyp = if w then "write" else "read" in
-      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls PartAccessResult.pretty a conf in
+      let d_msg () = dprintf "%s with %a (conf. %d)" atyp PartAccessResult.pretty a conf in
       let doc =
         if debug then
           dprintf "%t  (exp: %a)" d_msg d_exp e
@@ -475,17 +464,10 @@ let print_accesses (lv, ty) pm =
       in
       (doc, Some loc)
     in
-    AS.elements acs
-    |> List.enum
-    |> Enum.map h
+    AS.elements accs
+    |> List.map h
   in
-  let msgs () =
-    PM.bindings pm
-    |> List.enum
-    |> Enum.concat_map g
-    |> List.of_enum
-  in
-  match PM.fold check_safe pm None with
+  match check_safe accs with
   | None ->
     if allglobs then
       M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
