@@ -87,13 +87,17 @@ struct
   let rec add_val n vl (v:t) =
     match v with
     | [] -> if n = 0 then [vl] else failwith "Entry does not exist"
-    | x :: xs -> if n > 0 then add_val (n-1) vl xs else x :: vl :: xs
+    | x :: xs -> if n > 0 then x :: add_val (n-1) vl xs else vl :: x :: xs
 
   let mul_by_constant c v =
     List.map (function x -> x *: c) v
 
   let divide_by_const v c =
     List.map (function x -> x /: c) v
+
+  let rec is_const_var v =
+    let filtered_l = List.filteri (function i -> function x -> if i <> (List.length v) - 1 && x <> (to_rt 0) then true else false) v in
+      if List.length filtered_l <> 1 then false else true
 
   let rec is_constant v =
     match v with
@@ -295,21 +299,21 @@ struct
     let env' = remove_filter_with a.env f in
     let d' = (match a.d with
         | None -> None
-        | Some (m) -> Some (dim_remove (Environment.dimchange a.env env') m))
+        | Some (m) -> Some (dim_remove (Environment.dimchange env' a.env) m))
     in {d = d'; env = env'}
 
   let keep_filter a f =
     let env' = keep_filter_with a.env f in
     let d' = (match a.d with
         | None -> None
-        | Some (m) -> Some (dim_remove (Environment.dimchange a.env env') m))
+        | Some (m) -> Some (dim_remove (Environment.dimchange env' a.env) m))
     in {d = d'; env = env'}
 
   let keep_vars a vs =
     let env' = keep_vars_with a.env vs in
     let d' = (match a.d with
         | None -> None
-        | Some (m) -> Some (dim_remove (Environment.dimchange a.env env') m))
+        | Some (m) -> Some (dim_remove (Environment.dimchange env' a.env) m))
     in {d = d'; env = env'}
 
   let forget_vars a l = (*ToDo Mem_var shouldn't be called*)
@@ -346,8 +350,8 @@ let calc_const (t:Matrix.t) env texp =
         let row = List.find_opt (function x -> List.nth x n = (to_rt 1)) m in
         begin match row with
           | None -> raise (NoConst)
-          | Some (y) -> if Vector.is_constant y then Vector.get_val ((List.length y) - 1) y
-            else raise (NoConst)  end
+          | Some (y) -> if Vector.is_const_var y then Vector.get_val ((List.length y) - 1) y
+            else raise (NoConst) end
       | Unop (u, e, _, _) ->(
           match u with
           | Neg -> (to_rt (-1)) *: parse_replace m e
@@ -439,9 +443,11 @@ struct
 
   let case_two a r col_b =
     let rec append_zeros v r = if List.compare_length_with v r = (-1) then append_zeros (List.append v [to_rt 0]) r else v in
+    let col_b = if List.compare_lengths a col_b < 0 then Vector.keep_rows col_b (List.length a)
+      else if List.compare_lengths a col_b > 0 then (append_zeros col_b (List.length a)) else col_b in
     let a_r = Matrix.get_row a r in
     let mapping = List.map2i (function i -> function x -> function y -> if i < r then
-          Vector.add_vecs x (Vector.mul_by_constant y a_r) else x ) a (append_zeros col_b (List.length a))
+          Vector.add_vecs x (Vector.mul_by_constant y a_r) else x ) a col_b
     in Matrix.remove_row mapping r
 
   let case_three a b col_a col_b max =
@@ -490,7 +496,12 @@ struct
     match a.d, b.d with
     | None, m -> b
     | m, None -> a
-    | Some (x), Some (y) when x = [] || y = [] -> {d = Some ([]); env = a.env}
+    | Some (x), Some (y) when x = [] || y = [] -> {d = Some ([]); env = Environment.lce a.env b.env}
+    | Some (x), Some (y) when (Environment.compare a.env b.env <> 0) ->
+                         let sup_env = Environment.lce a.env b.env in
+                         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+                         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+                         {d = Some(lin_disjunc 0 0 mod_x mod_y); env = sup_env}
     | Some (x), Some(y) -> {d = Some(lin_disjunc 0 0 x y); env = a.env}
 
   let join a b =
@@ -652,42 +663,32 @@ struct
 
 
   (** Assert a constraint expression. *)
-  let rec meet_with_tcons d tcons original_expr negate =
-    match Tcons1.get_typ tcons with
-    | EQ ->
-      if M.tracing then M.tracel "asserts" "EQ meet_with_tcons %s\n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
-      begin match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-        | None -> d
-        | Some (e) ->  meet d {d = Some ([e]); env = d.env}
-      end
-    | DISEQ ->
-      if M.tracing then M.tracel "asserts" "DISEQ meet_with_tcons %s\n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
-      begin match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-        | None -> d
-        | Some (e) -> if equal (meet d {d = Some ([e]); env = d.env}) d then {d = None; env = d.env} else d
-      end
-    | SUP -> if M.tracing then M.tracel "asserts" "SUP meet_with_tcons: %s \n" (Format.asprintf "%a" (Texpr1.print: Format.formatter -> Texpr1.t -> unit) (Tcons1.get_texpr1 tcons));
-      let coeff_vec = get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) in
-      begin match coeff_vec, d.d with
-        | Some (vec), Some (m) when meet {d = Some [vec]; env = d.env} d = d -> {d = None; env = d.env} (*e.g: x + y > 0 = None if x + y = 0*)
-        | None, Some(m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-            | None -> d
-            | Some (c) -> if c <=: (to_rt 0) then {d = None; env = d.env} else d end
-        | _ -> d
-      end
-    | SUPEQ -> if M.tracing then M.tracel "asserts" "SUPEQ meet_with_tcons: %s \n" (Format.asprintf "%a" (Tcons1.print: Format.formatter -> Tcons1.t -> unit) tcons);
-      let coeff_vec = get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) in
-      begin match coeff_vec, d.d with
-        | None, Some(m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-            | None -> d
-            | Some (c) -> if c <: (to_rt 0) then {d = None; env = d.env} else d end
-        | _ -> d
-      end
+  let rec meet_with_tcons d tcons original_expr = (*ToDo Reorder*)
+    if Tcons1.get_typ tcons = SUPEQ then
+      begin match d.d with
+      | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+                    | None -> d
+                    | Some (c) -> if c <: (to_rt 0) then {d = None; env = d.env} else d end
+    | _ -> d end
+   else
+    match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+    | Some (e) ->
+      let e = List.mapi (function i -> function x -> if i = (Vector.length e) -1 then (to_rt (-1)) *: x else x) e in (*Flip the sign of the const. val in coeff vec*)
+       begin match Tcons1.get_typ tcons with
+           | EQ -> meet d {d = Some ([e]); env = d.env}
+           | DISEQ -> if equal (meet d {d = Some ([e]); env = d.env}) d then {d = None; env = d.env} else d
+           | SUP -> if meet {d = Some [e]; env = d.env} d = d then {d = None; env = d.env} else d (*e.g: x + y > 0 = None if x + y = 0*)
+           | _ -> d end
+    | None when Tcons1.get_typ tcons = SUP -> begin match d.d with
+                                              | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+                                                          | None -> d
+                                                          | Some (c) -> if c <=: (to_rt 0) then {d = None; env = d.env} else d end
+                                              | _ -> d end
     | _ -> d
 
   let rec assert_cons d e negate =
     begin match Convert.tcons1_of_cil_exp d (d.env) e negate with
-      | tcons1 -> meet_with_tcons d tcons1 e negate
+      | tcons1 -> meet_with_tcons d tcons1 e
       | exception Convert.Unsupported_CilExp ->
         d
     end
@@ -749,7 +750,7 @@ struct
 
   let eval_int d e =
     let res = eval_int d e in
-    if M.tracing then M.tracel "assert" "Eval Int: matrix: %s expr: %s -> %s \n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) (IntDomain.IntDomTuple.show res) ;
+    if M.tracing then M.tracel "assert" "Eval Int: matrix: %s expr: %s -> %s \n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) (Pretty.sprint 1 (Queries.ID.pretty () res)) ;
     res
 
   let unify a b =

@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] affeq  --set exp.apron.privatization dummy
+// SKIP PARAM: --set ana.activated[+] affeq --set exp.apron.privatization dummy
 void main(void) {
    int zero = 0;
    int x = 0;

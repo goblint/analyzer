@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] affeq  --set exp.apron.privatization dummy
+// SKIP PARAM: --set ana.activated[+] affeq --set exp.apron.privatization dummy
 void main(void) {
 
     int i = 0;
@@ -30,6 +30,7 @@ void main(void) {
     assert (z > i + k); //FAIL
 
     //SUPEQ
+    assert (f < x + y); //FAIL
     assert (f >= x + y);
     assert (z >= i + k + 5); //FAIL
 
