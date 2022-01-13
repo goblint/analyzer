@@ -288,7 +288,12 @@ let preprocess_files () =
 let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
-  let files_AST = List.map Cilfacade.getAST cpp_file_names in
+  (* let files_AST = List.map Cilfacade.getAST cpp_file_names in *)
+  let merged_AST = List.fold_left (fun acc cpp_file_name ->
+      let file = Cilfacade.getAST cpp_file_name in
+      Mergecil.merge [acc; file] "stdout"
+    ) Cil.dummyFile cpp_file_names
+  in
   remove_temp_dir ();
 
   let cilout =
@@ -300,14 +305,15 @@ let merge_preprocessed cpp_file_names =
   Errormsg.logChannel := Messages.get_out "cil" cilout;
 
   (* we use CIL to merge all inputs to ONE file *)
-  let merged_AST =
+  (* let merged_AST =
     match files_AST with
     | [one] -> Cilfacade.callConstructors one
     | [] -> prerr_endline "No arguments for Goblint?";
       prerr_endline "Try `goblint --help' for more information.";
       raise Exit
     | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
-  in
+  in *)
+  let merged_AST = Cilfacade.callConstructors merged_AST in
 
   Cilfacade.rmTemps merged_AST;
 
