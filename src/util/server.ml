@@ -89,10 +89,10 @@ let start file do_analyze =
 
 let analyze ?(reset=false) { file; do_analyze } =
   if reset then (
-    Serialize.solver_data := None;
+    Serialize.server_solver_data := None;
     Messages.Table.(MH.clear messages_table);
     Messages.Table.messages_list := []);
-  let increment_data, fresh = match !Serialize.solver_data with
+  let increment_data, fresh = match !Serialize.server_solver_data with
     | Some solver_data ->
       let changes = CompareCIL.compareCilFiles file file in
       let old_data = Some { Analyses.cil_file = file; solver_data } in

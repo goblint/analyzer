@@ -40,13 +40,14 @@ let type_to_file_name = function
   | CilFile -> cil_file_name
   | VersionData -> version_map_filename
 
-let solver_data : Obj.t option ref = ref None
+(** Used by the server mode to avoid serializing the solver state to the filesystem *)
+let server_solver_data : Obj.t option ref = ref None
 
 (** Loads data for incremental runs from the appropriate file *)
 let load_data (data_type: incremental_data_kind) =
   if server () then
     match data_type with
-    | SolverData -> !solver_data |> Option.get |> Obj.obj
+    | SolverData -> !server_solver_data |> Option.get |> Obj.obj
     | _ -> raise (Invalid_argument "Can only load solver data")
   else
     let p = Filename.concat (gob_results_dir ()) (type_to_file_name data_type) in
@@ -56,7 +57,7 @@ let load_data (data_type: incremental_data_kind) =
 let store_data (data : 'a) (data_type : incremental_data_kind) =
   if server () then
     match data_type with
-    | SolverData -> solver_data := Some (Obj.repr data)
+    | SolverData -> server_solver_data := Some (Obj.repr data)
     | _ -> ()
   else (
     ignore @@ Goblintutil.create_dir (gob_directory ());
