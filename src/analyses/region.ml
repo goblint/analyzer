@@ -65,7 +65,9 @@ struct
       | _, Some r2 when Lvals.is_empty r2 -> true
       | Some r1, Some r2 when Lvals.is_empty (Lvals.inter r1 r2) -> false
       | _, _ -> true
-    let should_print _ = true
+    let should_print r = match r with
+      | Some r when Lvals.is_empty r -> false
+      | _ -> true
   end
   let access ctx {Queries.exp=e; var_opt=v; write=w} =
     (* TODO: remove regions that cannot be reached from the var*)

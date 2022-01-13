@@ -159,7 +159,7 @@ struct
     let name () = "lock"
     let conflict ls1 ls2 =
       is_empty (join ls1 ls2) (* D is reversed, so join is intersect *)
-    let should_print _ = true
+    let should_print ls = not (is_empty ls)
   end
 
   let access ctx {Queries.exp=e; var_opt=v; write=w} =

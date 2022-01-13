@@ -215,7 +215,7 @@ struct
     include OldAccess.LSSet
     let name () = "symblock"
     let conflict lp lp2 = is_empty @@ inter lp lp2
-    let should_print _ = true
+    let should_print lp = not (is_empty lp)
   end
   let access ctx {Queries.exp=e; var_opt=v; write=w} =
     add_per_element_access ctx e false
