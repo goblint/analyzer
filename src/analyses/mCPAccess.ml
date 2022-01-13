@@ -9,6 +9,12 @@ struct
 
   include DomListPrintable (PrintableOfMCPASpec (AccListSpec))
 
+  let unop_fold f a (x:t) =
+    let f a n d =
+      f a n (assoc_dom n) d
+    in
+    fold_left (fun a (n,d) -> f a n d) a x
+
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
       f a n (assoc_dom n) d1 d2
@@ -21,4 +27,15 @@ struct
   let conflict x y = not @@ binop_fold (fun a n (module S: Analyses.MCPA) x y ->
       a || not (S.conflict (obj x) (obj y))
     ) false x y
+
+  let pretty () a =
+    (* filter with should_print *)
+    let a' = unop_fold (fun acc n (module S: Analyses.MCPA) x ->
+        if S.should_print (obj x) then
+          (n, x) :: acc
+        else
+          acc
+      ) [] a
+    in
+    pretty () a'
 end

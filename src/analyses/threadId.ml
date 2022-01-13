@@ -102,6 +102,7 @@ struct
       | (Some t1, _), (Some t2, _) when ThreadLifted.equal t1 t2 -> false
       | (_, (t1, c1, j1)), (_, (t2, c2, j2)) when not (MHP.may_happen_in_parallel {tid=t1; created=c1; must_joined=j1} {tid=t2; created=c2; must_joined=j2}) -> false
       | (_, _), (_, _) -> true
+    let should_print _ = true
   end
   let access ctx {Queries.exp=e; var_opt=v; write=w} =
     let unique =

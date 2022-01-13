@@ -51,4 +51,5 @@ struct
   let conflict (pp, lp) (pp2, lp2) =
     not (LSSSet.is_empty @@ LSSSet.inter pp pp2) &&
     LSSet.is_empty @@ LSSet.inter lp lp2
+  let should_print _ = true
 end

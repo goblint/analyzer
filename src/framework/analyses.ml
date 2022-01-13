@@ -379,6 +379,7 @@ module type MCPA =
 sig
   include Printable.S
   val conflict: t -> t -> bool
+  val should_print: t -> bool (** Whether value should be printed in race output. *)
 end
 
 module type MCPSpec =
@@ -514,6 +515,7 @@ module UnitA =
 struct
   include Printable.Unit
   let conflict _ _ = true
+  let should_print _ = false
 end
 
 
