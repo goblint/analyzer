@@ -1,6 +1,8 @@
 open Batteries
 open Jsonrpc
 
+exception Failure of Response.Error.Code.t * string
+
 type t = {
   file: Cil.file;
   do_analyze: Analyses.increment_data -> Cil.file -> unit;
@@ -56,7 +58,7 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
               R.process params serv
               |> R.response_to_yojson
               |> Response.ok id
-            with exn -> handle_exn id exn)
+            with Failure (code, msg) -> Response.Error.(make code msg () |> Response.error id))
         | Error s -> Response.Error.(make Code.InvalidParams s () |> Response.error id))
     | _ -> Response.Error.(make Code.MethodNotFound message.method_ () |> Response.error id)
   in
@@ -74,7 +76,7 @@ let serve serv =
             match message.id with
             | Some id -> handle_request serv message id
             | _ -> () (* We just ignore notifications for now. *)
-          with exn -> prerr_endline (Printexc.to_string exn))
+          with Json.Of_json (s, _) -> prerr_endline s)
       | `Exn exn -> prerr_endline (Printexc.to_string exn))
 
 let make file do_analyze : t = { file; do_analyze }
@@ -113,14 +115,19 @@ let () =
     let name = "config"
     type params = string * Yojson.Safe.t [@@deriving of_yojson]
     type response = unit [@@deriving to_yojson]
-    let process (conf, json) _ = GobConfig.set_auto conf (Yojson.Safe.to_string json)
+    let process (conf, json) _ =
+      try
+        GobConfig.set_auto conf (Yojson.Safe.to_string json)
+      with exn -> raise (Failure (InvalidParams, Printexc.to_string exn))
   end);
 
   register (module struct
     let name = "merge_config"
     type params = Yojson.Safe.t [@@deriving of_yojson]
     type response = unit [@@deriving to_yojson]
-    let process json _ = GobConfig.merge json
+    let process json _ =
+      try GobConfig.merge json with exn -> (* TODO: Be more specific in what we catch. *)
+        raise (Failure (InvalidParams, Printexc.to_string exn))
   end);
 
   register (module struct
