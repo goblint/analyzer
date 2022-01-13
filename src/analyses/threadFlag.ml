@@ -72,7 +72,7 @@ struct
     let may_race m1 m2 = m1 && m2 (* kill access when single threaded *)
     let should_print m = not m
   end
-  let access ctx {Queries.exp=e; var_opt=v; write=w} =
+  let access ctx e vo w =
     is_multi (Analyses.ask_of_ctx ctx)
 
   let threadenter ctx lval f args =

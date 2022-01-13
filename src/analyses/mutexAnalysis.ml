@@ -162,7 +162,7 @@ struct
     let should_print ls = not (is_empty ls)
   end
 
-  let access ctx {Queries.exp=e; var_opt=v; write=w} =
+  let access ctx e vo w =
     if w then
       (* when writing: ignore reader locks *)
       Lockset.filter snd ctx.local

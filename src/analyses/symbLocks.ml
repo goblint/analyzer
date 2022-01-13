@@ -218,7 +218,7 @@ struct
     let may_race lp lp2 = is_empty @@ inter lp lp2
     let should_print lp = not (is_empty lp)
   end
-  let access ctx {Queries.exp=e; var_opt=v; write=w} =
+  let access ctx e vo w =
     add_per_element_access ctx e false
 end
 

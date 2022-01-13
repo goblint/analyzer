@@ -388,7 +388,7 @@ sig
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   module A: MCPA
-  val access: (D.t, G.t, C.t, V.t) ctx -> Queries.partaccess -> A.t
+  val access: (D.t, G.t, C.t, V.t) ctx -> exp -> varinfo option -> bool -> A.t
 end
 
 type analyzed_data = {
@@ -566,7 +566,7 @@ struct
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
   module A = UnitA
-  let access _ _ = ()
+  let access _ _ _ _ = ()
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

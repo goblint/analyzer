@@ -363,8 +363,8 @@ struct
         (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
         let (n, g): V.t = Obj.obj g in
         f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
-      | Queries.PartAccess a ->
-        Obj.repr (access ctx a)
+      | Queries.PartAccess {exp; var_opt; write} ->
+        Obj.repr (access ctx exp var_opt write)
       (* | EvalInt e ->
         (* TODO: only query others that actually respond to EvalInt *)
         (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
@@ -377,7 +377,7 @@ struct
   and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
     query' QuerySet.empty ctx q
 
-  and access (ctx:(D.t, G.t, C.t, V.t) ctx) ({Queries.exp=e; var_opt=vo; write=w} as a): MCPAccess.A.t =
+  and access (ctx:(D.t, G.t, C.t, V.t) ctx) e vo w: MCPAccess.A.t =
     let f (acc: MCPAccess.A.t) (n, (module S: MCPSpec), d) : MCPAccess.A.t =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
@@ -397,7 +397,7 @@ struct
         ; assign = (fun ?name v e -> failwith "part_access::assign")
         }
       in
-      (n, repr (S.access ctx' a)) :: acc
+      (n, repr (S.access ctx' e vo w)) :: acc
     in
     List.fold_left f [] (spec_list ctx.local) (* map without deadcode *)
 

@@ -106,7 +106,7 @@ struct
       | (_, _), (_, _) -> true
     let should_print _ = true
   end
-  let access ctx {Queries.exp=e; var_opt=v; write=w} =
+  let access ctx e vo w =
     let unique =
       if is_unique ctx then
         let tid = fst ctx.local in

@@ -69,7 +69,7 @@ struct
       | Some r when Lvals.is_empty r -> false
       | _ -> true
   end
-  let access ctx {Queries.exp=e; var_opt=v; write=w} =
+  let access ctx e vo w =
     (* TODO: remove regions that cannot be reached from the var*)
     let rec unknown_index = function
       | `NoOffset -> `NoOffset
