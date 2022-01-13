@@ -289,7 +289,15 @@ let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
   (* let files_AST = List.map Cilfacade.getAST cpp_file_names in *)
-  let merged_AST = List.fold_left (fun acc cpp_file_name ->
+  (* let files_AST = List.mapi (fun i x ->
+      Printf.printf "PRE %d\n" i;
+      flush stdout;
+      Cilfacade.getAST x
+    ) cpp_file_names
+  in *)
+  let merged_AST = List.fold_lefti (fun acc i cpp_file_name ->
+      Printf.printf "PRE %d\n" i;
+      flush stdout;
       let file = Cilfacade.getAST cpp_file_name in
       Mergecil.merge [acc; file] "stdout"
     ) Cil.dummyFile cpp_file_names
