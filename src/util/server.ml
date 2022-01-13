@@ -6,22 +6,22 @@ type t = {
   do_analyze: Analyses.increment_data -> Cil.file -> unit;
 }
 
-module type Command = sig
+module type Request = sig
   val name: string
 
-  type args
-  type result
+  type params
+  type response
 
-  val args_of_yojson: Yojson.Safe.t -> args Ppx_deriving_yojson_runtime.error_or
-  val result_to_yojson: result -> Yojson.Safe.t
+  val params_of_yojson: Yojson.Safe.t -> (params, string) result
+  val response_to_yojson: response -> Yojson.Safe.t
 
-  val process: args -> t -> result
+  val process: params -> t -> response
 end
 
 module Registry = struct
-  type t = (string, (module Command)) Hashtbl.t
+  type t = (string, (module Request)) Hashtbl.t
   let make () : t = Hashtbl.create 32
-  let register (reg: t) (module R : Command) = Hashtbl.add reg R.name (module R)
+  let register (reg: t) (module R : Request) = Hashtbl.add reg R.name (module R)
 end
 
 let registry = Registry.make ()
@@ -29,35 +29,32 @@ let registry = Registry.make ()
 let handle_exn id exn =
   Response.Error.(make Code.InternalError (Printexc.to_string exn) () |> Response.error id)
 
-module ParamParser (C : Command) = struct
+module ParamParser (R : Request) = struct
   let parse params =
-    let args = 
+    let maybe_params =
       params
       |> Option.map_default Message.Structured.to_json `Null
-      |> C.args_of_yojson
+      |> R.params_of_yojson
     in
-    match args with
-    | Ok args -> Ok args
+    match maybe_params with
+    | Ok params -> Ok params
     | Error err ->
-      (* This is a hack to handle cases where C.args is primitive type like int or string. *)
+      (* This is a hack to handle cases where R.params is a primitive type like int or string. *)
       match params with
-      | Some `List [param] -> (
-          match C.args_of_yojson param with
-          | Ok arg -> Ok arg
-          | _ -> Error err)
+      | Some `List [param] -> R.params_of_yojson param |> Result.map_error (fun _ -> err)
       | _ -> Error err
 end
 
 let handle_request (serv: t) (message: Message.either) (id: Id.t) =
-  let cmd = Hashtbl.find_option registry message.method_ in
-  let response = match cmd with
-    | Some (module C) ->
-      let module Parser = ParamParser (C) in (
+  let req = Hashtbl.find_option registry message.method_ in
+  let response = match req with
+    | Some (module R) ->
+      let module Parser = ParamParser (R) in (
         match Parser.parse message.params with
-        | Ok args -> (
+        | Ok params -> (
             try
-              C.process args serv
-              |> C.result_to_yojson
+              R.process params serv
+              |> R.response_to_yojson
               |> Response.ok id
             with exn -> handle_exn id exn)
         | Error s -> Response.Error.(make Code.InvalidParams s () |> Response.error id))
@@ -108,36 +105,36 @@ let () =
 
   register (module struct
     let name = "analyze"
-    type args = { reset: bool [@default false] } [@@deriving of_yojson]
-    type result = unit [@@deriving to_yojson]
+    type params = { reset: bool [@default false] } [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
     let process { reset } serve = analyze serve ~reset
   end);
 
   register (module struct
     let name = "config"
-    type args = string * Yojson.Safe.t [@@deriving of_yojson]
-    type result = unit [@@deriving to_yojson]
+    type params = string * Yojson.Safe.t [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
     let process (conf, json) _ = GobConfig.set_auto conf (Yojson.Safe.to_string json)
   end);
 
   register (module struct
     let name = "merge_config"
-    type args = Yojson.Safe.t [@@deriving of_yojson]
-    type result = unit [@@deriving to_yojson]
+    type params = Yojson.Safe.t [@@deriving of_yojson]
+    type response = unit [@@deriving to_yojson]
     let process json _ = GobConfig.merge json
   end);
 
   register (module struct
     let name = "messages"
-    type args = unit [@@deriving of_yojson]
-    type result = Messages.Message.t list [@@deriving to_yojson]
+    type params = unit [@@deriving of_yojson]
+    type response = Messages.Message.t list [@@deriving to_yojson]
     let process () _ = !Messages.Table.messages_list
   end);
 
   register (module struct
     let name = "exp_eval"
-    type args = ExpressionEvaluation.query [@@deriving of_yojson]
-    type result =
+    type params = ExpressionEvaluation.query [@@deriving of_yojson]
+    type response =
       ((string * CilType.Location.t * string * int) * bool option) list [@@deriving to_yojson]
     let process query serv =
       GobConfig.set_auto "trans.activated[+]" "'expeval'";
@@ -149,7 +146,7 @@ let () =
 
   register (module struct
     let name = "ping"
-    type args = unit [@@deriving of_yojson]
-    type result = [`Pong] [@@deriving to_yojson]
+    type params = unit [@@deriving of_yojson]
+    type response = [`Pong] [@@deriving to_yojson]
     let process () _ = `Pong
   end)
