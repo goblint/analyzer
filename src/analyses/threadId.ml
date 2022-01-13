@@ -97,12 +97,11 @@ struct
   module A =
   struct
     (* Also contains MHP in addition to unique thread. *)
-    (* TODO: use MHP module instead of Prod3 *)
-    include Printable.Prod (Printable.Option (ThreadLifted) (struct let name = "nonunique" end)) (Printable.Prod3 (ThreadLifted) (ConcDomain.ThreadSet) (ConcDomain.ThreadSet))
+    include Printable.Prod (Printable.Option (ThreadLifted) (struct let name = "nonunique" end)) (MHP)
     let name () = "thread * mhp"
     let may_race (t1: t) (t2: t) = match t1, t2 with
       | (Some t1, _), (Some t2, _) when ThreadLifted.equal t1 t2 -> false
-      | (_, (t1, c1, j1)), (_, (t2, c2, j2)) when not (MHP.may_happen_in_parallel {tid=t1; created=c1; must_joined=j1} {tid=t2; created=c2; must_joined=j2}) -> false
+      | (_, mhp1), (_, mhp2) when not (MHP.may_happen_in_parallel mhp1 mhp2) -> false
       | (_, _), (_, _) -> true
     let should_print _ = true
   end
@@ -114,7 +113,7 @@ struct
       else
         None
     in
-    let mhp = (fst ctx.local, created ctx.local, ctx.ask MustJoinedThreads) in
+    let mhp: MHP.t = {tid = fst ctx.local; created = created ctx.local; must_joined = ctx.ask MustJoinedThreads} in
     (unique, mhp)
 
   let threadenter ctx lval f args =

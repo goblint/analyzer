@@ -1,6 +1,22 @@
+include Printable.Std
+
 module TID = ThreadIdDomain.FlagConfiguredTID
 
-type t = { tid:ThreadIdDomain.ThreadLifted.t; created:ConcDomain.ThreadSet.t; must_joined:ConcDomain.ThreadSet.t} [@@deriving eq,ord]
+type t = {
+  tid: ThreadIdDomain.ThreadLifted.t;
+  created: ConcDomain.ThreadSet.t;
+  must_joined: ConcDomain.ThreadSet.t;
+} [@@deriving eq, ord]
+
+let hash {tid; created; must_joined} =
+  13 * ThreadIdDomain.ThreadLifted.hash tid + 7 * ConcDomain.ThreadSet.hash created + ConcDomain.ThreadSet.hash must_joined
+
+let pretty () {tid; created; must_joined} =
+  Pretty.dprintf "(%a, %a, %a)" ThreadIdDomain.ThreadLifted.pretty tid ConcDomain.ThreadSet.pretty created ConcDomain.ThreadSet.pretty must_joined
+
+let show x = Pretty.sprint ~width:max_int (pretty () x)
+let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+let to_yojson x = `String (show x)
 
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)
