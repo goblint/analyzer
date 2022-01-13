@@ -24,8 +24,8 @@ struct
       else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
     with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
 
-  let conflict x y = not @@ binop_fold (fun a n (module S: Analyses.MCPA) x y ->
-      a || not (S.conflict (obj x) (obj y))
+  let may_race x y = not @@ binop_fold (fun a n (module S: Analyses.MCPA) x y ->
+      a || not (S.may_race (obj x) (obj y))
     ) false x y
 
   let pretty () a =

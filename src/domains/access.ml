@@ -366,19 +366,19 @@ module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
 
-(* Check if two accesses race and if yes with which confidence *)
-let conflict2 (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
-  if (not w) && (not w2) then
-    None (* two read/read accesses do not conflict *)
-  else if not (MCPAccess.A.conflict a a2) then
-    None (* the labelled string set excludes that these conflict *)
+(* Check if two accesses may race and if yes with which confidence *)
+let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
+  if not w && not w2 then
+    None (* two read/read accesses do not race *)
+  else if not (MCPAccess.A.may_race a a2) then
+    None (* analysis-specific information excludes race *)
   else
     Some (max conf conf2)
 
 let check_safe accs =
   let accs = AS.elements accs in
   let cart = List.cartesian_product accs accs in
-  let conf = List.filter_map (fun (x,y) -> if A.compare x y <= 0 then conflict2 x y else None) cart in
+  let conf = List.filter_map (fun (x,y) -> if A.compare x y <= 0 then may_race x y else None) cart in
   if conf = [] then
     None
   else

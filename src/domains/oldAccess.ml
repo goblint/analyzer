@@ -48,7 +48,7 @@ module PartAccessResult = Lattice.Reverse (Lattice.Prod (LSSSet) (LSSet))
 module OldA =
 struct
   include PartAccessResult
-  let conflict (pp, lp) (pp2, lp2) =
+  let may_race (pp, lp) (pp2, lp2) =
     not (LSSSet.is_empty @@ LSSSet.inter pp pp2) &&
     LSSet.is_empty @@ LSSet.inter lp lp2
   let should_print _ = true

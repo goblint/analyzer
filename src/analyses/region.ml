@@ -57,7 +57,7 @@ struct
   struct
     include Printable.Option (Lvals) (struct let name = "no region" end)
     let name () = "region"
-    let conflict r1 r2 = match r1, r2 with
+    let may_race r1 r2 = match r1, r2 with
       | None, _
       | _, None -> false
       (* TODO: Should it happen in the first place that RegMap has empty value? Happens in 09-regions/34-escape_rc *)

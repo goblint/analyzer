@@ -98,7 +98,7 @@ struct
   struct
     include Printable.Prod (Printable.Option (ThreadLifted) (struct let name = "nonunique" end)) (Printable.Prod3 (ThreadLifted) (ConcDomain.ThreadSet) (ConcDomain.ThreadSet))
     let name () = "thread * mhp"
-    let conflict (t1: t) (t2: t) = match t1, t2 with
+    let may_race (t1: t) (t2: t) = match t1, t2 with
       | (Some t1, _), (Some t2, _) when ThreadLifted.equal t1 t2 -> false
       | (_, (t1, c1, j1)), (_, (t2, c2, j2)) when not (MHP.may_happen_in_parallel {tid=t1; created=c1; must_joined=j1} {tid=t2; created=c2; must_joined=j2}) -> false
       | (_, _), (_, _) -> true

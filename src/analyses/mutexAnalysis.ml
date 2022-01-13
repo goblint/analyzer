@@ -157,7 +157,7 @@ struct
   struct
     include D
     let name () = "lock"
-    let conflict ls1 ls2 =
+    let may_race ls1 ls2 =
       is_empty (join ls1 ls2) (* D is reversed, so join is intersect *)
     let should_print ls = not (is_empty ls)
   end

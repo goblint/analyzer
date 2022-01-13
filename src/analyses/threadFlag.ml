@@ -69,7 +69,7 @@ struct
   struct
     include BoolDomain.Bool
     let name () = "multi"
-    let conflict m1 m2 = m1 && m2 (* kill access when single threaded *)
+    let may_race m1 m2 = m1 && m2 (* kill access when single threaded *)
     let should_print m = not m
   end
   let access ctx {Queries.exp=e; var_opt=v; write=w} =
