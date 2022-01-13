@@ -63,20 +63,19 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
   Response.yojson_of_t response |> Yojson.Safe.to_string |> print_endline
 
 let serve serv =
-  let chan = IO.to_input_channel stdin in
-  let stream = Yojson.Safe.linestream_from_channel chan in
-  while not (Stream.is_empty stream) do
-    let line = Stream.next stream in
-    match line with
-    | `Json json -> (
-        try
-          let message = Message.either_of_yojson json in
-          match message.id with
-          | Some id -> handle_request serv message id
-          | _ -> () (* We just ignore notifications for now. *)
-        with exn -> prerr_endline (Printexc.to_string exn))
-    | `Exn exn -> prerr_endline (Printexc.to_string exn)
-  done
+  stdin
+  |> IO.to_input_channel
+  |> Yojson.Safe.linestream_from_channel
+  |> Stream.iter (fun line ->
+      match line with
+      | `Json json -> (
+          try
+            let message = Message.either_of_yojson json in
+            match message.id with
+            | Some id -> handle_request serv message id
+            | _ -> () (* We just ignore notifications for now. *)
+          with exn -> prerr_endline (Printexc.to_string exn))
+      | `Exn exn -> prerr_endline (Printexc.to_string exn))
 
 let make file do_analyze : t = { file; do_analyze }
 
