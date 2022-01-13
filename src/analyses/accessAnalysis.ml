@@ -35,15 +35,13 @@ struct
     unsafe := 0
 
   let side_access ctx ty lv_opt (conf, w, loc, e, a) =
-    if !GU.should_warn then (
-      let d =
-        let open Access in
-        AS.singleton (conf, w, loc, e, a)
-      in
-      ctx.sideg (lv_opt, ty) d
-    )
-    else
-      ctx.sideg (lv_opt, ty) (G.bot ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
+    let d =
+      if !GU.should_warn then
+        Access.AS.singleton (conf, w, loc, e, a)
+      else
+        G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
+    in
+    ctx.sideg (lv_opt, ty) d
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in

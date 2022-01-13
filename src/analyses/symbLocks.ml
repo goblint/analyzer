@@ -212,6 +212,7 @@ struct
 
   module A =
   struct
+    (* TODO: non-string symblocks *)
     include OldAccess.LSSet
     let name () = "symblock"
     let may_race lp lp2 = is_empty @@ inter lp lp2

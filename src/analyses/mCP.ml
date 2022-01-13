@@ -399,7 +399,7 @@ struct
       in
       (n, repr (S.access ctx' a)) :: acc
     in
-    List.fold_left f [] (spec_list ctx.local)
+    List.fold_left f [] (spec_list ctx.local) (* map without deadcode *)
 
   let assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in

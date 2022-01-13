@@ -96,6 +96,8 @@ struct
 
   module A =
   struct
+    (* Also contains MHP in addition to unique thread. *)
+    (* TODO: use MHP module instead of Prod3 *)
     include Printable.Prod (Printable.Option (ThreadLifted) (struct let name = "nonunique" end)) (Printable.Prod3 (ThreadLifted) (ConcDomain.ThreadSet) (ConcDomain.ThreadSet))
     let name () = "thread * mhp"
     let may_race (t1: t) (t2: t) = match t1, t2 with

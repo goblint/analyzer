@@ -315,7 +315,7 @@ let add side e w conf vo oo a =
 
 
 (* Access table as Lattice. *)
-(* (varinfo ->) offset -> type -> 2^(confidence, write, loc, e, accs) *)
+(* (varinfo ->) offset -> type -> 2^(confidence, write, loc, e, acc) *)
 module A =
 struct
   include Printable.Std

@@ -1,6 +1,8 @@
 
 open MCPRegistry
 
+(** Access module corresponding to MCP.
+    Separate to avoid dependency cycle. *)
 module A =
 struct
   open AccListSpec
