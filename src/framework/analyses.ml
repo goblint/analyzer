@@ -166,9 +166,10 @@ struct
     iter print_one xs
 
   let printXmlWarning f () =
-    let one_text f Messages.Piece.{loc; text = m; _} =
-      match loc with
-      | Some l ->
+    let one_text f Messages.Piece.{node; text = m; _} =
+      match node with
+      | Some n ->
+        let l = Node.location n in
         BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
       | None ->
         () (* TODO: not outputting warning without location *)

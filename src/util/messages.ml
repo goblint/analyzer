@@ -32,14 +32,13 @@ end
 module Piece =
 struct
   type t = {
-    loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
-    node: NodeType.t option;
+    node: NodeType.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
     context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))]) option; (* TODO: this equality is terrible... *)
   } [@@deriving eq, to_yojson]
 
-  let hash {loc; node; text; context} =
-    7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context (* TODO: use node *)
+  let hash {node; text; context} =
+    7 * BatOption.map_default NodeType.hash 1 node + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
 
   let text_with_context {text; context; _} =
     match context with
@@ -182,7 +181,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
   let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
   let pp_piece ppf piece =
     let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
-    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) piece.loc
+    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map NodeType.location piece.node)
   in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
@@ -204,7 +203,7 @@ let add m =
 (** Adapts old [print_group] to new message structure.
     Don't use for new (group) warnings. *)
 let msg_group_race_old severity group_name errors =
-  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; node = None; text = s; context = None}) errors}} in (* TODO: use node? *)
+  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{node = None; text = s; context = None}) errors}} in (* TODO: add node *)
   add m;
 
   if (get_bool "ana.osek.warnfiles") then
@@ -233,14 +232,14 @@ let msg severity ?node ?(tags=[]) ?(category=Category.Unknown) fmt =
       | Some node -> Some node
       | None -> !NodeType.current_node
     in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; node; text; context = msg_context ()}}
+    add {tags = Category category :: tags; severity; multipiece = Single {node; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; node = None; text; context = msg_context ()}}
+    add {tags = Category category :: tags; severity; multipiece = Single {node = None; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 
@@ -249,7 +248,7 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     let group_text = Pretty.sprint ~width:max_int doc in
     let piece_of_msg (doc, loc) =
       let text = Pretty.sprint ~width:max_int doc in
-      Piece.{loc; node = None; text; context = None} (* TODO: add node *)
+      Piece.{node = None; text; context = None} (* TODO: add node *)
     in
     add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
   in

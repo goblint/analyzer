@@ -46,17 +46,6 @@ let show_cfg = function
   | FunctionEntry fd -> fd.svar.vname ^ "()"
 
 
-let hash = function
-  | Statement   stmt -> Hashtbl.hash (CilType.Stmt.hash stmt, 0)
-  | Function      fd -> Hashtbl.hash (CilType.Fundec.hash fd, 1)
-  | FunctionEntry fd -> Hashtbl.hash (CilType.Fundec.hash fd, 2)
-
-let location (node: t) =
-  match node with
-  | Statement stmt -> Cilfacade.get_stmtLoc stmt
-  | Function fd -> fd.svar.vdecl
-  | FunctionEntry fd -> fd.svar.vdecl
-
 (** Find [fundec] which the node is in. In an incremental run this might yield old fundecs for pseudo-return nodes from the old file. *)
 let find_fundec (node: t) =
   match node with
