@@ -31,7 +31,6 @@ struct
   let widen x y =
     if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
     let r = widen x y in
-    M.tracel "ad" "%s\n" (Printexc.raw_backtrace_to_string (Printexc.get_callstack 50));
     if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
     r
 
