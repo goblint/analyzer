@@ -480,7 +480,7 @@ let print_accesses (lv, ty) pm =
         else
           d_msg ()
       in
-      (doc, Some loc)
+      (doc, Some (Messages.Location.CilLocation loc)) (* TODO: use Node *)
     in
     AS.elements acs
     |> List.enum

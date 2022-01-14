@@ -126,7 +126,7 @@ struct
           endByte = 0; (* wrong, but not shown *)
         }
         in
-        (doc, Some loc)
+        (doc, Some (Messages.Location.CilLocation loc))
       in
       let msgs =
         BatISet.fold_range (fun b e acc ->
