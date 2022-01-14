@@ -29,16 +29,35 @@ struct
   let to_yojson x = `String (show x)
 end
 
+module Location =
+struct
+  type t =
+    | Node of NodeType.t
+    | CilLocation of CilType.Location.t
+  [@@deriving eq]
+
+  let hash = function
+    | Node node -> NodeType.hash node
+    | CilLocation loc -> CilType.Location.hash loc
+
+  let to_cil = function
+    | Node node -> NodeType.location node
+    | CilLocation loc -> loc
+
+  let to_yojson x = CilType.Location.to_yojson (to_cil x)
+end
+
 module Piece =
 struct
   type t = {
-    node: NodeType.t option; (* only *_each warnings have this, used for deduplication *)
+    (* TODO: rename back to loc *)
+    node: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
     context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))]) option; (* TODO: this equality is terrible... *)
   } [@@deriving eq, to_yojson]
 
   let hash {node; text; context} =
-    7 * BatOption.map_default NodeType.hash 1 node + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
+    7 * BatOption.map_default Location.hash 1 node + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
 
   let text_with_context {text; context; _} =
     match context with
@@ -181,7 +200,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
   let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
   let pp_piece ppf piece =
     let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
-    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map NodeType.location piece.node)
+    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map Location.to_cil piece.node)
   in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
@@ -232,6 +251,7 @@ let msg severity ?node ?(tags=[]) ?(category=Category.Unknown) fmt =
       | Some node -> Some node
       | None -> !NodeType.current_node
     in
+    let node = Option.map (fun node -> Location.Node node) node in
     add {tags = Category category :: tags; severity; multipiece = Single {node; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
