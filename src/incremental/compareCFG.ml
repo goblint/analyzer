@@ -94,42 +94,27 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
 (* This is the second phase of the CFG comparison of functions. It removes the nodes from the matching node set 'same'
  * that have an incoming backedge in the new CFG that can be reached from a differing new node. This is important to
  * recognize new dependencies between unknowns that are not contained in the infl from the previous run. *)
-let reexamine f1 f2 (same : biDirectionNodeMap ref) (diffNodes1 : unit NH.t) (module CfgOld : CfgForward) (module CfgNew : CfgForward) =
-  NH.iter (fun n1 _ -> if NH.mem !same.node1to2 n1 then (let n2 = NH.find !same.node1to2 n1 in NH.remove !same.node1to2 n1; NH.remove !same.node2to1 n2)) diffNodes1;
-  NH.replace !same.node1to2 (FunctionEntry f1) (FunctionEntry f2); NH.replace !same.node2to1 (FunctionEntry f2) (FunctionEntry f1);
-  let module NS = Set.Make(Node) in
-  let diffNodes2 = NH.create 103 in
+let reexamine f1 f2 (same : biDirectionNodeMap ref) (diffNodes1 : unit NH.t) (module CfgOld : CfgForward) (module CfgNew : CfgForward) (module CfgNewPred : CfgBackward) =
+  let entry1 = (FunctionEntry f1) in
+  let entry2 = (FunctionEntry f2) in
+  NH.replace !same.node1to2 entry1 entry2; NH.replace !same.node2to1 entry2 entry1;
+  let rec repeat () =
+    let ls = List.of_seq (NH.to_seq_keys !same.node2to1) in
+    let rec check_nodes_in_same ps n = match ps with
+      | [] -> true
+      | p::ps' -> if not (NH.mem !same.node2to1 p) then (
+          let n1 = NH.find !same.node2to1 n in
+          NH.replace diffNodes1 n1 ();
+          NH.remove !same.node1to2 n1; NH.remove !same.node2to1 n;
+          repeat (); false
+        ) else check_nodes_in_same ps' n in
+    let rec check_predecessors ls = match ls with
+      | [] -> ()
+      | (n2::ls') -> if Node.equal n2 entry2 || check_nodes_in_same (List.map snd (CfgNewPred.prev n2)) n2 then check_predecessors ls' in
+    check_predecessors ls
+  in repeat (); NH.to_seq !same.node1to2, NH.to_seq_keys diffNodes1
 
-  (* remove all nodes that are affected by a primary new node from same, add the first reached tuple to the primary differing node sets *)
-  let rec refine_same firstReached vis k =
-    if NH.mem !same.node2to1 k then
-      begin
-        let k1 = NH.find !same.node2to1 k in
-        if not firstReached then (
-          NH.replace diffNodes2 k ();
-          NH.replace diffNodes1 k1 ()
-        );
-        NH.remove !same.node1to2 k1;
-        NH.remove !same.node2to1 k;
-        dfs2 vis k (refine_same true)
-      end
-    else if firstReached || NH.mem diffNodes2 k then ()
-    else dfs2 vis k (refine_same firstReached)
-  (* find the primary new nodes, the first non-classified nodes in the new cfg (correspond to the primary obsolete nodes) *)
-  and classify_prim_new vis k =
-    if NH.mem !same.node2to1 k then dfs2 vis k classify_prim_new
-    else (NH.replace diffNodes2 k (); dfs2 NS.empty k (refine_same false))
-  and dfs2 vis node f =
-    if NS.mem node vis then ()
-    else begin
-      let vis' = NS.add node vis in
-      let succ = List.map snd (CfgNew.next node) in
-      List.iter (f vis') succ
-    end in
-  dfs2 NS.empty (FunctionEntry f2) classify_prim_new;
-  (NH.to_seq !same.node1to2, NH.to_seq_keys diffNodes1, NH.to_seq_keys diffNodes2)
-
-let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 fun2 =
-  let same, diff = compareCfgs (module CfgOld) (module CfgNew) fun1 fun2 in
-  let unchanged, diffNodes1, diffNodes2 = Stats.time "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew)) () in
-  List.of_seq unchanged, List.of_seq diffNodes1, List.of_seq diffNodes2
+let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgForward) (module CfgNewPred : CfgBackward) fun1 fun2 =
+  let same, diff = Stats.time "compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun1 fun2) () in
+  let unchanged, diffNodes1 = Stats.time "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew) (module CfgNewPred)) () in
+  List.of_seq unchanged, List.of_seq diffNodes1
