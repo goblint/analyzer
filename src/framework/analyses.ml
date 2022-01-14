@@ -268,7 +268,23 @@ struct
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
       Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
-      Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
+      let files =
+        let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+        let files = SH.create 100 in
+        (* TODO: change CIL to extract all include file names from line pragmas? *)
+        (* TODO: or do extra preprocessing with -M? *)
+        iterGlobals file (function
+            | GFun (fd, loc) -> SH.replace files loc.file ()
+            | _ -> () (* TODO: add locs from everything else, including all AST nodes *)
+          );
+        files |> SH.keys |> List.of_enum
+      in
+      let json = `Assoc [
+        ("files", `List (List.map (fun s -> `String s) files));
+        ("messages", Messages.Table.to_yojson ());
+      ]
+      in
+      Yojson.Safe.pretty_to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
