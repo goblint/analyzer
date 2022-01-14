@@ -497,7 +497,7 @@ let main () =
       print_endline command;
     );
     let file = preprocess_files () |> merge_preprocessed in
-    if get_bool "server" then Server.start file do_analyze else (
+    if get_string "server" <> "" then Server.start file do_analyze else (
       let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
       file|> do_analyze changeInfo;
       do_stats ();

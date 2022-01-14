@@ -220,8 +220,8 @@
     "server": {
       "title": "server",
       "description": "Server mode",
-      "type": "boolean",
-      "default": false
+      "type": "string",
+      "default": ""
     },
     "ana": {
       "title": "Analyses",
