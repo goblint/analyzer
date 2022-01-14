@@ -21,7 +21,7 @@ sig
   val string_of_record: r -> string
 
   (* constructing *)
-  val make: k -> location list -> s -> t
+  val make: k -> Node.t list -> s -> t
 
   (* manipulation *)
   val map: (r -> r) -> t -> t
@@ -42,8 +42,8 @@ sig
   val may: (r -> bool) -> t -> bool
   (* properties of records *)
   val key: r -> k
-  val loc: r -> location list
-  val edit_loc: (location list -> location list) -> r -> r
+  val loc: r -> Node.t list
+  val edit_loc: (Node.t list -> Node.t list) -> r -> r
   val state: r -> s
   val in_state: s -> r -> bool
 
@@ -71,14 +71,14 @@ struct
   type s = Impl.s
   module R = struct
     include Printable.Blank
-    type t = { key: k; loc: location list; state: s }
+    type t = { key: k; loc: Node.t list; state: s }
     let hash = Hashtbl.hash
-    let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc (* FIXME: polymorphic list equal! *) && a.state = b.state
+    let equal a b = Lval.CilLval.equal a.key b.key && List.equal Node.equal a.loc b.loc && a.state = b.state
 
     let compare a b =
       let r = Lval.CilLval.compare a.key b.key in
       if r <> 0 then r else
-        let r = compare a.loc b.loc in (* FIXME: polymorphic list compare! *)
+        let r = List.compare Node.compare a.loc b.loc in
         if r <> 0 then r else
           Impl.compare a.state b.state
 
@@ -104,7 +104,7 @@ struct
 
   (* Printing *)
   let string_of_key k = Lval.CilLval.show k
-  let string_of_loc xs = String.concat ", " (List.map CilType.Location.show xs)
+  let string_of_loc xs = String.concat ", " (List.map (CilType.Location.show % Node.location) xs)
   let string_of_record r = Impl.string_of_state r.state^" ("^string_of_loc r.loc^")"
   let string_of (x,y) =
     if is_alias (x,y) then
@@ -222,7 +222,7 @@ struct
   (* callstack for locations *)
   let callstack_var = Goblintutil.create_var @@ Cil.makeVarinfo false "@callstack" Cil.voidType, `NoOffset
   let callstack m = get_record callstack_var m |> Option.map_default V.loc []
-  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map CilType.Location.show (callstack m))^"]"
+  let string_of_callstack m = " [call stack: "^String.concat ", " (List.map (CilType.Location.show % Node.location) (callstack m))^"]"
   let edit_callstack f m = edit_record callstack_var (V.edit_loc f) m
 
 
@@ -250,12 +250,12 @@ struct
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 
-  let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
+  let warn ?may:(may=false) ?loc:(loc=[Option.get !NodeType.current_node]) msg =
     match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
-    | [] -> (if may then Messages.warn else Messages.error) ~loc:(List.last loc) "%s" msg
+    | [] -> (if may then Messages.warn else Messages.error) ~node:(List.last loc) "%s" msg
     | h :: t ->
       let warn_type = Messages.Category.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in (if may then Messages.warn else Messages.error) ~loc:(List.last loc) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
+      in (if may then Messages.warn else Messages.error) ~node:(List.last loc) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)
