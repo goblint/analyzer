@@ -1439,8 +1439,9 @@ struct
   let widen ik x y =
     if get_bool "ana.int.def_exc_widen_by_join" then
       join' ik x y
+    else if equal x y then
+      x
     else
-      (* if equal x y then x else *)
       join' ~range:(size ik) ik x y
 
 
