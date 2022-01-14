@@ -32,8 +32,8 @@ end
 module Location =
 struct
   type t =
-    | Node of Node0.t
-    | CilLocation of CilType.Location.t
+    | Node of Node0.t (** Location identified by a node. Strongly preferred, because output location updates incrementally. *)
+    | CilLocation of CilType.Location.t (** Location identified by a literal CIL location. Strongly discouraged, because not updated incrementally. *)
   [@@deriving eq]
 
   let hash = function
@@ -41,7 +41,7 @@ struct
     | CilLocation loc -> CilType.Location.hash loc
 
   let to_cil = function
-    | Node node -> UpdateCil0.getLoc node
+    | Node node -> UpdateCil0.getLoc node (* use incrementally updated location *)
     | CilLocation loc -> loc
 
   let to_yojson x = CilType.Location.to_yojson (to_cil x)

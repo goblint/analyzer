@@ -126,7 +126,7 @@ struct
           endByte = 0; (* wrong, but not shown *)
         }
         in
-        (doc, Some (Messages.Location.CilLocation loc))
+        (doc, Some (Messages.Location.CilLocation loc)) (* CilLocation is fine because always printed from scratch *)
       in
       let msgs =
         BatISet.fold_range (fun b e acc ->
@@ -514,7 +514,7 @@ struct
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "dbg.uncalled" then
-              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt
+              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
