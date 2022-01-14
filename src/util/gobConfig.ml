@@ -276,7 +276,7 @@ struct
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
         failwith "get_path_string"
     with ConfTypeError ->
-      eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to defaults.ml?\n"
+      eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?\n"
         st print;
       failwith "get_path_string"
 
