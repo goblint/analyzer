@@ -73,7 +73,7 @@ struct
     include Printable.Blank
     type t = { key: k; loc: Node.t list; state: s }
     let hash = Hashtbl.hash
-    let equal a b = Lval.CilLval.equal a.key b.key && List.equal Node.equal a.loc b.loc && a.state = b.state
+    let equal a b = Lval.CilLval.equal a.key b.key && BatList.eq Node.equal a.loc b.loc && a.state = b.state
 
     let compare a b =
       let r = Lval.CilLval.compare a.key b.key in
