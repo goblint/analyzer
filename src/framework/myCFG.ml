@@ -45,7 +45,7 @@ end
 module NodeH = BatHashtbl.Make (Node)
 
 
-let current_node : node option ref = ref None
+let current_node = Node.current_node
 
 let unknown_exp : exp = mkString "__unknown_value__"
 let dummy_func = emptyFunction "__goblint_dummy_init" (* TODO get rid of this? *)

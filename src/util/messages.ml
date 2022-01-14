@@ -33,12 +33,13 @@ module Piece =
 struct
   type t = {
     loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
+    node: NodeType.t option;
     text: string;
     context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))]) option; (* TODO: this equality is terrible... *)
   } [@@deriving eq, to_yojson]
 
-  let hash {loc; text; context} =
-    7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
+  let hash {loc; node; text; context} =
+    7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context (* TODO: use node *)
 
   let text_with_context {text; context; _} =
     match context with
@@ -203,7 +204,7 @@ let add m =
 (** Adapts old [print_group] to new message structure.
     Don't use for new (group) warnings. *)
 let msg_group_race_old severity group_name errors =
-  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None}) errors}} in
+  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; node = None; text = s; context = None}) errors}} in (* TODO: use node? *)
   add m;
 
   if (get_bool "ana.osek.warnfiles") then
@@ -225,17 +226,17 @@ let msg_context () =
   else
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
-let msg severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) fmt =
+let msg severity ?(loc= !Tracing.current_loc) ?(node= !NodeType.current_node) ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = msg_context ()}}
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; node; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; node = None; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 
@@ -244,7 +245,7 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     let group_text = Pretty.sprint ~width:max_int doc in
     let piece_of_msg (doc, loc) =
       let text = Pretty.sprint ~width:max_int doc in
-      Piece.{loc; text; context = None}
+      Piece.{loc; node = None; text; context = None} (* TODO: add node *)
     in
     add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
   in
