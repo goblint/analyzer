@@ -134,7 +134,7 @@ struct
     | false, false -> cop x y
 
   let meet x y   = merge join meet x y
-  let narrow x y = merge (fun x y -> (join x y) |> widen x) narrow x y
+  let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
 
   let invariant c x =
     let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
