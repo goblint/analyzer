@@ -31,6 +31,7 @@ struct
   let widen x y =
     if M.tracing then M.traceli "ad" "widen %a %a\n" pretty x pretty y;
     let r = widen x y in
+    M.tracel "ad" "%s\n" (Printexc.raw_backtrace_to_string (Printexc.get_callstack 50));
     if M.tracing then M.traceu "ad" "-> %a\n" pretty r;
     r
 
@@ -133,7 +134,7 @@ struct
     | false, false -> cop x y
 
   let meet x y   = merge join meet x y
-  let narrow x y = merge widen narrow x y
+  let narrow x y = merge (fun x y -> (join x y) |> widen x) narrow x y
 
   let invariant c x =
     let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
