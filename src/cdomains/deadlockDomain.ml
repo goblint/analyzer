@@ -1,7 +1,7 @@
 open Cil
 open Pretty
 
-type myowntypeEntry = {addr : ValueDomain.Addr.t ; loc : location}
+type myowntypeEntry = {addr : ValueDomain.Addr.t ; node : Node.t}
 
 
 module MyLock : Printable.S with type t = myowntypeEntry =
@@ -15,8 +15,8 @@ struct
   let hash x = Ad.hash x.addr
   let compare x y = Ad.compare x.addr y.addr (* ignores loc field *)
   (* TODO: deadlock analysis output doesn't even use these, but manually outputs locations *)
-  let show x = (Ad.show x.addr) ^ "@" ^ (CilType.Location.show x.loc)
-  let pretty () x = Ad.pretty () x.addr ++ text "@" ++ CilType.Location.pretty () x.loc
+  let show x = (Ad.show x.addr) ^ "@" ^ (CilType.Location.show (Node.location x.node))
+  let pretty () x = Ad.pretty () x.addr ++ text "@" ++ CilType.Location.pretty () (Node.location x.node)
   let printXml c x = Ad.printXml c x.addr
   let to_yojson x = `String (show x)
 end

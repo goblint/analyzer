@@ -226,10 +226,14 @@ let msg_context () =
   else
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
-let msg severity ?(loc= !Tracing.current_loc) ?(node= !NodeType.current_node) ?(tags=[]) ?(category=Category.Unknown) fmt =
+let msg severity ?node ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; node; text; context = msg_context ()}}
+    let node = match node with
+      | Some node -> Some node
+      | None -> !NodeType.current_node
+    in
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; node; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 
@@ -252,15 +256,15 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   Pretty.gprintf finish fmt
 
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
-let warn ?loc = msg Warning ?loc
+let warn ?node = msg Warning ?node
 let warn_noloc ?tags = msg_noloc Warning ?tags
-let error ?loc = msg Error ?loc
+let error ?node = msg Error ?node
 let error_noloc ?tags = msg_noloc Error ?tags
-let info ?loc = msg Info ?loc
+let info ?node = msg Info ?node
 let info_noloc ?tags = msg_noloc Info ?tags
-let debug ?loc = msg Debug ?loc
+let debug ?node = msg Debug ?node
 let debug_noloc ?tags = msg_noloc Debug ?tags
-let success ?loc = msg Success ?loc
+let success ?node = msg Success ?node
 let success_noloc ?tags = msg_noloc Success ?tags
 
 include Tracing
