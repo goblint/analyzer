@@ -26,8 +26,8 @@ struct
     if !Goblintutil.postsolving then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr CilType.Location.pretty (Node.location e.node) CilType.Location.pretty (Node.location newLock.node) CilType.Location.pretty (Node.location b.node) CilType.Location.pretty (Node.location a.node);
-            Messages.warn ~loc:(Node a.node) "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr CilType.Location.pretty (Node.location b.node) CilType.Location.pretty (Node.location a.node) CilType.Location.pretty (Node.location e.node) CilType.Location.pretty (Node.location newLock.node);
+            Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr pretty_node_loc e.node pretty_node_loc newLock.node pretty_node_loc b.node pretty_node_loc a.node;
+            Messages.warn ~loc:(Node a.node) "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr pretty_node_loc b.node pretty_node_loc a.node pretty_node_loc e.node pretty_node_loc newLock.node;
           )
           else () ) !forbiddenList ) lockList;
 
