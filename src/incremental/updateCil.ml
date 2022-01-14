@@ -3,19 +3,7 @@ open CompareCIL
 open VersionLookup
 open MyCFG
 
-module NodeMap = Hashtbl.Make(Node)
-
-let location_map = ref (NodeMap.create 103: location NodeMap.t)
-
-let getLoc (node: Node.t) =
-  (* In case this belongs to a changed function, we will find the true location in the map*)
-  try
-    NodeMap.find !location_map node
-  with Not_found ->
-    Node.location node
-
-let store_node_location (n: Node.t) (l: location): unit =
-  NodeMap.add !location_map n l
+include UpdateCil0
 
 let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global) Hashtbl.t) (changes: change_info) =
   let vid_max = ref ids.max_vid in

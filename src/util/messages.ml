@@ -41,7 +41,7 @@ struct
     | CilLocation loc -> CilType.Location.hash loc
 
   let to_cil = function
-    | Node node -> Node0.location node
+    | Node node -> UpdateCil0.getLoc node
     | CilLocation loc -> loc
 
   let to_yojson x = CilType.Location.to_yojson (to_cil x)
