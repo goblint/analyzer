@@ -6,6 +6,8 @@ exception Failure of Response.Error.Code.t * string
 type t = {
   file: Cil.file;
   do_analyze: Analyses.increment_data -> Cil.file -> unit;
+  input: IO.input;
+  output: unit IO.output;
 }
 
 module type Request = sig
@@ -62,10 +64,11 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
         | Error s -> Response.Error.(make Code.InvalidParams s () |> Response.error id))
     | _ -> Response.Error.(make Code.MethodNotFound message.method_ () |> Response.error id)
   in
-  Response.yojson_of_t response |> Yojson.Safe.to_string |> print_endline
+  Response.yojson_of_t response |> Yojson.Safe.to_string |> IO.write_line serv.output;
+  IO.flush serv.output
 
 let serve serv =
-  stdin
+  serv.input
   |> IO.to_input_channel
   |> Yojson.Safe.linestream_from_channel
   |> Stream.iter (fun line ->
@@ -79,13 +82,27 @@ let serve serv =
           with Json.Of_json (s, _) -> prerr_endline s)
       | `Exn exn -> prerr_endline (Printexc.to_string exn))
 
-let make file do_analyze : t = { file; do_analyze }
+let make ?(input=stdin) ?(output=stdout) file do_analyze : t = { file; do_analyze; input; output }
+
+let bind () =
+  let server = GobConfig.get_string "server" in
+  if server = "-" then None, None else (
+    if Sys.file_exists server then
+      Sys.remove server;
+    let socket = Unix.socket PF_UNIX SOCK_STREAM 0 in
+    Unix.bind socket (ADDR_UNIX server);
+    Unix.listen socket 1;
+    let conn, _ = Unix.accept socket in
+    Unix.close socket;
+    Sys.remove server;
+    Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
 
 let start file do_analyze =
+  let input, output = bind () in
   GobConfig.set_bool "incremental.save" true;
-  serve (make file do_analyze)
+  serve (make file do_analyze ?input ?output)
 
-let analyze ?(reset=false) { file; do_analyze } =
+let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
   if reset then (
     Serialize.server_solver_data := None;
     Messages.Table.(MH.clear messages_table);
