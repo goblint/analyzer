@@ -96,8 +96,8 @@ struct
       match LibraryFunctions.classify f.vname arglist with
       | `Lock (_, _, _) ->
         List.fold_left (fun d lockAddr ->
-          addLockingInfo {addr = lockAddr; node = Option.get !NodeType.current_node } ctx.local;
-          D.add {addr = lockAddr; node = Option.get !NodeType.current_node } ctx.local
+          addLockingInfo {addr = lockAddr; node = Option.get !Node.current_node } ctx.local;
+          D.add {addr = lockAddr; node = Option.get !Node.current_node } ctx.local
         ) ctx.local (eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist))
       | `Unlock ->
         let lockAddrs = eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist) in

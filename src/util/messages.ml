@@ -32,16 +32,16 @@ end
 module Location =
 struct
   type t =
-    | Node of NodeType.t
+    | Node of Node0.t
     | CilLocation of CilType.Location.t
   [@@deriving eq]
 
   let hash = function
-    | Node node -> NodeType.hash node
+    | Node node -> Node0.hash node
     | CilLocation loc -> CilType.Location.hash loc
 
   let to_cil = function
-    | Node node -> NodeType.location node
+    | Node node -> Node0.location node
     | CilLocation loc -> loc
 
   let to_yojson x = CilType.Location.to_yojson (to_cil x)
@@ -248,7 +248,7 @@ let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
     let text = Pretty.sprint ~width:max_int doc in
     let loc = match loc with
       | Some node -> Some node
-      | None -> Option.map (fun node -> Location.Node node) !NodeType.current_node
+      | None -> Option.map (fun node -> Location.Node node) !Node0.current_node
     in
     add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}}
   in

@@ -3,7 +3,7 @@ open Pretty
 
 include Printable.Std
 
-include NodeType
+include Node0
 
 let name () = "node"
 

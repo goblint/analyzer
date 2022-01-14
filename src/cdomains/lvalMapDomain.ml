@@ -250,7 +250,7 @@ struct
   let string_of_entry k m = string_of_key k ^ ": " ^ string_of_state k m
   let string_of_map m = List.map (fun (k,v) -> string_of_entry k m) (bindings m)
 
-  let warn ?may:(may=false) ?loc:(loc=[Option.get !NodeType.current_node]) msg =
+  let warn ?may:(may=false) ?loc:(loc=[Option.get !Node.current_node]) msg =
     match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
     | [] -> (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) "%s" msg
     | h :: t ->
