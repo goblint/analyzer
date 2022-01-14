@@ -1110,7 +1110,7 @@ struct
         EM.iter (fun exp tv ->
             match tv with
             | `Lifted tv ->
-              M.warn ~node:g ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
+              M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
             | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
             | `Top -> (* may be both true and false *)
               ()

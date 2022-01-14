@@ -252,10 +252,10 @@ struct
 
   let warn ?may:(may=false) ?loc:(loc=[Option.get !NodeType.current_node]) msg =
     match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
-    | [] -> (if may then Messages.warn else Messages.error) ~node:(List.last loc) "%s" msg
+    | [] -> (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) "%s" msg
     | h :: t ->
       let warn_type = Messages.Category.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in (if may then Messages.warn else Messages.error) ~node:(List.last loc) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
+      in (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
 
   (* getting keys from Cil Lvals *)
   let sprint f x = Pretty.sprint 80 (f () x)

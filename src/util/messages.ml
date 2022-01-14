@@ -50,14 +50,13 @@ end
 module Piece =
 struct
   type t = {
-    (* TODO: rename back to loc *)
-    node: Location.t option; (* only *_each warnings have this, used for deduplication *)
+    loc: Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
     context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))]) option; (* TODO: this equality is terrible... *)
   } [@@deriving eq, to_yojson]
 
-  let hash {node; text; context} =
-    7 * BatOption.map_default Location.hash 1 node + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
+  let hash {loc; text; context} =
+    7 * BatOption.map_default Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
 
   let text_with_context {text; context; _} =
     match context with
@@ -200,7 +199,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
   let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
   let pp_piece ppf piece =
     let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
-    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map Location.to_cil piece.node)
+    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map Location.to_cil piece.loc)
   in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
@@ -222,7 +221,7 @@ let add m =
 (** Adapts old [print_group] to new message structure.
     Don't use for new (group) warnings. *)
 let msg_group_race_old severity group_name errors =
-  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{node = Some (CilLocation loc); text = s; context = None}) errors}} in
+  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some (CilLocation loc); text = s; context = None}) errors}} in
   add m;
 
   if (get_bool "ana.osek.warnfiles") then
@@ -244,22 +243,21 @@ let msg_context () =
   else
     None (* avoid identical messages from multiple contexts without any mention of context *)
 
-let msg severity ?node ?(tags=[]) ?(category=Category.Unknown) fmt =
+let msg severity ?loc ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    let node = match node with
+    let loc = match loc with
       | Some node -> Some node
-      | None -> !NodeType.current_node
+      | None -> Option.map (fun node -> Location.Node node) !NodeType.current_node
     in
-    let node = Option.map (fun node -> Location.Node node) node in
-    add {tags = Category category :: tags; severity; multipiece = Single {node; text; context = msg_context ()}}
+    add {tags = Category category :: tags; severity; multipiece = Single {loc; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 
 let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
   let finish doc =
     let text = Pretty.sprint ~width:max_int doc in
-    add {tags = Category category :: tags; severity; multipiece = Single {node = None; text; context = msg_context ()}}
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
   in
   Pretty.gprintf finish fmt
 
@@ -268,22 +266,22 @@ let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
     let group_text = Pretty.sprint ~width:max_int doc in
     let piece_of_msg (doc, loc) =
       let text = Pretty.sprint ~width:max_int doc in
-      Piece.{node = loc; text; context = None} (* TODO: add node *)
+      Piece.{loc; text; context = None}
     in
     add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
   in
   Pretty.gprintf finish fmt
 
 (* must eta-expand to get proper (non-weak) polymorphism for format *)
-let warn ?node = msg Warning ?node
+let warn ?loc = msg Warning ?loc
 let warn_noloc ?tags = msg_noloc Warning ?tags
-let error ?node = msg Error ?node
+let error ?loc = msg Error ?loc
 let error_noloc ?tags = msg_noloc Error ?tags
-let info ?node = msg Info ?node
+let info ?loc = msg Info ?loc
 let info_noloc ?tags = msg_noloc Info ?tags
-let debug ?node = msg Debug ?node
+let debug ?loc = msg Debug ?loc
 let debug_noloc ?tags = msg_noloc Debug ?tags
-let success ?node = msg Success ?node
+let success ?loc = msg Success ?loc
 let success_noloc ?tags = msg_noloc Success ?tags
 
 include Tracing
