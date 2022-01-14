@@ -1436,13 +1436,11 @@ struct
 
   let join ik = join' ik
 
-  let widen ik x y =
+  let widen ik =
     if get_bool "ana.int.def_exc_widen_by_join" then
-      join' ik x y
+      join' ik
     else
-      (* if equal x y then x else *)
-      join' ~range:(size ik) ik x y
-
+      join' ~range:(size ik) ik
 
   let meet ik x y =
     match (x,y) with
