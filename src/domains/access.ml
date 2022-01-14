@@ -211,7 +211,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
 
 let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
   if is_ignorable lv then () else begin
-    let loc = !Tracing.current_loc in
+    let loc = Option.get !Node.current_node in
     let add_part ls =
       side ty lv (Some ls) (conf, w, loc, e, lp)
     in
@@ -374,12 +374,12 @@ let add side e w conf vo oo p =
 module A =
 struct
   include Printable.Std
-  type t = int * bool * CilType.Location.t * CilType.Exp.t * LSSet.t [@@deriving eq, ord]
+  type t = int * bool * Node.t * CilType.Exp.t * LSSet.t [@@deriving eq, ord]
 
   let hash (conf, w, loc, e, lp) = 0 (* TODO: never hashed? *)
 
-  let pretty () (conf, w, loc, e, lp) =
-    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e LSSet.pretty lp
+  let pretty () (conf, w, node, e, lp) =
+    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty (Node.location node) CilType.Exp.pretty e LSSet.pretty lp
 
   let show x = Pretty.sprint ~width:max_int (pretty () x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
@@ -466,7 +466,7 @@ let print_accesses (lv, ty) pm =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let g (ls, acs) =
-    let h (conf,w,loc,e,lp) =
+    let h (conf,w,node,e,lp) =
       let d_ls () = match ls with
         | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
         | Some ls when LSSet.is_empty ls -> nil
@@ -480,7 +480,7 @@ let print_accesses (lv, ty) pm =
         else
           d_msg ()
       in
-      (doc, Some (Messages.Location.CilLocation loc)) (* TODO: use Node *)
+      (doc, Some (Messages.Location.Node node))
     in
     AS.elements acs
     |> List.enum
