@@ -394,9 +394,9 @@
             "def_exc_widen_by_join": {
               "title": "ana.int.def_exc_widen_by_join",
               "description":
-                "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types. TODO: Value false has termination problems.",
+                "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "interval_threshold_widening": {
               "title": "ana.int.interval_threshold_widening",
