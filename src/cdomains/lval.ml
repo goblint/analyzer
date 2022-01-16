@@ -9,13 +9,6 @@ type ('a, 'b) offs = [
   | `Index of 'b * ('a,'b) offs
 ] [@@deriving eq, ord]
 
-type ('a,'b) offs_uk = [
-  | `NoOffset
-  | `UnknownOffset
-  | `Field of 'a * ('a,'b) offs
-  | `Index of 'b * ('a,'b) offs
-]
-
 
 let rec listify ofs =
   match ofs with
@@ -340,29 +333,6 @@ struct
   let to_yojson x = `String (show x)
 
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-end
-
-module Stateless (Idx: Printable.S) =
-struct
-  type field = fieldinfo
-  type idx = Idx.t
-  type t = bool * varinfo * (field, idx) offs_uk
-  include Printable.Std
-
-  let show (dest, x, offs) =
-    let rec off_str ofs =
-      match ofs with
-      | `NoOffset -> ""
-      | `UnknownOffset -> "?"
-      | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
-      | `Index (v, ofs) -> "[" ^ Idx.show v ^ "]" ^ off_str ofs
-    in
-    (if dest then "&" else "") ^ x.vname ^ off_str offs
-
-  let pretty () x = Pretty.text (show x)
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
 end
 
 module Fields =
