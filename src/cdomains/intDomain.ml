@@ -509,7 +509,7 @@ module Std (B: sig
   let is_top_of ik x = B.equal x (top_of ik)
 
   (* all output is based on B.show *)
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show

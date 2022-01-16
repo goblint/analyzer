@@ -48,7 +48,7 @@ struct
       else
         ""
     )
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -93,7 +93,7 @@ struct
 
   (* Output *)
   let show x = x.vname
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -140,7 +140,7 @@ struct
 
   (* Output *)
   let show x = x.svar.vname
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -187,7 +187,7 @@ struct
 
   (* Output *)
   let show x = compFullName x
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -227,7 +227,7 @@ struct
 
   (* Output *)
   let show x = x.fname
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show

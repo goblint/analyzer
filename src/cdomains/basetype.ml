@@ -11,7 +11,7 @@ struct
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show

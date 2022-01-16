@@ -47,7 +47,7 @@ struct
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
     | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
 
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -225,7 +225,7 @@ struct
     | SafePtr    -> "SAFE"
     | NullPtr    -> "NULL"
 
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -348,7 +348,7 @@ struct
     | (`Left x :: xs) -> "." ^ F.show x ^ show xs
     | (`Right x :: xs) -> "[" ^ I.show x ^ "]" ^ show xs
 
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -501,7 +501,7 @@ struct
   let has_index (v,o) = has_index_offs o
 
   let show (v,o) = short_offs o v.vname
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show

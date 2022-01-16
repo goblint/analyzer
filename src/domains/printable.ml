@@ -85,8 +85,7 @@ sig
   val show: t -> string
 end
 
-(* TODO: rename to SimpleShow *)
-module PrintSimple (P: Showable) =
+module SimpleShow (P: Showable) =
 struct
   let pretty () x = text (P.show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
