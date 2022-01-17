@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --sets ana.apron.privatization mutex-meet-tid --disable ana.thread.include-loc
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --set ana.activated[+] threadJoins --sets ana.apron.privatization mutex-meet-tid --enable ana.thread.include-loc
 #include <pthread.h>
 #include <assert.h>
 
@@ -31,7 +31,7 @@ int main(void) {
     pthread_create(&id, NULL, t_benign, NULL);
   }
 
-  // As these two threads are not distinguished, we have a unique TID for id
+  // As these two threads are distinguished, we have a non-unique TID for id
   pthread_join(id, NULL);
 
 
@@ -40,7 +40,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == 12);
+  assert(g == 12); //TODO
   pthread_mutex_unlock(&A);
 
 // ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ int main(void) {
 
   pthread_join(id2, NULL);
 
-  // As these two threads are not distinguished, id3 is a not unique thread
+  // As these two threads are distinguished, id3 is a unique thread
   pthread_join(id3, NULL);
 
 
@@ -63,7 +63,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(h == 12); //TODO
+  assert(h == 12);
   pthread_mutex_unlock(&A);
 
   return 0;
