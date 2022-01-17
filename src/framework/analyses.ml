@@ -274,13 +274,13 @@ struct
         (* TODO: change CIL to extract all include file names from line pragmas? *)
         (* TODO: or do extra preprocessing with -M? *)
         iterGlobals file (function
-            | GFun (fd, loc) -> SH.replace files loc.file ()
+            | GFun (fd, loc) -> SH.replace files loc.file (Hashtbl.find_option Preprocessor.dependencies loc.file)
             | _ -> () (* TODO: add locs from everything else, including all AST nodes *)
           );
-        files |> SH.keys |> List.of_enum
+        files |> SH.to_list
       in
       let json = `Assoc [
-        ("files", `List (List.map (fun s -> `String s) files));
+        ("files", `Assoc (List.map (Tuple2.map2 [%to_yojson: string list option]) files));
         ("messages", Messages.Table.to_yojson ());
       ]
       in
