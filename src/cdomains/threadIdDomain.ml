@@ -39,7 +39,7 @@ end
 
 
 (** Type to represent an abstract thread ID. *)
-module FunLoc: Stateless =
+module FunNode: Stateless =
 struct
   include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
 
@@ -169,9 +169,9 @@ end
 module FlagConfiguredTID:Stateful =
 struct
   (* Thread IDs with prefix-set history *)
-  module H = History(FunLoc)
+  module H = History(FunNode)
   (* Plain thread IDs *)
-  module P = Unit(FunLoc)
+  module P = Unit(FunNode)
 
   include GroupableFlagHelper(H)(P)(struct
       let msg = "FlagConfiguredTID received a value where not exactly one component is set"
