@@ -276,7 +276,7 @@ module IntDomLifter (I : S) =
 struct
   open Cil
   type int_t = I.int_t
-  type t = { v : I.t; ikind : ikind }
+  type t = { v : I.t; ikind : (ikind [@equal (=)] [@compare Stdlib.compare] [@hash fun x -> Hashtbl.hash x]) } [@@deriving eq, ord, hash]
 
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
@@ -300,30 +300,7 @@ struct
   let meet = lift2 I.meet
   let widen = lift2 I.widen
   let narrow = lift2 I.narrow
-  let equal x y = if x.ikind <> y.ikind then false else I.equal x.v y.v
 
-  let hash x =
-    let ikind_to_int (ikind: ikind) = match ikind with (* TODO replace with `int_of_string % Batteries.dump` or derive *)
-    | IChar 	-> 0
-    | ISChar 	-> 1
-    | IUChar 	-> 2
-    | IBool 	-> 3
-    | IInt 	  -> 4
-    | IUInt 	-> 5
-    | IShort 	-> 6
-    | IUShort -> 7
-    | ILong 	-> 8
-    | IULong 	-> 9
-    | ILongLong -> 10
-    | IULongLong -> 11
-    | IInt128 -> 12
-    | IUInt128 -> 13
-    in
-    3 * (I.hash x.v) + 5 * (ikind_to_int x.ikind)
-  let compare x y = let ik_c = compare x.ikind y.ikind in
-    if ik_c <> 0
-      then ik_c
-      else I.compare x.v y.v
   let show x = I.show x.v  (* TODO add ikind to output *)
   let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
