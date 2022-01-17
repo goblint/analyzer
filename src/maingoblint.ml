@@ -162,13 +162,11 @@ let basic_preprocess ~all_cppflags fname =
     let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
-    (* if something goes wrong, we need to clean up and exit *)
-    let rm_and_exit () = remove_temp_dir (); raise Exit in
     try match Unix.system command with
       | Unix.WEXITED 0 -> nname
-      | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
+      | _ -> eprintf "Goblint: Preprocessing failed."; raise Exit
     with Unix.Unix_error (e, f, a) ->
-      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
+      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; raise Exit
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -289,7 +287,6 @@ let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
   let files_AST = List.map Cilfacade.getAST cpp_file_names in
-  remove_temp_dir ();
 
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
@@ -496,7 +493,10 @@ let main () =
       print_endline (localtime ());
       print_endline command;
     );
-    let file = preprocess_files () |> merge_preprocessed in
+    let file = Fun.protect ~finally:remove_temp_dir (fun () ->
+        preprocess_files () |> merge_preprocessed
+      )
+    in
     let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
     file|> do_analyze changeInfo;
     do_stats ();
