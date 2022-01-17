@@ -60,13 +60,10 @@ sig
 end
 
 module Value (Impl: sig
-    type s (* state *)
+    type s (* state *) [@@deriving eq, ord, hash]
     val name: string
     val var_state: s
     val string_of_state: s -> string
-    val compare_s: s -> s -> int
-    val equal_s: s -> s -> bool
-    val hash_s: s -> int
   end) : S with type s = Impl.s =
 struct
   type k = Lval.CilLval.t [@@deriving eq, ord, hash]
