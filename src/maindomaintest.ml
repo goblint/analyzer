@@ -31,7 +31,7 @@ struct
     let show = show
   end
   include Printable.Std
-  include Printable.PrintSimple (P)
+  include Printable.SimpleShow (P)
 
   let hash = Char.code
 end

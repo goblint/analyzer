@@ -381,9 +381,12 @@ struct
   let pretty () (conf, w, loc, e, lp) =
     Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e LSSet.pretty lp
 
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+  )
 end
 module AS = SetDomain.Make (A)
 module PM = MapDomain.MapBot (Printable.Option (LSSet) (struct let name = "None" end)) (AS)
@@ -397,10 +400,12 @@ struct
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 
   let pretty = d_acct
-
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+  )
 end
 module O =
 struct
@@ -413,10 +418,12 @@ struct
     | `Field (f, os) -> 3 * CilType.Fieldinfo.hash f + hash os
 
   let pretty = d_offs
-
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+  )
 end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)

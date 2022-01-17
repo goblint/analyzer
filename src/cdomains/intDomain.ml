@@ -509,10 +509,13 @@ module Std (B: sig
   let is_top_of ik x = B.equal x (top_of ik)
 
   (* all output is based on B.show *)
-  let pretty () x = text (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+  )
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
-  let to_yojson x = `String (show x)
 
   include StdTop (B)
 end
