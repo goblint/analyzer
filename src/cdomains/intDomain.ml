@@ -502,7 +502,6 @@ module Std (B: sig
   include Printable.Std
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let hash = Hashtbl.hash
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
@@ -524,7 +523,7 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 struct
   let name () = "intervals"
   type int_t = Ints_t.t
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
 
   let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
   let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
@@ -950,7 +949,7 @@ module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t an
 struct
   include Printable.Std
   let name () = "integers"
-  type t = Ints_t.t [@@deriving eq, ord]
+  type t = Ints_t.t [@@deriving eq, ord, hash]
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
@@ -960,7 +959,6 @@ struct
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* FIXME: poly compare *)
-  let hash (x:t) = ((Ints_t.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
   let is_bot _ = false
@@ -1182,7 +1180,6 @@ module BigInt = struct
   let cast_to ik x = Size.cast_big_int ik x
   let to_bool x = Some (not (BI.equal (BI.zero) x))
 
-  let hash x = (BI.to_int x) * 2147483647
   let show x = BI.to_string x
   let pretty _ x = Pretty.text (BI.to_string x)
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
@@ -2127,7 +2124,7 @@ struct
   type int_t = Ints_t.t
 
   (* represents congruence class of c mod m, None is bot *)
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
 
   let ( *: ) = Ints_t.mul
   let (+:) = Ints_t.add
