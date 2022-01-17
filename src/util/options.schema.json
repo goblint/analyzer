@@ -1401,13 +1401,6 @@
           },
           "additionalProperties": false
         },
-        "showtemps": {
-          "title": "dbg.showtemps",
-          "description":
-            "Shows CIL's temporary variables when printing the state.",
-          "type": "boolean",
-          "default": false
-        },
         "uncalled": {
           "title": "dbg.uncalled",
           "description": "Display uncalled functions.",
