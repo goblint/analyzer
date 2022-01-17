@@ -376,18 +376,17 @@ struct
 
   type d = VarManagement.t
 
-  let bound_texpr (t :d) texpr ik =
-    let min,max = IntDomain.Size.range_big_int ik in
+  let bound_texpr (t :d) texpr =
     let texpr = Texpr1.to_expr texpr
     in
     match t.d with
-    | None -> Some(min), Some(max)
     | Some (m) -> ( match calc_const m t.env texpr  with
-        | None -> Some (min), Some (max)
         | Some (c) -> if (Mpqf.get_den c) = (Mpzf.of_int 1) then
             let int_val = IntOps.BigIntOps.of_string (Mpzf.to_string (Mpqf.get_num c)) in
             Some(int_val), Some (int_val)
-          else (None, None))
+            else (None, None)
+        | _ -> (None, None))
+    | _ -> (None, None)
 
 end
 
@@ -728,7 +727,7 @@ struct
   (** Evaluate non-constraint expression as interval. *)
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (d.env) e with
-    | texpr1 -> ExpressionBounds.bound_texpr d texpr1 (Cilfacade.get_ikind_exp e)
+    | texpr1 -> ExpressionBounds.bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp -> (None, None)
 
 

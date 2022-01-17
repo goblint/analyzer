@@ -22,7 +22,7 @@ end
 module type ConvBounds =
 sig
   type d
-  val bound_texpr: d -> Texpr1.t -> ikind -> Z.t option * Z.t option
+  val bound_texpr: d -> Texpr1.t -> Z.t option * Z.t option
 end
 
 module Tracked =
@@ -90,7 +90,7 @@ struct
         if not (IntDomain.should_ignore_overflow ik) then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
           let texpr1 = Texpr1.of_expr env expr in
-          match Bounds.bound_texpr d texpr1 ik with
+          match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
           | _ ->
             (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
