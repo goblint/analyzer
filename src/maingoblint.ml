@@ -159,13 +159,16 @@ let basic_preprocess ~all_cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let deps_file = Filename.chop_extension nname ^ ".d" in
+    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -MMD -MT " ^ fname ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     (* if something goes wrong, we need to clean up and exit *)
     let rm_and_exit () = remove_temp_dir (); raise Exit in
     try match Unix.system command with
-      | Unix.WEXITED 0 -> nname
+      | Unix.WEXITED 0 ->
+        Preprocessor.parse_makefile_deps deps_file;
+        nname
       | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
     with Unix.Unix_error (e, f, a) ->
       eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
