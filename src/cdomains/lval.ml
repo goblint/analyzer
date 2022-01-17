@@ -7,7 +7,7 @@ type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving eq, ord]
+] [@@deriving eq, ord, hash]
 
 
 let rec listify ofs =
@@ -170,7 +170,7 @@ struct
   module Offs = Offset (Idx)
   (* A SafePtr is a pointer that does not point to any variables of the analyzed program (assuming external functions don't return random pointers but only pointers to things they can reach).
    * UnknownPtr includes SafePtr *)
-  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving eq, ord]
+  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving eq, ord, hash]
   (* TODO: StrPtr equals problematic if the same literal appears more than once *)
   include Printable.Std
   let name () = "Normal Lvals"
@@ -262,9 +262,8 @@ struct
   let copy x = x
 
   let hash = function
-    | Addr (v,o) -> v.vid + 2 * Offs.hash o
     | SafePtr | UnknownPtr -> Hashtbl.hash UnknownPtr (* SafePtr <= UnknownPtr ==> same hash *)
-    | x -> Hashtbl.hash x
+    | x -> hash x
 
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
@@ -460,9 +459,8 @@ end
 module CilLval =
 struct
   include Printable.Std
-  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord]
+  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, hash]
 
-  let hash    = Hashtbl.hash
   let name () = "simplified lval"
 
   let class_tag (v,o) =
