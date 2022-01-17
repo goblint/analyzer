@@ -56,7 +56,7 @@ struct
 
   let threadinit v ~multiple: t = (v, None)
   let threadenter l v: t =
-    if GobConfig.get_bool "ana.thread.include-loc" then
+    if GobConfig.get_bool "ana.thread.include-node" then
       (v, Some l)
     else
       (v, None)

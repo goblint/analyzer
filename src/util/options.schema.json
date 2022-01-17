@@ -784,10 +784,10 @@
               "enum": ["history", "plain"],
               "default": "history"
             },
-            "include-loc" : {
-              "title": "ana.thread.include-loc",
+            "include-node" : {
+              "title": "ana.thread.include-node",
               "description":
-                "Whether the line at which a thread is created is part of its threadid",
+                "Whether the node at which a thread is created is part of its threadid",
               "type": "boolean",
               "default" : true
             }
