@@ -271,11 +271,11 @@ struct
       let files =
         let module SH = BatHashtbl.Make (Basetype.RawStrings) in
         let files = SH.create 100 in
-        (* TODO: change CIL to extract all include file names from line pragmas? *)
-        (* TODO: or do extra preprocessing with -M? *)
         iterGlobals file (function
-            | GFun (fd, loc) -> SH.replace files loc.file (Hashtbl.find_option Preprocessor.dependencies loc.file)
-            | _ -> () (* TODO: add locs from everything else, including all AST nodes *)
+            | GFun (_, loc)
+            | GVar (_, _, loc) ->
+              SH.replace files loc.file (Hashtbl.find_option Preprocessor.dependencies loc.file)
+            | _ -> () (* TODO: add locs from everything else? would also include system headers *)
           );
         files |> SH.to_list
       in
