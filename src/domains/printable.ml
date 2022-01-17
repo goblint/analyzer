@@ -293,13 +293,8 @@ end
 
 module Option (Base: S) (N: Name) =
 struct
-  type t = Base.t option [@@deriving eq, ord]
+  type t = Base.t option [@@deriving eq, ord, hash]
   include Std
-
-  let hash state =
-    match state with
-    | None -> 7134679
-    | Some n -> 133 * Base.hash n
 
   let pretty () (state:t) =
     match state with

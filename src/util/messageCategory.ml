@@ -4,23 +4,23 @@ type array_oob =
   | PastEnd
   | BeforeStart
   | Unknown
-[@@deriving eq]
+[@@deriving eq, hash]
 
 type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
   | UseAfterFree
-[@@deriving eq]
+[@@deriving eq, hash]
 
 type behavior =
   | Undefined of undefined_behavior
   | Implementation
   | Machine
-[@@deriving eq]
+[@@deriving eq, hash]
 
-type integer = Overflow | DivByZero [@@deriving eq]
+type integer = Overflow | DivByZero [@@deriving eq, hash]
 
-type cast = TypeMismatch [@@deriving eq]
+type cast = TypeMismatch [@@deriving eq, hash]
 
 type category =
   | Assert
@@ -33,11 +33,9 @@ type category =
   | Analyzer
   | Unsound
   | Imprecise
-[@@deriving eq]
+[@@deriving eq, hash]
 
-type t = category [@@deriving eq]
-
-let hash x = Hashtbl.hash x (* nested variants, so this is fine *)
+type t = category [@@deriving eq, hash]
 
 module Behavior =
 struct

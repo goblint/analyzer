@@ -877,7 +877,7 @@ sig
   val eval_int : t -> exp -> IntDomain.IntDomTuple.t
 end
 
-type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, to_yojson]
+type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, hash, to_yojson]
 
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
@@ -893,11 +893,10 @@ sig
 end =
 struct
   module AD = D2
-  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, to_yojson]
+  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
 
   include Printable.Std
   open Pretty
-  let hash (r: t)  = D2.hash r.apr + PrivD.hash r.priv * 33
 
   let show r =
     let first  = D2.show r.apr in

@@ -34,9 +34,7 @@ let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
 module NH = Hashtbl.Make(Node)
 module NTH = Hashtbl.Make(
   struct
-    type t = Node.t * Node.t
-    [@@deriving eq]
-    let hash (n1,n2) = (Node.hash n1 * 13) + Node.hash n2
+    type t = Node.t * Node.t [@@deriving eq, hash]
   end)
 
 (* This function compares two CFGs by doing a breadth-first search on the old CFG. Matching node tuples are stored in same,
