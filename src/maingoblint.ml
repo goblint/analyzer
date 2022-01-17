@@ -175,6 +175,8 @@ let basic_preprocess ~all_cppflags fname =
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
+  Hashtbl.clear Preprocessor.dependencies; (* clear for server mode *)
+
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "cppflags") in
 
