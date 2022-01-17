@@ -41,7 +41,7 @@ end
 (** Type to represent an abstract thread ID. *)
 module FunNode: Stateless =
 struct
-  include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
+  include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no node" end))
 
   let show = function
     | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
