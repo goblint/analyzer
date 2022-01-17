@@ -55,7 +55,11 @@ struct
   )
 
   let threadinit v ~multiple: t = (v, None)
-  let threadenter l v: t = (v, Some l)
+  let threadenter l v: t =
+    if GobConfig.get_bool "ana.thread.include-loc" then
+      (v, Some l)
+    else
+      (v, None)
 
   let is_main = function
     | ({vname = "main"; _}, None) -> true

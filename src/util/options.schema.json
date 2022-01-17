@@ -783,6 +783,13 @@
               "type": "string",
               "enum": ["history", "plain"],
               "default": "history"
+            },
+            "include-loc" : {
+              "title": "ana.thread.include-loc",
+              "description":
+                "Whether the line at which a thread is created is part of its threadid",
+              "type": "boolean",
+              "default" : true
             }
           },
           "additionalProperties": false
