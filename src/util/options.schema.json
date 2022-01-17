@@ -783,6 +783,13 @@
               "type": "string",
               "enum": ["history", "plain"],
               "default": "history"
+            },
+            "include-node" : {
+              "title": "ana.thread.include-node",
+              "description":
+                "Whether the node at which a thread is created is part of its threadid",
+              "type": "boolean",
+              "default" : true
             }
           },
           "additionalProperties": false
