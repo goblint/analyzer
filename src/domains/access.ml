@@ -10,9 +10,10 @@ module M = Messages
 
 let is_ignorable_type (t: typ): bool =
   match t with
-  | TNamed (info, attr) -> info.tname = "atomic_t" || info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
-  | TComp (info, attr) -> info.cname = "lock_class_key"
-  | TInt (IInt, attr) -> hasAttribute "mutex" attr
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "spinlock_t"; _ }, _) -> true
+  | TComp ({ cname = "lock_class_key"; _ }, _) -> true
+  | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
+  | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
   | _ -> false
 
 let is_ignorable = function
@@ -326,9 +327,12 @@ struct
   let pretty () (conf, w, loc, e, lp) =
     Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
 
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+  )
 end
 module AS = SetDomain.Make (A)
 module T =
@@ -341,10 +345,12 @@ struct
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 
   let pretty = d_acct
-
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+  )
 end
 module O =
 struct
@@ -357,10 +363,12 @@ struct
     | `Field (f, os) -> 3 * CilType.Fieldinfo.hash f + hash os
 
   let pretty = d_offs
-
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+  )
 end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)

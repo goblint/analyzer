@@ -120,9 +120,13 @@ struct
     let x = UpdateCil.getLoc a in
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty () x = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+  )
 end
 
 module type ResultConf =
@@ -184,9 +188,6 @@ struct
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
-    | "indented" -> failwith " `indented` is no longer supported for `result`, use fast_xml instead "
-    | "compact" -> failwith " `compact` is no longer supported for `result`, use fast_xml instead "
-    | "html" -> failwith " `html` is no longer supported for `result`, run with --html instead "
     | "fast_xml" ->
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in

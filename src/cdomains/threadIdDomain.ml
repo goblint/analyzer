@@ -39,15 +39,15 @@ end
 
 
 (** Type to represent an abstract thread ID. *)
-module FunLoc: Stateless =
+module FunNode: Stateless =
 struct
-  include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
+  include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no node" end))
 
   let show = function
     | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
     | (f, None) -> f.vname
 
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -55,7 +55,11 @@ struct
   )
 
   let threadinit v ~multiple: t = (v, None)
-  let threadenter l v: t = (v, Some l)
+  let threadenter l v: t =
+    if GobConfig.get_bool "ana.thread.include-node" then
+      (v, Some l)
+    else
+      (v, None)
 
   let is_main = function
     | ({vname = "main"; _}, None) -> true
@@ -165,9 +169,9 @@ end
 module FlagConfiguredTID:Stateful =
 struct
   (* Thread IDs with prefix-set history *)
-  module H = History(FunLoc)
+  module H = History(FunNode)
   (* Plain thread IDs *)
-  module P = Unit(FunLoc)
+  module P = Unit(FunNode)
 
   include GroupableFlagHelper(H)(P)(struct
       let msg = "FlagConfiguredTID received a value where not exactly one component is set"

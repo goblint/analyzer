@@ -40,9 +40,12 @@ let pretty_trace () = function
 
 (** Output functions for Printable interface *)
 let pretty () x = pretty_trace () x
-let show x = Pretty.sprint ~width:max_int (pretty () x)
-let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-let to_yojson x = `String (show x)
+include Printable.SimplePretty (
+  struct
+    type nonrec t = t
+    let pretty = pretty
+  end
+)
 
 (** Show node ID for CFG and results output. *)
 let show_id = function

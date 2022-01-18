@@ -509,10 +509,13 @@ module Std (B: sig
   let is_top_of ik x = B.equal x (top_of ik)
 
   (* all output is based on B.show *)
-  let pretty () x = text (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+  )
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
-  let to_yojson x = `String (show x)
 
   include StdTop (B)
 end
@@ -1436,11 +1439,14 @@ struct
 
   let join ik = join' ik
 
-  let widen ik =
+  let widen ik x y =
     if get_bool "ana.int.def_exc_widen_by_join" then
-      join' ik
+      join' ik x y
+    else if equal x y then
+      x
     else
-      join' ~range:(size ik) ik
+      join' ~range:(size ik) ik x y
+
 
   let meet ik x y =
     match (x,y) with

@@ -1,5 +1,5 @@
-// PARAM: --enable ana.int.def_exc_widen_by_join
-// time-out without def_exc_widen_by_join, see https://github.com/goblint/analyzer/pull/502)
+// PARAM: --disable ana.int.def_exc_widen_by_join
+// Used to timeout without ana.int.def_exc_widen_by_join
 #include<pthread.h>
 
 struct a {

@@ -12,11 +12,14 @@ let hash {tid; created; must_joined} =
   13 * ThreadIdDomain.ThreadLifted.hash tid + 7 * ConcDomain.ThreadSet.hash created + ConcDomain.ThreadSet.hash must_joined
 
 let pretty () {tid; created; must_joined} =
-  Pretty.dprintf "(%a, %a, %a)" ThreadIdDomain.ThreadLifted.pretty tid ConcDomain.ThreadSet.pretty created ConcDomain.ThreadSet.pretty must_joined
+  Pretty.dprintf "{ tid=%a; created=%a; must_joined=%a }" ThreadIdDomain.ThreadLifted.pretty tid ConcDomain.ThreadSet.pretty created ConcDomain.ThreadSet.pretty must_joined
 
-let show x = Pretty.sprint ~width:max_int (pretty () x)
-let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-let to_yojson x = `String (show x)
+include Printable.SimplePretty (
+  struct
+    type nonrec t = t
+    let pretty = pretty
+  end
+)
 
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)

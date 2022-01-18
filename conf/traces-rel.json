@@ -5,9 +5,6 @@
       "interval": false,
       "enums": true
     },
-    "exp": {
-
-    },
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -44,11 +41,11 @@
     }
   },
   "exp": {
-    "priv-distr-init": false,
-    "solver" : {
-      "td3": {
-        "side_widen" : "sides-pp"
-      }
+    "priv-distr-init": false
+  },
+  "solvers" : {
+    "td3": {
+      "side_widen" : "sides-pp"
     }
   },
   "dbg" : {

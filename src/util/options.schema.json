@@ -123,9 +123,9 @@
     "result": {
       "title": "result",
       "description":
-        "Result style: none, fast_xml, json, pretty, json-messages.",
+        "Result style: none, fast_xml, json, pretty, json-messages, sarif.",
       "type": "string",
-      "enum": ["none", "fast_xml", "json", "pretty", "json-messages"],
+      "enum": ["none", "fast_xml", "json", "pretty", "json-messages", "sarif"],
       "default": "none"
     },
     "solver": {
@@ -216,6 +216,33 @@
         "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'.",
       "type": "boolean",
       "default": false
+    },
+    "server": {
+      "title": "Server",
+      "description": "Server mode",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "server.enabled",
+          "description": "Enable server mode",
+          "type": "boolean",
+          "default": false
+        },
+        "mode": {
+          "title": "server.mode",
+          "description": "Server transport mode",
+          "type": "string",
+          "enum": ["stdio", "unix"],
+          "default": "stdio"
+        },
+        "unix-socket": {
+          "title": "server.unix-socket",
+          "description": "The path to the UNIX socket",
+          "type": "string",
+          "default": "goblint.sock"
+        }
+      },
+      "additionalProperties": false
     },
     "ana": {
       "title": "Analyses",
@@ -783,6 +810,13 @@
               "type": "string",
               "enum": ["history", "plain"],
               "default": "history"
+            },
+            "include-node" : {
+              "title": "ana.thread.include-node",
+              "description":
+                "Whether the node at which a thread is created is part of its threadid",
+              "type": "boolean",
+              "default" : true
             }
           },
           "additionalProperties": false
@@ -1400,13 +1434,6 @@
             }
           },
           "additionalProperties": false
-        },
-        "showtemps": {
-          "title": "dbg.showtemps",
-          "description":
-            "Shows CIL's temporary variables when printing the state.",
-          "type": "boolean",
-          "default": false
         },
         "uncalled": {
           "title": "dbg.uncalled",
