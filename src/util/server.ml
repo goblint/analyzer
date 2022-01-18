@@ -106,6 +106,7 @@ let start file do_analyze =
 let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
   if reset then (
     Serialize.server_solver_data := None;
+    Serialize.server_analysis_data := None;
     Messages.Table.(MH.clear messages_table);
     Messages.Table.messages_list := []);
   let increment_data, fresh = match !Serialize.server_solver_data with
