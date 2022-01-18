@@ -120,13 +120,18 @@ let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
   do_analyze increment_data file;
   GobConfig.set_bool "incremental.load" true
 
+(* TODO: Add command to abort the analysis in progress. *)
 let () =
   let register = Registry.register registry in
 
   register (module struct
     let name = "analyze"
     type params = { reset: bool [@default false] } [@@deriving of_yojson]
+    (* TODO: Return analysis results as JSON. Useful for GobPie. *)
     type response = unit [@@deriving to_yojson]
+    (* TODO: Add option to re-parse the input files. *)
+    (* TODO: Add options to control the analysis precision/context for specific functions. *)
+    (* TODO: Add option to mark functions as modified. *)
     let process { reset } serve = analyze serve ~reset
   end);
 
@@ -134,6 +139,8 @@ let () =
     let name = "config"
     type params = string * Yojson.Safe.t [@@deriving of_yojson]
     type response = unit [@@deriving to_yojson]
+    (* TODO: Make it possible to change the non-optional parameters. (i.e., the set of input files) *)
+    (* TODO: Check options for compatibility with the incremental analysis. *)
     let process (conf, json) _ =
       try
         GobConfig.set_auto conf (Yojson.Safe.to_string json)
