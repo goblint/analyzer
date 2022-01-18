@@ -497,19 +497,20 @@ let main () =
         preprocess_files () |> merge_preprocessed
       )
     in
-    let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
-    file|> do_analyze changeInfo;
-    do_stats ();
-    do_html_output ();
-    do_gobview ();
-    if !verified = Some false then exit 3;  (* verifier failed! *)
+    if get_bool "server.enabled" then Server.start file do_analyze else (
+      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
+      file|> do_analyze changeInfo;
+      do_stats ();
+      do_html_output ();
+      do_gobview ();
+      if !verified = Some false then exit 3)  (* verifier failed! *)
   with
-    | Exit ->
-      exit 1
-    | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
-      (* Printexc.print_backtrace BatInnerIO.stderr *)
-      eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
-      exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
-    | Timeout ->
-      eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
-      exit 124
+  | Exit ->
+    exit 1
+  | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
+    (* Printexc.print_backtrace BatInnerIO.stderr *)
+    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+    exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
+  | Timeout ->
+    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+    exit 124

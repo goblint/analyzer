@@ -217,6 +217,33 @@
       "type": "boolean",
       "default": false
     },
+    "server": {
+      "title": "Server",
+      "description": "Server mode",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "server.enabled",
+          "description": "Enable server mode",
+          "type": "boolean",
+          "default": false
+        },
+        "mode": {
+          "title": "server.mode",
+          "description": "Server transport mode",
+          "type": "string",
+          "enum": ["stdio", "unix"],
+          "default": "stdio"
+        },
+        "unix-socket": {
+          "title": "server.unix-socket",
+          "description": "The path to the UNIX socket",
+          "type": "string",
+          "default": "goblint.sock"
+        }
+      },
+      "additionalProperties": false
+    },
     "ana": {
       "title": "Analyses",
       "description": "Options for analyses",
