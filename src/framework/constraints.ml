@@ -1190,11 +1190,14 @@ struct
   struct
     include Printable.Std
     include Sys.Var
-    let pretty = pretty_trace
 
-    let show x = Pretty.sprint ~width:max_int (pretty () x)
-    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-    let to_yojson x = `String (show x)
+    let pretty = pretty_trace
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+    )
   end
   module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
 

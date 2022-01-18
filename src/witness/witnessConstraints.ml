@@ -21,21 +21,21 @@ end
 
 module Edge: Printable.S with type t = MyARG.inline_edge =
 struct
-  type t = MyARG.inline_edge [@@deriving to_yojson]
+  type t = MyARG.inline_edge [@@deriving to_yojson] (* TODO: deriving gets overridden *)
 
   let equal = Util.equals
   let compare = Stdlib.compare
   let hash = Hashtbl.hash
 
-  let show x = Pretty.sprint ~width:max_int (MyARG.pretty_inline_edge () x)
   let name () = "edge"
 
-  include Printable.PrintSimple (
+  let pretty = MyARG.pretty_inline_edge
+  include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let show = show
+      let pretty = pretty
     end
-    )
+  )
 
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Edge: no tag"

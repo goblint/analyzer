@@ -162,13 +162,11 @@ let basic_preprocess ~all_cppflags fname =
     let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
-    (* if something goes wrong, we need to clean up and exit *)
-    let rm_and_exit () = remove_temp_dir (); raise Exit in
     try match Unix.system command with
       | Unix.WEXITED 0 -> nname
-      | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
+      | _ -> eprintf "Goblint: Preprocessing failed."; raise Exit
     with Unix.Unix_error (e, f, a) ->
-      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
+      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; raise Exit
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -289,7 +287,6 @@ let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
   let files_AST = List.map Cilfacade.getAST cpp_file_names in
-  remove_temp_dir ();
 
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
@@ -431,7 +428,7 @@ let check_arguments () =
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.rename-load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
@@ -496,7 +493,10 @@ let main () =
       print_endline (localtime ());
       print_endline command;
     );
-    let file = preprocess_files () |> merge_preprocessed in
+    let file = Fun.protect ~finally:remove_temp_dir (fun () ->
+        preprocess_files () |> merge_preprocessed
+      )
+    in
     if get_bool "server.enabled" then Server.start file do_analyze else (
       let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
       file|> do_analyze changeInfo;

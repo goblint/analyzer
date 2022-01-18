@@ -5,6 +5,7 @@ let goblint_dirname = "incremental_data"
 let version_map_filename = "version.data"
 let cil_file_name = "ast.data"
 let solver_data_file_name = "solver.data"
+let analysis_data_file_name = "analysis.data"
 let results_dir = "results"
 let results_tmp_dir = "results_tmp"
 let gob_directory () = let src_dir = !base_directory in
@@ -33,12 +34,13 @@ let results_exist () =
   Sys.file_exists r && Sys.is_directory r
 
 (* Convenience enumeration of the different data types we store for incremental analysis, so file-name logic is concentrated in one place *)
-type incremental_data_kind = SolverData | CilFile | VersionData
+type incremental_data_kind = SolverData | CilFile | VersionData | AnalysisData
 
 let type_to_file_name = function
   | SolverData -> solver_data_file_name
   | CilFile -> cil_file_name
   | VersionData -> version_map_filename
+  | AnalysisData -> analysis_data_file_name
 
 (** Used by the server mode to avoid serializing the solver state to the filesystem *)
 let server_solver_data : Obj.t option ref = ref None

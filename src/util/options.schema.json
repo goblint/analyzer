@@ -421,9 +421,9 @@
             "def_exc_widen_by_join": {
               "title": "ana.int.def_exc_widen_by_join",
               "description":
-                "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types. TODO: Value false has termination problems.",
+                "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "interval_threshold_widening": {
               "title": "ana.int.interval_threshold_widening",
@@ -810,6 +810,13 @@
               "type": "string",
               "enum": ["history", "plain"],
               "default": "history"
+            },
+            "include-node" : {
+              "title": "ana.thread.include-node",
+              "description":
+                "Whether the node at which a thread is created is part of its threadid",
+              "type": "boolean",
+              "default" : true
             }
           },
           "additionalProperties": false
@@ -1427,13 +1434,6 @@
             }
           },
           "additionalProperties": false
-        },
-        "showtemps": {
-          "title": "dbg.showtemps",
-          "description":
-            "Shows CIL's temporary variables when printing the state.",
-          "type": "boolean",
-          "default": false
         },
         "uncalled": {
           "title": "dbg.uncalled",
