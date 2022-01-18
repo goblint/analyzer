@@ -223,7 +223,8 @@ struct
   let gcd x y = abs @@ Big_int_Z.gcd_big_int x y
   let compare = Big_int_Z.compare_big_int
   let equal = Big_int_Z.eq_big_int
-  let hash = Z.hash
+  let hash = Z.hash (* TODO: Reveals IntDomTuple equality bug: https://github.com/goblint/analyzer/issues/541. *)
+  (* let hash = Hashtbl.hash *) (* Workaround which passes incremental 01-force-reanalyze/00-int, but that just hides the above bug! *)
 
   let top_range _ _ = false
 
