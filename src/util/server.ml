@@ -85,16 +85,17 @@ let serve serv =
 let make ?(input=stdin) ?(output=stdout) file do_analyze : t = { file; do_analyze; input; output }
 
 let bind () =
-  let server = GobConfig.get_string "server" in
-  if server = "-" then None, None else (
-    if Sys.file_exists server then
-      Sys.remove server;
+  let mode = GobConfig.get_string "server.mode" in
+  if mode = "stdio" then None, None else (
+    let path = GobConfig.get_string "server.unix-socket" in
+    if Sys.file_exists path then
+      Sys.remove path;
     let socket = Unix.socket PF_UNIX SOCK_STREAM 0 in
-    Unix.bind socket (ADDR_UNIX server);
+    Unix.bind socket (ADDR_UNIX path);
     Unix.listen socket 1;
     let conn, _ = Unix.accept socket in
     Unix.close socket;
-    Sys.remove server;
+    Sys.remove path;
     Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
 
 let start file do_analyze =

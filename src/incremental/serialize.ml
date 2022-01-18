@@ -16,7 +16,7 @@ let gob_results_dir () =
 let gob_results_tmp_dir () =
   Filename.concat (gob_directory ()) results_tmp_dir
 
-let server () = GobConfig.get_string "server" <> ""
+let server () = GobConfig.get_bool "server.enabled"
 
 let marshal obj fileName  =
   let chan = open_out_bin fileName in
