@@ -117,4 +117,8 @@ pin-depends: [
     "ppx_deriving.5.2.1"
     "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
   ]
+  [
+    "ppx_deriving_hash.dev"
+    "git+https://github.com/sim642/ppx_deriving_hash.git#0a7714bea46d88253a65ef1d0c248aaf7431ecf1"
+  ]
 ]
