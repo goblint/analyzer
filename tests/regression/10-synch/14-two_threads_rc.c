@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] thread
+// PARAM: --set ana.activated[+] thread --set ana.activated[+] threadJoins
 #include <pthread.h>
 #include <stdio.h>
 
