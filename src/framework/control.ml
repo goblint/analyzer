@@ -198,7 +198,7 @@ struct
     let make_global_fast_xml f g =
       let open Printf in
       let print_globals k v =
-        fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (EQSys.GVar.show k)) Spec.G.printXml v;
+        fprintf f "\n<glob><key>%s</key>%a</glob>" (XmlUtil.escape (EQSys.GVar.show k)) EQSys.G.printXml v;
       in
       GHT.iter print_globals g
     in
@@ -224,11 +224,11 @@ struct
     (* Simulate globals before analysis. *)
     (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
     let gh = GHT.create 13 in
-    let getg v = GHT.find_default gh (EQSys.GVar.spec v) (Spec.G.bot ()) in
+    let getg v = GHT.find_default gh (EQSys.GVar.spec v) (EQSys.G.create_spec (Spec.G.bot ())) in
     let sideg v d =
       let v' = EQSys.GVar.spec v in
       if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Spec.V.pretty v Spec.G.pretty d;
-      GHT.replace gh v' (Spec.G.join (getg v) d)
+      GHT.replace gh v' (EQSys.G.create_spec (Spec.G.join (EQSys.G.spec (getg v)) d))
     in
     (* Old-style global function for context.
      * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
@@ -288,7 +288,7 @@ struct
     let print_globals glob =
       let out = M.get_out (Spec.name ()) !GU.out in
       let print_one v st =
-        ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v Spec.G.pretty st)
+        ignore (Pretty.fprintf out "%a -> %a\n" EQSys.GVar.pretty_trace v EQSys.G.pretty st)
       in
       GHT.iter print_one glob
     in
@@ -569,7 +569,7 @@ struct
             ; context = (fun () -> ctx_failwith "No context in query context.")
             ; edge    = MyCFG.Skip
             ; local  = Hashtbl.find joined loc
-            ; global = (fun g -> GHT.find gh (EQSys.GVar.spec g))
+            ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
             ; presub = []
             ; postsub= []
             ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
@@ -624,7 +624,7 @@ struct
         ; context = (fun () -> ctx_failwith "No context in query context.")
         ; edge    = MyCFG.Skip
         ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
-        ; global = (fun v -> try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ())
+        ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ()))
         ; presub = []
         ; postsub= []
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")

@@ -80,6 +80,23 @@ struct
   let pretty_trace = pretty
 end
 
+module GVarG (G: Lattice.S) (C: Printable.S) =
+struct
+  module CSet = SetDomain.Make (C)
+  include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
+
+  let spec = function
+    | `Bot -> G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "GVarG.spec"
+  let contexts = function
+    | `Bot -> CSet.bot ()
+    | `Lifted2 x -> x
+    | _ -> failwith "GVarG.contexts"
+  let create_spec spec = `Lifted1 spec
+  let create_contexts contexts = `Lifted2 contexts
+end
+
 
 exception Deadcode
 
