@@ -776,7 +776,17 @@ struct
       }
     in
     let f v = fg (GVar.spec (Obj.obj v)) in
-    S.query ctx (IterSysVars (vq, f))
+    S.query ctx (IterSysVars (vq, f));
+
+    match vq with
+    | Node n ->
+      let fd = Node.find_fundec n in
+      let cs = G.contexts (getg (GVar.contexts fd)) in
+      G.CSet.iter (fun c ->
+          fl (n, c)
+        ) cs
+    | _ ->
+      ()
 end
 
 (** Convert a non-incremental solver into an "incremental" solver.

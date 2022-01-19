@@ -1,6 +1,7 @@
 type t =
   | Global of CilType.Varinfo.t
-  (* TODO: add Node, Function *)
+  | Node of Node.t
+  (* TODO: add Function *)
 [@@deriving ord]
 
 type 'v f = 'v -> unit

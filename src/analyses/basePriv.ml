@@ -129,6 +129,7 @@ struct
   let iter_sys_vars getg vq vf =
     match vq with
     | VarQuery.Global g -> vf g
+    | _ -> ()
 end
 
 (** Protection-Based Reading old implementation.
@@ -193,6 +194,7 @@ struct
   let iter_sys_vars getg vq vf =
     match vq with
     | VarQuery.Global g -> vf g
+    | _ -> ()
 end
 
 module PerMutexPrivBase =
@@ -486,6 +488,7 @@ struct
   let iter_sys_vars getg vq vf =
     match vq with
     | VarQuery.Global g -> vf g
+    | _ -> ()
 end
 
 module type PerGlobalPrivParam =
@@ -618,6 +621,7 @@ struct
     | VarQuery.Global g ->
       vf (V.unprotected g);
       vf (V.protected g);
+    | _ -> ()
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
