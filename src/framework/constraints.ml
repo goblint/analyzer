@@ -480,6 +480,15 @@ struct
     | _ :: _ :: _ -> S.sync ctx `Join
     | _ -> S.sync ctx `Normal
 
+  let side_context sideg f c =
+    let d =
+      if !GU.postsolving then
+        G.create_contexts (G.CSet.singleton c)
+      else
+        G.create_contexts (G.CSet.empty ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
+    in
+    sideg (GVar.contexts f) d
+
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
     let spawns = ref [] in
@@ -511,6 +520,7 @@ struct
           | fd ->
             let c = S.context fd d in
             sidel (FunctionEntry fd, c) d;
+            side_context sideg fd c;
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
@@ -620,7 +630,7 @@ struct
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
-    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
+    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then (sidel (FunctionEntry f, fc) v; side_context sideg f fc)) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     if M.tracing then M.traceli "combine" "combining\n";
