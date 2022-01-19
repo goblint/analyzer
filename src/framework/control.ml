@@ -208,15 +208,14 @@ struct
     (* Simulate globals before analysis. *)
     (* TODO: make extern/global inits part of constraint system so all of this would be unnecessary. *)
     let gh = GHT.create 13 in
-    let getg v = GHT.find_default gh (EQSys.GVar.spec v) (EQSys.G.create_spec (Spec.G.bot ())) in
+    let getg v = GHT.find_default gh v (EQSys.G.bot ()) in
     let sideg v d =
-      let v' = EQSys.GVar.spec v in
-      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" Spec.V.pretty v Spec.G.pretty d;
-      GHT.replace gh v' (EQSys.G.create_spec (Spec.G.join (EQSys.G.spec (getg v)) d))
+      if M.tracing then M.trace "global_inits" "sideg %a = %a\n" EQSys.GVar.pretty v EQSys.G.pretty d;
+      GHT.replace gh v (EQSys.G.join (getg v) d)
     in
     (* Old-style global function for context.
      * This indirectly prevents global initializers from depending on each others' global side effects, which would require proper solving. *)
-    let getg v = Spec.G.bot () in
+    let getg v = EQSys.G.bot () in
 
     (* analyze cil's global-inits function to get a starting state *)
     let do_global_inits (file: file) : Spec.D.t * fundec list =
@@ -229,12 +228,12 @@ struct
         ; context = (fun () -> ctx_failwith "Global initializers have no context.")
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
-        ; global  = getg
+        ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
-        ; sideg   = sideg
+        ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         }
       in
@@ -327,12 +326,12 @@ struct
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
-        ; global  = getg
+        ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg   = sideg
+        ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
@@ -362,12 +361,12 @@ struct
         ; context = (fun () -> ctx_failwith "enter_func has no context.")
         ; edge    = MyCFG.Skip
         ; local   = st
-        ; global  = getg
+        ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
         ; presub  = []
         ; postsub = []
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
-        ; sideg   = sideg
+        ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
         ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
