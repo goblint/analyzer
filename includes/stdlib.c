@@ -1,5 +1,5 @@
 #include <stddef.h>
-
+#include <pthread.h>
 void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) __attribute__((goblint_stub));
 void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
   // call all possible compares first, before invalidating array elements
@@ -41,4 +41,11 @@ void* bsearch(const void *key, const void *ptr, size_t count, size_t size, int (
   }
 
   return NULL;
+}
+
+int pthread_once(pthread_once_t *once_control,void (*init_routine)(void)) {
+  // Not actually once, just call it
+  int top;
+  init_routine();
+  return top;
 }
