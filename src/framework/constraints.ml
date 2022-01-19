@@ -520,7 +520,6 @@ struct
           | fd ->
             let c = S.context fd d in
             sidel (FunctionEntry fd, c) d;
-            side_context sideg fd c;
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
@@ -599,6 +598,10 @@ struct
     common_join ctx d !r !spawns
 
   let tf_entry var edge prev_node fd getl sidel getg sideg d =
+    (* Side effect function context here instead of at sidel to FunctionEntry,
+       because otherwise context for main functions (entrystates) will be missing or pruned during postsolving. *)
+    let c: unit -> S.C.t = snd var |> Obj.obj in
+    side_context sideg fd (c ());
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.body ctx fd) !r !spawns
 
@@ -630,7 +633,7 @@ struct
     in
     let paths = S.enter ctx lv f args in
     let paths = List.map (fun (c,v) -> (c, S.context f v, v)) paths in
-    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then (sidel (FunctionEntry f, fc) v; side_context sideg f fc)) paths;
+    List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
     if M.tracing then M.traceli "combine" "combining\n";
