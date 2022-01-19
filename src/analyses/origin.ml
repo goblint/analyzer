@@ -159,8 +159,12 @@ struct
         Addr.Addr (vinfo, `NoOffset)
         ) (mayPointTo ctx rval) in
       (*let module AddrMap = BatMap.Make (AD.Addr) in*)
+      let responsible_source = match rval with
+      | Lval (Var v, _) -> v
+      | _ -> loc
+      in
       let address_set = List.fold_left (fun s (x: Addr.t) -> AD.add x s) curr_val values in
-      let new_origin: Origin.t = (VL.top (), node) in
+      let new_origin: Origin.t = (`Lifted responsible_source, node) in
       let new_origin_set = OriginSet.add new_origin curr_origin_set  in
       let new_pair = (address_set, new_origin_set) in 
       (*let _ = Pretty.printf "assign %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in*)
