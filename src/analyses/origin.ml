@@ -37,23 +37,36 @@ struct
     
     let check_precision_loss (m1: t) (m2: t) (res: t) =
       let s1 = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
-        (find key res) != v) m1 false in
+        if (find key res) != v then acc @ [key] else acc) m1 [] in
       let s2 = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
-        (find key res) != v) m2 false in
-        s1 or s2
+        if (find key res) != v then acc @ [key] else acc) m2 [] in
+      s1 @ s2
       (*m1 != res or m2 != res*)
     
+
+    let update_blame res (x:varinfo) n  =
+      let curr_val_origin_pair = find x res in
+      let curr_val = fst curr_val_origin_pair in
+      let curr_origin_set = snd curr_val_origin_pair in
+      let new_pair = (curr_val, curr_origin_set) in 
+      add x new_pair res
+
     let join_with_fct f (m1: t) (m2: t) =
       (*let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in*)
       let res =  if m1 == m2 then m1 else long_map2 f m1 m2 in
-      if check_precision_loss m1 m2 res then
-
+      let losses = check_precision_loss m1 m2 res in
+      if List.length losses > 0 then
         (match !MyCFG.current_node with
-          | Some n -> ignore @@ Pretty.printf "Precision lost at node %s\n\n" (Node.show n)
+          | Some n -> 
+            ignore @@ Pretty.printf "Precision lost at node %s\n\n" (Node.show n);
+            ignore @@ List.fold (fun res x -> 
+              update_blame res x n
+            ) res losses;
           | _ -> ignore @@ Pretty.printf "Precision lost at unknown node\n\n");
       res
     
       let join = join_with_fct ValueOriginPair.join
+
   end
   (* No information about globals*)
   module G = Lattice.Unit
@@ -147,7 +160,9 @@ struct
         ) (mayPointTo ctx rval) in
       (*let module AddrMap = BatMap.Make (AD.Addr) in*)
       let address_set = List.fold_left (fun s (x: Addr.t) -> AD.add x s) curr_val values in
-      let new_pair = (address_set, curr_origin_set) in 
+      let new_origin: Origin.t = (VL.top (), node) in
+      let new_origin_set = OriginSet.add new_origin curr_origin_set  in
+      let new_pair = (address_set, new_origin_set) in 
       (*let _ = Pretty.printf "assign %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in*)
       (*let new_set = values OriginSet.add (value, node) curr_set in*)
       let ret = D.add loc new_pair ctx.local in
