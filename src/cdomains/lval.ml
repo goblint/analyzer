@@ -215,7 +215,7 @@ struct
   let short_addr (x, o) =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      "(" ^ x.vname ^ ", " ^ description ^ ")"
+      "(" ^ x.vname ^ ", " ^ description ^ ")" ^ short_offs o
     else x.vname ^ short_offs o
 
   let show = function
