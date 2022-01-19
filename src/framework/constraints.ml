@@ -493,12 +493,12 @@ struct
       ; context = snd var |> Obj.obj
       ; edge    = edge
       ; local   = pval
-      ; global  = getg
+      ; global  = (fun g -> getg (GVar.spec g))
       ; presub  = []
       ; postsub = []
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
-      ; sideg   = sideg
+      ; sideg   = (fun g d -> sideg (GVar.spec g) d)
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
     and spawn lval f args =
@@ -756,7 +756,7 @@ struct
       ; context = (fun () -> ctx_failwith "No context in query context.")
       ; edge    = MyCFG.Skip
       ; local  = S.startstate Cil.dummyFunDec.svar
-      ; global = getg
+      ; global = (fun g -> getg (GVar.spec g))
       ; presub = []
       ; postsub= []
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
@@ -765,7 +765,7 @@ struct
       ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
       }
     in
-    let f v = fg (Obj.obj v) in
+    let f v = fg (GVar.spec (Obj.obj v)) in
     S.query ctx (IterSysVars (vq, f))
 end
 

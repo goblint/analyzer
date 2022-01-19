@@ -70,7 +70,10 @@ end
 
 module GVarF (V: Printable.S) =
 struct
-  include V
+  include Printable.Either (V) (CilType.Fundec)
+  let spec x = `Left x
+  let contexts x = `Right x
+
   (* from Basetype.Variables *)
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec

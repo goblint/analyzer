@@ -303,7 +303,7 @@ struct
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
-        ; global = GHT.find gh
+        ; global = (fun g -> GHT.find gh (EQSys.GVar.spec g))
         ; presub = []
         ; postsub= []
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
