@@ -17,13 +17,32 @@ struct
   module D = Lattice.Unit
   module C = Lattice.Unit
 
+  module V0 = Printable.Prod (Access.LVOpt) (Access.T)
+  module V =
+  struct
+    include Printable.Either (V0) (CilType.Varinfo)
+    let access x = `Left x
+    let vars x = `Right x
+  end
+
+  module V0Set = SetDomain.Make (V0)
   module G =
   struct
-    include Access.PM
+    include Lattice.Lift2 (Access.PM) (V0Set) (Printable.DefaultNames)
+
+    let access = function
+      | `Bot -> Access.PM.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "Access.access"
+    let vars = function
+      | `Bot -> V0Set.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "Access.vars"
+    let create_access access = `Lifted1 access
+    let create_vars vars = `Lifted2 vars
 
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
-  module V = Printable.Prod (Access.LVOpt) (Access.T)
 
   let safe       = ref 0
   let vulnerable = ref 0
@@ -34,18 +53,35 @@ struct
     vulnerable := 0;
     unsafe := 0
 
-  let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
-    if !GU.should_warn then (
+  let side_vars ctx lv_opt ty =
+    match lv_opt with
+    | Some (v, _) ->
       let d =
-        let open Access in
-        PM.singleton ls_opt (
-          AS.singleton (conf, w, loc, e, lp)
-        )
+        if !GU.should_warn then
+          G.create_vars (V0Set.singleton (lv_opt, ty))
+        else
+          G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
       in
-      ctx.sideg (lv_opt, ty) d
-    )
-    else
-      ctx.sideg (lv_opt, ty) (G.bot ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
+      ctx.sideg (V.vars v) d;
+    | None ->
+      ()
+
+  let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
+    let d =
+      if !GU.should_warn then (
+        let d =
+          let open Access in
+          PM.singleton ls_opt (
+            AS.singleton (conf, w, loc, e, lp)
+          )
+        in
+        G.create_access d
+      )
+      else
+        G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
+    in
+    ctx.sideg (V.access (lv_opt, ty)) d;
+    side_vars ctx lv_opt ty
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
@@ -208,10 +244,19 @@ struct
     match q with
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
-      (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-      let pm = ctx.global g in
-      Access.print_accesses g pm;
-      Access.incr_summary safe vulnerable unsafe g pm
+      begin match g with
+        | `Left g ->
+          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
+          let pm = G.access (ctx.global (V.access g)) in
+          Access.print_accesses g pm;
+          Access.incr_summary safe vulnerable unsafe g pm
+        | `Right _ ->
+          ()
+      end
+    | IterSysVars (Global g, vf) ->
+      V0Set.iter (fun (lv_opt, ty) ->
+          vf (Obj.repr (V.access (lv_opt, ty)))
+        ) (G.vars (ctx.global (V.vars g)))
     | _ -> Queries.Result.top q
 
   let finalize () =
