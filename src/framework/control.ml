@@ -70,7 +70,6 @@ struct
 
   (* print out information about dead code *)
   let print_dead_code (xs:Result.t) uncalled_fn_loc =
-    let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
     let module NH = Hashtbl.Make (Node) in
     let live_nodes : unit NH.t = NH.create 10 in
     let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
@@ -87,8 +86,7 @@ struct
       let add_file = StringMap.modify_def BatISet.empty f.svar.vname add_fun in
       let is_dead = LT.for_all (fun (_,x,f) -> Spec.D.is_bot x) v in
       if is_dead then (
-        dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines;
-        Deadcode.Locmap.add dead_locations l ();
+        dead_lines := StringMap.modify_def StringMap.empty l.file add_file !dead_lines
       ) else (
         live_lines := StringMap.modify_def StringMap.empty l.file add_file !live_lines;
         NH.add live_nodes n ()
@@ -147,20 +145,6 @@ struct
         printf "Found dead code on %d line%s%s!\n" total_dead (if total_dead>1 then "s" else "") (if uncalled_fn_loc > 0 then Printf.sprintf " (including %d in uncalled functions)" uncalled_fn_loc else "")
       );
       printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled_fn_loc); (* We can only give total LoC if we counted dead code *)
-    );
-    let str = function true -> "then" | false -> "else" in
-    let report tv (loc, dead) =
-      match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
-      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
-      | _ -> ()
-    in
-    if get_bool "dbg.print_dead_code" then (
-      let by_fst (a,_) (b,_) = Stdlib.compare a b in
-      Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
-      Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
-      Deadcode.Locmap.clear Deadcode.dead_branches_then;
-      Deadcode.Locmap.clear Deadcode.dead_branches_else
     );
     NH.mem live_nodes
 

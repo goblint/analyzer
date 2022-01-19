@@ -1056,27 +1056,102 @@ module DeadBranchLifter (S: Spec): Spec =
 struct
   include S
 
-  let name () = "DeadBranch (" ^ name () ^ ")"
+  let name () = "DeadBranch (" ^ S.name () ^ ")"
 
-  module Locmap = Deadcode.Locmap
+  module V =
+  struct
+    include Printable.Either (S.V) (Node)
+    let s x = `Left x
+    let node x = `Right x
+  end
 
-  let dead_branches = function true -> Deadcode.dead_branches_then | false -> Deadcode.dead_branches_else
+  module EM =
+  struct
+    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
+    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
+  end
+
+  module G =
+  struct
+    include Lattice.Lift2 (S.G) (EM) (Printable.DefaultNames)
+
+    let s = function
+      | `Bot -> S.G.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "DeadBranchLifter.s"
+    let node = function
+      | `Bot -> EM.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "DeadBranchLifter.node"
+    let create_s s = `Lifted1 s
+    let create_node node = `Lifted2 node
+
+    let printXml f = function
+      | `Lifted1 x -> S.G.printXml f x
+      | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"dead-branch\">%a</analysis>" EM.printXml x
+      | x -> BatPrintf.fprintf f "<analysis name=\"dead-branch-lifter\">%a</analysis>" printXml x
+  end
+
+  let conv (ctx: (_, G.t, _, V.t) ctx): (_, S.G.t, _, S.V.t) ctx =
+    { ctx with
+      global = (fun v -> G.s (ctx.global (V.s v)));
+      sideg = (fun v g -> ctx.sideg (V.s v) (G.create_s g));
+    }
+
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+      begin match g with
+      | `Left g ->
+        S.query (conv ctx) (WarnGlobal (Obj.repr g))
+      | `Right g ->
+        let em = G.node (ctx.global (V.node g)) in
+        EM.iter (fun exp tv ->
+            match tv with
+            | `Lifted tv ->
+              M.warn ~loc:(Node.location g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
+            | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
+            | `Top -> (* may be both true and false *)
+              ()
+          ) em;
+      end
+    | _ ->
+      S.query (conv ctx) q
+
+
+  let branch ctx = S.branch (conv ctx)
 
   let branch ctx exp tv =
     if !GU.postsolving then (
-      Locmap.replace Deadcode.dead_branches_cond !Tracing.current_loc exp;
       try
         let r = branch ctx exp tv in
         (* branch is live *)
-        Locmap.replace (dead_branches tv) !Tracing.current_loc false; (* set to live (false) *)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp (`Lifted tv))); (* record expression with reached tv *)
         r
       with Deadcode ->
         (* branch is dead *)
-        Locmap.modify_def true !Tracing.current_loc Fun.id (dead_branches tv); (* set to dead (true) if not mem, otherwise keep existing (Fun.id) since it may be live (false) in another context *)
+        ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.singleton exp `Bot)); (* record expression without reached tv *)
         raise Deadcode
     )
-    else
+    else (
+      ctx.sideg (V.node ctx.prev_node) (G.create_node (EM.bot ())); (* create global variable during solving, to allow postsolving leq hack to pass verify *)
       branch ctx exp tv
+    )
+
+  let assign ctx = S.assign (conv ctx)
+  let vdecl ctx = S.vdecl (conv ctx)
+  let enter ctx = S.enter (conv ctx)
+  let body ctx = S.body (conv ctx)
+  let return ctx = S.return (conv ctx)
+  let combine ctx = S.combine (conv ctx)
+  let special ctx = S.special (conv ctx)
+  let threadenter ctx = S.threadenter (conv ctx)
+  let threadspawn ctx lv f args fctx = S.threadspawn (conv ctx) lv f args (conv fctx)
+  let sync ctx = S.sync (conv ctx)
+  let skip ctx = S.skip (conv ctx)
+  let asm ctx = S.asm (conv ctx)
+  let intrpt ctx = S.intrpt (conv ctx)
 end
 
 module Compare
