@@ -89,6 +89,10 @@ struct
     let mutex_inits: t = `Left (`Right ())
     let global x: t = `Right x
   end
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g -> vf (V.global g)
 end
 
 module MayVars =
