@@ -420,6 +420,8 @@ sig
 
   (** Data used for incremental analysis *)
   val increment : increment_data
+
+  val iter_vars: (v -> d) -> VarQuery.t -> (v -> unit) -> unit
 end
 
 (** Any system of side-effecting equations over lattices. *)
@@ -435,6 +437,7 @@ sig
   module G : Lattice.S
   val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> (LVar.t -> unit) -> (GVar.t -> unit) -> unit
 end
 
 (** A solver is something that can translate a system into a solution (hash-table).

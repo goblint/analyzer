@@ -171,6 +171,8 @@ struct
       Mutexes.mem verifier_atomic held_locks
     | Queries.PartAccess {exp; var_opt; write} ->
       part_access ctx exp var_opt write
+    | Queries.IterSysVars (Global g, f) ->
+      f (Obj.repr g)
     | _ -> Queries.Result.top q
 
 

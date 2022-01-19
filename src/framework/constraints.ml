@@ -745,6 +745,28 @@ struct
           List.fold_left S.D.join (S.D.bot ()) xs
       in
       Some tf
+
+  let iter_vars getl getg vq fl fg =
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> S.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+      ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+      ; context = (fun () -> ctx_failwith "No context in query context.")
+      ; edge    = MyCFG.Skip
+      ; local  = S.startstate Cil.dummyFunDec.svar
+      ; global = getg
+      ; presub = []
+      ; postsub= []
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+      ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
+      }
+    in
+    let f v = fg (Obj.obj v) in
+    S.query ctx (IterSysVars (vq, f))
 end
 
 (** Convert a non-incremental solver into an "incremental" solver.
@@ -842,6 +864,9 @@ struct
   let system = function
     | `G _ -> None
     | `L x -> Option.map conv (S.system x)
+
+  let iter_vars get vq f =
+    S.iter_vars (getL % get % l) (getG % get % g) vq (f % l) (f % g)
 end
 
 (** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)

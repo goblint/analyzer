@@ -688,6 +688,12 @@ struct
         (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
         let (n, g): V.t = Obj.obj g in
         f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
+      | Queries.IterSysVars (vq, fi) ->
+        iter (fun ((n,(module S:MCPSpec),d) as t) ->
+            let fi' x = fi (Obj.repr (v_of n x)) in
+            let q' = Queries.IterSysVars (vq, fi') in
+            f ~q:q' () t
+          ) @@ spec_list ctx.local
       (* | EvalInt e ->
         (* TODO: only query others that actually respond to EvalInt *)
         (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
