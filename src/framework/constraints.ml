@@ -1163,7 +1163,14 @@ struct
       end
     | IterSysVars (vq, vf) ->
       let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
-      S.query (conv ctx) (IterSysVars (vq, vf'))
+      S.query (conv ctx) (IterSysVars (vq, vf'));
+
+      begin match vq with
+        | Node n ->
+          vf (Obj.repr (V.node n))
+        | _ ->
+          ()
+      end
     | _ ->
       S.query (conv ctx) q
 

@@ -917,7 +917,9 @@ module WP =
           | GFun (fd, _) ->
             ignore (Pretty.printf "%a:\n" CilType.Fundec.pretty fd);
             let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
-            S.iter_vars get (Node (FunctionEntry fd)) (fun v ->
+            (* let node: Node.t = FunctionEntry fd in *)
+            let node: Node.t = Statement (Cilfacade.getFirstStmt fd) in
+            S.iter_vars get (Node node) (fun v ->
                 let d = get v in
                 if not (S.Dom.is_bot d) then
                   ignore (Pretty.printf "  %a: %a\n" S.Var.pretty_trace v S.Dom.pretty d)
