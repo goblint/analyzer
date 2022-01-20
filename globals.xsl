@@ -57,6 +57,31 @@
     </xsl:choose>
   </xsl:template>
 
+  <xsl:template match="analysis">
+    <xsl:choose>
+      <xsl:when test="value//value">
+        <div class="toggle">
+          <span>
+            <xsl:value-of select="@name" />
+          </span> &#8594;
+          <div>
+            <xsl:apply-templates select="value" />
+          </div>
+        </div>
+      </xsl:when>
+      <xsl:otherwise>
+        <div class="nontoggle">
+          <span class="emph">
+            <xsl:value-of select="@name" />
+          </span> &#8594;
+          <span class="emph">
+            <xsl:apply-templates select="value" />
+          </span>
+        </div>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:template>
+
   <xsl:template match="globs">
     <!-- https://stackoverflow.com/questions/2291567/how-to-use-xslt-to-create-distinct-values#comment38881974_18886096 -->
     <xsl:for-each select="glob/analysis[not(./@name=preceding::*/@name)]" >
