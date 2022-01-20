@@ -97,7 +97,7 @@ type _ t =
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
-  | IterSysVars: VarQuery.t * (Obj.t -> unit) -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
+  | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
 
 type 'a result = 'a
 
@@ -288,7 +288,7 @@ struct
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
-      | Any (IterSysVars (vq1, f1)), Any (IterSysVars (vq2, f2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
+      | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end
