@@ -332,7 +332,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 module AS = SetDomain.Make (A)
 module T =
@@ -350,7 +350,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 module O =
 struct
@@ -368,7 +368,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)

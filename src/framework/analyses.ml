@@ -126,7 +126,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 
 module type ResultConf =

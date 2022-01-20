@@ -514,7 +514,7 @@ module Std (B: sig
       type nonrec t = t
       let show = show
     end
-  )
+    )
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 
   include StdTop (B)

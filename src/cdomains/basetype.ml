@@ -16,7 +16,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 end
 
 module Variables =

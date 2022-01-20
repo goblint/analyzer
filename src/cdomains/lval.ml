@@ -52,7 +52,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -230,7 +230,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
@@ -353,7 +353,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 
   let rec printInnerXml f = function
     | [] -> ()
@@ -507,5 +507,5 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 end
