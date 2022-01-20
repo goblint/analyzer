@@ -472,6 +472,10 @@ struct
   module D = S.D
   module G = GVarG (S.G) (S.C)
 
+  (* Two global invariants:
+     1. S.V -> S.G  --  used for Spec
+     2. fundec -> set of S.C  --  used for IterSysVars Node *)
+
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
 
@@ -1107,6 +1111,10 @@ struct
   include S
 
   let name () = "DeadBranch (" ^ S.name () ^ ")"
+
+  (* Two global invariants:
+     1. S.V -> S.G  --  used for S
+     2. node -> (exp -> flat bool)  --  used for warnings *)
 
   module V =
   struct

@@ -38,6 +38,10 @@ struct
   module D      = Dom
   module C      = Dom
 
+  (* Two global invariants:
+     1. Priv.V -> Priv.G  --  used for Priv
+     2. thread -> VD  --  used for thread returns *)
+
   module V =
   struct
     include Printable.Either (Priv.V) (ThreadIdDomain.Thread)

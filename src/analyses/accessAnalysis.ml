@@ -17,6 +17,10 @@ struct
   module D = Lattice.Unit
   module C = Lattice.Unit
 
+  (* Two global invariants:
+     1. (lval, type) -> accesses  --  used for warnings
+     2. varinfo -> set of (lval, type)  --  used for IterSysVars Global *)
+
   module V0 = Printable.Prod (Access.LVOpt) (Access.T)
   module V =
   struct
@@ -245,17 +249,17 @@ struct
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
-        | `Left g ->
+        | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          let pm = G.access (ctx.global (V.access g)) in
-          Access.print_accesses g pm;
-          Access.incr_summary safe vulnerable unsafe g pm
-        | `Right _ ->
+          let pm = G.access (ctx.global g) in
+          Access.print_accesses g' pm;
+          Access.incr_summary safe vulnerable unsafe g' pm
+        | `Right _ -> (* vars *)
           ()
       end
     | IterSysVars (Global g, vf) ->
-      V0Set.iter (fun (lv_opt, ty) ->
-          vf (Obj.repr (V.access (lv_opt, ty)))
+      V0Set.iter (fun v ->
+          vf (Obj.repr (V.access v))
         ) (G.vars (ctx.global (V.vars g)))
     | _ -> Queries.Result.top q
 
