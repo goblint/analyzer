@@ -599,12 +599,27 @@ module WP =
           else
             destabilize_normal;
 
-        let filter_map f l =
-          List.fold_left (fun acc el -> match f el with Some x -> x::acc | _ -> acc) [] l
+        let changed_funs = List.filter_map (function
+            | {old = GFun (f, _); diff = None; _} ->
+              print_endline ("Completely changed function: " ^ f.svar.vname);
+              Some f
+            | _ -> None
+          ) S.increment.changes.changed
         in
-        let changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), None -> Some f | _ -> None) S.increment.changes.changed in
-        let part_changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), Some nd -> Some (f,nd.primObsoleteNodes,nd.unchangedNodes) | _ -> None) S.increment.changes.changed in
-        let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
+        let part_changed_funs = List.filter_map (function
+            | {old = GFun (f, _); diff = Some nd; _} ->
+              print_endline ("Partially changed function: " ^ f.svar.vname);
+              Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
+            | _ -> None
+          ) S.increment.changes.changed
+        in
+        let removed_funs = List.filter_map (function
+            | GFun (f, _) ->
+              print_endline ("Removed function: " ^ f.svar.vname);
+              Some f
+            | _ -> None
+          ) S.increment.changes.removed
+        in
 
         let mark_node hm f node =
           let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
@@ -626,10 +641,6 @@ module WP =
               ) pn;
             mark_node obsolete_ret f (Function f);
           ) part_changed_funs;
-
-        List.iter (fun a -> print_endline ("Completely changed function: " ^ a.svar.vname)) changed_funs;
-        List.iter (fun (f,_,_) -> print_endline ("Partially changed function: " ^ (f.svar.vname))) part_changed_funs;
-        List.iter (fun f -> print_endline ("Removed function: " ^ (f.svar.vname))) removed_funs;
 
         let old_ret = HM.create 103 in
         if GobConfig.get_bool "incremental.reluctant.on" then (
