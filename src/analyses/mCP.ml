@@ -689,6 +689,7 @@ struct
         let (n, g): V.t = Obj.obj g in
         f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
       | Queries.IterSysVars (vq, fi) ->
+        (* IterSysVars is special: argument function is lifted for each analysis *)
         iter (fun ((n,(module S:MCPSpec),d) as t) ->
             let fi' x = fi (Obj.repr (v_of n x)) in
             let q' = Queries.IterSysVars (vq, fi') in

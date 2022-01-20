@@ -760,6 +760,7 @@ struct
       Some tf
 
   let iter_vars getl getg vq fl fg =
+    (* vars for Spec *)
     let rec ctx =
       { ask    = (fun (type a) (q: a Queries.t) -> S.query ctx q)
       ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
@@ -768,7 +769,7 @@ struct
       ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
       ; context = (fun () -> ctx_failwith "No context in query context.")
       ; edge    = MyCFG.Skip
-      ; local  = S.startstate Cil.dummyFunDec.svar
+      ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
       ; global = (fun g -> G.spec (getg (GVar.spec g)))
       ; presub = []
       ; postsub= []
@@ -781,6 +782,7 @@ struct
     let f v = fg (GVar.spec (Obj.obj v)) in
     S.query ctx (IterSysVars (vq, f));
 
+    (* node vars for locals *)
     match vq with
     | Node {node; fundec} ->
       let fd = Option.default_delayed (fun () -> Node.find_fundec node) fundec in
@@ -1165,9 +1167,11 @@ struct
           ) em;
       end
     | IterSysVars (vq, vf) ->
+      (* vars for S *)
       let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
       S.query (conv ctx) (IterSysVars (vq, vf'));
 
+      (* node vars for dead branches *)
       begin match vq with
         | Node {node; _} ->
           vf (Obj.repr (V.node node))

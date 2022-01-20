@@ -617,9 +617,9 @@ struct
         }
       in
       match g with
-      | `Left g ->
+      | `Left g -> (* Spec global *)
         Spec.query ctx (WarnGlobal (Obj.repr g))
-      | `Right _ ->
+      | `Right _ -> (* contexts global *)
         ()
     in
     Stats.time "warn_global" (GHT.iter warn_global) gh;

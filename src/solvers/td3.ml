@@ -960,6 +960,7 @@ module WP =
 
       print_data data "Data after postsolve";
 
+      (* TODO: example debug output for queries, remove *)
       Cil.iterGlobals !Cilfacade.current_file (function
           | GVar (g, _, _) ->
             ignore (Pretty.printf "%a:\n" CilType.Varinfo.pretty g);

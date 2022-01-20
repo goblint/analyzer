@@ -97,7 +97,7 @@ type _ t =
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
-  | IterSysVars: VarQuery.t * (Obj.t -> unit) -> Unit.t t
+  | IterSysVars: VarQuery.t * (Obj.t -> unit) -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
 
 type 'a result = 'a
 
