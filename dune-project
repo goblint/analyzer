@@ -39,6 +39,7 @@
     (odoc :with-doc)
     dune-site
     json-data-encoding
+    jsonrpc
     (sha (>= 1.12))
     (conf-gmp (>= 3)) ; only needed transitively, but they don't have lower bound, which is needed on MacOS
     (conf-ruby :with-test)

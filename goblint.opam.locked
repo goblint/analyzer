@@ -46,6 +46,7 @@ depends: [
   "fpath" {= "0.7.3" & with-doc}
   "goblint-cil" {= "1.8.2"}
   "json-data-encoding" {= "0.10"}
+  "jsonrpc" {= "1.9.1"}
   "logs" {= "0.7.0" & with-doc}
   "mlgmpidl" {= "1.2.13"}
   "num" {= "1.4"}

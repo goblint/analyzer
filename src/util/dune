@@ -1,2 +1,2 @@
-(ocamllex oilLexer)
-(ocamlyacc oilParser)
+(ocamllex oilLexer makefileLexer)
+(ocamlyacc oilParser makefileParser)

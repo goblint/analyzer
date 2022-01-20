@@ -53,7 +53,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 
   let to_yojson x = `Assoc (
       [
@@ -98,7 +98,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
   let pp fmt x = Format.fprintf fmt "%s" x.vname (* for deriving show *)
 end
 
@@ -122,7 +122,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 
 module Fundec: S with type t = fundec =
@@ -145,7 +145,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 end
 
 module Typ: S with type t = typ =
@@ -169,7 +169,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 
 module Compinfo: S with type t = compinfo =
@@ -192,7 +192,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 end
 
 module Fieldinfo: S with type t = fieldinfo =
@@ -232,7 +232,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 end
 
 module rec Exp: S with type t = exp =
@@ -338,7 +338,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 
 and Offset: S with type t = offset =
@@ -386,7 +386,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 
 and Lval: S with type t = lval =
@@ -424,7 +424,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end
 
 and Constant: S with type t = constant =
@@ -456,5 +456,5 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 end

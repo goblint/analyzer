@@ -35,6 +35,7 @@ depends: [
   "odoc" {with-doc}
   "dune-site"
   "json-data-encoding"
+  "jsonrpc"
   "sha" {>= "1.12"}
   "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}

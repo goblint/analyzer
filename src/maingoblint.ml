@@ -159,17 +159,22 @@ let basic_preprocess ~all_cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let deps_file = Filename.chop_extension nname ^ ".d" in
+    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -MMD -MT " ^ fname ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     try match Unix.system command with
-      | Unix.WEXITED 0 -> nname
+      | Unix.WEXITED 0 ->
+        Preprocessor.parse_makefile_deps deps_file;
+        nname
       | _ -> eprintf "Goblint: Preprocessing failed."; raise Exit
     with Unix.Unix_error (e, f, a) ->
       eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; raise Exit
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
+  Hashtbl.clear Preprocessor.dependencies; (* clear for server mode *)
+
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "cppflags") in
 
@@ -497,19 +502,20 @@ let main () =
         preprocess_files () |> merge_preprocessed
       )
     in
-    let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
-    file|> do_analyze changeInfo;
-    do_stats ();
-    do_html_output ();
-    do_gobview ();
-    if !verified = Some false then exit 3;  (* verifier failed! *)
+    if get_bool "server.enabled" then Server.start file do_analyze else (
+      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
+      file|> do_analyze changeInfo;
+      do_stats ();
+      do_html_output ();
+      do_gobview ();
+      if !verified = Some false then exit 3)  (* verifier failed! *)
   with
-    | Exit ->
-      exit 1
-    | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
-      (* Printexc.print_backtrace BatInnerIO.stderr *)
-      eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
-      exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
-    | Timeout ->
-      eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
-      exit 124
+  | Exit ->
+    exit 1
+  | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
+    (* Printexc.print_backtrace BatInnerIO.stderr *)
+    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
+    exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
+  | Timeout ->
+    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
+    exit 124
