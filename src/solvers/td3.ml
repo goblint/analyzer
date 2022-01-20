@@ -671,7 +671,7 @@ module WP =
           ) part_changed_funs;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.filteri_inplace (fun k _ -> not (HM.mem  marked_for_deletion k)) s in
+        let delete_marked s = HM.iter (fun k _ -> HM.remove s k) marked_for_deletion in
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
@@ -680,13 +680,12 @@ module WP =
         if restart_sided then (
           (* restarts old copies of functions and their (removed) side effects *)
           print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
-          let stable_copy = HM.copy stable in (* use copy because destabilize modifies stable *)
           HM.iter (fun k _ ->
-              if HM.mem marked_for_deletion k then (
+              if HM.mem stable k then (
                 ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k);
                 destabilize k
               )
-            ) stable_copy
+            ) marked_for_deletion
         );
 
         let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)
