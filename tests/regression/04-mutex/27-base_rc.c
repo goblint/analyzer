@@ -9,7 +9,7 @@ void bad() {
 }
 void good() {
   pthread_mutex_lock(&gm);
-  global++; // RACE
+  global++; // NORACE (MHP)
   pthread_mutex_unlock(&gm);
 }
 
