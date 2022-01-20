@@ -15,7 +15,7 @@ struct
     | Zero -> "0"
     | Pos -> "+"
 
-  include Printable.PrintSimple (struct
+  include Printable.SimpleShow (struct
       type nonrec t = t
       let show = show
     end)

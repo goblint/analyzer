@@ -121,9 +121,13 @@ struct
     let x = UpdateCil.getLoc a in
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty () x = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 
 module type ResultConf =
@@ -185,9 +189,6 @@ struct
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
-    | "indented" -> failwith " `indented` is no longer supported for `result`, use fast_xml instead "
-    | "compact" -> failwith " `compact` is no longer supported for `result`, use fast_xml instead "
-    | "html" -> failwith " `html` is no longer supported for `result`, run with --html instead "
     | "fast_xml" ->
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
@@ -272,7 +273,23 @@ struct
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
       Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
-      Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
+      let files =
+        let module SH = BatHashtbl.Make (Basetype.RawStrings) in
+        let files = SH.create 100 in
+        iterGlobals file (function
+            | GFun (_, loc)
+            | GVar (_, _, loc) ->
+              SH.replace files loc.file (Hashtbl.find_option Preprocessor.dependencies loc.file)
+            | _ -> () (* TODO: add locs from everything else? would also include system headers *)
+          );
+        files |> SH.to_list
+      in
+      let json = `Assoc [
+          ("files", `Assoc (List.map (Tuple2.map2 [%to_yojson: string list option]) files));
+          ("messages", Messages.Table.to_yojson ());
+        ]
+      in
+      Yojson.Safe.pretty_to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -376,10 +393,20 @@ sig
   val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
+module type MCPA =
+sig
+  include Printable.S
+  val may_race: t -> t -> bool
+  val should_print: t -> bool (** Whether value should be printed in race output. *)
+end
+
 module type MCPSpec =
 sig
   include Spec
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  module A: MCPA
+  val access: (D.t, G.t, C.t, V.t) ctx -> exp -> varinfo option -> bool -> A.t
 end
 
 type analyzed_data = {
@@ -502,6 +529,14 @@ end
 module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
 module EmptyV = Printable.Empty
 
+module UnitA =
+struct
+  include Printable.Unit
+  let may_race _ _ = true
+  let should_print _ = false
+end
+
+
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
@@ -547,6 +582,9 @@ struct
 
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+
+  module A = UnitA
+  let access _ _ _ _ = ()
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

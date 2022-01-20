@@ -40,9 +40,7 @@ let init () =
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
 
-let current_statement = ref dummyStmt
 let current_file = ref dummyFile
-let showtemps = ref false
 
 let parse fileName =
   Frontc.parse fileName ()

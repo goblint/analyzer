@@ -1,7 +1,7 @@
 name: unlocked
 
 on:
-  pull_request:
+  # pull_request: # save CI time on PRs, run manually if needed (before merge) or find out failures from scheduled run (after merge)
   workflow_dispatch:
 
   schedule:
