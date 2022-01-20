@@ -635,21 +635,24 @@ module WP =
         if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v ->
-              if HM.mem obsolete_ret k then (
+              if HM.mem rho k then (
                 let old_rho = HM.find rho k in
                 let old_infl = HM.find_default infl k VS.empty in
                 Hashtbl.replace old_ret k (old_rho, old_infl)
               )
-            ) rho;
+            ) obsolete_ret;
         ) else (
           (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
              and the primary obsolete nodes of partly changed functions *)
           print_endline "Destabilizing changed functions and primary old nodes ...";
-          let stable_copy = HM.copy stable in
           HM.iter (fun k _ ->
-              if HM.mem obsolete_entry k || HM.mem obsolete_prim k then
+              if HM.mem stable k then
                 destabilize k
-            ) stable_copy;
+            ) obsolete_entry;
+          HM.iter (fun k _ ->
+              if HM.mem stable k then
+                destabilize k
+            ) obsolete_prim;
         );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
