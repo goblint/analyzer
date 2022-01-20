@@ -630,27 +630,48 @@ module WP =
         );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
-        (* TODO: don't use string-based nodes, make marked_for_deletion of type unit (Hashtbl.Make (Node)).t *)
-        let add_nodes_of_fun (functions: fundec list) (nodes) withEntry =
+        let marked_for_deletion = HM.create 103 in
+
+        let mark_node f node =
+          let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
+          S.iter_vars get (Node {node; fundec = Some f}) (fun v ->
+              HM.replace marked_for_deletion v ()
+            )
+        in
+        let add_nodes_of_fun (functions: fundec list) withEntry =
           let add_stmts (f: fundec) =
-            List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
+            List.iter (fun s ->
+                mark_node f (Statement s)
+              ) f.sallstmts
           in
-          List.iter (fun f -> if withEntry then Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
+          List.iter (fun f ->
+              if withEntry then
+                mark_node f (FunctionEntry f);
+              mark_node f (Function f);
+              add_stmts f;
+              (* TODO: pseudo return *)
+              (* HM.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) () *)
+            ) functions;
         in
 
-        let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun changed_funs marked_for_deletion (not (GobConfig.get_bool "incremental.reluctant.on"));
-        add_nodes_of_fun removed_funs marked_for_deletion true;
+        add_nodes_of_fun changed_funs (not (GobConfig.get_bool "incremental.reluctant.on"));
+        add_nodes_of_fun removed_funs true;
         (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
         let add_pseudo_return f un =
           let pid = CfgTools.get_pseudo_return_id f in
           let is_pseudo_return n = match n with MyCFG.Statement s -> s.sid = pid | _ -> false in
-          if not (List.exists (fun x -> is_pseudo_return @@ fst @@ x) un)
-          then Hashtbl.replace marked_for_deletion (string_of_int pid) () in
-        List.iter (fun (f,_,un) -> Hashtbl.replace marked_for_deletion (Node.show_id (Function f)) (); add_pseudo_return f un) part_changed_funs;
+          ()
+          (* TODO: pseudo return *)
+          (* if not (List.exists (fun x -> is_pseudo_return @@ fst @@ x) un) then
+             HM.replace marked_for_deletion (string_of_int pid) () *)
+        in
+        List.iter (fun (f,_,un) ->
+            mark_node f (Function f);
+            add_pseudo_return f un
+          ) part_changed_funs;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.filteri_inplace (fun k _ -> not (Hashtbl.mem  marked_for_deletion (S.Var.var_id k))) s in (* TODO: don't use string-based nodes *)
+        let delete_marked s = HM.filteri_inplace (fun k _ -> not (HM.mem  marked_for_deletion k)) s in
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
@@ -660,7 +681,12 @@ module WP =
           (* restarts old copies of functions and their (removed) side effects *)
           print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
           let stable_copy = HM.copy stable in (* use copy because destabilize modifies stable *)
-          HM.iter (fun k _ -> if Hashtbl.mem marked_for_deletion (S.Var.var_id k) then (ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k); destabilize k)) stable_copy; (* TODO: don't use string-based nodes *)
+          HM.iter (fun k _ ->
+              if HM.mem marked_for_deletion k then (
+                ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k);
+                destabilize k
+              )
+            ) stable_copy
         );
 
         let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)
