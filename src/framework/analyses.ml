@@ -84,7 +84,12 @@ module GVarG (G: Lattice.S) (C: Printable.S) =
 struct
   module CSet =
   struct
-    include SetDomain.Make (C)
+    include SetDomain.Make (
+      struct
+        include C
+        let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+      end
+      )
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
 
@@ -100,6 +105,11 @@ struct
     | _ -> failwith "GVarG.contexts"
   let create_spec spec = `Lifted1 spec
   let create_contexts contexts = `Lifted2 contexts
+
+  let printXml f = function
+    | `Lifted1 x -> G.printXml f x
+    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
+    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
 
