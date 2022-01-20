@@ -9,7 +9,7 @@ void bad() {
 }
 void good() {
   pthread_mutex_lock(&gm);
-  global++; // NORACE (MHP)
+  global++; // NORACE (same unique thread with bad, same lock with main)
   pthread_mutex_unlock(&gm);
 }
 

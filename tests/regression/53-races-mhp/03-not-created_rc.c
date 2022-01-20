@@ -19,7 +19,7 @@ void *t_fun2(void *arg) {
 int main(void) {
   pthread_t id, id2;
   pthread_create(&id, NULL, t_fun, NULL); // enter multithreaded
-  myglobal = 5; // NORACE
+  myglobal = 5; // NORACE (MHP, t_fun2 not yet created, same unique thread with main)
 
   pthread_create(&id2, NULL, t_fun2, NULL);
   pthread_mutex_lock(&mutex2);
