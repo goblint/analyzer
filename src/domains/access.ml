@@ -333,8 +333,16 @@ struct
       let pretty = pretty
     end
     )
+
+  let conf (conf, _, _, _, _) = conf
 end
-module AS = SetDomain.Make (A)
+module AS =
+struct
+  include SetDomain.Make (A)
+
+  let max_conf accs =
+    accs |> elements |> List.map A.conf |> List.max
+end
 module T =
 struct
   include Printable.Std
@@ -377,28 +385,34 @@ module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 (* Check if two accesses may race and if yes with which confidence *)
 let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
   if not w && not w2 then
-    None (* two read/read accesses do not race *)
+    false (* two read/read accesses do not race *)
   else if not (MCPAccess.A.may_race a a2) then
-    None (* analysis-specific information excludes race *)
+    false (* analysis-specific information excludes race *)
   else
-    Some (max conf conf2)
+    true
 
-let check_safe accs =
+let filter_may_race accs =
   let accs = AS.elements accs in
   let cart = List.cartesian_product accs accs in
-  let conf = List.filter_map (fun (x,y) -> if A.compare x y <= 0 then may_race x y else None) cart in
-  if conf = [] then
-    None
-  else
-    let maxconf = List.max conf in
-    Some maxconf
+  List.fold_left (fun acc (x, y) ->
+      if A.compare x y <= 0 && may_race x y then
+        AS.add y (AS.add x acc)
+      else
+        acc
+    ) (AS.empty ()) cart
 
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
 let incr_summary safe vulnerable unsafe (lv, ty) accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
-  let safety = check_safe accs in
+  let race_accs = filter_may_race accs in
+  let safety =
+    if AS.is_empty race_accs then
+      None
+    else
+      Some (AS.max_conf race_accs)
+  in
   match safety with
   | None -> incr safe
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
@@ -407,7 +421,7 @@ let incr_summary safe vulnerable unsafe (lv, ty) accs =
 let print_accesses (lv, ty) accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  let msgs () =
+  let msgs race_accs =
     let h (conf,w,loc,e,a) =
       let atyp = if w then "write" else "read" in
       let d_msg () = dprintf "%s with %a (conf. %d)" atyp MCPAccess.A.pretty a conf in
@@ -419,12 +433,13 @@ let print_accesses (lv, ty) accs =
       in
       (doc, Some loc)
     in
-    AS.elements accs
+    AS.elements race_accs
     |> List.map h
   in
-  match check_safe accs with
-  | None ->
+  match filter_may_race accs with
+  | race_accs when AS.is_empty race_accs ->
     if allglobs then
-      M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
-  | Some n ->
-    M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
+      M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs accs)
+  | race_accs ->
+    let conf = AS.max_conf race_accs in
+    M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs (if allglobs then accs else race_accs))
