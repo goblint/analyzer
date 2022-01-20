@@ -604,7 +604,6 @@ module WP =
         in
         let changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), None -> Some f | _ -> None) S.increment.changes.changed in
         let part_changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), Some nd -> Some (f,nd.primObsoleteNodes,nd.unchangedNodes) | _ -> None) S.increment.changes.changed in
-        let prim_old_nodes_ids = Set.of_list (List.concat_map (fun (_,pn,_) -> List.map Node.show_id pn) part_changed_funs) in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
 
         let mark_node hm f node =
@@ -616,11 +615,15 @@ module WP =
 
         let obsolete_ret = HM.create 103 in
         let obsolete_entry = HM.create 103 in
+        let obsolete_prim = HM.create 103 in
         List.iter (fun f ->
             mark_node obsolete_entry f (FunctionEntry f);
             mark_node obsolete_ret f (Function f);
           ) changed_funs;
-        List.iter (fun (f, _, _) ->
+        List.iter (fun (f, pn, _) ->
+            List.iter (fun n ->
+                mark_node obsolete_prim f n
+              ) pn;
             mark_node obsolete_ret f (Function f);
           ) part_changed_funs;
 
@@ -644,7 +647,7 @@ module WP =
           print_endline "Destabilizing changed functions and primary old nodes ...";
           let stable_copy = HM.copy stable in
           HM.iter (fun k _ ->
-              if HM.mem obsolete_entry k || Set.mem (S.Var.var_id k) prim_old_nodes_ids then (* TODO: don't use string-based nodes *)
+              if HM.mem obsolete_entry k || HM.mem obsolete_prim k then
                 destabilize k
             ) stable_copy;
         );
