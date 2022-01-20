@@ -638,6 +638,10 @@ module WP =
               HM.replace marked_for_deletion v ()
             )
         in
+        let dummy_pseudo_return_node f =
+          (* not the same as in CFG, but compares equal because of sid *)
+          Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
+        in
         let add_nodes_of_fun (functions: fundec list) withEntry =
           let add_stmts (f: fundec) =
             List.iter (fun s ->
@@ -649,8 +653,7 @@ module WP =
                 mark_node f (FunctionEntry f);
               mark_node f (Function f);
               add_stmts f;
-              (* TODO: pseudo return *)
-              (* HM.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) () *)
+              mark_node f (dummy_pseudo_return_node f)
             ) functions;
         in
 
@@ -658,12 +661,9 @@ module WP =
         add_nodes_of_fun removed_funs true;
         (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
         let add_pseudo_return f un =
-          let pid = CfgTools.get_pseudo_return_id f in
-          let is_pseudo_return n = match n with MyCFG.Statement s -> s.sid = pid | _ -> false in
-          ()
-          (* TODO: pseudo return *)
-          (* if not (List.exists (fun x -> is_pseudo_return @@ fst @@ x) un) then
-             HM.replace marked_for_deletion (string_of_int pid) () *)
+          let pseudo = dummy_pseudo_return_node f in
+          if not (List.exists (Node.equal pseudo % fst) un) then
+            mark_node f (dummy_pseudo_return_node f)
         in
         List.iter (fun (f,_,un) ->
             mark_node f (Function f);
