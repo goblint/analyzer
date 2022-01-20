@@ -295,6 +295,7 @@ struct
         | Some (m) -> Some (dim_remove (Environment.dimchange env' a.env) m))
     in {d = d'; env = env'}
 
+
   let remove_filter a f =
     let env' = remove_filter_with a.env f in
     let d' = (match a.d with
@@ -315,9 +316,6 @@ struct
         | None -> None
         | Some (m) -> Some (dim_remove (Environment.dimchange env' a.env) m))
     in {d = d'; env = env'}
-
-  let forget_vars a l = (*ToDo Mem_var shouldn't be called*)
-    remove_vars a l
 
   let vars a = vars a.env
 
@@ -589,6 +587,13 @@ struct
     | None -> x
     | Some (r, _) -> Matrix.reduce_row_to_zero x r j0
 
+    let rec forget_vars a vars =
+    match a.d with
+    | None -> a
+    | Some(m) -> begin match vars with
+                      | [] -> a
+                      | x :: xs -> forget_vars {d = Some (Matrix.normalize (remove_rels_with_var m x a.env)); env = a.env} xs end
+
   let assign_texpr t var texp =
     let is_invertible v = Vector.get_val (Environment.dim_of_var t.env var) v <> (to_rt 0)
     in
@@ -602,16 +607,12 @@ struct
         assign_uninvertible_rel new_x var v t.env
     | _, _ -> t
 
-  let assign_exp t var exp =
-    match Convert.texpr1_expr_of_cil_exp t t.env exp with
+  let assign_exp t var exp (no_ov: bool) =
+    match Convert.texpr1_expr_of_cil_exp t t.env no_ov exp with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp -> match t.d with
       | None -> t
       | Some(x) -> forget_vars t [var]
-
-  let assign_exp t var exp =
-    let res = assign_exp t var exp in
-    res
 
   let assign_var t v v' =
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
@@ -640,8 +641,8 @@ struct
     if M.tracing then M.tracel "ops" "assign_var parallel'\n";
     res
 
-  let substitute_exp t var exp =
-    let b = get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env exp) in
+  let substitute_exp t var exp ov =
+    let b = get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env ov exp) in
     match b, t.d with
     | Some (x), Some(m) -> let dim_var = Environment.dim_of_var t.env var in
       if Vector.get_val dim_var x = (to_rt 0) then
@@ -685,15 +686,15 @@ struct
                                               | _ -> d end
     | _ -> d
 
-  let rec assert_cons d e negate =
-    begin match Convert.tcons1_of_cil_exp d (d.env) e negate with
+  let rec assert_cons d e negate no_ov =
+    begin match Convert.tcons1_of_cil_exp d (d.env) e negate no_ov with
       | tcons1 -> meet_with_tcons d tcons1 e
       | exception Convert.Unsupported_CilExp ->
         d
     end
 
   (** Assert any expression. *)
-  let assert_inv d e negate =
+  let assert_inv d e negate no_ov =
     let e' =
       if exp_is_cons e then
         e
@@ -701,19 +702,19 @@ struct
         (* convert non-constraint expression, such that we assert(e != 0) *)
         BinOp (Ne, e, zero, intType)
     in
-    assert_cons d e' negate
+    assert_cons d e' negate no_ov
 
 
-  let assert_inv d e negate =
-    let res = assert_inv d e negate in
+  let assert_inv d e negate no_ov =
+    let res = assert_inv d e negate no_ov in
     if M.tracing then M.tracel "assert" "assert_inv: d: %s expression: %s negate: %b -> %s\n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) negate (show res);
     res
 
 
   let check_asserts d e =
-    if is_bot_env (assert_inv d e false) then
+    if is_bot_env (assert_inv d e false false) then
       `False
-    else if is_bot_env (assert_inv d e true) then
+    else if is_bot_env (assert_inv d e true false) then
       `True
     else
       `Top
@@ -726,7 +727,7 @@ struct
 
   (** Evaluate non-constraint expression as interval. *)
   let eval_interval_expr d e =
-    match Convert.texpr1_of_cil_exp d (d.env) e with
+    match Convert.texpr1_of_cil_exp d (d.env) e false with
     | texpr1 -> ExpressionBounds.bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp -> (None, None)
 
@@ -748,7 +749,7 @@ struct
       | (None, None) -> ID.top ()
 
   let eval_int d e =
-    let res = eval_int d e in
+    let res = eval_int d e  in
     if M.tracing then M.tracel "assert" "Eval Int: matrix: %s expr: %s -> %s \n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) (Pretty.sprint 1 (Queries.ID.pretty () res)) ;
     res
 

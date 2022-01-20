@@ -125,14 +125,32 @@ struct
     | _ ->
       st
 
-  let assert_type_bounds apr x =
+  let no_overflow ctx exp =
+    let ik = Cilfacade.get_ikind_exp exp in
+    let eval_int ctx exp =
+      match ctx.ask (Queries.EvalInt exp) with
+      | x when Queries.ID.is_int x -> Queries.ID.to_int x
+      | _ -> None
+    in
+    let int_min, int_max = IntDomain.Size.range ik in
+      let min = eval_int ctx (BinOp (Lt, kinteger64 ik int_min, exp , intType)) in
+        let max = eval_int ctx (BinOp (Lt,  exp, kinteger64 ik int_max, intType)) in
+          match min, max with
+          | Some (x), _ when x = (IntOps.BigIntOps.of_int 1) -> true (*ToDo Is the '= 1' check really needed?*)
+          | _, Some (x) when x = (IntOps.BigIntOps.of_int 1) -> true (* "" *)
+          | _, _ -> false
+
+
+  let assert_type_bounds apr x ctx =
     assert (AD.varinfo_tracked x);
     let ik = Cilfacade.get_ikind x.vtype in
     if not (IntDomain.should_ignore_overflow ik) then ( (* don't add type bounds for signed when assume_none *)
       let (type_min, type_max) = IntDomain.Size.range_big_int ik in
       (* TODO: don't go through CIL exp? *)
-      let apr = AD.assert_inv apr (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) false in
-      let apr = AD.assert_inv apr (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) false in
+      let e1 = (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) in
+      let e2 = (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) in
+      let apr = AD.assert_inv apr e1 false (no_overflow ctx e1) in
+      let apr = AD.assert_inv apr e2 false (no_overflow ctx e2) in
       apr
     )
     else
@@ -150,7 +168,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
-              AD.assign_exp apr' (RV.local v) e'
+              AD.assign_exp apr' (RV.local v) e' (no_overflow ctx e')
             )
         )
       in
@@ -162,7 +180,7 @@ struct
     let st = ctx.local in
     let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun apr' e' ->
         (* not an assign, but must remove g#in-s still *)
-        AD.assert_inv apr' e' (not b)
+        AD.assert_inv apr' e' (not b) (no_overflow ctx e')
       )
     in
     if AD.is_bot_env res then raise Deadcode;
@@ -188,7 +206,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let new_apr = List.fold_left (fun new_apr (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with apr = new_apr} e (fun apr' e' ->
-            AD.assign_exp apr' var e'
+            AD.assign_exp apr' var e' (no_overflow ctx e')
           )
       ) new_apr arg_assigns
     in
@@ -209,7 +227,7 @@ struct
     let new_apr = AD.add_vars st.apr (List.map RV.local (formals @ locals)) in
     (* TODO: do this after local_assigns? *)
     let new_apr = List.fold_left (fun new_apr x ->
-        assert_type_bounds new_apr x
+        assert_type_bounds new_apr x ctx
       ) new_apr (formals @ locals)
     in
     let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
@@ -225,7 +243,7 @@ struct
           match e with
           | Some e ->
             assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with apr = apr'} e (fun apr' e' ->
-                AD.assign_exp apr' RV.return e'
+                AD.assign_exp apr' RV.return e' (no_overflow ctx e')
               )
           | None ->
             apr' (* leaves V.return unconstrained *)
@@ -264,7 +282,7 @@ struct
     let new_fun_apr = List.fold_left (fun new_fun_apr (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with apr = new_fun_apr} e (fun apr' e' ->
             (* not an assign, but still works? *)
-            AD.substitute_exp apr' var e'
+            AD.substitute_exp apr' var e' (no_overflow ctx e')
           )
       ) new_fun_apr arg_substitutes
     in
@@ -301,7 +319,7 @@ struct
         let invalidate_one st lv =
           assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
               let apr' = AD.forget_vars st.apr [RV.local v] in
-              assert_type_bounds apr' v (* re-establish type bounds after forget *)
+              assert_type_bounds apr' v ctx (* re-establish type bounds after forget *)
             )
         in
         let st = ctx.local in
@@ -324,7 +342,7 @@ struct
           let invalidate_one st lv =
             assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
                 let apr' = AD.forget_vars st.apr [RV.local v] in
-                assert_type_bounds apr' v (* re-establish type bounds after forget *)
+                assert_type_bounds apr' v ctx (* re-establish type bounds after forget *)
               )
           in
           let st' = match LibraryFunctions.get_invalidate_action f.vname with

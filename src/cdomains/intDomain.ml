@@ -2705,7 +2705,7 @@ module IntDomTupleImpl = struct
     if should_ignore_overflow ik then true
     else let ika, ikb = Size.range ik in
       match I2.minimal r, I2.maximal r with
-      | Some ra, Some rb -> BI.compare ika ra < 0 || BI.compare rb ikb < 0
+      | Some ra, Some rb -> if M.tracing then M.tracel "intov" "ika: %s ikb: %s r: %s small: %b, big: %b\n" (IntOps.BigIntOps.to_string ika) (IntOps.BigIntOps.to_string ikb) (I2.show r) (BI.compare ika ra < 0) (BI.compare rb ikb < 0); BI.compare ika ra < 0 || BI.compare rb ikb < 0
       | _ -> false
 
   (* map with overflow check *)

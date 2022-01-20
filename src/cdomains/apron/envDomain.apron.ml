@@ -48,7 +48,7 @@ struct
     let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
-  let texpr1_expr_of_cil_exp d env =
+  let texpr1_expr_of_cil_exp d env no_ov =
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
@@ -87,7 +87,7 @@ struct
             raise Unsupported_CilExp
         in
         let ik = Cilfacade.get_ikind_exp exp in
-        if not (IntDomain.should_ignore_overflow ik) then (
+        if not no_ov && not (IntDomain.should_ignore_overflow ik) then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with
@@ -100,17 +100,17 @@ struct
     in
     texpr1_expr_of_cil_exp
 
-  let texpr1_of_cil_exp d env e =
+  let texpr1_of_cil_exp d env e ov =
     let e = Cil.constFold false e in
-    of_expr env (texpr1_expr_of_cil_exp d env e)
+    of_expr env (texpr1_expr_of_cil_exp d env ov e)
 
-  let tcons1_of_cil_exp d env e negate =
+  let tcons1_of_cil_exp d env e negate ov =
     let e = Cil.constFold false e in
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp d env e1 in
-        let texpr1_2 = texpr1_expr_of_cil_exp d env e2 in
+        let texpr1_1 = texpr1_expr_of_cil_exp d env ov e1 in
+        let texpr1_2 = texpr1_expr_of_cil_exp d env ov e2 in
         (* Apron constraints always compare with 0 and only have comparisons one way *)
         begin match r with
           | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)
