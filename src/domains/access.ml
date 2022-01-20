@@ -422,8 +422,13 @@ let group_may_race accs =
 
 let race_conf accs =
   assert (not (AS.is_empty accs)); (* group_may_race should only construct non-empty components *)
-  if AS.cardinal accs = 1 then (* singleton component has no race *) (* TODO: what about self-races? *)
-    None
+  if AS.cardinal accs = 1 then ( (* singleton component *)
+    let acc = AS.choose accs in
+    if may_race acc acc then (* self-race *)
+      Some (A.conf acc)
+    else
+      None
+  )
   else
     Some (AS.max_conf accs)
 
