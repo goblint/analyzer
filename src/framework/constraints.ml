@@ -782,11 +782,11 @@ struct
     S.query ctx (IterSysVars (vq, f));
 
     match vq with
-    | Node n ->
-      let fd = Node.find_fundec n in
+    | Node {node; fundec} ->
+      let fd = Option.default_delayed (fun () -> Node.find_fundec node) fundec in
       let cs = G.contexts (getg (GVar.contexts fd)) in
       G.CSet.iter (fun c ->
-          fl (n, c)
+          fl (node, c)
         ) cs
     | _ ->
       ()
@@ -1169,8 +1169,8 @@ struct
       S.query (conv ctx) (IterSysVars (vq, vf'));
 
       begin match vq with
-        | Node n ->
-          vf (Obj.repr (V.node n))
+        | Node {node; _} ->
+          vf (Obj.repr (V.node node))
         | _ ->
           ()
       end

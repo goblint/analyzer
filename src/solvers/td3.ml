@@ -919,7 +919,7 @@ module WP =
             ignore (Pretty.printf "  entry:\n");
             let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
             let node: Node.t = FunctionEntry fd in
-            S.iter_vars get (Node node) (fun v ->
+            S.iter_vars get (Node {node; fundec=Some fd}) (fun v ->
                 let d = get v in
                 if not (S.Dom.is_bot d) then
                   ignore (Pretty.printf "    %a: %a\n" S.Var.pretty_trace v S.Dom.pretty d)
@@ -929,7 +929,7 @@ module WP =
                 ignore (Pretty.printf "  %a:\n" Cilfacade.stmt_pretty_short stmt);
                 let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
                 let node: Node.t = Statement stmt in
-                S.iter_vars get (Node node) (fun v ->
+                S.iter_vars get (Node {node; fundec=Some fd}) (fun v ->
                     let d = get v in
                     if not (S.Dom.is_bot d) then
                       ignore (Pretty.printf "    %a: %a\n" S.Var.pretty_trace v S.Dom.pretty d)
@@ -939,7 +939,7 @@ module WP =
             ignore (Pretty.printf "  return:\n");
             let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
             let node: Node.t = Function fd in
-            S.iter_vars get (Node node) (fun v ->
+            S.iter_vars get (Node {node; fundec=Some fd}) (fun v ->
                 let d = get v in
                 if not (S.Dom.is_bot d) then
                   ignore (Pretty.printf "    %a: %a\n" S.Var.pretty_trace v S.Dom.pretty d)
