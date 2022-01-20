@@ -115,7 +115,7 @@ struct
       "{ "^String.concat ", " (List.map string_of_record (Set.elements x))^" }, "^
       "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
   let show x = string_of x
-  include Printable.PrintSimple (struct
+  include Printable.SimpleShow (struct
       type nonrec t = t
       let show = show
     end)

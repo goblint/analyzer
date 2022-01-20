@@ -166,15 +166,20 @@ let invalidate_actions = ref [
     "fflush", writesAll;          (*unsafe*)
     "fopen", readsAll;            (*safe*)
     "fprintf", writes [1];          (*keep [1]*)
+    "__fprintf_chk", writes [1];    (*keep [1]*)
     "fread", writes [1];            (*keep [1]*)
     "free", writesAll; (*unsafe*)
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
     "memcpy", writes [1];(*keep [1]*)
+    "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
+    "__builtin___mempcpy_chk", writes [1];
     "memset", writesAll;(*unsafe*)
+    "__builtin___memset_chk", writesAll;
     "printf", readsAll;(*safe*)
+    "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
     "perror", readsAll;(*safe*)
     "pthread_mutex_lock", readsAll;(*safe*)
@@ -215,6 +220,7 @@ let invalidate_actions = ref [
     "tolower", readsAll;(*safe*)
     "time", writesAll;(*unsafe*)
     "vfprintf", writes [1];(*keep [1]*)
+    "__vfprintf_chk", writes [1];(*keep [1]*)
     "vprintf", readsAll;(*safe*)
     "vsprintf", writes [1];(*keep [1]*)
     "write", readsAll;(*safe*)
@@ -271,6 +277,8 @@ let invalidate_actions = ref [
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "__builtin_strchr", readsAll;(*safe*)
     "strcpy", writes [1];(*keep [1]*)
+    "__builtin___strcpy", writes [1];(*keep [1]*)
+    "__builtin___strcpy_chk", writes [1];(*keep [1]*)
     "strcat", writes [2];(*keep [2]*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
@@ -333,6 +341,8 @@ let invalidate_actions = ref [
     "dup", readsAll; (*safe*)
     "__builtin_expect", readsAll; (*safe*)
     "vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
+    "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
+    "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
     "syslog", readsAll; (*safe*)
     "strcasecmp", readsAll; (*safe*)
     "strchr", readsAll; (*safe*)
@@ -355,6 +365,7 @@ let invalidate_actions = ref [
     "strtoul", readsAll; (*safe*)
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
+    "strsignal", readsAll;
     "popen", readsAll; (*safe*)
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
@@ -397,6 +408,10 @@ let invalidate_actions = ref [
     "pthread_rwlock_init", readsAll;
     "pthread_rwlock_unlock", readsAll;
     "__builtin_object_size", readsAll;
+    "__builtin_bswap16", readsAll;
+    "__builtin_bswap32", readsAll;
+    "__builtin_bswap64", readsAll;
+    "__builtin_bswap128", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
     "dev_driver_string", readsAll;
     "dev_driver_string", readsAll;

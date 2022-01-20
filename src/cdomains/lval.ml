@@ -9,13 +9,6 @@ type ('a, 'b) offs = [
   | `Index of 'b * ('a,'b) offs
 ] [@@deriving eq, ord]
 
-type ('a,'b) offs_uk = [
-  | `NoOffset
-  | `UnknownOffset
-  | `Field of 'a * ('a,'b) offs
-  | `Index of 'b * ('a,'b) offs
-]
-
 
 let rec listify ofs =
   match ofs with
@@ -54,7 +47,12 @@ struct
     | `Index (x,o) -> "[" ^ (Idx.show x) ^ "]" ^ (show o)
     | `Field (x,o) -> "." ^ (x.fname) ^ (show o)
 
-  let pretty () x = text (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -132,9 +130,6 @@ struct
     | `Index (x, o) -> `Index (Idx.top (), drop_ints o)
     | `Field (x, o) -> `Field (x, drop_ints o)
     | `NoOffset -> `NoOffset
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
 end
 
 module type S =
@@ -220,7 +215,7 @@ struct
   let short_addr (x, o) =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      "(" ^ x.vname ^ ", " ^ description ^ ")"
+      "(" ^ x.vname ^ ", " ^ description ^ ")" ^ short_offs o
     else x.vname ^ short_offs o
 
   let show = function
@@ -229,6 +224,13 @@ struct
     | UnknownPtr -> "?"
     | SafePtr    -> "SAFE"
     | NullPtr    -> "NULL"
+
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
@@ -266,8 +268,6 @@ struct
 
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
-  let pretty () x = Pretty.text (show x)
-
   (* TODO: seems to be unused *)
   let to_exp (f:idx -> exp) x =
     let rec to_cil c =
@@ -294,9 +294,6 @@ struct
     | `Index (_,`NoOffset) | `Field (_,`NoOffset) -> `NoOffset
     | `Index (i,o) -> `Index (i, remove_offset o)
     | `Field (f,o) -> `Field (f, remove_offset o)
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
 
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
@@ -336,33 +333,7 @@ struct
   let meet = merge `Meet
   let narrow = merge `Narrow
 
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
-
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-end
-
-module Stateless (Idx: Printable.S) =
-struct
-  type field = fieldinfo
-  type idx = Idx.t
-  type t = bool * varinfo * (field, idx) offs_uk
-  include Printable.Std
-
-  let show (dest, x, offs) =
-    let rec off_str ofs =
-      match ofs with
-      | `NoOffset -> ""
-      | `UnknownOffset -> "?"
-      | `Field (fld, ofs) -> "." ^ fld.fname ^ off_str ofs
-      | `Index (v, ofs) -> "[" ^ Idx.show v ^ "]" ^ off_str ofs
-    in
-    (if dest then "&" else "") ^ x.vname ^ off_str offs
-
-  let pretty () x = Pretty.text (show x)
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
 end
 
 module Fields =
@@ -377,7 +348,12 @@ struct
     | (`Left x :: xs) -> "." ^ F.show x ^ show xs
     | (`Right x :: xs) -> "[" ^ I.show x ^ "]" ^ show xs
 
-  let pretty () x = text (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
   let rec printInnerXml f = function
     | [] -> ()
@@ -387,8 +363,6 @@ struct
       BatPrintf.fprintf f "[%s]%a" (I.show x) printInnerXml xs
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
-
-  let to_yojson x = `String (show x)
 
   let rec prefix x y = match x,y with
     | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
@@ -502,6 +476,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
+    | `Index (e,o) when CilType.Exp.equal e MyCFG.unknown_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
@@ -527,9 +502,10 @@ struct
   let has_index (v,o) = has_index_offs o
 
   let show (v,o) = short_offs o v.vname
-
-  let pretty () x = text (show x)
-
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end

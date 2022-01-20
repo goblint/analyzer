@@ -39,8 +39,6 @@ module VI = Lattice.Flat (Basetype.Variables) (struct
   let bot_name = "Unreachable line"
 end)
 
-module PartAccessResult = Access.PartAccessResult
-
 type iterprevvar = int -> (MyCFG.node * Obj.t * int) -> MyARG.inline_edge -> unit
 type itervar = int -> unit
 let compare_itervar _ _ = 0
@@ -84,7 +82,7 @@ type _ t =
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | PrintFullState: Unit.t t
   | CondVars: exp -> ES.t t
-  | PartAccess: partaccess -> PartAccessResult.t t
+  | PartAccess: partaccess -> Obj.t t (** Only queried by access analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | MustBeEqual: exp * exp -> MustBool.t t (* are two expression known to must-equal ? *)
@@ -143,7 +141,7 @@ struct
     | PrintFullState -> (module Unit)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
-    | PartAccess _ -> (module PartAccessResult)
+    | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
@@ -194,7 +192,7 @@ struct
     | PrintFullState -> Unit.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
-    | PartAccess _ -> PartAccessResult.top ()
+    | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()

@@ -46,6 +46,7 @@ depends: [
   "fpath" {= "0.7.3" & with-doc}
   "goblint-cil" {= "1.8.2"}
   "json-data-encoding" {= "0.10"}
+  "jsonrpc" {= "1.9.1"}
   "logs" {= "0.7.0" & with-doc}
   "mlgmpidl" {= "1.2.13"}
   "num" {= "1.4"}
@@ -107,7 +108,7 @@ version: "dev"
 pin-depends: [
   [
     "goblint-cil.1.8.2"
-    "git+https://github.com/goblint/cil.git#9b348e9024aea825b80efa3d55c65e62b8eab18e"
+    "git+https://github.com/goblint/cil.git#b77c663690519be8a672f871a036df3d89b677d5"
   ]
   [
     "apron.v0.9.13"

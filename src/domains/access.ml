@@ -10,9 +10,10 @@ module M = Messages
 
 let is_ignorable_type (t: typ): bool =
   match t with
-  | TNamed (info, attr) -> info.tname = "atomic_t" || info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
-  | TComp (info, attr) -> info.cname = "lock_class_key"
-  | TInt (IInt, attr) -> hasAttribute "mutex" attr
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "spinlock_t"; _ }, _) -> true
+  | TComp ({ cname = "lock_class_key"; _ }, _) -> true
+  | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
+  | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
   | _ -> false
 
 let is_ignorable = function
@@ -20,53 +21,6 @@ let is_ignorable = function
   | Some (v,os) ->
     try isFunctionType v.vtype || is_ignorable_type v.vtype
     with Not_found -> false
-
-module Ident : Printable.S with type t = string =
-struct
-  include Printable.Std (* for default invariant, tag, ... *)
-
-  open Pretty
-  type t = string [@@deriving eq, ord, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
-  let show x = x
-  let pretty () x = text (show x)
-  let name () = "strings"
-  let printXml f x =
-    BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n"
-      (XmlUtil.escape (show x))
-end
-
-module LabeledString =
-struct
-  include Printable.Prod (Ident) (Ident)
-  let show (x,y) = x^":"^y
-  let pretty () (x,y) =
-    Pretty.text (show (x,y))
-end
-module LSSet = SetDomain.Make (LabeledString)
-module LSSSet =
-struct
-  include SetDomain.Make (LSSet)
-  (* TODO: is this actually some partition domain? *)
-  let join po pd =
-    let mult_po s = union (map (LSSet.union s) po) in
-    fold mult_po pd (empty ())
-  let bot () = singleton (LSSet.empty ())
-  let is_bot x = cardinal x = 1 && LSSet.is_empty (choose x)
-  (* top & is_top come from SetDomain.Make *)
-
-  (* Since Queries.PartAccess and PartAccessResult are only used within MCP2,
-     these operations are never really called. *)
-  let leq _ _ = raise (Lattice.Unsupported "LSSSet.leq")
-  (* meet (i.e. join in PartAccessResult) for PathSensitive query joining
-     isn't needed, because accesses are handled only within MCP2. *)
-  let meet _ _ = raise (Lattice.Unsupported "LSSSet.meet")
-  let widen _ _ = raise (Lattice.Unsupported "LSSSet.widen")
-  let narrow _ _ = raise (Lattice.Unsupported "LSSSet.narrow")
-end
-
-(* Reverse because MCP2.query [meet]s. *)
-module PartAccessResult = Lattice.Reverse (Lattice.Prod (LSSSet) (LSSet))
 
 let typeVar  = Hashtbl.create 101
 let typeIncl = Hashtbl.create 101
@@ -198,7 +152,6 @@ end
 
 type var_o = varinfo option
 type off_o = offset  option
-type part  = LSSSet.t * LSSet.t
 
 let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
   try (* FIXME: Cilfacade.typeOf fails on our fake variables: (struct s).data *)
@@ -209,17 +162,10 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
     | _ -> get_type t e
   with _ -> get_type voidType e
 
-let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) ((pp,lp):part): unit =
+let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin
     let loc = Option.get !Node.current_node in
-    let add_part ls =
-      side ty lv (Some ls) (conf, w, loc, e, lp)
-    in
-    if LSSSet.is_empty pp then (
-      side ty lv None (conf, w, loc, e, lp)
-    )
-    else
-      LSSSet.iter add_part pp
+    side ty lv (conf, w, loc, e, a)
   end
 
 let type_from_type_offset : acc_typ -> typ = function
@@ -239,7 +185,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) (p:part): unit =
+let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -259,17 +205,17 @@ let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * off
     in
     begin try
         let oss = dist_fields (type_from_type_offset ty) in
-        List.iter (fun os -> add_one side e w conf (`Struct (s,addOffs os2 os)) (add_lv os) p) oss
+        List.iter (fun os -> add_one side e w conf (`Struct (s,addOffs os2 os)) (add_lv os) a) oss
       with Failure _ ->
-        add_one side e w conf ty lv p
+        add_one side e w conf ty lv a
     end
   | _ when lv = None && !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
   | _ ->
-    add_one side e w conf ty lv p
+    add_one side e w conf ty lv a
 
-let add_propagate side e w conf ty ls p =
+let add_propagate side e w conf ty ls a =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true
@@ -285,14 +231,14 @@ let add_propagate side e w conf ty ls p =
     let ts = typeSig (TComp (fi.fcomp,[])) in
     let vars = Ht.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
-    let add_vars v = add_struct side e w conf (`Struct (fi.fcomp, f)) (Some (v, f)) p in
+    let add_vars v = add_struct side e w conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
     List.iter add_vars vars;
-    add_struct side e w conf (`Struct (fi.fcomp, f)) None p;
+    add_struct side e w conf (`Struct (fi.fcomp, f)) None a;
   in
   let just_vars t v =
-    add_struct side e w conf (`Type t) (Some (v, `NoOffset)) p;
+    add_struct side e w conf (`Type t) (Some (v, `NoOffset)) a;
   in
-  add_struct side e w conf ty None p;
+  add_struct side e w conf ty None a;
   match ty with
   | `Struct (c,os) when only_fields os && os <> `NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
@@ -356,37 +302,39 @@ and distribute_access_exp f w r c = function
     distribute_access_exp f w     r c e
   | _ -> ()
 
-let add side e w conf vo oo p =
+let add side e w conf vo oo a =
   let ty = get_val_type e vo oo in
   (* let loc = !Tracing.current_loc in *)
   (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
   match vo, oo with
-  | Some v, Some o -> add_struct side e w conf ty (Some (v, remove_idx o)) p
+  | Some v, Some o -> add_struct side e w conf ty (Some (v, remove_idx o)) a
   | _ ->
     if !unsound && isArithmeticType (type_from_type_offset ty) then
-      add_struct side e w conf ty None p
+      add_struct side e w conf ty None a
     else
-      add_propagate side e w conf ty None p
+      add_propagate side e w conf ty None a
 
 
 (* Access table as Lattice. *)
-(* (varinfo ->) offset -> type -> partition option -> 2^(confidence, write, loc, e, locks) *)
+(* (varinfo ->) offset -> type -> 2^(confidence, write, loc, e, acc) *)
 module A =
 struct
   include Printable.Std
-  type t = int * bool * Node.t * CilType.Exp.t * LSSet.t [@@deriving eq, ord]
+  type t = int * bool * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord]
 
   let hash (conf, w, loc, e, lp) = 0 (* TODO: never hashed? *)
 
   let pretty () (conf, w, node, e, lp) =
-    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty (Node.location node) CilType.Exp.pretty e LSSet.pretty lp
+    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
 
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 module AS = SetDomain.Make (A)
-module PM = MapDomain.MapBot (Printable.Option (LSSet) (struct let name = "None" end)) (AS)
 module T =
 struct
   include Printable.Std
@@ -397,10 +345,12 @@ struct
     | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
 
   let pretty = d_acct
-
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 module O =
 struct
@@ -413,67 +363,54 @@ struct
     | `Field (f, os) -> 3 * CilType.Fieldinfo.hash f + hash os
 
   let pretty = d_offs
-
-  let show x = Pretty.sprint ~width:max_int (pretty () x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+    )
 end
 module LV = Printable.Prod (CilType.Varinfo) (O)
 module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
 
-let check_accs (prev_r,prev_lp,prev_w) (conf,w,loc,e,lp) =
-  match prev_r with
-  | None ->
-    let new_w  = prev_w || w in
-    let new_lp = LSSet.inter lp prev_lp in
-    let union_empty = LSSet.is_empty new_lp in
-    (* ignore(printf "intersection with %a = %a\n" LSSet.pretty lp LSSet.pretty new_lp); *)
-    let new_r  = if union_empty && new_w then Some conf else None in
-    (new_r, new_lp, new_w)
-  | _ -> (prev_r,prev_lp,prev_w)
-
-let check_safe ls accs prev_safe =
-  if ls = None then
-    prev_safe
+(* Check if two accesses may race and if yes with which confidence *)
+let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
+  if not w && not w2 then
+    None (* two read/read accesses do not race *)
+  else if not (MCPAccess.A.may_race a a2) then
+    None (* analysis-specific information excludes race *)
   else
-    let accs = AS.elements accs in (* hope that it is not nil *)
-    let lp_start = (fun (_,_,_,_,lp) -> lp) (List.hd accs) in
-    (* ignore(printf "starting with lockset %a\n" LSSet.pretty lp_start); *)
-    match List.fold_left check_accs (None, lp_start, false) accs, prev_safe with
-    | (None, _,_), _ ->
-      (* ignore(printf "this batch is safe\n"); *)
-      prev_safe
-    | (Some n,_,_), Some m ->
-      (* ignore(printf "race with %d and %d \n" n m); *)
-      Some (max n m)
-    | (Some n,_,_), None ->
-      (* ignore(printf "race with %d\n" n); *)
-      Some n
+    Some (max conf conf2)
+
+let check_safe accs =
+  let accs = AS.elements accs in
+  let cart = List.cartesian_product accs accs in
+  let conf = List.filter_map (fun (x,y) -> if A.compare x y <= 0 then may_race x y else None) cart in
+  if conf = [] then
+    None
+  else
+    let maxconf = List.max conf in
+    Some maxconf
 
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe (lv, ty) pm =
+let incr_summary safe vulnerable unsafe (lv, ty) accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
-  let safety = PM.fold check_safe pm None in
+  let safety = check_safe accs in
   match safety with
   | None -> incr safe
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses (lv, ty) pm =
+let print_accesses (lv, ty) accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  let g (ls, acs) =
-    let h (conf,w,node,e,lp) =
-      let d_ls () = match ls with
-        | None -> Pretty.text " is ok" (* None is used by add_one when access partitions set is empty (not singleton), so access is considered unracing (single-threaded or bullet region)*)
-        | Some ls when LSSet.is_empty ls -> nil
-        | Some ls -> text " in " ++ LSSet.pretty () ls
-      in
+  let msgs () =
+    let h (conf,w,node,e,a) =
       let atyp = if w then "write" else "read" in
-      let d_msg () = dprintf "%s%t with %a (conf. %d)" atyp d_ls LSSet.pretty lp conf in
+      let d_msg () = dprintf "%s with %a (conf. %d)" atyp MCPAccess.A.pretty a conf in
       let doc =
         if debug then
           dprintf "%t  (exp: %a)" d_msg d_exp e
@@ -482,17 +419,10 @@ let print_accesses (lv, ty) pm =
       in
       (doc, Some (Messages.Location.Node node))
     in
-    AS.elements acs
-    |> List.enum
-    |> Enum.map h
+    AS.elements accs
+    |> List.map h
   in
-  let msgs () =
-    PM.bindings pm
-    |> List.enum
-    |> Enum.concat_map g
-    |> List.of_enum
-  in
-  match PM.fold check_safe pm None with
+  match check_safe accs with
   | None ->
     if allglobs then
       M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())

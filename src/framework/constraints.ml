@@ -1103,18 +1103,18 @@ struct
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
       begin match g with
-      | `Left g ->
-        S.query (conv ctx) (WarnGlobal (Obj.repr g))
-      | `Right g ->
-        let em = G.node (ctx.global (V.node g)) in
-        EM.iter (fun exp tv ->
-            match tv with
-            | `Lifted tv ->
-              M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
-            | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
-            | `Top -> (* may be both true and false *)
-              ()
-          ) em;
+        | `Left g ->
+          S.query (conv ctx) (WarnGlobal (Obj.repr g))
+        | `Right g ->
+          let em = G.node (ctx.global (V.node g)) in
+          EM.iter (fun exp tv ->
+              match tv with
+              | `Lifted tv ->
+                M.warn ~loc:(Node g) ~tags:[CWE (if tv then 571 else 570)] ~category:Deadcode "condition '%a' is always %B" d_exp exp tv
+              | `Bot (* all branches dead? can happen at our inserted Neg(1)-s because no Pos(1) *)
+              | `Top -> (* may be both true and false *)
+                ()
+            ) em;
       end
     | _ ->
       S.query (conv ctx) q
@@ -1295,11 +1295,14 @@ struct
   struct
     include Printable.Std
     include Sys.Var
-    let pretty = pretty_trace
 
-    let show x = Pretty.sprint ~width:max_int (pretty () x)
-    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-    let to_yojson x = `String (show x)
+    let pretty = pretty_trace
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
   end
   module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
 

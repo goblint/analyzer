@@ -54,7 +54,7 @@
     }
   },
   "exp": {
-    "region-offsets": true,
+    "region-offsets": true
   },
   "witness": {
     "id": "enumerate",
