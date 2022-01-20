@@ -391,27 +391,54 @@ let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
   else
     true
 
-let filter_may_race accs =
-  let accs = AS.elements accs in
-  let cart = List.cartesian_product accs accs in
-  List.fold_left (fun acc (x, y) ->
-      if A.compare x y <= 0 && may_race x y then
-        AS.add y (AS.add x acc)
-      else
-        acc
-    ) (AS.empty ()) cart
+let group_may_race accs =
+  (* DFS to traverse one component with may_race edges *)
+  let rec dfs accs visited acc =
+    if AS.mem acc visited then
+      (accs, visited)
+    else (
+      let accs' = AS.remove acc accs in
+      let visited' = AS.add acc visited in
+      AS.fold (fun acc' (accs', visited') ->
+          if may_race acc acc' then
+            dfs accs' visited' acc'
+          else
+            (accs', visited')
+        ) accs' (accs', visited')
+    )
+  in
+  (* repeat DFS to find all components *)
+  let rec components comps accs =
+    if AS.is_empty accs then
+      comps
+    else (
+      let acc = AS.choose accs in
+      let (accs', comp) = dfs accs (AS.empty ()) acc in
+      let comps' = comp :: comps in
+      components comps' accs'
+    )
+  in
+  components [] accs
+
+let race_conf accs =
+  assert (not (AS.is_empty accs)); (* group_may_race should only construct non-empty components *)
+  if AS.cardinal accs = 1 then (* singleton component has no race *) (* TODO: what about self-races? *)
+    None
+  else
+    Some (AS.max_conf accs)
 
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
 let incr_summary safe vulnerable unsafe (lv, ty) accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
-  let race_accs = filter_may_race accs in
   let safety =
-    if AS.is_empty race_accs then
-      None
-    else
-      Some (AS.max_conf race_accs)
+    group_may_race accs
+    |> List.filter_map race_conf
+    |> (function
+        | [] -> None
+        | confs -> Some (List.max confs)
+      )
   in
   match safety with
   | None -> incr safe
@@ -436,10 +463,13 @@ let print_accesses (lv, ty) accs =
     AS.elements race_accs
     |> List.map h
   in
-  match filter_may_race accs with
-  | race_accs when AS.is_empty race_accs ->
-    if allglobs then
-      M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs accs)
-  | race_accs ->
-    let conf = AS.max_conf race_accs in
-    M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs (if allglobs then accs else race_accs))
+  group_may_race accs
+  |> List.iter (fun accs ->
+      match race_conf accs with
+      | None ->
+        (* TODO: group safes *)
+        if allglobs then
+          M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs accs)
+      | Some conf ->
+        M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs)
+    )
