@@ -85,11 +85,24 @@ sig
   val show: t -> string
 end
 
-module PrintSimple (P: Showable) =
+module SimpleShow (P: Showable) =
 struct
   let pretty () x = text (P.show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
   let to_yojson x = `String (P.show x)
+end
+
+module type Prettyable =
+sig
+  type t
+  val pretty: unit -> t -> doc
+end
+
+module SimplePretty (P: Prettyable) =
+struct
+  let show x = Pretty.sprint ~width:max_int (P.pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
 end
 
 

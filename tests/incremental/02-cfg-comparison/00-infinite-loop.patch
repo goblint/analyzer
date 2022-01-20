@@ -1,0 +1,8 @@
+--- tests/incremental/02-cfg-comparison/00-infinite-loop.c
++++ tests/incremental/02-cfg-comparison/00-infinite-loop.c
+@@ -11,4 +11,5 @@ void main()
+       y--;
+     }
+   }
++  return;
+ }

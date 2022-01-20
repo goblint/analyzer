@@ -11,9 +11,12 @@ struct
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let pretty () x = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+  )
 end
 
 module Variables =

@@ -120,9 +120,13 @@ struct
     let x = UpdateCil.getLoc a in
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty () x = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+
+  include Printable.SimplePretty (
+    struct
+      type nonrec t = t
+      let pretty = pretty
+    end
+  )
 end
 
 module type ResultConf =
