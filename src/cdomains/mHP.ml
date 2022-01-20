@@ -19,7 +19,7 @@ include Printable.SimplePretty (
     type nonrec t = t
     let pretty = pretty
   end
-)
+  )
 
 (** Can it be excluded that the thread tid2 is running at a program point where  *)
 (*  thread tid1 has created the threads in created1 *)
