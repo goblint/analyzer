@@ -1,8 +1,13 @@
 name: metadata
 
 on:
+  # only run on metadata file changes
   push:
+    paths:
+      - 'CITATION.cff'
   pull_request:
+    paths:
+      - 'CITATION.cff'
 
 jobs:
   cff-validate:

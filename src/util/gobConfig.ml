@@ -75,8 +75,11 @@ sig
   (** Write the current configuration to [filename] *)
   val write_file: string -> unit
 
-  (** Merge configurations form a file with current. *)
+  (** Merge configurations from a file with current. *)
   val merge_file : string -> unit
+
+  (** Merge configurations from a JSON object with current. *)
+  val merge : Yojson.Safe.t -> unit
 
   val json_conf: Yojson.Safe.t ref
 end
@@ -273,7 +276,7 @@ struct
         eprintf "The value for '%s' has the wrong type: %s\n" st s;
         failwith "get_path_string"
     with ConfTypeError ->
-      eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to defaults.ml?\n"
+      eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?\n"
         st print;
       failwith "get_path_string"
 
@@ -343,13 +346,16 @@ struct
       eprintf "Cannot set %s to '%s'.\n" st s;
       raise e
 
+  let merge json =
+    Validator.validate_exn json;
+    json_conf := GobYojson.merge !json_conf json;
+    ValidatorRequireAll.validate_exn !json_conf;
+    drop_memo ()
+
   (** Merge configurations form a file with current. *)
   let merge_file fn =
     let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
-    Validator.validate_exn v;
-    json_conf := GobYojson.merge !json_conf v;
-    ValidatorRequireAll.validate_exn !json_conf;
-    drop_memo ();
+    merge v;
     if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
 end
 

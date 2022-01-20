@@ -32,10 +32,10 @@ struct
   module V0Set = SetDomain.Make (V0)
   module G =
   struct
-    include Lattice.Lift2 (Access.PM) (V0Set) (Printable.DefaultNames)
+    include Lattice.Lift2 (Access.AS) (V0Set) (Printable.DefaultNames)
 
     let access = function
-      | `Bot -> Access.PM.bot ()
+      | `Bot -> Access.AS.bot ()
       | `Lifted1 x -> x
       | _ -> failwith "Access.access"
     let vars = function
@@ -70,17 +70,10 @@ struct
     | None ->
       ()
 
-  let side_access ctx ty lv_opt ls_opt (conf, w, loc, e, lp) =
+  let side_access ctx ty lv_opt (conf, w, loc, e, a) =
     let d =
-      if !GU.should_warn then (
-        let d =
-          let open Access in
-          PM.singleton ls_opt (
-            AS.singleton (conf, w, loc, e, lp)
-          )
-        in
-        G.create_access d
-      )
+      if !GU.should_warn then
+        G.create_access (Access.AS.singleton (conf, w, loc, e, a))
       else
         G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
     in
@@ -89,18 +82,18 @@ struct
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (w: bool) =
+    let part_access ctx (e:exp) (vo:varinfo option) (w: bool): MCPAccess.A.t =
       ctx.emit (Access {var_opt=vo; write=w});
       (*partitions & locks*)
-      ctx.ask (PartAccess {exp=e; var_opt=vo; write=w})
+      Obj.obj (ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}))
     in
     let add_access conf vo oo =
-      let (po,pd) = part_access ctx e vo w in
-      Access.add (side_access ctx) e w conf vo oo (po,pd);
+      let a = part_access ctx e vo w in
+      Access.add (side_access ctx) e w conf vo oo a;
     in
     let add_access_struct conf ci =
-      let (po,pd) = part_access ctx e None w in
-      Access.add_struct (side_access ctx) e w conf (`Struct (ci,`NoOffset)) None (po,pd)
+      let a = part_access ctx e None w in
+      Access.add_struct (side_access ctx) e w conf (`Struct (ci,`NoOffset)) None a
     in
     let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls
@@ -219,8 +212,8 @@ struct
       List.iter (access_one_top ctx false true) (arg_acc `Read);
       List.iter (access_one_top ctx true  true ) (arg_acc `Write);
       (match lv with
-      | Some x -> access_one_top ctx true false (AddrOf x)
-      | None -> ());
+       | Some x -> access_one_top ctx true false (AddrOf x)
+       | None -> ());
       ctx.local
 
   let enter ctx lv f args : (D.t * D.t) list =
@@ -239,8 +232,8 @@ struct
   let threadspawn ctx lval f args fctx =
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
-    | None -> ()
-    | Some lval -> access_one_top ~force:true ctx true false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+      | None -> ()
+      | Some lval -> access_one_top ~force:true ctx true false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
     end;
     ctx.local
 
@@ -251,9 +244,9 @@ struct
       begin match g with
         | `Left g' -> (* accesses *)
           (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-          let pm = G.access (ctx.global g) in
-          Access.print_accesses g' pm;
-          Access.incr_summary safe vulnerable unsafe g' pm
+          let accs = G.access (ctx.global g) in
+          Access.print_accesses g' accs;
+          Access.incr_summary safe vulnerable unsafe g' accs
         | `Right _ -> (* vars *)
           ()
       end
