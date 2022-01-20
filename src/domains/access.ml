@@ -469,12 +469,15 @@ let print_accesses (lv, ty) accs =
     |> List.map h
   in
   group_may_race accs
-  |> List.iter (fun accs ->
+  |> List.fold_left (fun safe_accs accs ->
       match race_conf accs with
       | None ->
-        (* TODO: group safes *)
-        if allglobs then
-          M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs accs)
+        AS.union safe_accs accs (* group all safe accs together for allglobs *)
       | Some conf ->
-        M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs)
+        M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
+        safe_accs
+    ) (AS.empty ())
+  |> (fun safe_accs ->
+      if allglobs && not (AS.is_empty safe_accs) then
+        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
     )
