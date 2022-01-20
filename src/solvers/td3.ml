@@ -631,14 +631,14 @@ module WP =
         List.iter (fun (f,_,_) -> print_endline ("Partially changed function: " ^ (f.svar.vname))) part_changed_funs;
         List.iter (fun f -> print_endline ("Removed function: " ^ (f.svar.vname))) removed_funs;
 
-        let old_ret = Hashtbl.create 103 in (* TODO: use HM *)
+        let old_ret = HM.create 103 in
         if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v ->
               if HM.mem rho k then (
                 let old_rho = HM.find rho k in
                 let old_infl = HM.find_default infl k VS.empty in
-                Hashtbl.replace old_ret k (old_rho, old_infl)
+                HM.replace old_ret k (old_rho, old_infl)
               )
             ) obsolete_ret;
         ) else (
@@ -754,8 +754,7 @@ module WP =
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
-          Hashtbl.iter (
-            fun x (old_rho, old_infl) ->
+          HM.iter (fun x (old_rho, old_infl) ->
               ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
               ignore (solve x Widen false); (* TODO: use returned changed for comparison? *)
               if not (op (HM.find rho x) old_rho) then (
@@ -764,7 +763,7 @@ module WP =
                 destabilize x;
                 HM.replace stable x ()
               )
-          ) old_ret;
+            ) old_ret;
 
           print_endline "Final solve..."
         );
