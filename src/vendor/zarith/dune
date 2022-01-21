@@ -2,5 +2,6 @@
 (library
   (name zarith_mlgmpidl)
   (public_name goblint.zarith.mlgmpidl)
+  (optional)
   (wrapped false)
   (libraries zarith gmp))
