@@ -259,8 +259,6 @@ struct
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType
 
-  let copy x = x
-
   let hash = function
     | Addr (v,o) -> v.vid + 2 * Offs.hash o
     | SafePtr | UnknownPtr -> Hashtbl.hash UnknownPtr (* SafePtr <= UnknownPtr ==> same hash *)

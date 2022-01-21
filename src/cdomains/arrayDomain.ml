@@ -63,7 +63,6 @@ struct
   let fold_left2 f a x y = f a x y
 
   let set_inplace = set
-  let copy a = a
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
   let smart_join _ _ = join
   let smart_widen _ _ = widen
@@ -443,7 +442,6 @@ struct
   let length _ = None
 
   let set_inplace = set
-  let copy a = a
 
   let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
     normalize @@
