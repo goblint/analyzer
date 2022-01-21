@@ -60,6 +60,7 @@ module OldPrivBase =
 struct
   include NoFinalize
   module D = Lattice.Unit
+  module V = VarinfoV
 
   let startstate () = ()
 
@@ -77,6 +78,11 @@ struct
       true
     | _ ->
       !GU.earlyglobs && not (ThreadFlag.is_multi ask)
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g -> vf g
+    | _ -> ()
 end
 
 (* Copy of ProtectionBasedOldPriv with is_private constantly false. *)
@@ -84,7 +90,6 @@ module NonePriv: S =
 struct
   include OldPrivBase
   module G = BaseDomain.VD
-  module V = VarinfoV
 
   let init () = ()
 
@@ -125,11 +130,6 @@ struct
     in
     (* We fold over the local state, and side effect the globals *)
     CPA.fold side_var st.cpa st
-
-  let iter_sys_vars getg vq vf =
-    match vq with
-    | VarQuery.Global g -> vf g
-    | _ -> ()
 end
 
 (** Protection-Based Reading old implementation.
@@ -141,7 +141,6 @@ struct
   include OldPrivBase
 
   module G = BaseDomain.VD
-  module V = VarinfoV
 
   let init () =
     if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
@@ -190,11 +189,6 @@ struct
     in
     (* We fold over the local state, and side effect the globals *)
     CPA.fold side_var st.cpa st
-
-  let iter_sys_vars getg vq vf =
-    match vq with
-    | VarQuery.Global g -> vf g
-    | _ -> ()
 end
 
 module PerMutexPrivBase =
@@ -419,7 +413,6 @@ struct
 
   module D = MustVars
   module G = BaseDomain.VD
-  module V = VarinfoV
 
   let init () =
     if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
@@ -484,11 +477,6 @@ struct
     CPA.fold side_var st.cpa st
 
   let threadenter = old_threadenter
-
-  let iter_sys_vars getg vq vf =
-    match vq with
-    | VarQuery.Global g -> vf g
-    | _ -> ()
 end
 
 module type PerGlobalPrivParam =
