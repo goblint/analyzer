@@ -91,7 +91,7 @@ type action = [ `Write | `Read ]
 
 module Invalidate =
 struct
-  [@@@warning "-32"] (* disable unused-value-declaration warnings, some functions are not used below *)
+  [@@@warning "-unused-value-declaration"] (* some functions are not used below *)
 
   let drop = List.drop
   let keep ns = List.filteri (fun i _ -> List.mem i ns)

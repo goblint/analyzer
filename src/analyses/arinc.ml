@@ -45,7 +45,7 @@ end
 
 module Spec : Analyses.MCPSpec =
 struct
-  [@@@warning "-32"] (* disable unused-value-declaration warnings, some functions are only used by commented out code *)
+  [@@@warning "-unused-value-declaration"] (* some functions are only used by commented out code *)
 
   include Analyses.DefaultSpec
 
