@@ -1176,7 +1176,8 @@ module BigInt = struct
 
   let show x = BI.to_string x
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash x = (BI.to_int x) * 2147483647
+  (* TODO: throws if x too big, used to be overridden with Hashtbl.hash by include Std anyway *)
+  (* let hash x = (BI.to_int x) * 2147483647 *)
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
 
