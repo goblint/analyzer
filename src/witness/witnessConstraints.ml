@@ -315,7 +315,7 @@ struct
         if should_inline f then
           let nosync = (Sync.singleton x (SyncSet.singleton x)) in
           (* returns already post-sync in FromSpec *)
-          step (Function f) fc x (InlineReturn l) nosync
+          step (Function f) (Option.get fc) x (InlineReturn l) nosync (* fc should be Some outside of MCP *)
         else
           step_ctx_edge ctx cd
       in
