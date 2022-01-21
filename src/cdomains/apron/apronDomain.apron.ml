@@ -738,6 +738,7 @@ struct
     A.meet_lincons_array Man.mgr d earray
 
   let strengthening j x y =
+    (* TODO: optimize strengthening *)
     if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
     let x_env = A.env x in
     let y_env = A.env y in
@@ -803,6 +804,8 @@ struct
   let is_bot = equal (bot ())
   let is_top _ = false
 
+  let strengthening_enabled = GobConfig.get_bool "ana.apron.strengthening"
+
   let join x y =
     (* just to optimize joining folds, which start with bot *)
     if is_bot x then
@@ -813,8 +816,12 @@ struct
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a\n" pretty j;
-      (* TODO: optimize strengthening, currently disabled because relational traces doesn't join different environments *)
-      (* let j = strengthening j x y in *)
+      let j =
+        if strengthening_enabled then
+          strengthening j x y
+        else
+          j
+      in
       if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
       j
     )
