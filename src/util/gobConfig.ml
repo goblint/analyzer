@@ -323,15 +323,6 @@ struct
     drop_memo ();
     set_value (`List l) json_conf (parse_path st)
 
-  (** A convenience functions for writing values. *)
-  let set_auto' st v =
-    if v = "null" then set_null st else
-      try set_bool st (bool_of_string v)
-      with Invalid_argument _ ->
-      try set_int st (int_of_string v)
-      with Failure _ ->
-        set_string st v
-
   (** The ultimate convenience function for writing values. *)
   let one_quote = Str.regexp "\'"
   let set_auto st s =
