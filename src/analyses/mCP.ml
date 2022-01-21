@@ -108,9 +108,11 @@ struct
 
   let context fd x =
     let x = spec_list x in
-    map (fun (n,(module S:MCPSpec),d) ->
-        let d' = if mem n !cont_inse then S.D.top () else obj d in
-        n, repr @@ S.context fd d'
+    filter_map (fun (n,(module S:MCPSpec),d) ->
+        if mem n !cont_inse then
+          None
+        else
+          Some (n, repr @@ S.context fd (obj d))
       ) x
 
   let should_join x y =
