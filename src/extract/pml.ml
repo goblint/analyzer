@@ -122,7 +122,7 @@ let bind x f = x >> f (fst x)
 let (>>=) = bind
 let return x = x (* ? *)
 
-let indent x = String.split_on_string "\n" x |> List.map (fun x -> "  "^x) |> String.concat "\n"
+let indent x = String.split_on_string ~by:"\n" x |> List.map (fun x -> "  "^x) |> String.concat "\n"
 
 let surround a b (v,s) = v, a^"\n"^indent s^"\n"^b
 let _match xs =

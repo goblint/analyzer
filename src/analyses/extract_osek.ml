@@ -329,11 +329,11 @@ struct
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
-    output_file (Goblintutil.create_dir "result/" ^ "osek.os.pml") (snd (Pml_osek.init ()))
+    output_file ~filename:(Goblintutil.create_dir "result/" ^ "osek.os.pml") ~text:(snd (Pml_osek.init ()))
 
   let finalize () = (* writes out collected cfg *)
     (* TODO call Pml_osek.init again with the right number of resources to find out of bounds accesses? *)
-    output_file "result/osek.pml" (codegen ())
+    output_file ~filename:"result/osek.pml" ~text:(codegen ())
 end
 
 let _ =

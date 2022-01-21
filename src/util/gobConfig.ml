@@ -148,7 +148,7 @@ struct
         let fld, pth = split '.' '[' (String.lchop s) in
         Select (fld, parse_path' pth)
       | '[' ->
-        let idx, pth = String.split (String.lchop s) "]" in
+        let idx, pth = String.split (String.lchop s) ~by:"]" in
         Index (parse_index idx, parse_path' pth)
       | _ -> raise PathParseError
 

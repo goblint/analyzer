@@ -258,7 +258,7 @@ struct
       in (if may then Messages.warn else Messages.error) ~loc:(List.last loc) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
 
   (* getting keys from Cil Lvals *)
-  let sprint f x = Pretty.sprint 80 (f () x)
+  let sprint f x = Pretty.sprint ~width:80 (f () x)
 
   let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
