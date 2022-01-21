@@ -403,7 +403,6 @@ end
 module Size = struct (* size in bits as int, range as int64 *)
   exception Not_in_int64
   open Cil open Int64 open Big_int_Z
-  let sign x = if x<0L then `Signed else `Unsigned
   let sign_big_int x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
 
   let max = function
@@ -444,9 +443,6 @@ module Size = struct (* size in bits as int, range as int64 *)
     in
     if M.tracing then M.tracel "cast_int" "Cast %s to range [%s, %s] (%s) = %s (%s in int64)\n" (string_of_big_int x) (string_of_big_int a) (string_of_big_int b) (string_of_big_int c) (string_of_big_int y) (if is_int64_big_int y then "fits" else "does not fit");
     y
-  let cast t x =
-    let x' = big_int_of_int64 x in
-    try int64_of_big_int (cast_big_int t x') with _ -> raise Not_in_int64
 
   let min_range_sign_agnostic x =
     let size ik =
@@ -1259,16 +1255,6 @@ struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
 
-  (* Returns min and max values for a range given by the number of possibly used bits *)
-  let range_min_max (r : R.t) =
-    match R.minimal r, R.maximal r with
-    | None, _ | _, None -> BigInt.zero, BigInt.zero
-    | Some l, Some u ->
-      let l = Int64.to_int l in
-      let u = Int64.to_int u in
-      let min = if l = 0 then BigInt.zero else BigInt.neg @@ BigInt.shift_left BigInt.one (-l) in
-      let max = BigInt.sub (BigInt.shift_left BigInt.one u) BigInt.one in
-      min, max
 
   type t = [
     | `Excluded of S.t * R.t
@@ -1476,7 +1462,6 @@ struct
     | `Definite x -> true
     | _ -> false
 
-  let zero ik = of_int ik BI.zero
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
   let not_zero ikind = from_excl ikind (S.singleton BI.zero)
 
@@ -1530,19 +1515,6 @@ struct
     | `Bot -> `Bot
 
   let lift2 f ik x y = norm ik (match x,y with
-    (* We don't bother with exclusion sets: *)
-    | `Excluded _, `Definite _
-    | `Definite _, `Excluded _
-    | `Excluded _, `Excluded _ -> top ()
-    (* The good case: *)
-    | `Definite x, `Definite y ->
-      (try `Definite (f x y) with | Division_by_zero -> top ())
-    | `Bot, `Bot -> `Bot
-    | _ ->
-      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
-
-  let lift_comp f ik x y = norm ik (match x,y with
     (* We don't bother with exclusion sets: *)
     | `Excluded _, `Definite _
     | `Definite _, `Excluded _
@@ -2334,16 +2306,6 @@ struct
       | _      -> top_of ik
 
   let lognot = log1 (fun _ik -> not)
-
-  let bitcomp f ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
-      match to_int i1, to_int i2 with
-      | Some x, Some y -> (try (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
-      | _              -> top_of ik
 
   let shift_right _ _ _ = top()
 
