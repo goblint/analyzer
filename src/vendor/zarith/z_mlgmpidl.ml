@@ -14,7 +14,7 @@
    ENS (École normale supérieure, Paris, France),
    INRIA Rocquencourt (Institut national de recherche en informatique, France).
 
- *)
+*)
 
 external mlgmpidl_of_mpz: Mpz.t -> Z.t = "ml_z_mlgmpidl_of_mpz"
 external mlgmpidl_set_mpz:  Mpz.t -> Z.t -> unit = "ml_z_mlgmpidl_set_mpz"

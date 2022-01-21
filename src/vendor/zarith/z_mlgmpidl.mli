@@ -14,7 +14,7 @@
    ENS (École normale supérieure, Paris, France),
    INRIA Rocquencourt (Institut national de recherche en informatique, France).
 
- *)
+*)
 
 val z_of_mpz: Mpz.t -> Z.t
 val mpz_of_z: Z.t -> Mpz.t
