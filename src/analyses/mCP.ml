@@ -766,7 +766,7 @@ struct
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
-      n, repr @@ S.combine ctx' r fe f a (obj (assoc n fc)) (obj (assoc n fd))
+      n, repr @@ S.combine ctx' r fe f a (Option.map obj (Option.bind fc (assoc_opt n))) (obj (assoc n fd))
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
