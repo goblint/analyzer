@@ -135,8 +135,6 @@ struct
   let map' f = split %> Tuple2.mapn (Set.map f)
   let filter' f = split %> Tuple2.mapn (Set.filter f)
 
-  let locs ?p:(p=const true) v = filter p v |> map' (fun x -> x.loc) |> snd |> Set.elements
-
   (* predicates *)
   let must   p (x,y) = Must'.exists p x || May.for_all p y
   let may    p (x,y) = May.exists p y
