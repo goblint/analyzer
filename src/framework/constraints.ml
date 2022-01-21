@@ -189,7 +189,6 @@ struct
   let name () = S.name ()^" level sliced"
 
   let start_level = ref (`Top)
-  let error_level = ref (`Lifted  0L)
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init marshal =
