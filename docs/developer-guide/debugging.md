@@ -122,7 +122,7 @@ Of course, don't forget to rebuild the debuggable executable if you make changes
 
 Sometimes during development one may encounter instances where, e.g., the verifying phase reports that the fixpoint is not reached. This is usually due to bugs in `join`, `widen` or `leq`. For small programs, one can find the cause by inspecting the program and the output carefully. If the issue happens only with large programs it is hard to understand.
 
-To work on such cases, it makes sense to reduce the program to a small example program that still triggers the same issue. This can either be done by hand or using `creduce`. `creduce` takes as input a script that terminates with status `0` if the reduced program is still interesting and the program.
+To work on such cases, it makes sense to reduce the program to a small example program that still triggers the same issue. This can either be done by hand or using `creduce`. `creduce` takes two inputs: a script that terminates with status `0` if the reduced program is still interesting, and the original program.
 
 In the case of looking for issues with fixpoints not being found, such a script may e.g. be given by:
 
