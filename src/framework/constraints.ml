@@ -981,14 +981,6 @@ struct
     let d = D.fold h ctx.local (D.empty ()) in
     if D.is_bot d then raise Deadcode else d
 
-  let fold ctx f g h a =
-    let k x a =
-      try h a @@ g @@ f @@ conv ctx x
-      with Deadcode -> a
-    in
-    let d = D.fold k ctx.local a in
-    if D.is_bot d then raise Deadcode else d
-
   let fold' ctx f g h a =
     let k x a =
       try h a @@ g @@ f @@ conv ctx x
