@@ -141,7 +141,7 @@ struct
   struct
     module BiVarinfoMap = PrivateMake(X)
     include BiVarinfoMap
-    let register =
+    let () =
       let m = (module BiVarinfoMap: S) in
       Collection.register_mapping m;
   end
