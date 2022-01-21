@@ -138,8 +138,10 @@ fi
 
 Note that Goblint exits with status `3` if the verifier fails.
 
+Some more sophisticated scripts can be found in the folder `./scripts/creduce`.
+
 ```console
 creduce --timeout 900 reduce.sh input.c
 ```
 where timeout is set to a reasonable time in which Goblint terminates on the input program. This may run for several hours/days, so it makes sense to start it on
-a server.
+a server. It may also be helpful to set `--n <N>` where `N` is the number of cores to use to get a considerable speedup.
