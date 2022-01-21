@@ -92,6 +92,7 @@ struct
   module Must = Lattice.Reverse (Must')
   module May  = SetDomain.ToppedSet (R) (struct let topname = "top" end)
   include Lattice.Prod (Must) (May)
+  let name () = Impl.name
 
   (* converts to polymorphic sets *)
   let split (x,y) = try Must'.elements x |> Set.of_list, May.elements y |> Set.of_list with SetDomain.Unsupported _ -> Set.empty, Set.empty
