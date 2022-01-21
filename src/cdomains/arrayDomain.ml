@@ -43,8 +43,8 @@ end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
-  let name () = "trivial arrays"
   include Val
+  let name () = "trivial arrays"
   type idx = Idx.t
   type value = Val.t
 
