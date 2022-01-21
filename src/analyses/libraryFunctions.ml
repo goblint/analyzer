@@ -89,67 +89,74 @@ let classify fn exps =
 
 type action = [ `Write | `Read ]
 
-let drop = List.drop
-let keep ns = List.filteri (fun i _ -> List.mem i ns)
+module Invalidate =
+struct
+  [@@@warning "-32"] (* disable unused-value-declaration warnings, some functions are not used below *)
 
-let partition ns x =
-  let rec go n =
-    function
-    | [] -> ([],[])
-    | y :: ys ->
-      let (i,o) = go (n + 1) ys in
-      if List.mem n ns
-      then (y::i,   o)
-      else (   i,y::o)
-  in
-  go 1 x
+  let drop = List.drop
+  let keep ns = List.filteri (fun i _ -> List.mem i ns)
 
-let writesAllButFirst n f a x =
-  match a with
-  | `Write -> f a x @ drop n x
-  | `Read  -> f a x
+  let partition ns x =
+    let rec go n =
+      function
+      | [] -> ([],[])
+      | y :: ys ->
+        let (i,o) = go (n + 1) ys in
+        if List.mem n ns
+        then (y::i,   o)
+        else (   i,y::o)
+    in
+    go 1 x
 
-let readsAllButFirst n f a x =
-  match a with
-  | `Write -> f a x
-  | `Read  -> f a x @ drop n x
+  let writesAllButFirst n f a x =
+    match a with
+    | `Write -> f a x @ drop n x
+    | `Read  -> f a x
 
-let reads ns a x =
-  let i, o = partition ns x in
-  match a with
-  | `Write -> o
-  | `Read  -> i
+  let readsAllButFirst n f a x =
+    match a with
+    | `Write -> f a x
+    | `Read  -> f a x @ drop n x
 
-let writes ns a x =
-  let i, o = partition ns x in
-  match a with
-  | `Write -> i
-  | `Read  -> o
+  let reads ns a x =
+    let i, o = partition ns x in
+    match a with
+    | `Write -> o
+    | `Read  -> i
 
-let onlyReads ns a x =
-  match a with
-  | `Write -> []
-  | `Read  -> keep ns x
+  let writes ns a x =
+    let i, o = partition ns x in
+    match a with
+    | `Write -> i
+    | `Read  -> o
 
-let onlyWrites ns a x =
-  match a with
-  | `Write -> keep ns x
-  | `Read  -> []
+  let onlyReads ns a x =
+    match a with
+    | `Write -> []
+    | `Read  -> keep ns x
 
-let readsWrites rs ws a x =
-  match a with
-  | `Write -> keep ws x
-  | `Read  -> keep rs x
+  let onlyWrites ns a x =
+    match a with
+    | `Write -> keep ns x
+    | `Read  -> []
 
-let readsAll a x =
-  match a with
-  | `Write -> []
-  | `Read  -> x
+  let readsWrites rs ws a x =
+    match a with
+    | `Write -> keep ws x
+    | `Read  -> keep rs x
 
-let writesAll a x =
-  match a with
-  | `Write -> x
-  | `Read  -> []
+  let readsAll a x =
+    match a with
+    | `Write -> []
+    | `Read  -> x
+
+  let writesAll a x =
+    match a with
+    | `Write -> x
+    | `Read  -> []
+end
+
+open Invalidate
 
 (* Data races: which arguments are read/written?
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
