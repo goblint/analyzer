@@ -154,7 +154,7 @@ let writesAll a x =
 (* Data races: which arguments are read/written?
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
-let invalidate_actions = ref [
+let invalidate_actions = [
     "GetResource", readsAll;
     "ReleaseResource", readsAll;
     "GetSpinlock", readsAll;
@@ -430,7 +430,6 @@ let invalidate_actions = ref [
     "LAP_Se_CreateProcess", writes [2; 3];
     "LAP_Se_CreateErrorHandler", writes [2; 3]
   ]
-let add_invalidate_actions xs = invalidate_actions := xs @ !invalidate_actions
 
 (* used by get_invalidate_action to make sure
  * that hash of invalidates is built only once
@@ -444,7 +443,7 @@ let get_invalidate_action name =
     | None -> begin
         let hash = Hashtbl.create 113 in
         let f (k, v) = Hashtbl.add hash k v in
-        List.iter f !invalidate_actions;
+        List.iter f invalidate_actions;
         processed_table := (Some hash);
         hash
       end
