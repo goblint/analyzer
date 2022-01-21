@@ -272,7 +272,6 @@ module Make =
     module P =
     struct
       let single x = tap (fun s -> HM.add s x ()) (HM.create 10)
-      let rem_item = HM.remove
       let to_list s = HM.fold (fun x y z -> x :: z ) s []
       let has_item = HM.mem
       let rem_item = HM.remove
