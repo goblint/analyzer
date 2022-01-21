@@ -341,7 +341,7 @@ struct
   include SetDomain.Make (A)
 
   let max_conf accs =
-    accs |> elements |> List.map A.conf |> List.max
+    accs |> elements |> List.map A.conf |> (List.max ~cmp:Int.compare)
 end
 module T =
 struct
