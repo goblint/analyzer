@@ -1661,36 +1661,6 @@ struct
   let project ik p t = t
 end
 
-module OverflowInt64 = (* throws Overflow for add, sub, mul *)
-struct
-  exception Overflow of string
-
-  include Int64
-
-  let add (a:int64) (b:int64) =
-    if logor (logxor a b) (logxor a (lognot (add a b))) < 0L  (* no kidding! *)
-    then add a b
-    else raise (Overflow (Printf.sprintf "%Ld + %Ld" a b))
-
-  let sub (a:int64) (b:int64) =
-    if b = min_int
-    then
-      if a >= 0L
-      then raise (Overflow (Printf.sprintf "%Ld - %Ld" a b))
-      else sub a b
-    else
-      let oppb = neg b in
-      add a oppb
-
-  let mul (a:int64) (b:int64) =
-    if a = 0L then 0L
-    else
-      let x = mul a b in
-      if b = div x a
-      then x
-      else raise (Overflow (Printf.sprintf "%Ld * %Ld" a b))
-
-end
 (* BOOLEAN DOMAINS *)
 
 module type BooleansNames =
