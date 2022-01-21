@@ -529,10 +529,6 @@ struct
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)
 
-  let is_top x = failwith "is_top not implemented for intervals"
-
-  let is_bot x  = failwith "is_bot not implemented for intervals"
-
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
@@ -1178,11 +1174,9 @@ module BigInt = struct
   let cast_to ik x = Size.cast_big_int ik x
   let to_bool x = Some (not (BI.equal (BI.zero) x))
 
-  let hash x = (BI.to_int x) * 2147483647
   let show x = BI.to_string x
-  let pretty _ x = Pretty.text (BI.to_string x)
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-
+  let hash x = (BI.to_int x) * 2147483647
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
 
@@ -1282,14 +1276,14 @@ struct
     | `Excluded (s,l) when S.is_empty s -> "Unknown int" ^ short_size l
     (* Prepend the exclusion sets with something: *)
     | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+  (* FIXME: poly compare? *)
   let hash (x:t) =
     match x with
     | `Excluded (s,r) -> S.hash s + R.hash r
     | `Definite i -> 83*BigInt.hash i
     | `Bot -> 61426164
-
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  (* FIXME: poly compare? *)
 
   let maximal = function
     | `Definite x -> Some x
@@ -2120,8 +2114,6 @@ struct
   let bot () = None
   let bot_of ik = bot ()
 
-  let is_top x = x = top ()
-
   let show = function ik -> match ik with
     | None -> "⟂"
     | Some (c, m) when (c, m) = (Ints_t.zero, Ints_t.zero) -> Ints_t.to_string c
@@ -2132,6 +2124,8 @@ struct
       a^c^b
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+
+  let is_top x = x = top ()
 
   let equal_to i = function
     | None -> failwith "unsupported: equal_to with bottom"
