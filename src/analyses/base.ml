@@ -80,9 +80,6 @@ struct
    * Helpers
    **************************************************************************)
 
-  (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
-  let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
-
   let hash    (x,_)             = Hashtbl.hash x
   let leq     (x1,_) (y1,_) = CPA.leq   x1 y1
 
