@@ -3,8 +3,6 @@ open Prelude
 open Apron
 open Pretty
 
-module M = Messages
-
 
 module BI = IntOps.BigIntOps
 module type Tracked =

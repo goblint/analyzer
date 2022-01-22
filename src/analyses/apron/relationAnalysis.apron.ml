@@ -127,18 +127,22 @@ struct
 
   let no_overflow ctx exp =
     let ik = Cilfacade.get_ikind_exp exp in
-    let eval_int ctx exp =
-      match ctx.ask (Queries.EvalInt exp) with
-      | x when Queries.ID.is_int x -> Queries.ID.to_int x
-      | _ -> None
-    in
-    let int_min, int_max = IntDomain.Size.range ik in
-      let min = eval_int ctx (BinOp (Lt, kinteger64 ik int_min, exp , intType)) in
+    if IntDomain.should_ignore_overflow ik then true else
+      let eval_int ctx exp =
+        match ctx.ask (Queries.EvalInt exp) with
+        | x when Queries.ID.is_int x -> Queries.ID.to_int x
+        | _ -> None
+      in
+      let int_min, int_max = IntDomain.Size.range_big_int ik in
+      match IntOps.BigIntOps.to_int64 int_min, IntOps.BigIntOps.to_int64 int_max with
+      | exception Failure _ -> false
+      | int_min, int_max ->
+        let min = eval_int ctx (BinOp (Lt, kinteger64 ik int_min, exp , intType)) in
         let max = eval_int ctx (BinOp (Lt,  exp, kinteger64 ik int_max, intType)) in
-          match min, max with
-          | Some (x), _ when x = (IntOps.BigIntOps.of_int 1) -> true (*ToDo Is the '= 1' check really needed?*)
-          | _, Some (x) when x = (IntOps.BigIntOps.of_int 1) -> true (* "" *)
-          | _, _ -> false
+        match min, max with
+        | Some (x), _ when x = (IntOps.BigIntOps.of_int 1) -> true
+        | _, Some (x) when x = (IntOps.BigIntOps.of_int 1) -> true
+        | _, _ -> false
 
 
   let assert_type_bounds apr x ctx =
@@ -234,36 +238,36 @@ struct
     let assigned_new_apr = AD.assign_var_parallel new_apr local_assigns in (* doesn't need to be parallel since arg vars aren't local vars *)
     {st with apr = assigned_new_apr}
 
-    let return ctx e f =
-      let st = ctx.local in
-      let ask = Analyses.ask_of_ctx ctx in
-      let new_apr =
-        if AD.type_tracked (Cilfacade.fundec_return_type f) then (
-          let apr' = AD.add_vars st.apr [RV.return] in
-          match e with
-          | Some e ->
-            assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with apr = apr'} e (fun apr' e' ->
-                AD.assign_exp apr' RV.return e' (no_overflow ctx e')
-              )
-          | None ->
-            apr' (* leaves V.return unconstrained *)
-        )
-        else
-          st.apr
-      in
-      let local_vars =
-        f.sformals @ f.slocals
-        |> List.filter AD.varinfo_tracked
-        |> List.map RV.local
-      in
-      let rem_new_apr = AD.remove_vars new_apr local_vars in
-      let st' = {st with apr = rem_new_apr} in
-      begin match ThreadId.get_current ask with
-        | `Lifted tid when ThreadReturn.is_current ask ->
-          Priv.thread_return ask ctx.global ctx.sideg tid st'
-        | _ ->
-          st'
-      end
+  let return ctx e f =
+    let st = ctx.local in
+    let ask = Analyses.ask_of_ctx ctx in
+    let new_apr =
+      if AD.type_tracked (Cilfacade.fundec_return_type f) then (
+        let apr' = AD.add_vars st.apr [RV.return] in
+        match e with
+        | Some e ->
+          assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with apr = apr'} e (fun apr' e' ->
+              AD.assign_exp apr' RV.return e' (no_overflow ctx e')
+            )
+        | None ->
+          apr' (* leaves V.return unconstrained *)
+      )
+      else
+        st.apr
+    in
+    let local_vars =
+      f.sformals @ f.slocals
+      |> List.filter AD.varinfo_tracked
+      |> List.map RV.local
+    in
+    let rem_new_apr = AD.remove_vars new_apr local_vars in
+    let st' = {st with apr = rem_new_apr} in
+    begin match ThreadId.get_current ask with
+      | `Lifted tid when ThreadReturn.is_current ask ->
+        Priv.thread_return ask ctx.global ctx.sideg tid st'
+      | _ ->
+        st'
+    end
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
@@ -315,57 +319,57 @@ struct
       unify_st
 
   let special ctx r f args =
-        let ask = Analyses.ask_of_ctx ctx in
-        let invalidate_one st lv =
-          assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-              let apr' = AD.forget_vars st.apr [RV.local v] in
-              assert_type_bounds apr' v ctx (* re-establish type bounds after forget *)
-            )
-        in
-        let st = ctx.local in
-        match LibraryFunctions.classify f.vname args with
-        (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-        | `Assert expression -> st
-        | `Unknown "__goblint_check" -> st
-        | `Unknown "__goblint_commit" -> st
-        | `Unknown "__goblint_assert" -> st
-        | `ThreadJoin (id,retvar) ->
-          (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
-          (
-            let st' = Priv.thread_join ask ctx.global id st in
-            match r with
-            | Some lv -> invalidate_one st' lv
-            | None -> st'
+    let ask = Analyses.ask_of_ctx ctx in
+    let invalidate_one st lv =
+      assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+          let apr' = AD.forget_vars st.apr [RV.local v] in
+          assert_type_bounds apr' v ctx (* re-establish type bounds after forget *)
+        )
+    in
+    let st = ctx.local in
+    match LibraryFunctions.classify f.vname args with
+    (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
+    | `Assert expression -> st
+    | `Unknown "__goblint_check" -> st
+    | `Unknown "__goblint_commit" -> st
+    | `Unknown "__goblint_assert" -> st
+    | `ThreadJoin (id,retvar) ->
+      (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
+      (
+        let st' = Priv.thread_join ask ctx.global id st in
+        match r with
+        | Some lv -> invalidate_one st' lv
+        | None -> st'
+      )
+    | _ ->
+      let ask = Analyses.ask_of_ctx ctx in
+      let invalidate_one st lv =
+        assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+            let apr' = AD.forget_vars st.apr [RV.local v] in
+            assert_type_bounds apr' v ctx (* re-establish type bounds after forget *)
           )
-        | _ ->
-          let ask = Analyses.ask_of_ctx ctx in
-          let invalidate_one st lv =
-            assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-                let apr' = AD.forget_vars st.apr [RV.local v] in
-                assert_type_bounds apr' v ctx (* re-establish type bounds after forget *)
-              )
-          in
-          let st' = match LibraryFunctions.get_invalidate_action f.vname with
-            | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
-            | None ->
-              if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
-                let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
-                    match global with
-                    | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                      (Var vi, NoOffset) :: acc
-                    (* TODO: what about GVarDecl? *)
-                    | _ -> acc
-                  ) []
-                in
-                List.fold_left invalidate_one st globals
-              )
-              else
-                st
-          in
-          (* invalidate lval if present *)
-          match r with
-          | Some lv -> invalidate_one st' lv
-          | None -> st'
+      in
+      let st' = match LibraryFunctions.get_invalidate_action f.vname with
+        | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
+        | None ->
+          if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
+            let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
+                match global with
+                | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+                  (Var vi, NoOffset) :: acc
+                (* TODO: what about GVarDecl? *)
+                | _ -> acc
+              ) []
+            in
+            List.fold_left invalidate_one st globals
+          )
+          else
+            st
+      in
+      (* invalidate lval if present *)
+      match r with
+      | Some lv -> invalidate_one st' lv
+      | None -> st'
 
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
@@ -390,9 +394,9 @@ struct
     match Cilfacade.find_varinfo_fundec f with
     | fd ->
       (* TODO: HACK: Simulate enter_multithreaded for first entering thread to publish global inits before analyzing thread.
-        Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
-        sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
-        EnterMultithreaded events only execute after threadenter and threadspawn. *)
+         Otherwise thread is analyzed with no global inits, reading globals gives bot, which turns into top, which might get published...
+         sync `Thread doesn't help us here, it's not specific to entering multithreaded mode.
+         EnterMultithreaded events only execute after threadenter and threadspawn. *)
       if not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx)) then
         ignore (Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st);
       let st' = Priv.threadenter (Analyses.ask_of_ctx ctx) ctx.global st in
@@ -424,12 +428,12 @@ struct
     | _ ->
       st
 
-      let sync ctx reason =
-        (* After the solver is finished, store the results (for later comparison) *)
-        if !GU.postsolving then begin
-          let old_value = PCU.RH.find_default results ctx.node (AD.bot ()) in
-          let new_value = AD.join old_value ctx.local.apr in
-          PCU.RH.replace results ctx.node new_value;
-        end;
-        Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+  let sync ctx reason =
+    (* After the solver is finished, store the results (for later comparison) *)
+    if !GU.postsolving then begin
+      let old_value = PCU.RH.find_default results ctx.node (AD.bot ()) in
+      let new_value = AD.join old_value ctx.local.apr in
+      PCU.RH.replace results ctx.node new_value;
+    end;
+    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
 end

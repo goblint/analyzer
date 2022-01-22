@@ -97,7 +97,7 @@ struct
 
   let rec is_const_var v =
     let filtered_l = List.filteri (function i -> function x -> if i <> (List.length v) - 1 && x <> (to_rt 0) then true else false) v in
-      if List.length filtered_l <> 1 then false else true
+    if List.length filtered_l <> 1 then false else true
 
   let rec is_constant v =
     match v with
@@ -382,7 +382,7 @@ struct
         | Some (c) -> if (Mpqf.get_den c) = (Mpzf.of_int 1) then
             let int_val = IntOps.BigIntOps.of_string (Mpzf.to_string (Mpqf.get_num c)) in
             Some(int_val), Some (int_val)
-            else (None, None)
+          else (None, None)
         | _ -> (None, None))
     | _ -> (None, None)
 
@@ -495,10 +495,10 @@ struct
     | m, None -> a
     | Some (x), Some (y) when x = [] || y = [] -> {d = Some ([]); env = Environment.lce a.env b.env}
     | Some (x), Some (y) when (Environment.compare a.env b.env <> 0) ->
-                         let sup_env = Environment.lce a.env b.env in
-                         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
-                         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-                         {d = Some(lin_disjunc 0 0 mod_x mod_y); env = sup_env}
+      let sup_env = Environment.lce a.env b.env in
+      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+      {d = Some(lin_disjunc 0 0 mod_x mod_y); env = sup_env}
     | Some (x), Some(y) -> {d = Some(lin_disjunc 0 0 x y); env = a.env}
 
   let join a b =
@@ -587,12 +587,12 @@ struct
     | None -> x
     | Some (r, _) -> Matrix.reduce_row_to_zero x r j0
 
-    let rec forget_vars a vars =
+  let rec forget_vars a vars =
     match a.d with
     | None -> a
     | Some(m) -> begin match vars with
-                      | [] -> a
-                      | x :: xs -> forget_vars {d = Some (Matrix.normalize (remove_rels_with_var m x a.env)); env = a.env} xs end
+        | [] -> a
+        | x :: xs -> forget_vars {d = Some (Matrix.normalize (remove_rels_with_var m x a.env)); env = a.env} xs end
 
   let assign_texpr t var texp =
     let is_invertible v = Vector.get_val (Environment.dim_of_var t.env var) v <> (to_rt 0)
@@ -666,25 +666,25 @@ struct
   let rec meet_with_tcons d tcons original_expr = (*ToDo Reorder*)
     if Tcons1.get_typ tcons = SUPEQ then
       begin match d.d with
-      | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-                    | None -> d
-                    | Some (c) -> if c <: (to_rt 0) then {d = None; env = d.env} else d end
-    | _ -> d end
-   else
-    match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-    | Some (e) ->
-      let e = List.mapi (function i -> function x -> if i = (Vector.length e) -1 then (to_rt (-1)) *: x else x) e in (*Flip the sign of the const. val in coeff vec*)
-       begin match Tcons1.get_typ tcons with
-           | EQ -> meet d {d = Some ([e]); env = d.env}
-           | DISEQ -> if equal (meet d {d = Some ([e]); env = d.env}) d then {d = None; env = d.env} else d
-           | SUP -> if meet {d = Some [e]; env = d.env} d = d then {d = None; env = d.env} else d (*e.g: x + y > 0 = None if x + y = 0*)
-           | _ -> d end
-    | None when Tcons1.get_typ tcons = SUP -> begin match d.d with
-                                              | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-                                                          | None -> d
-                                                          | Some (c) -> if c <=: (to_rt 0) then {d = None; env = d.env} else d end
-                                              | _ -> d end
-    | _ -> d
+        | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+            | None -> d
+            | Some (c) -> if c <: (to_rt 0) then {d = None; env = d.env} else d end
+        | _ -> d end
+    else
+      match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+      | Some (e) ->
+        let e = List.mapi (function i -> function x -> if i = (Vector.length e) -1 then (to_rt (-1)) *: x else x) e in (*Flip the sign of the const. val in coeff vec*)
+        begin match Tcons1.get_typ tcons with
+          | EQ -> meet d {d = Some ([e]); env = d.env}
+          | DISEQ -> if equal (meet d {d = Some ([e]); env = d.env}) d then {d = None; env = d.env} else d
+          | SUP -> if meet {d = Some [e]; env = d.env} d = d then {d = None; env = d.env} else d (*e.g: x + y > 0 = None if x + y = 0*)
+          | _ -> d end
+      | None when Tcons1.get_typ tcons = SUP -> begin match d.d with
+          | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+              | None -> d
+              | Some (c) -> if c <=: (to_rt 0) then {d = None; env = d.env} else d end
+          | _ -> d end
+      | _ -> d
 
   let rec assert_cons d e negate no_ov =
     begin match Convert.tcons1_of_cil_exp d (d.env) e negate no_ov with
