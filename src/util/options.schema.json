@@ -1401,6 +1401,20 @@
             "Path to C preprocessor (cpp) to use. If empty, then automatically searched.",
           "type": "string",
           "default": ""
+        },
+        "arrays-domain": {
+          "title": "exp.arrays-domain",
+          "description":
+            "The domain that should be used for arrays. trivial/partitioned/unroll. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the exp.array-unrolling-factor >0.",
+          "type": "string",
+          "default": "trivial"
+        },
+        "array-unrolling-factor": {
+          "title": "exp.array-unrolling-factor",
+          "description":
+            "Indicates how many values will the unrolled part of the unrolled array domain contain.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false

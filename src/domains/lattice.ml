@@ -581,6 +581,33 @@ struct
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
 
+module type Num = sig val x : unit -> int end
+module ProdArray (Base: S) (N: Num) =
+struct
+  include Printable.Liszt (Base)
+
+  let bot () = Array.to_list (Array.make (N.x ()) (Base.bot ()))
+  let is_bot =
+    let f acc x = Base.is_bot x && acc in
+    List.fold_left f true
+  let top () = Array.to_list (Array.make (N.x ()) (Base.top ()))
+  let is_top =
+    let f acc x = Base.is_top x && acc in
+    List.fold_left f true
+
+  let leq =
+    let f acc x y = Base.leq x y && acc in
+    List.fold_left2 f true
+
+  let join = List.map2 Base.join
+  let widen = List.map2 Base.widen
+  let meet = List.map2 Base.meet
+  let narrow = List.map2 Base.narrow
+
+  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
+    Pretty.dprintf "%a not leq %a" pretty x pretty y
+end
+
 module Chain (P: Printable.ChainParams) =
 struct
   include Printable.Std
