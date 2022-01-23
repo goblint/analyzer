@@ -252,13 +252,6 @@ struct
   let normalize t =
     let res = normalize t in
     if M.tracing then M.tracel "norm" "normalize \n %s -> %s" (show t) (show res); res
-
-  (*Checks if the rows of t2 are also present in t1*)
-  let rec is_contained_in t1 t2 =
-    match t1, t2 with
-    | [], _ -> true
-    | x1 :: xs1, x2 ::xs2 -> Vector.equal x1 x2 && is_contained_in xs1 xs2
-    | _, _ -> false
 end
 
 module VarManagement =
@@ -424,15 +417,51 @@ struct
     res
 
   let name () = "affeq"
+
   let to_yojson a = failwith "ToDo Implement in future"
+
   let invariant a b = Invariant.none
+
   let arbitrary () = failwith "no arbitrary"
-  let leq a b =
-    match a.d, b.d with
-    | None, _ ->  true
-    | _ , Some ([]) -> true
-    | Some (x), Some (y) -> Matrix.is_contained_in y x (*Not sufficient! There could be rows inbetween*)
+
+  let bot () =
+    {d = None; env = Environment.make [||] [||]}
+  let is_bot a = a.d = None
+  let is_bot_env a =
+    match a.d with
+    | None -> true
     | _ -> false
+  let top () =
+    {d = Some (Matrix.empty ()); env = Environment.make [||] [||] }
+  let is_top a = a.d = Some (Matrix.empty ())
+
+  let meet a b =
+    let sup_env = Environment.lce a.env b.env in
+    match (a.d, b.d) with
+    | Some ([]), Some (y) -> {d = Some (dim_add (Environment.dimchange b.env sup_env) y); env = sup_env}
+    | Some (x), Some ([]) -> {d = Some (dim_add (Environment.dimchange a.env sup_env) x); env = sup_env}
+    | Some (x), Some (y) ->
+      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+      let rref_matr = Matrix.normalize_opt (Matrix.append_matrices mod_x mod_y) in
+      {d = rref_matr; env = sup_env}
+    | _, _ -> {d = None; env = sup_env}
+
+  let meet a b =
+    let res = meet a b in
+    if M.tracing then M.tracel "meet" "meet \n a: %s \n b: %s -> %s \n" (show a) (show b) (show res) ;
+    res
+
+  let leq a b =
+    if is_bot a || is_top b then true else
+    if is_bot b || is_top a then false else (
+      Environment.equal (a.env) (b.env) &&
+      match a.d, b.d with
+      | Some (x), Some (y) -> begin match Matrix.normalize_opt (Matrix.append_matrices x y) with
+          | None -> false
+          | Some (m) -> Matrix.equal m x end
+      | _ -> false )
+
   let leq a b =
     let res = leq a b in
     if M.tracing then M.tracel "leq" "leq a: %s b: %s -> %b \n" (show a) (show b) res ;
@@ -505,33 +534,10 @@ struct
     let res = join a b in
     if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
     res
-
-  let meet a b =
-    match (a.d, b.d) with
-    | Some([]), y -> {d = y; env = a.env}
-    | x , Some([])  -> {d = x; env = a.env}
-    | Some(x), Some(y) ->
-      let rref_matr = Matrix.normalize_opt (Matrix.append_matrices x y) in
-      {d = rref_matr; env = a.env}
-    | _, _ -> {d = None; env = a.env}
-  let meet a b =
-    let res = meet a b in
-    if M.tracing then M.tracel "meet" "meet \n a: %s \n b: %s -> %s \n" (show a) (show b) (show res) ;
-    res
   let widen a b = join a b
   let narrow a b = meet a b
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let bot () =
-    {d = None; env = Environment.make [||] [||]}
-  let is_bot a = a.d = None
-  let is_bot_env a =
-    match a.d with
-    | None -> true
-    | _ -> false
-  let top () =
-    {d = Some (Matrix.empty ()); env = Environment.make [||] [||] }
-  let is_top a = a.d = Some (Matrix.empty ())
 
   (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.*)
   let get_coeff_vec env texp =
@@ -651,9 +657,9 @@ struct
     | None, Some(m) -> {d = Some (Matrix.normalize (remove_rels_with_var m var t.env)); env = t.env}
     | _, _ -> t
 
-  let substitute_exp t var exp =
-    let res = substitute_exp t var exp
-    in if M.tracing then M.tracel "ops" "Substitute_expr\n"; res
+  let substitute_exp t var exp ov =
+    let res = substitute_exp t var exp ov
+    in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res); res
 
   let exp_is_cons = function
     (* constraint *)
@@ -663,28 +669,24 @@ struct
 
 
   (** Assert a constraint expression. *)
-  let rec meet_with_tcons d tcons original_expr = (*ToDo Reorder*)
-    if Tcons1.get_typ tcons = SUPEQ then
-      begin match d.d with
-        | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-            | None -> d
-            | Some (c) -> if c <: (to_rt 0) then {d = None; env = d.env} else d end
-        | _ -> d end
-    else
-      match get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-      | Some (e) ->
-        let e = List.mapi (function i -> function x -> if i = (Vector.length e) -1 then (to_rt (-1)) *: x else x) e in (*Flip the sign of the const. val in coeff vec*)
-        begin match Tcons1.get_typ tcons with
-          | EQ -> meet d {d = Some ([e]); env = d.env}
-          | DISEQ -> if equal (meet d {d = Some ([e]); env = d.env}) d then {d = None; env = d.env} else d
-          | SUP -> if meet {d = Some [e]; env = d.env} d = d then {d = None; env = d.env} else d (*e.g: x + y > 0 = None if x + y = 0*)
-          | _ -> d end
-      | None when Tcons1.get_typ tcons = SUP -> begin match d.d with
-          | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
-              | None -> d
-              | Some (c) -> if c <=: (to_rt 0) then {d = None; env = d.env} else d end
-          | _ -> d end
-      | _ -> d
+  let rec meet_with_tcons d tcons original_expr =
+    let meet_with_const cmp = begin match d.d with
+      | Some (m) -> begin match calc_const m d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+          | Some (c) -> if cmp c (to_rt 0) then {d = None; env = d.env} else d
+          | None -> d end
+      | _ -> d end
+    in
+    let meet_with_vec e =
+      (*Flip the sign of the const. val in coeff vec*)
+      let flip_e = List.mapi (function i -> function x -> if i = (Vector.length e) -1 then (to_rt (-1)) *: x else x) e
+      in meet d {d = Matrix.normalize_opt [flip_e]; env = d.env}
+    in
+    match Tcons1.get_typ tcons, get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
+    | DISEQ, Some(e) | SUP, Some (e) -> if equal (meet_with_vec e) d then {d = None; env = d.env} else d
+    | SUPEQ, _ -> meet_with_const (<:)
+    | SUP, None  -> meet_with_const (<=:)
+    | EQ, Some(e) -> meet_with_vec e
+    | _ -> d
 
   let rec assert_cons d e negate no_ov =
     begin match Convert.tcons1_of_cil_exp d (d.env) e negate no_ov with
@@ -755,21 +757,16 @@ struct
 
   let unify a b =
     let new_env, a_change, b_change  = Environment.lce_change a.env b.env in
-    let reduced_a = match a_change with
-      | None -> a
-      | Some (change) -> begin match a.d with
+    let compute_change change t =
+      match change with
+      | None -> t
+      | Some (change) -> begin match t.d with
           | None -> {d = None; env = new_env}
-          | Some (d) -> {d = Some (dim_remove change d); env = new_env}
+          | Some (d) -> {d = Some (dim_add change d); env = new_env}
         end
     in
-    let reduced_b = match b_change with
-      | None -> b
-      | Some (change) -> begin match b.d with
-          | None -> {d = None; env = new_env}
-          | Some (d) -> {d = Some (dim_remove change d); env = new_env}
-        end
-    in
-    meet reduced_a reduced_b
+    let reduced_a, reduced_b = compute_change a_change a, compute_change b_change b
+    in meet reduced_a reduced_b
 
   let unify a b =
     let res = unify a b in
