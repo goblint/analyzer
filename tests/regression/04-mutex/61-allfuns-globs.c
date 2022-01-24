@@ -1,4 +1,4 @@
-// PARAM: --set allfuns true
+// PARAM: --set allfuns true --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals
 #include<pthread.h>
 #include<assert.h>
 
