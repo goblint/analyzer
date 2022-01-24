@@ -1,5 +1,4 @@
-// PARAM: --enable allfuns --set ana.activated "['base','threadid','threadflag','escape','mutex','access','mallocWrapper']" --disable sem.unknown_function.invalidate.globals
-
+// PARAM: --enable allfuns --set ana.activated "['base','threadid','threadflag','escape','mutex','access','mallocWrapper']"
 int glob1 = 5;
 int glob2 = 7;
 

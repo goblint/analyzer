@@ -1,4 +1,5 @@
 #include <stddef.h>
+
 void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) __attribute__((goblint_stub));
 void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
   // call all possible compares first, before invalidating array elements
