@@ -25,7 +25,7 @@ struct
     let rec list_str l =
       match l with
       | [] -> "]"
-      | x :: xs -> (Mpqf.to_string x) ^","^(list_str xs)
+      | x :: xs -> (Mpqf.to_string x) ^" "^(list_str xs)
     in
     "["^list_str t^"\n"
 
@@ -61,7 +61,7 @@ end
 
 module Matrix =
 struct
-  type t = Mpqf.t list list
+  type t = Vector.t list
 
   exception NoSolution
   let empty () = ([] : t)
@@ -69,39 +69,20 @@ struct
   let show (x:t) =
     List.fold_left (^) "" (List.map (Vector.show) x)
 
-  let rec add_row (m : t) (row: Vector.t) pos : t =
-    match m with
-    | [] -> if pos > 0 then failwith "Position exceeds size" else [row]
-    | x :: xs ->
-      if pos > 0 then (x :: (add_row xs row (pos - 1)))
-      else row :: m
+  let add_empty_column (m : t) pos : t =
+    List.map (function y -> Vector.insert_val pos (to_rt 0) y) m
 
-  let add_column (m : t) (col: Vector.t) pos : t =
-    match m with
-    | [] -> List.map (function x -> [x]) col
-    | x -> List.map2 (function y -> function z -> Vector.insert_val pos z y) x col
-
-
-  let append_row (m : t) row =
+  let append_row (m : t) row : t =
     List.append m [row]
 
   let get_row (m : t) row_n =
     List.nth m row_n
 
-  let rec remove_row (m : t) row_n =
-    match m with
-    | [] -> failwith "Entry does not exist"
-    | x :: xs -> if row_n > 0 then x :: remove_row xs (row_n - 1) else xs
+  let rec remove_row (m : t) row_n : t =
+    List.filteri (function i -> function x -> row_n <> i) m
 
   let get_col (a:t) n : Vector.t =
-    List.map (function x -> List.nth x n) a
-  let remove_column (m : t) pos =
-    List.map (Vector.remove_val pos) m
-
-  (*Extended removal of columns. Removes rows that had an entry <> 0 at the col pos as well*)
-  let remove_column_ex (m : t) pos =
-    let filtered_rows = List.filter (function x -> if (List.nth x pos) = (to_rt 0) then true else false) m
-    in remove_column filtered_rows pos
+    List.map (function x -> Vector.nth x n) a
 
   let append_matrices (a:t) (b:t) : t =
     List.append a b
@@ -112,85 +93,45 @@ struct
   let num_cols (m : t) =
     match m with
     | [] -> 0
-    | x :: xs -> List.length x
-  let create_zero_col (m : t)  =
-    let rec create_zero_list l n =
-      if n > 0 then create_zero_list (List.append [to_rt 0] l) (n-1)
-      else l
-    in
-    create_zero_list [] (num_rows m)
+    | x :: xs -> Vector.length x
 
-  let rec equal (a: t) (b: t) =
-    match (a, b) with
-    | [], [] -> true
-    | x1 :: xs1, x2 :: xs2 -> if List.equal Mpqf.equal x1 x2 then equal xs1 xs2 else false
-    | _ -> false
+  let rec equal (m1: t) (m2: t) =
+    List.equal Vector.equal m1 m2
 
-  let add_rows row1 row2 =
-    List.map2 (function x -> function y -> x +: y) row1 row2
+  let subtract_rows_c row1 row2 c =
+    Vector.map2 (function x -> function y -> x -: (y *: c)) row1 row2
 
-  let subtract_rows_c row1 row2 col_val =
-    let subtr_vec = Vector.apply_with_c ( *:) col_val row2
-    in Vector.map2 (-:) row1 subtr_vec
+  let reduce_row_to_zero (m :t) row_n col_n =
+    let red_row = List.nth m row_n in
+    let c = Vector.nth red_row col_n in
+    List.map (function x -> subtract_rows_c x red_row ((Vector.nth x col_n) /: c)) m
 
-
-  let reduce_row_to_zero (t :t) row_n col_n =
-    let red_row = List.nth t row_n in
-    let c = List.nth red_row col_n in
-    List.map (function x -> subtract_rows_c x red_row ((Vector.nth x col_n) /: c)) t
-
-  let obtain_pivot row =
-    let non_zero = Vector.find_opt_with_index (function x -> x <> (to_rt 0)) row in
-    match non_zero with
-    | None -> None
-    | Some (i, p) -> if List.compare_length_with row (i + 1) <= 0 then raise NoSolution else
-        Some (i, List.map (function x -> x /: p) row)
-
-  let rec remove_zero_rows t =
-    let is_only_zero v =
-      match Vector.find_opt (function x -> x <> (to_rt 0)) v with
-      | None -> true
-      | _ -> false
-    in
-    List.filter (function x -> not (is_only_zero x)) t
-
-  let switch_rows t =
-    let sort v1 v2 =
-      let f = Vector.find_opt_with_index (function x -> x =: to_rt 1) in
-      let res_v1, res_v2 = f v1, f v2 in
-      match res_v1, res_v2 with
-      | Some (i1, _), Some (i2, _) -> Int.compare i1 i2
-      | _, _ -> failwith "Matrix has not been reduced yet"
-    in List.sort sort t
+  let remove_col (m: t) col_n =
+    let del_col m = List.map (Vector.remove_val col_n) m in
+    match List.findi (function i -> function x -> Vector.nth x col_n <> to_rt 0)  (List.rev m) with
+    | exception Not_found -> del_col m
+    | (i, _) -> let len = List.length m - (i + 1)
+      in del_col (remove_row (reduce_row_to_zero m len col_n) len)
 
   (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution*)
-  let normalize_opt t =
+  let normalize t =
     let rec create_rref new_t curr_row =
       if curr_row >= num_rows new_t then new_t else
-        let pivot_row = (match obtain_pivot (List.nth new_t curr_row) with
-            | c -> c
-            | exception NoSolution -> raise NoSolution) (*Perhaps not the most elegant way to handle this*)
-        in
-        match pivot_row with
-        | None -> create_rref (remove_row new_t curr_row) (curr_row)
-        | Some (i, p) -> let col = get_col new_t i in
-          let res = List.map2i (function row_i -> function y -> function z ->
-              if row_i <> curr_row then subtract_rows_c y p z else p) new_t col in
-          create_rref res (curr_row + 1)
+        let row = (List.nth new_t curr_row) in
+        match Vector.findi (function i -> function x -> x <> (to_rt 0)) row with
+        | exception Not_found -> create_rref (remove_row new_t curr_row) (curr_row)
+        | (i, p) -> if List.compare_length_with row (i + 1) <= 0 then raise NoSolution
+          else let p = List.map (function x -> x /: p) row in
+            let col = get_col new_t i in
+            let res = List.map2i (function row_i -> function y -> function z ->
+                if row_i <> curr_row then subtract_rows_c y p z else p) new_t col in
+            create_rref res (curr_row + 1)
     in match create_rref t 0 with
-    | c -> Some (switch_rows c)
+    | c -> let sort v1 v2 =
+             let f = Vector.findi (function i -> function x -> x =: to_rt 1) in
+             let (i1, _), (i2, _) = (f v1), (f v2) in Int.compare i1 i2
+      in Some (List.sort sort c)
     | exception NoSolution -> None
-
-
-  (*Normalize and fail if there is no solution*)
-  let normalize t =
-    match normalize_opt t with
-    | Some (x) -> x
-    | None -> failwith "Matrix does not have a solution"
-
-  let normalize t =
-    let res = normalize t in
-    if M.tracing then M.tracel "norm" "normalize \n %s -> %s" (show t) (show res); res
 end
 
 module VarManagement =
@@ -205,11 +146,11 @@ struct
 
   let dim_add (ch: Apron.Dim.change) m =
     let to_add = Array.to_list ch.dim in
-    List.fold_left (function m -> function x -> Matrix.add_column m (Matrix.create_zero_col m) x) m to_add
+    List.fold_left (function m -> function x -> Matrix.add_empty_column m x) m to_add
 
   let dim_remove (ch: Apron.Dim.change) m =
     let to_remove = Array.to_list ch.dim in
-    List.fold_left (function y -> function x -> Matrix.normalize (Matrix.remove_column_ex y x)) m to_remove
+    List.fold_left (function y -> function x -> Matrix.remove_col y x) m to_remove
 
   let add_vars a vars =
     let vs' = get_filtered_vars_add (a.env) vars in
@@ -305,7 +246,7 @@ let calc_const (t:Matrix.t) env texp =
   | c -> Some (c)
   | exception NoConst -> None
 
-module ExpressionBounds: EnvDomain.ConvBounds with type d = VarManagement.t = (* ToDo Implement proper bounds calculation*)
+module ExpressionBounds: EnvDomain.ConvBounds with type d = VarManagement.t =
 struct
 
   type d = VarManagement.t
@@ -386,7 +327,7 @@ struct
     | Some (x), Some (y) ->
       let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
       let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-      let rref_matr = Matrix.normalize_opt (Matrix.append_matrices mod_x mod_y) in
+      let rref_matr = Matrix.normalize (Matrix.append_matrices mod_x mod_y) in
       {d = rref_matr; env = sup_env}
     | _, _ -> {d = None; env = sup_env}
 
@@ -400,7 +341,7 @@ struct
     if is_bot b || is_top a then false else (
       Environment.equal (a.env) (b.env) &&
       match a.d, b.d with
-      | Some (x), Some (y) -> begin match Matrix.normalize_opt (Matrix.append_matrices x y) with
+      | Some (x), Some (y) -> begin match Matrix.normalize (Matrix.append_matrices x y) with
           | None -> false
           | Some (m) -> Matrix.equal m x end
       | _ -> false )
@@ -540,7 +481,7 @@ struct
   let assign_uninvertible_rel x var b env =
     let neg_vec = List.mapi (function i -> function z -> if i < (Vector.length b) - 1 then to_rt (-1) *: z else z) b
     in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) (to_rt 1)
-    in {d = Some (Matrix.normalize (Matrix.append_row x var_vec)); env = env}
+    in {d = Some (Option.get @@ Matrix.normalize (Matrix.append_row x var_vec)); env = env}
 
   let remove_rels_with_var x var env =
     let get_rownum_not_zero t =
@@ -561,7 +502,7 @@ struct
     | None -> a
     | Some(m) -> begin match vars with
         | [] -> a
-        | x :: xs -> forget_vars {d = Some (Matrix.normalize (remove_rels_with_var m x a.env)); env = a.env} xs end
+        | x :: xs -> forget_vars {d = Some (Option.get @@ Matrix.normalize (remove_rels_with_var m x a.env)); env = a.env} xs end
 
   let assign_texpr t var texp =
     let is_invertible v = Vector.nth v (Environment.dim_of_var t.env var) <> (to_rt 0)
@@ -617,7 +558,7 @@ struct
       if Vector.nth x dim_var = (to_rt 0) then
         meet {d = Some (remove_rels_with_var m var t.env); env = t.env} {d = Some [x]; env = t.env}
       else assign_invertible_rels m var x t.env
-    | None, Some(m) -> {d = Some (Matrix.normalize (remove_rels_with_var m var t.env)); env = t.env}
+    | None, Some(m) -> {d = Some (Option.get @@ Matrix.normalize (remove_rels_with_var m var t.env)); env = t.env}
     | _, _ -> t
 
   let substitute_exp t var exp ov =
@@ -642,7 +583,7 @@ struct
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
       let flip_e = List.mapi (function i -> function x -> if i = (Vector.length e) -1 then (to_rt (-1)) *: x else x) e
-      in meet d {d = Matrix.normalize_opt [flip_e]; env = d.env}
+      in meet d {d = Matrix.normalize [flip_e]; env = d.env}
     in
     match Tcons1.get_typ tcons, get_coeff_vec d.env (Texpr1.to_expr (Tcons1.get_texpr1 tcons)) with
     | DISEQ, Some(e) | SUP, Some (e) -> if equal (meet_with_vec e) d then {d = None; env = d.env} else d
