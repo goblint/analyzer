@@ -1,0 +1,40 @@
+// PARAM: --set exp.arrays-domain unroll --set exp.array-unrolling-factor 5
+int global;
+
+int main(void)
+{
+    example1();
+    example2();
+    return 0;
+}
+
+void example1() {
+    int a[20];
+    a[4] = 3;
+    a[6] = 3;
+    a[10] = 3;
+    assert(a[0] == 3); //UNKNOWN
+    assert(a[4] == 3);
+    assert(a[6] == 3); //UNKNOWN
+
+    int i=4;
+    a[i] = 7;
+    assert(a[4] == 7);
+}
+
+//array same length of factor
+void example2() {
+    int a[5];
+    a[0] = 1;
+    a[1] = 2;
+    a[2] = 3;
+    a[3] = 4;
+    a[4] = 5;
+
+    assert(a[0] == 1);
+    assert(a[1] == 2);
+    assert(a[2] == 3);
+    assert(a[3] == 0); //FAIL
+    assert(a[4] == 0); //FAIL
+}
+
