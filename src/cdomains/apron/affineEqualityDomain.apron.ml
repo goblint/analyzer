@@ -18,16 +18,8 @@ let to_rt x = Mpqf.of_int x
 
 module Vector =
 struct
+  include List
   type t = Mpqf.t list
-
-  let length = List.length
-
-  let create_zero_vec n : t =
-    let rec zero_vec t n =
-      if n > 0 then zero_vec (Mpqf.of_int 0 :: t) (n-1)
-      else t
-    in
-    zero_vec [] n
 
   let show t =
     let rec list_str l =
@@ -37,76 +29,8 @@ struct
     in
     "["^list_str t^"\n"
 
-  let map_vec f v =
-    List.map f v
-
   let equal v1 v2 =
-    List.equal Mpqf.equal v1 v2
-
-  let neg v =
-    List.map (function x -> (to_rt (-1)) *: x) v
-
-  let sub_vecs t1 t2 =
-    List.map2 (function x -> function y -> x -: y) t1 t2
-
-  let mul_vecs t1 t2 =
-    List.map2 (function x -> function y -> x *: y) t1 t2
-
-  let add_vecs t1 t2 =
-    List.map2 (function x -> function y -> x +: y) t1 t2
-
-  (*Searches for the last entry where v1 and v2 are different. Returns diff + position*)
-  let find_last_diff v1 v2 =
-    let rec l_d v1 v2 entry diff i =
-      match v1, v2 with
-      | x1 :: xs1, x2 :: xs2 -> if x1 <> x2 then l_d xs1 xs2 i (x1 -: x2) (i + 1)
-        else l_d xs1 xs2 entry diff (i + 1)
-      | _, _ -> (entry, diff)
-    in l_d v1 v2 0 (to_rt 0) 0
-
-  let is_only_zero v =
-    match List.find_opt (function x -> x <> (to_rt 0)) v with
-    | None -> true
-    | _ -> false
-
-  let rec keep_rows (v:t) n =
-    match v with
-    | [] -> if n = 0 then [] else failwith "Number exceeds list"
-    | x :: xs -> if n > 0 then x :: keep_rows xs (n-1) else []
-
-  let rec remove_val n (v:t) =
-    match v with
-    | [] -> failwith "Entry does not exist"
-    | x :: xs -> if n > 0 then x :: remove_val (n-1) xs else xs
-
-  let rec set_val t n new_val :t =
-    match t with
-    | [] -> failwith "Entry does not exist"
-    | x :: xs -> if n > 0 then x :: set_val xs (n-1) new_val else  new_val :: xs
-
-  let rec add_val n vl (v:t) =
-    match v with
-    | [] -> if n = 0 then [vl] else failwith "Entry does not exist"
-    | x :: xs -> if n > 0 then x :: add_val (n-1) vl xs else vl :: x :: xs
-
-  let mul_by_constant c v =
-    List.map (function x -> x *: c) v
-
-  let divide_by_const v c =
-    List.map (function x -> x /: c) v
-
-  let rec is_const_var v =
-    let filtered_l = List.filteri (function i -> function x -> if i <> (List.length v) - 1 && x <> (to_rt 0) then true else false) v in
-    if List.length filtered_l <> 1 then false else true
-
-  let rec is_constant v =
-    match v with
-    | [] -> true
-    | x :: [] -> true
-    | x :: xs -> if x <> (to_rt 0) then false else is_constant xs
-
-  let get_val n (v: t) =
-    List.nth v n
+    equal Mpqf.equal v1 v2
 
   (*Extended List.opt with index*)
   let find_opt_with_index f v =
@@ -116,12 +40,22 @@ struct
       | x :: xs -> if f x then Some ((i, x)) else find_opt_i xs (i + 1)
     in find_opt_i v 0
 
+  let keep_vals (v:t) n :t =
+    filteri (function i -> function x -> i < n) v
 
-  let get_rownum_not_zero t =
-    let rev_list = List.rev t in
-    match find_opt_with_index (function x -> x <> (to_rt 0)) rev_list with
-    | Some (i, c) -> Some (List.length t - (i + 1), c)
-    | x -> x
+  let remove_val n v =
+    filteri (function i -> function x -> i <> n) v
+
+  let set_val v n new_val :t =
+    mapi (function i -> function x -> if i = n then new_val else x) v
+
+  let rec insert_val n vl (v:t) =
+    match v with
+    | [] -> if n = 0 then [vl] else failwith "Entry does not exist"
+    | x :: xs -> if n > 0 then x :: insert_val (n-1) vl xs else vl :: x :: xs
+
+  let apply_with_c op c =
+    map (function x -> op x c)
 
 end
 
@@ -145,7 +79,7 @@ struct
   let add_column (m : t) (col: Vector.t) pos : t =
     match m with
     | [] -> List.map (function x -> [x]) col
-    | x -> List.map2 (function y -> function z -> Vector.add_val pos z y) x col
+    | x -> List.map2 (function y -> function z -> Vector.insert_val pos z y) x col
 
 
   let append_row (m : t) row =
@@ -196,14 +130,14 @@ struct
     List.map2 (function x -> function y -> x +: y) row1 row2
 
   let subtract_rows_c row1 row2 col_val =
-    let subtr_vec = Vector.mul_by_constant col_val row2
-    in Vector.sub_vecs row1 subtr_vec
+    let subtr_vec = Vector.apply_with_c ( *:) col_val row2
+    in Vector.map2 (-:) row1 subtr_vec
 
 
   let reduce_row_to_zero (t :t) row_n col_n =
     let red_row = List.nth t row_n in
     let c = List.nth red_row col_n in
-    List.map (function x -> subtract_rows_c x red_row ((Vector.get_val col_n x) /: c)) t
+    List.map (function x -> subtract_rows_c x red_row ((Vector.nth x col_n) /: c)) t
 
   let obtain_pivot row =
     let non_zero = Vector.find_opt_with_index (function x -> x <> (to_rt 0)) row in
@@ -213,7 +147,12 @@ struct
         Some (i, List.map (function x -> x /: p) row)
 
   let rec remove_zero_rows t =
-    List.filter (function x -> not (Vector.is_only_zero x)) t
+    let is_only_zero v =
+      match Vector.find_opt (function x -> x <> (to_rt 0)) v with
+      | None -> true
+      | _ -> false
+    in
+    List.filter (function x -> not (is_only_zero x)) t
 
   let switch_rows t =
     let sort v1 v2 =
@@ -332,6 +271,10 @@ end
 open Apron.Texpr1
 
 let calc_const (t:Matrix.t) env texp =
+  let is_const_var v =
+    let filtered_l = Vector.filteri (function i -> function x -> Vector.compare_length_with v (i + 1) > 0  && x <> (to_rt 0)) v
+    in Vector.compare_length_with filtered_l 1 = 0
+  in
   let exception NoConst in
   let rec parse_replace m exp =
     if t = [] then raise (NoConst) else
@@ -341,7 +284,7 @@ let calc_const (t:Matrix.t) env texp =
         let row = List.find_opt (function x -> List.nth x n = (to_rt 1)) m in
         begin match row with
           | None -> raise (NoConst)
-          | Some (y) -> if Vector.is_const_var y then Vector.get_val ((List.length y) - 1) y
+          | Some (y) -> if is_const_var y then Vector.nth y ((List.length y) - 1)
             else raise (NoConst) end
       | Unop (u, e, _, _) ->(
           match u with
@@ -469,23 +412,30 @@ struct
 
   let case_two a r col_b =
     let rec append_zeros v r = if List.compare_length_with v r = (-1) then append_zeros (List.append v [to_rt 0]) r else v in
-    let col_b = if List.compare_lengths a col_b < 0 then Vector.keep_rows col_b (List.length a)
+    let col_b = if List.compare_lengths a col_b < 0 then Vector.keep_vals col_b (List.length a)
       else if List.compare_lengths a col_b > 0 then (append_zeros col_b (List.length a)) else col_b in
     let a_r = Matrix.get_row a r in
     let mapping = List.map2i (function i -> function x -> function y -> if i < r then
-          Vector.add_vecs x (Vector.mul_by_constant y a_r) else x ) a col_b
+          Vector.map2 (+:) x (Vector.apply_with_c ( *:) y a_r) else x ) a col_b
     in Matrix.remove_row mapping r
 
   let case_three a b col_a col_b max =
-    let col_a, col_b = Vector.keep_rows col_a max, Vector.keep_rows col_b max in
+    (*Searches for the last index where v1 and v2 are different. Returns diff , position*)
+    let find_last_diff v1 v2 =
+      let vcomb = Vector.combine (Vector.rev v1) (Vector.rev v2) in
+      match Vector.find_opt_with_index (function (x,y) -> x <> y) vcomb with
+      | Some (i, (x,y)) -> Some (Vector.length vcomb - (i + 1), x -: y)
+      | _ -> None
+    in
+    let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
     if Vector.equal col_a col_b then (a, b, max) else
-      let r, diff = Vector.find_last_diff col_a col_b  in
+      let r, diff = Option.get @@ find_last_diff col_a col_b  in
       let a_t, b_t = Matrix.get_row a r, Matrix.get_row b r in
       let rec multiply_by_t m col_v t i =
         match m, col_v with
         | x :: xs, c :: cs->  if i > 0 then let beta = c /: diff in
-            let mul_t = Vector.mul_by_constant beta t in
-            Vector.sub_vecs x mul_t :: multiply_by_t xs cs t (i - 1)
+            let mul_t = Vector.apply_with_c ( *:) beta t in
+            Vector.map2 (-:) x mul_t :: multiply_by_t xs cs t (i - 1)
           else xs
         | _, _ -> []
       in
@@ -497,7 +447,7 @@ struct
     else
       let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
       match Int.compare (Matrix.num_rows a) r, Int.compare (Matrix.num_rows b) r with
-      | 1 , 1 -> let a_rs, b_rs = Mpqf.to_float (Vector.get_val r col_a), Mpqf.to_float (Vector.get_val r col_b) in
+      | 1 , 1 -> let a_rs, b_rs = Mpqf.to_float (Vector.nth col_a r), Mpqf.to_float (Vector.nth col_b r) in
         (match  a_rs, b_rs with
          |  1., 1. -> lin_disjunc (r + 1) (s + 1) a b
          | 1., 0. -> lin_disjunc r (s + 1) (case_two a r col_b) b
@@ -505,12 +455,12 @@ struct
          | 0., 0. ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
            lin_disjunc new_r (s + 1) new_a new_b
          | _, _ -> failwith "Matrix not normalized")
-      | 1 , _  -> let a_rs = Vector.get_val r col_a in
+      | 1 , _  -> let a_rs = Vector.nth col_a r in
         if a_rs = (to_rt 1) then lin_disjunc r (s + 1) (case_two a r col_b) b
         else
           let new_a, new_b, new_r = case_three a b col_a col_b r in
           lin_disjunc new_r (s + 1) new_a new_b
-      | _ , 1  -> let b_rs = Vector.get_val r col_b in
+      | _ , 1  -> let b_rs = Vector.nth col_b r in
         if b_rs = (to_rt 1) then lin_disjunc r (s + 1) a (case_two b r col_a)
         else
           let new_a, new_b, new_r = case_three a b col_a col_b r in
@@ -541,24 +491,31 @@ struct
 
   (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.*)
   let get_coeff_vec env texp =
+    let rec is_constant v =
+      match v with
+      | [] -> true
+      | x :: [] -> true
+      | x :: xs -> if x <> (to_rt 0) then false else is_constant xs
+    in
     let exception NotLinear in
-    let zero_vec = Vector.create_zero_vec ((Environment.size env) + 1) in
+    let zero_vec = Vector.init ((Environment.size env) + 1) (function i -> to_rt 0) in
+    let neg = Vector.map (function x -> (to_rt (-1)) *: x) in
     let rec convert_texpr env texp =
       (match texp with
        | Cst x ->  Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (to_rt (EnvDomain.int_of_cst x))
        | Var x ->  Vector.set_val zero_vec (Environment.dim_of_var env x) (to_rt 1)
        | Unop (u, e, _, _) -> (
            match u with
-           | Neg -> Vector.neg (convert_texpr env e) (* Multiply by -1*)
+           | Neg -> neg (convert_texpr env e) (* Multiply by -1*)
            | Cast -> convert_texpr env e (*Ignore*)
            | Sqrt -> raise NotLinear )(*Maybe works if only constant?*)
        | Binop (b, e1, e2, _, _) -> (
            match b with
-           | Add ->  Vector.add_vecs (convert_texpr env e1) (convert_texpr env e2) (*Simply add vectors*)
-           | Sub -> Vector.add_vecs (convert_texpr env  e1) (Vector.neg (convert_texpr env e2)) (*Subtract them*)
+           | Add ->  Vector.map2 (+:)(convert_texpr env e1) (convert_texpr env e2) (*Simply add vectors*)
+           | Sub -> Vector.map2 (+:) (convert_texpr env  e1) (neg (convert_texpr env e2)) (*Subtract them*)
            | Mul -> let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
-             if Vector.is_constant x1 || Vector.is_constant x2
-             then Vector.mul_vecs x1 x2
+             if is_constant x1 || is_constant x2
+             then Vector.map2 ( *: ) x1 x2
              else raise NotLinear (*Var * Var is invalid!*)
            | _ -> raise NotLinear (*rest is not valid!*)) )
     in match convert_texpr env texp with
@@ -568,8 +525,8 @@ struct
   let assign_invertible_rels x var b env =
     let j0 = Environment.dim_of_var env var in
     let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
-    let b0 = (Vector.get_val j0 b) in
-    let reduced_a = Vector.divide_by_const a_j0 b0 in  (*Corresponds to Axj0/Bj0*)
+    let b0 = (Vector.nth b j0) in
+    let reduced_a = Vector.apply_with_c (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
     let rec recalc_entries m rd_a =
       match m, rd_a with
       | [], [] -> []
@@ -586,8 +543,14 @@ struct
     in {d = Some (Matrix.normalize (Matrix.append_row x var_vec)); env = env}
 
   let remove_rels_with_var x var env =
+    let get_rownum_not_zero t =
+      let rev_vec = Vector.rev t in
+      match Vector.find_opt_with_index (function x -> x <> (to_rt 0)) rev_vec with
+      | Some (i, c) -> Some (Vector.length t - (i + 1), c)
+      | x -> x
+    in
     let j0 = Environment.dim_of_var env var
-    in let n = Vector.get_rownum_not_zero (Matrix.get_col x j0)
+    in let n = get_rownum_not_zero (Matrix.get_col x j0)
     in
     match n with
     | None -> x
@@ -601,7 +564,7 @@ struct
         | x :: xs -> forget_vars {d = Some (Matrix.normalize (remove_rels_with_var m x a.env)); env = a.env} xs end
 
   let assign_texpr t var texp =
-    let is_invertible v = Vector.get_val (Environment.dim_of_var t.env var) v <> (to_rt 0)
+    let is_invertible v = Vector.nth v (Environment.dim_of_var t.env var) <> (to_rt 0)
     in
     let affineEq_vec = get_coeff_vec t.env texp in
     match t.d, affineEq_vec with
@@ -651,7 +614,7 @@ struct
     let b = get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env ov exp) in
     match b, t.d with
     | Some (x), Some(m) -> let dim_var = Environment.dim_of_var t.env var in
-      if Vector.get_val dim_var x = (to_rt 0) then
+      if Vector.nth x dim_var = (to_rt 0) then
         meet {d = Some (remove_rels_with_var m var t.env); env = t.env} {d = Some [x]; env = t.env}
       else assign_invertible_rels m var x t.env
     | None, Some(m) -> {d = Some (Matrix.normalize (remove_rels_with_var m var t.env)); env = t.env}
