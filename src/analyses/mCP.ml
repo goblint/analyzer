@@ -108,9 +108,11 @@ struct
 
   let context fd x =
     let x = spec_list x in
-    map (fun (n,(module S:MCPSpec),d) ->
-        let d' = if mem n !cont_inse then S.D.top () else obj d in
-        n, repr @@ S.context fd d'
+    filter_map (fun (n,(module S:MCPSpec),d) ->
+        if mem n !cont_inse then
+          None
+        else
+          Some (n, repr @@ S.context fd (obj d))
       ) x
 
   let should_join x y =
@@ -764,7 +766,7 @@ struct
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
-      n, repr @@ S.combine ctx' r fe f a (obj (assoc n fc)) (obj (assoc n fd))
+      n, repr @@ S.combine ctx' r fe f a (Option.map obj (Option.bind fc (assoc_opt n))) (obj (assoc n fd))
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
