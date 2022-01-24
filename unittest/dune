@@ -3,7 +3,8 @@
 (test
   (name mainTest)
   (libraries ounit2 goblint.lib goblint.sites.dune)
-  (flags :standard -linkall))
+  (flags :standard -linkall)
+  (preprocess (staged_pps ppx_deriving.std)))
 
 (env
   (dev
