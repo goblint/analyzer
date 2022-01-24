@@ -6,6 +6,7 @@ let all_tests _ = ("" >:::
   [ IntDomainTest.test ();
     MapDomainTest.test ();
     SolverTest.test ();
+    LvalTest.test ();
     (* etc *)
   ])
 
