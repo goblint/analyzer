@@ -582,7 +582,7 @@ struct
 end
 
 module type Num = sig val x : unit -> int end
-module ProdArray (Base: S) (N: Num) =
+module ProdList (Base: S) (N: Num) =
 struct
   include Printable.Liszt (Base)
 

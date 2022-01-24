@@ -74,7 +74,7 @@ end
 module Unroll (Val: Lattice.S) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
   module Factor = struct let x () = (get_int "exp.array-unrolling-factor") end
-  module Base = Lattice.ProdArray (Val) (Factor)
+  module Base = Lattice.ProdList (Val) (Factor)
   include Lattice.ProdSimple(Base) (Val)
 
   let name () = "unrolled arrays"
