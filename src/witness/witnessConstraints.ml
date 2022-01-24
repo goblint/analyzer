@@ -35,7 +35,7 @@ struct
       type nonrec t = t
       let pretty = pretty
     end
-  )
+    )
 
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Edge: no tag"

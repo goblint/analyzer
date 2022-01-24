@@ -52,7 +52,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 
   let pretty_diff () (x,y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
@@ -215,7 +215,7 @@ struct
   let short_addr (x, o) =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      "(" ^ x.vname ^ ", " ^ description ^ ")"
+      "(" ^ x.vname ^ ", " ^ description ^ ")" ^ short_offs o
     else x.vname ^ short_offs o
 
   let show = function
@@ -230,7 +230,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 
   (* exception if the offset can't be followed completely *)
   exception Type_offset of typ * string
@@ -353,7 +353,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 
   let rec printInnerXml f = function
     | [] -> ()
@@ -476,6 +476,7 @@ struct
     match o with
     | `NoOffset -> a
     | `Field (f,o) -> short_offs o (a^"."^f.fname)
+    | `Index (e,o) when CilType.Exp.equal e MyCFG.unknown_exp -> short_offs o (a^"[?]")
     | `Index (e,o) -> short_offs o (a^"["^CilType.Exp.show e^"]")
 
   let rec of_ciloffs x =
@@ -506,5 +507,5 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 end

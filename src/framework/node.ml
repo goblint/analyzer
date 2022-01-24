@@ -45,7 +45,7 @@ include Printable.SimplePretty (
     type nonrec t = t
     let pretty = pretty
   end
-)
+  )
 
 (** Show node ID for CFG and results output. *)
 let show_id = function

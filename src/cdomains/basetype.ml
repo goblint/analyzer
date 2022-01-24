@@ -1,6 +1,5 @@
 module GU = Goblintutil
 open Cil
-open Pretty
 
 
 (** Location with special alphanumeric output for extraction. *)
@@ -16,7 +15,7 @@ struct
       type nonrec t = t
       let show = show
     end
-  )
+    )
 end
 
 module Variables =

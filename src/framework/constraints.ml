@@ -1197,7 +1197,7 @@ struct
         type nonrec t = t
         let pretty = pretty
       end
-    )
+      )
   end
   module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
 

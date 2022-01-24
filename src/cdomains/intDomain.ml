@@ -514,7 +514,7 @@ module Std (B: sig
       type nonrec t = t
       let show = show
     end
-  )
+    )
   let pretty_diff () (x,y) = dprintf "%s: %a instead of %a" (name ()) pretty x pretty y
 
   include StdTop (B)
@@ -2603,7 +2603,7 @@ module IntDomTupleImpl = struct
   module I4 = Congruence
 
   type t = I1.t option * I2.t option * I3.t option * I4.t option
-  [@@deriving to_yojson]
+  [@@deriving to_yojson, eq, ord]
 
   let name () = "intdomtuple"
 
@@ -2726,16 +2726,6 @@ module IntDomTupleImpl = struct
   let leq =
     for_all
     %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.leq)}
-
-  let equal =
-    for_all
-    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.equal)}
-
-  let compare =
-    List.fold_left (fun a x -> if x <> 0 then x else a) 0
-    % to_list
-    %% map2p {f2p= (fun (type a) (module I : S with type t = a) ?no_ov -> I.compare)} (* idea? same impl. as above... *)
-
 
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
 

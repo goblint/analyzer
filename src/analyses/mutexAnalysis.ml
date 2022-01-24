@@ -54,24 +54,6 @@ struct
     | `Index (_, o) -> `Index (MyCFG.unknown_exp, conv_offset_inv o)
 
 
-  let part_access ctx e v w =
-    let open Access in
-    let ps = LSSSet.singleton (LSSet.empty ()) in
-    let add_lock l =
-      let ls = Lockset.Lock.show l in
-      LSSet.add ("lock",ls)
-    in
-    let locks =
-      if w then
-        (* when writing: ignore reader locks *)
-        Lockset.filter snd ctx.local
-      else
-        (* when reading: bump reader locks to exclusive as they protect reads *)
-        Lockset.map (fun (x,_) -> (x,true)) ctx.local
-    in
-    let ls = D.fold add_lock locks (LSSet.empty ()) in
-    (ps, ls)
-
   let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a.f (Queries.MayPointTo exp) with
@@ -169,10 +151,24 @@ struct
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       Mutexes.mem verifier_atomic held_locks
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
     | _ -> Queries.Result.top q
 
+  module A =
+  struct
+    include D
+    let name () = "lock"
+    let may_race ls1 ls2 =
+      is_empty (join ls1 ls2) (* D is reversed, so join is intersect *)
+    let should_print ls = not (is_empty ls)
+  end
+
+  let access ctx e vo w =
+    if w then
+      (* when writing: ignore reader locks *)
+      Lockset.filter snd ctx.local
+    else
+      (* when reading: bump reader locks to exclusive as they protect reads *)
+      Lockset.map (fun (x,_) -> (x,true)) ctx.local
 
   (** Transfer functions: *)
 
