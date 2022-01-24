@@ -80,7 +80,10 @@ struct
   let name () = "unrolled arrays"
   type idx = Idx.t
   type value = Val.t
-  let factor () = get_int "exp.array-unrolling-factor"
+  let factor () = 
+    match get_int "exp.array-unrolling-factor" with
+    | 0 -> failwith "ArrayDomain: exp.array-unrolling-factor needs to be set when using the unroll domain"
+    | x -> x
   let join_of_all_parts (xl, xr) = List.fold_left Val.join xr xl
   let show (xl, xr) =
     let rec show_list xlist = match xlist with
