@@ -30,7 +30,7 @@ let test_equal_0 () =
   assert_equal a_lv a_lv_0
 
 let test_compare_0 () =
-  assert_bool "test_compare_0" @@ (LV.compare a_lv a_lv_0 = 0) (* TODO *)
+  assert_bool "test_compare_0" @@ (LV.compare a_lv a_lv_0 = 0)
 
 let test_hash_0 () =
   assert_bool "test_hash_0" @@ (LV.hash a_lv = LV.hash a_lv_0)
