@@ -57,7 +57,7 @@ struct
 
   let name () = Pretty.(sprint ~width:80 (dprintf "%s (%a)" (name ()) Cil.d_ikind (Ik.ikind ())))
 
-  let arbitrary () = QCheck.map ~rev:(fun x -> x) (cast_to (Ik.ikind ())) (arbitrary ())
+  let arbitrary () = arbitrary (Ik.ikind ())
 end
 
 module IntegerSet =
