@@ -9,9 +9,9 @@ int main() {
     assert(r != NULL); // TODO
 
   if (r != NULL)
-    assert(r != NULL);
+    assert(r != NULL); // TODO
   else
-    assert(r == NULL); // TODO
+    assert(r == NULL);
 
   return 0;
 }
