@@ -82,7 +82,10 @@ let end_basic_blocks f =
 class loopUnrollingVisitor = object
   inherit nopCilVisitor
   method! vstmt s =
-    (* All the duplicated stmts need to be re-created or the sid will fail*)
+    (* 
+    All the duplicated stmts need to be re-created or the sid will fail, so we create a copy of st, which is physically unequal to it. 
+    A new sid is  computed later (as seen in http://goblint.in.tum.de/assets/goblint-cil/api/Cil.html#TYPEstmt), as long as we perform this copies.
+    *)
     let newsid st = { st with sid = st.sid } in
     let rec newsid_stmt st = 
       let mkb stml = mkBlock (List.map newsid_stmt stml) in
