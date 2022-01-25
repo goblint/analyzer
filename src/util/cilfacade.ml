@@ -82,10 +82,10 @@ let end_basic_blocks f =
 class loopUnrollingVisitor = object
   inherit nopCilVisitor
   method! vstmt s =
-    (* 
-    All the duplicated stmts need to be re-created or the sid will fail, so we create a copy of st, which is physically unequal to it. 
-    A new sid is  computed later (as seen in http://goblint.in.tum.de/assets/goblint-cil/api/Cil.html#TYPEstmt), as long as we perform this copies.
-    *)
+    (* All the duplicated stmts need to be re-created or the sid will fail, so we create a copy of st, which is       *)
+    (* physically unequal to it.                                                                                      *)
+    (* A new sid is  computed later (as seen in http://goblint.in.tum.de/assets/goblint-cil/api/Cil.html#TYPEstmt),   *)
+    (* as long as we perform this copies.                                                                             *)
     let newsid st = { st with sid = st.sid } in
     let rec newsid_stmt st = 
       let mkb stml = mkBlock (List.map newsid_stmt stml) in
@@ -114,33 +114,18 @@ class loopUnrollingVisitor = object
         | Label(lab,_,_)::tl -> 
           if BatString.starts_with lab "remainder_loop" then true else is_remainder_loop tl
         | _ -> false in
-      (* Because this is executed before preparedCFG, there are still Breaks instead of Gotos.*)
-      (* We need to transform them so we can replicate the loop's body outside of the loop.*)
-      let break_stmt = mkStmt (Instr []) in
-      break_stmt.labels <- [Label(Cil.freshLabel "unroll_while_break",loc,false)] ;
-      let rec rm_breaks_st st = 
-        let rm_breaks_st_list stl = mkBlock (List.map rm_breaks_st stl) in
-        match st.skind with
-        | Break(l) -> mkStmt (Goto (ref break_stmt, loc))
-        | If(e,tb,fb,l1,l2) -> mkStmt (If (e,(rm_breaks_st_list tb.bstmts), (rm_breaks_st_list fb.bstmts),l1,l2))
-        | Block(bl) -> mkStmt (Block (rm_breaks_st_list bl.bstmts))
-        |Switch(e,bl,stl,l1,l2) -> mkStmt (Switch (e, (rm_breaks_st_list bl.bstmts), (List.map rm_breaks_st stl),l1, l2))
-        | _ -> st in
-      let body = List.map rm_breaks_st b.bstmts in
       (* Unrolling *)
       let rec unroll sl factor =
         match factor with
         |0-> sl
         |_ ->
-          let x = body @ sl in
-          unroll x (factor-1) in
-      let unroll_helper st = 
-        let x = mk_stmt_from_stmt_list (unroll [(add_label_to_remainder_loop st loc)] get_unrolling_factor) in
-        mkStmt (Block (mkBlock [x;break_stmt])) in
-      let is_loop_unrollable s = 
-        if is_remainder_loop s.labels then false
-        else true in
+          let x = b.bstmts @ sl in
+          unroll x (factor-1) in      
       let check_type_loop =
+        let is_loop_unrollable s =
+          if is_remainder_loop s.labels then false
+          else true in
+        let unroll_helper st = mk_stmt_from_stmt_list (unroll [(add_label_to_remainder_loop st loc)] get_unrolling_factor) in
         if is_loop_unrollable s then ChangeDoChildrenPost ((unroll_helper s), fun x -> x)
         else  DoChildren in
       check_type_loop
@@ -164,7 +149,6 @@ let do_preprocess ast =
   iterGlobals ast (function GFun (fd,_) -> List.iter (f fd) !visitors | _ -> ())
 
 let createCFG (fileAST: file) =
-  if (get_int "exp.unrolling-factor")>0 then loop_unrolling fileAST;
   (* The analyzer keeps values only for blocks. So if you want a value for every program point, each instruction      *)
   (* needs to be in its own block. end_basic_blocks does that.                                                        *)
   (* After adding support for VLAs, there are new VarDecl instructions at the point where a variable was declared and *)
@@ -179,12 +163,21 @@ let createCFG (fileAST: file) =
    * See https://github.com/goblint/cil/issues/31#issuecomment-824939793. *)
 
   iterGlobals fileAST (fun glob ->
-      match glob with
-      | GFun(fd,_) ->
-        prepareCFG fd;
-        computeCFGInfo fd true
-      | _ -> ()
-    );
+    match glob with
+    | GFun(fd,_) ->
+      prepareCFG fd;
+    | _ -> ()
+  );
+  (* The unrolling needs to take place between prepareCFG and computeCFGInfo, since prepareCFG handles the breaks     *)
+  (* and continues, which allow us to replicate the loop's body outside of the loop. computeCFG info creates the CFG, *)
+  (* so it needs to happen before that.                                                                               *)
+  if (get_int "exp.unrolling-factor")>0 then loop_unrolling fileAST;
+  iterGlobals fileAST (fun glob ->
+    match glob with
+    | GFun(fd,_) ->
+      computeCFGInfo fd true
+    | _ -> ()
+  );
   do_preprocess fileAST
 
 let getAST fileName =
