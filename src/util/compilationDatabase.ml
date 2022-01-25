@@ -68,17 +68,20 @@ let load_and_preprocess ~all_cppflags filename =
             preprocess_command
         | None, Some arguments ->
           let arguments = List.map reroot arguments in
-          begin match List.findi (fun i e -> e = "-o") arguments with
-            | (o_i, _) ->
-              begin match List.split_at o_i arguments with
-                | (arguments_program :: arguments_init, _ :: o_file :: arguments_tl) ->
-                  let preprocess_arguments = all_cppflags @ "-E" :: "-MMD" :: "-MT" :: file :: arguments_init @ "-o" :: preprocessed_file :: arguments_tl in
-                  Filename.quote_command arguments_program preprocess_arguments
-                | _ ->
-                  failwith "CompilationDatabase.preprocess: no -o argument value found for " ^ file
-              end
-            | exception Not_found ->
-              failwith "CompilationDatabase.preprocess: no -o argument found for " ^ file
+          let preprocess_arguments =
+            let suf =
+              begin match List.findi (fun i e -> e = "-o") arguments with
+                | (o_i, _) ->
+                  begin match List.drop o_i arguments with
+                    | (_ :: o_file :: arguments_tl) -> preprocessed_file :: arguments_tl
+                    | _ -> failwith ("CompilationDatabase.preprocess: no argument found for -o option for " ^ file)
+                  end
+                | exception Not_found -> [preprocessed_file]
+              end in
+            all_cppflags @ "-E" :: "-MMD" :: "-MT" :: file :: arguments @ "-o" :: suf in
+          begin match arguments with
+            | (arguments_program :: arguments) -> Filename.quote_command arguments_program preprocess_arguments
+            | _ -> failwith "CompilationDatabase.preprocess: no program found for " ^ file
           end
         | Some _, Some _ ->
           failwith "CompilationDatabase.preprocess: both command and arguments specified for " ^ file
@@ -91,6 +94,6 @@ let load_and_preprocess ~all_cppflags filename =
       system ~cwd preprocess_command; (* command/arguments might have paths relative to directory *)
       Preprocessor.parse_makefile_deps deps_file;
       Some preprocessed_file
-    in
+  in
   parse_file filename
   |> BatList.filter_map preprocess
