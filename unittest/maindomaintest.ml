@@ -133,5 +133,6 @@ let nonAssocIntTestsuite =
       let module DP = IntDomainProperties.AllNonAssoc (D) in
       DP.tests
     )
-let () =
-  QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
+(* let () =
+  QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite) *)
+let all_testsuite = testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite
