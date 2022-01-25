@@ -139,7 +139,6 @@ class loopUnrollingVisitor = object
         mkStmt (Block (mkBlock [x;break_stmt])) in
       let is_loop_unrollable s = 
         if is_remainder_loop s.labels then false
-        else if get_unrolling_factor=0 then false
         else true in
       let check_type_loop =
         if is_loop_unrollable s then ChangeDoChildrenPost ((unroll_helper s), fun x -> x)
