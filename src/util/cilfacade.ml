@@ -108,17 +108,11 @@ class loopUnrollingVisitor = object
       let add_label_to_remainder_loop st_loop loc_loop = 
         st_loop.labels <- (Label(Cil.freshLabel "remainder_loop", loc_loop, false))::st_loop.labels;
         st_loop in
-      let is_remainder_loop loop_stmt_labels =
+      let rec is_remainder_loop loop_stmt_labels =
         match loop_stmt_labels with
         | [] -> false
-        | Label(lab,_,_)::tl ->
-          begin
-            try
-              match String.sub lab 0 14 with
-              | "remainder_loop" -> true
-              | _ -> false
-            with _-> false
-          end
+        | Label(lab,_,_)::tl -> 
+          if BatString.starts_with lab "remainder_loop" then true else is_remainder_loop tl
         | _ -> false in
       (* Because this is executed before preparedCFG, there are still Breaks instead of Gotos.*)
       (* We need to transform them so we can replicate the loop's body outside of the loop.*)
