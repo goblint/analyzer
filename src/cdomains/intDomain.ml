@@ -1358,7 +1358,7 @@ struct
     let norm ik v =
       match v with
       | `Excluded (s, r) ->
-        let possibly_overflowed = not (R.leq r (size ik)) in
+        let possibly_overflowed = not (R.leq r (size ik)) || not (S.for_all (in_range (size ik)) s) in
         (* If no overflow occurred, just return x *)
         if not possibly_overflowed then (
           v
