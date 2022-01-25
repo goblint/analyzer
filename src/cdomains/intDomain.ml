@@ -2551,15 +2551,10 @@ struct
   let arbitrary ik =
     let open QCheck in
     let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
-    let top_arb = make ~print:show (Gen.return (top ())) in
-    let bot_arb = make ~print:show (Gen.return (bot ())) in
-    let int_cong_arb = pair int_arb (make (Gen.return Ints_t.zero)) in
     let cong_arb = pair int_arb int_arb in
     let of_pair ik p = normalize ik (Some p) in
-    oneof
-      ((set_print show @@ map (of_pair ik) cong_arb)::
-         (set_print show @@ map (of_pair ik) int_cong_arb)::
-           top_arb::bot_arb::[])
+    let to_pair = Option.get in
+    set_print show (map ~rev:to_pair (of_pair ik) cong_arb)
 
   let relift x = x
 
