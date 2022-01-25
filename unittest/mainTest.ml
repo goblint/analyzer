@@ -5,6 +5,7 @@ let all_tests = ("" >:::
     MapDomainTest.test ();
     SolverTest.test ();
     (* etc *)
+    "domaintest" >::: QCheck_ounit.to_ounit2_test_list Maindomaintest.all_testsuite
   ])
 
 let () = run_test_tt_main all_tests
