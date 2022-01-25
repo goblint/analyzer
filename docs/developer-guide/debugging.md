@@ -117,3 +117,31 @@ code .           // Starts VS Code in the current directory
 
 After VS Code has started, you can set breakpoints in the Goblint code. You can start debugging using the VS Code command palette with the command `"Debug: Start Debugging"`, or alternatively by pressing `F5`. Note that the Goblint execution is considerably slowed down in the debugger, so you have to be somewhat patient.
 Of course, don't forget to rebuild the debuggable executable if you make changes to the code!
+
+## Debugging Issues with Larger Programs
+
+Sometimes during development one may encounter instances where, e.g., the verifying phase reports that the fixpoint is not reached. This is usually due to bugs in `join`, `widen` or `leq`. For small programs, one can find the cause by inspecting the program and the output carefully. If the issue happens only with large programs it is hard to understand.
+
+To work on such cases, it makes sense to reduce the program to a small example program that still triggers the same issue. This can either be done by hand or using `creduce`. `creduce` takes two inputs: a script that terminates with status `0` if the reduced program is still interesting, and the original program.
+
+In the case of looking for issues with fixpoints not being found, such a script may e.g. be given by:
+
+```bash
+#!/bin/bash
+~/path/to/goblint input.c -v &> out.txt
+if [ $? -eq 3 ]; then
+    grep Fixpoint out.txt >/dev/null 2>&1
+else
+    exit 5
+fi
+```
+
+Note that Goblint exits with status `3` if the verifier fails.
+
+Some more sophisticated scripts can be found in the folder `./scripts/creduce`.
+
+```console
+creduce --timeout 900 reduce.sh input.c
+```
+where timeout is set to a reasonable time in which Goblint terminates on the input program. This may run for several hours/days, so it makes sense to start it on
+a server. It may also be helpful to set `--n <N>` where `N` is the number of cores to use to get a considerable speedup.
