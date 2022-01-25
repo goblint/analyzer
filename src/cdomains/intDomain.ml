@@ -2231,7 +2231,7 @@ struct
     let congruence_series a c m =
       let rec next a1 c1 a2 c2 =
         if a2 |: a1 then (a2, c2)
-        else next a2 c2 (a1 %: a2) ((c1 -: c2) *: (a1 /: a2))
+        else next a2 c2 (a1 %: a2) (c1 -: (c2 *: (a1 /: a2)))
       in next m Ints_t.zero a c
     in
     let simple_case i c m =
