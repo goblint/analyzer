@@ -106,7 +106,7 @@ class loopUnrollingVisitor = object
       let get_unrolling_factor = GobConfig.get_int "exp.unrolling-factor" in
       (* All unrollings will leave the original loop at the end. The label makes sure it's not unrolled twice.*)
       let add_label_to_remainder_loop st_loop loc_loop = 
-        st_loop.labels <- [Label(Cil.freshLabel "remainder_loop", loc_loop, false)];
+        st_loop.labels <- (Label(Cil.freshLabel "remainder_loop", loc_loop, false))::st_loop.labels;
         st_loop in
       let is_remainder_loop loop_stmt_labels =
         match loop_stmt_labels with
