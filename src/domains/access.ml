@@ -446,10 +446,10 @@ let group_may_race = Stats.time "group_may_race" group_may_race
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe (lv, ty) accs =
+let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
   let safety =
-    group_may_race accs
+    grouped_accs
     |> List.filter_map race_conf
     |> (function
         | [] -> None
@@ -461,7 +461,7 @@ let incr_summary safe vulnerable unsafe (lv, ty) accs =
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses (lv, ty) accs =
+let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let msgs race_accs =
@@ -479,7 +479,7 @@ let print_accesses (lv, ty) accs =
     AS.elements race_accs
     |> List.map h
   in
-  group_may_race accs
+  grouped_accs
   |> List.fold_left (fun safe_accs accs ->
       match race_conf accs with
       | None ->
@@ -492,3 +492,8 @@ let print_accesses (lv, ty) accs =
       if allglobs && not (AS.is_empty safe_accs) then
         M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
     )
+
+let warn_global safe vulnerable unsafe g accs =
+  let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
+  incr_summary safe vulnerable unsafe g grouped_accs;
+  print_accesses g grouped_accs
