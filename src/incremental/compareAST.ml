@@ -30,7 +30,7 @@ let eqS (a: Cil.stmt) (b: Cil.stmt) =
   a.Cil.skind = b.Cil.skind
 
 let print (a: Pretty.doc)  =
-  print_endline @@ Pretty.sprint 100 a
+  print_endline @@ Pretty.sprint ~width:100 a
 
 (* hack: CIL generates new type names for anonymous types - we want to ignore these *)
 let compare_name a b =
