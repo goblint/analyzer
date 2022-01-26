@@ -146,8 +146,8 @@ struct
 
   (* TODO: move this into some general place *)
   let is_cast_injective from_type to_type =
-    let (from_min, from_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind from_type) in
-    let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
+    let (from_min, from_max) = IntDomain.Size.range (Cilfacade.get_ikind from_type) in
+    let (to_min, to_max) = IntDomain.Size.range (Cilfacade.get_ikind to_type) in
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let texpr1_expr_of_cil_exp d env =
@@ -186,7 +186,7 @@ struct
         in
         let ik = Cilfacade.get_ikind_exp exp in
         if not (IntDomain.should_ignore_overflow ik) then (
-          let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+          let (type_min, type_max) = IntDomain.Size.range ik in
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()

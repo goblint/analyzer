@@ -402,13 +402,13 @@ end
 
 module Size = struct (* size in bits as int, range as int64 *)
   open Cil open Big_int_Z
-  let sign_big_int x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
+  let sign x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
 
   let max = function
     | `Signed -> ILongLong
     | `Unsigned -> IULongLong
   let top_typ = TInt (ILongLong, [])
-  let min_for x = intKindForValue (fst (truncateCilint (max (sign_big_int x)) x)) (sign_big_int x = `Unsigned)
+  let min_for x = intKindForValue (fst (truncateCilint (max (sign x)) x)) (sign x = `Unsigned)
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
@@ -420,13 +420,13 @@ module Size = struct (* size in bits as int, range as int64 *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
   let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik)
-  let range_big_int ik =
+  let range ik =
     let a,b = bits ik in
     let x = if isSigned ik then minus_big_int (shift_left_big_int unit_big_int a) (* -2^a *) else zero_big_int in
     let y = sub_big_int (shift_left_big_int unit_big_int b) unit_big_int in (* 2^b - 1 *)
     x,y
-  let cast_big_int t x = (* TODO: overflow is implementation-dependent! *)
-    let a,b = range_big_int t in
+  let cast t x = (* TODO: overflow is implementation-dependent! *)
+    let a,b = range t in
     let c = card t in
     (* let z = add (rem (sub x a) c) a in (* might lead to overflows itself... *)*)
     let y = mod_big_int x c in
@@ -442,7 +442,7 @@ module Size = struct (* size in bits as int, range as int64 *)
       let a,b = bits_i64 ik in
       Int64.neg a,b
     in
-    if sign_big_int x = `Signed then
+    if sign x = `Signed then
       size (min_for x)
     else
       let a, b = size (min_for x) in
@@ -515,8 +515,8 @@ struct
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
 
-  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
-  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
+  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
+  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
   let top () = failwith @@ "top () not implemented for " ^ (name ())
   let top_of ik = Some (min_int ik, max_int ik)
   let bot () = None
@@ -563,8 +563,8 @@ struct
           if Ints_t.compare resdiff diff > 0 then
             top_of ik
           else
-            let l = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint x) in
-            let u = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint y) in
+            let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
+            let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
             if Ints_t.compare l u <= 0 then
               Some (l, u)
             else
@@ -618,7 +618,7 @@ struct
 
   let range_opt f = function
     | None -> None
-    | Some ik -> Some (Ints_t.of_bigint @@ f @@ Size.range_big_int ik)
+    | Some ik -> Some (Ints_t.of_bigint @@ f @@ Size.range ik)
 
   let starting ik n =
     (norm ik) @@ Some (n, range_opt snd (Some ik) |? (max_int ik))
@@ -1163,7 +1163,7 @@ module BigInt = struct
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let cast_to ik x = Size.cast_big_int ik x
+  let cast_to ik x = Size.cast ik x
   let to_bool x = Some (not (BI.equal (BI.zero) x))
 
   let show x = BI.to_string x
@@ -1350,7 +1350,7 @@ struct
           `Excluded (mapped_excl, r)
         )
       | `Definite x ->
-        let min, max = Size.range_big_int ik in
+        let min, max = Size.range ik in
         (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
         if should_wrap ik then (
           cast_to ik v
@@ -1733,8 +1733,8 @@ module Enums : S with type int_t = BigInt.t = struct
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [I.zero; I.one])
 
-  let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
-  let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
+  let min_int ik = I.of_bigint @@ fst @@ Size.range ik
+  let max_int ik = I.of_bigint @@ snd @@ Size.range ik
 (*
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
@@ -1933,7 +1933,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x) | _ -> None
   let of_excl_list ik xs =
-    let min_ik, max_ik = Size.range_big_int ik in
+    let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
     Exc (exc, size ik)
   let is_excl_list = BatOption.is_some % to_excl_list
@@ -2097,9 +2097,9 @@ struct
         else
           Some (c' %: m', m')
 
-  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
+  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
 
-  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
+  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
   let top () = Some (Ints_t.zero, Ints_t.one)
   let top_of ik = Some (Ints_t.zero, Ints_t.one)
   let bot () = None
@@ -2690,7 +2690,7 @@ module IntDomTupleImpl = struct
 
   let no_overflow ik r =
     if should_ignore_overflow ik then true
-    else let ika, ikb = Size.range_big_int ik in
+    else let ika, ikb = Size.range ik in
       match I2.minimal r, I2.maximal r with
       | Some ra, Some rb -> BI.compare ika ra < 0 || BI.compare rb ikb < 0
       | _ -> false
