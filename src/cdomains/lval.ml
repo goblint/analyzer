@@ -169,8 +169,12 @@ struct
   type field = fieldinfo
   type idx = Idx.t
   module Offs = Offset (Idx)
-  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | UnknownPtr [@@deriving eq, ord]
-  (* TODO: StrPtr equals problematic if the same literal appears more than once *)
+  type t =
+    | Addr of (CilType.Varinfo.t * Offs.t) (** Pointer to offset of a variable. *)
+    | NullPtr (** NULL pointer. *)
+    | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
+    | StrPtr of string (** String literal pointer. *)
+  [@@deriving eq, ord] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
   include Printable.Std
   let name () = "Normal Lvals"
 
