@@ -144,7 +144,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.top_of ik)
-    | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
+    | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->

@@ -169,9 +169,7 @@ struct
   type field = fieldinfo
   type idx = Idx.t
   module Offs = Offset (Idx)
-  (* A SafePtr is a pointer that does not point to any variables of the analyzed program (assuming external functions don't return random pointers but only pointers to things they can reach).
-   * UnknownPtr includes SafePtr *)
-  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | SafePtr | UnknownPtr [@@deriving eq, ord]
+  type t = Addr of (CilType.Varinfo.t * Offs.t) | StrPtr of string | NullPtr | UnknownPtr [@@deriving eq, ord]
   (* TODO: StrPtr equals problematic if the same literal appears more than once *)
   include Printable.Std
   let name () = "Normal Lvals"
@@ -223,7 +221,6 @@ struct
     | Addr x     -> short_addr x
     | StrPtr x   -> "\"" ^ x ^ "\""
     | UnknownPtr -> "?"
-    | SafePtr    -> "SAFE"
     | NullPtr    -> "NULL"
 
   include Printable.SimpleShow (
@@ -255,14 +252,12 @@ struct
 
   let get_type = function
     | Addr x   -> get_type_addr x
-    | StrPtr _  (* TODO Cil.charConstPtrType? *)
-    | SafePtr  -> charPtrType
+    | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType
 
   let hash = function
     | Addr (v,o) -> v.vid + 2 * Offs.hash o
-    | SafePtr | UnknownPtr -> Hashtbl.hash UnknownPtr (* SafePtr <= UnknownPtr ==> same hash *)
     | x -> Hashtbl.hash x
 
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
@@ -278,7 +273,6 @@ struct
     match x with
     | Addr (v,o) -> AddrOf (Var v, to_cil o)
     | StrPtr x -> mkString x
-    | SafePtr -> mkString "a safe pointer/string"
     | NullPtr -> integer 0
     | UnknownPtr -> raise Lattice.TopValue
   let rec add_offsets x y = match x with
@@ -307,7 +301,6 @@ struct
     | _ -> false
 
   let leq x y = match x, y with
-    | SafePtr, UnknownPtr    -> true
     | StrPtr a  , StrPtr b   -> a = b
     | Addr (x,o), Addr (y,u) -> CilType.Varinfo.equal x y && Offs.leq o u
     | _                      -> x = y
@@ -318,11 +311,8 @@ struct
 
   let merge cop x y =
     match x, y with
-    | UnknownPtr, SafePtr
-    | SafePtr, UnknownPtr -> UnknownPtr
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
-    | SafePtr   , SafePtr -> SafePtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
     | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable

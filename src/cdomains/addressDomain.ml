@@ -39,7 +39,6 @@ struct
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
   let null_ptr       = singleton Addr.NullPtr
-  let safe_ptr       = singleton Addr.SafePtr
   let unknown_ptr    = singleton Addr.UnknownPtr
   let not_null       = unknown_ptr
   let top_ptr        = of_list Addr.([UnknownPtr; NullPtr])
@@ -140,8 +139,7 @@ struct
     let i_opt = fold (fun addr acc_opt ->
         BatOption.bind acc_opt (fun acc ->
             match addr with
-            | Addr.UnknownPtr
-            | Addr.SafePtr ->
+            | Addr.UnknownPtr ->
               None
             | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
               let rec offs_to_offset = function

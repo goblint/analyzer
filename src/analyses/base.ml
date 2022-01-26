@@ -203,7 +203,6 @@ struct
       in
       let default = function
         | Addr.NullPtr when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
-        | Addr.SafePtr | Addr.NullPtr when get_bool "exp.ptr-arith-safe" -> Addr.SafePtr
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_var_offset addr with
