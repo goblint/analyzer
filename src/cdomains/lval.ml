@@ -192,23 +192,23 @@ struct
   let from_var_offset (x, o) = Addr (x, o)
 
   let to_var = function
-    | Addr (x,_) -> [x]
-    | _          -> []
+    | Addr (x,_) -> Some x
+    | _          -> None
   let to_var_may = function
-    | Addr (x,_) -> [x]
-    | _          -> []
+    | Addr (x,_) -> Some x
+    | _          -> None
   let to_var_must = function
-    | Addr (x,`NoOffset) -> [x]
-    | _                  -> []
+    | Addr (x,`NoOffset) -> Some x
+    | _                  -> None
   let to_var_offset = function
-    | Addr (x, o) -> [(x, o)]
-    | _      -> []
+    | Addr (x, o) -> Some (x, o)
+    | _      -> None
 
   (* strings *)
   let from_string x = StrPtr x
   let to_string = function
-    | StrPtr x -> [x]
-    | _        -> []
+    | StrPtr x -> Some x
+    | _        -> None
 
   let rec short_offs = function
     | `NoOffset -> ""
