@@ -303,6 +303,8 @@ let merge_preprocessed cpp_file_names =
   Cilfacade.current_file := merged_AST;
   merged_AST
 
+let preprocess_and_merge () = preprocess_files () |> merge_preprocessed
+
 let do_stats () =
   if get_bool "printstats" then (
     print_newline ();
@@ -483,11 +485,8 @@ let main () =
       print_endline (localtime ());
       print_endline command;
     );
-    let file = Fun.protect ~finally:remove_temp_dir (fun () ->
-        preprocess_files () |> merge_preprocessed
-      )
-    in
-    if get_bool "server.enabled" then Server.start file do_analyze else (
+    let file = Fun.protect ~finally:remove_temp_dir preprocess_and_merge in
+    if get_bool "server.enabled" then Server.start file preprocess_and_merge do_analyze else (
       let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
       file|> do_analyze changeInfo;
       do_stats ();
