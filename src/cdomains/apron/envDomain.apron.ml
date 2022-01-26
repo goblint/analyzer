@@ -224,5 +224,79 @@ struct
 
 end
 
+module type AssertionRelD2 =
+sig
+ module Bounds: ConvBounds
+
+include RelationDomain.D2 with type t = Bounds.d
+
+ val meet_with_tcons: t -> Tcons1.t -> t
+
+ val is_bot_env: t -> bool
+
+ val env: t -> Environment.t
+
+ val assert_cons: t -> exp -> bool -> bool -> t
+end
+
+module AssertionModule (AD2: AssertionRelD2) =
+struct
+include AD2
+
+module Convert = Convert (Bounds)
+
+let type_tracked typ =
+  isIntegralType typ
+
+let varinfo_tracked vi =
+  (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+  type_tracked vi.vtype && not vi.vaddrof
+
+let exp_is_cons = function
+    (* constraint *)
+    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+    (* expression *)
+    | _ -> false
+
+    (** Assert any expression. *)
+    let assert_inv d e negate no_ov =
+      let e' =
+        if exp_is_cons e then
+          e
+        else
+          (* convert non-constraint expression, such that we assert(e != 0) *)
+          BinOp (Ne, e, zero, intType)
+      in
+      assert_cons d e' negate no_ov
 
 
+let eval_interval_expr d e =
+  match Convert.texpr1_of_cil_exp d (env d) e false with
+  | texpr1 -> Bounds.bound_texpr d texpr1
+  | exception Convert.Unsupported_CilExp -> (None, None)
+
+  let check_asserts d e =
+    if is_bot_env (assert_inv d e false false) then
+      `False
+    else if is_bot_env (assert_inv d e true false) then
+      `True
+    else
+      `Top
+
+
+(** Evaluate constraint or non-constraint expression as integer. *)
+let eval_int d e =
+  let module ID = Queries.ID in
+  let ik = Cilfacade.get_ikind_exp e in
+  if exp_is_cons e then
+    match check_asserts d e with
+    | `True -> ID.of_bool ik true
+    | `False -> ID.of_bool ik false
+    | `Top -> ID.top ()
+  else
+    match eval_interval_expr d e with
+    | (Some min, Some max) -> ID.of_interval ik (min, max)
+    | (Some min, None) -> ID.starting ik min
+    | (None, Some max) -> ID.ending ik max
+    | (None, None) -> ID.top ()
+  end

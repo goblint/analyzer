@@ -243,10 +243,12 @@ end
 
 module Convert = EnvDomain.Convert (ExpressionBounds)
 
-module D2: RelationDomain.RelD2 with type var = EnvDomain.Var.t =
+module D2 =
 struct
 
   include VarManagement
+
+  module Bounds = ExpressionBounds
   let tag t = failwith "No tag"
   let show t =
     match t.d with
@@ -512,7 +514,7 @@ struct
     match b, t.d with
     | Some x, Some m -> let dim_var = Environment.dim_of_var t.env var in
                         if Vector.nth x dim_var = (to_rt 0) then
-                        meet {d = Some (remove_rels_with_var m var t.env); env = t.env} {d = Matrix.normalize [x]; env = t.env}
+                        meet {d = Some (remove_rels_with_var m var t.env); env = t.env} {d = Some [x]; env = t.env}
                         else assign_invertible_rels m var x t.env
     | None, Some m -> {d = Some (Option.get @@ Matrix.normalize (remove_rels_with_var m var t.env)); env = t.env}
     | _, _ -> t
@@ -521,15 +523,8 @@ struct
     let res = substitute_exp t var exp ov
     in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res); res
 
-  let exp_is_cons = function
-    (* constraint *)
-    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
-    (* expression *)
-    | _ -> false
-
-
   (** Assert a constraint expression. *)
-  let rec meet_with_tcons d tcons original_expr =
+  let rec meet_with_tcons d tcons =
     let meet_with_const cmp = begin match d.d with
       | Some m -> begin match calc_const m d.env @@ Texpr1.to_expr (Tcons1.get_texpr1 tcons) with
                         | Some c -> if cmp c (to_rt 0) then {d = None; env = d.env} else d
@@ -547,73 +542,6 @@ struct
     | SUP, None  -> meet_with_const (<=:)
     | EQ, Some e -> meet_with_vec e
     | _ -> d
-
-  let rec assert_cons d e negate no_ov =
-    begin match Convert.tcons1_of_cil_exp d (d.env) e negate no_ov with
-      | tcons1 -> meet_with_tcons d tcons1 e
-      | exception Convert.Unsupported_CilExp ->
-        d
-    end
-
-  (** Assert any expression. *)
-  let assert_inv d e negate no_ov =
-    let e' =
-      if exp_is_cons e then
-        e
-      else
-        (* convert non-constraint expression, such that we assert(e != 0) *)
-        BinOp (Ne, e, zero, intType)
-    in
-    assert_cons d e' negate no_ov
-
-
-  let assert_inv d e negate no_ov =
-    let res = assert_inv d e negate no_ov in
-    if M.tracing then M.tracel "assert" "assert_inv: d: %s expression: %s negate: %b -> %s\n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) negate (show res);
-    res
-
-
-  let check_asserts d e =
-    if is_bot_env (assert_inv d e false false) then
-      `False
-    else if is_bot_env (assert_inv d e true false) then
-      `True
-    else
-      `Top
-
-  let check_assert d e =
-    let res = check_asserts d e in
-    if M.tracing then M.tracel "assert" "check_assert: %s \n" (show d);
-    res
-
-
-  (** Evaluate non-constraint expression as interval. *)
-  let eval_interval_expr d e =
-    match Convert.texpr1_of_cil_exp d (d.env) e false with
-    | texpr1 -> ExpressionBounds.bound_texpr d texpr1
-    | exception Convert.Unsupported_CilExp -> (None, None)
-
-
-  (** Evaluate constraint or non-constraint expression as integer. *)
-  let eval_int d e =
-    let module ID = Queries.ID in
-    let ik = Cilfacade.get_ikind_exp e in
-    if exp_is_cons e then
-      match check_asserts d e with
-      | `True -> ID.of_bool ik true
-      | `False -> ID.of_bool ik false
-      | `Top -> ID.top ()
-    else
-      match eval_interval_expr d e with
-      | (Some min, Some max) -> ID.of_interval ik (min, max)
-      | (Some min, None) -> ID.starting ik min
-      | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top ()
-
-  let eval_int d e =
-    let res = eval_int d e  in
-    if M.tracing then M.tracel "assert" "Eval Int: matrix: %s expr: %s -> %s \n" (show d) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () e)) (Pretty.sprint 1 (Queries.ID.pretty () res)) ;
-    res
 
   let unify a b =
     let new_env, a_change, b_change  = Environment.lce_change a.env b.env in
@@ -633,6 +561,13 @@ struct
     if M.tracing then M.tracel "ops" "unify\n";
     res
 
+    let rec assert_cons d e negate no_ov =
+      begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
+        | tcons1 -> meet_with_tcons d tcons1
+        | exception Convert.Unsupported_CilExp ->
+          d
+      end
+
   type marshal = t
 
   let marshal t = t
@@ -641,4 +576,8 @@ struct
 
   let relift t = t
 
+  let env t = t.env
+
 end
+
+module AD2 = EnvDomain.AssertionModule (D2)

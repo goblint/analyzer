@@ -3,7 +3,7 @@ open ApronDomain
 open RelPrecCompareUtil
 
 (* Currently serialization of Apron results only works for octagons. *)
-module OctagonD = ApronDomain.D2Complete (ApronDomain.OctagonManager)
+module OctagonD = ApronDomain.AD2Complete (ApronDomain.OctagonManager)
 module Util =
 functor (D2: RelationDomain.RelD2) ->
 struct

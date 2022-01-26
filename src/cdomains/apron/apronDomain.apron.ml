@@ -369,6 +369,8 @@ struct
 
   type t = Man.mt A.t
 
+  let env t = A.env t
+
   let copy = A.copy Man.mgr
 
   let vars d = vars (A.env d)
@@ -577,7 +579,7 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 
-  let meet_tcons d tcons1 =
+  let meet_with_tcons d tcons1 =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     A.meet_tcons_array Man.mgr d earray
@@ -658,6 +660,7 @@ struct
   include AOps (Tracked) (Man)
 
   include Tracked
+<<<<<<< HEAD
   module SBounds = Bounds(Man)
 
   let rec exp_is_cons = function
@@ -666,6 +669,9 @@ struct
     | UnOp (LNot,e,_) -> exp_is_cons e
     (* expression *)
     | _ -> false
+=======
+  module Bounds = Bounds(Man)
+>>>>>>> 5c7f95219 (Move shared apron + affeq functions upwards)
 
   (** Assert a constraint expression. *)
   let rec assert_cons d e negate no_ov =
@@ -684,7 +690,7 @@ struct
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate no_ov with
         | tcons1 ->
-          meet_tcons d tcons1
+          meet_with_tcons d tcons1
         | exception Convert.Unsupported_CilExp ->
           d
       end
@@ -990,7 +996,7 @@ sig
   val eval_int : t -> exp -> Queries.ID.t
 end
 
-module D2Complete (Man: Manager)=
+module D2Complete (Man: Manager) =
 struct
   type var = EnvDomain.Var.t
   type lconsarray = Lincons1.earray
@@ -1119,8 +1125,23 @@ end
 >>>>>>> f0a0ae216 (Move convert module to new domain)
 =======
 
+module AD2Complete (Man: Manager) = (*ToDo Improve Module structure...*)
+struct
+include DWithOps (Man) (DHetero (Man))
+include D2Complete (Man)
+include EnvDomain.AssertionModule (D2Complete (Man))
+type var = EnvDomain.Var.t
+type lconsarray = Lincons1.earray
+module Man = Man
+end
+
 module D2 (Man: Manager): (RelD2 with type var = Var.t) =
 struct
+<<<<<<< HEAD
 include D2Complete(Man)
 end
 >>>>>>> c1637e453 (Finish rebasing)
+=======
+include AD2Complete(Man)
+end
+>>>>>>> 5c7f95219 (Move shared apron + affeq functions upwards)

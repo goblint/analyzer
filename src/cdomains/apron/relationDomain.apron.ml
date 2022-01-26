@@ -13,7 +13,7 @@ type t
   val equal : t -> t -> bool
 end
 
-module type RelD2  =
+module type D2  =
 sig
   type var
   type t
@@ -53,10 +53,6 @@ sig
   val assign_var_parallel : t -> (var * var) list -> t
   val assign_var_parallel' : t -> var list -> var list -> t
   val substitute_exp : t -> var -> exp -> bool -> t
-  val type_tracked : typ -> bool
-  val varinfo_tracked : varinfo -> bool
-  val assert_inv : t -> exp -> bool -> bool -> t
-  val eval_int : t -> exp -> IntDomain.IntDomTuple.t
   val unify: t -> t -> t
   val tag: t -> int
   val relift: t -> t
@@ -64,6 +60,15 @@ sig
   val marshal: t -> marshal
 
   val unmarshal: marshal -> t
+end
+
+module type RelD2  =
+sig
+  include D2
+  val type_tracked : typ -> bool
+  val varinfo_tracked : varinfo -> bool
+  val assert_inv : t -> exp -> bool -> bool -> t
+  val eval_int : t -> exp -> IntDomain.IntDomTuple.t
 end
 
 module RelVM =
