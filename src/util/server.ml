@@ -31,7 +31,7 @@ end
 let registry = Registry.make ()
 
 let handle_exn id exn =
-  Response.Error.(make Code.InternalError (Printexc.to_string exn) () |> Response.error id)
+  Response.Error.(make ~code:Code.InternalError ~message:(Printexc.to_string exn) () |> Response.error id)
 
 module ParamParser (R : Request) = struct
   let parse params =
@@ -60,9 +60,9 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
               R.process params serv
               |> R.response_to_yojson
               |> Response.ok id
-            with Failure (code, msg) -> Response.Error.(make code msg () |> Response.error id))
-        | Error s -> Response.Error.(make Code.InvalidParams s () |> Response.error id))
-    | _ -> Response.Error.(make Code.MethodNotFound message.method_ () |> Response.error id)
+            with Failure (code, message) -> Response.Error.(make ~code ~message () |> Response.error id))
+        | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error id))
+    | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:message.method_ () |> Response.error id)
   in
   Response.yojson_of_t response |> Yojson.Safe.to_string |> IO.write_line serv.output;
   IO.flush serv.output

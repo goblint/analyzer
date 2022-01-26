@@ -189,7 +189,6 @@ struct
   let name () = S.name ()^" level sliced"
 
   let start_level = ref (`Top)
-  let error_level = ref (`Lifted  0L)
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init marshal =
@@ -980,14 +979,6 @@ struct
       with Deadcode -> xs
     in
     let d = D.fold h ctx.local (D.empty ()) in
-    if D.is_bot d then raise Deadcode else d
-
-  let fold ctx f g h a =
-    let k x a =
-      try h a @@ g @@ f @@ conv ctx x
-      with Deadcode -> a
-    in
-    let d = D.fold k ctx.local a in
     if D.is_bot d then raise Deadcode else d
 
   let fold' ctx f g h a =

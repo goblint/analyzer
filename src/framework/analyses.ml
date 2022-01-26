@@ -121,10 +121,10 @@ struct
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
 
-  include Printable.SimplePretty (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let show = show
     end
     )
 end
