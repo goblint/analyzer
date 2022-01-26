@@ -170,7 +170,7 @@ struct
   type idx = Idx.t
   module Offs = Offset (Idx)
   type t =
-    | Addr of (CilType.Varinfo.t * Offs.t) (** Pointer to offset of a variable. *)
+    | Addr of CilType.Varinfo.t * Offs.t (** Pointer to offset of a variable. *)
     | NullPtr (** NULL pointer. *)
     | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
     | StrPtr of string (** String literal pointer. *)
@@ -189,7 +189,7 @@ struct
     | _ -> Some Basetype.Variables.Local
 
   let from_var x = Addr (x, `NoOffset)
-  let from_var_offset x = Addr x
+  let from_var_offset (x, o) = Addr (x, o)
 
   let to_var = function
     | Addr (x,_) -> [x]
@@ -201,7 +201,7 @@ struct
     | Addr (x,`NoOffset) -> [x]
     | _                  -> []
   let to_var_offset = function
-    | Addr x -> [x]
+    | Addr (x, o) -> [(x, o)]
     | _      -> []
 
   (* strings *)
@@ -222,7 +222,7 @@ struct
     else x.vname ^ short_offs o
 
   let show = function
-    | Addr x     -> short_addr x
+    | Addr (x, o)-> short_addr (x, o)
     | StrPtr x   -> "\"" ^ x ^ "\""
     | UnknownPtr -> "?"
     | NullPtr    -> "NULL"
@@ -255,7 +255,7 @@ struct
   let get_type_addr (v,o) = try type_offset v.vtype o with Type_offset (t,_) -> t
 
   let get_type = function
-    | Addr x   -> get_type_addr x
+    | Addr (x, o) -> get_type_addr (x, o)
     | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType

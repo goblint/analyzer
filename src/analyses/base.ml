@@ -715,12 +715,12 @@ struct
           (* pre VLA: *)
           (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
           let cast_ok = function
-            | Addr a ->
+            | Addr (x, o) ->
               begin
-                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf (get_type_addr a)) with
+                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf (get_type_addr (x, o))) with
                 | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
                 | _ ->
-                  if contains_vla t || contains_vla (get_type_addr a) then
+                  if contains_vla t || contains_vla (get_type_addr (x, o)) then
                     begin
                       (* TODO: Is this ok? *)
                       M.warn "Casting involving a VLA is assumed to work";
