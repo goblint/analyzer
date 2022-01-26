@@ -129,9 +129,6 @@ struct
       else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
     with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
 
-  let binop_map_rev (f: (module Printable.S) -> Obj.t -> Obj.t -> Obj.t) =
-    binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) []
-
   let equal   x y = binop_fold (fun a n (module S : Printable.S) x y -> a && S.equal (obj x) (obj y)) true x y
   let compare x y = binop_fold (fun a n (module S : Printable.S) x y -> if a <> 0 then a else S.compare (obj x) (obj y)) 0 x y
 

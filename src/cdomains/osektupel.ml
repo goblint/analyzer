@@ -22,7 +22,6 @@ let hash (a,b,c,d) =
   let d' = match d with Bot -> -1 | Val d'' -> d'' in
   a' lxor b' lxor c' lxor d'
 
-let copy x = x
 let top () = (Val 0, Val 0, Val 0, Val 0)
 let is_top x = (x = top())
 let bot () = (Bot, Bot, Bot, Bot)

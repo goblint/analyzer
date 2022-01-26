@@ -80,8 +80,9 @@ struct
     | `Index (i1,o1) -> `Index (i1,add_offset o1 o2)
 
   let rec compare o1 o2 = match o1, o2 with
-    (* FIXME: forgets to check cmp_zero_offset like equal, cannot derive due to this special case *)
     | `NoOffset, `NoOffset -> 0
+    | `NoOffset, x
+    | x, `NoOffset when cmp_zero_offset x = `MustZero -> 0 (* cannot derive due to this special case *)
     | `Field (f1,o1), `Field (f2,o2) ->
       let c = CilType.Fieldinfo.compare f1 f2 in
       if c=0 then compare o1 o2 else c
@@ -258,8 +259,6 @@ struct
     | SafePtr  -> charPtrType
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType
-
-  let copy x = x
 
   let hash = function
     | Addr (v,o) -> v.vid + 2 * Offs.hash o

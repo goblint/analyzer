@@ -95,7 +95,6 @@ struct
   let compare x y = if equal x y then 0 else M.compare Range.compare x y
   let merge = M.merge
   let for_all = M.for_all
-  let find_first = M.find_first
   let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
 
   let cardinal = M.cardinal
