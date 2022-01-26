@@ -244,15 +244,11 @@ struct
             let ax = AD.choose x in
             let ay = AD.choose y in
             if AD.Addr.equal ax ay then
-              let v = AD.Addr.to_var ax in
-              if v = None then (* TODO: use match *)
+              match AD.Addr.to_var ax with
+              | Some v when a.f (Q.IsMultiple v) ->
+                None
+              | _ ->
                 Some true
-              else (
-                if a.f (Q.IsMultiple (Option.get v)) then
-                  None
-                else
-                  Some true
-              )
             else
               (* If they are unequal, it does not matter if the underlying var represents multiple concrete vars or not *)
               Some false
