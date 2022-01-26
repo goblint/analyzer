@@ -62,8 +62,7 @@ end
 
 module IntegerSet =
 struct
-  (* TODO: base this on BI instead *)
-  module Base = IntDomain.Integers(IntOps.Int64Ops)
+  module Base = IntDomain.Integers(IntOps.BigIntOps)
 
   include SetDomain.Make(Base)
 
@@ -101,9 +100,8 @@ end
 module CD = IntegerSet
 module AF (AD: OldS) =
 struct
-  (* TODO: don't do this through int64, make CD use BI instead *)
-  let abstract s = CD.fold (fun c a -> AD.join (AD.of_int (BI.of_int64 c)) a) s (AD.bot ())
-  let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int (BI.of_int64 c)) x) s
+  let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
+  let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int c) x) s
 end
 
 module Valid (AD: OldS): DomainProperties.S =
@@ -118,7 +116,7 @@ struct
   let valid_sub = make_valid2 ~name:"sub" ~cond:none_bot CD.sub AD.sub
   let valid_mul = make_valid2 ~name:"mul" ~cond:none_bot CD.mul AD.mul
 
-  let snd_not_0 (a, b) = none_bot (a,b) && not (CD.mem 0L b) (* CD (IntegerSet) can't handle because no top *)
+  let snd_not_0 (a, b) = none_bot (a,b) && not (CD.mem Z.zero b) (* CD (IntegerSet) can't handle because no top *)
   let valid_div = make_valid2 ~name:"div" ~cond:snd_not_0 CD.div AD.div
   let valid_rem = make_valid2 ~name:"rem" ~cond:snd_not_0 CD.rem AD.rem
 
