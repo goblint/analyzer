@@ -1,0 +1,7 @@
+; Z_mlgmpidl module vendored from zarith, which doesn't package it
+(library
+  (name zarith_mlgmpidl)
+  (public_name goblint.zarith.mlgmpidl)
+  (optional)
+  (wrapped false)
+  (libraries zarith gmp))

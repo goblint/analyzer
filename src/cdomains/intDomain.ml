@@ -1307,7 +1307,7 @@ struct
   let equal_to i = function
   | `Bot -> failwith "unsupported: equal_to with bottom"
   | `Definite x -> if i = x then `Eq else `Neq
-  | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
+  | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 
   let top_of ik = `Excluded (S.empty (), size ik)
   let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik

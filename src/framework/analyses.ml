@@ -383,7 +383,7 @@ sig
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t -> D.t -> D.t
+  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> D.t
 
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list

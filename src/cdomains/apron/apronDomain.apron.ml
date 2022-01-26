@@ -17,7 +17,7 @@ module M = Messages
 
 let widening_thresholds_apron = lazy (
   let t = WideningThresholds.thresholds_incl_mul2 () in
-  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_string @@ Z.to_string x) t in
+  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
   Array.of_list r
 )
 
@@ -123,7 +123,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
             | None -> None
           end
       in
-      Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
+      Option.map Z_mlgmpidl.z_of_mpzf z_opt
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
@@ -163,8 +163,7 @@ struct
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
       | Const (CInt (i, _, _)) ->
-        let str = Cilint.string_of_cilint i in
-        Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
+        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
       | exp ->
         let expr =
           match exp with

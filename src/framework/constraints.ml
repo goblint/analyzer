@@ -157,7 +157,7 @@ struct
     S.special (conv ctx) r f args
 
   let combine ctx r fe f args fc es =
-    S.combine (conv ctx) r fe f args (C.unlift fc) es
+    S.combine (conv ctx) r fe f args (Option.map C.unlift fc) es
 
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
@@ -622,6 +622,7 @@ struct
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
+    let paths = List.map (Tuple3.map2 Option.some) paths in
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
     let r = List.fold_left D.join (D.bot ()) paths in
