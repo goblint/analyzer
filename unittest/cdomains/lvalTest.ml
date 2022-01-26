@@ -1,4 +1,4 @@
-open OUnit
+open OUnit2
 
 module ID = IntDomain.IntDomWithDefaultIkind (IntDomain.IntDomLifter (IntDomain.DefExc)) (IntDomain.PtrDiffIkind)
 module LV = Lval.NormalLat (ID)
@@ -26,24 +26,24 @@ let assert_equal x y =
   assert_equal ~cmp:LV.equal ~printer:LV.show x y
 
 
-let test_equal_0 () =
+let test_equal_0 _ =
   assert_equal a_lv a_lv_0
 
-let test_compare_0 () =
+let test_compare_0 _ =
   assert_bool "test_compare_0" @@ (LV.compare a_lv a_lv_0 = 0)
 
-let test_hash_0 () =
+let test_hash_0 _ =
   assert_bool "test_hash_0" @@ (LV.hash a_lv = LV.hash a_lv_0)
 
-let test_leq_0 () =
+let test_leq_0 _ =
   assert_leq a_lv a_lv_0;
   assert_leq a_lv_0 a_lv
 
-let test_join_0 () =
+let test_join_0 _ =
   assert_equal a_lv_top (LV.join a_lv_0 a_lv_1)
   (* assert_equal a_lv_top (LV.join a_lv a_lv_1) *) (* TODO *)
 
-let test_leq_not_0 () =
+let test_leq_not_0 _ =
   assert_leq a_lv_1 a_lv_not_0;
   OUnit.assert_equal ~printer:[%show: [`Eq | `Neq | `Top]] `Neq (ID.equal_to (Z.of_int 0) i_not_0);
   OUnit.assert_equal ~printer:[%show: [`MustZero | `MustNonzero | `MayZero]] `MustNonzero (LV.Offs.cmp_zero_offset (`Index (i_not_0, `NoOffset)));

@@ -14,6 +14,7 @@ zip goblint/sv-comp/goblint.zip \
     goblint/goblint \
     goblint/conf/svcomp22.json \
     goblint/includes/stdlib.c \
+    goblint/includes/pthread.c \
     goblint/includes/sv-comp.c \
     goblint/README.md \
     goblint/LICENSE

@@ -2,9 +2,9 @@
 
 (test
   (name mainTest)
-  (libraries ounit2 goblint.lib goblint.sites.dune)
-  (flags :standard -linkall)
-  (preprocess (staged_pps ppx_deriving.std)))
+  (libraries ounit2 qcheck-ounit goblint.lib goblint.sites.dune)
+  (preprocess (staged_pps ppx_deriving.std ppx_deriving_yojson))
+  (flags :standard -linkall))
 
 (env
   (dev

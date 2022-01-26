@@ -49,15 +49,18 @@ git diff --no-prefix relative/path/to/test.c relative/path/to/test.json > relati
 
 The comparison input and the metadata in the patch headers are not necessary and can be removed.
 
+## Unit tests
+
+### Running
+The unit tests can be run with `dune runtest unittest`.
+Use `--watch` for automatic rebuilding and retesting.
+
 ## Domain tests
 Property-based testing (a la QuickCheck) is used to test some domains (`Lattice.S` implementations) for their lattice properties.
 On integer domains the integer operations are also tested for being a valid abstraction of sets of integers.
 
 ### Running
-1. Compile: `make domaintest`.
-2. Run: `./goblint.domaintest`.
-
-    See `--help` for other useful flags provided by qcheck, e.g. `-v` or `--long`.
+Domain tests are now run as part of [unit tests](#unit-tests).
 
 ### Writing
 To test a domain, you need to do the following:
