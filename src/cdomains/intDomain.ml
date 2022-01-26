@@ -401,8 +401,7 @@ struct
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
-  exception Not_in_int64
-  open Cil open Int64 open Big_int_Z
+  open Cil open Big_int_Z
   let sign_big_int x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
 
   let max = function
@@ -420,13 +419,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
-  let bits_i64 ik = BatTuple.Tuple2.mapn of_int (bits ik)
-  let range ik = (* min/max values as int64 (signed), anything bigger is cropped! *)
-    let a,b = bits ik in
-    if a>63 || b>63 then raise Not_in_int64 else
-      let x = if isSigned ik then neg (shift_left 1L a) (* -2^a *) else 0L in
-      let y = sub (shift_left 1L b) 1L in (* 2^b - 1 *)
-      x,y
+  let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik)
   let range_big_int ik =
     let a,b = bits ik in
     let x = if isSigned ik then minus_big_int (shift_left_big_int unit_big_int a) (* -2^a *) else zero_big_int in
@@ -1310,8 +1303,7 @@ struct
   | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 
   let top_of ik = `Excluded (S.empty (), size ik)
-  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
-  let cast_to ?torg ?no_ov ik = top_if_not_in_int64 ik @@ function
+  let cast_to ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
       let r' = size ik in
       `Excluded (
