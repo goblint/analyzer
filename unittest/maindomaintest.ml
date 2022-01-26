@@ -117,19 +117,19 @@ let old_intdomains intDomains =
   |> List.map (fun (d, ik) ->
       let module D = (val d: IntDomainProperties.S) in
       let module Ikind = struct let ikind () = ik end in
-      (module IntDomainProperties.WithIkind (D) (Ikind): IntDomainProperties.OldS)
+      (module IntDomainProperties.WithIkind (D) (Ikind): IntDomainProperties.OldSWithIkind)
     )
 let intTestsuite =
   old_intdomains intDomains
   |> List.concat_map (fun d ->
-      let module D = (val d: IntDomainProperties.OldS) in
+      let module D = (val d: IntDomainProperties.OldSWithIkind) in
       let module DP = IntDomainProperties.All (D) in
       DP.tests
     )
 let nonAssocIntTestsuite =
   old_intdomains nonAssocIntDomains
   |> List.concat_map (fun d ->
-      let module D = (val d: IntDomainProperties.OldS) in
+      let module D = (val d: IntDomainProperties.OldSWithIkind) in
       let module DP = IntDomainProperties.AllNonAssoc (D) in
       DP.tests
     )

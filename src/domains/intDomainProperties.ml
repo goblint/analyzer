@@ -16,12 +16,19 @@ sig
   val to_excl_list: t -> BI.t list option
 end
 
+module type OldSWithIkind =
+sig
+  include OldS
+  module Ikind: IntDomain.Ikind
+end
+
 module type S = IntDomain.S with type int_t = BI.t
 
 (* TODO: deduplicate with IntDomain, extension of IntDomWithDefaultIkind, inverse of OldDomainFacade? *)
-module WithIkind (I: S) (Ik: IntDomain.Ikind): OldS =
+module WithIkind (I: S) (Ik: IntDomain.Ikind): OldSWithIkind =
 struct
   include I
+  module Ikind = Ik
   let join = join (Ik.ikind ())
   let meet = meet (Ik.ikind ())
   let widen = widen (Ik.ikind ())
@@ -104,7 +111,7 @@ struct
   let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int c) x) s
 end
 
-module Valid (AD: OldS): DomainProperties.S =
+module Valid (AD: OldSWithIkind): DomainProperties.S =
 struct
   include AbstractionDomainProperties.ValidTest (CD) (AD) (AF (AD))
 
@@ -131,8 +138,13 @@ struct
   let valid_bitand = make_valid2 ~name:"bitand" ~cond:none_bot CD.bitand AD.bitand
   let valid_bitor = make_valid2 ~name:"bitor" ~cond:none_bot CD.bitor AD.bitor
   let valid_bitxor = make_valid2 ~name:"bitxor" ~cond:none_bot CD.bitxor AD.bitxor
-  let valid_shift_left = make_valid2 ~name:"shift_left" ~cond:none_bot CD.shift_left AD.shift_left
-  let valid_shift_right = make_valid2 ~name:"shift_right" ~cond:none_bot CD.shift_right AD.shift_right
+
+  let defined_shift (a, b) =
+    let max_shift = BI.of_int @@ snd @@ IntDomain.Size.bits (AD.Ikind.ikind ()) in
+    CD.for_all (fun x -> BI.compare BI.zero x <= 0 && BI.compare x max_shift <= 0) b
+  let shift_cond p = none_bot p && defined_shift p
+  let valid_shift_left = make_valid2 ~name:"shift_left" ~cond:shift_cond CD.shift_left AD.shift_left
+  let valid_shift_right = make_valid2 ~name:"shift_right" ~cond:shift_cond CD.shift_right AD.shift_right
 
   let valid_lognot = make_valid1 ~name:"lognot" ~cond:not_bot CD.lognot AD.lognot
   let valid_logand = make_valid2 ~name:"logand" ~cond:none_bot CD.logand AD.logand
@@ -166,7 +178,7 @@ struct
   ]
 end
 
-module All (D: OldS): DomainProperties.S =
+module All (D: OldSWithIkind): DomainProperties.S =
 struct
   module A = DomainProperties.All (D)
   module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))
@@ -175,7 +187,7 @@ struct
   let tests = A.tests @ M.tests @ V.tests
 end
 
-module AllNonAssoc (D: OldS): DomainProperties.S =
+module AllNonAssoc (D: OldSWithIkind): DomainProperties.S =
 struct
   module A = DomainProperties.AllNonAssoc (D)
   module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))
