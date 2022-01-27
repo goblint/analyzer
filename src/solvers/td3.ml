@@ -738,6 +738,7 @@ module WP =
                 ) w
             )
           in
+          (* Hack: Only restart unknowns describing global variables *)
           if Node.equal (S.Var.node x) (Function Cil.dummyFunDec) then (
             restart_leaf x;
             destab_side_dep x;
