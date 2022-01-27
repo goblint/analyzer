@@ -433,8 +433,8 @@ let check_arguments () =
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
-
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.");
+  if get_bool "incremental.restart.sided.enabled" && get_string_list "incremental.restart_globs.globs" <> [] then (warn "Passing a non-empty list to incremental.restart_globs.globs (manual restarting) while incremental.restart.sided.enabled (automatic restarting) is activated. Aborting."; exit 5 )
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
   LibraryFunctions.add_lib_funs funs
@@ -447,15 +447,20 @@ let diff_and_rename current_file =
       let warn m = eprint_color ("{yellow}Warning: "^m) in
       warn "incremental.load is activated but no data exists that can be loaded."
     end;
-    let (changes, old_file, version_map, max_ids) =
+    let (changes, restarting, old_file, version_map, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         let old_file = Serialize.load_data Serialize.CilFile in
         let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
-        (changes, Some old_file, version_map, max_ids)
+        print_endline "trying to get the string list";
+        let restarting = GobConfig.get_string_list "incremental.restart_globs.globs" in
+        print_endline "retrieved list of options!";
+        (* TODO: Check whether passing current_file is correct, or whether we need the version map. *)
+        let restarting = BatList.filter_map (Cilfacade.global_from_name current_file) restarting in
+        (changes, restarting, Some old_file, version_map, max_ids)
       end else begin
         let (version_map, max_ids) = VersionLookup.create_map current_file in
-        (CompareCIL.empty_change_info (), None, version_map, max_ids)
+        (CompareCIL.empty_change_info (), [], None, version_map, max_ids)
       end
     in
     let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")
@@ -470,7 +475,7 @@ let diff_and_rename current_file =
       | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
-    {Analyses.changes = changes; old_data; new_file = current_file}
+    {Analyses.changes = changes; restarting; old_data; new_file = current_file}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
@@ -503,7 +508,11 @@ let main () =
       )
     in
     if get_bool "server.enabled" then Server.start file do_analyze else (
-      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
+      let changeInfo =
+        if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then
+          diff_and_rename file
+        else
+          Analyses.empty_increment_data file in
       file|> do_analyze changeInfo;
       do_stats ();
       do_html_output ();

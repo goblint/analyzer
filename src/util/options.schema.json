@@ -902,7 +902,25 @@
               "description":
                 "List of functions that are to be re-analayzed from scratch",
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            }
+          },
+          "additionalProperties": false
+        },
+        "restart_globs": {
+          "title": "incremental.restart_globs",
+          "type": "object",
+          "properties": {
+            "globs": {
+              "title": "incremental.restart_globs.globs",
+              "description": "List of globals for which the analysis is to be restarted.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
               "default": []
             }
           },

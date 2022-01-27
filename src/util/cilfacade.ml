@@ -21,6 +21,41 @@ let rec get_labelsLoc = function
     else
       loc
 
+module String = struct
+  include String
+  let hash = Hashtbl.hash
+end
+
+module SM = Hashtbl.Make(String)
+let varinfo_map: Cil.global SM.t option ref = ref None
+
+let varinfo_from_global (g : Cil.global) : Cil.varinfo option = match g with
+  | GFun (f, _) -> Some f.svar
+  | GVar (v, _, _) -> Some v
+  | GVarDecl (v, _) -> Some v
+  | _ ->
+    Messages.warn
+      ~category:MessageCategory.Analyzer
+      "Not considering global cil object %a for restarting."
+      Cil.d_global g;
+    None
+
+let init_hash_map (file: Cil.file): Cil.global SM.t =
+  let vm = SM.create 113 in
+  varinfo_map := Some vm;
+  Cil.iterGlobals file
+    (fun v ->
+      match varinfo_from_global v with
+      | Some vi -> SM.add vm vi.vname v
+      | None -> ());
+  vm
+
+let global_from_name (file: Cil.file) (name: string) =
+  let vm = (match !varinfo_map with
+    | None -> init_hash_map file
+    | Some vm -> vm) in
+  SM.find_opt vm name
+
 let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
 
 let get_stmtLoc stmt =

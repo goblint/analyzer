@@ -719,6 +719,44 @@ module WP =
             ) marked_for_deletion
         );
 
+        (* [destabilize_leaf] is meant for restarting of globals selected by the user. *)
+        (* Must be called on a leaf! *)
+        let destabilize_leaf (x : S.v) =
+          let destab_side_dep (x : S.v) =
+            match HM.find_option side_dep x with
+            | Some w ->
+              HM.remove side_dep x;
+              VS.iter (fun y ->
+                  HM.remove stable y;
+                  destabilize y;
+                ) w;
+            | None ->
+              ignore @@ Pretty.printf
+                "Could not find globals in side_dep, so side_dep %a is not restarted.\n"
+                S.Var.pretty_trace x
+          in
+          destab_side_dep x;
+          destabilize x;
+          restart_leaf x
+        in
+        let globals_to_restart = S.increment.restarting in
+        let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
+        List.iter
+          (fun g ->
+            (* All gs arriving here should yield Some varinfo. *)
+            let g = Option.get @@ Cilfacade.varinfo_from_global g in
+            ignore @@ Pretty.printf "Restarting global %s.\n" g.vname;
+            S.iter_vars
+              get
+              (Global g)
+              (fun v ->
+                if HM.mem stable v then begin
+                  destabilize_leaf v;
+                end
+            )
+          )
+          globals_to_restart;
+
         let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)
           restart_leaf x;
           destabilize x
