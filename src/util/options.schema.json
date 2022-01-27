@@ -29,6 +29,12 @@
       "items": { "type": "string" },
       "default": []
     },
+    "include_stdlib" : {
+      "title": "include_stdlib",
+      "description": "Include Goblint's stdlib.c (containing defintions of bsearch and qsort).",
+      "type": "boolean",
+      "default": true
+    },
     "kernel-root": {
       "title": "kernel-root",
       "description": "Root directory for Linux kernel (linux-headers)",
