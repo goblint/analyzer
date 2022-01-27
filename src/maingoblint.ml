@@ -456,7 +456,7 @@ let diff_and_rename current_file =
         let restarting = GobConfig.get_string_list "incremental.restart_globs.globs" in
         print_endline "retrieved list of options!";
         (* TODO: Check whether passing current_file is correct, or whether we need the version map. *)
-        let restarting = BatList.filter_map (Cilfacade.global_from_name current_file) restarting in
+        let restarting = Cilfacade.globals_from_names current_file restarting in
         (changes, restarting, Some old_file, version_map, max_ids)
       end else begin
         let (version_map, max_ids) = VersionLookup.create_map current_file in
