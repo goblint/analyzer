@@ -162,14 +162,8 @@ struct
     in f [] xs
 
   let assoc_sub n xs name =
-    let f n =
-      let x = try assoc n !analyses_table with Not_found -> Printf.eprintf "filter_presubs: Analysis '%d' not registered.\n" n; failwith "filter_presubs" in
-      let y = try assoc n xs with Not_found ->
-        (*iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) xs;*)
-        Printf.eprintf "filter_presubs: Analysis '%s' (%d) not found.\n" x n; failwith "filter_presubs" in
-      x, y
-    in
-    assoc name (map f (assoc n !dep_list))
+    let n' = List.assoc_inv name !analyses_table in
+    assoc n' xs
 
   let do_spawns ctx (xs:(varinfo * (int * lval option * exp list)) list) =
     let spawn_one v d =
