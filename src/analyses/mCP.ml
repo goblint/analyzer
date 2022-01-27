@@ -368,7 +368,7 @@ struct
     query' QuerySet.empty ctx q
 
   and access (ctx:(D.t, G.t, C.t, V.t) ctx) e vo w: MCPAccess.A.t =
-    let f (acc: MCPAccess.A.t) (n, (module S: MCPSpec), d) : MCPAccess.A.t =
+    let f (n, (module S: MCPSpec), d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -387,9 +387,9 @@ struct
         ; assign = (fun ?name v e -> failwith "part_access::assign")
         }
       in
-      (n, repr (S.access ctx' e vo w)) :: acc
+      (n, repr (S.access ctx' e vo w))
     in
-    List.fold_left f [] (spec_list ctx.local) (* map without deadcode *)
+    BatList.map f (spec_list ctx.local) (* map without deadcode *)
 
   let assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in

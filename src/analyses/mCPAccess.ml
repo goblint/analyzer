@@ -26,12 +26,19 @@ struct
 
   let pretty () a =
     (* filter with should_print *)
-    let a' = unop_fold (fun acc n (module S: Analyses.MCPA) x ->
+    let xs = unop_fold (fun acc n (module S: Analyses.MCPA) x ->
         if S.should_print (obj x) then
-          (n, x) :: acc
+          Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: acc
         else
           acc
       ) [] a
     in
-    pretty () a'
+    (* duplicates DomListPrintable *)
+    let open Pretty in
+    match xs with
+    | [] -> text "[]"
+    | x :: [] -> x
+    | x :: y ->
+      let rest  = List.fold_left (fun p n->p ++ text "," ++ break ++ n) nil y in
+      text "[" ++ align ++ x ++ rest ++ unalign ++ text "]"
 end
