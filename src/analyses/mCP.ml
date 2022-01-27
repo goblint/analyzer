@@ -161,7 +161,7 @@ struct
         f ((k,v::a')::a) b
     in f [] xs
 
-  let assoc_sub n xs name =
+  let assoc_sub xs name =
     let n' = List.assoc_inv name !analyses_table in
     assoc n' xs
 
@@ -237,8 +237,8 @@ struct
             ; edge   = ctx.edge
             ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
             ; emit   = (fun e -> emits := e :: !emits)
-            ; presub = assoc_sub n ctx.local
-            ; postsub= assoc_sub n post_all
+            ; presub = assoc_sub ctx.local
+            ; postsub= assoc_sub post_all
             ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
             ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
             ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -255,8 +255,8 @@ struct
             ; edge   = octx.edge
             ; ask    = (fun (type a) (q: a Queries.t) -> query octx q)
             ; emit   = (fun e -> emits := e :: !emits)
-            ; presub = assoc_sub n octx.local
-            ; postsub= assoc_sub n post_all
+            ; presub = assoc_sub octx.local
+            ; postsub= assoc_sub post_all
             ; global = (fun v      -> octx.global (v_of n v) |> g_to n |> obj)
             ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
             ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -294,8 +294,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -331,8 +331,8 @@ struct
           ; edge   = ctx.edge
           ; ask    = (fun (type b) (q: b Queries.t) -> query' asked' ctx q)
           ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-          ; presub = assoc_sub n ctx.local
-          ; postsub= assoc_sub n []
+          ; presub = assoc_sub ctx.local
+          ; postsub= assoc_sub []
           ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
           ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
           ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
@@ -378,8 +378,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in access context.")
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n []
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub []
         ; global = (fun v         -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d       -> failwith "part_access::spawn")
         ; split  = (fun d es      -> failwith "part_access::split")
@@ -406,8 +406,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -440,8 +440,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -474,8 +474,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -509,8 +509,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -544,8 +544,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -579,8 +579,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -614,8 +614,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -649,8 +649,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -683,8 +683,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> splits := (n,(repr d,es)) :: !splits)
@@ -714,8 +714,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in enter context.")
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n []
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub []
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun _ _    -> failwith "Cannot \"split\" in enter context." )
@@ -745,8 +745,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun l v a  -> spawns := (v,(n,l,a)) :: !spawns)
         ; split  = (fun d es   -> failwith "Cannot \"split\" in combine context.")
@@ -776,8 +776,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n []
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub []
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadenter context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in threadenter context.")
@@ -805,8 +805,8 @@ struct
         ; edge   = ctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n ctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub ctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in threadspawn context.")
@@ -823,8 +823,8 @@ struct
         ; edge   = fctx.edge
         ; ask    = (fun (type a) (q: a Queries.t) -> query fctx q)
         ; emit   = (fun e -> emits := e :: !emits)
-        ; presub = assoc_sub n fctx.local
-        ; postsub= assoc_sub n post_all
+        ; presub = assoc_sub fctx.local
+        ; postsub= assoc_sub post_all
         ; global = (fun v      -> fctx.global (v_of n v) |> g_to n |> obj)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in threadspawn context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in threadspawn context.")
