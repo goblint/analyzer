@@ -453,9 +453,7 @@ let diff_and_rename current_file =
         let old_file = Serialize.load_data Serialize.CilFile in
         let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
-        print_endline "trying to get the string list";
         let restarting = GobConfig.get_string_list "incremental.restart_globs.globs" in
-        print_endline "retrieved list of options!";
         (* TODO: Check whether passing current_file is correct, or whether we need the version map. *)
         let restarting = Cilfacade.globals_from_names current_file restarting in
         (changes, restarting, Some old_file, version_map, max_ids)
