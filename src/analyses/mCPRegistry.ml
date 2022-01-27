@@ -77,8 +77,6 @@ struct
     List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
-exception DomListBroken of string
-
 module DomListPrintable (DLSpec : DomainListPrintableSpec)
   : Printable.S with type t = (int * unknown) list
 =
@@ -124,10 +122,7 @@ struct
     let f a n d1 d2 =
       f a n (assoc_dom n) d1 d2
     in
-    try if length x <> length y
-      then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
-    with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
+    fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
 
   let equal   x y = binop_fold (fun a n (module S : Printable.S) x y -> a && S.equal (obj x) (obj y)) true x y
   let compare x y = binop_fold (fun a n (module S : Printable.S) x y -> if a <> 0 then a else S.compare (obj x) (obj y)) 0 x y
@@ -246,10 +241,7 @@ struct
     let f a n d1 d2 =
       f a n (assoc_dom n) d1 d2
     in
-    try if length x <> length y
-      then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
-    with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
+    fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
 
   let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) x y =
     List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
@@ -291,9 +283,8 @@ struct
   include DomVariantPrintable (PrintableOfLatticeSpec (DLSpec))
 
   let binop_map' (f: int -> (module Lattice.S) -> Obj.t -> Obj.t -> 'a) (n1, d1) (n2, d2) =
-    if n1 <> n2
-    then raise (DomListBroken "binop_fold : differing variants")
-    else f n1 (assoc_dom n1) d1 d2
+    assert (n1 = n2);
+    f n1 (assoc_dom n1) d1 d2
 
   let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) =
     binop_map' (fun n s d1 d2 -> (n, f s d1 d2))

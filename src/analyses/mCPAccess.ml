@@ -21,10 +21,7 @@ struct
     let f a n d1 d2 =
       f a n (assoc_dom n) d1 d2
     in
-    try if length x <> length y
-      then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
-    with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
+    fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
 
   let may_race x y = binop_fold (fun a n (module S: Analyses.MCPA) x y ->
       a && S.may_race (obj x) (obj y)
