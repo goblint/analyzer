@@ -32,15 +32,17 @@ let varinfo_from_global (g : Cil.global) : Cil.varinfo option = match g with
   | GVarDecl (v, _) -> Some v
   | _ -> None
 
-let globals_from_names (file: Cil.file) (names: string list): global list =
+(** Takes a [Cil.file] and a list of names of globals, and returns a
+    list of [varinfo]s of globals whose [vname] is contained in the argument list. *)
+let global_varinfos_from_names (file: Cil.file) (names: string list): varinfo list =
   let module SM = Set.Make(String) in
   let set = SM.of_list names in
   let globals =
     Cil.foldGlobals file (fun acc g ->
-      match varinfo_from_global g with
+        match varinfo_from_global g with
         | Some v ->
           if SM.mem v.vname set then
-            g::acc
+            v::acc
           else
             acc
         | None -> acc

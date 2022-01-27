@@ -456,7 +456,7 @@ type increment_data = {
 
   (* Globals for whiche the constraint
      system unknowns should be restarted *)
-  restarting: Cil.global list;
+  restarting: Cil.varinfo list;
 }
 
 let empty_increment_data file = {
