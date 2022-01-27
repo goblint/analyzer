@@ -41,7 +41,7 @@ module ArbitraryLattice = FiniteSet (PrintableChar) (
     type t = char
     let elems = ['a'; 'b'; 'c'; 'd']
   end
-)
+  )
 
 module HoareArbitrary = HoareDomain.Set_LiftTop (ArbitraryLattice) (struct let topname = "Top" end)
 module HoareArbitrary_NoTop = HoareDomain.Set (ArbitraryLattice)
