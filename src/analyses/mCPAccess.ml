@@ -15,10 +15,7 @@ struct
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
   let binop_fold f a (x:t) (y:t) =
-    let f a n d1 d2 =
-      f a n (assoc_dom n) d1 d2
-    in
-    fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
+    GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
 
   let may_race x y = binop_fold (fun a n (module S: Analyses.MCPA) x y ->
       a && S.may_race (obj x) (obj y)

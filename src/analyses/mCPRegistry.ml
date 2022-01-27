@@ -116,10 +116,7 @@ struct
     in `Assoc (unop_fold f [] xs)
 
   let binop_fold f a (x:t) (y:t) =
-    let f a n d1 d2 =
-      f a n (assoc_dom n) d1 d2
-    in
-    fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
+    GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
 
   let equal   x y = binop_fold (fun a n (module S : Printable.S) x y -> a && S.equal (obj x) (obj y)) true x y
   let compare x y = binop_fold (fun a n (module S : Printable.S) x y -> if a <> 0 then a else S.compare (obj x) (obj y)) 0 x y
@@ -235,10 +232,7 @@ struct
   include DomListPrintable (PrintableOfLatticeSpec (DLSpec))
 
   let binop_fold f a (x:t) (y:t) =
-    let f a n d1 d2 =
-      f a n (assoc_dom n) d1 d2
-    in
-    fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
+    GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
 
   let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) x y =
     List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
