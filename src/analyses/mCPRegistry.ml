@@ -90,10 +90,7 @@ struct
   type t = (int * unknown) list
 
   let unop_fold f a (x:t) =
-    let f a n d =
-      f a n (assoc_dom n) d
-    in
-    fold_left (fun a (n,d) -> f a n d) a x
+    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
   let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
@@ -247,10 +244,7 @@ struct
     List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
 
   let unop_fold f a (x:t) =
-    let f a n d =
-      f a n (assoc_dom n) d
-    in
-    fold_left (fun a (n,d) -> f a n d) a x
+    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
   let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
   let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))

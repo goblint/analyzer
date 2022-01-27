@@ -12,10 +12,7 @@ struct
   include DomListPrintable (PrintableOfMCPASpec (AccListSpec))
 
   let unop_fold f a (x:t) =
-    let f a n d =
-      f a n (assoc_dom n) d
-    in
-    fold_left (fun a (n,d) -> f a n d) a x
+    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
   let binop_fold f a (x:t) (y:t) =
     let f a n d1 d2 =
