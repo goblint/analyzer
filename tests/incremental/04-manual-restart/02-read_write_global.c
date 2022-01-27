@@ -6,7 +6,7 @@ void foo(){
 
 void bar(){
     int x = g;
-    assert(x % 2 == 0); // UNKNOWN
+    assert(x % 2 == 0); // UNKNOWN (imprecision caused by earlyglobs)
 }
 
 int main(){
