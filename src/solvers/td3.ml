@@ -750,17 +750,16 @@ module WP =
         let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
         List.iter
           (fun g ->
-            (* All gs arriving here should yield Some varinfo. *)
-            let g = Option.get @@ Cilfacade.varinfo_from_global g in
-            ignore @@ Pretty.printf "Restarting global %s.\n" g.vname;
-            S.iter_vars
-              get
-              (Global g)
-              (fun v ->
-                if HM.mem stable v then begin
-                  destabilize_leaf v;
-                end
-            )
+             (* All gs arriving here should yield Some varinfo. *)
+             let g = Option.get @@ Cilfacade.varinfo_from_global g in
+             S.iter_vars
+               get
+               (Global g)
+               (fun v ->
+                  if HM.mem stable v then begin
+                    destabilize_leaf v;
+                  end
+               )
           )
           globals_to_restart;
 
