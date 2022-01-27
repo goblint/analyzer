@@ -4,7 +4,7 @@ int global;
 int main(void)
 {
     example1();
-    //example2();
+    example2();
     return 0;
 }
 
