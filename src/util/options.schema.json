@@ -624,13 +624,6 @@
               "title": "ana.base.partition-arrays",
               "type": "object",
               "properties": {
-                "enabled": {
-                  "title": "ana.base.partition-arrays.enabled",
-                  "description":
-                    "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
-                  "type": "boolean",
-                  "default": false
-                },
                 "keep-expr": {
                   "title": "ana.base.partition-arrays.keep-expr",
                   "description":

@@ -1,10 +1,5 @@
 {
   "ana": {
-    "base": {
-      "partition-arrays": {
-        "enabled": true
-      }
-    },
     "sv-comp": {
       "enabled": true,
       "functions": true
@@ -54,7 +49,8 @@
     }
   },
   "exp": {
-    "region-offsets": true
+    "region-offsets": true,
+    "arrays-domain": "partitioned"
   },
   "witness": {
     "id": "enumerate",
