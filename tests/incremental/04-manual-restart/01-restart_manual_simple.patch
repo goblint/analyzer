@@ -1,0 +1,31 @@
+diff --git tests/incremental/04-manual-restart/01-restart_manual_simple.c tests/incremental/04-manual-restart/01-restart_manual_simple.c
+index cbfb0ba70..aa83393ac 100644
+--- tests/incremental/04-manual-restart/01-restart_manual_simple.c
++++ tests/incremental/04-manual-restart/01-restart_manual_simple.c
+@@ -1,9 +1,9 @@
+ #include <assert.h>
+ 
+-int g = 4;
++int g = 5;
+ 
+ int main() {
+     int x = g;
+-    assert(x == 4);
++    assert(x == 4); //FAIL
+     return 0;
+ }
+diff --git tests/incremental/04-manual-restart/01-restart_manual_simple.json tests/incremental/04-manual-restart/01-restart_manual_simple.json
+index 582ede8df..51d6d31b2 100644
+--- tests/incremental/04-manual-restart/01-restart_manual_simple.json
++++ tests/incremental/04-manual-restart/01-restart_manual_simple.json
+@@ -9,7 +9,9 @@
+             }
+         },
+         "restart_globs": {
+-            "globs": []
++            "globs": [
++                "g"
++            ]
+         }
+     }
+ }
