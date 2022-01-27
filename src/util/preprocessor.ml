@@ -40,11 +40,13 @@ let get_cpp () = Lazy.force cpp
 let dependencies: (string, string list) Hashtbl.t = Hashtbl.create 3
 
 let parse_makefile_deps makefile =
-  try
-    BatFile.with_file_in makefile (fun input ->
+  BatFile.with_file_in makefile (fun input ->
       let lexbuf = Lexing.from_channel input in
-      let (rule, deps) = MakefileParser.deps MakefileLexer.token lexbuf in
-      let deps = List.remove deps rule in
-      Hashtbl.replace dependencies rule deps
+      let rules = MakefileParser.deps MakefileLexer.token lexbuf in
+      List.iter (fun (rule, deps) ->
+          List.iter (fun r ->
+              let deps = List.remove deps r in
+              Hashtbl.replace dependencies r deps
+            ) rule
+        ) rules
     )
-  with Sys_error _ -> ();

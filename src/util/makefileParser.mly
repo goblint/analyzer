@@ -3,14 +3,16 @@
 %token NEWLINE
 %token EOF
 
-%type <string * string list> deps
+%type <(string list * string list) list> deps
 
 %start deps
 
 %%
 
 deps:
-  | IDENTIFIER COLON identifier_list NEWLINE EOF { ($1, $3) }
+  | identifier_nonempty_list COLON identifier_list NEWLINE deps { ($1, $3) :: $5 }
+  | NEWLINE identifier_nonempty_list COLON identifier_list NEWLINE deps { ($2, $4) :: $6 }
+  | EOF { [] }
   ;
 
 identifier_list:

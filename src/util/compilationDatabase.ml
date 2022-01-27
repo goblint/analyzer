@@ -72,6 +72,10 @@ let load_and_preprocess ~all_cppflags filename =
             | (o_i, _) ->
               begin match List.split_at o_i arguments with
                 | (arguments_program :: arguments_init, _ :: o_file :: arguments_tl) ->
+                  let arguments_init = match List.findi (fun i e -> e = "-MF") arguments_init with
+                    | (mf_i,_) -> List.remove_at mf_i (List.remove_at mf_i arguments_init)
+                    | exception Not_found -> arguments_init
+                  in
                   let preprocess_arguments = all_cppflags @ "-E" :: "-MMD" :: "-MT" :: file :: arguments_init @ "-o" :: preprocessed_file :: arguments_tl in
                   Filename.quote_command arguments_program preprocess_arguments
                 | _ ->
