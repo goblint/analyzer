@@ -1,23 +1,23 @@
-// PARAM: --set exp.arrays-domain unroll --set exp.array-unrolling-factor 5
+// PARAM: --set solver td3 --enable ana.int.interval --set exp.arrays-domain unroll --set exp.array-unrolling-factor 5
 int global;
 
 int main(void)
 {
     example1();
-    example2();
+    //example2();
     return 0;
 }
 
 void example1() {
     int a[20];
-    a[4] = 3;
-    a[6] = 3;
-    a[10] = 3;
-    assert(a[0] == 3); //UNKNOWN
-    assert(a[4] == 3);
-    assert(a[6] == 3); //UNKNOWN
+    a[4] = 4;
+    a[6] = 6;
+    a[10] = 10;
+    assert(a[0] == 0); //UNKNOWN
+    assert(a[4] == 4);
+    assert(a[6] == 6); //UNKNOWN
 
-    int i=4;
+    int i = 4;
     a[i] = 7;
     assert(a[4] == 7);
 }
