@@ -502,7 +502,7 @@ struct
             let should_save_run = false (* we already save main solver *)
           end
           in
-          let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg))) (EQSys) (LHT) (GHT) in
+          let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg2))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in

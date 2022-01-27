@@ -21,6 +21,7 @@ end
 
 module PrintableChar =
 struct
+  include Printable.Std
   type t = char [@@deriving eq, ord, hash, to_yojson]
   let name () = "char"
   let show x = String.make 1 x
@@ -30,7 +31,6 @@ struct
     type nonrec t = t
     let show = show
   end
-  include Printable.Std
   include Printable.SimpleShow (P)
 end
 
@@ -39,7 +39,7 @@ module ArbitraryLattice = FiniteSet (PrintableChar) (
     type t = char
     let elems = ['a'; 'b'; 'c'; 'd']
   end
-)
+  )
 
 module HoareArbitrary = HoareDomain.Set_LiftTop (ArbitraryLattice) (struct let topname = "Top" end)
 module HoareArbitrary_NoTop = HoareDomain.Set (ArbitraryLattice)
@@ -131,5 +131,5 @@ let nonAssocIntTestsuite =
       let module DP = IntDomainProperties.AllNonAssoc (D) in
       DP.tests
     )
-let () =
-  QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
+
+let all_testsuite = testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite

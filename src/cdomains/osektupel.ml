@@ -15,7 +15,6 @@ let name () = "Transactionality tupels"
 
 let is_bot_c x = (x = Bot)
 
-let copy x = x
 let top () = (Val 0, Val 0, Val 0, Val 0)
 let is_top x = (x = top())
 let bot () = (Bot, Bot, Bot, Bot)

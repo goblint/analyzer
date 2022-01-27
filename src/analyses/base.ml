@@ -80,9 +80,6 @@ struct
    * Helpers
    **************************************************************************)
 
-  (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
-  let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
-
   let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
 
   let project_val p_opt value is_glob =
@@ -510,7 +507,7 @@ struct
       let toInt i =
         match IdxDom.to_int @@ ID.cast_to ik i with
         | Some x -> Const (CInt (x,ik, None))
-        | _ -> mkCast (Const (CStr "unknown")) intType
+        | _ -> mkCast ~e:(Const (CStr "unknown")) ~newt:intType
 
       in
       match o with
@@ -693,7 +690,7 @@ struct
       (* String literals *)
       | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
-        let x = Pretty.sprint 80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
+        let x = Pretty.sprint ~width:80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
       (* Variables and address expressions *)
@@ -2044,7 +2041,7 @@ struct
             let result = if annot = None && (expected = Some ("NOWARN") || (expected = Some ("UNKNOWN") && not (String.exists line "UNKNOWN!"))) then "improved" else "failed" in
             (* Expressions with logical connectives like a && b are calculated in temporary variables by CIL. Instead of the original expression, we then see something like tmp___0. So we replace expr in msg by the original source if this is the case. *)
             let assert_expr = if string_match (regexp ".*assert(\\(.+\\));.*") line 0 then matched_group 1 line else expr in
-            let msg = if expr <> assert_expr then String.nreplace msg expr assert_expr else msg in
+            let msg = if expr <> assert_expr then String.nreplace ~str:msg ~sub:expr ~by:assert_expr else msg in
             warn_fn (msg ^ " Expected: " ^ (expected |? "SUCCESS") ^ " -> " ^ result)
           )
         ) else

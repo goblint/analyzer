@@ -1,6 +1,5 @@
 module GU = Goblintutil
 open Cil
-open Pretty
 
 
 (** Location with special alphanumeric output for extraction. *)
@@ -24,7 +23,6 @@ struct
   include CilType.Varinfo
   let trace_enabled = true
   let is_global v = v.vglob
-  let copy x = x
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
@@ -85,7 +83,6 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 module CilExp =
 struct
   include CilType.Exp
-  let copy x = x
 
   let name () = "expressions"
 
@@ -154,7 +151,6 @@ end
 module CilStmt: Printable.S with type t = stmt =
 struct
   include CilType.Stmt
-  let copy x = x
   let show x = "<stmt>"
   let pretty = Cilfacade.stmt_pretty_short
 

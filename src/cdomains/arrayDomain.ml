@@ -43,8 +43,8 @@ end
 
 module Trivial (Val: Lattice.S) (Idx: Lattice.S): S with type value = Val.t and type idx = Idx.t =
 struct
-  let name () = "trivial arrays"
   include Val
+  let name () = "trivial arrays"
   type idx = Idx.t
   type value = Val.t
 
@@ -62,8 +62,6 @@ struct
   let fold_left f a x = f a x
   let fold_left2 f a x y = f a x y
 
-  let set_inplace = set
-  let copy a = a
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>Any</key>\n%a\n</map>\n</value>\n" Val.printXml x
   let smart_join _ _ = join
   let smart_widen _ _ = widen
@@ -442,9 +440,6 @@ struct
 
   let length _ = None
 
-  let set_inplace = set
-  let copy a = a
-
   let smart_op (op: Val.t -> Val.t -> Val.t) length ((e1, (xl1,xm1,xr1)) as x1) ((e2, (xl2,xm2,xr2)) as x2) x1_eval_int x2_eval_int =
     normalize @@
     let must_be_length_minus_one v = match length with
@@ -513,7 +508,6 @@ struct
     | _ ->
       failwith "ArrayDomain: Unallowed state (one of the partitioning expressions is bot)"
 
-  let (%) = Batteries.(%)
   let smart_join_with_length length x1_eval_int x2_eval_int x1 x2 =
     smart_op (Val.smart_join x1_eval_int x2_eval_int) length x1 x2 x1_eval_int x2_eval_int
 

@@ -322,6 +322,8 @@ struct
   include Printable.Std
   type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
+  let compare x = Stats.time "access compare" (compare x)
+
   let pretty () (conf, w, loc, e, lp) =
     Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
 
@@ -331,8 +333,16 @@ struct
       let pretty = pretty
     end
     )
+
+  let conf (conf, _, _, _, _) = conf
 end
-module AS = SetDomain.Make (A)
+module AS =
+struct
+  include SetDomain.Make (A)
+
+  let max_conf accs =
+    accs |> elements |> List.map A.conf |> (List.max ~cmp:Int.compare)
+end
 module T =
 struct
   include Printable.Std
@@ -371,37 +381,84 @@ module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 (* Check if two accesses may race and if yes with which confidence *)
 let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
   if not w && not w2 then
-    None (* two read/read accesses do not race *)
+    false (* two read/read accesses do not race *)
   else if not (MCPAccess.A.may_race a a2) then
-    None (* analysis-specific information excludes race *)
+    false (* analysis-specific information excludes race *)
   else
-    Some (max conf conf2)
+    true
 
-let check_safe accs =
-  let accs = AS.elements accs in
-  let cart = List.cartesian_product accs accs in
-  let conf = List.filter_map (fun (x,y) -> if A.compare x y <= 0 then may_race x y else None) cart in
-  if conf = [] then
-    None
+let may_race x = Stats.time "may_race" (may_race x)
+
+let group_may_race accs =
+  (* BFS to traverse one component with may_race edges *)
+  let rec bfs' accs visited todo =
+    let accs' = AS.diff accs todo in
+    let todo' = AS.fold (fun acc todo' ->
+        AS.fold (fun acc' todo' ->
+            if may_race acc acc' then
+              AS.add acc' todo'
+            else
+              todo'
+          ) accs' todo'
+      ) todo (AS.empty ())
+    in
+    let visited' = AS.union visited todo in
+    if AS.is_empty todo' then
+      (accs', visited')
+    else
+      (bfs' [@tailcall]) accs' visited' todo'
+  in
+  let bfs accs acc = bfs' accs (AS.empty ()) (AS.singleton acc) in
+  let bfs accs = Stats.time "bfs" (bfs accs) in
+  (* repeat BFS to find all components *)
+  let rec components comps accs =
+    if AS.is_empty accs then
+      comps
+    else (
+      let acc = AS.choose accs in
+      let (accs', comp) = bfs accs acc in
+      let comps' = comp :: comps in
+      components comps' accs'
+    )
+  in
+  components [] accs
+
+let race_conf accs =
+  assert (not (AS.is_empty accs)); (* group_may_race should only construct non-empty components *)
+  if AS.cardinal accs = 1 then ( (* singleton component *)
+    let acc = AS.choose accs in
+    if may_race acc acc then (* self-race *)
+      Some (A.conf acc)
+    else
+      None
+  )
   else
-    let maxconf = List.max conf in
-    Some maxconf
+    Some (AS.max_conf accs)
+
+let group_may_race = Stats.time "group_may_race" group_may_race
 
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe (lv, ty) accs =
+let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
-  let safety = check_safe accs in
+  let safety =
+    grouped_accs
+    |> List.filter_map race_conf
+    |> (function
+        | [] -> None
+        | confs -> Some (List.max confs)
+      )
+  in
   match safety with
   | None -> incr safe
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses (lv, ty) accs =
+let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
-  let msgs () =
+  let msgs race_accs =
     let h (conf,w,loc,e,a) =
       let atyp = if w then "write" else "read" in
       let d_msg () = dprintf "%s with %a (conf. %d)" atyp MCPAccess.A.pretty a conf in
@@ -413,12 +470,24 @@ let print_accesses (lv, ty) accs =
       in
       (doc, Some loc)
     in
-    AS.elements accs
+    AS.elements race_accs
     |> List.map h
   in
-  match check_safe accs with
-  | None ->
-    if allglobs then
-      M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs ())
-  | Some n ->
-    M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) n (msgs ())
+  grouped_accs
+  |> List.fold_left (fun safe_accs accs ->
+      match race_conf accs with
+      | None ->
+        AS.union safe_accs accs (* group all safe accs together for allglobs *)
+      | Some conf ->
+        M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
+        safe_accs
+    ) (AS.empty ())
+  |> (fun safe_accs ->
+      if allglobs && not (AS.is_empty safe_accs) then
+        M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
+    )
+
+let warn_global safe vulnerable unsafe g accs =
+  let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
+  incr_summary safe vulnerable unsafe g grouped_accs;
+  print_accesses g grouped_accs
