@@ -202,14 +202,6 @@ struct
     let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
-  let fold ctx f g h a =
-    let k x a =
-      try h a @@ g @@ f @@ conv ctx x
-      with Deadcode -> a
-    in
-    let d = Dom.fold k (fst ctx.local) a in
-    if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
-
   let fold' ctx f g h a =
     let k x a =
       try h a x @@ g @@ f @@ conv ctx x

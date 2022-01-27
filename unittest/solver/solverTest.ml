@@ -1,4 +1,4 @@
-open OUnit
+open OUnit2
 open Pretty
 
 (* variables are strings *)
@@ -56,7 +56,7 @@ struct
 end
 module Solver = Constraints.GlobSolverFromEqSolver (Constraints.EqIncrSolverFromEqSolver (EffectWConEq.Make) (PostSolverArg)) (ConstrSys) (LH) (GH)
 
-let test1 () =
+let test1 _ =
   let id x = x in
   let ((sol, gsol), _) = Solver.solve [] [] ["w"] in
   assert_equal ~printer:id "42" (Int.show (GH.find gsol "g"));

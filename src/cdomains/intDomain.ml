@@ -123,6 +123,7 @@ sig
   val of_bool: bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val arbitrary: unit -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -158,6 +159,7 @@ sig
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> precision -> t -> t
+  val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -269,6 +271,8 @@ struct
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
+
+  let arbitrary _ik = Old.arbitrary ()
 end
 
 
@@ -333,7 +337,7 @@ struct
   let to_yojson x = I.to_yojson x.v
   let invariant c x = I.invariant_ikind c x.ikind x.v
   let tag x = I.tag x.v
-  let arbitrary () = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
+  let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
   let of_int ikind x = { v = I.of_int ikind x; ikind}
   let is_int x = I.is_int x.v
@@ -401,16 +405,14 @@ struct
 end
 
 module Size = struct (* size in bits as int, range as int64 *)
-  exception Not_in_int64
-  open Cil open Int64 open Big_int_Z
-  let sign x = if x<0L then `Signed else `Unsigned
-  let sign_big_int x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
+  open Cil open Big_int_Z
+  let sign x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
 
   let max = function
     | `Signed -> ILongLong
     | `Unsigned -> IULongLong
   let top_typ = TInt (ILongLong, [])
-  let min_for x = intKindForValue (fst (truncateCilint (max (sign_big_int x)) x)) (sign_big_int x = `Unsigned)
+  let min_for x = intKindForValue (fst (truncateCilint (max (sign x)) x)) (sign x = `Unsigned)
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
@@ -421,20 +423,14 @@ module Size = struct (* size in bits as int, range as int64 *)
   let bits ik = (* highest bits for neg/pos values *)
     let s = bit ik in
     if isSigned ik then s-1, s-1 else 0, s
-  let bits_i64 ik = BatTuple.Tuple2.mapn of_int (bits ik)
-  let range ik = (* min/max values as int64 (signed), anything bigger is cropped! *)
-    let a,b = bits ik in
-    if a>63 || b>63 then raise Not_in_int64 else
-      let x = if isSigned ik then neg (shift_left 1L a) (* -2^a *) else 0L in
-      let y = sub (shift_left 1L b) 1L in (* 2^b - 1 *)
-      x,y
-  let range_big_int ik =
+  let bits_i64 ik = BatTuple.Tuple2.mapn Int64.of_int (bits ik)
+  let range ik =
     let a,b = bits ik in
     let x = if isSigned ik then minus_big_int (shift_left_big_int unit_big_int a) (* -2^a *) else zero_big_int in
     let y = sub_big_int (shift_left_big_int unit_big_int b) unit_big_int in (* 2^b - 1 *)
     x,y
-  let cast_big_int t x = (* TODO: overflow is implementation-dependent! *)
-    let a,b = range_big_int t in
+  let cast t x = (* TODO: overflow is implementation-dependent! *)
+    let a,b = range t in
     let c = card t in
     (* let z = add (rem (sub x a) c) a in (* might lead to overflows itself... *)*)
     let y = mod_big_int x c in
@@ -444,16 +440,13 @@ module Size = struct (* size in bits as int, range as int64 *)
     in
     if M.tracing then M.tracel "cast_int" "Cast %s to range [%s, %s] (%s) = %s (%s in int64)\n" (string_of_big_int x) (string_of_big_int a) (string_of_big_int b) (string_of_big_int c) (string_of_big_int y) (if is_int64_big_int y then "fits" else "does not fit");
     y
-  let cast t x =
-    let x' = big_int_of_int64 x in
-    try int64_of_big_int (cast_big_int t x') with _ -> raise Not_in_int64
 
   let min_range_sign_agnostic x =
     let size ik =
       let a,b = bits_i64 ik in
       Int64.neg a,b
     in
-    if sign_big_int x = `Signed then
+    if sign x = `Signed then
       size (min_for x)
     else
       let a, b = size (min_for x) in
@@ -526,16 +519,12 @@ struct
   type int_t = Ints_t.t
   type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
 
-  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
-  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
+  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
+  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
   let top () = failwith @@ "top () not implemented for " ^ (name ())
   let top_of ik = Some (min_int ik, max_int ik)
   let bot () = None
   let bot_of ik = bot () (* TODO: improve *)
-
-  let is_top x = failwith "is_top not implemented for intervals"
-
-  let is_bot x  = failwith "is_bot not implemented for intervals"
 
   let show = function None -> "bottom" | Some (x,y) -> "["^Ints_t.to_string x^","^Ints_t.to_string y^"]"
 
@@ -578,8 +567,8 @@ struct
           if Ints_t.compare resdiff diff > 0 then
             top_of ik
           else
-            let l = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint x) in
-            let u = Ints_t.of_bigint @@ Size.cast_big_int ik (Ints_t.to_bigint y) in
+            let l = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint x) in
+            let u = Ints_t.of_bigint @@ Size.cast ik (Ints_t.to_bigint y) in
             if Ints_t.compare l u <= 0 then
               Some (l, u)
             else
@@ -633,7 +622,7 @@ struct
 
   let range_opt f = function
     | None -> None
-    | Some ik -> Some (Ints_t.of_bigint @@ f @@ Size.range_big_int ik)
+    | Some ik -> Some (Ints_t.of_bigint @@ f @@ Size.range ik)
 
   let starting ik n =
     (norm ik) @@ Some (n, range_opt snd (Some ik) |? (max_int ik))
@@ -865,9 +854,7 @@ struct
       with e -> None)
     | None -> None
 
-  let arbitrary () =
-    (* TODO: use arbitrary ikind? *)
-    let ik = Cil.ILongLong in
+  let arbitrary ik =
     let open QCheck.Iter in
     (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
     (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
@@ -959,7 +946,6 @@ struct
   let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  (* FIXME: poly compare *)
   let hash (x:t) = ((Ints_t.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
@@ -1002,7 +988,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
-  let arbitrary () = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64
+  let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 (* TODO: use ikind *)
 end
 
 module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises Unknown/Error on join/meet *)
@@ -1179,14 +1165,13 @@ module BigInt = struct
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let cast_to ik x = Size.cast_big_int ik x
+  let cast_to ik x = Size.cast ik x
   let to_bool x = Some (not (BI.equal (BI.zero) x))
 
-  let hash x = (BI.to_int x) * 2147483647
   let show x = BI.to_string x
-  let pretty _ x = Pretty.text (BI.to_string x)
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-
+  (* TODO: throws if x too big, used to be overridden with Hashtbl.hash by include Std anyway *)
+  (* let hash x = (BI.to_int x) * 2147483647 *)
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
 
@@ -1259,16 +1244,6 @@ struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
 
-  (* Returns min and max values for a range given by the number of possibly used bits *)
-  let range_min_max (r : R.t) =
-    match R.minimal r, R.maximal r with
-    | None, _ | _, None -> BigInt.zero, BigInt.zero
-    | Some l, Some u ->
-      let l = Int64.to_int l in
-      let u = Int64.to_int u in
-      let min = if l = 0 then BigInt.zero else BigInt.neg @@ BigInt.shift_left BigInt.one (-l) in
-      let max = BigInt.sub (BigInt.shift_left BigInt.one u) BigInt.one in
-      min, max
 
   type t = [
     | `Excluded of S.t * R.t
@@ -1296,14 +1271,13 @@ struct
     | `Excluded (s,l) when S.is_empty s -> "Unknown int" ^ short_size l
     (* Prepend the exclusion sets with something: *)
     | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
+
+  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   let hash (x:t) =
     match x with
     | `Excluded (s,r) -> S.hash s + R.hash r
     | `Definite i -> 83*BigInt.hash i
     | `Bot -> 61426164
-
-  include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  (* FIXME: poly compare? *)
 
   let maximal = function
     | `Definite x -> Some x
@@ -1328,11 +1302,10 @@ struct
   let equal_to i = function
   | `Bot -> failwith "unsupported: equal_to with bottom"
   | `Definite x -> if i = x then `Eq else `Neq
-  | `Excluded (s,r) -> if S.mem i s then `Top else `Neq
+  | `Excluded (s,r) -> if S.mem i s then `Neq else `Top
 
   let top_of ik = `Excluded (S.empty (), size ik)
-  let top_if_not_in_int64 ik f x = try f x with Size.Not_in_int64 -> top_of ik
-  let cast_to ?torg ?no_ov ik = top_if_not_in_int64 ik @@ function
+  let cast_to ?torg ?no_ov ik = function
     | `Excluded (s,r) ->
       let r' = size ik in
       `Excluded (
@@ -1356,7 +1329,7 @@ struct
     let norm ik v =
       match v with
       | `Excluded (s, r) ->
-        let possibly_overflowed = not (R.leq r (size ik)) in
+        let possibly_overflowed = not (R.leq r (size ik)) || not (S.for_all (in_range (size ik)) s) in
         (* If no overflow occurred, just return x *)
         if not possibly_overflowed then (
           v
@@ -1379,7 +1352,7 @@ struct
           `Excluded (mapped_excl, r)
         )
       | `Definite x ->
-        let min, max = Size.range_big_int ik in
+        let min, max = Size.range ik in
         (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
         if should_wrap ik then (
           cast_to ik v
@@ -1476,7 +1449,6 @@ struct
     | `Definite x -> true
     | _ -> false
 
-  let zero ik = of_int ik BI.zero
   let from_excl ikind (s: S.t) = norm ikind @@ `Excluded (s, size ikind)
   let not_zero ikind = from_excl ikind (S.singleton BI.zero)
 
@@ -1530,19 +1502,6 @@ struct
     | `Bot -> `Bot
 
   let lift2 f ik x y = norm ik (match x,y with
-    (* We don't bother with exclusion sets: *)
-    | `Excluded _, `Definite _
-    | `Definite _, `Excluded _
-    | `Excluded _, `Excluded _ -> top ()
-    (* The good case: *)
-    | `Definite x, `Definite y ->
-      (try `Definite (f x y) with | Division_by_zero -> top ())
-    | `Bot, `Bot -> `Bot
-    | _ ->
-      (* If only one of them is bottom, we raise an exception that eval_rv will catch *)
-      raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y))))
-
-  let lift_comp f ik x y = norm ik (match x,y with
     (* We don't bother with exclusion sets: *)
     | `Excluded _, `Definite _
     | `Definite _, `Excluded _
@@ -1662,10 +1621,10 @@ struct
         ) s Invariant.none
     | `Bot -> Invariant.none
 
-  let arbitrary () =
+  let arbitrary ik =
     let open QCheck.Iter in
-    let excluded s = `Excluded (s, size Cil.ILongLong) in (* S TODO: non-fixed range *)
-    let definite x = `Definite x in
+    let excluded s = from_excl ik s in
+    let definite x = of_int ik x in
     let shrink = function
       | `Excluded (s, _) -> MyCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
       | `Definite x -> (return `Bot) <+> (MyCheck.shrink (BigInt.arbitrary ()) x >|= definite)
@@ -1689,36 +1648,6 @@ struct
   let project ik p t = t
 end
 
-module OverflowInt64 = (* throws Overflow for add, sub, mul *)
-struct
-  exception Overflow of string
-
-  include Int64
-
-  let add (a:int64) (b:int64) =
-    if logor (logxor a b) (logxor a (lognot (add a b))) < 0L  (* no kidding! *)
-    then add a b
-    else raise (Overflow (Printf.sprintf "%Ld + %Ld" a b))
-
-  let sub (a:int64) (b:int64) =
-    if b = min_int
-    then
-      if a >= 0L
-      then raise (Overflow (Printf.sprintf "%Ld - %Ld" a b))
-      else sub a b
-    else
-      let oppb = neg b in
-      add a oppb
-
-  let mul (a:int64) (b:int64) =
-    if a = 0L then 0L
-    else
-      let x = mul a b in
-      if b = div x a
-      then x
-      else raise (Overflow (Printf.sprintf "%Ld * %Ld" a b))
-
-end
 (* BOOLEAN DOMAINS *)
 
 module type BooleansNames =
@@ -1806,8 +1735,8 @@ module Enums : S with type int_t = BigInt.t = struct
   let bot_of ik = Inc (BISet.empty ())
   let top_bool = Inc (BISet.of_list [I.zero; I.one])
 
-  let min_int ik = I.of_bigint @@ fst @@ Size.range_big_int ik
-  let max_int ik = I.of_bigint @@ snd @@ Size.range_big_int ik
+  let min_int ik = I.of_bigint @@ fst @@ Size.range ik
+  let max_int ik = I.of_bigint @@ snd @@ Size.range ik
 (*
   let max_of_range r = Size.max_from_bit_range (Option.get (R.maximal r))
   let min_of_range r = Size.min_from_bit_range (Option.get (R.minimal r))
@@ -2006,7 +1935,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x) | _ -> None
   let of_excl_list ik xs =
-    let min_ik, max_ik = Size.range_big_int ik in
+    let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
     Exc (exc, size ik)
   let is_excl_list = BatOption.is_some % to_excl_list
@@ -2095,10 +2024,10 @@ module Enums : S with type int_t = BigInt.t = struct
         ) Invariant.none (BISet.elements ns)
 
 
-  let arbitrary () =
+  let arbitrary ik =
     let open QCheck.Iter in
-    let neg s = Exc (s, size Cil.ILong) in (* S TODO: non-fixed range *)
-    let pos s = Inc s in
+    let neg s = of_excl_list ik (BISet.elements s) in
+    let pos s = norm ik (Inc s) in
     let shrink = function
       | Exc (s, _) -> MyCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
       | Inc s -> MyCheck.shrink (BISet.arbitrary ()) s >|= pos
@@ -2170,15 +2099,13 @@ struct
         else
           Some (c' %: m', m')
 
-  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range_big_int ik
+  let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
 
-  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range_big_int ik
+  let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
   let top () = Some (Ints_t.zero, Ints_t.one)
   let top_of ik = Some (Ints_t.zero, Ints_t.one)
   let bot () = None
   let bot_of ik = bot ()
-
-  let is_top x = x = top ()
 
   let show = function ik -> match ik with
     | None -> "⟂"
@@ -2190,6 +2117,8 @@ struct
       a^c^b
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
+
+  let is_top x = x = top ()
 
   let equal_to i = function
     | None -> failwith "unsupported: equal_to with bottom"
@@ -2229,7 +2158,7 @@ struct
     let congruence_series a c m =
       let rec next a1 c1 a2 c2 =
         if a2 |: a1 then (a2, c2)
-        else next a2 c2 (a1 %: a2) ((c1 -: c2) *: (a1 /: a2))
+        else next a2 c2 (a1 %: a2) (c1 -: (c2 *: (a1 /: a2)))
       in next m Ints_t.zero a c
     in
     let simple_case i c m =
@@ -2334,16 +2263,6 @@ struct
       | _      -> top_of ik
 
   let lognot = log1 (fun _ik -> not)
-
-  let bitcomp f ik i1 i2 =
-    match is_bot i1, is_bot i2 with
-    | true, true -> bot_of ik
-    | true, _
-    | _   , true -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show i1) (show i2)))
-    | _ ->
-      match to_int i1, to_int i2 with
-      | Some x, Some y -> (try (of_int ik (f ik x y)) with Division_by_zero | Invalid_argument _ -> top_of ik)
-      | _              -> top_of ik
 
   let shift_right _ _ _ = top()
 
@@ -2546,19 +2465,13 @@ struct
         with e -> None)
     | None -> None
 
-  let arbitrary () =
+  let arbitrary ik =
     let open QCheck in
-    let ik = Cil.ILongLong in
     let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
-    let top_arb = make ~print:show (Gen.return (top ())) in
-    let bot_arb = make ~print:show (Gen.return (bot ())) in
-    let int_cong_arb = pair int_arb (make (Gen.return Ints_t.zero)) in
     let cong_arb = pair int_arb int_arb in
     let of_pair ik p = normalize ik (Some p) in
-    oneof
-      ((set_print show @@ map (of_pair ik) cong_arb)::
-         (set_print show @@ map (of_pair ik) int_cong_arb)::
-           top_arb::bot_arb::[])
+    let to_pair = Option.get in
+    set_print show (map ~rev:to_pair (of_pair ik) cong_arb)
 
   let relift x = x
 
@@ -2773,7 +2686,7 @@ module IntDomTupleImpl = struct
 
   let no_overflow ik r =
     if should_ignore_overflow ik then true
-    else let ika, ikb = Size.range_big_int ik in
+    else let ika, ikb = Size.range ik in
       match I2.minimal r, I2.maximal r with
       | Some ra, Some rb -> BI.compare ika ra < 0 || BI.compare rb ikb < 0
       | _ -> false
@@ -2972,7 +2885,7 @@ module IntDomTupleImpl = struct
           Invariant.(a && i)
         ) Invariant.none is
 
-  let arbitrary () = QCheck.(set_print show @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
+  let arbitrary ik = QCheck.(set_print show @@ quad (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)))
 end
 
 module IntDomTuple =

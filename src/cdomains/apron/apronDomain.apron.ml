@@ -146,8 +146,8 @@ struct
 
   (* TODO: move this into some general place *)
   let is_cast_injective from_type to_type =
-    let (from_min, from_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind from_type) in
-    let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
+    let (from_min, from_max) = IntDomain.Size.range (Cilfacade.get_ikind from_type) in
+    let (to_min, to_max) = IntDomain.Size.range (Cilfacade.get_ikind to_type) in
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let texpr1_expr_of_cil_exp d env =
@@ -186,7 +186,7 @@ struct
         in
         let ik = Cilfacade.get_ikind_exp exp in
         if not (IntDomain.should_ignore_overflow ik) then (
-          let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+          let (type_min, type_max) = IntDomain.Size.range ik in
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
@@ -542,8 +542,6 @@ struct
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
-
-  let pretty_diff () (x,y) = text "pretty_diff"
 end
 
 
@@ -739,6 +737,7 @@ struct
     A.meet_lincons_array Man.mgr d earray
 
   let strengthening j x y =
+    (* TODO: optimize strengthening *)
     if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
     let x_env = A.env x in
     let y_env = A.env y in
@@ -804,6 +803,8 @@ struct
   let is_bot = equal (bot ())
   let is_top _ = false
 
+  let strengthening_enabled = GobConfig.get_bool "ana.apron.strengthening"
+
   let join x y =
     (* just to optimize joining folds, which start with bot *)
     if is_bot x then
@@ -814,8 +815,12 @@ struct
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a\n" pretty j;
-      (* TODO: optimize strengthening, currently disabled because relational traces doesn't join different environments *)
-      (* let j = strengthening j x y in *)
+      let j =
+        if strengthening_enabled then
+          strengthening j x y
+        else
+          j
+      in
       if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
       j
     )

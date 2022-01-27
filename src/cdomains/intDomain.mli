@@ -231,6 +231,7 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val arbitrary: unit -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -272,6 +273,7 @@ sig
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
+  val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -329,8 +331,7 @@ val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t
 module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
-  val range           : Cil.ikind -> int64 * int64
-  val range_big_int   : Cil.ikind -> Z.t * Z.t
+  val range           : Cil.ikind -> Z.t * Z.t
   val bits            : Cil.ikind -> int * int
 end
 
