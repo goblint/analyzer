@@ -493,8 +493,8 @@ struct
       ; edge    = edge
       ; local   = pval
       ; global  = getg
-      ; presub  = []
-      ; postsub = []
+      ; presub  = (fun _ -> raise Not_found)
+      ; postsub = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = sideg
