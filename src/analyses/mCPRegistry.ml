@@ -126,7 +126,7 @@ struct
     in
     try if length x <> length y
       then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
+      else fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
     with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
 
   let equal   x y = binop_fold (fun a n (module S : Printable.S) x y -> a && S.equal (obj x) (obj y)) true x y
@@ -248,7 +248,7 @@ struct
     in
     try if length x <> length y
       then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
+      else fold_left2 (fun a (n,d) (n',d') -> assert (n = n'); f a n d d') a x y
     with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
 
   let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) x y =
