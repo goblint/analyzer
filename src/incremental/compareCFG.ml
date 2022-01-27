@@ -62,6 +62,7 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
           | [] -> NH.replace diff toNode1 ()
           | (locEdgeList2, toNode2)::remSuc' ->
               let edgeList2 = to_edge_list locEdgeList2 in
+              (* TODO: don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
               if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
                 begin
                   let notInSame = not (NTH.mem same (toNode1, toNode2)) in
