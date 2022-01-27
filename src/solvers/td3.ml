@@ -736,7 +736,7 @@ module WP =
                 S.Var.pretty_trace x
           in
           destab_side_dep x;
-          destabilize x;
+          destabilize_normal x;
           restart_leaf x
         in
         let globals_to_restart = S.increment.restarting in
