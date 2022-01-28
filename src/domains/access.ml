@@ -164,7 +164,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
 
 let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin
-    let loc = !Tracing.current_loc in
+    let loc = Option.get !Node.current_node in
     side ty lv (conf, w, loc, e, a)
   end
 
@@ -320,14 +320,14 @@ let add side e w conf vo oo a =
 module A =
 struct
   include Printable.Std
-  type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord]
+  type t = int * bool * Node.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord]
 
   let compare x = Stats.time "access compare" (compare x)
 
   let hash (conf, w, loc, e, lp) = 0 (* TODO: never hashed? *)
 
-  let pretty () (conf, w, loc, e, lp) =
-    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
+  let pretty () (conf, w, node, e, lp) =
+    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty (Node.location node) CilType.Exp.pretty e MCPAccess.A.pretty lp
 
   include Printable.SimplePretty (
     struct
@@ -465,7 +465,7 @@ let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let msgs race_accs =
-    let h (conf,w,loc,e,a) =
+    let h (conf,w,node,e,a) =
       let atyp = if w then "write" else "read" in
       let d_msg () = dprintf "%s with %a (conf. %d)" atyp MCPAccess.A.pretty a conf in
       let doc =
@@ -474,7 +474,7 @@ let print_accesses (lv, ty) grouped_accs =
         else
           d_msg ()
       in
-      (doc, Some loc)
+      (doc, Some (Messages.Location.Node node))
     in
     AS.elements race_accs
     |> List.map h

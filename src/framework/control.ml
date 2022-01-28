@@ -126,7 +126,7 @@ struct
           endByte = 0; (* wrong, but not shown *)
         }
         in
-        (doc, Some loc)
+        (doc, Some (Messages.Location.CilLocation loc)) (* CilLocation is fine because always printed from scratch *)
       in
       let msgs =
         BatISet.fold_range (fun b e acc ->
@@ -514,7 +514,7 @@ struct
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
             if get_bool "dbg.uncalled" then
-              M.warn ~loc ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt
+              M.warn ~loc:(CilLocation loc) ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt  (* CilLocation is fine because always printed from scratch *)
         | _ -> ()
       in
       List.iter print_and_calculate_uncalled file.globals;
@@ -574,7 +574,7 @@ struct
 
     (* Use "normal" constraint solving *)
     let timeout_reached () =
-      M.error ~loc:!Tracing.current_loc "Timeout reached!";
+      M.error "Timeout reached!";
       (* let module S = Generic.SolverStats (EQSys) (LHT) in *)
       (* Can't call Generic.SolverStats...print_stats :(
          print_stats is triggered by dbg.solver-signal, so we send that signal to ourself in maingoblint before re-raising Timeout.

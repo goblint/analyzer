@@ -26,8 +26,8 @@ struct
     if !Goblintutil.postsolving then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
           if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc CilType.Location.pretty b.loc CilType.Location.pretty a.loc;
-            Messages.warn ~loc:a.loc "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr CilType.Location.pretty b.loc CilType.Location.pretty a.loc CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc;
+            Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr pretty_node_loc e.node pretty_node_loc newLock.node pretty_node_loc b.node pretty_node_loc a.node;
+            Messages.warn ~loc:(Node a.node) "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr pretty_node_loc b.node pretty_node_loc a.node pretty_node_loc e.node pretty_node_loc newLock.node;
           )
           else () ) !forbiddenList ) lockList;
 
@@ -96,8 +96,8 @@ struct
       match LibraryFunctions.classify f.vname arglist with
       | `Lock (_, _, _) ->
         List.fold_left (fun d lockAddr ->
-          addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-          D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
+          addLockingInfo {addr = lockAddr; node = Option.get !Node.current_node } ctx.local;
+          D.add {addr = lockAddr; node = Option.get !Node.current_node } ctx.local
         ) ctx.local (eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist))
       | `Unlock ->
         let lockAddrs = eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist) in

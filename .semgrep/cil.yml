@@ -8,6 +8,7 @@ rules:
       - pattern: Cil.get_stmtLoc
     paths:
       exclude:
+        - cilfacade0.ml
         - cilfacade.ml
     message: use Cilfacade instead
     languages: [ocaml]
