@@ -587,13 +587,9 @@ struct
   include Printable.Liszt (Base)
 
   let bot () = Array.to_list (Array.make (N.x ()) (Base.bot ()))
-  let is_bot =
-    let f acc x = Base.is_bot x && acc in
-    List.fold_left f true
+  let is_bot = List.for_all Base.is_bot
   let top () = Array.to_list (Array.make (N.x ()) (Base.top ()))
-  let is_top =
-    let f acc x = Base.is_top x && acc in
-    List.fold_left f true
+  let is_top = List.for_all Base.is_top
 
   let leq =
     let f acc x y = Base.leq x y && acc in
