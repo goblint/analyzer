@@ -180,11 +180,6 @@ let signal_of_string = let open Sys in function
 
 let self_signal signal = Unix.kill (Unix.getpid ()) signal
 
-(* The normal haskell zip that throws no exception *)
-let rec zip x y = match x,y with
-  | (x::xs), (y::ys) -> (x,y) :: zip xs ys
-  | _ -> []
-
 let rec for_all_in_range (a, b) f =
   let module BI = IntOps.BigIntOps in
   if BI.compare a b > 0
