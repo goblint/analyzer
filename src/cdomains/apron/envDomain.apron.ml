@@ -24,14 +24,14 @@ sig
 end
 
 module Tracked =
-  struct
-    let type_tracked typ =
-      isIntegralType typ
+struct
+  let type_tracked typ =
+    isIntegralType typ
 
-    let varinfo_tracked vi =
-      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-      type_tracked vi.vtype && not vi.vaddrof
-  end
+  let varinfo_tracked vi =
+    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+    type_tracked vi.vtype && not vi.vaddrof
+end
 
 module Convert (Bounds: ConvBounds) =
 struct
@@ -139,21 +139,21 @@ struct
 
 end
 
-let int_of_cst cst =
+let mpqf_of_cst cst =
   let open Coeff in
   match cst with
   | Interval _ -> failwith "Not a constant"
   | Scalar x -> (match x with
-                 | Float x -> int_of_float x
-                 | Mpqf x -> int_of_float(Mpqf.to_float x)
-                 | Mpfrf x -> int_of_float(Mpfr.to_float x))
+      | Float x -> Mpqf.of_float x
+      | Mpqf x -> x
+      | Mpfrf x -> Mpfr.to_mpq x)
 
 module EnvOps =
 struct
   let vars env =
     let ivs, fvs = Environment.vars env in
-      assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
-      List.of_enum (Array.enum ivs)
+    assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
+    List.of_enum (Array.enum ivs)
 
   let mem_var env v = Environment.mem_var env v
 
@@ -172,24 +172,24 @@ struct
       |> List.enum
       |> Enum.filter (fun v -> Environment.mem_var env v)
       |> Array.of_enum
-      in
-        Environment.remove env vs'
+    in
+    Environment.remove env vs'
 
   let get_filtered_vars_add env vs =
     vs
-      |> List.enum
-      |> Enum.filter (fun v -> not (Environment.mem_var env v))
-      |> Array.of_enum
+    |> List.enum
+    |> Enum.filter (fun v -> not (Environment.mem_var env v))
+    |> Array.of_enum
 
   let get_filtered_vars_remove env vs =
     vs
-      |> List.enum
-      |> Enum.filter (fun v -> Environment.mem_var env v)
-      |> Array.of_enum
+    |> List.enum
+    |> Enum.filter (fun v -> Environment.mem_var env v)
+    |> Array.of_enum
 
   let remove_filter_with env f =
     let vs' =
-     vars env
+      vars env
       |> List.enum
       |> Enum.filter f
       |> Array.of_enum
@@ -197,83 +197,83 @@ struct
     Environment.remove env vs'
 
   let filter_vars env f =
+    vars env
+    |> List.enum
+    |> Enum.filter f
+    |> Array.of_enum
+
+  let keep_vars_with env vs =
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    Environment.make vs' [||]
+
+  let keep_filter_with env f =
+    (* Instead of removing undesired vars,
+       make a new env with just the desired vars. *)
+    let vs' =
       vars env
       |> List.enum
       |> Enum.filter f
       |> Array.of_enum
-
-  let keep_vars_with env vs =
-      let vs' =
-        vs
-        |> List.enum
-        |> Enum.filter (fun v -> Environment.mem_var env v)
-        |> Array.of_enum
-      in
-      Environment.make vs' [||]
-
-  let keep_filter_with env f =
-        (* Instead of removing undesired vars,
-           make a new env with just the desired vars. *)
-        let vs' =
-          vars env
-          |> List.enum
-          |> Enum.filter f
-          |> Array.of_enum
-        in
-        Environment.make vs' [||]
+    in
+    Environment.make vs' [||]
 
 end
 
 module type AssertionRelD2 =
 sig
- module Bounds: ConvBounds
+  module Bounds: ConvBounds
 
-include RelationDomain.D2 with type t = Bounds.d
+  include RelationDomain.D2 with type t = Bounds.d
 
- val meet_with_tcons: t -> Tcons1.t -> t
+  val meet_with_tcons: t -> Tcons1.t -> t
 
- val is_bot_env: t -> bool
+  val is_bot_env: t -> bool
 
- val env: t -> Environment.t
+  val env: t -> Environment.t
 
- val assert_cons: t -> exp -> bool -> bool -> t
+  val assert_cons: t -> exp -> bool -> bool -> t
 end
 
 module AssertionModule (AD2: AssertionRelD2) =
 struct
-include AD2
+  include AD2
 
-module Convert = Convert (Bounds)
+  module Convert = Convert (Bounds)
 
-let type_tracked typ =
-  isIntegralType typ
+  let type_tracked typ =
+    isIntegralType typ
 
-let varinfo_tracked vi =
-  (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-  type_tracked vi.vtype && not vi.vaddrof
+  let varinfo_tracked vi =
+    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+    type_tracked vi.vtype && not vi.vaddrof
 
-let exp_is_cons = function
+  let exp_is_cons = function
     (* constraint *)
     | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
     (* expression *)
     | _ -> false
 
-    (** Assert any expression. *)
-    let assert_inv d e negate no_ov =
-      let e' =
-        if exp_is_cons e then
-          e
-        else
-          (* convert non-constraint expression, such that we assert(e != 0) *)
-          BinOp (Ne, e, zero, intType)
-      in
-      assert_cons d e' negate no_ov
+  (** Assert any expression. *)
+  let assert_inv d e negate no_ov =
+    let e' =
+      if exp_is_cons e then
+        e
+      else
+        (* convert non-constraint expression, such that we assert(e != 0) *)
+        BinOp (Ne, e, zero, intType)
+    in
+    assert_cons d e' negate no_ov
 
 
-let eval_interval_expr d e =
-  match Convert.texpr1_of_cil_exp d (env d) e false with
-  | texpr1 -> Bounds.bound_texpr d texpr1
-  | exception Convert.Unsupported_CilExp -> (None, None)
+  let eval_interval_expr d e =
+    match Convert.texpr1_of_cil_exp d (env d) e false with
+    | texpr1 -> Bounds.bound_texpr d texpr1
+    | exception Convert.Unsupported_CilExp -> (None, None)
 
   let check_asserts d e =
     if is_bot_env (assert_inv d e false false) then
@@ -284,19 +284,19 @@ let eval_interval_expr d e =
       `Top
 
 
-(** Evaluate constraint or non-constraint expression as integer. *)
-let eval_int d e =
-  let module ID = Queries.ID in
-  let ik = Cilfacade.get_ikind_exp e in
-  if exp_is_cons e then
-    match check_asserts d e with
-    | `True -> ID.of_bool ik true
-    | `False -> ID.of_bool ik false
-    | `Top -> ID.top ()
-  else
-    match eval_interval_expr d e with
-    | (Some min, Some max) -> ID.of_interval ik (min, max)
-    | (Some min, None) -> ID.starting ik min
-    | (None, Some max) -> ID.ending ik max
-    | (None, None) -> ID.top ()
-  end
+  (** Evaluate constraint or non-constraint expression as integer. *)
+  let eval_int d e =
+    let module ID = Queries.ID in
+    let ik = Cilfacade.get_ikind_exp e in
+    if exp_is_cons e then
+      match check_asserts d e with
+      | `True -> ID.of_bool ik true
+      | `False -> ID.of_bool ik false
+      | `Top -> ID.top ()
+    else
+      match eval_interval_expr d e with
+      | (Some min, Some max) -> ID.of_interval ik (min, max)
+      | (Some min, None) -> ID.starting ik min
+      | (None, Some max) -> ID.ending ik max
+      | (None, None) -> ID.top ()
+end

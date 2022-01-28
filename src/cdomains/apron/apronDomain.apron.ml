@@ -514,11 +514,11 @@ struct
     in
     A.assign_texpr_array_with Man.mgr nd vs texpr1s None
 
-    let assign_var_parallel d vv's =
-      (* TODO: non-_with version? *)
-      let nd = copy d in
-      assign_var_parallel_with nd vv's;
-      nd
+  let assign_var_parallel d vv's =
+    (* TODO: non-_with version? *)
+    let nd = copy d in
+    assign_var_parallel_with nd vv's;
+    nd
 
   let assign_var_parallel' d vs v's = (* unpaired parallel assigns *)
     (* TODO: _with version? *)
@@ -660,7 +660,6 @@ struct
   include AOps (Tracked) (Man)
 
   include Tracked
-<<<<<<< HEAD
   module SBounds = Bounds(Man)
 
   let rec exp_is_cons = function
@@ -669,9 +668,6 @@ struct
     | UnOp (LNot,e,_) -> exp_is_cons e
     (* expression *)
     | _ -> false
-=======
-  module Bounds = Bounds(Man)
->>>>>>> 5c7f95219 (Move shared apron + affeq functions upwards)
 
   (** Assert a constraint expression. *)
   let rec assert_cons d e negate no_ov =
@@ -790,7 +786,7 @@ struct
     if is_top x then y else
     if is_top y then x else
       A.meet Man.mgr x y
-      (* TODO: return lifted bot if different environments? and warn? *)
+  (* TODO: return lifted bot if different environments? and warn? *)
 
   let widen x y =
     if is_bot x then
@@ -799,7 +795,7 @@ struct
       x (* TODO: is this right? *)
     else
       A.widening (Man.mgr) x y
-      (* TODO: return lifted top if different environments? and warn? *)
+  (* TODO: return lifted top if different environments? and warn? *)
 
   let narrow = meet
 
@@ -1127,16 +1123,17 @@ end
 
 module AD2Complete (Man: Manager) = (*ToDo Improve Module structure...*)
 struct
-include DWithOps (Man) (DHetero (Man))
-include D2Complete (Man)
-include EnvDomain.AssertionModule (D2Complete (Man))
-type var = EnvDomain.Var.t
-type lconsarray = Lincons1.earray
-module Man = Man
+  include DWithOps (Man) (DHetero (Man))
+  include D2Complete (Man)
+  include EnvDomain.AssertionModule (D2Complete (Man))
+  type var = EnvDomain.Var.t
+  type lconsarray = Lincons1.earray
+  module Man = Man
 end
 
 module D2 (Man: Manager): (RelD2 with type var = Var.t) =
 struct
+<<<<<<< HEAD
 <<<<<<< HEAD
 include D2Complete(Man)
 end
@@ -1145,3 +1142,7 @@ end
 include AD2Complete(Man)
 end
 >>>>>>> 5c7f95219 (Move shared apron + affeq functions upwards)
+=======
+  include AD2Complete(Man)
+end
+>>>>>>> 5b36f7f4d (Fix dim_add, substitute_expr + change int_of_cst to mpqf_of_cst)

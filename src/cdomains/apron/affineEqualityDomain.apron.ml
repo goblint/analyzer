@@ -115,10 +115,10 @@ struct
         match Vector.findi (function i -> function x -> x <> to_rt 0) row with
         | exception Not_found -> create_rref (remove_row new_t curr_row) curr_row
         | (i, p) -> if Vector.compare_length_with row (i + 1) <= 0 then raise NoSolution
-                    else let p = Vector.map (function x -> x /: p) row in
-                    let col = get_col new_t i in
-                    let res = List.map2i (function row_i -> function y -> function z -> if row_i <> curr_row then subtract_rows_c y p z else p) new_t col
-                    in create_rref res (curr_row + 1)
+          else let p = Vector.map (function x -> x /: p) row in
+            let col = get_col new_t i in
+            let res = List.map2i (function row_i -> function y -> function z -> if row_i <> curr_row then subtract_rows_c y p z else p) new_t col
+            in create_rref res (curr_row + 1)
     in
     match create_rref t 0 with
     | c -> let sort v1 v2 =
@@ -140,7 +140,7 @@ struct
 
   let dim_add (ch: Apron.Dim.change) m =
     let to_add = Array.to_list ch.dim in
-    List.fold_left (function m -> function x -> Matrix.add_empty_column m x) m to_add
+    List.fold_lefti (function m' -> function i -> function x -> Matrix.add_empty_column m' (x + i)) m to_add
 
   let dim_remove (ch: Apron.Dim.change) m =
     let to_remove = Array.to_list ch.dim in
@@ -193,7 +193,7 @@ let calc_const (t:Matrix.t) env texp =
   let rec parse_replace m exp =
     if t = [] then raise NoConst else
       match exp with
-      | Cst x -> to_rt (EnvDomain.int_of_cst x)
+      | Cst x -> EnvDomain.mpqf_of_cst x
       | Var x -> let n = Environment.dim_of_var env x in
         let row = List.find_opt (function x -> Vector.nth x n = to_rt 1) m in
         let is_const_row row = Vector.compare_length_with (Vector.filteri (function i -> function x ->
@@ -264,19 +264,10 @@ struct
     | Some x1, Some x2 -> Matrix.equal x1 x2
     | _ -> false
 
-  let equal t1 t2 =
-    let res = equal t1 t2 in
-    if M.tracing then M.tracel "eq" "equal a: %s b: %s -> %b \n" (show t1) (show t2) res ;
-    res
-
   let hash t =
     Hashtbl.hash t
-  let compare t1 t2 = Stdlib.compare t1 t2
 
-  let compare t1 t2 =
-    let res = compare t1 t2 in
-    if M.tracing then M.tracel "cmp" "compare a: %s b: %s -> %i \n" (show t1) (show t2) res ;
-    res
+  let compare t1 t2 = Stdlib.compare t1 t2
 
   let name () = "affeq"
 
@@ -303,14 +294,14 @@ struct
     | Some [], Some y -> {d = Some (dim_add (Environment.dimchange t2.env sup_env) y); env = sup_env}
     | Some x, Some [] -> {d = Some (dim_add (Environment.dimchange t1.env sup_env) x); env = sup_env}
     | Some x, Some y -> let mod_x = dim_add (Environment.dimchange t1.env sup_env) x in
-                        let mod_y = dim_add (Environment.dimchange t2.env sup_env) y in
-                        let rref_matr = Matrix.normalize (Matrix.append_matrices mod_x mod_y) in
-                        {d = rref_matr; env = sup_env}
+      let mod_y = dim_add (Environment.dimchange t2.env sup_env) y in
+      let rref_matr = Matrix.normalize (Matrix.append_matrices mod_x mod_y) in
+      {d = rref_matr; env = sup_env}
     | _, _ -> {d = None; env = sup_env}
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    if M.tracing then M.tracel "meet" "meet \n a: %s \n b: %s -> %s \n" (show t1) (show t2) (show res) ;
+    if M.tracing then M.tracel "ops" "meet \n a: %s \n b: %s -> %s \n" (show t1) (show t2) (show res) ;
     res
 
   let leq t1 t2 =
@@ -319,9 +310,9 @@ struct
       Environment.equal t1.env t2.env &&
       match t1.d, t2.d with
       | Some x, Some y -> begin match Matrix.normalize @@ Matrix.append_matrices x y with
-                          | Some m -> Matrix.equal m x
-                          | None -> false
-                          end
+          | Some m -> Matrix.equal m x
+          | None -> false
+        end
       | _ -> false )
 
   let leq t1 t2 =
@@ -332,72 +323,72 @@ struct
   let join a b =
     let rec lin_disjunc r s a b =
       if s >= Matrix.num_cols a then a else
-      let case_two a r col_b =
-        let col_b = let a_length, b_length = List.length a, Vector.length col_b in
-                    match Int.compare a_length b_length with
-                    | -1 -> Vector.keep_vals col_b a_length
-                    |  1 -> Vector.append col_b @@ Vector.zero_vec (a_length - b_length)
-                    | _ -> col_b
-                    in
-        let a_r = Matrix.get_row a r in
-        let mapping = List.map2i (function i -> function x -> function y -> if i < r then
-                      Vector.map2 (+:) x (Vector.apply_with_c ( *:) y a_r) else x ) a col_b
-        in Matrix.remove_row mapping r
-      in
-      let case_three a b col_a col_b max =
-        let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
-        if Vector.equal col_a col_b then (a, b, max) else
-          let vcomb = Vector.combine (Vector.rev col_a) (Vector.rev col_b) in
-          let i, (x, y) = Vector.findi (function i -> function x,y -> x <> y) vcomb in
-          let r, diff = Vector.length vcomb - (i + 1), x -: y  in
-          let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-          let rec multiply_by_t m col_v t i = match m, col_v with
-                                              | x :: xs, c :: cs->  if i > 0 then let beta = c /: diff in
-                                                                    let mul_t = Vector.apply_with_c ( *:) beta t in
-                                                                    Vector.map2 (-:) x mul_t :: multiply_by_t xs cs t (i - 1)
-                                                                    else xs
-                                              | _, _ -> []
+        let case_two a r col_b =
+          let col_b = let a_length, b_length = List.length a, Vector.length col_b in
+            match Int.compare a_length b_length with
+            | -1 -> Vector.keep_vals col_b a_length
+            |  1 -> Vector.append col_b @@ Vector.zero_vec (a_length - b_length)
+            | _ -> col_b
           in
-          let sub_col = Vector.map2 (function x -> function y -> x -: y) col_a col_b in
-          Matrix.remove_row (multiply_by_t a sub_col a_r max) r, Matrix.remove_row (multiply_by_t b sub_col b_r max) r, (max - 1)
+          let a_r = Matrix.get_row a r in
+          let mapping = List.map2i (function i -> function x -> function y -> if i < r then
+                Vector.map2 (+:) x (Vector.apply_with_c ( *:) y a_r) else x ) a col_b
+          in Matrix.remove_row mapping r
+        in
+        let case_three a b col_a col_b max =
+          let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
+          if Vector.equal col_a col_b then (a, b, max) else
+            let vcomb = Vector.combine (Vector.rev col_a) (Vector.rev col_b) in
+            let i, (x, y) = Vector.findi (function i -> function x,y -> x <> y) vcomb in
+            let r, diff = Vector.length vcomb - (i + 1), x -: y  in
+            let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
+            let rec multiply_by_t m col_v t i = match m, col_v with
+              | x :: xs, c :: cs->  if i > 0 then let beta = c /: diff in
+                  let mul_t = Vector.apply_with_c ( *:) beta t in
+                  Vector.map2 (-:) x mul_t :: multiply_by_t xs cs t (i - 1)
+                else xs
+              | _, _ -> []
+            in
+            let sub_col = Vector.map2 (function x -> function y -> x -: y) col_a col_b in
+            Matrix.remove_row (multiply_by_t a sub_col a_r max) r, Matrix.remove_row (multiply_by_t b sub_col b_r max) r, (max - 1)
         in
         let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
         match Int.compare (Matrix.num_rows a) r, Int.compare (Matrix.num_rows b) r with
         | 1 , 1 ->  let a_rs, b_rs = Mpqf.to_float (Vector.nth col_a r), Mpqf.to_float (Vector.nth col_b r) in
-                    begin match  a_rs, b_rs with
-                    | 1., 1. -> lin_disjunc (r + 1) (s + 1) a b
-                    | 1., 0. -> lin_disjunc r (s + 1) (case_two a r col_b) b
-                    | 0., 1. -> lin_disjunc r (s + 1) a (case_two b r col_a)
-                    | 0., 0. ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
-                                lin_disjunc new_r (s + 1) new_a new_b
-                    | _      -> failwith "Matrix not normalized" end
+          begin match  a_rs, b_rs with
+            | 1., 1. -> lin_disjunc (r + 1) (s + 1) a b
+            | 1., 0. -> lin_disjunc r (s + 1) (case_two a r col_b) b
+            | 0., 1. -> lin_disjunc r (s + 1) a (case_two b r col_a)
+            | 0., 0. ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
+              lin_disjunc new_r (s + 1) new_a new_b
+            | _      -> failwith "Matrix not normalized" end
         | 1 , _  -> let a_rs = Vector.nth col_a r in
-                    if a_rs = (to_rt 1) then lin_disjunc r (s + 1) (case_two a r col_b) b
-                    else
-                    let new_a, new_b, new_r = case_three a b col_a col_b r in
-                    lin_disjunc new_r (s + 1) new_a new_b
+          if a_rs = (to_rt 1) then lin_disjunc r (s + 1) (case_two a r col_b) b
+          else
+            let new_a, new_b, new_r = case_three a b col_a col_b r in
+            lin_disjunc new_r (s + 1) new_a new_b
         | _ , 1  -> let b_rs = Vector.nth col_b r in
-                    if b_rs = (to_rt 1) then lin_disjunc r (s + 1) a (case_two b r col_a)
-                    else
-                    let new_a, new_b, new_r = case_three a b col_a col_b r in
-                     lin_disjunc new_r (s + 1) new_a new_b
+          if b_rs = (to_rt 1) then lin_disjunc r (s + 1) a (case_two b r col_a)
+          else
+            let new_a, new_b, new_r = case_three a b col_a col_b r in
+            lin_disjunc new_r (s + 1) new_a new_b
         | _      -> let new_a, new_b, new_r = case_three a b col_a col_b r in
-                    lin_disjunc new_r (s + 1) new_a new_b
+          lin_disjunc new_r (s + 1) new_a new_b
     in
     match a.d, b.d with
     | None, m -> b
     | m, None -> a
     | Some x, Some y when x = [] || y = [] -> {d = Some ([]); env = Environment.lce a.env b.env}
     | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
-         let sup_env = Environment.lce a.env b.env in
-         let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
-         let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-         {d = Some (lin_disjunc 0 0 mod_x mod_y); env = sup_env}
+      let sup_env = Environment.lce a.env b.env in
+      let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
+      let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
+      {d = Some (lin_disjunc 0 0 mod_x mod_y); env = sup_env}
     | Some x, Some y  -> {d = Some(lin_disjunc 0 0 x y); env = a.env}
 
   let join a b =
     let res = join a b in
-    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "ops" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
     res
   let widen a b = join a b
   let narrow a b = meet a b
@@ -411,25 +402,25 @@ struct
     let neg = Vector.map (function x -> (to_rt (-1)) *: x) in
     let rec convert_texpr env texp =
       begin match texp with
-       | Cst x ->  Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (to_rt (EnvDomain.int_of_cst x))
-       | Var x ->  Vector.set_val zero_vec (Environment.dim_of_var env x) (to_rt 1)
-       | Unop (u, e, _, _) ->
-           begin match u with
-           | Neg -> neg @@ convert_texpr env e (* Multiply by -1*)
-           | Cast -> convert_texpr env e (*Ignore*)
-           | Sqrt -> raise NotLinear end (*Maybe works if only constant?*)
-       | Binop (b, e1, e2, _, _) ->
-           begin match b with
-           | Add ->  Vector.map2 (+:)(convert_texpr env e1) (convert_texpr env e2) (*Simply add vectors*)
-           | Sub -> Vector.map2 (+:) (convert_texpr env  e1) (neg @@ convert_texpr env e2) (*Subtract them*)
-           | Mul -> let only_c v  = Vector.compare_lengths
-                                    (Vector.filteri (function i -> function x -> Vector.compare_length_with v (i + 1) <> 0 && x <> to_rt 0) v) [] = 0
-                    in let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
-                    if only_c x1 || only_c x2
-                    then Vector.map2 ( *: ) x1 x2
-                    else raise NotLinear (*Var * Var is invalid!*)
-           | _ -> raise NotLinear (*rest is not valid!*) end
-       end
+        | Cst x -> Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (EnvDomain.mpqf_of_cst x)
+        | Var x ->  Vector.set_val zero_vec (Environment.dim_of_var env x) (to_rt 1)
+        | Unop (u, e, _, _) ->
+          begin match u with
+            | Neg -> neg @@ convert_texpr env e (* Multiply by -1*)
+            | Cast -> convert_texpr env e (*Ignore*)
+            | Sqrt -> raise NotLinear end (*Maybe works if only constant?*)
+        | Binop (b, e1, e2, _, _) ->
+          begin match b with
+            | Add ->  Vector.map2 (+:)(convert_texpr env e1) (convert_texpr env e2) (*Simply add vectors*)
+            | Sub -> Vector.map2 (+:) (convert_texpr env  e1) (neg @@ convert_texpr env e2) (*Subtract them*)
+            | Mul -> let only_c v  = Vector.compare_lengths
+                         (Vector.filteri (function i -> function x -> Vector.compare_length_with v (i + 1) <> 0 && x <> to_rt 0) v) [] = 0
+              in let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
+              if only_c x1 || only_c x2
+              then Vector.map2 ( *: ) x1 x2
+              else raise NotLinear (*Var * Var is invalid!*)
+            | _ -> raise NotLinear (*rest is not valid!*) end
+      end
     in match convert_texpr env texp with
     | exception NotLinear -> None
     | x -> Some(x)
@@ -440,9 +431,9 @@ struct
     let b0 = Vector.nth b j0 in
     let reduced_a = Vector.apply_with_c (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
     let recalc_entries m rd_a = List.map2 (function x -> function y -> Vector.map2i (function j -> function z -> function d ->
-                                                                       if j = j0 then y
-                                                                       else if j < (Vector.length b) -1 then z -: y *: d
-                                                                       else z +: y *: d) x b) m rd_a
+        if j = j0 then y
+        else if j < (Vector.length b) -1 then z -: y *: d
+        else z +: y *: d) x b) m rd_a
     in {d = Some (recalc_entries x reduced_a); env = env}
 
   let assign_uninvertible_rel x var b env =
@@ -453,15 +444,16 @@ struct
   let remove_rels_with_var x var env =
     let j0 = Environment.dim_of_var env var
     in match Vector.findi (function i -> function x -> x <> to_rt 0) (Vector.rev @@ Matrix.get_col x j0) with
-            | exception Not_found -> x
-            | r, _ -> Matrix.reduce_row_to_zero x (Matrix.num_rows x - r - 1) j0
+    | exception Not_found -> x
+    | r, _ -> Matrix.reduce_row_to_zero x (Matrix.num_rows x - r - 1) j0
 
-  let rec forget_vars a vars =
-    match a.d with
-    | None -> a
+  let rec forget_vars t vars =
+    match t.d with
+    | None -> t
     | Some m -> begin match vars with
-        | [] -> a
-        | x :: xs -> forget_vars {d = Some (Option.get @@ Matrix.normalize @@ remove_rels_with_var m x a.env); env = a.env} xs end
+        | [] -> t
+        | x :: xs -> forget_vars {d = Some (Option.get @@ Matrix.normalize @@ remove_rels_with_var m x t.env); env = t.env} xs end
+
 
   let assign_texpr t var texp =
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <> to_rt 0
@@ -469,18 +461,18 @@ struct
     in match t.d, affineEq_vec with
     | Some [], Some v
     | None, Some v -> if is_invertible v then t (*top/bottom and inv. assign = top*)
-                      else assign_uninvertible_rel [] var v t.env
+      else assign_uninvertible_rel [] var v t.env
     | Some x, Some v -> if is_invertible v then assign_invertible_rels x var v t.env
-                        else let new_x = remove_rels_with_var x var t.env
-                             in assign_uninvertible_rel new_x var v t.env
+      else let new_x = remove_rels_with_var x var t.env
+        in assign_uninvertible_rel new_x var v t.env
     | _, _ -> t
 
   let assign_exp t var exp (no_ov: bool) =
     match Convert.texpr1_expr_of_cil_exp t t.env no_ov exp with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp -> match t.d with
-                                              | None -> t
-                                              | Some x -> forget_vars t [var]
+      | None -> t
+      | Some x -> forget_vars t [var]
 
   let assign_var t v v' =
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
@@ -488,17 +480,12 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var\n";
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
 
   let assign_var_parallel t vv's =
     let new_t's = List.map (function (v,v') -> assign_var t v v') vv's in
     List.fold_left join t new_t's
-
-  let assign_var_parallel t vv's =
-    let res = assign_var_parallel t vv's in
-    if M.tracing then M.tracel "ops" "assign_var parallel\n";
-    res
 
   let assign_var_parallel' t vs1 vs2 =
     let vv's = List.combine vs1 vs2 in
@@ -510,13 +497,16 @@ struct
     res
 
   let substitute_exp t var exp ov =
-    let b = get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env ov exp) in
+    let b = match get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env ov exp) with
+      | exception Convert.Unsupported_CilExp -> None
+      | x -> x
+    in
     match b, t.d with
-    | Some x, Some m -> let dim_var = Environment.dim_of_var t.env var in
-                        if Vector.nth x dim_var = (to_rt 0) then
-                        meet {d = Some (remove_rels_with_var m var t.env); env = t.env} {d = Some [x]; env = t.env}
-                        else assign_invertible_rels m var x t.env
     | None, Some m -> {d = Some (Option.get @@ Matrix.normalize (remove_rels_with_var m var t.env)); env = t.env}
+    | Some x, Some m -> let dim_var = Environment.dim_of_var t.env var in
+      if Vector.nth x dim_var = (to_rt 0) then
+        assign_uninvertible_rel (remove_rels_with_var m var t.env) var x t.env
+      else assign_invertible_rels m var x t.env
     | _, _ -> t
 
   let substitute_exp t var exp ov =
@@ -527,8 +517,8 @@ struct
   let rec meet_with_tcons d tcons =
     let meet_with_const cmp = begin match d.d with
       | Some m -> begin match calc_const m d.env @@ Texpr1.to_expr (Tcons1.get_texpr1 tcons) with
-                        | Some c -> if cmp c (to_rt 0) then {d = None; env = d.env} else d
-                        | None -> d end
+          | Some c -> if cmp c (to_rt 0) then {d = None; env = d.env} else d
+          | None -> d end
       | _ -> d end
     in
     let meet_with_vec e =
@@ -561,12 +551,12 @@ struct
     if M.tracing then M.tracel "ops" "unify\n";
     res
 
-    let rec assert_cons d e negate no_ov =
-      begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-        | tcons1 -> meet_with_tcons d tcons1
-        | exception Convert.Unsupported_CilExp ->
-          d
-      end
+  let rec assert_cons d e negate no_ov =
+    begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
+      | tcons1 -> meet_with_tcons d tcons1
+      | exception Convert.Unsupported_CilExp ->
+        d
+    end
 
   type marshal = t
 
