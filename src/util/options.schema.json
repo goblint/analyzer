@@ -649,6 +649,27 @@
               },
               "additionalProperties": false
             },
+            "arrays":{
+              "title": "ana.base.arrays",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.arrays.domain",
+                  "description":
+                    "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
+                  "type": "string",
+                  "enum": ["trivial", "partitioned", "unroll"],
+                  "default": "trivial"
+                },
+                "unrolling-factor": {
+                  "title": "ana.base.arrays.unrolling-factor",
+                  "description": "Indicates how many values will the unrolled part of the unrolled array domain contain.",
+                  "type": "integer",
+                  "default": 0
+                }
+              },
+              "additionalProperties": false
+            },
             "structs": {
               "title": "ana.base.structs",
               "type": "object",
@@ -1400,21 +1421,6 @@
             "Path to C preprocessor (cpp) to use. If empty, then automatically searched.",
           "type": "string",
           "default": ""
-        },
-        "arrays-domain": {
-          "title": "exp.arrays-domain",
-          "description":
-            "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the exp.array-unrolling-factor >0.",
-          "type": "string",
-          "enum": ["trivial", "partitioned", "unroll"],
-          "default": "trivial"
-        },
-        "array-unrolling-factor": {
-          "title": "exp.array-unrolling-factor",
-          "description":
-            "Indicates how many values will the unrolled part of the unrolled array domain contain.",
-          "type": "integer",
-          "default": 0
         }
       },
       "additionalProperties": false

@@ -1,5 +1,5 @@
 // Made after 02 21
-// PARAM: --set ana.int.interval true --set exp.arrays-domain partitioned
+// PARAM: --set ana.int.interval true --set ana.base.arrays.domain partitioned
 
 #include <stdlib.h>
 #include <assert.h>

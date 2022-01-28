@@ -71,7 +71,7 @@ end
 
 module Unroll (Val: Lattice.S) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
 struct
-  module Factor = struct let x () = (get_int "exp.array-unrolling-factor") end
+  module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
   module Base = Lattice.ProdList (Val) (Factor)
   include Lattice.ProdSimple(Base) (Val)
 
@@ -79,8 +79,8 @@ struct
   type idx = Idx.t
   type value = Val.t
   let factor () = 
-    match get_int "exp.array-unrolling-factor" with
-    | 0 -> failwith "ArrayDomain: exp.array-unrolling-factor needs to be set when using the unroll domain"
+    match get_int "ana.base.arrays.unrolling-factor" with
+    | 0 -> failwith "ArrayDomain: ana.base.arrays.unrolling-factor needs to be set when using the unroll domain"
     | x -> x
   let join_of_all_parts (xl, xr) = List.fold_left Val.join xr xl
   let show (xl, xr) =
@@ -828,7 +828,7 @@ struct
   let update_length newl x = unop_to_t' (P.update_length newl) (T.update_length newl) (U.update_length newl) x
 
   (* Functions that make us of the configuration flag *)
-  let chosen_domain () = get_string "exp.arrays-domain"
+  let chosen_domain () = get_string "ana.base.arrays.domain"
 
   let name () = "FlagConfiguredArrayDomain: " ^ match chosen_domain () with
     | "trivial" -> T.name ()

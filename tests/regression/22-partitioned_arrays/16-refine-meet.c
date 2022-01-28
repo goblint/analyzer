@@ -1,4 +1,4 @@
-// PARAM: --set exp.arrays-domain partitioned
+// PARAM: --set ana.base.arrays.domain partitioned
 int garr[7];
 
 int main(int argc, char **argv)

@@ -41,11 +41,15 @@
         "kmalloc_array",
         "kcalloc"
       ]
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
     }
   },
   "exp": {
-    "region-offsets": true,
-    "arrays-domain": "partitioned"
+    "region-offsets": true
   },
   "solver": "td3",
   "sem": {
