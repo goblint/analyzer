@@ -738,6 +738,12 @@
               "type": "boolean",
               "default": true
             },
+            "strengthening": {
+              "title": "ana.apron.strengthening",
+              "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
+              "type": "boolean",
+              "default": false
+            },
             "domain": {
               "title": "ana.apron.domain",
               "description":

@@ -108,9 +108,11 @@ struct
 
   let context fd x =
     let x = spec_list x in
-    map (fun (n,(module S:MCPSpec),d) ->
-        let d' = if mem n !cont_inse then S.D.top () else obj d in
-        n, repr @@ S.context fd d'
+    filter_map (fun (n,(module S:MCPSpec),d) ->
+        if mem n !cont_inse then
+          None
+        else
+          Some (n, repr @@ S.context fd (obj d))
       ) x
 
   let should_join x y =
@@ -150,9 +152,6 @@ struct
     in
     f [] [] xs
 
-  let assoc_split k xs = assoc_split_eq (=) k xs
-
-
   (** [group_assoc_eq (=) [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
   let group_assoc_eq eq (xs: ('a * 'b) list) : ('a * ('b list)) list  =
     let rec f a = function
@@ -161,9 +160,6 @@ struct
         let a', b = assoc_split_eq eq k xs in
         f ((k,v::a')::a) b
     in f [] xs
-
-  (** [group_assoc [(1,a);(1,b);(2,x);(2,y)] = [(1,[a,b]),(2,[x,y])]] *)
-  let group_assoc xs = group_assoc_eq (=) xs
 
   let filter_presubs n xs =
     let f n =
@@ -771,7 +767,7 @@ struct
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
-      n, repr @@ S.combine ctx' r fe f a (obj (assoc n fc)) (obj (assoc n fd))
+      n, repr @@ S.combine ctx' r fe f a (Option.map obj (Option.bind fc (assoc_opt n))) (obj (assoc n fd))
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;

@@ -1,4 +1,4 @@
-open OUnit
+open OUnit2
 open Z
 
 module IntTest (I:IntDomainProperties.OldS) =
@@ -16,7 +16,7 @@ struct
   let ifalse     = I.of_bool false
 
 
-  let test_int_comp () =
+  let test_int_comp _ =
     assert_equal ~printer:I.show izero (I.of_int zero);
     assert_equal ~printer:I.show ione  (I.of_int one);
     assert_equal ~printer:I.show itrue (I.of_bool true);
@@ -28,7 +28,7 @@ struct
     assert_equal (Some zero) (I.to_int ifalse)
 
 
-  let test_bool () =
+  let test_bool _ =
     assert_equal (Some true ) (I.to_bool ione);
     assert_equal (Some false) (I.to_bool izero);
     assert_bool "0 isn't bool" (I.is_bool izero);
@@ -43,32 +43,32 @@ struct
     assert_equal ~printer:I.show ifalse (I.ne ione  ione)
 
 
-  let test_neg () =
+  let test_neg _ =
     assert_equal ~printer:I.show in5 (I.neg i5);
     assert_equal ~printer:I.show i5 (I.neg (I.neg i5));
     assert_equal ~printer:I.show izero (I.neg izero)
 
 
-  let test_add () =
+  let test_add _ =
     assert_equal ~printer:I.show ione (I.add izero ione);
     assert_equal ~printer:I.show ione (I.add ione  izero);
     assert_equal ~printer:I.show izero(I.add izero izero)
 
 
-  let test_sub () =
+  let test_sub _ =
     assert_equal ~printer:I.show ione (I.sub izero iminus_one);
     assert_equal ~printer:I.show ione (I.sub ione  izero);
     assert_equal ~printer:I.show izero(I.sub izero izero)
 
 
-  let test_mul () =
+  let test_mul _ =
     assert_equal ~printer:I.show izero(I.mul izero iminus_one);
     assert_equal ~printer:I.show izero(I.mul izero izero);
     assert_equal ~printer:I.show ione (I.mul ione  ione);
     assert_equal ~printer:I.show i42  (I.mul ione  i42)
 
 
-  let test_div () =
+  let test_div _ =
     assert_equal ~printer:I.show ione (I.div ione ione);
     assert_equal ~printer:I.show ione (I.div i5 i5);
     assert_equal ~printer:I.show i5   (I.div i5 ione);
@@ -76,14 +76,14 @@ struct
     assert_bool "div_by_0" (try I.is_top (I.div i5 izero) with Division_by_zero -> true)
 
 
-  let test_rem () =
+  let test_rem _ =
     assert_equal ~printer:I.show ione (I.rem ione  i5);
     assert_equal ~printer:I.show izero(I.rem izero i5);
     assert_equal ~printer:I.show itwo (I.rem i42   i5);
     assert_equal ~printer:I.show itwo (I.rem i42   in5)
 
 
-  let test_bit () =
+  let test_bit _ =
     assert_equal ~printer:I.show iminus_one (I.bitnot izero);
     assert_equal ~printer:I.show iminus_two (I.bitnot ione);
     assert_equal ~printer:I.show i5   (I.bitand i5 i5);
@@ -137,7 +137,7 @@ let tex1       = T.of_excl_list [one ]
 let tex10      = T.of_excl_list [zero; one]
 let tex01      = T.of_excl_list [one; zero]
 
-let test_bot () =
+let test_bot _ =
   assert_bool "bot != bot" (T.is_bot tbot);
   assert_bool "top != top" (T.is_top ttop);
   assert_bool "top == bot" (not (T.is_bot ttop));
@@ -145,7 +145,7 @@ let test_bot () =
   assert_bool "0 == top" (not (T.is_top tzero));
   assert_bool "1 == top" (not (T.is_top tone))
 
-let test_join () =
+let test_join _ =
   assert_equal ~printer:T.show tone (T.join tbot  tone);
   assert_equal ~printer:T.show tzero(T.join tbot  tzero);
   assert_equal ~printer:T.show tone (T.join tone  tbot);
@@ -168,7 +168,7 @@ let test_join () =
   assert_equal ~printer:T.show tex1 (T.join tex1  tzero);
   assert_equal ~printer:T.show tex0 (T.join tex0  tone )
 
-let test_meet () =
+let test_meet _ =
   assert_equal ~printer:T.show tbot (T.meet tbot  tone);
   assert_equal ~printer:T.show tbot (T.meet tbot  tzero);
   assert_equal ~printer:T.show tbot (T.meet tone  tbot);
@@ -190,7 +190,7 @@ let test_meet () =
   assert_equal ~printer:T.show tzero(T.meet tex1  tzero);
   assert_equal ~printer:T.show tone (T.meet tex0  tone )
 
-let test_ex_set () =
+let test_ex_set _ =
   assert_equal (Some [zero; one]) (T.to_excl_list tex10);
   assert_equal (Some [zero; one]) (T.to_excl_list tex01);
   assert_bool  "Not [1;0] is not excl set" (T.is_excl_list tex10);

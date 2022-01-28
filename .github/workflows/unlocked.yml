@@ -72,12 +72,6 @@ jobs:
       - name: Test unit
         run: opam exec -- dune runtest unittest
 
-      - name: Build domaintest
-        run: ./make.sh domaintest
-
-      - name: Test domains
-        run: ./goblint.domaintest # could be made long
-
       - name: Test marshal regression
         run: ruby scripts/update_suite.rb -m
 
@@ -153,12 +147,6 @@ jobs:
 
       - name: Test unit
         run: opam exec -- dune runtest unittest
-
-      - name: Build domaintest
-        run: ./make.sh domaintest
-
-      - name: Test domains
-        run: ./goblint.domaintest # could be made long
 
       - name: Test marshal regression
         run: ruby scripts/update_suite.rb -m

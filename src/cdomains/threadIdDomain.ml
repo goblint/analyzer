@@ -188,9 +188,9 @@ struct
 
   let threadinit v ~multiple =
     if history_enabled () then
-      (Some (H.threadinit v multiple), None)
+      (Some (H.threadinit v ~multiple), None)
     else
-      (None, Some (P.threadinit v multiple))
+      (None, Some (P.threadinit v ~multiple))
 
   let is_main = unop H.is_main P.is_main
   let is_unique = unop H.is_unique P.is_unique

@@ -21,6 +21,7 @@ end
 
 module PrintableChar =
 struct
+  include Printable.Std
   type t = char [@@deriving eq, ord, to_yojson]
   let name () = "char"
   let show x = String.make 1 x
@@ -30,7 +31,6 @@ struct
     type nonrec t = t
     let show = show
   end
-  include Printable.Std
   include Printable.SimpleShow (P)
 
   let hash = Char.code
@@ -133,5 +133,5 @@ let nonAssocIntTestsuite =
       let module DP = IntDomainProperties.AllNonAssoc (D) in
       DP.tests
     )
-let () =
-  QCheck_base_runner.run_tests_main ~argv:Sys.argv (testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite)
+
+let all_testsuite = testsuite @ nonAssocTestsuite @ intTestsuite @ nonAssocIntTestsuite

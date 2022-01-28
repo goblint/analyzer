@@ -57,8 +57,8 @@ module ZeroInit = Lattice.Fake(Basetype.RawBools)
 
 module Blob (Value: S) (Size: IntDomain.Z)=
 struct
-  let name () = "blob"
   include Lattice.Prod3 (Value) (Size) (ZeroInit)
+  let name () = "blob"
   type value = Value.t
   type size = Size.t
   type origin = ZeroInit.t
