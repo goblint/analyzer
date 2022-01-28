@@ -17,13 +17,36 @@ struct
   module D = Lattice.Unit
   module C = Lattice.Unit
 
+  (* Two global invariants:
+     1. (lval, type) -> accesses  --  used for warnings
+     2. varinfo -> set of (lval, type)  --  used for IterSysVars Global *)
+
+  module V0 = Printable.Prod (Access.LVOpt) (Access.T)
+  module V =
+  struct
+    include Printable.Either (V0) (CilType.Varinfo)
+    let access x = `Left x
+    let vars x = `Right x
+  end
+
+  module V0Set = SetDomain.Make (V0)
   module G =
   struct
-    include Access.AS
+    include Lattice.Lift2 (Access.AS) (V0Set) (Printable.DefaultNames)
+
+    let access = function
+      | `Bot -> Access.AS.bot ()
+      | `Lifted1 x -> x
+      | _ -> failwith "Access.access"
+    let vars = function
+      | `Bot -> V0Set.bot ()
+      | `Lifted2 x -> x
+      | _ -> failwith "Access.vars"
+    let create_access access = `Lifted1 access
+    let create_vars vars = `Lifted2 vars
 
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
-  module V = Printable.Prod (Access.LVOpt) (Access.T)
 
   let safe       = ref 0
   let vulnerable = ref 0
@@ -34,14 +57,28 @@ struct
     vulnerable := 0;
     unsafe := 0
 
+  let side_vars ctx lv_opt ty =
+    match lv_opt with
+    | Some (v, _) ->
+      let d =
+        if !GU.should_warn then
+          G.create_vars (V0Set.singleton (lv_opt, ty))
+        else
+          G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
+      in
+      ctx.sideg (V.vars v) d;
+    | None ->
+      ()
+
   let side_access ctx ty lv_opt (conf, w, loc, e, a) =
     let d =
       if !GU.should_warn then
-        Access.AS.singleton (conf, w, loc, e, a)
+        G.create_access (Access.AS.singleton (conf, w, loc, e, a))
       else
         G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
     in
-    ctx.sideg (lv_opt, ty) d
+    ctx.sideg (V.access (lv_opt, ty)) d;
+    side_vars ctx lv_opt ty
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
@@ -204,9 +241,18 @@ struct
     match q with
     | WarnGlobal g ->
       let g: V.t = Obj.obj g in
-      (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
-      let accs = ctx.global g in
-      Stats.time "access" (Access.warn_global safe vulnerable unsafe g) accs
+      begin match g with
+        | `Left g' -> (* accesses *)
+          (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
+          let accs = G.access (ctx.global g) in
+          Stats.time "access" (Access.warn_global safe vulnerable unsafe g') accs
+        | `Right _ -> (* vars *)
+          ()
+      end
+    | IterSysVars (Global g, vf) ->
+      V0Set.iter (fun v ->
+          vf (Obj.repr (V.access v))
+        ) (G.vars (ctx.global (V.vars g)))
     | _ -> Queries.Result.top q
 
   let finalize () =

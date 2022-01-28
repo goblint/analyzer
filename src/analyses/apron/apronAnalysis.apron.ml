@@ -377,6 +377,9 @@ struct
       let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
       let is_lt = eval_int exp in
       Option.default true (ID.to_bool is_lt)
+    | Queries.IterSysVars (vq, vf) ->
+      let vf' x = vf (Obj.repr x) in
+      Priv.iter_sys_vars ctx.global vq vf'
     | _ -> Result.top q
 
 

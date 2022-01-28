@@ -95,6 +95,7 @@ type _ t =
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
+  | IterSysVars: VarQuery.t * Obj.t VarQuery.f -> Unit.t t (** [iter_vars] for [Constraints.FromSpec]. [Obj.t] represents [Spec.V.t]. *)
 
 type 'a result = 'a
 
@@ -147,6 +148,7 @@ struct
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | WarnGlobal _ -> (module Unit)
+    | IterSysVars _ -> (module Unit)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -198,6 +200,7 @@ struct
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | WarnGlobal _ -> Unit.top ()
+    | IterSysVars _ -> Unit.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -247,6 +250,7 @@ struct
       | Any CreatedThreads -> 33
       | Any MustJoinedThreads -> 34
       | Any (WarnGlobal _) -> 35
+      | Any (IterSysVars _) -> 36
     in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
@@ -282,6 +286,7 @@ struct
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
+      | Any (IterSysVars (vq1, vf1)), Any (IterSysVars (vq2, vf2)) -> VarQuery.compare vq1 vq2 (* not comparing fs *)
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 end

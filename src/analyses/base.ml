@@ -38,6 +38,10 @@ struct
   module D      = Dom
   module C      = Dom
 
+  (* Two global invariants:
+     1. Priv.V -> Priv.G  --  used for Priv
+     2. thread -> VD  --  used for thread returns *)
+
   module V =
   struct
     include Printable.Either (Priv.V) (ThreadIdDomain.Thread)
@@ -1079,6 +1083,9 @@ struct
         | _ -> true
       end
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
+    | Q.IterSysVars (vq, vf) ->
+      let vf' x = vf (Obj.repr (V.priv x)) in
+      Priv.iter_sys_vars (priv_getg ctx.global) vq vf'
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

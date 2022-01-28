@@ -599,58 +599,110 @@ module WP =
           else
             destabilize_normal;
 
-        let filter_map f l =
-          List.fold_left (fun acc el -> match f el with Some x -> x::acc | _ -> acc) [] l
+        let changed_funs = List.filter_map (function
+            | {old = GFun (f, _); diff = None; _} ->
+              print_endline ("Completely changed function: " ^ f.svar.vname);
+              Some f
+            | _ -> None
+          ) S.increment.changes.changed
         in
-        let changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), None -> Some f | _ -> None) S.increment.changes.changed in
-        let part_changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), Some nd -> Some (f,nd.primObsoleteNodes,nd.unchangedNodes) | _ -> None) S.increment.changes.changed in
-        let prim_old_nodes_ids = Set.of_list (List.concat_map (fun (_,pn,_) -> List.map Node.show_id pn) part_changed_funs) in
-        let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
-        (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
-        let obsolete_ret = Set.union (Set.of_list (List.map (fun f -> Node.show_id (Function f)) changed_funs))
-                                     (Set.of_list (List.map (fun (f,_,_) -> Node.show_id (Function f)) part_changed_funs)) in
-        let obsolete_entry = Set.of_list (List.map (fun f -> Node.show_id (FunctionEntry f)) changed_funs) in
+        let part_changed_funs = List.filter_map (function
+            | {old = GFun (f, _); diff = Some nd; _} ->
+              print_endline ("Partially changed function: " ^ f.svar.vname);
+              Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
+            | _ -> None
+          ) S.increment.changes.changed
+        in
+        let removed_funs = List.filter_map (function
+            | GFun (f, _) ->
+              print_endline ("Removed function: " ^ f.svar.vname);
+              Some f
+            | _ -> None
+          ) S.increment.changes.removed
+        in
 
-        List.iter (fun a -> print_endline ("Completely changed function: " ^ a.svar.vname)) changed_funs;
-        List.iter (fun (f,_,_) -> print_endline ("Partially changed function: " ^ (f.svar.vname))) part_changed_funs;
-        List.iter (fun f -> print_endline ("Removed function: " ^ (f.svar.vname))) removed_funs;
+        let mark_node hm f node =
+          let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
+          S.iter_vars get (Node {node; fundec = Some f}) (fun v ->
+              HM.replace hm v ()
+            )
+        in
 
-        let old_ret = Hashtbl.create 103 in
+        let obsolete_ret = HM.create 103 in
+        let obsolete_entry = HM.create 103 in
+        let obsolete_prim = HM.create 103 in
+        List.iter (fun f ->
+            mark_node obsolete_entry f (FunctionEntry f);
+            mark_node obsolete_ret f (Function f);
+          ) changed_funs;
+        List.iter (fun (f, pn, _) ->
+            List.iter (fun n ->
+                mark_node obsolete_prim f n
+              ) pn;
+            mark_node obsolete_ret f (Function f);
+          ) part_changed_funs;
+
+        let old_ret = HM.create 103 in
         if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
-          HM.iter (fun k v -> if Set.mem (S.Var.var_id k) obsolete_ret then ( (* TODO: don't use string-based nodes *)
-              let old_rho = HM.find rho k in
-              let old_infl = HM.find_default infl k VS.empty in
-              Hashtbl.replace old_ret k (old_rho, old_infl))) rho;
+          HM.iter (fun k v ->
+              if HM.mem rho k then (
+                let old_rho = HM.find rho k in
+                let old_infl = HM.find_default infl k VS.empty in
+                HM.replace old_ret k (old_rho, old_infl)
+              )
+            ) obsolete_ret;
         ) else (
           (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
              and the primary obsolete nodes of partly changed functions *)
           print_endline "Destabilizing changed functions and primary old nodes ...";
-          HM.iter (fun k _ -> if Set.mem (S.Var.var_id k) obsolete_entry || Set.mem (S.Var.var_id k) prim_old_nodes_ids then destabilize k) stable; (* TODO: don't use string-based nodes *)
+          HM.iter (fun k _ ->
+              if HM.mem stable k then
+                destabilize k
+            ) obsolete_entry;
+          HM.iter (fun k _ ->
+              if HM.mem stable k then
+                destabilize k
+            ) obsolete_prim;
         );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
-        (* TODO: don't use string-based nodes, make marked_for_deletion of type unit (Hashtbl.Make (Node)).t *)
-        let add_nodes_of_fun (functions: fundec list) (nodes) withEntry =
+        let marked_for_deletion = HM.create 103 in
+
+        let dummy_pseudo_return_node f =
+          (* not the same as in CFG, but compares equal because of sid *)
+          Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
+        in
+        let add_nodes_of_fun (functions: fundec list) withEntry =
           let add_stmts (f: fundec) =
-            List.iter (fun s -> Hashtbl.replace nodes (Node.show_id (Statement s)) ()) (f.sallstmts)
+            List.iter (fun s ->
+                mark_node marked_for_deletion f (Statement s)
+              ) f.sallstmts
           in
-          List.iter (fun f -> if withEntry then Hashtbl.replace nodes (Node.show_id (FunctionEntry f)) (); Hashtbl.replace nodes (Node.show_id (Function f)) (); add_stmts f; Hashtbl.replace nodes (string_of_int (CfgTools.get_pseudo_return_id f)) ()) functions;
+          List.iter (fun f ->
+              if withEntry then
+                mark_node marked_for_deletion f (FunctionEntry f);
+              mark_node marked_for_deletion f (Function f);
+              add_stmts f;
+              mark_node marked_for_deletion f (dummy_pseudo_return_node f)
+            ) functions;
         in
 
-        let marked_for_deletion = Hashtbl.create 103 in
-        add_nodes_of_fun changed_funs marked_for_deletion (not (GobConfig.get_bool "incremental.reluctant.on"));
-        add_nodes_of_fun removed_funs marked_for_deletion true;
+        add_nodes_of_fun changed_funs (not (GobConfig.get_bool "incremental.reluctant.on"));
+        add_nodes_of_fun removed_funs true;
         (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
         let add_pseudo_return f un =
-          let pid = CfgTools.get_pseudo_return_id f in
-          let is_pseudo_return n = match n with MyCFG.Statement s -> s.sid = pid | _ -> false in
-          if not (List.exists (fun x -> is_pseudo_return @@ fst @@ x) un)
-          then Hashtbl.replace marked_for_deletion (string_of_int pid) () in
-        List.iter (fun (f,_,un) -> Hashtbl.replace marked_for_deletion (Node.show_id (Function f)) (); add_pseudo_return f un) part_changed_funs;
+          let pseudo = dummy_pseudo_return_node f in
+          if not (List.exists (Node.equal pseudo % fst) un) then
+            mark_node marked_for_deletion f (dummy_pseudo_return_node f)
+        in
+        List.iter (fun (f,_,un) ->
+            mark_node marked_for_deletion f (Function f);
+            add_pseudo_return f un
+          ) part_changed_funs;
 
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.filteri_inplace (fun k _ -> not (Hashtbl.mem  marked_for_deletion (S.Var.var_id k))) s in (* TODO: don't use string-based nodes *)
+        let delete_marked s = HM.iter (fun k _ -> HM.remove s k) marked_for_deletion in
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
@@ -659,8 +711,12 @@ module WP =
         if restart_sided then (
           (* restarts old copies of functions and their (removed) side effects *)
           print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
-          let stable_copy = HM.copy stable in (* use copy because destabilize modifies stable *)
-          HM.iter (fun k _ -> if Hashtbl.mem marked_for_deletion (S.Var.var_id k) then (ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k); destabilize k)) stable_copy; (* TODO: don't use string-based nodes *)
+          HM.iter (fun k _ ->
+              if HM.mem stable k then (
+                ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k);
+                destabilize k
+              )
+            ) marked_for_deletion
         );
 
         let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)
@@ -709,8 +765,7 @@ module WP =
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
-          Hashtbl.iter (
-            fun x (old_rho, old_infl) ->
+          HM.iter (fun x (old_rho, old_infl) ->
               ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
               ignore (solve x Widen false); (* TODO: use returned changed for comparison? *)
               if not (op (HM.find rho x) old_rho) then (
@@ -719,7 +774,7 @@ module WP =
                 destabilize x;
                 HM.replace stable x ()
               )
-          ) old_ret;
+            ) old_ret;
 
           print_endline "Final solve..."
         );
