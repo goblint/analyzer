@@ -586,9 +586,9 @@ module ProdList (Base: S) (N: Num) =
 struct
   include Printable.Liszt (Base)
 
-  let bot () = Array.to_list (Array.make (N.x ()) (Base.bot ()))
+  let bot () = BatList.make (N.x ()) (Base.bot ())
   let is_bot = List.for_all Base.is_bot
-  let top () = Array.to_list (Array.make (N.x ()) (Base.top ()))
+  let top () = BatList.make (N.x ()) (Base.top ())
   let is_top = List.for_all Base.is_top
 
   let leq =
