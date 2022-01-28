@@ -280,7 +280,7 @@ let preprocess_files () =
 
   let extra_arg_files = ref [] in
 
-  extra_arg_files := find_custom_include "stdlib.c" :: !extra_arg_files;
+  extra_arg_files := find_custom_include "stdlib.c" :: find_custom_include "pthread.c" :: !extra_arg_files;
 
   if get_bool "ana.sv-comp.functions" then
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;

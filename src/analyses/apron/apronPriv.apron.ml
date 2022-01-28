@@ -39,6 +39,7 @@ module type S =
 
     val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
+    val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
     val init: unit -> unit
     val finalize: unit -> unit
@@ -68,6 +69,7 @@ struct
 
   let enter_multithreaded ask getg sideg st = st
   let threadenter ask getg st = st
+  let iter_sys_vars getg vq vf = ()
 
   let init () = ()
   let finalize () = ()
@@ -341,6 +343,8 @@ struct
 
   let threadenter ask getg (st: apron_components_t): apron_components_t =
     {apr = getg (); priv = startstate ()}
+
+  let iter_sys_vars getg vq vf = () (* TODO: or report singleton global for any Global query? *)
 
   let finalize () = ()
 end
@@ -1039,6 +1043,11 @@ struct
   let threadenter ask getg (st: apron_components_t): apron_components_t =
     let _,lmust,l = st.priv in
     {apr = AD.bot (); priv = (W.bot (),lmust,l)}
+
+  let iter_sys_vars getg vq vf =
+    match vq with
+    | VarQuery.Global g -> vf (V.global g)
+    | _ -> ()
 
   let finalize () = finalize ()
 end

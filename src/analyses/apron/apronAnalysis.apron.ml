@@ -129,7 +129,7 @@ struct
     assert (AD.varinfo_tracked x);
     let ik = Cilfacade.get_ikind x.vtype in
     if not (IntDomain.should_ignore_overflow ik) then ( (* don't add type bounds for signed when assume_none *)
-      let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+      let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let apr = AD.assert_inv apr (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) false in
       let apr = AD.assert_inv apr (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) false in
@@ -377,6 +377,9 @@ struct
       let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
       let is_lt = eval_int exp in
       Option.default true (ID.to_bool is_lt)
+    | Queries.IterSysVars (vq, vf) ->
+      let vf' x = vf (Obj.repr x) in
+      Priv.iter_sys_vars ctx.global vq vf'
     | _ -> Result.top q
 
 

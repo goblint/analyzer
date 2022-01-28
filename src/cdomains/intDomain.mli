@@ -329,8 +329,7 @@ val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t
 module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
-  val range           : Cil.ikind -> int64 * int64
-  val range_big_int   : Cil.ikind -> Z.t * Z.t
+  val range           : Cil.ikind -> Z.t * Z.t
   val bits            : Cil.ikind -> int * int
 end
 

@@ -70,11 +70,46 @@ end
 
 module GVarF (V: Printable.S) =
 struct
-  include V
+  include Printable.Either (V) (CilType.Fundec)
+  let spec x = `Left x
+  let contexts x = `Right x
+
   (* from Basetype.Variables *)
   let var_id _ = "globals"
   let node _ = MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
+end
+
+module GVarG (G: Lattice.S) (C: Printable.S) =
+struct
+  module CSet =
+  struct
+    include SetDomain.Make (
+      struct
+        include C
+        let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
+      end
+      )
+    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
+  end
+
+  include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
+
+  let spec = function
+    | `Bot -> G.bot ()
+    | `Lifted1 x -> x
+    | _ -> failwith "GVarG.spec"
+  let contexts = function
+    | `Bot -> CSet.bot ()
+    | `Lifted2 x -> x
+    | _ -> failwith "GVarG.contexts"
+  let create_spec spec = `Lifted1 spec
+  let create_contexts contexts = `Lifted2 contexts
+
+  let printXml f = function
+    | `Lifted1 x -> G.printXml f x
+    | `Lifted2 x -> BatPrintf.fprintf f "<analysis name=\"fromspec-contexts\">%a</analysis>" CSet.printXml x
+    | x -> BatPrintf.fprintf f "<analysis name=\"fromspec\">%a</analysis>" printXml x
 end
 
 
@@ -122,10 +157,10 @@ struct
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
 
-  include Printable.SimplePretty (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let show = show
     end
     )
 end
@@ -385,7 +420,7 @@ sig
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t -> D.t -> D.t
+  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> D.t
 
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
@@ -448,6 +483,8 @@ sig
 
   (** Data used for incremental analysis *)
   val increment : increment_data
+
+  val iter_vars: (v -> d) -> VarQuery.t -> v VarQuery.f -> unit
 end
 
 (** Any system of side-effecting equations over lattices. *)
@@ -463,6 +500,7 @@ sig
   module G : Lattice.S
   val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
+  val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
 end
 
 (** A solver is something that can translate a system into a solution (hash-table).

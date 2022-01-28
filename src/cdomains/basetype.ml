@@ -23,7 +23,6 @@ struct
   include CilType.Varinfo
   let trace_enabled = true
   let is_global v = v.vglob
-  let copy x = x
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
@@ -87,7 +86,6 @@ module CilExp =
 struct
   include Printable.Std (* for Groupable *)
   include CilType.Exp
-  let copy x = x
 
   let name () = "expressions"
 
@@ -156,7 +154,6 @@ end
 module CilStmt: Printable.S with type t = stmt =
 struct
   include CilType.Stmt
-  let copy x = x
   let show x = "<stmt>"
   let pretty = Cilfacade.stmt_pretty_short
 

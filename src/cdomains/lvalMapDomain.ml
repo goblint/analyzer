@@ -92,6 +92,7 @@ struct
   module Must = Lattice.Reverse (Must')
   module May  = SetDomain.ToppedSet (R) (struct let topname = "top" end)
   include Lattice.Prod (Must) (May)
+  let name () = Impl.name
 
   (* converts to polymorphic sets *)
   let split (x,y) = try Must'.elements x |> Set.of_list, May.elements y |> Set.of_list with SetDomain.Unsupported _ -> Set.empty, Set.empty
@@ -133,8 +134,6 @@ struct
   let length = split %> Tuple2.mapn Set.cardinal
   let map' f = split %> Tuple2.mapn (Set.map f)
   let filter' f = split %> Tuple2.mapn (Set.filter f)
-
-  let locs ?p:(p=const true) v = filter p v |> map' (fun x -> x.loc) |> snd |> Set.elements
 
   (* predicates *)
   let must   p (x,y) = Must'.exists p x || May.for_all p y
@@ -258,7 +257,7 @@ struct
       in (if may then Messages.warn else Messages.error) ~loc:(Node (List.last loc)) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
 
   (* getting keys from Cil Lvals *)
-  let sprint f x = Pretty.sprint 80 (f () x)
+  let sprint f x = Pretty.sprint ~width:80 (f () x)
 
   let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1

@@ -157,7 +157,7 @@ struct
     S.special (conv ctx) r f args
 
   let combine ctx r fe f args fc es =
-    S.combine (conv ctx) r fe f args (C.unlift fc) es
+    S.combine (conv ctx) r fe f args (Option.map C.unlift fc) es
 
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
@@ -189,7 +189,6 @@ struct
   let name () = S.name ()^" level sliced"
 
   let start_level = ref (`Top)
-  let error_level = ref (`Lifted  0L)
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init marshal =
@@ -458,7 +457,7 @@ module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
     include GlobConstrSys with module LVar = VarF (S.C)
                            and module GVar = GVarF (S.V)
                            and module D = S.D
-                           and module G = S.G
+                           and module G = GVarG (S.G) (S.C)
     val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> D.t -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t
   end
 =
@@ -470,7 +469,11 @@ struct
   module LVar = VarF (S.C)
   module GVar = GVarF (S.V)
   module D = S.D
-  module G = S.G
+  module G = GVarG (S.G) (S.C)
+
+  (* Two global invariants:
+     1. S.V -> S.G  --  used for Spec
+     2. fundec -> set of S.C  --  used for IterSysVars Node *)
 
   (* Dummy module. No incremental analysis supported here*)
   let increment = I.increment
@@ -480,7 +483,16 @@ struct
     | _ :: _ :: _ -> S.sync ctx `Join
     | _ -> S.sync ctx `Normal
 
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
+  let side_context sideg f c =
+    let d =
+      if !GU.postsolving then
+        G.create_contexts (G.CSet.singleton c)
+      else
+        G.create_contexts (G.CSet.empty ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
+    in
+    sideg (GVar.contexts f) d
+
+  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
@@ -493,12 +505,12 @@ struct
       ; context = snd var |> Obj.obj
       ; edge    = edge
       ; local   = pval
-      ; global  = getg
+      ; global  = (fun g -> G.spec (getg (GVar.spec g)))
       ; presub  = []
       ; postsub = []
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
-      ; sideg   = sideg
+      ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
       ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
     and spawn lval f args =
@@ -589,6 +601,10 @@ struct
     common_join ctx d !r !spawns
 
   let tf_entry var edge prev_node fd getl sidel getg sideg d =
+    (* Side effect function context here instead of at sidel to FunctionEntry,
+       because otherwise context for main functions (entrystates) will be missing or pruned during postsolving. *)
+    let c: unit -> S.C.t = snd var |> Obj.obj in
+    side_context sideg fd (c ());
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.body ctx fd) !r !spawns
 
@@ -623,6 +639,7 @@ struct
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
+    let paths = List.map (Tuple3.map2 Option.some) paths in
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
     let r = List.fold_left D.join (D.bot ()) paths in
@@ -745,6 +762,40 @@ struct
           List.fold_left S.D.join (S.D.bot ()) xs
       in
       Some tf
+
+  let iter_vars getl getg vq fl fg =
+    (* vars for Spec *)
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> S.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+      ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+      ; context = (fun () -> ctx_failwith "No context in query context.")
+      ; edge    = MyCFG.Skip
+      ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
+      ; global = (fun g -> G.spec (getg (GVar.spec g)))
+      ; presub = []
+      ; postsub= []
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+      ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
+      }
+    in
+    let f v = fg (GVar.spec (Obj.obj v)) in
+    S.query ctx (IterSysVars (vq, f));
+
+    (* node vars for locals *)
+    match vq with
+    | Node {node; fundec} ->
+      let fd = Option.default_delayed (fun () -> Node.find_fundec node) fundec in
+      let cs = G.contexts (getg (GVar.contexts fd)) in
+      G.CSet.iter (fun c ->
+          fl (node, c)
+        ) cs
+    | _ ->
+      ()
 end
 
 (** Convert a non-incremental solver into an "incremental" solver.
@@ -842,6 +893,9 @@ struct
   let system = function
     | `G _ -> None
     | `L x -> Option.map conv (S.system x)
+
+  let iter_vars get vq f =
+    S.iter_vars (getL % get % l) (getG % get % g) vq (f % l) (f % g)
 end
 
 (** Splits a [EqConstrSys] solution into a [GlobConstrSys] solution with given [Hashtbl.S] for the [EqConstrSys]. *)
@@ -992,14 +1046,6 @@ struct
     let d = D.fold h ctx.local (D.empty ()) in
     if D.is_bot d then raise Deadcode else d
 
-  let fold ctx f g h a =
-    let k x a =
-      try h a @@ g @@ f @@ conv ctx x
-      with Deadcode -> a
-    in
-    let d = D.fold k ctx.local a in
-    if D.is_bot d then raise Deadcode else d
-
   let fold' ctx f g h a =
     let k x a =
       try h a @@ g @@ f @@ conv ctx x
@@ -1057,6 +1103,10 @@ struct
   include S
 
   let name () = "DeadBranch (" ^ S.name () ^ ")"
+
+  (* Two global invariants:
+     1. S.V -> S.G  --  used for S
+     2. node -> (exp -> flat bool)  --  used for warnings *)
 
   module V =
   struct
@@ -1116,6 +1166,18 @@ struct
                 ()
             ) em;
       end
+    | IterSysVars (vq, vf) ->
+      (* vars for S *)
+      let vf' x = vf (Obj.repr (V.s (Obj.obj x))) in
+      S.query (conv ctx) (IterSysVars (vq, vf'));
+
+      (* node vars for dead branches *)
+      begin match vq with
+        | Node {node; _} ->
+          vf (Obj.repr (V.node node))
+        | _ ->
+          ()
+      end
     | _ ->
       S.query (conv ctx) q
 
@@ -1159,12 +1221,13 @@ module Compare
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
                         and module GVar = GVarF (S.V)
                         and module D = S.D
-                        and module G = S.G)
+                        and module G = GVarG (S.G) (S.C))
     (LH:Hashtbl.S with type key=Sys.LVar.t)
     (GH:Hashtbl.S with type key=Sys.GVar.t)
 =
 struct
   open S
+  module G = Sys.G
 
   module PP = Hashtbl.Make (Node)
 

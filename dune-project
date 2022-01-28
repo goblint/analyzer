@@ -35,6 +35,7 @@
     (ppx_blob (>= 0.6.0))
     (ocaml-monadic (>= 0.5))
     (ounit2 :with-test)
+    (qcheck-ounit :with-test)
     (odoc :with-doc)
     dune-site
     json-data-encoding

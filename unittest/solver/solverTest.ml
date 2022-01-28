@@ -1,4 +1,4 @@
-open OUnit
+open OUnit2
 open Pretty
 
 (* variables are strings *)
@@ -43,6 +43,8 @@ module ConstrSys = struct
     | "z" -> Some (fun loc _ glob gside -> (ignore (loc "y"); loc "y"))
     | "w" -> Some (fun loc _ glob gside -> (gside "g" (Int.of_int (Z.of_int64 42L)); ignore (loc "z"); try Int.add (loc "w") (Int.of_int (Z.of_int64 1L)) with IntDomain.ArithmeticOnIntegerBot _ -> Int.top ()))
     | _   -> None
+
+  let iter_vars _ _ _ _ _ = ()
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)
@@ -56,7 +58,7 @@ struct
 end
 module Solver = Constraints.GlobSolverFromEqSolver (Constraints.EqIncrSolverFromEqSolver (EffectWConEq.Make) (PostSolverArg)) (ConstrSys) (LH) (GH)
 
-let test1 () =
+let test1 _ =
   let id x = x in
   let ((sol, gsol), _) = Solver.solve [] [] ["w"] in
   assert_equal ~printer:id "42" (Int.show (GH.find gsol "g"));
