@@ -1462,7 +1462,7 @@ struct
 
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
-  let lift1 f ik x = match x with
+  let lift1 f ik x = norm ik @@ match x with
     | `Excluded (s,r) ->
       let s' = S.map f s in
       `Excluded (s', apply_range f r)
