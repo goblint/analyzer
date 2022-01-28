@@ -15,6 +15,8 @@ let dep_list'      : (int * (string list)) list ref= ref []
 
 let analyses_table = ref []
 
+let activated_ctx_sens: (int * spec_modules) list ref = ref []
+
 let register_analysis =
   let count = ref 0 in
   fun ?(dep=[]) (module S:MCPSpec) ->
@@ -314,8 +316,8 @@ end
 
 module ContextListSpec : DomainListPrintableSpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).cont
-  let domain_list () = List.map (fun (n,p) -> n, p.cont) !analyses_list
+  let assoc_dom n = (List.assoc n !activated_ctx_sens).cont
+  let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
 end
 
 module VarListSpec : DomainListPrintableSpec =

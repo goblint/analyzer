@@ -82,6 +82,7 @@ struct
     dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
     check_deps !analyses_list;
     analyses_list := topo_sort_an !analyses_list;
+    activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !analyses_list;
     (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc !analyses_table x) (List.print (fun f -> String.print f % flip assoc !analyses_table)) y) !dep_list_trans;
       Printf.printf "\n";
       iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
