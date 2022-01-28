@@ -1,4 +1,5 @@
 // PARAM: --set solver td3 --enable ana.int.interval --set exp.arrays-domain unroll --set exp.array-unrolling-factor 5
+#include <assert.h>
 int global;
 
 int main(void)
