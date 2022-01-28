@@ -47,15 +47,15 @@ struct
     in rev % f [] []
 
   let topo_sort_an xs =
-    let msg (x,_) = failwith ("Analyses have circular dependencies, conflict for "^assoc x !analyses_table^".") in
+    let msg (x,_) = failwith ("Analyses have circular dependencies, conflict for "^find_spec_name x^".") in
     let deps (y,_) = map (fun x -> x, assoc x xs) @@ assoc y !dep_list in
     topo_sort deps msg xs
 
   let check_deps xs =
     let check_dep x y =
       if not (exists (fun (y',_) -> y=y') xs) then begin
-        let xn = assoc x !analyses_table in
-        let yn = assoc y !analyses_table in
+        let xn = find_spec_name x in
+        let yn = find_spec_name y in
         Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
         raise Exit
       end
@@ -99,7 +99,6 @@ struct
   let spec x = (assoc x !analyses_list).spec
   let spec_list xs =
     map (fun (n,x) -> (n,spec n,x)) xs
-  let spec_name (n:int) : string = assoc n !analyses_table
 
   let map_deadcode f xs =
     let dead = ref false in
@@ -187,7 +186,7 @@ struct
         let (module S:MCPSpec) = spec n in
         let assign_one d (lval, exp, name, ctx) =
           match name with
-          | Some x when x <> spec_name n -> obj d (* do nothing if current spec name is filtered out *)
+          | Some x when x <> find_spec_name n -> obj d (* do nothing if current spec name is filtered out *)
           | _ ->
             let ctx' = {(obj ctx) with local = obj d} in
             S.assign ctx' lval exp

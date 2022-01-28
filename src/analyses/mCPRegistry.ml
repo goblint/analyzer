@@ -35,6 +35,8 @@ let register_analysis =
     count := !count + 1
 
 
+let find_spec_name n = List.assoc n !analyses_table (* TODO: don't use assoc *)
+
 type unknown = Obj.t
 
 module type DomainListPrintableSpec =
@@ -106,14 +108,14 @@ struct
 
   let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
-        let analysis_name = assoc n !analyses_table in
+        let analysis_name = find_spec_name n in
         (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
   let to_yojson xs =
     let f a n (module S : Printable.S) x =
-      let name = BatList.assoc n !analyses_table in
+      let name = find_spec_name n in
       (name, S.to_yojson (obj x)) :: a
     in `Assoc (unop_fold f [] xs)
 
@@ -129,14 +131,14 @@ struct
 
   let name () =
     let domain_name (n, (module D: Printable.S)) =
-      let analysis_name = assoc n !analyses_table in
+      let analysis_name = find_spec_name n in
       analysis_name ^ ":(" ^ D.name () ^ ")"
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
 
   let printXml f xs =
     let print_one a n (module S : Printable.S) x : unit =
-      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
     in
@@ -171,14 +173,14 @@ struct
     )
 
   let show = unop_map (fun n (module S: Printable.S) x ->
-      let analysis_name = assoc n !analyses_table in
+      let analysis_name = find_spec_name n in
       analysis_name ^ ":" ^ S.show (obj x)
     )
 
   let to_yojson x =
     `Assoc [
       unop_map (fun n (module S: Printable.S) x ->
-          let name = BatList.assoc n !analyses_table in
+          let name = find_spec_name n in
           (name, S.to_yojson (obj x))
         ) x
     ]
@@ -203,13 +205,13 @@ struct
 
   let name () =
     let domain_name (n, (module S: Printable.S)) =
-      let analysis_name = assoc n !analyses_table in
+      let analysis_name = find_spec_name n in
       analysis_name ^ ":" ^ S.name ()
     in
     IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list ())
 
   let printXml f = unop_map (fun n (module S: Printable.S) x ->
-      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
     )
