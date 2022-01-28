@@ -1,7 +1,9 @@
 open Prelude.Ana
 open Analyses
 
-type spec_modules = { spec : (module MCPSpec)
+type spec_modules = { name : string
+                    ; dep  : string list
+                    ; spec : (module MCPSpec)
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
                     ; cont : (module Printable.S)
@@ -9,18 +11,18 @@ type spec_modules = { spec : (module MCPSpec)
                     ; acc  : (module MCPA) }
 
 let analyses_list  : (int * spec_modules) list ref = ref []
-let analyses_list' : (int * spec_modules) list ref = ref []
-let dep_list       : (int * (int list)) list ref   = ref []
-let dep_list'      : (int * (string list)) list ref= ref []
-
-let analyses_table = ref []
 
 let activated_ctx_sens: (int * spec_modules) list ref = ref []
+let registered: (int, spec_modules) Hashtbl.t = Hashtbl.create 100
+let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
 
 let register_analysis =
   let count = ref 0 in
   fun ?(dep=[]) (module S:MCPSpec) ->
-    let s = { spec = (module S : MCPSpec)
+    let n = S.name () in
+    let s = { name = n
+            ; dep
+            ; spec = (module S : MCPSpec)
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
@@ -28,14 +30,13 @@ let register_analysis =
             ; acc  = (module S.A : MCPA)
             }
     in
-    let n = S.name () in
-    analyses_table := (!count,n) :: !analyses_table;
-    analyses_list' := (!count,s) :: !analyses_list';
-    dep_list'      := (!count,dep) :: !dep_list';
+    Hashtbl.replace registered !count s;
+    Hashtbl.replace registered_name n !count;
     count := !count + 1
 
-
-let find_spec_name n = List.assoc n !analyses_table (* TODO: don't use assoc *)
+let find_spec = Hashtbl.find registered
+let find_spec_name n = (find_spec n).name
+let find_id = Hashtbl.find registered_name
 
 type unknown = Obj.t
 
@@ -306,30 +307,30 @@ module DomVariantLattice (DLSpec : DomainListLatticeSpec) =
 
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).dom
+  let assoc_dom n = (find_spec n).dom
   let domain_list () = List.map (fun (n,p) -> n, p.dom) !analyses_list
 end
 
 module GlobalDomainListSpec : DomainListLatticeSpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).glob
+  let assoc_dom n = (find_spec n).glob
   let domain_list () = List.map (fun (n,p) -> n, p.glob) !analyses_list
 end
 
 module ContextListSpec : DomainListPrintableSpec =
 struct
-  let assoc_dom n = (List.assoc n !activated_ctx_sens).cont
+  let assoc_dom n = (find_spec n).cont
   let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
 end
 
 module VarListSpec : DomainListPrintableSpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).var
+  let assoc_dom n = (find_spec n).var
   let domain_list () = List.map (fun (n,p) -> n, p.var) !analyses_list
 end
 
 module AccListSpec : DomainListMCPASpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).acc
+  let assoc_dom n = (find_spec n).acc
   let domain_list () = List.map (fun (n,p) -> n, p.acc) !analyses_list
 end

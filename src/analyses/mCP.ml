@@ -48,19 +48,19 @@ struct
 
   let topo_sort_an xs =
     let msg (x,_) = failwith ("Analyses have circular dependencies, conflict for "^find_spec_name x^".") in
-    let deps (y,_) = map (fun x -> x, assoc x xs) @@ assoc y !dep_list in
+    let deps (y,_) = map (fun x -> x, assoc x xs) @@ map find_id @@ (find_spec y).dep in
     topo_sort deps msg xs
 
   let check_deps xs =
-    let check_dep x y =
+    let check_dep x yn =
+      let y = find_id yn in
       if not (exists (fun (y',_) -> y=y') xs) then begin
         let xn = find_spec_name x in
-        let yn = find_spec_name y in
         Legacy.Printf.eprintf "Activated analysis '%s' depends on '%s' and '%s' is not activated.\n" xn yn yn;
         raise Exit
       end
     in
-    let deps (x,_) = iter (check_dep x) @@ assoc x !dep_list in
+    let deps (x,_) = iter (check_dep x) @@ (find_spec x).dep in
     iter deps xs
 
 
@@ -74,19 +74,14 @@ struct
       List.map f
     in
     let xs = get_string_list "ana.activated" in
-    let xs = map' (flip assoc_inv !analyses_table) xs in
-    base_id := assoc_inv "base" !analyses_table;
-    analyses_list := map (fun s -> s, assoc s !analyses_list') xs;
-    path_sens := map' (flip assoc_inv !analyses_table) @@ get_string_list "ana.path_sens";
-    cont_inse := map' (flip assoc_inv !analyses_table) @@ get_string_list "ana.ctx_insens";
-    dep_list  := map (fun (n,d) -> (n,map' (flip assoc_inv !analyses_table) d)) !dep_list';
+    let xs = map' find_id xs in
+    base_id := find_id "base";
+    analyses_list := map (fun s -> s, find_spec s) xs;
+    path_sens := map' find_id @@ get_string_list "ana.path_sens";
+    cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
     check_deps !analyses_list;
     analyses_list := topo_sort_an !analyses_list;
     activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !analyses_list;
-    (*iter (fun (x,y) -> Printf.printf "%s -> %a\n"  (flip assoc !analyses_table x) (List.print (fun f -> String.print f % flip assoc !analyses_table)) y) !dep_list_trans;
-      Printf.printf "\n";
-      iter (Printf.printf "%s\n" % flip assoc !analyses_table % fst) !analyses_list;
-      Printf.printf "\n";*)
     match marshal with
     | Some marshal ->
       combine !analyses_list marshal
@@ -96,7 +91,7 @@ struct
 
   let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !analyses_list
 
-  let spec x = (assoc x !analyses_list).spec
+  let spec x = (find_spec x).spec
   let spec_list xs =
     map (fun (n,x) -> (n,spec n,x)) xs
 
@@ -162,7 +157,7 @@ struct
     in f [] xs
 
   let assoc_sub xs name =
-    let n' = List.assoc_inv name !analyses_table in
+    let n' = find_id name in
     assoc n' xs
 
   let do_spawns ctx (xs:(varinfo * (int * lval option * exp list)) list) =

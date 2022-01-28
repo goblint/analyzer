@@ -482,7 +482,8 @@ struct
               if get_bool "dbg.verbose" then (
                 print_endline ("Saving the analysis table to " ^ analyses ^ ", the CIL state to " ^ cil ^ ", the warning table to " ^ warnings ^ ", and the runtime stats to " ^ stats);
               );
-              Serialize.marshal !MCP.analyses_table analyses;
+              let analyses_table = Hashtbl.bindings MCPRegistry.registered_name |> List.map Tuple2.swap in (* TODO: marshal something more direct? *)
+              Serialize.marshal analyses_table analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
               Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
