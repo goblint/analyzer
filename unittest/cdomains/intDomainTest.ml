@@ -200,6 +200,23 @@ let test_ex_set _ =
   assert_equal (Some true) (T.to_bool tex10);
   assert_equal None (T.to_bool tex1)
 
+
+module Interval =
+struct
+  module I = IntDomain.Interval
+
+  let assert_equal x y =
+    assert_equal ~cmp:I.equal ~printer:I.show x y
+
+  let test_interval_rem _ =
+    let ik = Cil.IInt in
+    assert_equal (I.of_int ik Z.zero) (I.rem ik (I.of_int ik Z.minus_one) (I.of_int ik Z.one))
+
+  let test () = [
+      "test_interval_rem" >:: test_interval_rem;
+    ]
+end
+
 let test () = "intDomainTest" >:::
               [ "int_Integers"  >::: A.test ();
                 "int_Flattened" >::: B.test ();
@@ -208,4 +225,5 @@ let test () = "intDomainTest" >:::
                 "test_join"     >::  test_join;
                 "test_meet"     >::  test_meet;
                 "test_excl_list">::  test_ex_set;
+                "interval" >::: Interval.test ();
               ]
