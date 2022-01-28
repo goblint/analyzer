@@ -146,8 +146,6 @@ struct
   let map f (xl, xr) = ((List.map f xl), f xr)
   let fold_left f a x = f a (join_of_all_parts x)
   let fold_left2 f a x y = f a (join_of_all_parts x) (join_of_all_parts y)
-  let set_inplace = set
-  let copy a = a
   let printXml f (xl,xr) = BatPrintf.fprintf f "<value>\n<map>\n
   <key>unrolled array</key>\n
   <key>xl</key>\n%a\n\n
@@ -792,11 +790,6 @@ struct
     let msg = "FlagConfiguredArrayDomain received a value where not exactly one component is set"
     let name = "FlagConfiguredArrayDomain"
   end
-
-  let of_t = function
-  | (Some p, None) -> (Some p, None, None)
-  | (None, Some (t,u)) -> (None, t, u)
-  | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
 
   let to_t = function
   | (Some p, None, None) -> (Some p, None)
