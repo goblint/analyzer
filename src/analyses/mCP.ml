@@ -94,6 +94,8 @@ struct
   let spec x = (find_spec x).spec
   let spec_list xs =
     map (fun (n,x) -> (n,spec n,x)) xs
+  let spec_list2 xs ys =
+    map2 (fun (n,x) (n',y) -> assert (n = n'); (n,spec n,(x,y))) xs ys
 
   let map_deadcode f xs =
     let dead = ref false in
@@ -222,7 +224,7 @@ struct
         let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
         let assigns = ref [] in
         let emits = ref [] in
-        let f post_all (n,(module S:MCPSpec),d) =
+        let f post_all (n,(module S:MCPSpec),(d,od)) =
           let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
             { local  = obj d
             ; node   = ctx.node
@@ -242,7 +244,7 @@ struct
             }
           in
           let rec octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
-            { local  = obj (assoc n octx.local)
+            { local  = obj od
             ; node   = octx.node
             ; prev_node = octx.prev_node
             ; control_context = octx.control_context
@@ -261,7 +263,7 @@ struct
           in
           n, repr @@ S.event ctx' e octx'
         in
-        let d, q = map_deadcode f @@ spec_list ctx.local in
+        let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
         if M.tracing then M.tracel "event" "%a\n  before: %a\n  after:%a\n" Events.pretty e D.pretty ctx.local D.pretty d;
         do_sideg ctx !sides;
         do_spawns ctx !spawns;
@@ -790,7 +792,7 @@ struct
   let threadspawn (ctx:(D.t, G.t, C.t, V.t) ctx) lval f a fctx =
     let sides  = ref [] in
     let emits = ref [] in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let f post_all (n,(module S:MCPSpec),(d,fd)) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -810,7 +812,7 @@ struct
         }
       in
       let fctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
-        { local  = obj (assoc n fctx.local)
+        { local  = obj fd
         ; node   = fctx.node
         ; prev_node = fctx.prev_node
         ; control_context = fctx.control_context
@@ -829,7 +831,7 @@ struct
       in
       n, repr @@ S.threadspawn ctx' lval f a fctx'
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
+    let d, q = map_deadcode f @@ spec_list2 ctx.local fctx.local in
     do_sideg ctx !sides;
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
