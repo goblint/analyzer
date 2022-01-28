@@ -39,6 +39,7 @@ sig
   (* Comparison *)
   val compare : t -> t -> int
   val equal : t -> t -> bool
+  val hash : t -> int
   val top_range : t -> t -> bool
 
   (* Conversions *)
@@ -70,7 +71,7 @@ end
  * -------------------------------------------------------------- *)
 module NIntOpsBase : IntOpsBase with type t = int =
 struct
-  type t = int
+  type t = int [@@deriving hash]
   let zero = 0
   let one = 1
   let lower_bound = Some min_int
@@ -111,7 +112,7 @@ end
 
 module Int32OpsBase : IntOpsBase with type t = int32 =
 struct
-  type t = int32
+  type t = int32 [@@deriving hash]
   let zero = 0l
   let one = 1l
   let lower_bound = Some Int32.min_int
@@ -154,7 +155,7 @@ end
 
 module Int64OpsBase : IntOpsBase with type t = int64 =
 struct
-  type t = int64
+  type t = int64 [@@deriving hash]
   let zero = 0L
   let one = 1L
   let lower_bound = Some Int64.min_int
@@ -222,6 +223,7 @@ struct
   let gcd x y = abs @@ Big_int_Z.gcd_big_int x y
   let compare = Big_int_Z.compare_big_int
   let equal = Big_int_Z.eq_big_int
+  let hash = Z.hash
 
   let top_range _ _ = false
 

@@ -5,8 +5,8 @@ module D = LvalMapDomain
 
 module Val =
 struct
-  type mode = Read | Write
-  type s = Open of string*mode | Closed | Error
+  type mode = Read | Write [@@deriving eq, ord, hash]
+  type s = Open of string*mode | Closed | Error [@@deriving eq, ord, hash]
   let name = "File handles"
   let var_state = Closed
   let string_of_mode = function Read -> "Read" | Write -> "Write"
@@ -19,7 +19,6 @@ struct
   let opened   s = s <> Closed && s <> Error
   let closed   s = s = Closed
   let writable s = match s with Open((_,Write)) -> true | _ -> false
-  let compare = compare
 end
 
 

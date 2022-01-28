@@ -22,7 +22,7 @@ end
 module PrintableChar =
 struct
   include Printable.Std
-  type t = char [@@deriving eq, ord, to_yojson]
+  type t = char [@@deriving eq, ord, hash, to_yojson]
   let name () = "char"
   let show x = String.make 1 x
 
@@ -32,8 +32,6 @@ struct
     let show = show
   end
   include Printable.SimpleShow (P)
-
-  let hash = Char.code
 end
 
 module ArbitraryLattice = FiniteSet (PrintableChar) (

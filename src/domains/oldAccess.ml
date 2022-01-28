@@ -3,8 +3,7 @@ struct
   include Printable.Std (* for default invariant, tag, ... *)
 
   open Pretty
-  type t = string [@@deriving eq, ord, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
+  type t = string [@@deriving eq, ord, hash, to_yojson]
   let show x = x
   let pretty () x = text (show x)
   let name () = "strings"

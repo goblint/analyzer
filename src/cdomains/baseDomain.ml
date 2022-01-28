@@ -75,7 +75,8 @@ type 'a basecomponents_t = {
   deps: PartDeps.t;
   weak: WeakUpdates.t;
   priv: 'a;
-} [@@deriving eq, ord]
+} [@@deriving eq, ord, hash]
+
 
 module BaseComponents (PrivD: Lattice.S):
 sig
@@ -83,12 +84,10 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving eq, ord]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash]
 
   include Printable.Std
   open Pretty
-  let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + WeakUpdates.hash r.weak * 51 + PrivD.hash r.priv * 33
-
 
   let show r =
     let first  = CPA.show r.cpa in

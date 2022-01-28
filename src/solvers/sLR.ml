@@ -18,8 +18,7 @@ module SLR3 =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -223,8 +222,7 @@ module Make =
     struct
       module P =
       struct
-        type t = S.Var.t * S.Var.t [@@deriving eq]
-        let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2
+        type t = S.Var.t * S.Var.t [@@deriving eq, hash]
       end
       module HPM = Hashtbl.Make (P)
       let hpm_find_default h x d =

@@ -280,7 +280,7 @@ module IntDomLifter (I : S) =
 struct
   open Cil
   type int_t = I.int_t
-  type t = { v : I.t; ikind : ikind }
+  type t = { v : I.t; ikind : (ikind [@equal (=)] [@compare Stdlib.compare] [@hash fun x -> Hashtbl.hash x]) } [@@deriving eq, ord, hash]
 
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
@@ -304,30 +304,7 @@ struct
   let meet = lift2 I.meet
   let widen = lift2 I.widen
   let narrow = lift2 I.narrow
-  let equal x y = if x.ikind <> y.ikind then false else I.equal x.v y.v
 
-  let hash x =
-    let ikind_to_int (ikind: ikind) = match ikind with (* TODO replace with `int_of_string % Batteries.dump` or derive *)
-    | IChar 	-> 0
-    | ISChar 	-> 1
-    | IUChar 	-> 2
-    | IBool 	-> 3
-    | IInt 	  -> 4
-    | IUInt 	-> 5
-    | IShort 	-> 6
-    | IUShort -> 7
-    | ILong 	-> 8
-    | IULong 	-> 9
-    | ILongLong -> 10
-    | IULongLong -> 11
-    | IInt128 -> 12
-    | IUInt128 -> 13
-    in
-    3 * (I.hash x.v) + 5 * (ikind_to_int x.ikind)
-  let compare x y = let ik_c = compare x.ikind y.ikind in
-    if ik_c <> 0
-      then ik_c
-      else I.compare x.v y.v
   let show x = I.show x.v  (* TODO add ikind to output *)
   let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
@@ -495,7 +472,6 @@ module Std (B: sig
   include Printable.Std
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let hash = Hashtbl.hash
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
@@ -517,7 +493,7 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 struct
   let name () = "intervals"
   type int_t = Ints_t.t
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
 
   let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
   let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
@@ -937,7 +913,7 @@ module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t an
 struct
   include Printable.Std
   let name () = "integers"
-  type t = Ints_t.t [@@deriving eq, ord]
+  type t = Ints_t.t [@@deriving eq, ord, hash]
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
@@ -946,7 +922,6 @@ struct
   let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash (x:t) = ((Ints_t.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
   let is_bot _ = false
@@ -1249,7 +1224,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of BigInt.t
     | `Bot
-  ] [@@deriving eq, ord]
+  ] [@@deriving eq, ord, hash]
   type int_t = BigInt.t
   let name () = "def_exc"
 
@@ -1273,11 +1248,6 @@ struct
     | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash (x:t) =
-    match x with
-    | `Excluded (s,r) -> S.hash s + R.hash r
-    | `Definite i -> 83*BigInt.hash i
-    | `Bot -> 61426164
 
   let maximal = function
     | `Definite x -> Some x
@@ -1659,7 +1629,7 @@ end
 module MakeBooleans (N: BooleansNames) =
 struct
   type int_t = IntOps.Int64Ops.t
-  type t = bool [@@deriving eq, ord, to_yojson]
+  type t = bool [@@deriving eq, ord, hash, to_yojson]
   let name () = "booleans"
   let top () = true
   let bot () = false
@@ -1667,7 +1637,6 @@ struct
   let bot_of ik = bot ()
   let show x = if x then N.truename else N.falsename
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash = function true -> 51534333 | _ -> 561123444
   let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
@@ -1725,7 +1694,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
 
-  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord] (* inclusion/exclusion set *)
+  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord, hash] (* inclusion/exclusion set *)
 
   type int_t = BI.t
   let name () = "enums"
@@ -1749,10 +1718,6 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map I.show (BISet.elements xs))) ^ "} " ^ "("^R.show r^")"
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-
-  let hash = function
-    | Inc x -> BISet.hash x
-    | Exc (x, r) -> 31 * R.hash r + 37  * BISet.hash x
 
   (* Normalization function for enums, that handles overflows for Inc.
      As we do not compute on Excl, we do not have to perform any overflow handling for it. *)
@@ -2066,7 +2031,7 @@ struct
   type int_t = Ints_t.t
 
   (* represents congruence class of c mod m, None is bot *)
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
 
   let ( *: ) = Ints_t.mul
   let (+:) = Ints_t.add
