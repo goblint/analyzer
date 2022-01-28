@@ -732,7 +732,17 @@ struct
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
-    let f post_all (n,(module S:MCPSpec),d) =
+    let rec spec_list3_rev_acc acc l1 l2_opt l3 = match l1, l2_opt, l3 with
+      | [], _, [] -> acc
+      | (n, x) :: l1, Some ((n', y) :: l2), (n'', z) :: l3 when n = n' -> (* context-sensitive *)
+        assert (n = n'');
+        spec_list3_rev_acc ((n, spec n, (x, Some y, z)) :: acc) l1 (Some l2) l3
+      | (n, x) :: l1, l2_opt, (n'', z) :: l3 -> (* context-insensitive *)
+        assert (n = n'');
+        spec_list3_rev_acc ((n, spec n, (x, None, z)) :: acc) l1 l2_opt l3
+      | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
+    in
+    let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
       let rec ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
         { local  = obj d
         ; node   = ctx.node
@@ -751,9 +761,9 @@ struct
         ; assign = (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
         }
       in
-      n, repr @@ S.combine ctx' r fe f a (Option.map obj (Option.bind fc (assoc_opt n))) (obj (assoc n fd))
+      n, repr @@ S.combine ctx' r fe f a (Option.map obj fc) (obj fd)
     in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
+    let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     let d = do_assigns ctx !assigns d in
