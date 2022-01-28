@@ -76,20 +76,20 @@ struct
     let xs = get_string_list "ana.activated" in
     let xs = map' find_id xs in
     base_id := find_id "base";
-    analyses_list := map (fun s -> s, find_spec s) xs;
+    activated := map (fun s -> s, find_spec s) xs;
     path_sens := map' find_id @@ get_string_list "ana.path_sens";
     cont_inse := map' find_id @@ get_string_list "ana.ctx_insens";
-    check_deps !analyses_list;
-    analyses_list := topo_sort_an !analyses_list;
-    activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !analyses_list;
+    check_deps !activated;
+    activated := topo_sort_an !activated;
+    activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
     match marshal with
     | Some marshal ->
-      combine !analyses_list marshal
+      combine !activated marshal
       |> iter (fun ((_,{spec=(module S:MCPSpec); _}), marshal) -> S.init (Some (Obj.obj marshal)))
     | None ->
-      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init None) !analyses_list
+      iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init None) !activated
 
-  let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !analyses_list
+  let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !activated
 
   let spec x = (find_spec x).spec
   let spec_list xs =
@@ -127,8 +127,8 @@ struct
     let zipped = zip3 specs xs ys in
     List.for_all should_join zipped
 
-  let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !analyses_list
-  let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !analyses_list
+  let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
+  let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
   let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
 
   let call_descr f xs =

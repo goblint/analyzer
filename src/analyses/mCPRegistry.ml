@@ -10,8 +10,7 @@ type spec_modules = { name : string
                     ; var  : (module Printable.S)
                     ; acc  : (module MCPA) }
 
-let analyses_list  : (int * spec_modules) list ref = ref []
-
+let activated  : (int * spec_modules) list ref = ref []
 let activated_ctx_sens: (int * spec_modules) list ref = ref []
 let registered: (int, spec_modules) Hashtbl.t = Hashtbl.create 100
 let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
@@ -308,13 +307,13 @@ module DomVariantLattice (DLSpec : DomainListLatticeSpec) =
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
   let assoc_dom n = (find_spec n).dom
-  let domain_list () = List.map (fun (n,p) -> n, p.dom) !analyses_list
+  let domain_list () = List.map (fun (n,p) -> n, p.dom) !activated
 end
 
 module GlobalDomainListSpec : DomainListLatticeSpec =
 struct
   let assoc_dom n = (find_spec n).glob
-  let domain_list () = List.map (fun (n,p) -> n, p.glob) !analyses_list
+  let domain_list () = List.map (fun (n,p) -> n, p.glob) !activated
 end
 
 module ContextListSpec : DomainListPrintableSpec =
@@ -326,11 +325,11 @@ end
 module VarListSpec : DomainListPrintableSpec =
 struct
   let assoc_dom n = (find_spec n).var
-  let domain_list () = List.map (fun (n,p) -> n, p.var) !analyses_list
+  let domain_list () = List.map (fun (n,p) -> n, p.var) !activated
 end
 
 module AccListSpec : DomainListMCPASpec =
 struct
   let assoc_dom n = (find_spec n).acc
-  let domain_list () = List.map (fun (n,p) -> n, p.acc) !analyses_list
+  let domain_list () = List.map (fun (n,p) -> n, p.acc) !activated
 end
