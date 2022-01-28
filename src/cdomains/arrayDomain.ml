@@ -137,8 +137,8 @@ struct
     if Z.geq min_i f then (xl, (Val.join xr v))
     else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
-  let make i v =
-    let xl = Array.to_list (Array.make (factor ()) v) in
+  let make _ v =
+    let xl = BatList.make (factor ()) v in
     (xl,v)
   let length _ = None
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
