@@ -1,0 +1,19 @@
+{
+    "ana": {
+        "base": {
+            "context": {
+                "int": false
+            }
+        }
+    },
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": false
+            }
+        },
+        "restart_globs": {
+            "globs": []
+        }
+    }
+}
