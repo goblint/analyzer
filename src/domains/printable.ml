@@ -34,10 +34,7 @@ end
 
 module Empty: S =
 struct
-  type t = |
-  let equal (x: t) (_: t) = match x with _ -> .
-  let hash (x: t) = match x with _ -> .
-  let compare (x: t) (_: t) = match x with _ -> .
+  type t = | [@@deriving eq, ord, hash]
   let show (x: t) = match x with _ -> .
   let pretty () (x: t) = match x with _ -> .
   let printXml _ (x: t) = match x with _ -> .

@@ -359,12 +359,7 @@ end
 module O =
 struct
   include Printable.Std
-  type t = offs [@@deriving eq, ord]
-
-  let rec hash = function
-    | `NoOffset -> 13
-    | `Index os -> 3 + hash os
-    | `Field (f, os) -> 3 * CilType.Fieldinfo.hash f + hash os
+  type t = offs [@@deriving eq, ord, hash]
 
   let pretty = d_offs
   include Printable.SimplePretty (
