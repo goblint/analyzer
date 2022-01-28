@@ -738,7 +738,7 @@ struct
         * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
         let pos x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
         let b = Ints_t.sub (max (pos yl) (pos yu)) Ints_t.one in
-        let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, min xu b) else Some (max xl (Ints_t.neg b), min xu b) in
+        let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, min xu b) else Some (max xl (Ints_t.neg b), min (max (pos xl) (pos xu)) b) in
         meet ik (bit (fun _ik -> Ints_t.rem) ik x y) range
 
   let mul ?no_ov ik x y =

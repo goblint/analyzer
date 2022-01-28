@@ -89,9 +89,9 @@ let ikinds: Cil.ikind list = [
   (* IUInt; *)
   IShort;
   (* IUShort; *)
-  (* ILong; *)
+  ILong;
   (* IULong; *)
-  (* ILongLong; *)
+  ILongLong;
   (* IULongLong; *)
 ]
 
