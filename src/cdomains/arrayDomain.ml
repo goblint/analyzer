@@ -808,7 +808,7 @@ struct
   (* Simply call appropriate function for component that is not None *)
   let get a x (e,i) = unop' (fun x ->
     if e = `Top then
-      let e' = BatOption.map_default (fun x -> `Lifted (Cil.kinteger64 IInt x)) (`Top) (Option.map BI.to_int64 @@ Idx.to_int i) in
+      let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x)) (`Top) (Idx.to_int i) in
       P.get a x (e', i)
     else
       P.get a x (e, i)
