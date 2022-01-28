@@ -68,7 +68,6 @@ pin-depends: [
   [ "ppx_deriving.5.2.1" "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6" ]
   # quoter workaround reverted for release, so no pin needed
   # [ "ppx_deriving_yojson.3.6.1" "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd" ]
-  [ "ppx_deriving_hash.dev" "git+https://github.com/sim642/ppx_deriving_hash.git#0aa1e969ea3cb536cbf4a67bfa19fe6906a2e235" ]
   # TODO: add back after release, only pinned for CI stability
   [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
 ]
