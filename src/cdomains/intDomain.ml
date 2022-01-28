@@ -1317,7 +1317,16 @@ struct
           let r = size ik in
           (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
           let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
-          `Excluded (mapped_excl, r)
+          match ik with
+          | IBool ->
+            begin match S.mem BigInt.zero mapped_excl, S.mem BigInt.one mapped_excl with
+              | false, false -> `Excluded (mapped_excl, r) (* Not {} -> Not {} *)
+              | true, false -> `Definite BigInt.one (* Not {0} -> 1 *)
+              | false, true -> `Definite BigInt.zero (* Not {1} -> 0 *)
+              | true, true -> `Bot (* Not {0, 1} -> bot *)
+            end
+          | ik ->
+            `Excluded (mapped_excl, r)
         )
       | `Definite x ->
         let min, max = Size.range ik in
@@ -1734,13 +1743,25 @@ module Enums : S with type int_t = BigInt.t = struct
         Inc (BISet.filter value_in_ikind xs)
       else
         top_of ikind
-    | Exc (xs, r) -> v
-  (* The following assert should hold for Exc, therefore we do not have to overflow handling / normalization for it:
-     let range_in_ikind r =
-      R.leq r (size ikind)
-     in
-     let r_min, r_max = min_of_range r, max_of_range r in
-     assert (range_in_ikind r && BISet.for_all (value_in_range (r_min, r_max)) xs); *)
+    | Exc (xs, r) ->
+      (* The following assert should hold for Exc, therefore we do not have to overflow handling / normalization for it:
+         let range_in_ikind r =
+         R.leq r (size ikind)
+         in
+         let r_min, r_max = min_of_range r, max_of_range r in
+         assert (range_in_ikind r && BISet.for_all (value_in_range (r_min, r_max)) xs); *)
+      begin match ikind with
+        | IBool ->
+          begin match BISet.mem BigInt.zero xs, BISet.mem BigInt.one xs with
+            | false, false -> top_bool  (* Not {} -> {0, 1} *)
+            | true, false -> Inc (BISet.singleton BigInt.one) (* Not {0} -> {1} *)
+            | false, true -> Inc (BISet.singleton BigInt.zero) (* Not {1} -> {0} *)
+            | true, true -> bot_of ikind (* Not {0, 1} -> bot *)
+          end
+        | _ ->
+          v
+      end
+
 
   let equal_to i = function
     | Inc x ->
@@ -1900,7 +1921,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let of_excl_list ik xs =
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
-    Exc (exc, size ik)
+    norm ik @@ Exc (exc, size ik)
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
