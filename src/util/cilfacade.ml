@@ -21,29 +21,6 @@ let rec get_labelsLoc = function
     else
       loc
 
-let varinfo_from_global (g : Cil.global) : Cil.varinfo option = match g with
-  | GFun (f, _) -> Some f.svar
-  | GVar (v, _, _) -> Some v
-  | GVarDecl (v, _) -> Some v
-  | _ -> None
-
-(** Takes a [Cil.file] and a list of names of globals, and returns a
-    list of [varinfo]s of globals whose [vname] is contained in the argument list. *)
-let global_varinfos_from_names (file: Cil.file) (names: string list): varinfo list =
-  let module SM = Set.Make(Printable.Strings) in
-  let set = SM.of_list names in
-  let globals =
-    Cil.foldGlobals file (fun acc g ->
-        match varinfo_from_global g with
-        | Some v ->
-          if SM.mem v.vname set then
-            v::acc
-          else
-            acc
-        | None -> acc
-      ) [] in
-  globals
-
 let get_stmtkindLoc = Cil.get_stmtLoc (* CIL has a confusing name for this function *)
 
 let get_stmtLoc stmt =

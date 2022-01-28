@@ -454,7 +454,7 @@ let diff_and_rename current_file =
         let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
         let restarting = GobConfig.get_string_list "incremental.restart_globs.globs" in
-        let restarting = Cilfacade.global_varinfos_from_names current_file restarting in
+        let restarting = CilUtil.varquery_from_names current_file restarting in
         (changes, restarting, Some old_file, version_map, max_ids)
       end else begin
         let (version_map, max_ids) = VersionLookup.create_map current_file in

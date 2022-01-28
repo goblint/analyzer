@@ -738,25 +738,18 @@ module WP =
                 ) w
             )
           in
-          (* Hack: Only restart unknowns describing global variables *)
-          if Node.equal (S.Var.node x) (Function Cil.dummyFunDec) then (
-            restart_leaf x;
-            destab_side_dep x;
-            destabilize_normal x
-          ) else (
-            ignore @@ Pretty.printf "Trying to restart %a which does not describe a global variable." S.Var.pretty_trace x
-          )
+          restart_leaf x;
+          destab_side_dep x;
+          destabilize_normal x
+
         in
         let globals_to_restart = S.increment.restarting in
         let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
+
         List.iter
           (fun g ->
-             S.iter_vars get (Global g)
-               (fun v ->
-                  if HM.mem stable v then begin
-                    destabilize_leaf v;
-                  end
-               )
+            S.iter_vars get g
+               (fun v -> if HM.mem stable v then destabilize_leaf v)
           )
           globals_to_restart;
 
