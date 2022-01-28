@@ -734,7 +734,7 @@ module WP =
                   if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                   HM.remove stable y;
                   HM.remove superstable y;
-                  destabilize y
+                  destabilize_normal y
                 ) w
             )
           in
