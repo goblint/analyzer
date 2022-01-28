@@ -84,8 +84,7 @@ struct
     activated_ctx_sens := List.filter (fun (n, _) -> not (List.mem n !cont_inse)) !activated;
     match marshal with
     | Some marshal ->
-      combine !activated marshal
-      |> iter (fun ((_,{spec=(module S:MCPSpec); _}), marshal) -> S.init (Some (Obj.obj marshal)))
+      iter2 (fun (_,{spec=(module S:MCPSpec); _}) marshal -> S.init (Some (Obj.obj marshal))) !activated marshal
     | None ->
       iter (fun (_,{spec=(module S:MCPSpec); _}) -> S.init None) !activated
 
