@@ -33,13 +33,13 @@ struct
     equal Mpqf.equal v1 v2
 
   let keep_vals (v:t) n :t =
-    filteri (function i -> function x -> i < n) v
+    filteri (fun i x -> i < n) v
 
   let remove_val n v =
-    filteri (function i -> function x -> i <> n) v
+    filteri (fun i x -> i <> n) v
 
   let set_val v n new_val :t =
-    mapi (function i -> function x -> if i = n then new_val else x) v
+    mapi (fun i x -> if i = n then new_val else x) v
 
   let rec insert_val n vl (v:t) =
     match v with
@@ -47,9 +47,9 @@ struct
     | x :: xs -> if n > 0 then x :: insert_val (n-1) vl xs else vl :: x :: xs
 
   let apply_with_c op c =
-    map (function x -> op x c)
+    map (fun x -> op x c)
 
-  let zero_vec size = init size (function i -> to_rt 0)
+  let zero_vec size = init size (fun i -> to_rt 0)
 
 end
 
@@ -62,7 +62,7 @@ struct
     List.fold_left (^) "" (List.map (Vector.show) x)
 
   let add_empty_column (m : t) pos : t =
-    List.map (function y -> Vector.insert_val pos (to_rt 0) y) m
+    List.map (fun y -> Vector.insert_val pos (to_rt 0) y) m
 
   let append_row (m : t) row : t =
     List.append m [row]
@@ -71,10 +71,10 @@ struct
     List.nth m row_n
 
   let rec remove_row (m : t) row_n : t =
-    List.filteri (function i -> function x -> row_n <> i) m
+    List.filteri (fun i x -> row_n <> i) m
 
   let get_col (a:t) n : Vector.t =
-    List.map (function x -> Vector.nth x n) a
+    List.map (fun x -> Vector.nth x n) a
 
   let append_matrices (a:t) (b:t) : t =
     List.append a b
@@ -91,16 +91,16 @@ struct
     List.equal Vector.equal m1 m2
 
   let subtract_rows_c row1 row2 c =
-    Vector.map2 (function x -> function y -> x -: (y *: c)) row1 row2
+    Vector.map2 (fun x y -> x -: (y *: c)) row1 row2
 
   let reduce_row_to_zero (m :t) row_n col_n =
     let red_row = List.nth m row_n in
     let c = Vector.nth red_row col_n in
-    List.map (function x -> subtract_rows_c x red_row ((Vector.nth x col_n) /: c)) m
+    List.map (fun x -> subtract_rows_c x red_row ((Vector.nth x col_n) /: c)) m
 
   let remove_col (m: t) col_n =
     let del_col m = List.map (Vector.remove_val col_n) m in
-    match List.findi (function i -> function x -> Vector.nth x col_n <> to_rt 0)  (List.rev m) with
+    match List.findi (fun i x -> Vector.nth x col_n <> to_rt 0)  (List.rev m) with
     | exception Not_found -> del_col m
     | (i, _) -> let len = List.length m - (i + 1)
       in del_col (remove_row (reduce_row_to_zero m len col_n) len)
@@ -112,17 +112,17 @@ struct
     let rec create_rref new_t curr_row =
       if curr_row >= num_rows new_t then new_t else
         let row = List.nth new_t curr_row in
-        match Vector.findi (function i -> function x -> x <> to_rt 0) row with
+        match Vector.findi (fun i -> fun x -> x <> to_rt 0) row with
         | exception Not_found -> create_rref (remove_row new_t curr_row) curr_row
         | (i, p) -> if Vector.compare_length_with row (i + 1) <= 0 then raise NoSolution
-          else let p = Vector.map (function x -> x /: p) row in
+          else let p = Vector.map (fun x -> x /: p) row in
             let col = get_col new_t i in
-            let res = List.map2i (function row_i -> function y -> function z -> if row_i <> curr_row then subtract_rows_c y p z else p) new_t col
+            let res = List.map2i (fun row_i y z -> if row_i <> curr_row then subtract_rows_c y p z else p) new_t col
             in create_rref res (curr_row + 1)
     in
     match create_rref t 0 with
     | c -> let sort v1 v2 =
-             let f = Vector.findi (function i -> function x -> x =: to_rt 1) in
+             let f = Vector.findi (fun i x -> x =: to_rt 1) in
              let (i1, _), (i2, _) = (f v1), (f v2) in Int.compare i1 i2
       in Some (List.sort sort c)
     | exception NoSolution -> None
@@ -140,11 +140,11 @@ struct
 
   let dim_add (ch: Apron.Dim.change) m =
     let to_add = Array.to_list ch.dim in
-    List.fold_lefti (function m' -> function i -> function x -> Matrix.add_empty_column m' (x + i)) m to_add
+    List.fold_lefti (fun m' i  x -> Matrix.add_empty_column m' (x + i)) m to_add
 
   let dim_remove (ch: Apron.Dim.change) m =
     let to_remove = Array.to_list ch.dim in
-    List.fold_left (function y -> function x -> Matrix.remove_col y x) m to_remove
+    List.fold_left (fun y x -> Matrix.remove_col y x) m to_remove
 
   let change_d t new_env add =
     let dim_change = if add then Environment.dimchange t.env new_env
@@ -195,8 +195,8 @@ let calc_const (t:Matrix.t) env texp =
       match exp with
       | Cst x -> EnvDomain.mpqf_of_cst x
       | Var x -> let n = Environment.dim_of_var env x in
-        let row = List.find_opt (function x -> Vector.nth x n = to_rt 1) m in
-        let is_const_row row = Vector.compare_length_with (Vector.filteri (function i -> function x ->
+        let row = List.find_opt (fun x -> Vector.nth x n = to_rt 1) m in
+        let is_const_row row = Vector.compare_length_with (Vector.filteri (fun i x ->
             Vector.compare_length_with row (i + 1) > 0 && x <> to_rt 0) row) 1 = 0
         in
         begin match row with
@@ -301,7 +301,7 @@ struct
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    if M.tracing then M.tracel "ops" "meet \n a: %s \n b: %s -> %s \n" (show t1) (show t2) (show res) ;
+    if M.tracing then M.tracel "meet" "meet \n a: %s \n b: %s -> %s \n" (show t1) (show t2) (show res) ;
     res
 
   let leq t1 t2 =
@@ -331,15 +331,15 @@ struct
             | _ -> col_b
           in
           let a_r = Matrix.get_row a r in
-          let mapping = List.map2i (function i -> function x -> function y -> if i < r then
-                Vector.map2 (+:) x (Vector.apply_with_c ( *:) y a_r) else x ) a col_b
+          let mapping = List.map2i (fun i x y -> if i < r then
+                                       Vector.map2 (+:) x (Vector.apply_with_c ( *:) y a_r) else x ) a col_b
           in Matrix.remove_row mapping r
         in
         let case_three a b col_a col_b max =
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
           if Vector.equal col_a col_b then (a, b, max) else
             let vcomb = Vector.combine (Vector.rev col_a) (Vector.rev col_b) in
-            let i, (x, y) = Vector.findi (function i -> function x,y -> x <> y) vcomb in
+            let i, (x, y) = Vector.findi (fun i (x,y) -> x <> y) vcomb in
             let r, diff = Vector.length vcomb - (i + 1), x -: y  in
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
             let rec multiply_by_t m col_v t i = match m, col_v with
@@ -349,7 +349,7 @@ struct
                 else xs
               | _, _ -> []
             in
-            let sub_col = Vector.map2 (function x -> function y -> x -: y) col_a col_b in
+            let sub_col = Vector.map2 (fun x y -> x -: y) col_a col_b in
             Matrix.remove_row (multiply_by_t a sub_col a_r max) r, Matrix.remove_row (multiply_by_t b sub_col b_r max) r, (max - 1)
         in
         let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
@@ -395,31 +395,36 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.*)
+  (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
+    Returns None if the expression is not affine linear*)
   let get_coeff_vec env texp =
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size env + 1 in
-    let neg = Vector.map (function x -> (to_rt (-1)) *: x) in
+    let neg = Vector.map (fun x -> (to_rt (-1)) *: x) in
     let rec convert_texpr env texp =
       begin match texp with
         | Cst x -> Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (EnvDomain.mpqf_of_cst x)
         | Var x ->  Vector.set_val zero_vec (Environment.dim_of_var env x) (to_rt 1)
         | Unop (u, e, _, _) ->
           begin match u with
-            | Neg -> neg @@ convert_texpr env e (* Multiply by -1*)
+            | Neg -> neg @@ convert_texpr env e
             | Cast -> convert_texpr env e (*Ignore*)
-            | Sqrt -> raise NotLinear end (*Maybe works if only constant?*)
+            | Sqrt -> raise NotLinear end
         | Binop (b, e1, e2, _, _) ->
           begin match b with
-            | Add ->  Vector.map2 (+:)(convert_texpr env e1) (convert_texpr env e2) (*Simply add vectors*)
-            | Sub -> Vector.map2 (+:) (convert_texpr env  e1) (neg @@ convert_texpr env e2) (*Subtract them*)
-            | Mul -> let only_c v  = Vector.compare_lengths
-                         (Vector.filteri (function i -> function x -> Vector.compare_length_with v (i + 1) <> 0 && x <> to_rt 0) v) [] = 0
-              in let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
-              if only_c x1 || only_c x2
-              then Vector.map2 ( *: ) x1 x2
-              else raise NotLinear (*Var * Var is invalid!*)
-            | _ -> raise NotLinear (*rest is not valid!*) end
+            | Add ->  Vector.map2 (+:)(convert_texpr env e1) (convert_texpr env e2)
+            | Sub -> Vector.map2 (+:) (convert_texpr env  e1) (neg @@ convert_texpr env e2)
+            | Mul -> let get_c v = match Vector.findi (fun i x -> x <> (to_rt 0)) v with
+                | exception Not_found -> Some (to_rt 0)
+                | (i, p) when Vector.compare_length_with v (i + 1) = 0 -> Some (p)
+                | _ -> None
+              in
+              let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
+              begin match get_c x1, get_c x2 with
+                | _, Some c -> Vector.apply_with_c ( *:) c x1
+                | Some c, _ -> Vector.apply_with_c ( *:) c x2
+                | _, _ -> raise NotLinear end
+            | _ -> raise NotLinear end
       end
     in match convert_texpr env texp with
     | exception NotLinear -> None
@@ -430,20 +435,20 @@ struct
     let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
     let b0 = Vector.nth b j0 in
     let reduced_a = Vector.apply_with_c (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
-    let recalc_entries m rd_a = List.map2 (function x -> function y -> Vector.map2i (function j -> function z -> function d ->
+    let recalc_entries m rd_a = List.map2 (fun x y -> Vector.map2i (fun j z d ->
         if j = j0 then y
         else if j < (Vector.length b) -1 then z -: y *: d
         else z +: y *: d) x b) m rd_a
-    in {d = Some (recalc_entries x reduced_a); env = env}
+    in {d = Matrix.normalize @@ recalc_entries x reduced_a; env = env}
 
   let assign_uninvertible_rel x var b env =
-    let neg_vec = List.mapi (function i -> function z -> if i < Vector.length b - 1 then to_rt (-1) *: z else z) b
+    let neg_vec = List.mapi (fun i z -> if i < Vector.length b - 1 then to_rt (-1) *: z else z) b
     in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) (to_rt 1)
-    in {d = Some (Option.get @@ Matrix.normalize @@ Matrix.append_row x var_vec); env = env}
+    in {d = Matrix.normalize @@ Matrix.append_row x var_vec; env = env}
 
   let remove_rels_with_var x var env =
     let j0 = Environment.dim_of_var env var
-    in match Vector.findi (function i -> function x -> x <> to_rt 0) (Vector.rev @@ Matrix.get_col x j0) with
+    in match Vector.findi (fun i x -> x <> to_rt 0) (Vector.rev @@ Matrix.get_col x j0) with
     | exception Not_found -> x
     | r, _ -> Matrix.reduce_row_to_zero x (Matrix.num_rows x - r - 1) j0
 
@@ -459,13 +464,12 @@ struct
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <> to_rt 0
     in let affineEq_vec = get_coeff_vec t.env texp
     in match t.d, affineEq_vec with
-    | Some [], Some v
-    | None, Some v -> if is_invertible v then t (*top/bottom and inv. assign = top*)
-      else assign_uninvertible_rel [] var v t.env
+    | None, _ -> failwith "Can not assign to bottom state!"
+    | Some [], Some v -> if is_invertible v then t else assign_uninvertible_rel [] var v t.env
     | Some x, Some v -> if is_invertible v then assign_invertible_rels x var v t.env
       else let new_x = remove_rels_with_var x var t.env
         in assign_uninvertible_rel new_x var v t.env
-    | _, _ -> t
+    | Some x, None -> {d = Matrix.normalize @@ remove_rels_with_var x var t.env; env = t.env}
 
   let assign_exp t var exp (no_ov: bool) =
     match Convert.texpr1_expr_of_cil_exp t t.env no_ov exp with
@@ -474,6 +478,11 @@ struct
       | None -> t
       | Some x -> forget_vars t [var]
 
+  let assign_exp t var exp no_ov =
+    let res = assign_exp t var exp no_ov in
+    if M.tracing then M.tracel "assign" "assign_exp t:\n %s \n var: %s \n exp: %s\n no_ov: %b -> \n %s\n"
+        (show t) (Var.to_string var) (Pretty.sprint 1 (Cil.printExp Cil.defaultCilPrinter () exp)) no_ov (show res) ;
+    res
   let assign_var t v v' =
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
     assign_texpr t v (Apron.Texpr1.to_expr texpr1)
@@ -484,7 +493,7 @@ struct
     res
 
   let assign_var_parallel t vv's =
-    let new_t's = List.map (function (v,v') -> assign_var t v v') vv's in
+    let new_t's = List.map (fun (v,v') -> assign_var t v v') vv's in
     List.fold_left join t new_t's
 
   let assign_var_parallel' t vs1 vs2 =
@@ -523,7 +532,7 @@ struct
     in
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
-      let flip_e = List.mapi (function i -> function x -> if i = (Vector.length e) -1 then (to_rt (-1)) *: x else x) e
+      let flip_e = List.mapi (fun i x -> if i = (Vector.length e) -1 then (to_rt (-1)) *: x else x) e
       in meet d {d = Matrix.normalize [flip_e]; env = d.env}
     in
     match Tcons1.get_typ tcons, get_coeff_vec d.env (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
