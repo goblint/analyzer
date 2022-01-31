@@ -99,15 +99,11 @@ class loopUnrollingVisitor = object
       | Block(bl) -> mkStmt(Block(mkb bl.bstmts))
       | Switch(e,bl,stl,l1,l2) -> mkStmt(Switch(e,(mkb bl.bstmts),(List.map newsid_stmt stl),l1,l2))
       | _ -> newsid st in
-    let mkBlock' b = mkBlock (List.map newsid_stmt b) in
-    let mk_stmt_from_stmt_list bl = mkStmt(Block(mkBlock' bl)) in
+    let create_shallow_copies bl = List.map newsid_stmt bl in
     match s.skind with
     | Loop(b, loc, _, _, _) ->
       let get_unrolling_factor = GobConfig.get_int "exp.unrolling-factor" in
       (* All unrollings will leave the original loop at the end. The label makes sure it's not unrolled twice.*)
-      let add_label_to_remainder_loop st_loop loc_loop = 
-        st_loop.labels <- (Label(Cil.freshLabel "remainder_loop", loc_loop, false))::st_loop.labels;
-        st_loop in
       let rec is_remainder_loop loop_stmt_labels =
         match loop_stmt_labels with
         | [] -> false
@@ -118,25 +114,33 @@ class loopUnrollingVisitor = object
       (* We need to transform them so we can replicate the loop's body outside of the loop.*)
       let break_stmt = mkStmt (Instr []) in
       break_stmt.labels <- [Label(Cil.freshLabel "unroll_while_break",loc,false)] ;
+      let continue_stmt = mkStmt (Instr []) in
+      continue_stmt.labels <- [Label(Cil.freshLabel "unroll_while_continue",loc,false)] ;
       let rec rm_breaks_st st = 
         let rm_breaks_st_list stl = mkBlock (List.map rm_breaks_st stl) in
         match st.skind with
         | Break(l) -> mkStmt (Goto (ref break_stmt, loc))
+        | Continue(l) -> mkStmt (Goto (ref continue_stmt, loc))
         | If(e,tb,fb,l1,l2) -> mkStmt (If (e,(rm_breaks_st_list tb.bstmts), (rm_breaks_st_list fb.bstmts),l1,l2))
         | Block(bl) -> mkStmt (Block (rm_breaks_st_list bl.bstmts))
         |Switch(e,bl,stl,l1,l2) -> mkStmt (Switch (e, (rm_breaks_st_list bl.bstmts), (List.map rm_breaks_st stl),l1, l2))
         | _ -> st in
       let body = List.map rm_breaks_st b.bstmts in
+      (* Prepare remainder loop for unrolling*)
+      let prepare_remainder_loop st_loop loc_loop = 
+        st_loop.labels <- (Label(Cil.freshLabel "remainder_loop", loc_loop, false))::st_loop.labels;
+        mkStmt (Block (mkBlock([continue_stmt;st_loop]))) in
       (* Unrolling *)
       let rec unroll sl factor =
         match factor with
         |0-> sl
         |_ ->
-          let x = body @ sl in
+          let duplicate_body bd = create_shallow_copies bd in
+          let x = (duplicate_body body) @ sl in
           unroll x (factor-1) in
       let unroll_helper st = 
-        let x = mk_stmt_from_stmt_list (unroll [(add_label_to_remainder_loop st loc)] get_unrolling_factor) in
-        mkStmt (Block (mkBlock [x;break_stmt])) in
+        let x = unroll [(prepare_remainder_loop st loc)] get_unrolling_factor in
+        mkStmt (Block (mkBlock (x @ [break_stmt]))) in
       let is_loop_unrollable s = 
         if is_remainder_loop s.labels then false
         else true in
