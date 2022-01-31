@@ -213,8 +213,8 @@ struct
     assert_equal (I.of_int ik Z.zero) (I.rem ik (I.of_int ik Z.minus_one) (I.of_int ik Z.one))
 
   let test () = [
-      "test_interval_rem" >:: test_interval_rem;
-    ]
+    "test_interval_rem" >:: test_interval_rem;
+  ]
 end
 
 module Congruence =
@@ -230,8 +230,8 @@ struct
     assert_equal (C.top_of ik) (C.shift_left ik (C.of_int ik Z.one) (C.top_of ik))
 
   let test () = [
-      "test_shift_left" >:: test_shift_left;
-    ]
+    "test_shift_left" >:: test_shift_left;
+  ]
 end
 
 let test () = "intDomainTest" >:::
