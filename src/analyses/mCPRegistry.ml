@@ -125,9 +125,22 @@ struct
   let binop_for_all f (x:t) (y:t) =
     GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
+  (* too specific for GobList *)
+  let rec compare3 f l1 l2 l3 = match l1, l2, l3 with
+    | [], [], [] -> 0
+    | x1 :: l1, x2 :: l2, x3 :: l3 ->
+      let c = f x1 x2 x3 in
+      if c <> 0 then
+        c
+      else
+        (compare3 [@tailcall]) f l1 l2 l3
+    | _, _, _ -> invalid_arg "DomListPrintable.compare3"
+
+  let binop_compare f (x:t) (y:t) =
+    compare3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+
   let equal   x y = binop_for_all (fun n (module S : Printable.S) x y -> S.equal (obj x) (obj y)) x y
-  (* TODO: something for compare? *)
-  let compare x y = binop_fold (fun a n (module S : Printable.S) x y -> if a <> 0 then a else S.compare (obj x) (obj y)) 0 x y
+  let compare x y = binop_compare (fun n (module S : Printable.S) x y -> S.compare (obj x) (obj y)) x y
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
 
