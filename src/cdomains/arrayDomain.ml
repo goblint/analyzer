@@ -865,7 +865,7 @@ struct
   let smart_leq f g = binop' (P.smart_leq f g) (T.smart_leq f g) (U.smart_leq f g)
   let update_length newl x = unop_to_t' (P.update_length newl) (T.update_length newl) (U.update_length newl) x
 
-  (* Functions that make us of the configuration flag *)
+  (* Functions that make use of the configuration flag *)
   let chosen_domain () = get_string "ana.base.arrays.domain"
 
   let name () = "FlagConfiguredArrayDomain: " ^ match chosen_domain () with
