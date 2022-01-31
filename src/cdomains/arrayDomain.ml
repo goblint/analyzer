@@ -777,11 +777,49 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
+module UnrollWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+struct
+  module Base = Unroll (Val) (Idx)
+  include Lattice.Prod (Base) (Idx)
+  type idx = Idx.t
+  type value = Val.t
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
+  let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
+  let make l x = Base.make l x, l
+  let length (_,l) = Some l
+
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
+  let map f (x, l):t = (Base.map f x, l)
+  let fold_left f a (x, l) = Base.fold_left f a x
+  let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
+  let get_vars_in_e _ = []
+
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
+
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
+  let update_length newl (x, l) = (x, newl)
+
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
+end
+
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
 struct
   module P = PartitionedWithLength(Val)(Idx)
   module T = TrivialWithLength(Val)(Idx)
-  module U = Unroll(Val)(Idx)
+  module U = UnrollWithLength(Val)(Idx)
 
   type idx = Idx.t
   type value = Val.t
