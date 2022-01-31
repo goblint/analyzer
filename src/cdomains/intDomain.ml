@@ -2166,7 +2166,7 @@ struct
   let is_int = function Some (c, m) when m =: Ints_t.zero -> true | _ -> false
 
   let to_int = function Some (c, m) when m =: Ints_t.zero -> Some c | _ -> None
-  let of_int ik (x: int_t) = Some (x, Ints_t.zero)
+  let of_int ik (x: int_t) = normalize ik @@ Some (x, Ints_t.zero)
   let zero = Some (Ints_t.zero, Ints_t.zero)
   let one  = Some (Ints_t.one, Ints_t.zero)
   let top_bool = top()
