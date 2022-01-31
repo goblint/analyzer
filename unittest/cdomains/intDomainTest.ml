@@ -217,6 +217,23 @@ struct
     ]
 end
 
+module Congruence =
+struct
+  module C = IntDomain.Congruence
+
+  let assert_equal x y =
+    assert_equal ~cmp:C.equal ~printer:C.show x y
+
+  let test_shift_left _ =
+    let ik = Cil.IBool in
+    assert_equal (C.top_of ik) (C.join ik (C.of_int ik Z.zero) (C.of_int ik Z.one));
+    assert_equal (C.top_of ik) (C.shift_left ik (C.of_int ik Z.one) (C.top_of ik))
+
+  let test () = [
+      "test_shift_left" >:: test_shift_left;
+    ]
+end
+
 let test () = "intDomainTest" >:::
               [ "int_Integers"  >::: A.test ();
                 "int_Flattened" >::: B.test ();
@@ -226,4 +243,5 @@ let test () = "intDomainTest" >:::
                 "test_meet"     >::  test_meet;
                 "test_excl_list">::  test_ex_set;
                 "interval" >::: Interval.test ();
+                "congruence" >::: Congruence.test ();
               ]
