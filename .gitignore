@@ -77,3 +77,6 @@ relocatable/
 *.sarif
 
 dune-workspace
+
+# gobview
+run/

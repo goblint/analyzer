@@ -640,8 +640,11 @@ struct
       WResult.write lh gh entrystates;
 
     let marshal = Spec.finalize () in
-    if get_string "save_run" <> "" then (
-      Serialize.marshal marshal (Filename.concat (get_string "save_run") "spec_marshal")
+    (* copied from solve_and_postprocess *)
+    let gobview = get_bool "gobview" in
+    let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+    if save_run <> "" then (
+      Serialize.marshal marshal (Filename.concat save_run "spec_marshal")
     );
     if get_bool "incremental.save" then (
       Serialize.store_data marshal Serialize.AnalysisData;

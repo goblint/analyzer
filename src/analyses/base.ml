@@ -80,9 +80,6 @@ struct
    * Helpers
    **************************************************************************)
 
-  let hash    (x,_)             = Hashtbl.hash x
-  let leq     (x1,_) (y1,_) = CPA.leq   x1 y1
-
   let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
 
   let project_val p_opt value is_glob =

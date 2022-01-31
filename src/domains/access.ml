@@ -46,7 +46,7 @@ let init (f:file) =
   List.iter visit_glob f.globals
 
 
-type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord]
+type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
 
 let rec remove_idx : offset -> offs  = function
   | NoOffset    -> `NoOffset
@@ -64,7 +64,7 @@ let rec d_offs () : offs -> doc = function
   | `Index o -> dprintf "[?]%a" d_offs o
   | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
 
-type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord]
+type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord, hash]
 
 let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
@@ -320,11 +320,9 @@ let add side e w conf vo oo a =
 module A =
 struct
   include Printable.Std
-  type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord]
+  type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
   let compare x = Stats.time "access compare" (compare x)
-
-  let hash (conf, w, loc, e, lp) = 0 (* TODO: never hashed? *)
 
   let pretty () (conf, w, loc, e, lp) =
     Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
@@ -348,11 +346,7 @@ end
 module T =
 struct
   include Printable.Std
-  type t = acc_typ [@@deriving eq, ord]
-
-  let hash = function
-    | `Type t -> CilType.Typ.hash t
-    | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
+  type t = acc_typ [@@deriving eq, ord, hash]
 
   let pretty = d_acct
   include Printable.SimplePretty (
@@ -365,12 +359,7 @@ end
 module O =
 struct
   include Printable.Std
-  type t = offs [@@deriving eq, ord]
-
-  let rec hash = function
-    | `NoOffset -> 13
-    | `Index os -> 3 + hash os
-    | `Field (f, os) -> 3 * CilType.Fieldinfo.hash f + hash os
+  type t = offs [@@deriving eq, ord, hash]
 
   let pretty = d_offs
   include Printable.SimplePretty (
