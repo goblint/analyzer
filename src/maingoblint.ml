@@ -455,7 +455,7 @@ let diff_and_rename current_file =
         let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
         let restarting = GobConfig.get_string_list "incremental.restart_globs.globs" in
 
-        let restarting, not_found = CilUtil.varquery_from_names current_file restarting in
+        let restarting, not_found = VarQuery.varqueries_from_names current_file restarting in
 
         if not (List.is_empty not_found) then begin
           List.iter
