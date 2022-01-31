@@ -751,7 +751,7 @@ module WP =
              S.iter_vars get g
                (fun v ->
                   if S.system v <> None then
-                    ignore @@ Pretty.printf "Trying to restart a non-leaf unknown. This has no effect."
+                    ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pretty_trace v
                   else if HM.mem stable v then
                     destabilize_leaf v)
           )
