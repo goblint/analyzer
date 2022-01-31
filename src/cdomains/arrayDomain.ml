@@ -93,7 +93,7 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let extract x = match x with
       | Some c -> c
-      | None -> Z.zero
+      | None -> failwith "arrarDomain: that sould not happen"
   let get (ask: Q.ask) (xl, xr) (_,i) =
     let search_unrolled_values min_i max_i =
       let mi = Z.to_int min_i in
