@@ -99,8 +99,7 @@ class loopUnrollingVisitor = object
       | Block(bl) -> mkStmt(Block(mkb bl.bstmts))
       | Switch(e,bl,stl,l1,l2) -> mkStmt(Switch(e,(mkb bl.bstmts),(List.map newsid_stmt stl),l1,l2))
       | _ -> newsid st in
-    let mkBlock' b = mkBlock (List.map newsid_stmt b) in
-    let mk_stmt_from_stmt_list bl = mkStmt(Block(mkBlock' bl)) in
+    let create_shallow_copies bl = List.map newsid_stmt bl in
     match s.skind with
     | Loop(b, loc, _, _, _) ->
       let get_unrolling_factor = GobConfig.get_int "exp.unrolling-factor" in
@@ -136,11 +135,12 @@ class loopUnrollingVisitor = object
         match factor with
         |0-> sl
         |_ ->
-          let x = body @ sl in
+          let duplicate_body bd = create_shallow_copies bd in
+          let x = (duplicate_body body) @ sl in
           unroll x (factor-1) in
       let unroll_helper st = 
-        let x = mk_stmt_from_stmt_list (unroll [(prepare_remainder_loop st loc)] get_unrolling_factor) in
-        mkStmt (Block (mkBlock [x;break_stmt])) in
+        let x = unroll [(prepare_remainder_loop st loc)] get_unrolling_factor in
+        mkStmt (Block (mkBlock (x @ [break_stmt]))) in
       let is_loop_unrollable s = 
         if is_remainder_loop s.labels then false
         else true in
