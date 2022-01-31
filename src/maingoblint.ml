@@ -444,8 +444,8 @@ let handle_extraspecials () =
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
+    let warn m = eprint_color ("{yellow}Warning: "^m) in
     if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
-      let warn m = eprint_color ("{yellow}Warning: "^m) in
       warn "incremental.load is activated but no data exists that can be loaded."
     end;
     let (changes, restarting, old_file, version_map, max_ids) =
@@ -454,7 +454,16 @@ let diff_and_rename current_file =
         let (version_map, changes, max_ids) = VersionLookup.load_and_update_map old_file current_file in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file version_map changes in
         let restarting = GobConfig.get_string_list "incremental.restart_globs.globs" in
-        let restarting = CilUtil.varquery_from_names current_file restarting in
+
+        let restarting, not_found = CilUtil.varquery_from_names current_file restarting in
+
+        if not (List.is_empty not_found) then begin
+          List.iter
+            (fun s ->
+              warn @@ "Should restart " ^ s ^ " but no such global could not be found in the CIL-file.")
+            not_found;
+          flush stderr
+        end;
         (changes, restarting, Some old_file, version_map, max_ids)
       end else begin
         let (version_map, max_ids) = VersionLookup.create_map current_file in
