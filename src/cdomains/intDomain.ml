@@ -2257,27 +2257,28 @@ struct
 
   let shift_left ik x y =
     (* Naive primality test *)
-    let is_prime n =
+    (* let is_prime n =
       let n = Ints_t.abs n in
       let rec is_prime' d =
         (d *: d >: n) || ((not ((n %: d) =: Ints_t.zero)) && (is_prime' [@tailcall]) (d +: Ints_t.one))
       in
       not (n =: Ints_t.one) && is_prime' (Ints_t.of_int 2)
-    in
+    in *)
     match x, y with
     | None, None -> None
     | None, _
     | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top ()
+    | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top_of ik
     | Some (c, m), Some (c', m') ->
       if (m =: Ints_t.zero && m' =: Ints_t.zero) then
-        Some (Ints_t.bitand (max_int ik) (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
+        normalize ik @@ Some (Ints_t.bitand (max_int ik) (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
       else
         let x = (Ints_t.bitand (max_int ik) (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
-        if is_prime (m' +: Ints_t.one) then
-          Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
-        else
-          Some (x *: c, Ints_t.gcd (x *: m) (c *: x))
+        (* TODO: commented out because fails test with _Bool *)
+        (* if is_prime (m' +: Ints_t.one) then
+          normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
+        else *)
+          normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) (c *: x))
 
   let shift_left ik x y =
     let res = shift_left ik x y in
