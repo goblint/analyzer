@@ -127,7 +127,8 @@ struct
 
   let no_overflow ctx exp =
     let ik = Cilfacade.get_ikind_exp exp in
-    if IntDomain.should_ignore_overflow ik then true else
+    if not (Cil.isSigned ik) then false else
+    if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then true else
       let eval_int ctx exp =
         match ctx.ask (Queries.EvalInt exp) with
         | x when Queries.ID.is_int x -> Queries.ID.to_int x

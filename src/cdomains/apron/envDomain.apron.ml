@@ -17,6 +17,8 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
+module M = Messages
+
 module type ConvBounds =
 sig
   type d
@@ -85,7 +87,7 @@ struct
             raise Unsupported_CilExp
         in
         let ik = Cilfacade.get_ikind_exp exp in
-        if not no_ov && not (IntDomain.should_ignore_overflow ik) then (
+        if no_ov then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with
