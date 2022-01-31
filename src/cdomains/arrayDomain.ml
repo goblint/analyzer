@@ -800,10 +800,10 @@ struct
   module I = struct include LatticeFlagHelper (T) (U) (K) let name () = "" end
   include LatticeFlagHelper (P) (I) (K)
 
-  let binop' ops ophs opks = binop ops (I.binop ophs opks)
-  let unop' ops ophs opks = unop ops (I.unop ophs opks)
-  let binop_to_t' ops ophs opks = binop_to_t ops (I.binop_to_t ophs opks)
-  let unop_to_t' ops ophs opks = unop_to_t ops (I.unop_to_t ophs opks)
+  let binop' opp opt opu = binop opp (I.binop opt opu)
+  let unop' opp opt opu = unop opp (I.unop opt opu)
+  let binop_to_t' opp opt opu = binop_to_t opp (I.binop_to_t opt opu)
+  let unop_to_t' opp opt opu = unop_to_t opp (I.unop_to_t opt opu)
 
   (* Simply call appropriate function for component that is not None *)
   let get a x (e,i) = unop' (fun x ->
