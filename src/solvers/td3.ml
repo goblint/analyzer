@@ -748,8 +748,12 @@ module WP =
 
         List.iter
           (fun g ->
-            S.iter_vars get g
-               (fun v -> if HM.mem stable v then destabilize_leaf v)
+             S.iter_vars get g
+               (fun v ->
+                  if S.system v <> None then
+                    ignore @@ Pretty.printf "Trying to restart a non-leaf unknown. This has no effect."
+                  else if HM.mem stable v then
+                    destabilize_leaf v)
           )
           globals_to_restart;
 
