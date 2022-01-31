@@ -87,7 +87,7 @@ struct
             raise Unsupported_CilExp
         in
         let ik = Cilfacade.get_ikind_exp exp in
-        if no_ov then (
+        if not no_ov then (
           let (type_min, type_max) = IntDomain.Size.range_big_int ik in
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with

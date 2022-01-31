@@ -6,7 +6,7 @@ int main() {
 
     unsigned int y = -x;
 
-    assert(y == 4294967295); //UNKNOWN
+    assert(y == 4294967295);
 
     unsigned short int allbits = -1;
 
