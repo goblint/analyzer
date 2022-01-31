@@ -1687,7 +1687,7 @@ struct
    * Simple defs for the transfer functions
    **************************************************************************)
   let assign ctx (lval:lval) (rval:exp):store  =
-    let lval_t = Cilfacade.typeOf rval in
+    let lval_t = Cilfacade.typeOfLval lval in
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt(i, _, _)), NoOffset) -> (* ...[i] *)
