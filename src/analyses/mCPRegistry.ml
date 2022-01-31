@@ -122,7 +122,11 @@ struct
   let binop_fold f a (x:t) (y:t) =
     GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
 
-  let equal   x y = binop_fold (fun a n (module S : Printable.S) x y -> a && S.equal (obj x) (obj y)) true x y
+  let binop_for_all f (x:t) (y:t) =
+    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+
+  let equal   x y = binop_for_all (fun n (module S : Printable.S) x y -> S.equal (obj x) (obj y)) x y
+  (* TODO: something for compare? *)
   let compare x y = binop_fold (fun a n (module S : Printable.S) x y -> if a <> 0 then a else S.compare (obj x) (obj y)) 0 x y
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
@@ -241,18 +245,24 @@ struct
   let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) x y =
     List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
 
+  let binop_for_all f (x:t) (y:t) =
+    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+
   let unop_fold f a (x:t) =
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
+
+  let unop_for_all f (x:t) =
+    List.for_all2 (fun (n,d) (n',s) -> assert (n = n'); f n s d) x (domain_list ())
 
   let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
   let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))
   let meet   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y))
   let join   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y))
 
-  let leq    = binop_fold (fun a n (module S : Lattice.S) x y -> a && S.leq (obj x) (obj y)) true
+  let leq    = binop_for_all (fun n (module S : Lattice.S) x y -> S.leq (obj x) (obj y))
 
-  let is_top = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_top (obj x)) true
-  let is_bot = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_bot (obj x)) true
+  let is_top = unop_for_all (fun n (module S : Lattice.S) x -> S.is_top (obj x))
+  let is_bot = unop_for_all (fun n (module S : Lattice.S) x -> S.is_bot (obj x))
 
   let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
