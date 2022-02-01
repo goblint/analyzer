@@ -2514,7 +2514,24 @@ module IntDomTupleImpl = struct
 
   let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity (* contains only the values of activated domains *)
   let to_list_some x = List.filter_map identity @@ to_list x (* contains only the Some-values of activated domains *)
-  let exists, for_all = let f g = g identity % to_list in List.(f exists, f for_all)
+
+  let exists = function
+    | (Some true, _, _, _)
+    | (_, Some true, _, _)
+    | (_, _, Some true, _)
+    | (_, _, _, Some true) ->
+      true
+    | _ ->
+      false
+
+  let for_all = function
+    | (Some false, _, _, _)
+    | (_, Some false, _, _)
+    | (_, _, Some false, _)
+    | (_, _, _, Some false) ->
+      false
+    | _ ->
+      true
 
   (* f0: constructors *)
   let top () = create { fi = fun (type a) (module I:S with type t = a) -> I.top } ()
