@@ -139,7 +139,7 @@ struct
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
   let make _ v =
     let xl = BatList.make (factor ()) v in
-    (xl,v)
+    (xl,Val.bot ())
   let length _ = None
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []

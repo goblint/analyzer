@@ -20,13 +20,13 @@ void example1(void)
         a[i] = 0;
         assert(a[i] == 0); // UNKNOWN
         assert(a[0] == 0); // UNKNOWN
-        assert(a[17] == 0); // UNKNOWN
+        assert(a[17] == 0);
         i++;
     }
 
     assert(a[0] == 0); // UNKNOWN
-    assert(a[7] == 0); // UNKNOWN
-    assert(a[41] == 0); // UNKNOWN
+    assert(a[7] == 0);
+    assert(a[41] == 0);
 }
 
 
@@ -34,7 +34,7 @@ void example1(void)
 void example2() {
     char a[10];
     int n;
-    assert(a[3] == 800); // FAIL
+    assert(a[3] == 800); // UNKNOWN
 
     for(int i=0;i < 10; i++) {
         a[i] = 7;
