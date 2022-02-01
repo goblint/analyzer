@@ -28,45 +28,45 @@ let () =
   register (
     "exists" @>>> [
         "all None" @> lazy (
-            let args = (None, None, None, None) in
-            throughputN 1 [
-              ("0", exists0, args);
-              ("1", exists1, args);
-              ("2", exists2, args);
-            ]
-          );
+          let args = (None, None, None, None) in
+          throughputN 1 [
+            ("0", exists0, args);
+            ("1", exists1, args);
+            ("2", exists2, args);
+          ]
+        );
         "all Some true" @> lazy (
-            let args = (Some true, Some true, Some true, Some true) in
-            throughputN 1 [
-              ("0", exists0, args);
-              ("1", exists1, args);
-              ("2", exists2, args);
-            ]
-          );
+          let args = (Some true, Some true, Some true, Some true) in
+          throughputN 1 [
+            ("0", exists0, args);
+            ("1", exists1, args);
+            ("2", exists2, args);
+          ]
+        );
         "all Some false" @> lazy (
-            let args = (Some false, Some false, Some false, Some false) in
-            throughputN 1 [
-              ("0", exists0, args);
-              ("1", exists1, args);
-              ("2", exists2, args);
-            ]
-          );
+          let args = (Some false, Some false, Some false, Some false) in
+          throughputN 1 [
+            ("0", exists0, args);
+            ("1", exists1, args);
+            ("2", exists2, args);
+          ]
+        );
         "all None except last Some true" @> lazy (
-            let args = (None, None, None, Some true) in
-            throughputN 1 [
-              ("0", exists0, args);
-              ("1", exists1, args);
-              ("2", exists2, args);
-            ]
-          );
+          let args = (None, None, None, Some true) in
+          throughputN 1 [
+            ("0", exists0, args);
+            ("1", exists1, args);
+            ("2", exists2, args);
+          ]
+        );
         "all Some false except last Some true" @> lazy (
-            let args = (Some false, Some false, Some false, Some true) in
-            throughputN 1 [
-              ("0", exists0, args);
-              ("1", exists1, args);
-              ("2", exists2, args);
-            ]
-          );
+          let args = (Some false, Some false, Some false, Some true) in
+          throughputN 1 [
+            ("0", exists0, args);
+            ("1", exists1, args);
+            ("2", exists2, args);
+          ]
+        );
       ]
   )
 
@@ -95,45 +95,45 @@ let () =
   register (
     "for_all" @>>> [
         "all None" @> lazy (
-            let args = (None, None, None, None) in
-            throughputN 1 [
-              ("0", for_all0, args);
-              ("1", for_all1, args);
-              ("2", for_all2, args);
-            ]
-          );
+          let args = (None, None, None, None) in
+          throughputN 1 [
+            ("0", for_all0, args);
+            ("1", for_all1, args);
+            ("2", for_all2, args);
+          ]
+        );
         "all Some true" @> lazy (
-            let args = (Some true, Some true, Some true, Some true) in
-            throughputN 1 [
-              ("0", for_all0, args);
-              ("1", for_all1, args);
-              ("2", for_all2, args);
-            ]
-          );
+          let args = (Some true, Some true, Some true, Some true) in
+          throughputN 1 [
+            ("0", for_all0, args);
+            ("1", for_all1, args);
+            ("2", for_all2, args);
+          ]
+        );
         "all Some false" @> lazy (
-            let args = (Some false, Some false, Some false, Some false) in
-            throughputN 1 [
-              ("0", for_all0, args);
-              ("1", for_all1, args);
-              ("2", for_all2, args);
-            ]
-          );
+          let args = (Some false, Some false, Some false, Some false) in
+          throughputN 1 [
+            ("0", for_all0, args);
+            ("1", for_all1, args);
+            ("2", for_all2, args);
+          ]
+        );
         "all None except last Some false" @> lazy (
-            let args = (None, None, None, Some false) in
-            throughputN 1 [
-              ("0", for_all0, args);
-              ("1", for_all1, args);
-              ("2", for_all2, args);
-            ]
-          );
+          let args = (None, None, None, Some false) in
+          throughputN 1 [
+            ("0", for_all0, args);
+            ("1", for_all1, args);
+            ("2", for_all2, args);
+          ]
+        );
         "all Some true except last Some false" @> lazy (
-            let args = (Some true, Some true, Some true, Some false) in
-            throughputN 1 [
-              ("0", for_all0, args);
-              ("1", for_all1, args);
-              ("2", for_all2, args);
-            ]
-          );
+          let args = (Some true, Some true, Some true, Some false) in
+          throughputN 1 [
+            ("0", for_all0, args);
+            ("1", for_all1, args);
+            ("2", for_all2, args);
+          ]
+        );
       ]
   )
 
