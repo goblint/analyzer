@@ -1,5 +1,8 @@
+#if !defined(GOBLINT_NO_QSORT) || !defined(GOBLINT_NO_BSEARCH)
 #include <stddef.h>
+#endif
 
+#ifndef GOBLINT_NO_QSORT
 void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) __attribute__((goblint_stub));
 void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
   // call all possible compares first, before invalidating array elements
@@ -28,8 +31,9 @@ void qsort(void *ptr, size_t count, size_t size, int (*comp)(const void*, const 
 
   // array isn't actually sorted! just pretend calls for Goblint
 }
+#endif
 
-
+#ifndef GOBLINT_NO_BSEARCH
 void* bsearch(const void *key, const void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*))  __attribute__((goblint_stub));
 void* bsearch(const void *key, const void *ptr, size_t count, size_t size, int (*comp)(const void*, const void*)) {
   // linear search for simplicity
@@ -42,3 +46,4 @@ void* bsearch(const void *key, const void *ptr, size_t count, size_t size, int (
 
   return NULL;
 }
+#endif
