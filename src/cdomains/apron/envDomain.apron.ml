@@ -17,8 +17,6 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
-module M = Messages
-
 module type ConvBounds =
 sig
   type d
@@ -44,8 +42,8 @@ struct
 
   (* TODO: move this into some general place *)
   let is_cast_injective from_type to_type =
-    let (from_min, from_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind from_type) in
-    let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
+    let (from_min, from_max) = IntDomain.Size.range (Cilfacade.get_ikind from_type) in
+    let (to_min, to_max) = IntDomain.Size.range (Cilfacade.get_ikind to_type) in
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let texpr1_expr_of_cil_exp d env no_ov =
@@ -60,12 +58,8 @@ struct
             raise Unsupported_CilExp
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
-      | Const (CInt64 (i, _, s)) ->
-        let str = match s with
-          | Some s -> s
-          | None -> Int64.to_string i
-        in
-        Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
+      | Const (CInt (i, _, _)) ->
+        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
       | exp ->
         let expr =
           match exp with
@@ -88,7 +82,7 @@ struct
         in
         let ik = Cilfacade.get_ikind_exp exp in
         if not no_ov then (
-          let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+          let (type_min, type_max) = IntDomain.Size.range ik in
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()

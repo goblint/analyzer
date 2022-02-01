@@ -480,7 +480,6 @@ let init marshal =
   Priv.init ()
 
 let store_data file =
-  if M.tracing then M.trace "dbg" "data storing\n";
   let convert (m: AD.t PCU.RH.t): OctApron.t PCU.RH.t =
     let convert_single (a: AD.t): OctApron.t =
       let generator = AD.to_lincons_array a in
@@ -497,6 +496,12 @@ let store_data file =
   let results: PCU.dump = {marshalled = results; name } in
   Serialize.marshal results file
 
+  let finalize () =
+    let file = GobConfig.get_string "exp.apron.prec-dump" in
+    if file <> "" then begin
+      store_data file
+    end;
+    Priv.finalize ()
 end
 
 let spec_module: (module MCPSpec) Lazy.t =

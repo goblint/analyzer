@@ -289,10 +289,10 @@ struct
         (* must be like enter_multithreaded *)
         let apr = st.apr in
         let (g_vars, gs) =
-          AD.vars apr
+          RD.D2.vars apr
           |> List.enum
           |> Enum.filter_map (fun var ->
-              match ApronDomain.V.find_metadata var with
+              match RD.V.find_metadata var with
               | Some (Global g) -> Some (var, g)
               | _ -> None
             )
@@ -301,9 +301,9 @@ struct
         in
         let g_unprot_vars = List.map AV.unprot gs in
         let g_prot_vars = List.map AV.prot gs in
-        let apr_side = AD.add_vars apr (g_unprot_vars @ g_prot_vars) in
-        let apr_side = AD.assign_var_parallel' apr_side g_unprot_vars g_vars in
-        let apr_side = AD.assign_var_parallel' apr_side g_prot_vars g_vars in
+        let apr_side = RD.D2.add_vars apr (g_unprot_vars @ g_prot_vars) in
+        let apr_side = RD.D2.assign_var_parallel' apr_side g_unprot_vars g_vars in
+        let apr_side = RD.D2.assign_var_parallel' apr_side g_prot_vars g_vars in
         let apr_side = restrict_global apr_side in
         sideg () apr_side;
         (* TODO: why not remove at all? should only remove unprotected? *)
