@@ -322,8 +322,6 @@ struct
   include Printable.Std
   type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
-  let compare x = Stats.time "access compare" (compare x)
-
   let pretty () (conf, w, loc, e, lp) =
     Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
 
@@ -382,8 +380,6 @@ let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
   else
     true
 
-let may_race x = Stats.time "may_race" (may_race x)
-
 let group_may_race accs =
   (* BFS to traverse one component with may_race edges *)
   let rec bfs' accs visited todo =
@@ -404,7 +400,6 @@ let group_may_race accs =
       (bfs' [@tailcall]) accs' visited' todo'
   in
   let bfs accs acc = bfs' accs (AS.empty ()) (AS.singleton acc) in
-  let bfs accs = Stats.time "bfs" (bfs accs) in
   (* repeat BFS to find all components *)
   let rec components comps accs =
     if AS.is_empty accs then
@@ -429,8 +424,6 @@ let race_conf accs =
   )
   else
     Some (AS.max_conf accs)
-
-let group_may_race = Stats.time "group_may_race" group_may_race
 
 let is_all_safe = ref true
 
