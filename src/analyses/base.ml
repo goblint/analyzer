@@ -1939,7 +1939,7 @@ struct
         {st with cpa = new_cpa}
     in
     (* Assign parameters to arguments *)
-    let pa = GU.zip fundec.sformals vals in
+    let pa = GobList.combine_short fundec.sformals vals in (* TODO: is it right to ignore missing formals/args? *)
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat_map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st) in

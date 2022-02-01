@@ -57,8 +57,8 @@ struct
   let pretty () x = Pretty.text (show x)
 end
 
-let get_flag (state: (string * Obj.t) list) : Flag.t =
-  (Obj.obj (List.assoc "threadflag" state), fst (Obj.obj (List.assoc "threadid" state)))
+let get_flag (state: string -> Obj.t) : Flag.t =
+  (Obj.obj (state "threadflag"), fst (Obj.obj (state "threadid")))
 
 
 module Spec =
@@ -355,7 +355,7 @@ struct
   let strip_flags acc_list = List.map proj2_1 acc_list
 
   let get_flags state: Flags.t =
-    Obj.obj (List.assoc "fmode" state)
+    Obj.obj (state "fmode")
 
   (*/flagstuff*)
   (*prioritystuff*)

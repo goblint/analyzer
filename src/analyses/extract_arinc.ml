@@ -212,14 +212,14 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : D.t =
-    match List.assoc "base" ctx.presub with
-    | Some base ->
+    match ctx.presub "base" with
+    | base ->
       let pid, ctxh, pred = ctx.local in
       let module BaseMain = (val Base.get_main ()) in
       let base_context = BaseMain.context_cpa f @@ Obj.obj base in
       let context_hash = Hashtbl.hash (base_context, pid) in
       pid, Ctx.of_int (Int64.of_int context_hash), pred
-    | None -> ctx.local (* TODO when can this happen? *)
+    | exception Not_found -> ctx.local (* TODO when can this happen? *)
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
