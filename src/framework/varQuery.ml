@@ -17,9 +17,6 @@ let varquery_from_global (g : Cil.global) : t option = match g with
   | GVarDecl (v, _) -> Some (Global v)
   | _ -> None
 
-(** Takes a [Cil.file] and a list of names of globals.contents
-    Returns a list of [VarQuery.t]s of globals whose [vname] is contained in the argument list,
-    and the list of names for which no global with the name could be found. *)
 let varqueries_from_names (file: Cil.file) (names: string list): t list * string list =
   let module SM = Set.Make(Printable.Strings) in
   let set = SM.of_list names in
