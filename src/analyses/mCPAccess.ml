@@ -14,12 +14,12 @@ struct
   let unop_fold f a (x:t) =
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
-  let binop_fold f a (x:t) (y:t) =
-    GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
+  let binop_for_all f (x:t) (y:t) =
+    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
-  let may_race x y = binop_fold (fun a n (module S: Analyses.MCPA) x y ->
-      a && S.may_race (obj x) (obj y)
-    ) true x y
+  let may_race x y = binop_for_all (fun n (module S: Analyses.MCPA) x y ->
+      S.may_race (obj x) (obj y)
+    ) x y
 
   let pretty () a =
     (* filter with should_print *)
