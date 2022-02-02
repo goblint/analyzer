@@ -200,6 +200,56 @@ let test_ex_set _ =
   assert_equal (Some true) (T.to_bool tex10);
   assert_equal None (T.to_bool tex1)
 
+module IntDomTuple =
+struct
+  let exists0 =
+    let open Batteries in
+    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let f g = g identity % to_list in
+    List.(f exists)
+
+  let exists1 = function
+    | (Some true, _, _, _)
+    | (_, Some true, _, _)
+    | (_, _, Some true, _)
+    | (_, _, _, Some true) ->
+      true
+    | _ ->
+      false
+
+  let bool_option = QCheck.option QCheck.bool
+  let arb = QCheck.quad bool_option bool_option bool_option bool_option
+
+  let test_exists = QCheck.Test.make ~name:"exists" arb (fun args ->
+      exists0 args = exists1 args
+    )
+
+  let for_all0 =
+    let open Batteries in
+    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let f g = g identity % to_list in
+    List.(f for_all)
+
+  let for_all1 = function
+    | (Some false, _, _, _)
+    | (_, Some false, _, _)
+    | (_, _, Some false, _)
+    | (_, _, _, Some false) ->
+      false
+    | _ ->
+      true
+
+  let test_for_all = QCheck.Test.make ~name:"for_all" arb (fun args ->
+      for_all0 args = for_all1 args
+    )
+
+
+  let test () = QCheck_ounit.to_ounit2_test_list [
+      test_exists;
+      test_for_all;
+    ]
+end
+
 let test () = "intDomainTest" >:::
               [ "int_Integers"  >::: A.test ();
                 "int_Flattened" >::: B.test ();
@@ -208,4 +258,5 @@ let test () = "intDomainTest" >:::
                 "test_join"     >::  test_join;
                 "test_meet"     >::  test_meet;
                 "test_excl_list">::  test_ex_set;
+                "intDomTuple" >::: IntDomTuple.test ();
               ]
