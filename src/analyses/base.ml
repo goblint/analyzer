@@ -612,7 +612,7 @@ struct
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (`Int x) *)
           | `Lifted x -> `Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
-          | `Top -> assert false (* base should answer itself at least *)
+          | `Top -> `Int (ID.top_of (Cilfacade.get_ikind typ)) (* query cycle *)
         end
       | exception Cilfacade.TypeOfError _ (* Bug: typeOffset: Field on a non-compound *)
       | _ -> eval_next ()
