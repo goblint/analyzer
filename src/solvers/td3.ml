@@ -59,8 +59,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -536,7 +535,7 @@ module WP =
           HM.remove sides x; (* just in case *)
 
           (* immediately redo "side effect" from st *)
-          match GU.assoc_eq x st S.Var.equal with
+          match GobList.assoc_eq_opt S.Var.equal x st with
           | Some d ->
             HM.replace rho x d;
           | None ->
@@ -728,7 +727,7 @@ module WP =
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
         List.iter (fun (v,d) ->
             if restart_sided then (
-              match GU.assoc_eq v data.st S.Var.equal with
+              match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
                 ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
                 restart_and_destabilize v (* restart side effect from start *)
@@ -743,7 +742,7 @@ module WP =
 
         if restart_sided then (
           List.iter (fun (v, _) ->
-              match GU.assoc_eq v st S.Var.equal with
+              match GobList.assoc_eq_opt S.Var.equal v st with
               | None ->
                 (* restart removed start global to allow it to be pruned from incremental solution *)
                 (* this gets rid of its warnings and makes comparing with from scratch sensible *)

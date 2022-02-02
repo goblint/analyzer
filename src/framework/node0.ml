@@ -11,12 +11,7 @@ type t =
   (** *)
   | Function of CilType.Fundec.t
   (** The variable information associated with the function declaration. *)
-[@@deriving eq, ord, to_yojson]
-
-let hash = function
-  | Statement   stmt -> Hashtbl.hash (CilType.Stmt.hash stmt, 0)
-  | Function      fd -> Hashtbl.hash (CilType.Fundec.hash fd, 1)
-  | FunctionEntry fd -> Hashtbl.hash (CilType.Fundec.hash fd, 2)
+[@@deriving eq, ord, hash, to_yojson]
 
 let location (node: t) =
   match node with

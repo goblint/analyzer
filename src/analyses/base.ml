@@ -84,9 +84,6 @@ struct
    * Helpers
    **************************************************************************)
 
-  let hash    (x,_)             = Hashtbl.hash x
-  let leq     (x1,_) (y1,_) = CPA.leq   x1 y1
-
   let is_privglob v = GobConfig.get_bool "annotation.int.privglobs" && v.vglob
 
   let project_val p_opt value is_glob =
@@ -1175,8 +1172,7 @@ struct
         (* Optimization to avoid evaluating integer values when setting them.
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
-        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) then begin
-            assert (offs = `NoOffset); (* We expect `NoOffset for this case *)
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) && offs = `NoOffset then begin
             VD.bot_value lval_type
           end else
             Priv.read_global a priv_getg st x
@@ -1698,7 +1694,7 @@ struct
    * Simple defs for the transfer functions
    **************************************************************************)
   let assign ctx (lval:lval) (rval:exp):store  =
-    let lval_t = Cilfacade.typeOf rval in
+    let lval_t = Cilfacade.typeOfLval lval in
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt(i, _, _)), NoOffset) -> (* ...[i] *)
@@ -1950,7 +1946,7 @@ struct
         {st with cpa = new_cpa}
     in
     (* Assign parameters to arguments *)
-    let pa = GU.zip fundec.sformals vals in
+    let pa = GobList.combine_short fundec.sformals vals in (* TODO: is it right to ignore missing formals/args? *)
     let new_cpa = CPA.add_list pa st'.cpa in
     (* List of reachable variables *)
     let reachable = List.concat_map AD.to_var_may (reachable_vars (Analyses.ask_of_ctx ctx) (get_ptrs vals) ctx.global st) in

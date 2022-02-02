@@ -506,8 +506,8 @@ struct
       ; edge    = edge
       ; local   = pval
       ; global  = (fun g -> G.spec (getg (GVar.spec g)))
-      ; presub  = []
-      ; postsub = []
+      ; presub  = (fun _ -> raise Not_found)
+      ; postsub = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
@@ -775,8 +775,8 @@ struct
       ; edge    = MyCFG.Skip
       ; local  = S.startstate Cil.dummyFunDec.svar (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
       ; global = (fun g -> G.spec (getg (GVar.spec g)))
-      ; presub = []
-      ; postsub= []
+      ; presub  = (fun _ -> raise Not_found)
+      ; postsub = (fun _ -> raise Not_found)
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -821,14 +821,10 @@ module Var2 (LV:VarType) (GV:VarType)
     with type t = [ `L of LV.t  | `G of GV.t ]
 =
 struct
-  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord]
+  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord, hash]
   let relift = function
     | `L x -> `L (LV.relift x)
     | `G x -> `G (GV.relift x)
-
-  let hash = function
-    | `L a -> LV.hash a
-    | `G a -> 113 * GV.hash a
 
   let pretty_trace () = function
     | `L a -> LV.pretty_trace () a

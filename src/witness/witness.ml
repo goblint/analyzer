@@ -304,8 +304,8 @@ struct
         ; edge    = MyCFG.Skip
         ; local  = local
         ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
-        ; presub = []
-        ; postsub= []
+        ; presub = (fun _ -> raise Not_found)
+        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")

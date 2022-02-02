@@ -229,8 +229,8 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; presub  = []
-        ; postsub = []
+        ; presub  = (fun _ -> raise Not_found)
+        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -327,8 +327,8 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; presub  = []
-        ; postsub = []
+        ; presub  = (fun _ -> raise Not_found)
+        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -362,8 +362,8 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
-        ; presub  = []
-        ; postsub = []
+        ; presub  = (fun _ -> raise Not_found)
+        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -466,7 +466,7 @@ struct
               if get_bool "dbg.verbose" then (
                 print_endline ("Saving the analysis table to " ^ analyses ^ ", the CIL state to " ^ cil ^ ", the warning table to " ^ warnings ^ ", and the runtime stats to " ^ stats);
               );
-              Serialize.marshal !MCP.analyses_table analyses;
+              Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
               Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
@@ -553,8 +553,8 @@ struct
             ; edge    = MyCFG.Skip
             ; local  = Hashtbl.find joined loc
             ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
-            ; presub = []
-            ; postsub= []
+            ; presub = (fun _ -> raise Not_found)
+            ; postsub= (fun _ -> raise Not_found)
             ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
             ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
             ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -608,8 +608,8 @@ struct
         ; edge    = MyCFG.Skip
         ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
         ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ()))
-        ; presub = []
-        ; postsub= []
+        ; presub = (fun _ -> raise Not_found)
+        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -628,8 +628,11 @@ struct
       WResult.write lh gh entrystates;
 
     let marshal = Spec.finalize () in
-    if get_string "save_run" <> "" then (
-      Serialize.marshal marshal (Filename.concat (get_string "save_run") "spec_marshal")
+    (* copied from solve_and_postprocess *)
+    let gobview = get_bool "gobview" in
+    let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+    if save_run <> "" then (
+      Serialize.marshal marshal (Filename.concat save_run "spec_marshal")
     );
     if get_bool "incremental.save" then (
       Serialize.store_data marshal Serialize.AnalysisData;

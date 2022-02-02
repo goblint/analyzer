@@ -123,6 +123,7 @@ sig
   val of_bool: bool -> t
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val arbitrary: unit -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -158,6 +159,7 @@ sig
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> precision -> t -> t
+  val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -269,6 +271,8 @@ struct
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
+
+  let arbitrary _ik = Old.arbitrary ()
 end
 
 
@@ -276,7 +280,7 @@ module IntDomLifter (I : S) =
 struct
   open Cil
   type int_t = I.int_t
-  type t = { v : I.t; ikind : ikind }
+  type t = { v : I.t; ikind : (ikind [@equal (=)] [@compare Stdlib.compare] [@hash fun x -> Hashtbl.hash x]) } [@@deriving eq, ord, hash]
 
   (* Helper functions *)
   let check_ikinds x y = if x.ikind <> y.ikind then raise (IncompatibleIKinds ("ikinds " ^ Prelude.Ana.sprint Cil.d_ikind x.ikind ^ " and " ^ Prelude.Ana.sprint Cil.d_ikind y.ikind ^ " are incompatible. Values: " ^ Prelude.Ana.sprint I.pretty x.v ^ " and " ^ Prelude.Ana.sprint I.pretty y.v)) else ()
@@ -300,30 +304,7 @@ struct
   let meet = lift2 I.meet
   let widen = lift2 I.widen
   let narrow = lift2 I.narrow
-  let equal x y = if x.ikind <> y.ikind then false else I.equal x.v y.v
 
-  let hash x =
-    let ikind_to_int (ikind: ikind) = match ikind with (* TODO replace with `int_of_string % Batteries.dump` or derive *)
-    | IChar 	-> 0
-    | ISChar 	-> 1
-    | IUChar 	-> 2
-    | IBool 	-> 3
-    | IInt 	  -> 4
-    | IUInt 	-> 5
-    | IShort 	-> 6
-    | IUShort -> 7
-    | ILong 	-> 8
-    | IULong 	-> 9
-    | ILongLong -> 10
-    | IULongLong -> 11
-    | IInt128 -> 12
-    | IUInt128 -> 13
-    in
-    3 * (I.hash x.v) + 5 * (ikind_to_int x.ikind)
-  let compare x y = let ik_c = compare x.ikind y.ikind in
-    if ik_c <> 0
-      then ik_c
-      else I.compare x.v y.v
   let show x = I.show x.v  (* TODO add ikind to output *)
   let pretty () x = I.pretty () x.v (* TODO add ikind to output *)
   let pretty_diff () (x, y) = I.pretty_diff () (x.v, y.v) (* TODO check ikinds, add them to output *)
@@ -333,7 +314,7 @@ struct
   let to_yojson x = I.to_yojson x.v
   let invariant c x = I.invariant_ikind c x.ikind x.v
   let tag x = I.tag x.v
-  let arbitrary () = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
+  let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
   let of_int ikind x = { v = I.of_int ikind x; ikind}
   let is_int x = I.is_int x.v
@@ -491,7 +472,6 @@ module Std (B: sig
   include Printable.Std
   let name = B.name (* overwrite the one from Printable.Std *)
   open B
-  let hash = Hashtbl.hash
   let is_top x = failwith "is_top not implemented for IntDomain.Std"
   let is_bot x = B.equal x (bot_of Cil.IInt) (* Here we assume that the representation of bottom is independent of the ikind
                                                 This may be true for intdomain implementations, but not e.g. for IntDomLifter. *)
@@ -513,7 +493,7 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 struct
   let name () = "intervals"
   type int_t = Ints_t.t
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
 
   let min_int ik = Ints_t.of_bigint @@ fst @@ Size.range ik
   let max_int ik = Ints_t.of_bigint @@ snd @@ Size.range ik
@@ -850,9 +830,7 @@ struct
       with e -> None)
     | None -> None
 
-  let arbitrary () =
-    (* TODO: use arbitrary ikind? *)
-    let ik = Cil.ILongLong in
+  let arbitrary ik =
     let open QCheck.Iter in
     (* let int_arb = QCheck.map ~rev:Ints_t.to_bigint Ints_t.of_bigint MyCheck.Arbitrary.big_int in *)
     (* TODO: apparently bigints are really slow compared to int64 for domaintest *)
@@ -935,7 +913,7 @@ module Integers(Ints_t : IntOps.IntOps): IkindUnawareS with type t = Ints_t.t an
 struct
   include Printable.Std
   let name () = "integers"
-  type t = Ints_t.t [@@deriving eq, ord]
+  type t = Ints_t.t [@@deriving eq, ord, hash]
   type int_t = Ints_t.t
   let top () = raise Unknown
   let bot () = raise Error
@@ -944,7 +922,6 @@ struct
   let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash (x:t) = ((Ints_t.to_int x) - 787) * 17
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
   let is_top _ = false
   let is_bot _ = false
@@ -986,7 +963,7 @@ struct
   let logand n1 n2 = of_bool ((to_bool' n1) && (to_bool' n2))
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
-  let arbitrary () = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64
+  let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 (* TODO: use ikind *)
 end
 
 module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises Unknown/Error on join/meet *)
@@ -1168,8 +1145,6 @@ module BigInt = struct
 
   let show x = BI.to_string x
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  (* TODO: throws if x too big, used to be overridden with Hashtbl.hash by include Std anyway *)
-  (* let hash x = (BI.to_int x) * 2147483647 *)
   let arbitrary () = QCheck.map ~rev:to_int64 of_int64 QCheck.int64
 end
 
@@ -1247,7 +1222,7 @@ struct
     | `Excluded of S.t * R.t
     | `Definite of BigInt.t
     | `Bot
-  ] [@@deriving eq, ord]
+  ] [@@deriving eq, ord, hash]
   type int_t = BigInt.t
   let name () = "def_exc"
 
@@ -1271,11 +1246,6 @@ struct
     | `Excluded (s,l) -> "Not " ^ S.show s ^ short_size l
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash (x:t) =
-    match x with
-    | `Excluded (s,r) -> S.hash s + R.hash r
-    | `Definite i -> 83*BigInt.hash i
-    | `Bot -> 61426164
 
   let maximal = function
     | `Definite x -> Some x
@@ -1327,7 +1297,7 @@ struct
     let norm ik v =
       match v with
       | `Excluded (s, r) ->
-        let possibly_overflowed = not (R.leq r (size ik)) in
+        let possibly_overflowed = not (R.leq r (size ik)) || not (S.for_all (in_range (size ik)) s) in
         (* If no overflow occurred, just return x *)
         if not possibly_overflowed then (
           v
@@ -1619,10 +1589,10 @@ struct
         ) s Invariant.none
     | `Bot -> Invariant.none
 
-  let arbitrary () =
+  let arbitrary ik =
     let open QCheck.Iter in
-    let excluded s = `Excluded (s, size Cil.ILongLong) in (* S TODO: non-fixed range *)
-    let definite x = `Definite x in
+    let excluded s = from_excl ik s in
+    let definite x = of_int ik x in
     let shrink = function
       | `Excluded (s, _) -> MyCheck.shrink (S.arbitrary ()) s >|= excluded (* S TODO: possibly shrink excluded to definite *)
       | `Definite x -> (return `Bot) <+> (MyCheck.shrink (BigInt.arbitrary ()) x >|= definite)
@@ -1657,7 +1627,7 @@ end
 module MakeBooleans (N: BooleansNames) =
 struct
   type int_t = IntOps.Int64Ops.t
-  type t = bool [@@deriving eq, ord, to_yojson]
+  type t = bool [@@deriving eq, ord, hash, to_yojson]
   let name () = "booleans"
   let top () = true
   let bot () = false
@@ -1665,7 +1635,6 @@ struct
   let bot_of ik = bot ()
   let show x = if x then N.truename else N.falsename
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-  let hash = function true -> 51534333 | _ -> 561123444
   let is_top x = x (* override Std *)
 
   let equal_to i x = if x then `Top else failwith "unsupported: equal_to with bottom"
@@ -1723,7 +1692,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let range_ikind = Cil.IInt
   let size t = R.of_interval range_ikind (let a,b = Size.bits_i64 t in Int64.neg a,b)
 
-  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord] (* inclusion/exclusion set *)
+  type t = Inc of BISet.t | Exc of BISet.t * R.t [@@deriving eq, ord, hash] (* inclusion/exclusion set *)
 
   type int_t = BI.t
   let name () = "enums"
@@ -1747,10 +1716,6 @@ module Enums : S with type int_t = BigInt.t = struct
     | Exc (xs,r) -> "not {" ^ (String.concat ", " (List.map I.show (BISet.elements xs))) ^ "} " ^ "("^R.show r^")"
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
-
-  let hash = function
-    | Inc x -> BISet.hash x
-    | Exc (x, r) -> 31 * R.hash r + 37  * BISet.hash x
 
   (* Normalization function for enums, that handles overflows for Inc.
      As we do not compute on Excl, we do not have to perform any overflow handling for it. *)
@@ -2022,10 +1987,10 @@ module Enums : S with type int_t = BigInt.t = struct
         ) Invariant.none (BISet.elements ns)
 
 
-  let arbitrary () =
+  let arbitrary ik =
     let open QCheck.Iter in
-    let neg s = Exc (s, size Cil.ILong) in (* S TODO: non-fixed range *)
-    let pos s = Inc s in
+    let neg s = of_excl_list ik (BISet.elements s) in
+    let pos s = norm ik (Inc s) in
     let shrink = function
       | Exc (s, _) -> MyCheck.shrink (BISet.arbitrary ()) s >|= neg (* S TODO: possibly shrink neg to pos *)
       | Inc s -> MyCheck.shrink (BISet.arbitrary ()) s >|= pos
@@ -2064,7 +2029,7 @@ struct
   type int_t = Ints_t.t
 
   (* represents congruence class of c mod m, None is bot *)
-  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord]
+  type t = (Ints_t.t * Ints_t.t) option [@@deriving eq, ord, hash]
 
   let ( *: ) = Ints_t.mul
   let (+:) = Ints_t.add
@@ -2156,7 +2121,7 @@ struct
     let congruence_series a c m =
       let rec next a1 c1 a2 c2 =
         if a2 |: a1 then (a2, c2)
-        else next a2 c2 (a1 %: a2) ((c1 -: c2) *: (a1 /: a2))
+        else next a2 c2 (a1 %: a2) (c1 -: (c2 *: (a1 /: a2)))
       in next m Ints_t.zero a c
     in
     let simple_case i c m =
@@ -2463,19 +2428,13 @@ struct
         with e -> None)
     | None -> None
 
-  let arbitrary () =
+  let arbitrary ik =
     let open QCheck in
-    let ik = Cil.ILongLong in
     let int_arb = map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 in
-    let top_arb = make ~print:show (Gen.return (top ())) in
-    let bot_arb = make ~print:show (Gen.return (bot ())) in
-    let int_cong_arb = pair int_arb (make (Gen.return Ints_t.zero)) in
     let cong_arb = pair int_arb int_arb in
     let of_pair ik p = normalize ik (Some p) in
-    oneof
-      ((set_print show @@ map (of_pair ik) cong_arb)::
-         (set_print show @@ map (of_pair ik) int_cong_arb)::
-           top_arb::bot_arb::[])
+    let to_pair = Option.get in
+    set_print show (map ~rev:to_pair (of_pair ik) cong_arb)
 
   let relift x = x
 
@@ -2889,7 +2848,7 @@ module IntDomTupleImpl = struct
           Invariant.(a && i)
         ) Invariant.none is
 
-  let arbitrary () = QCheck.(set_print show @@ quad (option (I1.arbitrary ())) (option (I2.arbitrary ())) (option (I3.arbitrary ())) (option (I4.arbitrary ())))
+  let arbitrary ik = QCheck.(set_print show @@ quad (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)))
 end
 
 module IntDomTuple =

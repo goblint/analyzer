@@ -60,28 +60,17 @@ sig
 end
 
 module Value (Impl: sig
-    type s (* state *)
+    type s (* state *) [@@deriving eq, ord, hash]
     val name: string
     val var_state: s
     val string_of_state: s -> string
-    val compare: s -> s -> int
   end) : S with type s = Impl.s =
 struct
-  type k = Lval.CilLval.t
-  type s = Impl.s
+  type k = Lval.CilLval.t [@@deriving eq, ord, hash]
+  type s = Impl.s [@@deriving eq, ord, hash]
   module R = struct
     include Printable.Blank
-    type t = { key: k; loc: Node.t list; state: s }
-    let hash = Hashtbl.hash
-    let equal a b = Lval.CilLval.equal a.key b.key && BatList.eq Node.equal a.loc b.loc && a.state = b.state
-
-    let compare a b =
-      let r = Lval.CilLval.compare a.key b.key in
-      if r <> 0 then r else
-        let r = List.compare Node.compare a.loc b.loc in
-        if r <> 0 then r else
-          Impl.compare a.state b.state
-
+    type t = { key: k; loc: Node.t list; state: s } [@@deriving eq, ord, hash]
     let to_yojson _ = failwith "TODO to_yojson"
     let name () = "LValMapDomainValue"
   end
