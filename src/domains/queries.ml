@@ -3,33 +3,7 @@
 open Cil
 
 module GU = Goblintutil
-module ID =
-struct
-  include IntDomain.IntDomTuple
-  (* Special IntDomTuple that has _some_ top and bot which MCP2.query can use *)
-  let top () = top_of IInt
-  let is_top x = is_top_of IInt x
-  let bot () = bot_of IInt
-  let is_bot x = is_bot x (* no is_bot_of *)
-  let join x y =
-    if is_top x || is_top y then
-      top ()
-    else if is_bot x then
-      y
-    else if is_bot y then
-      x
-    else
-      join x y
-  let meet x y =
-    if is_bot x || is_bot y then
-      bot ()
-    else if is_top x then
-      y
-    else if is_top y then
-      x
-    else
-      meet x y
-end
+module ID = IntDomain.IntDomTuple2
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))

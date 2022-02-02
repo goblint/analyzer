@@ -2868,6 +2868,74 @@ module IntDomTupleImpl = struct
   let arbitrary ik = QCheck.(set_print show @@ quad (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)))
 end
 
+module IntDomLifter2 (I: Y) =
+struct
+  include Lattice.Lift (I) (Printable.DefaultNames)
+
+  type int_t = I.int_t
+
+  let lift'' op x = `Lifted (op x)
+
+  let bot_of = lift'' I.bot_of
+  let top_of = lift'' I.top_of
+
+  let lift op x = match x with
+    | `Lifted x -> `Lifted (op x)
+    | _ -> failwith "IntDomLifter2.lift"
+  let lift' op x = match x with
+    | `Lifted x -> op x
+    | _ -> failwith "IntDomLifter2.lift'"
+  let is_top_of ik = lift' (I.is_top_of ik)
+
+  let lift2 op x y = match x, y with
+    | `Lifted x, `Lifted y -> `Lifted (op x y)
+    | _, _ -> failwith "IntDomLifter2.lift2"
+
+  let neg = lift I.neg
+  let add = lift2 I.add
+  let sub = lift2 I.sub
+  let mul = lift2 I.mul
+  let div = lift2 I.div
+  let rem = lift2 I.rem
+  let lt = lift2 I.lt
+  let gt = lift2 I.gt
+  let le = lift2 I.le
+  let ge = lift2 I.ge
+  let eq = lift2 I.eq
+  let ne = lift2 I.ne
+  let bitnot = lift I.bitnot
+  let bitand = lift2 I.bitand
+  let bitor = lift2 I.bitor
+  let bitxor = lift2 I.bitxor
+  let shift_left = lift2 I.shift_left
+  let shift_right = lift2 I.shift_right
+  let lognot = lift I.lognot
+  let logand = lift2 I.logand
+  let logor = lift2 I.logor
+
+  let to_int = lift' I.to_int
+  let is_int = lift' I.is_int
+  let to_bool = lift' I.to_bool
+  let is_bool = lift' I.is_bool
+  let to_excl_list = lift' I.to_excl_list
+  let is_excl_list = lift' I.is_excl_list
+  let to_incl_list = lift' I.to_incl_list
+  let of_int ik = lift'' (I.of_int ik)
+  let of_bool ik = lift'' (I.of_bool ik)
+  let of_interval ik = lift'' (I.of_interval ik)
+  let of_excl_list ik = lift'' (I.of_excl_list ik)
+  let of_congruence ik = lift'' (I.of_congruence ik)
+  let starting ik = lift'' (I.starting ik)
+  let ending ik = lift'' (I.ending ik)
+
+  let minimal = lift' I.minimal
+  let maximal = lift' I.maximal
+
+  let cast_to ?torg ik = lift (I.cast_to ?torg ik)
+  let equal_to i = lift' (I.equal_to i)
+  let project p = lift (I.project p)
+end
+
 module IntDomTuple =
 struct
  module I = IntDomLifter (IntDomTupleImpl)
@@ -2876,6 +2944,16 @@ struct
  let top () = failwith "top in IntDomTuple not supported. Use top_of instead."
  let no_interval (x: I.t) = {x with v = IntDomTupleImpl.no_interval x.v}
 
+end
+
+module IntDomTuple2 =
+struct
+  include IntDomLifter2 (IntDomTuple)
+
+  let is_bot_ikind = function
+    | `Bot -> false
+    | `Lifted x -> IntDomTuple.is_bot x
+    | `Top -> false
 end
 
 let of_const (i, ik, str) = IntDomTuple.of_int ik i

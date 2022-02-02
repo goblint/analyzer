@@ -325,6 +325,11 @@ module IntDomTuple : sig
   val no_interval: t -> t
 end
 
+module IntDomTuple2: sig
+  include Z with type t = [`Bot | `Lifted of IntDomTuple.t | `Top]
+  val is_bot_ikind: t -> bool
+end
+
 val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t
 
 
