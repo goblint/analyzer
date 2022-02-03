@@ -1763,21 +1763,21 @@ struct
           end else
             eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
         in
-        (match current_val with
-        | `Bot -> (* current value is VD `Bot *)
-          (match Addr.to_var_offset (AD.choose lval_val) with
-          | Some (x,offs) ->
-            let t = v.vtype in
-            let iv = VD.bot_value t in (* correct bottom value for top level variable *)
-            if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
-            let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
-          | None ->
+        begin match current_val with
+          | `Bot -> (* current value is VD `Bot *)
+            begin match Addr.to_var_offset (AD.choose lval_val) with
+              | Some (x,offs) ->
+                let t = v.vtype in
+                let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+                if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
+                let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+                set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
+              | None ->
+                set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+            end
+          | _ ->
             set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
-          )
-        | _ ->
-          set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
-        )
+        end
       | _ ->
         set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
 
