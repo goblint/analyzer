@@ -88,7 +88,7 @@ let load_and_preprocess ~all_cppflags filename =
       if GobConfig.get_bool "dbg.verbose" then
         Printf.printf "Preprocessing %s\n  to %s\n  using %s\n  in %s\n" file preprocessed_file preprocess_command cwd;
       system ~cwd preprocess_command; (* command/arguments might have paths relative to directory *)
-      Some preprocessed_file
+      Some (file, preprocessed_file)
     in
   parse_file filename
   |> BatList.filter_map preprocess

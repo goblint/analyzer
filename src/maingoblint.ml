@@ -170,6 +170,8 @@ let basic_preprocess ~all_cppflags fname =
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
+  Hashtbl.clear Preprocessor.dependencies; (* clear for server mode *)
+
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "cppflags") in
 
@@ -251,7 +253,7 @@ let preprocess_files () =
   let rec preprocess_arg_file = function
     | filename when Filename.basename filename = "Makefile" ->
       let comb_file = MakefileUtil.generate_and_combine filename ~all_cppflags in
-      [basic_preprocess ~all_cppflags comb_file]
+      [(comb_file, basic_preprocess ~all_cppflags comb_file)]
 
     | filename when Filename.basename filename = CompilationDatabase.basename ->
       CompilationDatabase.load_and_preprocess ~all_cppflags filename
@@ -270,7 +272,7 @@ let preprocess_files () =
       raise Exit
 
     | filename ->
-      [basic_preprocess ~all_cppflags filename]
+      [(filename, basic_preprocess ~all_cppflags filename)]
   in
 
   let extra_arg_files = ref [] in
@@ -286,7 +288,12 @@ let preprocess_files () =
 let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
-  let files_AST = List.map Cilfacade.getAST cpp_file_names in
+  let get_ast_and_record_deps (orig, f) =
+    let file = Cilfacade.getAST f in
+    Hashtbl.add Preprocessor.dependencies orig file.files;
+    file
+  in
+  let files_AST = List.map (get_ast_and_record_deps) cpp_file_names in
 
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
