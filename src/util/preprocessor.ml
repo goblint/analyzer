@@ -34,6 +34,7 @@ let cpp =
     )
   )
 
-let dependencies: (string, string list) Hashtbl.t = Hashtbl.create 3
-
 let get_cpp () = Lazy.force cpp
+
+
+let dependencies: (string, string list) Hashtbl.t = Hashtbl.create 3
