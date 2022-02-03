@@ -46,7 +46,7 @@ let init (f:file) =
   List.iter visit_glob f.globals
 
 
-type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord]
+type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
 
 let rec remove_idx : offset -> offs  = function
   | NoOffset    -> `NoOffset
@@ -64,7 +64,7 @@ let rec d_offs () : offs -> doc = function
   | `Index o -> dprintf "[?]%a" d_offs o
   | `Field (f,o) -> dprintf ".%s%a" f.fname d_offs o
 
-type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord]
+type acc_typ = [ `Type of CilType.Typ.t | `Struct of CilType.Compinfo.t * offs ] [@@deriving eq, ord, hash]
 
 let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
@@ -320,9 +320,7 @@ let add side e w conf vo oo a =
 module A =
 struct
   include Printable.Std
-  type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord]
-
-  let hash (conf, w, loc, e, lp) = 0 (* TODO: never hashed? *)
+  type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
   let pretty () (conf, w, loc, e, lp) =
     Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
@@ -346,11 +344,7 @@ end
 module T =
 struct
   include Printable.Std
-  type t = acc_typ [@@deriving eq, ord]
-
-  let hash = function
-    | `Type t -> CilType.Typ.hash t
-    | `Struct (c,o) -> Hashtbl.hash (c.ckey, o)
+  type t = acc_typ [@@deriving eq, ord, hash]
 
   let pretty = d_acct
   include Printable.SimplePretty (
@@ -363,12 +357,7 @@ end
 module O =
 struct
   include Printable.Std
-  type t = offs [@@deriving eq, ord]
-
-  let rec hash = function
-    | `NoOffset -> 13
-    | `Index os -> 3 + hash os
-    | `Field (f, os) -> 3 * CilType.Fieldinfo.hash f + hash os
+  type t = offs [@@deriving eq, ord, hash]
 
   let pretty = d_offs
   include Printable.SimplePretty (
@@ -392,28 +381,32 @@ let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
     true
 
 let group_may_race accs =
-  (* DFS to traverse one component with may_race edges *)
-  let rec dfs accs visited acc =
-    if AS.mem acc visited then
-      (accs, visited)
-    else (
-      let accs' = AS.remove acc accs in
-      let visited' = AS.add acc visited in
-      AS.fold (fun acc' (accs', visited') ->
-          if may_race acc acc' then
-            dfs accs' visited' acc'
-          else
-            (accs', visited')
-        ) accs' (accs', visited')
-    )
+  (* BFS to traverse one component with may_race edges *)
+  let rec bfs' accs visited todo =
+    let accs' = AS.diff accs todo in
+    let todo' = AS.fold (fun acc todo' ->
+        AS.fold (fun acc' todo' ->
+            if may_race acc acc' then
+              AS.add acc' todo'
+            else
+              todo'
+          ) accs' todo'
+      ) todo (AS.empty ())
+    in
+    let visited' = AS.union visited todo in
+    if AS.is_empty todo' then
+      (accs', visited')
+    else
+      (bfs' [@tailcall]) accs' visited' todo'
   in
-  (* repeat DFS to find all components *)
+  let bfs accs acc = bfs' accs (AS.empty ()) (AS.singleton acc) in
+  (* repeat BFS to find all components *)
   let rec components comps accs =
     if AS.is_empty accs then
       comps
     else (
       let acc = AS.choose accs in
-      let (accs', comp) = dfs accs (AS.empty ()) acc in
+      let (accs', comp) = bfs accs acc in
       let comps' = comp :: comps in
       components comps' accs'
     )
@@ -435,10 +428,10 @@ let race_conf accs =
 let is_all_safe = ref true
 
 (* Commenting your code is for the WEAK! *)
-let incr_summary safe vulnerable unsafe (lv, ty) accs =
+let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
   (* ignore(printf "Checking safety of %a:\n" d_memo (ty,lv)); *)
   let safety =
-    group_may_race accs
+    grouped_accs
     |> List.filter_map race_conf
     |> (function
         | [] -> None
@@ -450,7 +443,7 @@ let incr_summary safe vulnerable unsafe (lv, ty) accs =
   | Some n when n >= 100 -> is_all_safe := false; incr unsafe
   | Some n -> is_all_safe := false; incr vulnerable
 
-let print_accesses (lv, ty) accs =
+let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
   let msgs race_accs =
@@ -468,7 +461,7 @@ let print_accesses (lv, ty) accs =
     AS.elements race_accs
     |> List.map h
   in
-  group_may_race accs
+  grouped_accs
   |> List.fold_left (fun safe_accs accs ->
       match race_conf accs with
       | None ->
@@ -481,3 +474,8 @@ let print_accesses (lv, ty) accs =
       if allglobs && not (AS.is_empty safe_accs) then
         M.msg_group Success ~category:Race "Memory location %a (safe)" d_memo (ty,lv) (msgs safe_accs)
     )
+
+let warn_global safe vulnerable unsafe g accs =
+  let grouped_accs = group_may_race accs in (* do expensive component finding only once *)
+  incr_summary safe vulnerable unsafe g grouped_accs;
+  print_accesses g grouped_accs

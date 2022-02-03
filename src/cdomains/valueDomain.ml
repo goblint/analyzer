@@ -99,7 +99,7 @@ struct
     | `List of Lists.t
     | `Thread of Threads.t
     | `Bot
-  ] [@@deriving eq, ord]
+  ] [@@deriving eq, ord, hash]
 
   let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -222,17 +222,6 @@ struct
   let top () = `Top
   let is_top x = x = `Top
   let top_name = "Unknown"
-
-  let hash x =
-    match x with
-    | `Int n -> 17 * ID.hash n
-    | `Address n -> 19 * AD.hash n
-    | `Struct n -> 23 * Structs.hash n
-    | `Union n -> 29 * Unions.hash n
-    | `Array n -> 31 * CArrays.hash n
-    | `Blob n -> 37 * Blobs.hash n
-    | `Thread n -> 41 * Threads.hash n
-    | _ -> Hashtbl.hash x
 
   let pretty () state =
     match state with

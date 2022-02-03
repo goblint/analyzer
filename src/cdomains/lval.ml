@@ -7,7 +7,7 @@ type ('a, 'b) offs = [
   | `NoOffset
   | `Field of 'a * ('a,'b) offs
   | `Index of 'b * ('a,'b) offs
-] [@@deriving eq, ord]
+] [@@deriving eq, ord, hash]
 
 
 let rec listify ofs =
@@ -174,7 +174,7 @@ struct
     | NullPtr (** NULL pointer. *)
     | UnknownPtr (** Unknown pointer. Could point to globals, heap and escaped variables. *)
     | StrPtr of string (** String literal pointer. *)
-  [@@deriving eq, ord] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
+  [@@deriving eq, ord, hash] (* TODO: StrPtr equal problematic if the same literal appears more than once *)
   include Printable.Std
   let name () = "Normal Lvals"
 
@@ -259,10 +259,6 @@ struct
     | StrPtr _ -> charPtrType (* TODO Cil.charConstPtrType? *)
     | NullPtr  -> voidType
     | UnknownPtr -> voidPtrType
-
-  let hash = function
-    | Addr (v,o) -> v.vid + 2 * Offs.hash o
-    | x -> Hashtbl.hash x
 
   let is_zero_offset x = Offs.cmp_zero_offset x = `MustZero
 
@@ -453,9 +449,8 @@ end
 module CilLval =
 struct
   include Printable.Std
-  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord]
+  type t = CilType.Varinfo.t * (CilType.Fieldinfo.t, Basetype.CilExp.t) offs [@@deriving eq, ord, hash]
 
-  let hash    = Hashtbl.hash
   let name () = "simplified lval"
 
   let class_tag (v,o) =

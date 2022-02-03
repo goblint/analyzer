@@ -22,7 +22,7 @@ end
 module PrintableChar =
 struct
   include Printable.Std
-  type t = char [@@deriving eq, ord, to_yojson]
+  type t = char [@@deriving eq, ord, hash, to_yojson]
   let name () = "char"
   let show x = String.make 1 x
 
@@ -32,8 +32,6 @@ struct
     let show = show
   end
   include Printable.SimpleShow (P)
-
-  let hash = Char.code
 end
 
 module ArbitraryLattice = FiniteSet (PrintableChar) (
@@ -41,7 +39,7 @@ module ArbitraryLattice = FiniteSet (PrintableChar) (
     type t = char
     let elems = ['a'; 'b'; 'c'; 'd']
   end
-)
+  )
 
 module HoareArbitrary = HoareDomain.Set_LiftTop (ArbitraryLattice) (struct let topname = "Top" end)
 module HoareArbitrary_NoTop = HoareDomain.Set (ArbitraryLattice)
@@ -82,19 +80,18 @@ let nonAssocIntDomains: (module IntDomainProperties.S) list = [
 
 (* TODO: make arbitrary ikind part of domain test for better efficiency *)
 let ikinds: Cil.ikind list = [
-  (* TODO: enable more, some seem to break things *)
   IChar;
   ISChar;
-  (* IUChar; *)
-  (* IBool; *)
+  IUChar;
+  IBool;
   IInt;
-  (* IUInt; *)
+  IUInt;
   IShort;
-  (* IUShort; *)
-  (* ILong; *)
-  (* IULong; *)
-  (* ILongLong; *)
-  (* IULongLong; *)
+  IUShort;
+  ILong;
+  IULong;
+  ILongLong;
+  IULongLong;
 ]
 
 let testsuite =
@@ -117,19 +114,19 @@ let old_intdomains intDomains =
   |> List.map (fun (d, ik) ->
       let module D = (val d: IntDomainProperties.S) in
       let module Ikind = struct let ikind () = ik end in
-      (module IntDomainProperties.WithIkind (D) (Ikind): IntDomainProperties.OldS)
+      (module IntDomainProperties.WithIkind (D) (Ikind): IntDomainProperties.OldSWithIkind)
     )
 let intTestsuite =
   old_intdomains intDomains
   |> List.concat_map (fun d ->
-      let module D = (val d: IntDomainProperties.OldS) in
+      let module D = (val d: IntDomainProperties.OldSWithIkind) in
       let module DP = IntDomainProperties.All (D) in
       DP.tests
     )
 let nonAssocIntTestsuite =
   old_intdomains nonAssocIntDomains
   |> List.concat_map (fun d ->
-      let module D = (val d: IntDomainProperties.OldS) in
+      let module D = (val d: IntDomainProperties.OldSWithIkind) in
       let module DP = IntDomainProperties.AllNonAssoc (D) in
       DP.tests
     )

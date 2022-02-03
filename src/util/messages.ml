@@ -12,9 +12,7 @@ struct
     | Info
     | Debug
     | Success
-  [@@deriving eq, show { with_path = false }]
-
-  let hash x = Hashtbl.hash x (* variants, so this is fine *)
+  [@@deriving eq, hash, show { with_path = false }]
 
   let should_warn e =
     let to_string = function
@@ -34,11 +32,8 @@ struct
   type t = {
     loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
-    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))]) option; (* TODO: this equality is terrible... *)
-  } [@@deriving eq, to_yojson]
-
-  let hash {loc; text; context} =
-    7 * BatOption.map_default CilType.Location.hash 1 loc + 9 * Hashtbl.hash text + 11 * BatOption.map_default (fun c -> Hashtbl.hash (Obj.obj c)) 1 context
+    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))]) option; (* TODO: this equality is terrible... *)
+  } [@@deriving eq, hash, to_yojson]
 
   let text_with_context {text; context; _} =
     match context with
@@ -48,16 +43,11 @@ end
 
 module MultiPiece =
 struct
-  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, to_yojson]
+  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, hash, to_yojson]
   type t =
     | Single of Piece.t
     | Group of group
-  [@@deriving eq, to_yojson]
-
-  let hash = function
-    | Single piece -> Piece.hash piece
-    | Group {group_text; pieces} ->
-      Hashtbl.hash group_text + 3 * (List.fold_left (fun xs x -> xs + Piece.hash x) 996699 pieces) (* copied from Printable.Liszt *)
+  [@@deriving eq, hash, to_yojson]
 
   let to_yojson = function
     | Single piece -> Piece.to_yojson piece
@@ -69,11 +59,7 @@ struct
   type t =
     | Category of Category.t
     | CWE of int
-  [@@deriving eq]
-
-  let hash = function
-    | Category category -> Category.hash category
-    | CWE n -> n
+  [@@deriving eq, hash]
 
   let pp ppf = function
     | Category category -> Format.pp_print_string ppf (Category.show category)
@@ -90,9 +76,7 @@ end
 
 module Tags =
 struct
-  type t = Tag.t list [@@deriving eq, to_yojson]
-
-  let hash tags = List.fold_left (fun xs x -> xs + Tag.hash x) 996699 tags (* copied from Printable.Liszt *)
+  type t = Tag.t list [@@deriving eq, hash, to_yojson]
 
   let pp =
     let pp_tag_brackets ppf tag = Format.fprintf ppf "[%a]" Tag.pp tag in
@@ -107,13 +91,10 @@ struct
     tags: Tags.t;
     severity: Severity.t;
     multipiece: MultiPiece.t;
-  } [@@deriving eq, to_yojson]
+  } [@@deriving eq, hash, to_yojson]
 
   let should_warn {tags; severity; _} =
     Tags.should_warn tags && Severity.should_warn severity
-
-  let hash {tags; severity; multipiece} =
-    3 * Tags.hash tags + 7 * MultiPiece.hash multipiece + 13 * Severity.hash severity
 end
 
 module Table =

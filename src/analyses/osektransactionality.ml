@@ -21,8 +21,8 @@ struct
 
   let should_join x y = D.equal x y
 
-  let get_lockset ctx = Obj.obj (List.assoc "OSEK" ctx.postsub)
-  let get_stack   ctx = Obj.obj (List.assoc "stack_trace_set" ctx.postsub)
+  let get_lockset ctx = Obj.obj (ctx.postsub "OSEK")
+  let get_stack   ctx = Obj.obj (ctx.postsub "stack_trace_set")
 
   let pry_d dom_elem =
     if Mutex.Lockset.is_top dom_elem then -1 else

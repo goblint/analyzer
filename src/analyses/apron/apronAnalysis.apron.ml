@@ -177,7 +177,7 @@ struct
     if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
     if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
     let arg_assigns =
-      Goblintutil.zip f.sformals args
+      GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
@@ -254,7 +254,7 @@ struct
     if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
     let new_fun_apr = AD.add_vars fun_st.apr (AD.vars st.apr) in
     let arg_substitutes =
-      Goblintutil.zip f.sformals args
+      GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in

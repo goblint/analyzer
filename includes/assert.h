@@ -1,1 +1,3 @@
-void assert (int expression);
+#ifndef GOBLINT_NO_ASSERT
+    void assert(int expression);
+#endif

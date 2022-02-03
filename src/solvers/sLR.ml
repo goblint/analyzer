@@ -18,8 +18,7 @@ module SLR3 =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -203,7 +202,7 @@ module Make =
           HM.find keys x
         with Not_found ->
           incr Goblintutil.vars;
-          last_key := !last_key - 1;
+          decr last_key;
           HM.add keys x !last_key;
           !last_key
 
@@ -211,7 +210,7 @@ module Make =
         try (HM.find keys c, true)
         with Not_found ->
           incr Goblintutil.vars;
-          last_key := !last_key - 1;
+          decr last_key;
           HM.add keys c !last_key;
           (!last_key, false)
 
@@ -223,8 +222,7 @@ module Make =
     struct
       module P =
       struct
-        type t = S.Var.t * S.Var.t [@@deriving eq]
-        let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2
+        type t = S.Var.t * S.Var.t [@@deriving eq, hash]
       end
       module HPM = Hashtbl.Make (P)
       let hpm_find_default h x d =

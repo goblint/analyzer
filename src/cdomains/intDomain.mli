@@ -231,6 +231,7 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val arbitrary: unit -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -272,6 +273,7 @@ sig
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
+  val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -370,7 +372,11 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
-module BigInt : Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+module BigInt:
+  sig
+    include Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+    val cast_to: Cil.ikind -> Z.t -> Z.t
+  end
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
 

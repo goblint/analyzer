@@ -34,9 +34,7 @@ let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
 module NH = Hashtbl.Make(Node)
 module NTH = Hashtbl.Make(
   struct
-    type t = Node.t * Node.t
-    [@@deriving eq]
-    let hash (n1,n2) = (Node.hash n1 * 13) + Node.hash n2
+    type t = Node.t * Node.t [@@deriving eq, hash]
   end)
 
 (* This function compares two CFGs by doing a breadth-first search on the old CFG. Matching node tuples are stored in same,
@@ -64,6 +62,7 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
           | [] -> NH.replace diff toNode1 ()
           | (locEdgeList2, toNode2)::remSuc' ->
               let edgeList2 = to_edge_list locEdgeList2 in
+              (* TODO: don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
               if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
                 begin
                   let notInSame = not (NTH.mem same (toNode1, toNode2)) in

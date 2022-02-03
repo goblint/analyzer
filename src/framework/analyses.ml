@@ -26,10 +26,8 @@ end
 
 module Var =
 struct
-  type t = Node.t [@@deriving eq, ord]
+  type t = Node.t [@@deriving eq, ord, hash]
   let relift x = x
-
-  let hash = Node.hash
 
   let getLocation n = Node.location n
 
@@ -46,10 +44,8 @@ end
 
 module VarF (LD: Printable.S) =
 struct
-  type t = Node.t * LD.t [@@deriving eq, ord]
+  type t = Node.t * LD.t [@@deriving eq, ord, hash]
   let relift (n,x) = n, LD.relift x
-
-  let hash (n, c) = Hashtbl.hash (Node.hash n, LD.hash c)
 
   let getLocation (n,d) = Node.location n
 
@@ -314,8 +310,8 @@ type ('d,'g,'c,'v) ctx =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; presub   : (string * Obj.t) list
-  ; postsub  : (string * Obj.t) list
+  ; presub   : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
+  ; postsub  : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
