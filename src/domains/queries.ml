@@ -3,7 +3,37 @@
 open Cil
 
 module GU = Goblintutil
-module ID = IntDomain.IntDomTuple2
+module ID =
+struct
+  module I = IntDomain.IntDomTuple
+  include Lattice.Lift (I) (Printable.DefaultNames)
+
+  let lift op x = `Lifted (op x)
+  let unlift op x = match x with
+    | `Lifted x -> op x
+    | _ -> failwith "Queries.ID.unlift"
+
+  let bot_of = lift I.bot_of
+  let top_of = lift I.top_of
+
+  let of_int ik = lift (I.of_int ik)
+  let of_bool ik = lift (I.of_bool ik)
+  let of_interval ik = lift (I.of_interval ik)
+  let of_excl_list ik = lift (I.of_excl_list ik)
+  let of_congruence ik = lift (I.of_congruence ik)
+  let starting ik = lift (I.starting ik)
+  let ending ik = lift (I.ending ik)
+
+  let to_int x = unlift I.to_int x
+  let is_int x = unlift I.is_int x
+  let to_bool x = unlift I.to_bool x
+  let is_bool x = unlift I.is_bool x
+
+  let is_bot_ikind = function
+    | `Bot -> false
+    | `Lifted x -> I.is_bot x
+    | `Top -> false
+end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
