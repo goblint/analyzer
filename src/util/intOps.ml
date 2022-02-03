@@ -2,6 +2,8 @@
  * IntOps Basics
  * -------------------------------------------------------------- *)
 
+open Batteries
+
 (* IntOps
  * Wrapper around integer types providing unified interface for
  * arithmetic and logical operations. *)
@@ -94,7 +96,7 @@ struct
   let shift_right = (lsr)
   let bitand = (land)
   let bitor = (lor)
-  let bitxor = Int.logxor
+  let bitxor = (lxor)
   let bitnot = (lnot)
 
 
