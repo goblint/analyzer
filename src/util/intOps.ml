@@ -41,6 +41,8 @@ sig
   val equal : t -> t -> bool
   val hash : t -> int
   val top_range : t -> t -> bool
+  val max : t -> t -> t
+  val min : t -> t -> t
 
   (* Conversions *)
   val of_int : int -> t
@@ -99,6 +101,8 @@ struct
   let compare = compare
   let equal = Int.equal
   let top_range a b = (a = min_int) && (b = max_int)
+  let max = Int.max
+  let min = Int.min
 
   let of_int x = x
   let to_int x = x
@@ -142,6 +146,8 @@ struct
 
   let top_range a b =
     (0 = compare a Int32.min_int) && (0 = compare b Int32.max_int)
+  let max = Int32.max
+  let min = Int32.min
 
   let of_int = Int32.of_int
   let to_int = Int32.to_int
@@ -185,6 +191,8 @@ struct
 
   let top_range a b =
     (0 = compare a Int64.min_int) && (0 = compare b Int64.max_int)
+  let max = Int64.max
+  let min = Int64.min
 
   let of_int = Int64.of_int
   let to_int = Int64.to_int
@@ -226,6 +234,9 @@ struct
   let hash = Z.hash
 
   let top_range _ _ = false
+
+  let max = Z.max
+  let min = Z.min
 
   let of_int = Big_int_Z.big_int_of_int
   let to_int = Big_int_Z.int_of_big_int

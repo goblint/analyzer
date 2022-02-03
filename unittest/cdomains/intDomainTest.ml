@@ -200,6 +200,40 @@ let test_ex_set _ =
   assert_equal (Some true) (T.to_bool tex10);
   assert_equal None (T.to_bool tex1)
 
+
+module Interval =
+struct
+  module I = IntDomain.Interval
+
+  let assert_equal x y =
+    assert_equal ~cmp:I.equal ~printer:I.show x y
+
+  let test_interval_rem _ =
+    let ik = Cil.IInt in
+    assert_equal (I.of_int ik Z.zero) (I.rem ik (I.of_int ik Z.minus_one) (I.of_int ik Z.one))
+
+  let test () = [
+    "test_interval_rem" >:: test_interval_rem;
+  ]
+end
+
+module Congruence =
+struct
+  module C = IntDomain.Congruence
+
+  let assert_equal x y =
+    assert_equal ~cmp:C.equal ~printer:C.show x y
+
+  let test_shift_left _ =
+    let ik = Cil.IBool in
+    assert_equal (C.top_of ik) (C.join ik (C.of_int ik Z.zero) (C.of_int ik Z.one));
+    assert_equal (C.top_of ik) (C.shift_left ik (C.of_int ik Z.one) (C.top_of ik))
+
+  let test () = [
+    "test_shift_left" >:: test_shift_left;
+  ]
+end
+
 let test () = "intDomainTest" >:::
               [ "int_Integers"  >::: A.test ();
                 "int_Flattened" >::: B.test ();
@@ -208,4 +242,6 @@ let test () = "intDomainTest" >:::
                 "test_join"     >::  test_join;
                 "test_meet"     >::  test_meet;
                 "test_excl_list">::  test_ex_set;
+                "interval" >::: Interval.test ();
+                "congruence" >::: Congruence.test ();
               ]

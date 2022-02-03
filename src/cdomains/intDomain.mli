@@ -372,7 +372,11 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
-module BigInt : Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+module BigInt:
+  sig
+    include Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+    val cast_to: Cil.ikind -> Z.t -> Z.t
+  end
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
 
