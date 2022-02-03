@@ -280,9 +280,9 @@ struct
         files |> SH.to_list
       in
       let json = `Assoc [
-          ("files", `Assoc (List.map (Tuple2.map2 [%to_yojson: string list option]) files));
-          ("messages", Messages.Table.to_yojson ());
-        ]
+        ("files", `Assoc (List.map (Tuple2.map2 [%to_yojson: string list option]) files));
+        ("messages", Messages.Table.to_yojson ());
+      ]
       in
       Yojson.Safe.pretty_to_channel ~std:true out json
     | "none" -> ()
