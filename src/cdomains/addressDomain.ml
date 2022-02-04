@@ -39,7 +39,6 @@ struct
   type offs = [`NoOffset | `Field of (field * offs) | `Index of (idx * offs)]
 
   let null_ptr       = singleton Addr.NullPtr
-  let safe_ptr       = singleton Addr.SafePtr
   let unknown_ptr    = singleton Addr.UnknownPtr
   let not_null       = unknown_ptr
   let top_ptr        = of_list Addr.([UnknownPtr; NullPtr])
@@ -66,22 +65,22 @@ struct
 
   let from_var x = singleton (Addr.from_var x)
   let from_var_offset x = singleton (Addr.from_var_offset x)
-  let to_var_may x = List.concat_map Addr.to_var_may (elements x)
-  let to_var_must x = List.concat_map Addr.to_var_must (elements x)
-  let to_var_offset x = List.concat_map Addr.to_var_offset (elements x)
+  let to_var_may x = List.filter_map Addr.to_var_may (elements x)
+  let to_var_must x = List.filter_map Addr.to_var_must (elements x)
+  let to_var_offset x = List.filter_map Addr.to_var_offset (elements x)
   let is_definite x = match elements x with
     | [x] when Addr.is_definite x -> true
     | _ -> false
 
   (* strings *)
   let from_string x = singleton (Addr.from_string x)
-  let to_string x = List.concat_map Addr.to_string (elements x)
+  let to_string x = List.filter_map Addr.to_string (elements x)
 
   (* add an & in front of real addresses *)
   let short_addr a =
     match Addr.to_var a with
-    | [_] -> "&" ^ Addr.show a
-    | _ -> Addr.show a
+    | Some _ -> "&" ^ Addr.show a
+    | None -> Addr.show a
 
   let pretty () x =
     try
@@ -140,8 +139,7 @@ struct
     let i_opt = fold (fun addr acc_opt ->
         BatOption.bind acc_opt (fun acc ->
             match addr with
-            | Addr.UnknownPtr
-            | Addr.SafePtr ->
+            | Addr.UnknownPtr ->
               None
             | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
               let rec offs_to_offset = function

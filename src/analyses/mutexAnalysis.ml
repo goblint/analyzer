@@ -65,8 +65,8 @@ struct
   let lock ctx rw may_fail nonzero_return_when_aquired a lv arglist ls =
     let is_a_blob addr =
       match LockDomain.Addr.to_var addr with
-      | [a] -> a.vname.[0] = '('
-      | _ -> false
+      | Some a -> a.vname.[0] = '('
+      | None -> false
     in
     let lock_one (e:LockDomain.Addr.t) =
       if is_a_blob e then
@@ -143,8 +143,8 @@ struct
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
           match Addr.to_var_offset addr with
-          | [(var, offs)] -> Queries.LS.add (var, conv_offset_inv offs) ls
-          | _ -> ls
+          | Some (var, offs) -> Queries.LS.add (var, conv_offset_inv offs) ls
+          | None -> ls
         ) held_locks (Queries.LS.empty ())
       in
       ls
@@ -205,7 +205,7 @@ struct
       let remove_nonspecial x =
         if Lockset.is_top x then x else
           Lockset.filter (fun (v,_) -> match LockDomain.Addr.to_var v with
-              | [v] when v.vname.[0] = '{' -> true
+              | Some v when v.vname.[0] = '{' -> true
               | _ -> false
             ) x
       in
@@ -238,8 +238,8 @@ struct
           | `NoOffset -> `NoOffset
         in
         match Addr.to_var_offset x with
-        | [(v,o)] -> Addr.from_var_offset (v, drop_offs o)
-        | _ -> x
+        | Some (v,o) -> Addr.from_var_offset (v, drop_offs o)
+        | None -> x
       in
       unlock (fun l -> remove_rw (drop_raw_lock l))
     | `Unlock, _ ->

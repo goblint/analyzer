@@ -1142,7 +1142,7 @@ struct
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
         let handle_race def_warn = begin
           if (List.mem gl.vname  (get_string_list "ana.osek.safe_vars")) then begin
-            suppressed := !suppressed+1;
+            incr suppressed;
             if (get_bool "allglobs") then
               msg_group_race_old Success (safe_str "safe variable") warnings
             else
@@ -1157,7 +1157,7 @@ struct
               let warn = def_warn ^ " at " ^ var_str in
               msg_group_race_old Warning warn warnings
             end else begin
-              filtered := !filtered +1;
+              incr filtered;
               (*((_, dom_elem,_),_) -> let lock_names_list = names (Lockset.ReverseAddrSet.elements dom_elem) in
                 any in there also in safe_tasks ... %TODO *)
               let filter_fun ((_, dom_elem,_),_) =

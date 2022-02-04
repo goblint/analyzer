@@ -31,7 +31,7 @@ let register_analysis =
     in
     Hashtbl.replace registered !count s;
     Hashtbl.replace registered_name n !count;
-    count := !count + 1
+    incr count
 
 let find_spec = Hashtbl.find registered
 let find_spec_name n = (find_spec n).name

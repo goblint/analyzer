@@ -200,12 +200,11 @@ struct
       in
       let default = function
         | Addr.NullPtr when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
-        | Addr.SafePtr | Addr.NullPtr when get_bool "exp.ptr-arith-safe" -> Addr.SafePtr
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_var_offset addr with
-      | [x, o] -> Addr.from_var_offset (x, addToOffset n (Some x.vtype) o)
-      | _ -> default addr
+      | Some (x, o) -> Addr.from_var_offset (x, addToOffset n (Some x.vtype) o)
+      | None -> default addr
     in
     (* The main function! *)
     match a1,a2 with
@@ -242,17 +241,11 @@ struct
             let ax = AD.choose x in
             let ay = AD.choose y in
             if AD.Addr.equal ax ay then
-              let v = AD.Addr.to_var ax in
-              if v = [] then
+              match AD.Addr.to_var ax with
+              | Some v when a.f (Q.IsMultiple v) ->
+                None
+              | _ ->
                 Some true
-              else (
-                (* If the address id definite, it should be one or no variables *)
-                assert (List.compare_length_with v 1 = 0);
-                if a.f (Q.IsMultiple (List.hd v)) then
-                  None
-                else
-                  Some true
-              )
             else
               (* If they are unequal, it does not matter if the underlying var represents multiple concrete vars or not *)
               Some false
@@ -283,9 +276,9 @@ struct
             in
             if AD.is_definite p1 && AD.is_definite p2 then
               match Addr.to_var_offset (AD.choose p1), Addr.to_var_offset (AD.choose p2) with
-              | [x, xo], [y, yo] when CilType.Varinfo.equal x y ->
+              | Some (x, xo), Some (y, yo) when CilType.Varinfo.equal x y ->
                 calculateDiffFromOffset xo yo
-              | _ ->
+              | _, _ ->
                 `Int (ID.top_of ik)
             else
               `Int (ID.top_of ik)
@@ -314,8 +307,8 @@ struct
    * map it on the address sets. *)
   let add_offset_varinfo add ad =
     match Addr.to_var_offset ad with
-    | [x,ofs] -> Addr.from_var_offset (x, add_offset ofs add)
-    | _ -> ad
+    | Some (x,ofs) -> Addr.from_var_offset (x, add_offset ofs add)
+    | None -> ad
 
 
   (**************************************************************************
@@ -368,9 +361,9 @@ struct
       in
       let f x =
         match Addr.to_var_offset x with
-        | [x] -> f_addr x                    (* normal reference *)
-        | _ when x = Addr.NullPtr -> VD.bot () (* null pointer *)
-        | _ -> `Int (ID.top_of IChar)       (* string pointer *)
+        | Some x -> f_addr x                    (* normal reference *)
+        | None when x = Addr.NullPtr -> VD.bot () (* null pointer *)
+        | None -> `Int (ID.top_of IChar)       (* string pointer *)
       in
       (* We form the collecting function by joining *)
       let c x = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
@@ -714,12 +707,12 @@ struct
           (* pre VLA: *)
           (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
           let cast_ok = function
-            | Addr a ->
+            | Addr (x, o) ->
               begin
-                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf (get_type_addr a)) with
+                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf (get_type_addr (x, o))) with
                 | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
                 | _ ->
-                  if contains_vla t || contains_vla (get_type_addr a) then
+                  if contains_vla t || contains_vla (get_type_addr (x, o)) then
                     begin
                       (* TODO: Is this ok? *)
                       M.warn "Casting involving a VLA is assumed to work";
@@ -777,8 +770,8 @@ struct
         let array_ofs = `Index (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset) in
         let array_start ad =
           match Addr.to_var_offset ad with
-          | [x, offs] -> Addr.from_var_offset (x, add_offset offs array_ofs)
-          | _ -> ad
+          | Some (x, offs) -> Addr.from_var_offset (x, add_offset offs array_ofs)
+          | None -> ad
         in
         `Address (AD.map array_start (eval_lv a gs st lval))
       | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
@@ -1166,8 +1159,7 @@ struct
         (* Optimization to avoid evaluating integer values when setting them.
            The case when invariant = true requires the old_value to be sound for the meet.
            Allocated blocks are representend by Blobs with additional information, so they need to be looked-up. *)
-        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) then begin
-            assert (offs = `NoOffset); (* We expect `NoOffset for this case *)
+        let old_value = if not invariant && Cil.isIntegralType x.vtype && not (a.f (IsHeapVar x)) && offs = `NoOffset then begin
             VD.bot_value lval_type
           end else
             Priv.read_global a priv_getg st x
@@ -1247,8 +1239,8 @@ struct
     in
     let update_one x store =
       match Addr.to_var_offset x with
-      | [x] -> update_one_addr x store
-      | _ -> store
+      | Some x -> update_one_addr x store
+      | None -> store
     in try
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
@@ -1689,7 +1681,7 @@ struct
    * Simple defs for the transfer functions
    **************************************************************************)
   let assign ctx (lval:lval) (rval:exp):store  =
-    let lval_t = Cilfacade.typeOf rval in
+    let lval_t = Cilfacade.typeOfLval lval in
     let char_array_hack () =
       let rec split_offset = function
         | Index(Const(CInt(i, _, _)), NoOffset) -> (* ...[i] *)
@@ -1744,16 +1736,19 @@ struct
       let not_local xs =
         let not_local x =
           match Addr.to_var_may x with
-          | [x] -> is_global (Analyses.ask_of_ctx ctx) x
-          | _ -> x = Addr.UnknownPtr
+          | Some x -> is_global (Analyses.ask_of_ctx ctx) x
+          | None -> x = Addr.UnknownPtr
         in
         AD.is_top xs || AD.exists not_local xs
       in
       (match rval_val, lval_val with
       | `Address adrs, lval
         when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
-        let find_fps e xs = Addr.to_var_must e @ xs in
-        let vars = AD.fold find_fps adrs [] in
+        let find_fps e xs = match Addr.to_var_must e with
+          | Some x -> x :: xs
+          | None -> xs
+        in
+        let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
         let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
         List.iter (fun x -> ctx.spawn None x []) funs
       | _ -> ()
@@ -1769,21 +1764,21 @@ struct
           end else
             eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
         in
-        (match current_val with
-        | `Bot -> (* current value is VD `Bot *)
-          (match Addr.to_var_offset (AD.choose lval_val) with
-          | [(x,offs)] ->
-            let t = v.vtype in
-            let iv = VD.bot_value t in (* correct bottom value for top level variable *)
-            if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
-            let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
+        begin match current_val with
+          | `Bot -> (* current value is VD `Bot *)
+            begin match Addr.to_var_offset (AD.choose lval_val) with
+              | Some (x,offs) ->
+                let t = v.vtype in
+                let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+                if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
+                let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+                set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
+              | None ->
+                set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+            end
           | _ ->
             set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
-          )
-        | _ ->
-          set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
-        )
+        end
       | _ ->
         set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
 

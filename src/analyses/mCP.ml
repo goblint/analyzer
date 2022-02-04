@@ -731,6 +731,10 @@ struct
     let sides  = ref [] in
     let assigns = ref [] in
     let emits = ref [] in
+    (* Like spec_list2 but for three lists. Tail recursion like map3_rev would have.
+       Due to context-insensitivity, second list is optional and may only contain a subset of analyses
+       in the same order, so some skipping needs to happen to align the three lists.
+       See https://github.com/goblint/analyzer/pull/578/files#r794376508. *)
     let rec spec_list3_rev_acc acc l1 l2_opt l3 = match l1, l2_opt, l3 with
       | [], _, [] -> acc
       | (n, x) :: l1, Some ((n', y) :: l2), (n'', z) :: l3 when n = n' -> (* context-sensitive *)

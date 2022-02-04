@@ -116,10 +116,10 @@ struct
   (* Does it contain non-initialized variables? *)
   let is_expr_initd a (expr:exp) (st:D.t) : bool =
     let variables = vars a expr in
-    let raw_vars = List.concat_map Addr.to_var_offset variables in
+    let raw_vars = List.filter_map Addr.to_var_offset variables in
     let will_addr_init (t:bool) a =
       let f addr =
-        List.exists (is_prefix_of a) (Addr.to_var_offset addr)
+        GobOption.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
         Messages.warn "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
@@ -131,7 +131,7 @@ struct
   let remove_if_prefix (pr: varinfo * (Addr.field,Addr.idx) Lval.offs) (uis: D.t) : D.t =
     let f ad =
       let vals = Addr.to_var_offset ad in
-      List.for_all (fun a -> not (is_prefix_of pr a)) vals
+      GobOption.for_all (fun a -> not (is_prefix_of pr a)) vals
     in
     D.filter f uis
 

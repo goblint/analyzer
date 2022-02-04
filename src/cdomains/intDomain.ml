@@ -552,7 +552,7 @@ struct
               top_of ik
         else if not cast && should_ignore_overflow ik then
           let tl, tu = BatOption.get @@ top_of ik in
-          Some (max tl x, min tu y)
+          Some (Ints_t.max tl x, Ints_t.min tu y)
         else
           top_of ik
       )
@@ -568,12 +568,12 @@ struct
   let join ik (x:t) y =
     match x, y with
     | None, z | z, None -> z
-    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (min x1 y1, max x2 y2)
+    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.min x1 y1, Ints_t.max x2 y2)
 
   let meet ik (x:t) y =
     match x, y with
     | None, z | z, None -> None
-    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (max x1 y1, min x2 y2)
+    | Some (x1,x2), Some (y1,y2) -> norm ik @@ Some (Ints_t.max x1 y1, Ints_t.min x2 y2)
 
   let is_int = function Some (x,y) when Ints_t.compare x y = 0 -> true | _ -> false
 
@@ -630,9 +630,9 @@ struct
     | None, z | z, None -> z
     | Some (l0,u0), Some (l1,u1) ->
       let lt = if threshold then lower_threshold l1 else min_int ik in
-      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else min l1 (max lt (min_int ik)) in
+      let l2 = if Ints_t.compare l0 l1 = 0 then l0 else Ints_t.min l1 (Ints_t.max lt (min_int ik)) in
       let ut = if threshold then upper_threshold u1 else max_int ik in
-      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else max u1 (min ut (max_int ik)) in
+      let u2 = if Ints_t.compare u0 u1 = 0 then u0 else Ints_t.max u1 (Ints_t.min ut (max_int ik)) in
       norm ik @@ Some (l2,u2)
   let widen ik x y =
     let r = widen ik x y in
@@ -737,8 +737,8 @@ struct
         * This range is [0, min xu b] if x is positive, and [max xl -b, min xu b] if x can be negative.
         * The precise bound b is one smaller than the maximum bound. Negative y give the same result as positive. *)
         let pos x = if Ints_t.compare x Ints_t.zero < 0 then Ints_t.neg x else x in
-        let b = Ints_t.sub (max (pos yl) (pos yu)) Ints_t.one in
-        let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, min xu b) else Some (max xl (Ints_t.neg b), min xu b) in
+        let b = Ints_t.sub (Ints_t.max (pos yl) (pos yu)) Ints_t.one in
+        let range = if Ints_t.compare xl Ints_t.zero>= 0 then Some (Ints_t.zero, Ints_t.min xu b) else Some (Ints_t.max xl (Ints_t.neg b), Ints_t.min (Ints_t.max (pos xl) (pos xu)) b) in
         meet ik (bit (fun _ik -> Ints_t.rem) ik x y) range
 
   let mul ?no_ov ik x y =
@@ -748,8 +748,8 @@ struct
     | Some (x1,x2), Some (y1,y2) ->
       let x1y1 = (Ints_t.mul x1 y1) in let x1y2 = (Ints_t.mul x1 y2) in
       let x2y1 = (Ints_t.mul x2 y1) in let x2y2 = (Ints_t.mul x2 y2) in
-      norm ik @@ Some ((min (min x1y1 x1y2) (min x2y1 x2y2)),
-                      (max (max x1y1 x1y2) (max x2y1 x2y2)))
+      norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1 x1y2) (Ints_t.min x2y1 x2y2)),
+                       (Ints_t.max (Ints_t.max x1y1 x1y2) (Ints_t.max x2y1 x2y2)))
 
   let rec div ?no_ov ik x y =
     match x, y with
@@ -768,8 +768,8 @@ struct
           let x2y1n = (Ints_t.div x2 y1) in let x2y2n = (Ints_t.div x2 y2) in
           let x1y1p = (Ints_t.div x1 y1) in let x1y2p = (Ints_t.div x1 y2) in
           let x2y1p = (Ints_t.div x2 y1) in let x2y2p = (Ints_t.div x2 y2) in
-          norm ik @@ Some ((min (min x1y1n x1y2n) (min x2y1n x2y2n)),
-                        (max (max x1y1p x1y2p) (max x2y1p x2y2p)))
+          norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
+                           (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
       end
   let ne ik i1 i2 = to_bool_interval (sub ik i1 i2)
 
@@ -1317,7 +1317,16 @@ struct
           let r = size ik in
           (* Perform a wrap-around for unsigned values and for signed values (if configured). *)
           let mapped_excl = S.map (fun excl -> BigInt.cast_to ik excl) s in
-          `Excluded (mapped_excl, r)
+          match ik with
+          | IBool ->
+            begin match S.mem BigInt.zero mapped_excl, S.mem BigInt.one mapped_excl with
+              | false, false -> `Excluded (mapped_excl, r) (* Not {} -> Not {} *)
+              | true, false -> `Definite BigInt.one (* Not {0} -> 1 *)
+              | false, true -> `Definite BigInt.zero (* Not {1} -> 0 *)
+              | true, true -> `Bot (* Not {0, 1} -> bot *)
+            end
+          | ik ->
+            `Excluded (mapped_excl, r)
         )
       | `Definite x ->
         let min, max = Size.range ik in
@@ -1462,7 +1471,7 @@ struct
 
   (* Default behaviour for unary operators, simply maps the function to the
    * DefExc data structure. *)
-  let lift1 f ik x = match x with
+  let lift1 f ik x = norm ik @@ match x with
     | `Excluded (s,r) ->
       let s' = S.map f s in
       `Excluded (s', apply_range f r)
@@ -1734,13 +1743,25 @@ module Enums : S with type int_t = BigInt.t = struct
         Inc (BISet.filter value_in_ikind xs)
       else
         top_of ikind
-    | Exc (xs, r) -> v
-  (* The following assert should hold for Exc, therefore we do not have to overflow handling / normalization for it:
-     let range_in_ikind r =
-      R.leq r (size ikind)
-     in
-     let r_min, r_max = min_of_range r, max_of_range r in
-     assert (range_in_ikind r && BISet.for_all (value_in_range (r_min, r_max)) xs); *)
+    | Exc (xs, r) ->
+      (* The following assert should hold for Exc, therefore we do not have to overflow handling / normalization for it:
+         let range_in_ikind r =
+         R.leq r (size ikind)
+         in
+         let r_min, r_max = min_of_range r, max_of_range r in
+         assert (range_in_ikind r && BISet.for_all (value_in_range (r_min, r_max)) xs); *)
+      begin match ikind with
+        | IBool ->
+          begin match BISet.mem BigInt.zero xs, BISet.mem BigInt.one xs with
+            | false, false -> top_bool  (* Not {} -> {0, 1} *)
+            | true, false -> Inc (BISet.singleton BigInt.one) (* Not {0} -> {1} *)
+            | false, true -> Inc (BISet.singleton BigInt.zero) (* Not {1} -> {0} *)
+            | true, true -> bot_of ikind (* Not {0, 1} -> bot *)
+          end
+        | _ ->
+          v
+      end
+
 
   let equal_to i = function
     | Inc x ->
@@ -1900,7 +1921,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let of_excl_list ik xs =
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
-    Exc (exc, size ik)
+    norm ik @@ Exc (exc, size ik)
   let is_excl_list = BatOption.is_some % to_excl_list
   let to_incl_list = function Inc s when not (BISet.is_empty s) -> Some (BISet.elements s) | _ -> None
 
@@ -2145,7 +2166,7 @@ struct
   let is_int = function Some (c, m) when m =: Ints_t.zero -> true | _ -> false
 
   let to_int = function Some (c, m) when m =: Ints_t.zero -> Some c | _ -> None
-  let of_int ik (x: int_t) = Some (x, Ints_t.zero)
+  let of_int ik (x: int_t) = normalize ik @@ Some (x, Ints_t.zero)
   let zero = Some (Ints_t.zero, Ints_t.zero)
   let one  = Some (Ints_t.one, Ints_t.zero)
   let top_bool = top()
@@ -2236,27 +2257,28 @@ struct
 
   let shift_left ik x y =
     (* Naive primality test *)
-    let is_prime n =
-      let n = Ints_t.abs n in
-      let rec is_prime' d =
-        (d *: d >: n) || ((not ((n %: d) =: Ints_t.zero)) && (is_prime' [@tailcall]) (d +: Ints_t.one))
-      in
-      not (n =: Ints_t.one) && is_prime' (Ints_t.of_int 2)
-    in
+    (* let is_prime n =
+         let n = Ints_t.abs n in
+         let rec is_prime' d =
+           (d *: d >: n) || ((not ((n %: d) =: Ints_t.zero)) && (is_prime' [@tailcall]) (d +: Ints_t.one))
+         in
+         not (n =: Ints_t.one) && is_prime' (Ints_t.of_int 2)
+       in *)
     match x, y with
     | None, None -> None
     | None, _
     | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
-    | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top ()
+    | Some (c, m), Some (c', m') when (Cil.isSigned ik) || c <: Ints_t.zero || c' <: Ints_t.zero -> top_of ik
     | Some (c, m), Some (c', m') ->
       if (m =: Ints_t.zero && m' =: Ints_t.zero) then
-        Some (Ints_t.bitand (max_int ik) (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
+        normalize ik @@ Some (Ints_t.bitand (max_int ik) (Ints_t.shift_left c (Ints_t.to_int c')), Ints_t.zero)
       else
         let x = (Ints_t.bitand (max_int ik) (Ints_t.shift_left Ints_t.one (Ints_t.to_int c'))) in   (* 2^c' *)
-        if is_prime (m' +: Ints_t.one) then
-          Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
-        else
-          Some (x *: c, Ints_t.gcd (x *: m) (c *: x))
+        (* TODO: commented out because fails test with _Bool *)
+        (* if is_prime (m' +: Ints_t.one) then
+             normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) ((c *: x) *: (m' +: Ints_t.one)))
+           else *)
+        normalize ik @@ Some (x *: c, Ints_t.gcd (x *: m) (c *: x))
 
   let shift_left ik x y =
     let res = shift_left ik x y in
