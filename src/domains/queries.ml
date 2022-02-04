@@ -288,4 +288,8 @@ struct
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
+
+  let equal x y = compare x y = 0
+
+  let hash x = 0
 end

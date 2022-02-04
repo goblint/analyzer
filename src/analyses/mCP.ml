@@ -5,6 +5,7 @@ open GobConfig
 open Analyses
 
 module QuerySet = Set.Make (Queries.Any)
+module QueryHash = Hashtbl.Make (Queries.Any)
 
 include MCPRegistry
 
@@ -262,10 +263,12 @@ struct
     if q then raise Deadcode else d
 
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
-  and query': type a. QuerySet.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun asked ctx q ->
+  and query': type a. querycache:Obj.t QueryHash.t -> QuerySet.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
     let module Result = (val Queries.Result.lattice q) in
     if QuerySet.mem (Any q) asked then
       Result.top () (* query cycle *)
+    else if QueryHash.mem querycache (Any q) then
+      Obj.obj (QueryHash.find querycache (Any q))
     else
       let asked' = QuerySet.add (Any q) asked in
       let sides = ref [] in
@@ -276,7 +279,7 @@ struct
            See https://github.com/goblint/analyzer/pull/214. *)
         let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx =
           { ctx' with
-            ask    = (fun (type b) (q: b Queries.t) -> query' asked' ctx q)
+            ask    = (fun (type b) (q: b Queries.t) -> query' ~querycache asked' ctx q)
           }
         in
         (* meet results so that precision from all analyses is combined *)
@@ -299,10 +302,12 @@ struct
       | _ ->
         let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
         do_sideg ctx !sides;
+        QueryHash.replace querycache (Any q) (Obj.repr r);
         r
 
   and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
-    query' QuerySet.empty ctx q
+    let querycache = QueryHash.create 13 in
+    query' ~querycache QuerySet.empty ctx q
 
   and access (ctx:(D.t, G.t, C.t, V.t) ctx) e vo w: MCPAccess.A.t =
     let ctx'' = outer_ctx "access" ctx in
@@ -325,9 +330,10 @@ struct
       | Some emits -> (fun e -> emits := e :: !emits)
       | None -> (fun _ -> failwith ("Cannot \"emit\" in " ^ tfname ^ " context."))
     in
+    let querycache = QueryHash.create 13 in
     (* TODO: make rec? *)
     { ctx with
-      ask    = (fun (type a) (q: a Queries.t) -> query ctx q)
+      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache QuerySet.empty ctx q)
     ; emit
     ; presub = assoc_sub ctx.local
     ; spawn
