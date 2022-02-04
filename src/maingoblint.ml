@@ -254,7 +254,7 @@ let preprocess_files () =
     | filename when Filename.basename filename = "Makefile" ->
       let comb_file = MakefileUtil.generate_and_combine filename ~all_cppflags in
       (* The resulting dependency information will not be correctly tracked, because the merge happens in cilly *)
-      [(comb_file, basic_preprocess ~all_cppflags comb_file)]
+      [basic_preprocess ~all_cppflags comb_file]
 
     | filename when Filename.basename filename = CompilationDatabase.basename ->
       CompilationDatabase.load_and_preprocess ~all_cppflags filename
@@ -273,7 +273,7 @@ let preprocess_files () =
       raise Exit
 
     | filename ->
-      [(filename, basic_preprocess ~all_cppflags filename)]
+      [basic_preprocess ~all_cppflags filename]
   in
 
   let extra_arg_files = ref [] in
@@ -289,9 +289,10 @@ let preprocess_files () =
 let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
-  let get_ast_and_record_deps (orig, f) =
+  let get_ast_and_record_deps f =
     let file = Cilfacade.getAST f in
-    Hashtbl.add Preprocessor.dependencies orig file.files;
+    (* Drop <built-in> and <command-line> from dependencies *)
+    Hashtbl.add Preprocessor.dependencies f @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
     file
   in
   let files_AST = List.map (get_ast_and_record_deps) cpp_file_names in
