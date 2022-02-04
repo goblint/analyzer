@@ -161,9 +161,9 @@ struct
     let n' = find_id name in
     assoc n' xs
 
-  let do_spawns ctx (xs:(varinfo * (int * lval option * exp list)) list) =
+  let do_spawns ctx (xs:(varinfo * (lval option * exp list)) list) =
     let spawn_one v d =
-      List.iter (fun (n, lval, args) -> ctx.spawn lval v args) d
+      List.iter (fun (lval, args) -> ctx.spawn lval v args) d
     in
     if not (get_bool "exp.single-threaded") then
       iter (uncurry spawn_one) @@ group_assoc_eq Basetype.Variables.equal xs
@@ -314,7 +314,7 @@ struct
 
   and outer_ctx ?spawns ?sides ?emits ctx =
     let spawn = match spawns with
-      | Some spawns -> (fun l v a  -> spawns := (v,(-1,l,a)) :: !spawns) (* TODO: n doesn't matter, remove *)
+      | Some spawns -> (fun l v a  -> spawns := (v,(l,a)) :: !spawns)
       | None -> (fun v d    -> failwith "Cannot \"spawn\" in query context.")
     in
     let sideg = match sides with
