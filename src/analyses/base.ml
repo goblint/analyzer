@@ -602,9 +602,10 @@ struct
         let a = a.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
         if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
         begin match a with
-          | x when Queries.ID.is_bot x -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
+          | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (`Int x) *)
-          | x -> `Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
+          | `Lifted x -> `Int x (* cast should be unnecessary, EvalInt should guarantee right ikind already *)
+          | `Top -> `Int (ID.top_of (Cilfacade.get_ikind typ)) (* query cycle *)
         end
       | exception Cilfacade.TypeOfError _ (* Bug: typeOffset: Field on a non-compound *)
       | _ -> eval_next ()
@@ -865,10 +866,10 @@ struct
   let query_evalint ask gs st e =
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
     let r = match eval_rv_no_ask_evalint ask gs st e with
-    | `Int i -> i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
-    | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
-    (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
-    | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
+      | `Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
+      | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
+      (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
+      | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
     r
@@ -934,7 +935,7 @@ struct
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
           let d = List.fold_left ID.join (ID.bot_of (Cilfacade.ptrdiff_ikind ())) (List.map (ID.of_int (Cilfacade.ptrdiff_ikind ()) %BI.of_int) (slen @ alen)) in
           (* ignore @@ printf "EvalLength %a = %a\n" d_exp e ID.pretty d; *)
-          d
+          `Lifted d
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
       end
@@ -946,7 +947,7 @@ struct
           let r = get ~full:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local a  None in
           (* ignore @@ printf "BlobSize %a = %a\n" d_plainexp e VD.pretty r; *)
           (match r with
-           | `Blob (_,s,_) -> s
+           | `Blob (_,s,_) -> `Lifted s
            | _ -> Queries.Result.top q)
         | _ -> Queries.Result.top q
       end

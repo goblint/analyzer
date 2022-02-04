@@ -632,13 +632,13 @@ struct
       match check_assert d e with
       | `True -> ID.of_bool ik true
       | `False -> ID.of_bool ik false
-      | `Top -> ID.top ()
+      | `Top -> ID.top_of ik
     else
       match eval_interval_expr d e with
       | (Some min, Some max) -> ID.of_interval ik (min, max)
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top ()
+      | (None, None) -> ID.top_of ik
 end
 
 
@@ -878,7 +878,7 @@ sig
   val assert_inv : t -> exp -> bool -> t
   val check_assert : t -> exp -> [> `False | `Top | `True ]
   val eval_interval_expr : t -> exp -> Z.t option * Z.t option
-  val eval_int : t -> exp -> IntDomain.IntDomTuple.t
+  val eval_int : t -> exp -> Queries.ID.t
 end
 
 type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, hash, to_yojson]
