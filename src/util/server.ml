@@ -71,19 +71,18 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
   IO.flush serv.output
 
 let serve serv =
-  serv.input
-  |> IO.to_input_channel
-  |> Yojson.Safe.linestream_from_channel
-  |> Stream.iter (fun line ->
-      match line with
-      | `Json json -> (
-          try
-            let message = Message.either_of_yojson json in
-            match message.id with
-            | Some id -> handle_request serv message id
-            | _ -> () (* We just ignore notifications for now. *)
-          with Json.Of_json (s, _) -> prerr_endline s)
-      | `Exn exn -> prerr_endline (Printexc.to_string exn))
+  try
+    while true; do
+      let line = IO.read_line serv.input in
+      try
+        let json = Yojson.Safe.from_string line in
+        let message = Message.either_of_yojson json in
+        match message.id with
+        | Some id -> handle_request serv message id
+        | _ -> () (* We just ignore notifications for now. *)
+      with Yojson.Json_error s | Json.Of_json (s, _) -> prerr_endline s
+    done
+  with IO.No_more_input -> ()
 
 let make ?(input=stdin) ?(output=stdout) file preprocess_and_merge do_analyze : t =
   let version_map, max_ids = VersionLookup.create_map file in
