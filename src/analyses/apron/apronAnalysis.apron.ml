@@ -470,11 +470,11 @@ open RelationAnalysis
 module ExtendedSpecFunctor (CPriv: ApronPriv.S) (RD: RelationDomain.RD) : Analyses.MCPSpec =
 struct
 module OctApron = ApronPrecCompareUtil.OctagonD
-include RelationAnalysis.SpecFunctor (CPriv) (RD) (ApronPrecCompareUtil.Util)
+include  RelationAnalysis.SpecFunctor (CPriv) (RD) (ApronPrecCompareUtil.Util)
 module AD = ApronDomain.D2Complete(OctApron.Man)
 module PCU = ApronPrecCompareUtil.Util(OctApron)
 
-let results = PCU.RH.create 103
+let results = PCU.RH.create 103 (*ToDo This should not be created again! However a type error occurs*)
 
 let init marshal =
   Priv.init ()

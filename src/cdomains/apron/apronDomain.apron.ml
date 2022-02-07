@@ -199,12 +199,17 @@ let int_of_scalar ?round (scalar: Scalar.t) =
 
 module Bounds (Man: Manager) =
 struct
-  type d = Man.mt A.t
+  type t = Man.mt A.t
+  type num = Mpqf.t
+
   let bound_texpr d texpr1 =
     let bounds = A.bound_texpr Man.mgr d texpr1 in
     let min = int_of_scalar ~round:`Ceil bounds.inf in
     let max = int_of_scalar ~round:`Floor bounds.sup in
     (min, max)
+
+  let calc_const d texpr1 = None
+
 end
 
 (** Conversion from CIL expressions to Apron. *)
@@ -1121,14 +1126,11 @@ end
 >>>>>>> f0a0ae216 (Move convert module to new domain)
 =======
 
-module AD2Complete (Man: Manager) = (*ToDo Improve Module structure...*)
+module AD2Complete (Man: Manager) = (*ToDo Improve module structure...*)
 struct
-  include DWithOps (Man) (DHetero (Man))
-  include D2Complete (Man)
-  include EnvDomain.AssertionModule (D2Complete (Man))
-  type var = EnvDomain.Var.t
-  type lconsarray = Lincons1.earray
-  module Man = Man
+  module D2 = D2Complete (Man)
+  include D2
+  include EnvDomain.AssertionModule (D2)
 end
 
 module D2 (Man: Manager): (RelD2 with type var = Var.t) =

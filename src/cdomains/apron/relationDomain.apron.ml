@@ -187,6 +187,6 @@ module type RD =
 sig
   module Var : RelVar
   module V : module type of struct include V(Var) end
-  module D2 : (RelD2 with type var = Var.t)
+  module D2 : RelD2 with type var = Var.t
 end
 

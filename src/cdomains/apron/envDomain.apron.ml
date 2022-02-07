@@ -19,8 +19,11 @@ end
 
 module type ConvBounds =
 sig
-  type d
-  val bound_texpr: d -> Texpr1.t -> Z.t option * Z.t option
+  type t
+  type num
+  val bound_texpr: t -> Texpr1.t -> Z.t option * Z.t option
+
+  val calc_const: t -> Texpr1.expr -> num option
 end
 
 module Tracked =
@@ -135,15 +138,6 @@ struct
 
 end
 
-let mpqf_of_cst cst =
-  let open Coeff in
-  match cst with
-  | Interval _ -> failwith "Not a constant"
-  | Scalar x -> (match x with
-      | Float x -> Mpqf.of_float x
-      | Mpqf x -> x
-      | Mpfrf x -> Mpfr.to_mpq x)
-
 module EnvOps =
 struct
   let vars env =
@@ -224,7 +218,7 @@ module type AssertionRelD2 =
 sig
   module Bounds: ConvBounds
 
-  include RelationDomain.D2 with type t = Bounds.d
+  include RelationDomain.D2 with type t = Bounds.t
 
   val meet_with_tcons: t -> Tcons1.t -> t
 
