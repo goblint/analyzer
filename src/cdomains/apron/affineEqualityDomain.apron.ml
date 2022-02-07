@@ -511,9 +511,9 @@ struct
             let r, diff = Vector.length a_rev - (i + 1), x -: y  in
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
             let multiply_by_t' m col_v t i =
-              let zero_vec = Vector.of_list @@ List.init (Matrix.num_rows m - Vector.length col_v) (fun x -> of_int 0)
-              in let cs = Vector.append col_v zero_vec
-              in Matrix.map2i (fun i' x c -> if i' <= i then let beta = c /: diff in
+              let zero_vec = Vector.of_list @@ List.init (Matrix.num_rows m - Vector.length col_v) (fun x -> of_int 0) in
+              let cs = Vector.append col_v zero_vec in
+              Matrix.map2i (fun i' x c -> if i' <= i then let beta = c /: diff in
                                   let mul_t = Vector.apply_with_c ( *:) beta t in Vector.map2 (-:) x mul_t else x) m cs
             in
             let sub_col = Vector.map2 (fun x y -> x -: y) col_a col_b in

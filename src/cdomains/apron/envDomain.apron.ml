@@ -265,21 +265,21 @@ struct
     | texpr1 -> Bounds.bound_texpr d texpr1
     | exception Convert.Unsupported_CilExp -> (None, None)
 
-  let check_asserts d e =
-    if is_bot_env (assert_inv d e false false) then
+  let check_asserts d e no_ov =
+    if is_bot_env (assert_inv d e false no_ov) then
       `False
-    else if is_bot_env (assert_inv d e true false) then
+    else if is_bot_env (assert_inv d e true no_ov) then
       `True
     else
       `Top
 
 
   (** Evaluate constraint or non-constraint expression as integer. *)
-  let eval_int d e =
+  let eval_int d e no_ov =
     let module ID = Queries.ID in
     let ik = Cilfacade.get_ikind_exp e in
     if exp_is_cons e then
-      match check_asserts d e with
+      match check_asserts d e no_ov with
       | `True -> ID.of_bool ik true
       | `False -> ID.of_bool ik false
       | `Top -> ID.top ()

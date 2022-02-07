@@ -374,31 +374,32 @@ struct
 
 
  let query ctx (type a) (q: a Queries.t): a Queries.result =
+      let no_overflow ctx' exp' = if not (GobConfig.get_string "sem.int.signed_overflow" = "assume_none") then false else no_overflow ctx' exp' in (*ToDo Overflow handling...*)
       let open Queries in
       let st = ctx.local in
-      let eval_int e =
+      let eval_int e no_ov =
         read_from_globals_wrapper
           (Analyses.ask_of_ctx ctx)
           ctx.global st e
-          (fun apr' e' -> AD.eval_int apr' e')
+          (fun apr' e' -> AD.eval_int apr' e' no_ov)
       in
       match q with
       | EvalInt e ->
         if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
-        let r = eval_int e in
+        let r = eval_int e false in
         if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
         r
       | Queries.MustBeEqual (exp1,exp2) ->
         let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
-        let is_eq = eval_int exp in
+        let is_eq = eval_int exp (no_overflow ctx exp) in
         Option.default false (ID.to_bool is_eq)
       | Queries.MayBeEqual (exp1,exp2) ->
         let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
-        let is_neq = eval_int exp in
+        let is_neq = eval_int exp (no_overflow ctx exp) in
         Option.default true (ID.to_bool is_neq)
       | Queries.MayBeLess (exp1, exp2) ->
         let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
-        let is_lt = eval_int exp in
+        let is_lt = eval_int exp (no_overflow ctx exp) in
         Option.default true (ID.to_bool is_lt)
       | _ -> Result.top q
 

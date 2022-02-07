@@ -68,7 +68,7 @@ sig
   val type_tracked : typ -> bool
   val varinfo_tracked : varinfo -> bool
   val assert_inv : t -> exp -> bool -> bool -> t
-  val eval_int : t -> exp -> IntDomain.IntDomTuple.t
+  val eval_int : t -> exp -> bool -> IntDomain.IntDomTuple.t
 end
 
 module RelVM =
