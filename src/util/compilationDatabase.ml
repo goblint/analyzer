@@ -72,13 +72,13 @@ let load_and_preprocess ~all_cppflags filename =
             let suf =
               begin match List.findi (fun i e -> e = "-o") arguments with
                 | (o_i, _) ->
-                  begin match List.drop o_i arguments with
-                    | (_ :: o_file :: arguments_tl) -> preprocessed_file :: arguments_tl
+                  begin match List.split_at o_i arguments with
+                    | (arguments_init, o_file :: arguments_tl) -> arguments_init @ preprocessed_file :: arguments_tl
                     | _ -> failwith ("CompilationDatabase.preprocess: no argument found for -o option for " ^ file)
                   end
-                | exception Not_found -> [preprocessed_file]
+                | exception Not_found -> arguments @ "-o" :: [preprocessed_file]
               end in
-            all_cppflags @ "-E" :: "-MMD" :: "-MT" :: file :: arguments @ "-o" :: suf in
+            all_cppflags @ "-E" :: "-MMD" :: "-MT" :: file :: suf in
           begin match arguments with
             | (arguments_program :: arguments) -> Filename.quote_command arguments_program preprocess_arguments
             | _ -> failwith "CompilationDatabase.preprocess: no program found for " ^ file
