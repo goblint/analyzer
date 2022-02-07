@@ -38,21 +38,6 @@ let print_help ch =
   fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n";
   exit 0
 
-(* The temp directory for preprocessing the input files *)
-let create_temp_dir () =
-  if Sys.file_exists (get_string "tempDir") then
-    Goblintutil.tempDirName := get_string "tempDir"
-  else
-    (* Using the stdlib to create a free tmp file name. *)
-    let tmpDirRel = Filename.temp_file ~temp_dir:"" "goblint_temp_" "" in
-    (* ... and then delete it to create a directory instead. *)
-    Sys.remove tmpDirRel;
-    let tmpDirName = create_dir tmpDirRel in
-    Goblintutil.tempDirName := tmpDirName
-
-let remove_temp_dir () =
-  if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf !Goblintutil.tempDirName)
-
 (** [Arg] option specification *)
 let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
