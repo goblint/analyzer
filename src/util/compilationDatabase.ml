@@ -61,11 +61,14 @@ let load_and_preprocess ~all_cppflags filename =
           (* TODO: extract o_file *)
           let command = reroot command in
           let preprocess_command = Str.replace_first command_program_regexp ("\\1 " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -E -MMD -MT " ^ file) command in
-          let preprocess_command = Str.replace_first command_o_regexp ("-o " ^ preprocessed_file) preprocess_command in
           if preprocess_command = command then (* easier way to check if match was found (and replaced) *)
-            failwith "CompilationDatabase.preprocess: no -o argument found for " ^ file
+            failwith "CompilationDatabase.preprocess: no program found for " ^ file
           else
-            preprocess_command
+            let preprocess_command_o = Str.replace_first command_o_regexp ("-o " ^ preprocessed_file) preprocess_command in
+            if preprocess_command_o = preprocess_command then (* easier way to check if match was found (and replaced) *)
+              preprocess_command ^ " -o " ^ preprocessed_file
+            else
+              preprocess_command_o
         | None, Some arguments ->
           let arguments = List.map reroot arguments in
           let preprocess_arguments =
