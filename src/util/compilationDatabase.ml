@@ -70,22 +70,23 @@ let load_and_preprocess ~all_cppflags filename =
             else
               preprocess_command_o
         | None, Some arguments ->
-          let arguments = List.map reroot arguments in
+          let arguments_program, arguments =
+            begin match List.map reroot arguments with
+              | arguments_program::arguments -> arguments_program, arguments
+              | _ -> failwith ("CompilationDatabase.preprocess: no program found for " ^ file)
+            end in
           let preprocess_arguments =
             let suf =
               begin match List.findi (fun i e -> e = "-o") arguments with
                 | (o_i, _) ->
                   begin match List.split_at o_i arguments with
-                    | (arguments_init, o_file :: arguments_tl) -> arguments_init @ preprocessed_file :: arguments_tl
+                    | (arguments_init, _ :: o_file :: arguments_tl) -> arguments_init @ "-o" :: preprocessed_file :: arguments_tl
                     | _ -> failwith ("CompilationDatabase.preprocess: no argument found for -o option for " ^ file)
                   end
                 | exception Not_found -> arguments @ "-o" :: [preprocessed_file]
               end in
             all_cppflags @ "-E" :: "-MMD" :: "-MT" :: file :: suf in
-          begin match arguments with
-            | (arguments_program :: arguments) -> Filename.quote_command arguments_program preprocess_arguments
-            | _ -> failwith "CompilationDatabase.preprocess: no program found for " ^ file
-          end
+          Filename.quote_command arguments_program preprocess_arguments
         | Some _, Some _ ->
           failwith "CompilationDatabase.preprocess: both command and arguments specified for " ^ file
         | None, None ->
