@@ -1,6 +1,6 @@
 open PrecCompareUtil
 open ApronDomain
-open RelPrecCompareUtil
+open RelationPrecCompareUtil
 
 (* Currently serialization of Apron results only works for octagons. *)
 module OctagonD = ApronDomain.AD2Complete (ApronDomain.OctagonManager)

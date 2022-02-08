@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] affeq --enable ana.int.interval
+//SKIP PARAM: --set ana.activated[+] affeq --enable ana.int.interval
 
 int main() {
     //Overflow

@@ -732,9 +732,9 @@
             "domain": {
               "title": "ana.apron.domain",
               "description":
-                "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'",
+                "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval', 'polyhedra' or 'affeq'",
               "type": "string",
-              "enum": ["octagon", "interval", "polyhedra"],
+              "enum": ["octagon", "interval", "polyhedra", "affeq"],
               "default": "octagon"
             },
             "threshold_widening": {

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] affeq
+//SKIP PARAM: --set ana.activated[+] affeq
 
 int main() {
 

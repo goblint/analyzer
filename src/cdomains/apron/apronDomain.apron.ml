@@ -146,7 +146,7 @@ let manager =
       ["octagon", (module OctagonManager: Manager);
        "interval", (module IntervalManager: Manager);
        "polyhedra", (module PolyhedraManager: Manager);
-       "apronaffeq", (module AffEqManager: Manager)]
+       "affeq", (module AffEqManager: Manager)]
     in
     let domain = (GobConfig.get_string "ana.apron.domain") in
     match List.assoc_opt domain options with
@@ -369,8 +369,8 @@ end
 (** Convenience operations on A. *)
 module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = EnvDomain.Convert (Bounds(Man))
-  include EnvDomain.EnvOps
+  module Convert = SharedDomain.Convert (Bounds(Man))
+  include SharedDomain.EnvOps
 
   type t = Man.mt A.t
 
@@ -999,7 +999,7 @@ end
 
 module D2Complete (Man: Manager) =
 struct
-  type var = EnvDomain.Var.t
+  type var = SharedDomain.Var.t
   type lconsarray = Lincons1.earray
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
@@ -1130,7 +1130,7 @@ module AD2Complete (Man: Manager) = (*ToDo Improve module structure...*)
 struct
   module D2 = D2Complete (Man)
   include D2
-  include EnvDomain.AssertionModule (D2)
+  include SharedDomain.AssertionModule (D2)
 end
 
 module D2 (Man: Manager): (RelD2 with type var = Var.t) =

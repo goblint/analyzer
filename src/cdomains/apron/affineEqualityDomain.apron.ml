@@ -286,7 +286,7 @@ module ListMatrix : AbstractMatrix =
 
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
-  include EnvDomain.EnvOps
+  include SharedDomain.EnvOps
   module Vector = Vec (Mpqf)
   module Matrix = Mx(Mpqf) (Vec)
 
@@ -353,7 +353,7 @@ let of_union union =
       | Mpqf x -> x
       | Mpfrf x -> Mpfr.to_mpq x)
 
-module ExpressionBounds (V: AbstractVector) (Mx: AbstractMatrix): (EnvDomain.ConvBounds with type t = VarManagement(V) (Mx).t and type num = Mpqf.t) =
+module ExpressionBounds (V: AbstractVector) (Mx: AbstractMatrix): (SharedDomain.ConvBounds with type t = VarManagement(V) (Mx).t and type num = Mpqf.t) =
 struct
   include VarManagement (V) (Mx)
   include ConvenienceOps (Mpqf)
@@ -407,15 +407,15 @@ struct
 
 end
 
-module D2(V: AbstractVector) (Mx: AbstractMatrix): EnvDomain.AssertionRelD2 with type var = EnvDomain.Var.t =
+module D2(V: AbstractVector) (Mx: AbstractMatrix): SharedDomain.AssertionRelD2 with type var = SharedDomain.Var.t =
 struct
   include ConvenienceOps (Mpqf)
   include VarManagement (V) (Mx)
 
   module Bounds = ExpressionBounds (V) (Mx)
-  module Convert = EnvDomain.Convert (Bounds)
+  module Convert = SharedDomain.Convert (Bounds)
 
-  type var = EnvDomain.Var.t
+  type var = SharedDomain.Var.t
 
   let tag t = failwith "No tag"
   let show t =
@@ -514,7 +514,7 @@ struct
               let zero_vec = Vector.of_list @@ List.init (Matrix.num_rows m - Vector.length col_v) (fun x -> of_int 0) in
               let cs = Vector.append col_v zero_vec in
               Matrix.map2i (fun i' x c -> if i' <= i then let beta = c /: diff in
-                                  let mul_t = Vector.apply_with_c ( *:) beta t in Vector.map2 (-:) x mul_t else x) m cs
+                               let mul_t = Vector.apply_with_c ( *:) beta t in Vector.map2 (-:) x mul_t else x) m cs
             in
             let sub_col = Vector.map2 (fun x y -> x -: y) col_a col_b in
             Matrix.remove_row (multiply_by_t' a sub_col a_r max) r, Matrix.remove_row (multiply_by_t' b sub_col b_r max) r, (max - 1)
@@ -545,7 +545,7 @@ struct
     match a.d, b.d with
     | None, m -> b
     | m, None -> a
-    | Some x, Some y when x = (Matrix.empty ()) || y = (Matrix.empty ()) -> {d = Some (Matrix.empty ()); env = Environment.lce a.env b.env}
+    | Some x, Some y when x = Matrix.empty () || y = Matrix.empty () -> {d = Some (Matrix.empty ()); env = Environment.lce a.env b.env}
     | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
       let sup_env = Environment.lce a.env b.env in
       let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
@@ -570,6 +570,11 @@ struct
     let zero_vec = Vector.zero_vec @@ Environment.size env + 1 in
     let neg = Vector.map (fun x -> (of_int (-1)) *: x) in
     let rec convert_texpr env texp =
+      let get_c v = match Vector.findi (fun i x -> x <> (of_int 0)) v with
+        | exception Not_found -> Some (of_int 0)
+        | (i, p) when Vector.compare_length_with v (i + 1) = 0 -> Some (p)
+        | _ -> None
+      in
       begin match texp with
         | Cst x -> Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
         | Var x ->  Vector.set_val zero_vec (Environment.dim_of_var env x) (of_int 1)
@@ -582,15 +587,16 @@ struct
           begin match b with
             | Add ->  Vector.map2 (+:)(convert_texpr env e1) (convert_texpr env e2)
             | Sub -> Vector.map2 (+:) (convert_texpr env  e1) (neg @@ convert_texpr env e2)
-            | Mul -> let get_c v = match Vector.findi (fun i x -> x <> (of_int 0)) v with
-                | exception Not_found -> Some (of_int 0)
-                | (i, p) when Vector.compare_length_with v (i + 1) = 0 -> Some (p)
-                | _ -> None
-              in
+            | Mul ->
               let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
               begin match get_c x1, get_c x2 with
                 | _, Some c -> Vector.apply_with_c ( *:) c x1
                 | Some c, _ -> Vector.apply_with_c ( *:) c x2
+                | _, _ -> raise NotLinear end
+            | Div ->
+              let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
+              begin match get_c x1, get_c x2 with
+                | Some c1, Some c2 -> Vector.map2 (/:) x1 x2
                 | _, _ -> raise NotLinear end
             | _ -> raise NotLinear end
       end
@@ -605,12 +611,12 @@ struct
     let reduced_a = Vector.apply_with_c (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
     let recalc_entries m rd_a = Matrix.map2 (fun x y -> Vector.map2i (fun j z d ->
         if j = j0 then y
-        else if j < (Vector.length b) -1 then z -: y *: d
+        else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
         else z +: y *: d) x b) m rd_a
     in {d = Matrix.normalize @@ recalc_entries x reduced_a; env = env}
 
   let assign_uninvertible_rel x var b env =
-    let neg_vec = Vector.mapi (fun i z -> if i < Vector.length b - 1 then of_int (-1) *: z else z) b
+    let neg_vec = Vector.mapi (fun i z -> if Vector.compare_length_with b (i + 1) > 0 then of_int (-1) *: z else z) b
     in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) (of_int 1)
     in {d = Matrix.normalize @@ Matrix.append_row x var_vec; env = env}
 
@@ -673,22 +679,12 @@ struct
     if M.tracing then M.tracel "ops" "assign_var parallel'\n";
     res
 
-  let substitute_exp (t: Bounds.t) var exp ov =
-    let b = match get_coeff_vec t.env (Convert.texpr1_expr_of_cil_exp t t.env ov exp) with
-      | exception Convert.Unsupported_CilExp -> None
-      | x -> x
-    in
-    match b, t.d with
-    | None, Some m -> {d = Some (Option.get @@ Matrix.normalize (remove_rels_with_var m var t.env)); env = t.env}
-    | Some x, Some m -> let dim_var = Environment.dim_of_var t.env var in
-      if Vector.nth x dim_var = (of_int 0) then
-        assign_uninvertible_rel (remove_rels_with_var m var t.env) var x t.env
-      else assign_invertible_rels m var x t.env
-    | _, _ -> t
+  let substitute_exp t var exp no_ov =
+    assign_exp t var exp no_ov
 
   let substitute_exp t var exp ov =
     let res = substitute_exp t var exp ov
-    in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res); res
+    in if M.tracing then M.tracel "sub" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res); res
 
   (** Assert a constraint expression. *)
   let rec meet_with_tcons t tcons =
@@ -699,7 +695,7 @@ struct
     in
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
-      let flip_e = Vector.mapi (fun i x -> if i = (Vector.length e) -1 then (of_int (-1)) *: x else x) e
+      let flip_e = Vector.mapi (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e
       in meet t {d = Matrix.normalize @@ Matrix.of_list [flip_e]; env = t.env}
     in
     match Tcons1.get_typ tcons, get_coeff_vec t.env (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
@@ -734,18 +730,18 @@ struct
         d
     end
 
+  let relift t = t
+
+  let env (t: Bounds.t) = t.env
+
   type marshal = Bounds.t
 
   let marshal t = t
 
   let unmarshal t = t
 
-  let relift t = t
-
-  let env (t: Bounds.t) = t.env
-
 end
 
 module ListD2 = D2(ListVector) (ListMatrix)
 
-module AD2 = EnvDomain.AssertionModule (ListD2)
+module AD2 = SharedDomain.AssertionModule (ListD2)

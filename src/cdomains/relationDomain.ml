@@ -5,7 +5,7 @@ open PrecCompareUtil
 
 module type RelVar =
 sig
-type t
+  type t
   val compare : t -> t -> int
   val of_string : string -> t
   val to_string : t -> string
@@ -95,20 +95,20 @@ end
 
 module VarMetadataTbl (VM: VarMetadata) =
   functor (Var: RelVar) ->
-struct
-  module VH = Hashtbl.Make (Var)
+  struct
+    module VH = Hashtbl.Make (Var)
 
-  let vh = VH.create 113
+    let vh = VH.create 113
 
-  let make_var ?name metadata =
-    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-    let var = Var.of_string name in
-    VH.replace vh var metadata;
-    var
+    let make_var ?name metadata =
+      let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+      let var = Var.of_string name in
+      VH.replace vh var metadata;
+      var
 
-  let find_metadata var =
-    VH.find_option vh var
-end
+    let find_metadata var =
+      VH.find_option vh var
+  end
 
 module V (Var: RelVar)=
 struct
@@ -181,7 +181,7 @@ module RelComponent (D2: RelD2) =
     let meet = op_scheme D2.meet PrivD.meet
     let widen = op_scheme D2.widen PrivD.widen
     let narrow = op_scheme D2.narrow PrivD.narrow
-end
+  end
 
 module type RD =
 sig
@@ -189,4 +189,3 @@ sig
   module V : module type of struct include V(Var) end
   module D2 : RelD2 with type var = Var.t
 end
-
