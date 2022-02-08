@@ -506,7 +506,6 @@ end
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let open ApronDomain in
     let module Man = (val ApronDomain.get_manager ()) in
     let module AD = ApronDomain.D2 (Man) in
     let module RD: RelationDomain.RD =

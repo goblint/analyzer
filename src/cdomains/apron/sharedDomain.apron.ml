@@ -1,7 +1,6 @@
 open Cil
 open Prelude
 open Apron
-open Pretty
 
 
 module BI = IntOps.BigIntOps

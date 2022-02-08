@@ -1,7 +1,6 @@
 open Prelude
 open Pretty
 open Cil
-open PrecCompareUtil
 
 module type RelVar =
 sig
@@ -18,8 +17,6 @@ sig
   type var
   type t
   type marshal
-
-  val name : unit -> string
   val is_bot_env : t -> bool
   val equal : t -> t -> bool
   val hash : t -> int

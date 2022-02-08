@@ -20,8 +20,6 @@ struct
   module RV = RD.V
   module PCU = PCU(AD)
 
-  open AD
-
   let results = PCU.RH.create 103
 
   let should_join = Priv.should_join

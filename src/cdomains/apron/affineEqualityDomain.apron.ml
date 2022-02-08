@@ -218,7 +218,7 @@ module ListMatrix : AbstractMatrix =
     let num_rows m =
       List.length m
 
-    let rec remove_row m n =
+    let remove_row m n =
       if n < 0 || n >= num_rows m then failwith "Entry does not exist"
       else List.filteri (fun i x -> n <> i) m
 
@@ -233,7 +233,7 @@ module ListMatrix : AbstractMatrix =
       | [] -> 0
       | x :: xs -> V.length x
 
-    let rec equal m1 m2 =
+    let equal m1 m2 =
       List.equal V.equal m1 m2
 
     let subtract_rows_c row1 row2 c =
@@ -687,7 +687,7 @@ struct
     in if M.tracing then M.tracel "sub" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res); res
 
   (** Assert a constraint expression. *)
-  let rec meet_with_tcons t tcons =
+  let meet_with_tcons t tcons =
     let meet_with_const cmp =
       match Bounds.calc_const t @@ Texpr1.to_expr (Tcons1.get_texpr1 tcons) with
       | Some c -> if cmp c (of_int 0) then {d = None; env = t.env} else t
@@ -723,7 +723,7 @@ struct
     if M.tracing then M.tracel "ops" "unify\n";
     res
 
-  let rec assert_cons d e negate no_ov =
+  let assert_cons d e negate no_ov =
     begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
       | tcons1 -> meet_with_tcons d tcons1
       | exception Convert.Unsupported_CilExp ->

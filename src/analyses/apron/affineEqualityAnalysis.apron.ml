@@ -3,13 +3,11 @@
 
 open Prelude.Ana
 open Analyses
-open RelationDomain
 
 open RelationAnalysis
 
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
-    let open AffineEqualityDomain in
     let module AD = AffineEqualityDomain.AD2 in
     let module RD: RelationDomain.RD =
     struct
