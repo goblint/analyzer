@@ -113,6 +113,7 @@ struct
       ) x
 
   let should_join x y =
+    (* TODO: GobList.for_all3 *)
     let rec zip3 lst1 lst2 lst3 = match lst1,lst2,lst3 with
       | [],_, _ -> []
       | _,[], _ -> []
@@ -175,26 +176,6 @@ struct
     in
     iter (uncurry side_one) @@ group_assoc_eq V.equal xs
 
-  let do_assigns ctx assigns (xs:(int * Obj.t) list) =
-    if List.is_empty assigns then xs (* nothing to do *)
-    else
-      let spec_assign n d : Obj.t =
-        (* spec of current analysis *)
-        let (module S:MCPSpec) = spec n in
-        let assign_one d (lval, exp, name, ctx) =
-          match name with
-          | Some x when x <> find_spec_name n -> obj d (* do nothing if current spec name is filtered out *)
-          | _ ->
-            let ctx' = {(obj ctx) with local = obj d} in
-            S.assign ctx' lval exp
-        in
-        let get_lval (lval, exp, name, ctx) = lval in
-        (* group by assigns on the same lval -> only those must be joined *)
-        List.group (compareBy get_lval) assigns
-        |> List.fold_left (fun d xs -> List.map (assign_one d) xs |> List.reduce S.D.join |> repr) d
-      in
-      List.map (fun (n,d) -> n, spec_assign n d) xs
-
   let rec do_splits ctx pv (xs:(int * (Obj.t * Events.t list)) list) =
     let split_one n (d,emits) =
       let nv = assoc_replace (n,d) pv in
@@ -218,17 +199,18 @@ struct
     let do_emit ctx = function
       | Events.SplitBranch (exp, tv) ->
         ctx_with_local ctx (branch ctx exp tv)
+      | Events.Assign {lval; exp} ->
+        ctx_with_local ctx (assign ctx lval exp)
       | e ->
         let spawns = ref [] in
         let splits = ref [] in
         let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
-        let assigns = ref [] in
         let emits = ref [] in
         let ctx'' = outer_ctx "do_emits" ~spawns ~sides ~emits ctx in
         let octx'' = outer_ctx "do_emits" ~spawns ~sides ~emits octx in
         let f post_all (n,(module S:MCPSpec),(d,od)) =
-          let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~assigns ~post_all ctx'' n d in
-          let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~assigns ~post_all octx'' n d in
+          let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all ctx'' n d in
+          let octx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "do_emits" ~splits ~post_all octx'' n d in
           n, repr @@ S.event ctx' e octx'
         in
         let d, q = map_deadcode f @@ spec_list2 ctx.local octx.local in
@@ -236,7 +218,6 @@ struct
         do_sideg ctx !sides;
         do_spawns ctx !spawns;
         do_splits ctx d !splits;
-        let d = do_assigns ctx !assigns d in
         let d = do_emits ctx !emits d in
         if q then raise Deadcode else ctx_with_local ctx d
     in
@@ -247,18 +228,16 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in (* why do we need to collect these instead of calling ctx.sideg directly? *)
-    let assigns = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "branch" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "branch" ~splits ~assigns ~post_all ctx'' n d in
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "branch" ~splits ~post_all ctx'' n d in
       n, repr @@ S.branch ctx' e tv
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -343,7 +322,7 @@ struct
     }
 
   (* Explicitly polymorphic type required here for recursive call in branch. *)
-  and inner_ctx: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> ?assigns:(lval * exp * string option * Obj.t) list ref -> ?post_all:(int * Obj.t) list -> (D.t, G.t, C.t, V.t) ctx -> int -> Obj.t -> (d, g, c, v) ctx = fun tfname ?splits ?assigns ?(post_all=[]) ctx n d ->
+  and inner_ctx: type d g c v. string -> ?splits:(int * (Obj.t * Events.t list)) list ref -> ?post_all:(int * Obj.t) list -> (D.t, G.t, C.t, V.t) ctx -> int -> Obj.t -> (d, g, c, v) ctx = fun tfname ?splits ?(post_all=[]) ctx n d ->
     let split = match splits with
       | Some splits -> (fun d es   -> splits := (n,(repr d,es)) :: !splits)
       | None -> (fun _ _    -> failwith ("Cannot \"split\" in " ^ tfname ^ " context."))
@@ -356,16 +335,11 @@ struct
       ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
       ; split
       ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (`Lifted (n, repr g)))
-      ; assign = (
-        match assigns with
-        | Some assigns -> (fun ?name v e -> assigns := (v,e,name, repr ctx')::!assigns)
-        | None -> (fun ?name _ -> failwith ("Cannot \"assign\" in " ^ tfname ^ " context."))
-      )
       }
     in
     ctx'
 
-  let assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
+  and assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -404,18 +378,16 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "body" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "body" ~splits ~assigns ~post_all ctx'' n d in
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "body" ~splits ~post_all ctx'' n d in
       n, repr @@ S.body ctx' f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -423,18 +395,16 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "return" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "return" ~splits ~assigns ~post_all ctx'' n d in
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "return" ~splits ~post_all ctx'' n d in
       n, repr @@ S.return ctx' e f
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -442,18 +412,16 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "interpt" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "interpt" ~splits ~assigns ~post_all ctx'' n d in
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "interpt" ~splits ~post_all ctx'' n d in
       n, repr @@ S.intrpt ctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -461,18 +429,16 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "asm" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "asm" ~splits ~assigns ~post_all ctx'' n d in
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "asm" ~splits ~post_all ctx'' n d in
       n, repr @@ S.asm ctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -480,18 +446,16 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "skip" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "skip" ~splits ~assigns ~post_all ctx'' n d in
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "skip" ~splits ~post_all ctx'' n d in
       n, repr @@ S.skip ctx'
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -499,18 +463,16 @@ struct
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "special" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "special" ~splits ~assigns ~post_all ctx'' n d in
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "special" ~splits ~post_all ctx'' n d in
       n, repr @@ S.special ctx' r f a
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
     do_splits ctx d !splits;
-    let d = do_assigns ctx !assigns d in
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
@@ -547,7 +509,6 @@ struct
   let combine (ctx:(D.t, G.t, C.t, V.t) ctx) r fe f a fc fd =
     let spawns = ref [] in
     let sides  = ref [] in
-    let assigns = ref [] in
     let emits = ref [] in
     let ctx'' = outer_ctx "combine" ~spawns ~sides ~emits ctx in
     (* Like spec_list2 but for three lists. Tail recursion like map3_rev would have.
@@ -565,13 +526,12 @@ struct
       | _, _, _ -> invalid_arg "MCP.spec_list3_rev_acc"
     in
     let f post_all (n,(module S:MCPSpec),(d,fc,fd)) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine" ~assigns ~post_all ctx'' n d in
+      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "combine" ~post_all ctx'' n d in
       n, repr @@ S.combine ctx' r fe f a (Option.map obj fc) (obj fd)
     in
     let d, q = map_deadcode f @@ List.rev @@ spec_list3_rev_acc [] ctx.local fc fd in
     do_sideg ctx !sides;
     do_spawns ctx !spawns;
-    let d = do_assigns ctx !assigns d in
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 

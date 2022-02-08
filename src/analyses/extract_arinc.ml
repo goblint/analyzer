@@ -272,7 +272,7 @@ struct
         let assign_id exp id =
           if M.tracing then M.trace "extract_arinc" "assign_id %a %s\n" d_exp exp id.vname;
           match exp with
-          | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+          | AddrOf lval -> ctx.emit (Assign {lval; exp = mkAddrOf @@ var id})
           | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
         in
         (* evaluates an argument and returns a list of possible values for that argument. *)
