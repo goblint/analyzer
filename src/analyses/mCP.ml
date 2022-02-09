@@ -92,10 +92,6 @@ struct
 
   let finalize () = map (fun (_,{spec=(module S:MCPSpec); _}) -> Obj.repr (S.finalize ())) !activated
 
-  let spec x = (find_spec x).spec
-  let spec_list xs =
-    map (fun (n,x) -> (n,spec n,x)) xs
-
   let spec_fold2 f a xs =
     fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s.spec d) a xs !MCPRegistry.activated
   let spec_map2 f xs =
@@ -136,37 +132,30 @@ struct
     (List.rev ys, !dead)
 
   let context fd x =
-    let x = spec_list x in
-    filter_map (fun (n,(module S:MCPSpec),d) ->
+    List.rev @@ spec_fold2 (fun acc n (module S:MCPSpec) d ->
         if mem n !cont_inse then
-          None
+          acc
         else
-          Some (n, repr @@ S.context fd (obj d))
-      ) x
+          (n, repr @@ S.context fd (obj d)) :: acc
+      ) [] x
 
   let should_join x y =
-    (* TODO: GobList.for_all3 *)
-    let rec zip3 lst1 lst2 lst3 = match lst1,lst2,lst3 with
-      | [],_, _ -> []
-      | _,[], _ -> []
-      | _,_ , []-> []
-      | (x::xs),(y::ys), (z::zs) -> (x,y,z)::(zip3 xs ys zs)
-    in
-    let should_join ((_,(module S:Analyses.MCPSpec),_),(_,x),(_,y)) = S.should_join (obj x) (obj y) in
-    (* obtain all analyses specs that are path sensitive and their values both in x and y *)
-    let specs = filter (fun (x,_,_) -> mem x !path_sens) (spec_list x) in
-    let xs = filter (fun (x,_) -> mem x !path_sens) x in
-    let ys = filter (fun (x,_) -> mem x !path_sens) y in
-    let zipped = zip3 specs xs ys in
-    List.for_all should_join zipped
+    GobList.for_all3 (fun (n,d) (n',d') (n'',{spec=(module S: MCPSpec); _}) ->
+        assert(n = n' && n = n'');
+        not (mem n !path_sens) || S.should_join (obj d) (obj d')
+      ) x y !MCPRegistry.activated
 
   let exitstate  v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.exitstate  v) !activated
   let startstate v = map (fun (n,{spec=(module S:MCPSpec); _}) -> n, repr @@ S.startstate v) !activated
-  let morphstate v x = map (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) (spec_list x)
+  let morphstate v x = spec_map2 (fun (n,(module S:MCPSpec),d) -> n, repr @@ S.morphstate v (obj d)) x
 
   let call_descr f xs =
-    let xs = filter (fun (x,_) -> x = !base_id) xs in
-    fold_left (fun a (n,(module S:MCPSpec),d) -> S.call_descr f (obj d)) f.svar.vname @@ spec_list xs
+    match List.assoc_opt !base_id !MCPRegistry.activated with
+    | Some {spec=(module S: MCPSpec); _} ->
+      let d = List.assoc !base_id xs in
+      S.call_descr f (obj d)
+    | None ->
+      f.svar.vname
 
 
   let rec assoc_replace (n,c) = function
@@ -305,7 +294,7 @@ struct
         | Queries.WarnGlobal g ->
           (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
           let (n, g): V.t = Obj.obj g in
-          f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) n (spec n) (assoc n ctx.local)
+          f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) n (find_spec n).spec (assoc n ctx.local)
         | Queries.PartAccess {exp; var_opt; write} ->
           Obj.repr (access ctx exp var_opt write)
         (* | EvalInt e ->
