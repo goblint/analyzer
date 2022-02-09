@@ -24,13 +24,13 @@ int main() {
     // x -> ([1], y->..., z -> ([2,3],{(y,a)})
     
     if (y ==1) {
-        x = 1;
+        x = 2;
     } else {
         x = 8;
     }
     // join point label c:
     // x-> ([1, 8], {c}),  y -> ([1,2], {a}) 
-    // assert (x < y);
+    assert (x > y);
     return 0;
 
 }

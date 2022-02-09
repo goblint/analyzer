@@ -4,7 +4,7 @@ int main() {
     int y = 3;
     int z = 1;
     int a, b;
-    int* x = &y;
+    int* x = &a;
 
     if (a) {
         if (b) {
