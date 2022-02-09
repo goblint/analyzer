@@ -328,17 +328,14 @@ struct
       | Some splits -> (fun d es   -> splits := (n,(repr d,es)) :: !splits)
       | None -> (fun _ _    -> failwith ("Cannot \"split\" in " ^ tfname ^ " context."))
     in
-    let rec ctx' =
-      { ctx with
-        local  = obj d
-      ; context = (fun () -> ctx.context () |> assoc n |> obj)
-      ; postsub= assoc_sub post_all
-      ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
-      ; split
-      ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))
-      }
-    in
-    ctx'
+    { ctx with
+      local  = obj d
+    ; context = (fun () -> ctx.context () |> assoc n |> obj)
+    ; postsub= assoc_sub post_all
+    ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
+    ; split
+    ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))
+    }
 
   and assign (ctx:(D.t, G.t, C.t, V.t) ctx) l e =
     let spawns = ref [] in
