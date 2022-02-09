@@ -22,6 +22,7 @@ struct
 
   open List open Obj
   let v_of n v = (n, repr v)
+  let g_of n g = `Lifted (n, repr g)
   let g_to n = function
     | `Lifted (n', g) ->
       assert (n = n');
@@ -334,7 +335,7 @@ struct
       ; postsub= assoc_sub post_all
       ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
       ; split
-      ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (`Lifted (n, repr g)))
+      ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))
       }
     in
     ctx'
