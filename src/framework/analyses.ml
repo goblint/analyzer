@@ -315,7 +315,6 @@ type ('d,'g,'c,'v) ctx =
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
-  ; assign   : ?name:string -> lval -> exp -> unit
   }
 
 exception Ctx_failure of string

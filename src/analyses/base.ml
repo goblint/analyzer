@@ -1027,13 +1027,13 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match ID.to_int i1, ID.to_int i2 with
-            | Some i1', Some i2' when i1' = i2' -> true
+            | Some i1', Some i2' when Z.equal i1' i2' -> true
             | _ -> false
             end
         | _ -> false
       end
     | Q.MayBeEqual (e1, e2) -> begin
-        (* Printf.printf "---------------------->  may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+        (* Printf.printf "---------------------->  may equality check for %s and %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
         let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
         let e2_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e2 in
         match e1_val, e2_val with
@@ -1044,7 +1044,7 @@ struct
             let ik= Cil.commonIntKind e1_ik e2_ik in
             if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
               begin
-                (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+                (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
                 false
               end
             else true
@@ -1052,16 +1052,16 @@ struct
         | _ -> true
       end
     | Q.MayBeLess (e1, e2) -> begin
-        (* Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+        (* Printf.printf "----------------------> may check for %s < %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
         let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
         let e2_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e2 in
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match (ID.minimal i1), (ID.maximal i2) with
             | Some i1', Some i2' ->
-              if i1' >= i2' then
+              if Z.geq i1' i2' then
                 begin
-                  (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+                  (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
                   false
                 end
               else true

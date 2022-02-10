@@ -56,10 +56,10 @@ module MustBool = BoolDomain.MustBool
 module Unit = Lattice.Unit
 
 (* Helper definitions for deriving complex parts of Any.compare below. *)
-type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord]
-type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord]
-type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord]
-type partaccess = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: bool} [@@deriving ord]
+type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
+type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord, hash]
+type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
+type partaccess = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: bool} [@@deriving ord, hash]
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -213,45 +213,45 @@ struct
   type t = any_query
 
   (* deriving ord doesn't work for GADTs (t and any_query) so this must be done manually... *)
+  let order = function
+    | Any (EqualSet _) -> 0
+    | Any (MayPointTo _) -> 1
+    | Any (ReachableFrom _) -> 2
+    | Any (ReachableUkTypes _) -> 3
+    | Any (Regions _) -> 4
+    | Any (MayEscape _) -> 5
+    | Any (Priority _) -> 6
+    | Any (MayBePublic _) -> 7
+    | Any (MayBePublicWithout _) -> 8
+    | Any (MustBeProtectedBy _) -> 9
+    | Any CurrentLockset -> 10
+    | Any MustBeAtomic -> 11
+    | Any MustBeSingleThreaded -> 12
+    | Any MustBeUniqueThread -> 13
+    | Any CurrentThreadId -> 14
+    | Any MayBeThreadReturn -> 15
+    | Any (EvalFunvar _) -> 16
+    | Any (EvalInt _) -> 17
+    | Any (EvalStr _) -> 18
+    | Any (EvalLength _) -> 19
+    | Any (BlobSize _) -> 20
+    | Any PrintFullState -> 21
+    | Any (CondVars _) -> 22
+    | Any (PartAccess _) -> 23
+    | Any (IterPrevVars _) -> 24
+    | Any (IterVars _) -> 25
+    | Any (MustBeEqual _) -> 26
+    | Any (MayBeEqual _) -> 27
+    | Any (MayBeLess _) -> 28
+    | Any HeapVar -> 29
+    | Any (IsHeapVar _) -> 30
+    | Any (IsMultiple _) -> 31
+    | Any (EvalThread _) -> 32
+    | Any CreatedThreads -> 33
+    | Any MustJoinedThreads -> 34
+    | Any (WarnGlobal _) -> 35
+
   let compare a b =
-    let order = function
-      | Any (EqualSet _) -> 0
-      | Any (MayPointTo _) -> 1
-      | Any (ReachableFrom _) -> 2
-      | Any (ReachableUkTypes _) -> 3
-      | Any (Regions _) -> 4
-      | Any (MayEscape _) -> 5
-      | Any (Priority _) -> 6
-      | Any (MayBePublic _) -> 7
-      | Any (MayBePublicWithout _) -> 8
-      | Any (MustBeProtectedBy _) -> 9
-      | Any CurrentLockset -> 10
-      | Any MustBeAtomic -> 11
-      | Any MustBeSingleThreaded -> 12
-      | Any MustBeUniqueThread -> 13
-      | Any CurrentThreadId -> 14
-      | Any MayBeThreadReturn -> 15
-      | Any (EvalFunvar _) -> 16
-      | Any (EvalInt _) -> 17
-      | Any (EvalStr _) -> 18
-      | Any (EvalLength _) -> 19
-      | Any (BlobSize _) -> 20
-      | Any PrintFullState -> 21
-      | Any (CondVars _) -> 22
-      | Any (PartAccess _) -> 23
-      | Any (IterPrevVars _) -> 24
-      | Any (IterVars _) -> 25
-      | Any (MustBeEqual _) -> 26
-      | Any (MayBeEqual _) -> 27
-      | Any (MayBeLess _) -> 28
-      | Any HeapVar -> 29
-      | Any (IsHeapVar _) -> 30
-      | Any (IsMultiple _) -> 31
-      | Any (EvalThread _) -> 32
-      | Any CreatedThreads -> 33
-      | Any MustJoinedThreads -> 34
-      | Any (WarnGlobal _) -> 35
-    in
     let r = Stdlib.compare (order a) (order b) in
     if r <> 0 then
       r
@@ -280,7 +280,7 @@ struct
         [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (MayBeEqual (e1, e2)), Any (MayBeEqual (e3, e4)) ->
         [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
-      | Any (MayBeLess (e1, e2)), Any (MayBeEqual (e3, e4)) ->
+      | Any (MayBeLess (e1, e2)), Any (MayBeLess (e3, e4)) ->
         [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
@@ -288,4 +288,38 @@ struct
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
+
+  let equal x y = compare x y = 0
+
+  let hash_arg = function
+    | Any (EqualSet e) -> CilType.Exp.hash e
+    | Any (MayPointTo e) -> CilType.Exp.hash e
+    | Any (ReachableFrom e) -> CilType.Exp.hash e
+    | Any (ReachableUkTypes e) -> CilType.Exp.hash e
+    | Any (Regions e) -> CilType.Exp.hash e
+    | Any (MayEscape vi) -> CilType.Varinfo.hash vi
+    | Any (Priority s) -> Hashtbl.hash s
+    | Any (MayBePublic x) -> hash_maybepublic x
+    | Any (MayBePublicWithout x) -> hash_maybepublicwithout x
+    | Any (MustBeProtectedBy x) -> hash_mustbeprotectedby x
+    | Any (EvalFunvar e) -> CilType.Exp.hash e
+    | Any (EvalInt e) -> CilType.Exp.hash e
+    | Any (EvalStr e) -> CilType.Exp.hash e
+    | Any (EvalLength e) -> CilType.Exp.hash e
+    | Any (BlobSize e) -> CilType.Exp.hash e
+    | Any (CondVars e) -> CilType.Exp.hash e
+    | Any (PartAccess p) -> hash_partaccess p
+    | Any (IterPrevVars i) -> 0
+    | Any (IterVars i) -> 0
+    | Any (MustBeEqual (e1, e2)) -> [%hash: CilType.Exp.t * CilType.Exp.t] (e1, e2)
+    | Any (MayBeEqual (e1, e2)) -> [%hash: CilType.Exp.t * CilType.Exp.t] (e1, e2)
+    | Any (MayBeLess (e1, e2)) -> [%hash: CilType.Exp.t * CilType.Exp.t] (e1, e2)
+    | Any (IsHeapVar v) -> CilType.Varinfo.hash v
+    | Any (IsMultiple v) -> CilType.Varinfo.hash v
+    | Any (EvalThread e) -> CilType.Exp.hash e
+    | Any (WarnGlobal vi) -> Hashtbl.hash vi
+    (* only argumentless queries should remain *)
+    | _ -> 0
+
+  let hash x = 31 * order x + hash_arg x
 end
