@@ -6,6 +6,6 @@ fi
 
 rm -r out/zstd
 
-timeout --foreground 3h ./scripts/incremental.sh ../test-repos/zstd 7543085013db1a20a848d166e5931edc49e3cc2f big-benchmarks build_compdb_zstd.sh 10
-timeout --foreground 3h ./scripts/incremental.sh ../test-repos/zstd 7543085013db1a20a848d166e5931edc49e3cc2f big-benchmarks1 build_compdb_zstd.sh 10
-timeout --foreground 3h ./scripts/incremental.sh ../test-repos/zstd 7543085013db1a20a848d166e5931edc49e3cc2f big-benchmarks2 build_compdb_zstd.sh 10
+timeout --foreground 3h ./scripts/incremental.sh ../test-repos/zstd dev 7543085013db1a20a848d166e5931edc49e3cc2f big-benchmarks build_compdb_zstd.sh 10
+timeout --foreground 3h ./scripts/incremental.sh ../test-repos/zstd dev 7543085013db1a20a848d166e5931edc49e3cc2f big-benchmarks1 build_compdb_zstd.sh 10
+timeout --foreground 3h ./scripts/incremental.sh ../test-repos/zstd dev 7543085013db1a20a848d166e5931edc49e3cc2f big-benchmarks2 build_compdb_zstd.sh 10

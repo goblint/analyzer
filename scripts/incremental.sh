@@ -2,16 +2,17 @@
 set -e # exit immediately if a command fails
 set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
-if [ $# -lt 4 ]; then
-  echo "Usage: $0 <repo_path> <start_commit> <conf_name> <build_compdb_script> [<number of commits>]"
+if [ $# -lt 5 ]; then
+  echo "Usage: $0 <repo_path> <branch> <start_commit> <conf_name> <build_compdb_script> [<number of commits>]"
   exit 1
 fi
 
 repo_path=${1}
-start_commit=${2}
-conf_name=${3}
-build_compdb=${4}
-limit=${5-"999"}
+branch=${2}
+start_commit=${3}
+conf_name=${4}
+build_compdb=${5}
+limit=${6-"999"}
 limit="$((limit+1))"
 out="out"
 analyzer_dir=$PWD
@@ -26,7 +27,7 @@ function git_bwd() { # checkout previous commit
   git -C $repo_path checkout HEAD^
 }
 function git_fwd() { # checkout next commit
-  git -C $repo_path log --reverse --pretty=%H master | grep -A 1 $(git -C $repo_path rev-parse HEAD) | tail -n1 | xargs git -C $repo_path checkout
+  git -C $repo_path log --reverse --pretty=%H $branch | grep -A 1 $(git -C $repo_path rev-parse HEAD) | tail -n1 | xargs git -C $repo_path checkout
 }
 
 # function git_dirty {
