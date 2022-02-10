@@ -22,6 +22,9 @@
       "sided": {
         "enabled": false
       }
+    },
+    "reluctant": {
+      "on": true
     }
   },
   "solvers": {

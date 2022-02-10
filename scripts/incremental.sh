@@ -27,6 +27,7 @@ function git_bwd() { # checkout previous commit
   git -C $repo_path checkout HEAD^
 }
 function git_fwd() { # checkout next commit
+  git -C $repo_path reset --hard
   git -C $repo_path log --reverse --pretty=%H $branch | grep -A 1 $(git -C $repo_path rev-parse HEAD) | tail -n1 | xargs git -C $repo_path checkout
 }
 
@@ -99,7 +100,7 @@ while
   log "  *.c and *.h: $(git -C $repo_path show --pretty=format:"" --shortstat $commit -- *.c *.h)"
   start=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   # running it with (gtime -v ./goblint ...) doesn't react to ^C
-  (date && ./goblint -v --conf conf/$conf_name.json $repo_path 2>&1) | tee $outc/analyzer.log
+  (date && ./goblint --conf conf/$conf_name.json $repo_path 2>&1) | tee $outc/analyzer.log
   end=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   runtime=$(echo "$end-$start" | bc)
   log "  Goblint ran $runtime seconds"

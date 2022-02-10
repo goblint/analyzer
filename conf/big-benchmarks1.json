@@ -33,5 +33,6 @@
   "dbg": {
     "print_dead_code": true
   },
-  "cppflags": ["-DZSTD_NO_INTRINSICS", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+  "printstats": true,
+  "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
 }
