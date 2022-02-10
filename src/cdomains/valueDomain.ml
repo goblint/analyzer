@@ -860,7 +860,7 @@ struct
               begin
                 do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
               end
-            | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
+            | x when GobOption.exists (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
@@ -998,7 +998,7 @@ struct
               let new_array_value = CArrays.update_length newl new_array_value in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
+            | x when GobOption.exists (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
             | _ -> M.warn "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
       in mu result

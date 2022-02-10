@@ -199,7 +199,7 @@ struct
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
       let default = function
-        | Addr.NullPtr when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
+        | Addr.NullPtr when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_var_offset addr with
@@ -1458,7 +1458,7 @@ struct
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
-        if GU.opt_predicate (BI.equal BI.zero) (ID.to_int x) then
+        if GobOption.exists (BI.equal BI.zero) (ID.to_int x) then
           (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
           ID.top_of ikind)
         else
@@ -2210,7 +2210,7 @@ struct
     | `ThreadJoin (id,ret_var) ->
       let st' =
         match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
-        | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
+        | `Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
             | `Thread a ->
