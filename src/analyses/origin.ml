@@ -191,7 +191,37 @@ struct
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
-    ctx.local
+    let fun_variable = f.svar in
+    (* let node = match !MyCFG.current_node with
+      | Some n -> `Lifted n
+      | _ -> PL.top ()
+    in *)
+    (*let new_origin: Origin.t = (`Lifted fun_variable, node) in
+    let new_origin_set = OriginSet.add new_origin (OriginSet.empty ())  in*)
+    let new_pair = (match exp with
+      | Some (e:exp) ->
+        (match e with
+        | AddrOf _ -> 
+          let possible_values = List.map (
+            fun x -> 
+            let vinfo: varinfo = fst x in
+            let vo_pair = D.find vinfo ctx.local in 
+            (Addr.Addr (vinfo, `NoOffset), vo_pair)
+            ) (mayPointTo ctx e) in 
+          let newAD = List.fold (fun m x -> AD.add (fst x) m) (AD.empty ()) possible_values in
+          let val_origins_from_caller = List.fold (fun s x -> snd(snd x)) (OriginSet.empty ()) possible_values in
+          (newAD, val_origins_from_caller)
+        | Lval (Var vinfo, _) -> let newAD = AD.add (Addr.Addr (vinfo, `NoOffset)) (AD.empty ()) in 
+          let vo_pair = D.find vinfo ctx.local in 
+          let neworigin_set = snd vo_pair in
+          (newAD, neworigin_set)
+        | _ -> (AD.empty (), OriginSet.empty ())
+        )
+      | _ -> AD.top () 
+    ) in
+   let hehehe = D.add fun_variable new_pair ctx.local in
+   let _ = Pretty.printf "Return %s\n" (Pretty.sprint 80 (D.pretty () hehehe)) in
+   hehehe
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* Set the formal int arguments to top *)
@@ -239,7 +269,9 @@ struct
     (* If we have a function call with assignment
         x = f (e1, ... , ek)
         with a local int variable x on the left, we set it to top *)
-    set_local_int_lval_top ctx.local lval
+    (*set_local_int_lval_top ctx.local lval*)
+   let _ = Pretty.printf "AU %s\n" (Pretty.sprint 80 (D.pretty () au)) in
+    ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* When calling a special function, and assign the result to some local int variable, we also set it to top. *)
