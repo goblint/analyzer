@@ -394,16 +394,17 @@ struct
               | _ -> log_top __POS__; AD.top_ptr
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
-          `Array (match v, Prelude.try_opt Cil.lenOfArray l with
-              | `Array x, _ (* Some l' when Some l' = CArrays.length x *) -> x (* TODO handle casts between different sizes? *)
+          (* TODO handle casts between different sizes? *)
+          `Array (match v with
+              | `Array x -> x
               | _ -> log_top __POS__; CArrays.top ()
             )
         | TComp (ci,_) -> (* struct/union *)
           (* rather clumsy, but our abstract values don't keep their type *)
           let same_struct x = (* check if both have the same parent *)
-            (* compinfo is cyclic, so we only check the name *)
-            try compFullName (List.hd (Structs.keys x)).fcomp = compFullName (List.hd ci.cfields).fcomp
-            with _ -> false (* can't say if struct is empty *)
+            match Structs.keys x, ci.cfields with
+            | k :: _, f :: _ -> compFullName k.fcomp = compFullName f.fcomp (* compinfo is cyclic, so we only check the name *)
+            | _, _ -> false (* can't say if struct is empty *)
           in
           (* 1. casting between structs of different type does not work
            * 2. dereferencing a casted pointer works, but is undefined behavior because of the strict aliasing rule (compiler assumes that pointers of different type can never point to the same location)

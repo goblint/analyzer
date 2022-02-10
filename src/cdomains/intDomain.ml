@@ -218,7 +218,7 @@ struct
   let equal_to (x: int_t) (a: t)=
     try
       Old.equal_to (BI.to_int64 x) a
-    with e -> `Top
+    with Z.Overflow | Failure _ -> `Top
 
   let to_excl_list a = Option.map (List.map BI.of_int64) (Old.to_excl_list a)
   let of_excl_list ik xs =
@@ -393,7 +393,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
-  let is_int64_big_int x = try let _ = int64_of_big_int x in true with _ -> false
+  let is_int64_big_int x = Z.fits_int64 x
   let card ik = (* cardinality *)
     let b = bit ik in
     shift_left_big_int unit_big_int b
@@ -822,12 +822,9 @@ struct
     | Some (x1, x2) ->
       let open Invariant in
       let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      (try
-        (* Cilfacade.typeOf will fail if c is heap allocated *)
-        let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c, intType)) else none in
-        let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kintegerCilint ik x2', intType)) else none in
-        i1 && i2
-      with e -> None)
+      let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c, intType)) else none in
+      let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kintegerCilint ik x2', intType)) else none in
+      i1 && i2
     | None -> None
 
   let arbitrary ik =
@@ -2443,11 +2440,9 @@ struct
       let c = Ints_t.to_bigint c in
       Invariant.of_exp Cil.(BinOp (Eq, l, Cil.kintegerCilint ik c, intType))
     | Some (c, m) ->
-       let open Cil in
-       let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
-       (try
-          Invariant.of_exp (BinOp (Eq, (BinOp (Mod, l, m, TInt(ik,[]))), c, intType))
-        with e -> None)
+      let open Cil in
+      let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
+      Invariant.of_exp (BinOp (Eq, (BinOp (Mod, l, m, TInt(ik,[]))), c, intType))
     | None -> None
 
   let arbitrary ik =
@@ -2656,7 +2651,7 @@ module IntDomTupleImpl = struct
     mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_incl_list } x |> flat merge
 
 
-  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
+  let pretty () = (fun xs -> text "(" ++ (try List.reduce (fun a b -> a ++ text "," ++ b) xs with Invalid_argument _ -> nil) ++ text ")") % to_list % mapp { fp = fun (type a) (module I:S with type t = a) -> (* assert sf==I.short; *) I.pretty () } (* NOTE: the version above does something else. also, we ignore the sf-argument here. *)
 
 
   let refine_functions ik : (t -> t) list =
