@@ -110,6 +110,7 @@ module Validator (Schema: Schema) =
 struct
   let schema_encoding = encoding_of_schema Schema.schema
 
+  (** Raises [Json_encoding.Cannot_destruct] if invalid. *)
   let validate_exn json = JE.destruct schema_encoding json
 
   (* TODO: bool-returning validate? *)
