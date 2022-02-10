@@ -142,6 +142,7 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
+    (*let _ = Pretty.printf "assign %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in*)
     let node = match !MyCFG.current_node with
       | Some n -> `Lifted n
       | _ -> PL.top ()
@@ -194,7 +195,35 @@ struct
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* Set the formal int arguments to top *)
-    let callee_state = List.fold (fun m l -> D.add l (AD.empty (), OriginSet.empty ()) m) (D.bot ()) f.sformals in
+    (* let _ = Pretty.printf "enter %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in *)
+    (* let prexp e =
+      let _ = printf "Argument: %a\n" (printExp plainCilPrinter) e in
+      ()
+    in
+    let _ = List.iter (fun a -> prexp a) args in *)
+    (* let callee_state = List.fold (fun m l -> D.add l (AD.empty (), OriginSet.empty ()) m) (D.bot ()) f.sformals in *)
+    let callee_state = List.fold_left2 (fun m l1 l2 -> 
+        let res = (match (l2:exp) with
+          | AddrOf _ -> 
+            let possible_values = List.map (
+              fun x -> 
+              let vinfo: varinfo = fst x in
+              let vo_pair = D.find vinfo ctx.local in 
+              (Addr.Addr (vinfo, `NoOffset), vo_pair)
+              ) (mayPointTo ctx l2) in 
+            let newAD = List.fold (fun m x -> AD.add (fst x) m) (AD.empty ()) possible_values in
+            let val_origins_from_caller = List.fold (fun s x -> snd(snd x)) (OriginSet.empty ()) possible_values in
+            (newAD, val_origins_from_caller)
+          | Lval (Var vinfo, _) -> let newAD = AD.add (Addr.Addr (vinfo, `NoOffset)) (AD.empty ()) in 
+            let vo_pair = D.find vinfo ctx.local in 
+            let neworigin_set = snd vo_pair in
+            (newAD, neworigin_set)
+          | _ -> (AD.empty (), OriginSet.empty ()) 
+        )
+        in
+        D.add l1 res m
+      ) (D.bot ()) f.sformals args in
+    (* let _ = Pretty.printf "new state %s\n" (Pretty.sprint 80 (D.pretty () callee_state)) in *)
     [(ctx.local, callee_state)]
 
   let set_local_int_lval_top (state: D.t) (lval: lval option) =
