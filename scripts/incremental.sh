@@ -2,16 +2,19 @@
 set -e # exit immediately if a command fails
 set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
-if [ $# -lt 2 ]; then
-  echo "Usage: $0 <repo_path> <start_commit> [<number of commits>]"
+if [ $# -lt 4 ]; then
+  echo "Usage: $0 <repo_path> <start_commit> <conf_name> <build_compdb_script> [<number of commits>]"
   exit 1
 fi
 
 repo_path=${1}
 start_commit=${2}
-limit=${3-"999"}
+conf=${3}
+build_compdb=${4}
+limit=${5-"999"}
 limit="$((limit+1))"
 out="out"
+analyzer_dir=$PWD
 
 # files to exclude from diff for a meaningful measurement of changed LOC
 diff_exclude=""
@@ -51,7 +54,7 @@ function finish {
 trap finish EXIT
 
 
-outp=$out/$(basename $repo_path)
+outp=$out/$(basename $repo_path)/$conf
 
 rm -rf "$outp"
 rm -rf "incremental_data"
@@ -80,6 +83,8 @@ while
   outc=$outp/$commit
   mkdir -p $outc
   git -C $repo_path show > $outc/commit.patch
+  log "Build compilation database"
+  (cd $repo_path && $analyzer_dir/scripts/$build_compdb)
   log "Analyze $i. commit $commit"
   if [ -e "$repo_path/.gob/$commit" ]; then
     log "  Incremental results for this commit already exists!"
@@ -93,7 +98,7 @@ while
   log "  *.c and *.h: $(git -C $repo_path show --pretty=format:"" --shortstat $commit -- *.c *.h)"
   start=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   # running it with (gtime -v ./goblint ...) doesn't react to ^C
-  (date && ./goblint -v --conf conf/incremental.json $repo_path/Makefile 2>&1) | tee $outc/analyzer.log
+  (date && ./goblint -v --conf conf/$conf_file.json $repo_path 2>&1) | tee $outc/analyzer.log
   end=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   runtime=$(echo "$end-$start" | bc)
   log "  Goblint ran $runtime seconds"
