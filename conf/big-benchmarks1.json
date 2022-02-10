@@ -1,0 +1,37 @@
+{
+  "ana": {
+    "base": {
+      "privatization": "none"
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "spawn": false
+    }
+  },
+  "incremental": {
+    "save": true,
+    "load": true,
+    "restart": {
+      "sided": {
+        "enabled": false
+      }
+    }
+  },
+  "solvers": {
+    "td3": {
+      "restart": {
+        "wpoint": {
+          "enabled": false
+        }
+      }
+    }
+  },
+  "exp": {
+    "earlyglobs": true
+  },
+  "dbg": {
+    "print_dead_code": true
+  },
+  "cppflags": ["-DZSTD_NO_INTRINSICS", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+}
