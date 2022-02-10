@@ -160,6 +160,8 @@ let analyze ?(reset=false) (s: t) =
   let increment_data, fresh = increment_data s file reparsed in
   Cilfacade.reset_lazy ();
   WideningThresholds.reset_lazy ();
+  IntDomain.reset_lazy ();
+  ApronDomain.reset_lazy ();
   s.file <- file;
   GobConfig.set_bool "incremental.load" (not fresh);
   s.do_analyze increment_data s.file;

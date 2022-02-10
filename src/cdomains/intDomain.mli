@@ -4,6 +4,8 @@
 val should_wrap: Cil.ikind -> bool
 val should_ignore_overflow: Cil.ikind -> bool
 
+val reset_lazy: unit -> unit
+
 module type Arith =
 sig
   type t
