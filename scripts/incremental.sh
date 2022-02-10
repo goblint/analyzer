@@ -9,7 +9,7 @@ fi
 
 repo_path=${1}
 start_commit=${2}
-conf=${3}
+conf_name=${3}
 build_compdb=${4}
 limit=${5-"999"}
 limit="$((limit+1))"
@@ -54,7 +54,7 @@ function finish {
 trap finish EXIT
 
 
-outp=$out/$(basename $repo_path)/$conf
+outp=$out/$(basename $repo_path)/$conf_name
 
 rm -rf "$outp"
 rm -rf "incremental_data"
@@ -69,7 +69,7 @@ loc=$(git -C $repo_path diff --shortstat 4b825dc642cb6eb9a060e54bf8d69288fbee490
 git -C $repo_path checkout $start_commit
 i=1
 prev_commit=''
-echo -e "index\tcommit\tl_ins\tl_del\tl_max\ttime\ttime(internally)\tvars\tevals\tchanged\tadded\tremoved\tchanged_start\tnew_start" >> $outp/incremental_runtime.log
+echo -e "index\tcommit\tl_ins\tl_del\tl_max\ttime\ttime(internally)\tvars\tevals\tchanged\tadded\tremoved\tchanged_start\tnew_start\tmem_safe\tmem_vulnerable\tmem_unsafe\tmem_total" >> $outp/incremental_runtime.log
 while
   commit=$(git -C $repo_path rev-parse HEAD)
   if [ "$commit" = "$prev_commit" ]; then
@@ -98,7 +98,7 @@ while
   log "  *.c and *.h: $(git -C $repo_path show --pretty=format:"" --shortstat $commit -- *.c *.h)"
   start=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   # running it with (gtime -v ./goblint ...) doesn't react to ^C
-  (date && ./goblint -v --conf conf/$conf_file.json $repo_path 2>&1) | tee $outc/analyzer.log
+  (date && ./goblint -v --conf conf/$conf_name.json $repo_path 2>&1) | tee $outc/analyzer.log
   end=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   runtime=$(echo "$end-$start" | bc)
   log "  Goblint ran $runtime seconds"
