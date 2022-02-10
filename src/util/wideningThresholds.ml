@@ -18,7 +18,7 @@ class extractConstantsVisitor(widening_thresholds,widening_thresholds_incl_mul2)
     | _ -> DoChildren
 end
 
-let widening_thresholds = lazy (
+let widening_thresholds = ResettableLazy.from_fun (fun () ->
   let set = ref Thresholds.empty in
   let set_incl_mul2 = ref Thresholds.empty in
   let thisVisitor = new extractConstantsVisitor(set,set_incl_mul2) in
@@ -26,7 +26,10 @@ let widening_thresholds = lazy (
   Thresholds.elements !set, Thresholds.elements !set_incl_mul2)
 
 let thresholds () =
-  fst @@ Lazy.force widening_thresholds
+  fst @@ ResettableLazy.force widening_thresholds
 
 let thresholds_incl_mul2 () =
-  snd @@ Lazy.force widening_thresholds
+  snd @@ ResettableLazy.force widening_thresholds
+
+let reset_lazy () =
+  ResettableLazy.reset widening_thresholds

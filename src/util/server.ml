@@ -158,6 +158,8 @@ let analyze ?(reset=false) (s: t) =
     Messages.Table.(MH.clear messages_table);
     Messages.Table.messages_list := []);
   let increment_data, fresh = increment_data s file reparsed in
+  Cilfacade.reset_lazy ();
+  WideningThresholds.reset_lazy ();
   s.file <- file;
   GobConfig.set_bool "incremental.load" (not fresh);
   s.do_analyze increment_data s.file;
