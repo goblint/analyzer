@@ -105,6 +105,10 @@ while
   removed=$(grep 'change_info = { ' $outc/analyzer.log | cut -d" " -f15 | cut -d";" -f1)
   changed_start=$(grep 'has changed start state' $outc/analyzer.log | wc -l)
   new_start=$(grep 'New start function' $outc/analyzer.log | wc -l)
+  mem_safe=$(grep -E '[^(un)]safe:' $outc/analyzer.log | tr -s ' ' | cut -d" " -f2)
+  mem_vulnerable=$(grep 'vulnerable:' $outc/analyzer.log | tr -s ' ' | cut -d" " -f2)
+  mem_unsafe=$(grep 'unsafe:' $outc/analyzer.log | tr -s ' ' | cut -d" " -f2)
+  mem_total=$(grep 'total:' $outc/analyzer.log | tr -s ' ' | cut -d" " -f2)
   l_ins=0
   l_del=0
   if [[ $loc == *"insertion"* ]]; then
@@ -122,7 +126,7 @@ while
   else
     l_max=$l_ins
   fi
-  echo -e "$i\t$commit\t$l_ins\t$l_del\t$l_max\t$runtime\t$internal_runtime\t$vars\t$evals\t$changed\t$added\t$removed\t$changed_start\t$new_start" >> $outp/incremental_runtime.log
+  echo -e "$i\t$commit\t$l_ins\t$l_del\t$l_max\t$runtime\t$internal_runtime\t$vars\t$evals\t$changed\t$added\t$removed\t$changed_start\t$new_start\t$mem_safe\t$mem_vulnerable\t$mem_unsafe\t$mem_total" >> $outp/incremental_runtime.log
   log "  $(grep 'evals = ' $outc/analyzer.log)"
   log "  $(grep 'change_info = ' $outc/analyzer.log)"
   log "  Obsolete functions: $(grep 'Obsolete function' $outc/analyzer.log | wc -l)"
