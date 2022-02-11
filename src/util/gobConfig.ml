@@ -178,11 +178,17 @@ struct
   let rec get_value o pth =
     match o, pth with
     | o, Here -> o
-    | `Assoc m, Select (key,pth) -> begin
+    | `Assoc m, Select (key,pth) ->
+      begin
         try get_value (List.assoc key m) pth
-        with Not_found -> raise ConfTypeError end
-    | `List a, Index (Int i, pth) -> get_value (List.at a i) pth
-    | _ -> raise ConfTypeError
+        with Not_found -> raise ConfTypeError
+      end
+    | `List a, Index (Int i, pth) ->
+      begin
+        try get_value (List.at a i) pth
+        with Invalid_argument _ -> raise ConfTypeError
+      end
+    | _, _ -> raise ConfTypeError
 
   (** Recursively create the value for some new path. *)
   let rec create_new v = function
@@ -268,7 +274,7 @@ struct
       let st, x =
         let g st = st, get_value !json_conf (parse_path st) in
         try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
-        with _ -> g st (* do global lookup if undefined *)
+        with ConfTypeError -> g st (* do global lookup if undefined *)
       in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x

@@ -1392,20 +1392,6 @@
           "type": "boolean",
           "default": true
         },
-        "uninit-ptr-safe": {
-          "title": "exp.uninit-ptr-safe",
-          "description":
-            "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null.",
-          "type": "boolean",
-          "default": false
-        },
-        "ptr-arith-safe": {
-          "title": "exp.ptr-arith-safe",
-          "description":
-            "Assume that pointer arithmetic only yields safe addresses.",
-          "type": "boolean",
-          "default": false
-        },
         "architecture": {
           "title": "exp.architecture",
           "description": "Architecture for analysis, currently for witness",

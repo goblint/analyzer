@@ -234,7 +234,6 @@ struct
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
-        ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         }
       in
       let edges = CfgTools.getGlobalInits file in
@@ -332,7 +331,6 @@ struct
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
-        ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
@@ -367,7 +365,6 @@ struct
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
-        ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
       (* TODO: don't hd *)
@@ -558,7 +555,6 @@ struct
             ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
             ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
             ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-            ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
             }
           in
           Spec.query ctx
@@ -613,7 +609,6 @@ struct
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
         }
       in
       match g with

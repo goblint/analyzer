@@ -127,7 +127,7 @@ module ExpEval : Transform.S =
             (* Evaluable: Definite *)
           | Some x when Queries.ID.is_int x -> Some (Some (not(IntOps.BigIntOps.equal (Option.get @@ Queries.ID.to_int x) IntOps.BigIntOps.zero)))
             (* Inapplicable: Unreachable *)
-          | Some x when Queries.ID.is_bot x -> None
+          | Some x when Queries.ID.is_bot_ikind x -> None
             (* Evaluable: Inconclusive *)
           | Some x -> Some None
             (* Inapplicable: Unlisted *)

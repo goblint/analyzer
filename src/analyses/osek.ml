@@ -441,11 +441,11 @@ struct
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if !GU.should_warn then begin
           let new_acc = ((loc,fl,rv),ust,o) in
-          let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
+          let curr : AccValSet.t = Acc.find_default acc v AccValSet.empty in
           let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) (remove_acc new_acc curr) in
           Acc.replace acc v neww;
           accKeys := AccKeySet.add v !accKeys;
-          let curr = try Hashtbl.find off_pry_with_flag v.vname with _ -> [] in
+          let curr = Hashtbl.find_default off_pry_with_flag v.vname [] in
           let pry = offpry [new_acc] in
           Hashtbl.replace off_pry_with_flag v.vname ((flagstate,pry)::curr)
         end ;
@@ -584,7 +584,7 @@ struct
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int pry (* TODO: what ikind to use for priorities? *)
-    | Queries.Priority vname -> begin try Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end (* TODO: what ikind to use for priorities? *)
+    | Queries.Priority vname -> begin try Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int (Hashtbl.find offensivepriorities vname) with Not_found -> Queries.Result.top q end (* TODO: what ikind to use for priorities? *)
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then

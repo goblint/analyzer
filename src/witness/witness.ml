@@ -309,7 +309,6 @@ struct
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }
       in
       Spec.query ctx

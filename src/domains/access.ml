@@ -154,13 +154,14 @@ type var_o = varinfo option
 type off_o = offset  option
 
 let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
-  try (* FIXME: Cilfacade.typeOf fails on our fake variables: (struct s).data *)
-    let t = Cilfacade.typeOf e in
-    match vo, oo with
-    | Some v, Some o -> get_type t (AddrOf (Var v, o))
-    | Some v, None -> get_type t (AddrOf (Var v, NoOffset))
-    | _ -> get_type t e
-  with _ -> get_type voidType e
+  match Cilfacade.typeOf e with
+  | t ->
+    begin match vo, oo with
+      | Some v, Some o -> get_type t (AddrOf (Var v, o))
+      | Some v, None -> get_type t (AddrOf (Var v, NoOffset))
+      | _ -> get_type t e
+    end
+  | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
 let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin

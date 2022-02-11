@@ -511,7 +511,6 @@ struct
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = (fun g d -> sideg (GVar.spec g) (G.create_spec d))
-      ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
     and spawn lval f args =
       (* TODO: adjust ctx node/edge? *)
