@@ -10,10 +10,8 @@
         "restart": {
             "sided": {
                 "enabled": false
-            }
-        },
-        "restart_globs": {
-            "globs": []
+            },
+            "list": []
         }
     }
 }

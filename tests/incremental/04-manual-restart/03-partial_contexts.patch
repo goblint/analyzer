@@ -12,15 +12,15 @@ index a2a701673..d0b4d3efc 100644
      assert(x == y);
      return 0;
 diff --git tests/incremental/04-manual-restart/03-partial_contexts.json tests/incremental/04-manual-restart/03-partial_contexts.json
-index 99334fccb..42a1da505 100644
+index 96011c871..0a42408a0 100644
 --- tests/incremental/04-manual-restart/03-partial_contexts.json
 +++ tests/incremental/04-manual-restart/03-partial_contexts.json
-@@ -13,7 +13,9 @@
-             }
-         },
-         "restart_globs": {
--            "globs": []
-+            "globs": [
+@@ -11,7 +11,9 @@
+             "sided": {
+                 "enabled": false
+             },
+-            "list": []
++            "list": [
 +                "foo"
 +            ]
          }

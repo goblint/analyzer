@@ -18,15 +18,15 @@ index 8a93caabe..521322dd0 100644
  
  int main(){
 diff --git tests/incremental/04-manual-restart/02-read_write_global.json tests/incremental/04-manual-restart/02-read_write_global.json
-index 8685ac3b7..b0bb607d9 100644
+index 33dd19da4..0820029df 100644
 --- tests/incremental/04-manual-restart/02-read_write_global.json
 +++ tests/incremental/04-manual-restart/02-read_write_global.json
-@@ -15,7 +15,9 @@
-             }
-         },
-         "restart_globs": {
--            "globs": []
-+            "globs": [
+@@ -13,7 +13,9 @@
+             "sided": {
+                 "enabled": false
+             },
+-            "list": []
++            "list": [
 +                "g"
 +            ]
          }

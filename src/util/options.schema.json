@@ -910,22 +910,6 @@
           },
           "additionalProperties": false
         },
-        "restart_globs": {
-          "title": "incremental.restart_globs",
-          "type": "object",
-          "properties": {
-            "globs": {
-              "title": "incremental.restart_globs.globs",
-              "description": "List of globals for which the analysis is to be restarted.",
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": []
-            }
-          },
-          "additionalProperties": false
-        },
         "restart": {
           "title": "incremental.restart",
           "type": "object",
@@ -948,6 +932,15 @@
                 }
               },
               "additionalProperties": false
+            },
+            "list": {
+              "title": "incremental.restart.list",
+              "description": "List of globals variables and function definitions for which the analysis is to be restarted.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
             }
           },
           "additionalProperties": false
