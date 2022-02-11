@@ -779,7 +779,6 @@ struct
       ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
       ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
       ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-      ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
       }
     in
     let f v = fg (GVar.spec (Obj.obj v)) in
