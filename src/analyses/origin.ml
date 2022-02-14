@@ -88,8 +88,8 @@ struct
     | TPtr _ -> true
     | _ -> false
 
-  let get_local = function
-    | Var v, NoOffset when is_pointer_var v && not v.vglob -> Some v (* local pointer variable whose address is maybe taken *)
+  let get_pointer = function
+    | Var v, NoOffset when is_pointer_var v (* && not v.vglob *)-> Some v (* pointer variable whose address is maybe taken *)
     | _, _ -> None
 
   let contains s1 s2 =
@@ -155,9 +155,14 @@ struct
       | Some n -> `Lifted n
       | _ -> PL.top ()
     in
-    match get_local lval with
+    match get_pointer lval with
     (* | Some loc -> D.add loc (eval ctx.local rval node) ctx.local *)
     | Some loc -> 
+      let domain:D.t = if loc.vglob then
+        ctx.local
+      else
+        ctx.local
+      in
       (* let _ = Pretty.printf "assign to the var %s\n" loc.vname in *)
       let curr_val_origin_pair = D.find loc ctx.local in
       let curr_val = fst curr_val_origin_pair in
@@ -202,6 +207,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
     let fun_variable = f.svar in
+    let v_out = Goblintutil.create_var @@ makeVarinfo false (fun_variable.vname ^ "#out") fun_variable.vtype in (* temporary local f#out for the output of the function f *)
     (* let node = match !MyCFG.current_node with
        | Some n -> `Lifted n
        | _ -> PL.top ()
@@ -239,7 +245,7 @@ struct
           )
         | _ -> let _ = printf "No value\n" in AD.top () 
       ) in
-    let o = D.add fun_variable new_pair ctx.local in
+    let o = D.add v_out new_pair ctx.local in
     let _ = Pretty.printf "Return %s\n" (Pretty.sprint 80 (D.pretty () o)) in 
     o
 
@@ -279,7 +285,7 @@ struct
   let set_local_int_lval_top (state: D.t) (lval: lval option) =
     match lval with
     | Some lv ->
-      (match get_local lv with
+      (match get_pointer lv with
        | Some local -> D.add local (AD.empty (), OriginSet.empty ()) state
        | _ -> state
       )
@@ -288,7 +294,7 @@ struct
   let set_local_int_lval_to_fun_result (state: D.t) (lval: lval option) (f:fundec) (au:D.t) =
     match lval with
     | Some lv ->
-      (match get_local lv with
+      (match get_pointer lv with
        | Some local -> let _ = Pretty.printf "STATE %s\n" (Pretty.sprint 80 (D.pretty () au)) in D.add local (D.find f.svar au) state
        | _ -> state
       )
