@@ -32,7 +32,6 @@ struct
   (* Map of Variable -> Pair (AddressSet, OriginSet) *)
   module D = struct
     include MapDomain.MapBot (Basetype.Variables) (ValueOriginPair)
-
     type t = MapDomain.MapBot(Basetype.Variables)(ValueOriginPair).t
 
     let check_precision_loss (m1: t) (m2: t) (res: t) =
@@ -139,7 +138,6 @@ struct
       M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       []
   (*`Top*)
-
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     (*let _ = printf "This i on the left: %a\n" (printExp plainCilPrinter) (Lval lval) in
