@@ -142,6 +142,8 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
+    (*let _ = printf "This i on the left: %a\n" (printExp plainCilPrinter) (Lval lval) in
+    let _ = printf "This is being assigned: %a\n" (printExp plainCilPrinter) rval in*)
     (*let _ = Pretty.printf "assign %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in*)
     let node = match !MyCFG.current_node with
       | Some n -> `Lifted n
@@ -150,6 +152,7 @@ struct
     match get_local lval with
     (* | Some loc -> D.add loc (eval ctx.local rval node) ctx.local *)
     | Some loc -> 
+      (* let _ = Pretty.printf "assign to the var %s\n" loc.vname in *)
       let curr_val_origin_pair = D.find loc ctx.local in
       let curr_val = fst curr_val_origin_pair in
       let curr_origin_set = snd curr_val_origin_pair in
@@ -173,7 +176,8 @@ struct
       let ret = D.add loc new_pair ctx.local in
       (*let _ = Pretty.printf "after %s\n" (Pretty.sprint 80 (D.pretty () ret)) in*)
       ret
-    | None -> ctx.local
+    | None -> 
+    (* let _ = Pretty.printf "assign to NOTHING\n"  in *) ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
   (*let node = match !MyCFG.current_node with
@@ -199,9 +203,9 @@ struct
     (*let new_origin: Origin.t = (`Lifted fun_variable, node) in
     let new_origin_set = OriginSet.add new_origin (OriginSet.empty ())  in*)
     let new_pair = (match exp with
-      | Some (e:exp) ->
+      | Some (e:exp) -> let _ = printf "EXPRESSION: %a\n" (printExp plainCilPrinter) e in
         (match e with
-        | AddrOf _ -> 
+        | AddrOf _ ->  let _ = printf "CASE 1\n" in 
           let possible_values = List.map (
             fun x -> 
             let vinfo: varinfo = fst x in
@@ -211,17 +215,27 @@ struct
           let newAD = List.fold (fun m x -> AD.add (fst x) m) (AD.empty ()) possible_values in
           let val_origins_from_caller = List.fold (fun s x -> snd(snd x)) (OriginSet.empty ()) possible_values in
           (newAD, val_origins_from_caller)
-        | Lval (Var vinfo, _) -> let newAD = AD.add (Addr.Addr (vinfo, `NoOffset)) (AD.empty ()) in 
+        | Lval (Var vinfo, _) ->  let _ = printf "CASE 2\n" in  let newAD = AD.add (Addr.Addr (vinfo, `NoOffset)) (AD.empty ()) in 
           let vo_pair = D.find vinfo ctx.local in 
           let neworigin_set = snd vo_pair in
           (newAD, neworigin_set)
-        | _ -> (AD.empty (), OriginSet.empty ())
+        | CastE(_, AddrOf _) -> let _ = printf "CASE 1\n" in 
+        let possible_values = List.map (
+          fun x -> 
+          let vinfo: varinfo = fst x in
+          let vo_pair = D.find vinfo ctx.local in 
+          (Addr.Addr (vinfo, `NoOffset), vo_pair)
+          ) (mayPointTo ctx e) in 
+        let newAD = List.fold (fun m x -> AD.add (fst x) m) (AD.empty ()) possible_values in
+        let val_origins_from_caller = List.fold (fun s x -> snd(snd x)) (OriginSet.empty ()) possible_values in
+        (newAD, val_origins_from_caller)
+        | _ ->  let _ = printf "CASE 3\n" in  (AD.empty (), OriginSet.empty ())
         )
-      | _ -> AD.top () 
+      | _ -> let _ = printf "No value\n" in AD.top () 
     ) in
-   let hehehe = D.add fun_variable new_pair ctx.local in
-   let _ = Pretty.printf "Return %s\n" (Pretty.sprint 80 (D.pretty () hehehe)) in
-   hehehe
+   let o = D.add fun_variable new_pair ctx.local in
+    let _ = Pretty.printf "Return %s\n" (Pretty.sprint 80 (D.pretty () o)) in 
+   o
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* Set the formal int arguments to top *)
@@ -265,17 +279,33 @@ struct
       )
     |_ -> state
 
+  let set_local_int_lval_to_fun_result (state: D.t) (lval: lval option) (f:fundec) (au:D.t) =
+    match lval with
+    | Some lv ->
+      (match get_local lv with
+        | Some local -> let _ = Pretty.printf "STATE %s\n" (Pretty.sprint 80 (D.pretty () au)) in D.add local (D.find f.svar au) state
+        | _ -> state
+      )
+    |_ -> state
+
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
     (* If we have a function call with assignment
         x = f (e1, ... , ek)
         with a local int variable x on the left, we set it to top *)
     (*set_local_int_lval_top ctx.local lval*)
-   let _ = Pretty.printf "AU %s\n" (Pretty.sprint 80 (D.pretty () au)) in
-    ctx.local
+    let _ = Pretty.printf "AU %s\n" (Pretty.sprint 80 (D.pretty () au)) in
+    match lval with
+      | Some (Var v, _) -> let value = D.find f.svar au in
+        D.add v value ctx.local
+      | _ -> ctx.local
+   
+    (* set_local_int_lval_to_fun_result ctx.local lval f au *)
+    
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* When calling a special function, and assign the result to some local int variable, we also set it to top. *)
-    set_local_int_lval_top ctx.local lval
+    (* set_local_int_lval_top ctx.local lval *)
+    ctx.local
 
   let startstate v = D.bot ()
   let exitstate v = D.top () (* TODO: why is this different from startstate? *)
