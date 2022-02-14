@@ -11,10 +11,7 @@
 
 open Prelude
 open Analyses
-open Constraints
 open Messages
-open CompareCIL
-open Cil
 
 module WP =
   functor (Arg: IncrSolverArg) ->
@@ -523,8 +520,6 @@ module WP =
       start_event ();
 
       if GobConfig.get_bool "incremental.load" then (
-        let c = S.increment.changes in
-        List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
 
         let restart_leaf x =
           if tracing then trace "sol2" "Restarting to bot %a\n" S.Var.pretty_trace x;
@@ -598,110 +593,31 @@ module WP =
           else
             destabilize_normal;
 
-        let changed_funs = List.filter_map (function
-            | {old = GFun (f, _); diff = None; _} ->
-              print_endline ("Completely changed function: " ^ f.svar.vname);
-              Some f
-            | _ -> None
-          ) S.increment.changes.changed
-        in
-        let part_changed_funs = List.filter_map (function
-            | {old = GFun (f, _); diff = Some nd; _} ->
-              print_endline ("Partially changed function: " ^ f.svar.vname);
-              Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
-            | _ -> None
-          ) S.increment.changes.changed
-        in
-        let removed_funs = List.filter_map (function
-            | GFun (f, _) ->
-              print_endline ("Removed function: " ^ f.svar.vname);
-              Some f
-            | _ -> None
-          ) S.increment.changes.removed
-        in
-
-        let mark_node hm f node =
-          let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
-          S.iter_vars get (Node {node; fundec = Some f}) (fun v ->
-              HM.replace hm v ()
-            )
-        in
-
-        let obsolete_ret = HM.create 103 in
-        let obsolete_entry = HM.create 103 in
-        let obsolete_prim = HM.create 103 in
-        List.iter (fun f ->
-            mark_node obsolete_entry f (FunctionEntry f);
-            mark_node obsolete_ret f (Function f);
-          ) changed_funs;
-        List.iter (fun (f, pn, _) ->
-            List.iter (fun n ->
-                mark_node obsolete_prim f n
-              ) pn;
-            mark_node obsolete_ret f (Function f);
-          ) part_changed_funs;
+        let sys_change = S.sys_change (fun v -> try HM.find rho v with Not_found -> S.Dom.bot ()) in
 
         let old_ret = HM.create 103 in
         if GobConfig.get_bool "incremental.reluctant.on" then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
-          HM.iter (fun k v ->
+          List.iter (fun k ->
               if HM.mem rho k then (
                 let old_rho = HM.find rho k in
                 let old_infl = HM.find_default infl k VS.empty in
                 HM.replace old_ret k (old_rho, old_infl)
               )
-            ) obsolete_ret;
+            ) sys_change.reluctant;
         ) else (
           (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
              and the primary obsolete nodes of partly changed functions *)
           print_endline "Destabilizing changed functions and primary old nodes ...";
-          HM.iter (fun k _ ->
+          List.iter (fun k ->
               if HM.mem stable k then
                 destabilize k
-            ) obsolete_entry;
-          HM.iter (fun k _ ->
-              if HM.mem stable k then
-                destabilize k
-            ) obsolete_prim;
+            ) sys_change.obsolete;
         );
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
-        let marked_for_deletion = HM.create 103 in
-
-        let dummy_pseudo_return_node f =
-          (* not the same as in CFG, but compares equal because of sid *)
-          Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
-        in
-        let add_nodes_of_fun (functions: fundec list) withEntry =
-          let add_stmts (f: fundec) =
-            List.iter (fun s ->
-                mark_node marked_for_deletion f (Statement s)
-              ) f.sallstmts
-          in
-          List.iter (fun f ->
-              if withEntry then
-                mark_node marked_for_deletion f (FunctionEntry f);
-              mark_node marked_for_deletion f (Function f);
-              add_stmts f;
-              mark_node marked_for_deletion f (dummy_pseudo_return_node f)
-            ) functions;
-        in
-
-        add_nodes_of_fun changed_funs (not (GobConfig.get_bool "incremental.reluctant.on"));
-        add_nodes_of_fun removed_funs true;
-        (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
-        let add_pseudo_return f un =
-          let pseudo = dummy_pseudo_return_node f in
-          if not (List.exists (Node.equal pseudo % fst) un) then
-            mark_node marked_for_deletion f (dummy_pseudo_return_node f)
-        in
-        List.iter (fun (f,_,un) ->
-            mark_node marked_for_deletion f (Function f);
-            add_pseudo_return f un
-          ) part_changed_funs;
-
         print_endline "Removing data for changed and removed functions...";
-        let delete_marked s = HM.iter (fun k _ -> HM.remove s k) marked_for_deletion in
+        let delete_marked s = List.iter (fun k -> HM.remove s k) sys_change.delete in
         delete_marked rho;
         delete_marked infl;
         delete_marked wpoint;
@@ -710,12 +626,12 @@ module WP =
         if restart_sided then (
           (* restarts old copies of functions and their (removed) side effects *)
           print_endline "Destabilizing sides of changed functions, primary old nodes and removed functions ...";
-          HM.iter (fun k _ ->
+          List.iter (fun k ->
               if HM.mem stable k then (
                 ignore (Pretty.printf "marked %a\n" S.Var.pretty_trace k);
                 destabilize k
               )
-            ) marked_for_deletion
+            ) sys_change.delete
         );
 
         let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)

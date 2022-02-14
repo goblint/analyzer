@@ -448,6 +448,12 @@ let empty_increment_data file = {
   changes = CompareCIL.empty_change_info ()
 }
 
+type 'v sys_change_info = {
+  obsolete: 'v list;
+  delete: 'v list;
+  reluctant: 'v list;
+}
+
 (** A side-effecting system. *)
 module type MonSystem =
 sig
@@ -471,6 +477,7 @@ sig
   val increment : increment_data
 
   val iter_vars: (v -> d) -> VarQuery.t -> v VarQuery.f -> unit
+  val sys_change: (v -> d) -> v sys_change_info
 end
 
 (** Any system of side-effecting equations over lattices. *)
@@ -487,6 +494,7 @@ sig
   val increment : increment_data
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
   val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
+  val sys_change: (LVar.t -> D.t) -> (GVar.t -> G.t) -> [`L of LVar.t | `G of GVar.t] sys_change_info
 end
 
 (** A solver is something that can translate a system into a solution (hash-table).
