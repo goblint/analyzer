@@ -18,6 +18,7 @@ struct
   module D = Lattice.HConsed (S.D)
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name () ^" hashconsed"
 
@@ -95,6 +96,7 @@ struct
   module D = S.D
   module G = S.G
   module C = Printable.HConsed (S.C)
+  module V = S.V
 
   let name () = S.name () ^" context hashconsed"
 
@@ -155,7 +157,7 @@ struct
     S.special (conv ctx) r f args
 
   let combine ctx r fe f args fc es =
-    S.combine (conv ctx) r fe f args (C.unlift fc) es
+    S.combine (conv ctx) r fe f args (Option.map C.unlift fc) es
 
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
@@ -182,11 +184,11 @@ struct
   module D = Lattice.Prod (S.D) (Lattice.Reverse (IntDomain.Lifted))
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name ()^" level sliced"
 
   let start_level = ref (`Top)
-  let error_level = ref (`Lifted  0L)
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init marshal =
@@ -322,6 +324,7 @@ struct
   end
   module G = S.G
   module C = S.C
+  module V = S.V
 
 
   let name () = S.name ()^" with widened contexts"
@@ -391,6 +394,7 @@ struct
   module D = Dom (S.D)
   module G = S.G
   module C = S.C
+  module V = S.V
 
   let name () = S.name ()^" lifted"
 
@@ -451,10 +455,10 @@ end
 module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
   : sig
     include GlobConstrSys with module LVar = VarF (S.C)
-                           and module GVar = Basetype.Variables
+                           and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = S.G
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (Cil.varinfo -> G.t) -> (Cil.varinfo -> G.t -> unit) -> D.t
+    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t
   end
 =
 struct
@@ -463,7 +467,7 @@ struct
   type ld = S.D.t
   (* type gd = S.G.t *)
   module LVar = VarF (S.C)
-  module GVar = Basetype.Variables
+  module GVar = GVarF (S.V)
   module D = S.D
   module G = S.G
 
@@ -475,7 +479,7 @@ struct
     | _ :: _ :: _ -> S.sync ctx `Join
     | _ -> S.sync ctx `Normal
 
-  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
+  let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
     let spawns = ref [] in
     (* now watch this ... *)
@@ -489,12 +493,11 @@ struct
       ; edge    = edge
       ; local   = pval
       ; global  = getg
-      ; presub  = []
-      ; postsub = []
+      ; presub  = (fun _ -> raise Not_found)
+      ; postsub = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = sideg
-      ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
     and spawn lval f args =
       (* TODO: adjust ctx node/edge? *)
@@ -618,6 +621,7 @@ struct
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
+    let paths = List.map (Tuple3.map2 Option.some) paths in
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
     let r = List.fold_left D.join (D.bot ()) paths in
@@ -754,14 +758,10 @@ module Var2 (LV:VarType) (GV:VarType)
     with type t = [ `L of LV.t  | `G of GV.t ]
 =
 struct
-  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord]
+  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord, hash]
   let relift = function
     | `L x -> `L (LV.relift x)
     | `G x -> `G (GV.relift x)
-
-  let hash = function
-    | `L a -> LV.hash a
-    | `G a -> 113 * GV.hash a
 
   let pretty_trace () = function
     | `L a -> LV.pretty_trace () a
@@ -897,6 +897,7 @@ module PathSensitive2 (Spec:Spec)
     with type D.t = HoareDomain.Set(Spec.D).t
      and module G = Spec.G
      and module C = Spec.C
+     and module V = Spec.V
 =
 struct
   module D =
@@ -939,6 +940,7 @@ struct
 
   module G = Spec.G
   module C = Spec.C
+  module V = Spec.V
 
   let name () = "PathSensitive2("^Spec.name ()^")"
 
@@ -973,14 +975,6 @@ struct
       with Deadcode -> xs
     in
     let d = D.fold h ctx.local (D.empty ()) in
-    if D.is_bot d then raise Deadcode else d
-
-  let fold ctx f g h a =
-    let k x a =
-      try h a @@ g @@ f @@ conv ctx x
-      with Deadcode -> a
-    in
-    let d = D.fold k ctx.local a in
     if D.is_bot d then raise Deadcode else d
 
   let fold' ctx f g h a =
@@ -1065,7 +1059,7 @@ end
 module Compare
     (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
-                        and module GVar = Basetype.Variables
+                        and module GVar = GVarF (S.V)
                         and module D = S.D
                         and module G = S.G)
     (LH:Hashtbl.S with type key=Sys.LVar.t)
@@ -1184,11 +1178,14 @@ struct
   struct
     include Printable.Std
     include Sys.Var
-    let pretty = pretty_trace
 
-    let show x = Pretty.sprint ~width:max_int (pretty () x)
-    let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-    let to_yojson x = `String (show x)
+    let pretty = pretty_trace
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
   end
   module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
 

@@ -10,7 +10,6 @@ struct
   let name () = "file"
   module D = FileDomain.Dom
   module C = FileDomain.Dom
-  module G = Lattice.Unit
 
   (* special variables *)
   let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
@@ -89,11 +88,11 @@ struct
     let check a b tv =
       (* ignore(printf "check: %a = %a, %B\n" d_plainexp a d_plainexp b tv); *)
       match a, b with
-      | Const (CInt64(i, kind, str)), Lval lval
-      | Lval lval, Const (CInt64(i, kind, str)) ->
+      | Const (CInt(i, kind, str)), Lval lval
+      | Lval lval, Const (CInt(i, kind, str)) ->
         (* ignore(printf "branch(%s==%i, %B)\n" v.vname (Int64.to_int i) tv); *)
         let k = D.key_from_lval lval in
-        if i = Int64.zero && tv then (
+        if Cilint.compare_cilint i Cilint.zero_cilint = 0 && tv then (
           (* ignore(printf "error-branch\n"); *)
           D.error k m
         )else

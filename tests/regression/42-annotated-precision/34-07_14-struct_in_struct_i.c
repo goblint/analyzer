@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"  --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','uninit','mallocWrapper']"  --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
 typedef struct {
 	int i;
 } S;
@@ -8,33 +8,41 @@ typedef struct {
 	int i;
 } T;
 
-void init_S(S *x) __attribute__((goblint_precision("def_exc"))) {
+void init_S(S *x) __attribute__((goblint_precision("def_exc")));
+S ret_S() __attribute__((goblint_precision("def_exc")));
+void mod_S1(S *z) __attribute__((goblint_precision("def_exc")));
+void mod_S2(S *z) __attribute__((goblint_precision("def_exc")));
+void mod_S31(S *z) __attribute__((goblint_precision("def_exc")));
+void mod_S32(S *z) __attribute__((goblint_precision("no-def_exc","interval")));
+int main() __attribute__((goblint_precision("def_exc")));
+
+void init_S(S *x) {
 	x->i = 0;
 }
 
-S ret_S() __attribute__((goblint_precision("def_exc"))) {
+S ret_S() {
 	S y;
 	y.i = 0;
 	return y;
 }
 
-void mod_S1(S *z) __attribute__((goblint_precision("def_exc"))) {
+void mod_S1(S *z) {
 	z->i = z->i + 1; //NOWARN
 }
 
-void mod_S2(S *z) __attribute__((goblint_precision("def_exc"))) {
+void mod_S2(S *z) {
 	z->i = z->i + 1; //NOWARN
 }
 
-void mod_S31(S *z) __attribute__((goblint_precision("def_exc"))) {
+void mod_S31(S *z) {
 	z->i = z->i + 1; //WARN
 }
 
-void mod_S32(S *z) __attribute__((goblint_precision("no-def_exc","interval"))) {
+void mod_S32(S *z) {
 	z->i = z->i + 1; //WARN
 }
 
-int main() __attribute__((goblint_precision("def_exc"))) {
+int main() {
 	T tt1,tt2,tt3;
 	int q = 0;
 

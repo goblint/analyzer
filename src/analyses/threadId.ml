@@ -6,6 +6,8 @@ module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
 
+let (let+) xs f = List.map f xs (* TODO: move to general library *)
+
 module Thread = ThreadIdDomain.Thread
 module ThreadLifted = ThreadIdDomain.ThreadLifted
 
@@ -26,7 +28,6 @@ struct
 
   module D = Lattice.Prod (ThreadLifted) (TD)
   module C = D
-  module G = Lattice.Unit
 
   let tids = ref (Hashtbl.create 20)
 
@@ -44,12 +45,12 @@ struct
   let create_tid (current, td) (node: Node.t) v =
     match current with
     | `Lifted current ->
-      let tid = Thread.threadenter (current, td) node v in
+      let+ tid = Thread.threadenter (current, td) node v in
       if GobConfig.get_bool "dbg.print_tids" then
         Hashtbl.replace !tids tid ();
-      `Lifted (tid)
+      `Lifted tid
     | _ ->
-      `Lifted (Thread.threadinit v ~multiple:true)
+      [`Lifted (Thread.threadinit v ~multiple:true)]
 
   let body ctx f = ctx.local
 
@@ -77,26 +78,15 @@ struct
   let is_unique ctx =
     ctx.ask Queries.MustBeUniqueThread
 
-  let part_access ctx e v w =
-    let es = Access.LSSet.empty () in
-    if is_unique ctx then
-      let tid = fst ctx.local in
-      let tid = ThreadLifted.show tid in
-      (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
-    else
-      (Access.LSSSet.singleton es, es)
-
   let created (current, td) =
     match current with
     | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
     | _ -> ConcDomain.ThreadSet.top ()
 
-  let query (ctx: (D.t, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
+  let query (ctx: (D.t, _, _, _) ctx) (type a) (x: a Queries.t): a Queries.result =
     match x with
     | Queries.CurrentThreadId -> fst ctx.local
     | Queries.CreatedThreads -> created ctx.local
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
     | Queries.MustBeUniqueThread ->
       begin match fst ctx.local with
         | `Lifted tid -> Thread.is_unique tid
@@ -104,18 +94,41 @@ struct
       end
     | _ -> Queries.Result.top x
 
+  module A =
+  struct
+    (* Also contains MHP in addition to unique thread. *)
+    include Printable.Prod (Printable.Option (ThreadLifted) (struct let name = "nonunique" end)) (MHP)
+    let name () = "thread * mhp"
+    let may_race (t1: t) (t2: t) = match t1, t2 with
+      | (Some t1, _), (Some t2, _) when ThreadLifted.equal t1 t2 -> false
+      | (_, mhp1), (_, mhp2) when not (MHP.may_happen_in_parallel mhp1 mhp2) -> false
+      | (_, _), (_, _) -> true
+    let should_print _ = true
+  end
+  let access ctx e vo w =
+    let unique =
+      if is_unique ctx then
+        let tid = fst ctx.local in
+        Some tid
+      else
+        None
+    in
+    let mhp: MHP.t = {tid = fst ctx.local; created = created ctx.local; must_joined = ctx.ask MustJoinedThreads} in
+    (unique, mhp)
+
   let threadenter ctx lval f args =
-    [(create_tid ctx.local ctx.prev_node f, TD.bot ())]
+    let+ tid = create_tid ctx.local ctx.prev_node f in
+    (tid, TD.bot ())
 
   let threadspawn ctx lval f args fctx =
     let (current, td) = ctx.local in
     (current, Thread.threadspawn td ctx.prev_node f)
 
-  type marshal = Thread.marshal * ((Thread.t,unit) Hashtbl.t)
+  type marshal = (Thread.t,unit) Hashtbl.t (* TODO: don't use polymorphic Hashtbl *)
   let init (m:marshal option): unit =
     match m with
-    | Some (x,y) -> Thread.init (Some x); tids := y
-    | None ->  Thread.init None
+    | Some y -> tids := y
+    | None -> ()
 
 
   let print_tid_info () =
@@ -133,7 +146,7 @@ struct
 
   let finalize () =
     if GobConfig.get_bool "dbg.print_tids" then print_tid_info ();
-    Thread.finalize (),!tids
+    !tids
 end
 
 let _ =

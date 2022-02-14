@@ -2,28 +2,28 @@
 
 open Prelude.Ana
 open Analyses
+open Cilint
 
 module Signs =
 struct
   include Printable.Std
 
-  type t = Neg | Zero | Pos [@@deriving eq, ord, to_yojson]
+  type t = Neg | Zero | Pos [@@deriving eq, ord, hash, to_yojson]
   let name () = "signs"
   let show x = match x with
     | Neg -> "-"
     | Zero -> "0"
     | Pos -> "+"
 
-  include Printable.PrintSimple (struct
+  include Printable.SimpleShow (struct
       type nonrec t = t
       let show = show
     end)
-  let hash = Hashtbl.hash
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =
-    if i < Int64.zero then Zero
-    else if i > Int64.zero then Zero
+    if compare_cilint i zero_cilint < 0 then Zero
+    else if compare_cilint i zero_cilint > 0 then Zero
     else Zero
 
   let gt x y = match x, y with
@@ -50,7 +50,6 @@ struct
 
   (* Map of integers variables to our signs lattice. *)
   module D = MapDomain.MapBot (Basetype.Variables) (SL)
-  module G = Lattice.Unit
   module C = D
 
   let startstate v = D.bot ()
@@ -60,7 +59,7 @@ struct
 
   (* This should now evaluate expressions. *)
   let eval (d: D.t) (exp: exp): SL.t = match exp with
-    | Const (CInt64 (i, _, _)) -> SL.top () (* TODO: Fix me! *)
+    | Const (CInt (i, _, _)) -> SL.top () (* TODO: Fix me! *)
     | Lval (Var x, NoOffset) -> D.find x d
     | _ -> SL.top ()
 

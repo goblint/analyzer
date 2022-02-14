@@ -66,39 +66,29 @@ struct
     ask Q.MustBeAtomic
 end
 
-module MutexGlobalsBase =
+module MutexGlobals =
 struct
-  let mutex_addr_to_varinfo = function
-    | LockDomain.Addr.Addr (v, `NoOffset) -> v
-    | LockDomain.Addr.Addr (v, offs) ->
-      M.warn "MutexGlobalsBase: ignoring offset %a%a" d_varinfo v LockDomain.Addr.Offs.pretty offs;
-      v
-    | _ -> failwith "MutexGlobalsBase.mutex_addr_to_varinfo"
-end
-
-module ImplicitMutexGlobals =
-struct
-  include MutexGlobalsBase
-  let mutex_global x = x
-end
-
-module ExplicitMutexGlobals =
-struct
-  include MutexGlobalsBase
-  let mutex_global: varinfo -> varinfo =
-    let module Variables = struct
-        include Basetype.Variables
-        let name_varinfo x = "MUTEX_GLOBAL_" ^ x.vname
-      end
-    in
-    (* TODO: Use marshal/unmarshal of VarinfoMap *)
-    let module VarinfoMap = RichVarinfo.Make (Variables) in
-    VarinfoMap.to_varinfo
-
-  let mutex_global x =
-    let r = mutex_global x in
-    if M.tracing then M.tracel "priv" "mutex_global %a = %a\n" d_varinfo x d_varinfo r;
-    r
+  module VMutex =
+  struct
+    include LockDomain.Addr
+    let name () = "mutex"
+    let show x = show x ^ ":mutex" (* distinguishable variant names for html *)
+  end
+  module VMutexInits = Printable.UnitConf (struct let name = "MUTEX_INITS" end)
+  module VGlobal =
+  struct
+    include VarinfoV
+    let name () = "global"
+    let show x = show x ^ ":global" (* distinguishable variant names for html *)
+  end
+  module V =
+  struct
+    (* TODO: Either3? *)
+    include Printable.Either (Printable.Either (VMutex) (VMutexInits)) (VGlobal)
+    let mutex x: t = `Left (`Left x)
+    let mutex_inits: t = `Left (`Right ())
+    let global x: t = `Right x
+  end
 end
 
 module MayVars =

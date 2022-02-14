@@ -15,8 +15,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     type phase = Widen | Narrow

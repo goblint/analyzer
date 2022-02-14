@@ -1,4 +1,4 @@
-// PARAM: --enable exp.partition-arrays.enabled --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --enable ana.base.partition-arrays.enabled --enable annotation.int.enabled --set ana.int.refinement fixpoint
 
 #include<stdlib.h>
 #include<assert.h>
@@ -10,7 +10,9 @@ typedef struct {
 
 data *d;
 
-int main(void) __attribute__((goblint_precision("no-def_exc","interval"))) {
+int main(void) __attribute__((goblint_precision("no-def_exc","interval")));
+
+int main(void) {
     d = calloc(1,sizeof(data));
     d -> x = 0;
     d -> y = 0;

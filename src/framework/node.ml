@@ -14,7 +14,7 @@ type t =
   (** *)
   | Function of CilType.Fundec.t
   (** The variable information associated with the function declaration. *)
-[@@deriving eq, ord, to_yojson]
+[@@deriving eq, ord, hash, to_yojson]
 
 let name () = "node"
 
@@ -40,9 +40,12 @@ let pretty_trace () = function
 
 (** Output functions for Printable interface *)
 let pretty () x = pretty_trace () x
-let show x = Pretty.sprint ~width:max_int (pretty () x)
-let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-let to_yojson x = `String (show x)
+include Printable.SimplePretty (
+  struct
+    type nonrec t = t
+    let pretty = pretty
+  end
+  )
 
 (** Show node ID for CFG and results output. *)
 let show_id = function
@@ -56,11 +59,6 @@ let show_cfg = function
   | Function fd      -> "return of " ^ fd.svar.vname ^ "()"
   | FunctionEntry fd -> fd.svar.vname ^ "()"
 
-
-let hash = function
-  | Statement   stmt -> Hashtbl.hash (CilType.Stmt.hash stmt, 0)
-  | Function      fd -> Hashtbl.hash (CilType.Fundec.hash fd, 1)
-  | FunctionEntry fd -> Hashtbl.hash (CilType.Fundec.hash fd, 2)
 
 let location (node: t) =
   match node with

@@ -5,24 +5,6 @@
       "interval": false,
       "enums": true
     },
-    "exp": {
-
-    }
-  },
-  "sem": {
-    "unknown_function": {
-      "invalidate": {
-        "globals": false
-      },
-      "spawn": true
-    },
-    "builtin_unreachable": {
-      "dead_code": true
-    }
-  },
-  "exp": {
-    "privatization": "mutex-meet",
-    "priv-distr-init": false,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -43,10 +25,27 @@
         "ldv_calloc"
       ]
     },
-    "solver" : {
-      "td3": {
-        "side_widen" : "sides-pp"
-      }
+    "base" : {
+      "privatization": "mutex-meet"
+    }
+  },
+  "sem": {
+    "unknown_function": {
+      "invalidate": {
+        "globals": false
+      },
+      "spawn": true
+    },
+    "builtin_unreachable": {
+      "dead_code": true
+    }
+  },
+  "exp": {
+    "priv-distr-init": false
+  },
+  "solvers" : {
+    "td3": {
+      "side_widen" : "sides-pp"
     }
   },
   "dbg" : {

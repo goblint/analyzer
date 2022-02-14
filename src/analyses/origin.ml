@@ -5,6 +5,63 @@ open Analyses
 (* For different kinds of value domains, like addresses, indexes... *)
 include PreValueDomain
 
+(* Program point lattice *)
+module PL = Lattice.Flat (Node) (struct
+    let top_name = "Unknown node"
+    let bot_name = "Unreachable node"
+  end)
+
+(* Variable lattice *)
+module VL = Lattice.Flat (Basetype.Variables) (struct
+    let top_name = "Unknown variable"
+    let bot_name = "Unreachable variable"
+  end)
+
+(* Origin is Variable and Node *)
+module Origin = Lattice.Prod (VL) (PL)
+module OriginSet = SetDomain.ToppedSet (Origin) (struct let topname = "All" end)
+module ValueOriginPair = Lattice.Prod (AD) (OriginSet)
+
+(* Map of Variable -> Pair (AddressSet, OriginSet) *)
+module OriginMap = struct
+  include MapDomain.MapBot (Basetype.Variables) (ValueOriginPair)
+  type t = MapDomain.MapBot(Basetype.Variables)(ValueOriginPair).t
+
+  let check_precision_loss (m1: t) (m2: t) (res: t) =
+    let s1 = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
+        if (find key res) != v then acc @ [key] else acc) m1 [] in
+    let s2 = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
+        if (find key res) != v then acc @ [key] else acc) m2 [] in
+    s1 @ s2
+  (*m1 != res or m2 != res*)
+
+
+  let update_blame res (x:varinfo) n  =
+    let curr_val_origin_pair = find x res in
+    let curr_val = fst curr_val_origin_pair in
+    let curr_origin_set = snd curr_val_origin_pair in
+    let new_pair = (curr_val, curr_origin_set) in 
+    add x new_pair res
+
+  let join_with_fct f (m1: t) (m2: t) =
+    (*let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in*)
+    let res =  if m1 == m2 then m1 else long_map2 f m1 m2 in
+    let losses = check_precision_loss m1 m2 res in
+    if List.length losses > 0 then
+      (match !MyCFG.current_node with
+       | Some n -> 
+         ignore @@ Pretty.printf "Precision lost at node %s\n\n" (Node.show n);
+         ignore @@ List.fold (fun res x -> 
+             update_blame res x n
+           ) res losses;
+       | _ -> ignore @@ Pretty.printf "Precision lost at unknown node\n\n");
+    res
+
+  let join = join_with_fct ValueOriginPair.join
+
+end
+
+
 (** An analysis that tracks the origin of a value.
     It only considers definite values of local variables.
     We do not pass information interprocedurally. *)
@@ -12,67 +69,18 @@ module Spec : Analyses.MCPSpec =
 struct
   let name () = "origin"
 
-  (* Program point lattice *)
-  module PL = Lattice.Flat (Node) (struct
-      let top_name = "Unknown node"
-      let bot_name = "Unreachable node"
-    end)
+  module D = OriginMap
 
-  (* Variable lattice *)
-  module VL = Lattice.Flat (Basetype.Variables) (struct
-      let top_name = "Unknown variable"
-      let bot_name = "Unreachable variable"
-    end)
+  let startstate v = D.bot ()
+  let exitstate = startstate
 
-  (* Origin is Variable and Node *)
-  module Origin = Lattice.Prod (VL) (PL)
-  module OriginSet = SetDomain.ToppedSet (Origin) (struct let topname = "All" end)
-  module ValueOriginPair = Lattice.Prod (AD) (OriginSet)
+  include Analyses.IdentitySpec
 
-  (* Map of Variable -> Pair (AddressSet, OriginSet) *)
-  module D = struct
-    include MapDomain.MapBot (Basetype.Variables) (ValueOriginPair)
-    type t = MapDomain.MapBot(Basetype.Variables)(ValueOriginPair).t
-
-    let check_precision_loss (m1: t) (m2: t) (res: t) =
-      let s1 = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
-          if (find key res) != v then acc @ [key] else acc) m1 [] in
-      let s2 = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
-          if (find key res) != v then acc @ [key] else acc) m2 [] in
-      s1 @ s2
-    (*m1 != res or m2 != res*)
-
-
-    let update_blame res (x:varinfo) n  =
-      let curr_val_origin_pair = find x res in
-      let curr_val = fst curr_val_origin_pair in
-      let curr_origin_set = snd curr_val_origin_pair in
-      let new_pair = (curr_val, curr_origin_set) in 
-      add x new_pair res
-
-    let join_with_fct f (m1: t) (m2: t) =
-      (*let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in*)
-      let res =  if m1 == m2 then m1 else long_map2 f m1 m2 in
-      let losses = check_precision_loss m1 m2 res in
-      if List.length losses > 0 then
-        (match !MyCFG.current_node with
-         | Some n -> 
-           ignore @@ Pretty.printf "Precision lost at node %s\n\n" (Node.show n);
-           ignore @@ List.fold (fun res x -> 
-               update_blame res x n
-             ) res losses;
-         | _ -> ignore @@ Pretty.printf "Precision lost at unknown node\n\n");
-      res
-
-    let join = join_with_fct ValueOriginPair.join
-
-  end
   (* Same information for globals as for locals *)
   module G = D
   (* No contexts*)
   module C = Lattice.Unit
 
-  include Analyses.IdentitySpec
   let context _ _ = ()
 
   let is_pointer_var (v: varinfo) =
@@ -304,9 +312,6 @@ struct
     (* When calling a special function, and assign the result to some local int variable, we also set it to top. *)
     (* set_local_int_lval_top ctx.local lval *)
     ctx.local
-
-  let startstate v = D.bot ()
-  let exitstate v = D.top () (* TODO: why is this different from startstate? *)
 end
 
 let _ =

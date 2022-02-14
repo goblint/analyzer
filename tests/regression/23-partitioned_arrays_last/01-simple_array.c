@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none
+// PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
 int global;
 
 int main(void)
@@ -156,7 +156,7 @@ void example7(void) {
     assert(a[top] == 0); // UNKNOWN
 }
 
-// Check that the global variable is not used for paritioning
+// Check that the global variable is not used for partitioning
 void example8() {
     int a[10];
 

@@ -53,9 +53,9 @@ let location_of_cil_location ({file; line; column; endLine; endColumn; _}: Cil.l
     artifactLocation = { uri = file };
     region = {
       startLine = line;
-      startColumn = column;
+      startColumn = if column >= 0 then Some column else None;
       endLine;
-      endColumn;
+      endColumn = if endColumn >= 0 then Some endColumn else None;
     };
   }
 }
@@ -130,17 +130,21 @@ let artifacts_of_messages (messages: Messages.Message.t list): Artifact.t list =
   |> List.of_enum
 
 let to_yojson messages =
+  let commandLine = match Array.to_list Sys.argv with
+    | command :: arguments -> Filename.quote_command command arguments
+    | [] -> assert false
+  in
   SarifLog.to_yojson {
     version = "2.1.0";
     schema = "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json";
     runs = [{
         invocations = [{
-            commandLine = String.join " " (List.map Filename.quote (Array.to_list Sys.argv)); (* TODO: use quote_command after OCaml 4.10 *)
+            commandLine;
             executionSuccessful = true;
           }];
         artifacts = artifacts_of_messages messages;
         tool = goblintTool;
         defaultSourceLanguage = "C";
-        results = List.flatten (List.map result_of_message messages);
+        results = List.concat_map result_of_message messages;
       }]
   }

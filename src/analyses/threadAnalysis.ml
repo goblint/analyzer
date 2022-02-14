@@ -14,6 +14,7 @@ struct
   module D = ConcDomain.CreatedThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
+  module V = T
 
   let should_join node = D.equal
 
@@ -24,7 +25,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let tid = ThreadId.get_current (Analyses.ask_of_ctx ctx) in
     begin match tid with
-      | `Lifted tid -> ctx.sideg (T.to_varinfo tid) (false, TS.bot (), not (D.is_empty ctx.local))
+      | `Lifted tid -> ctx.sideg tid (false, TS.bot (), not (D.is_empty ctx.local))
       | _ -> ()
     end;
     ctx.local
@@ -32,7 +33,7 @@ struct
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t = au
 
   let rec is_not_unique ctx tid =
-    let (rep, parents, _) = ctx.global (T.to_varinfo tid) in
+    let (rep, parents, _) = ctx.global tid in
     let n = TS.cardinal parents in
     (* A thread is not unique if it is
       * a) repeatedly created,
@@ -47,7 +48,7 @@ struct
       (* TODO: generalize ThreadJoin like ThreadCreate *)
       (* TODO: elements might throw an exception *)
       let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in
-      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global (T.to_varinfo tid))) in
+      let has_clean_exit tid = not (BatTuple.Tuple3.third (ctx.global tid)) in
       let join_thread s tid =
         if has_clean_exit tid && not (is_not_unique ctx tid) then
           D.remove tid s
@@ -85,7 +86,7 @@ struct
       | `Top         -> (true,     TS.bot (),         false)
       | `Bot         -> (false,    TS.bot (),         false)
     in
-    ctx.sideg (T.to_varinfo tid) eff;
+    ctx.sideg tid eff;
     D.join ctx.local (D.singleton tid)
   let exitstate  v = D.bot ()
 end

@@ -7,7 +7,6 @@ sig
   include MapDomain.Groupable with type t := t
 
   val threadinit: varinfo -> multiple:bool -> t
-  val to_varinfo: t -> varinfo
   val is_main: t -> bool
   val is_unique: t -> bool
 
@@ -16,13 +15,6 @@ sig
 
   (** Is the first TID a must parent of the second thread. Always false if the first TID is not unique *)
   val is_must_parent: t -> t -> bool
-
-  type marshal
-  val init: marshal option -> unit
-  val finalize: unit -> marshal
-
-  (** How the created varinfos should be namend. Returned strings should not contain [Cil.location]s, but may contain node ids. *)
-  val name_varinfo: t -> string
 end
 
 module type Stateless =
@@ -38,7 +30,7 @@ sig
 
   module D: Lattice.S
 
-  val threadenter: t * D.t -> Node.t -> varinfo -> t
+  val threadenter: t * D.t -> Node.t -> varinfo -> t list
   val threadspawn: D.t -> Node.t -> varinfo -> D.t
 
   (** If it is possible to get a list of unique thread create thus far, get it *)
@@ -47,24 +39,15 @@ end
 
 
 (** Type to represent an abstract thread ID. *)
-module FunLoc: Stateless =
+module FunNode: Stateless =
 struct
-  module M = struct
-    include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no location" end))
-
-    (* Defines how varinfos representing a FunLoc are named.
-    The varinfo-name contains node ids, but not their location (for compatibility with incremental analysis) *)
-    let name_varinfo = function
-      | (f, Some n) -> f.vname ^ "@" ^ Node.show n
-      | (f, None) -> f.vname
-  end
-  include M
+  include Printable.Prod (CilType.Varinfo) (Printable.Option (Node) (struct let name = "no node" end))
 
   let show = function
     | (f, Some n) -> f.vname ^ "@" ^ (CilType.Location.show (UpdateCil.getLoc n))
     | (f, None) -> f.vname
 
-  include Printable.PrintSimple (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
       let show = show
@@ -72,7 +55,11 @@ struct
   )
 
   let threadinit v ~multiple: t = (v, None)
-  let threadenter l v: t = (v, Some l)
+  let threadenter l v: t =
+    if GobConfig.get_bool "ana.thread.include-node" then
+      (v, Some l)
+    else
+      (v, None)
 
   let is_main = function
     | ({vname = "main"; _}, None) -> true
@@ -81,12 +68,6 @@ struct
   let is_unique _ = false (* TODO: should this consider main unique? *)
   let may_create _ _ = true
   let is_must_parent _ _ = false
-
-  module VarinfoMap = RichVarinfo.Make (M)
-  let to_varinfo = VarinfoMap.to_varinfo
-  type marshal = VarinfoMap.marshal
-  let init m = VarinfoMap.unmarshal m
-  let finalize () = VarinfoMap.marshal ()
 end
 
 
@@ -96,7 +77,7 @@ struct
 
   module D = Lattice.Unit
 
-  let threadenter _ = threadenter
+  let threadenter _ n v = [threadenter n v]
   let threadspawn () _ _ = ()
 
   let created _ _ = None
@@ -115,16 +96,7 @@ struct
     include SetDomain.Make (Base)
     let name () = "set"
   end
-  module M = struct
-    include Printable.Prod (P) (S)
-    (* Varinfos for histories are named using a string representation based on node ids,
-     not locations, for compatibility with incremental analysis.*)
-    let name_varinfo ((l, s): t): string =
-      let list_name = String.concat "," (List.map Base.name_varinfo l) in
-      let set_name = String.concat "," (List.map Base.name_varinfo (S.elements s)) in
-      list_name ^ ", {" ^ set_name ^ "}"
-  end
-  include M
+  include Printable.Prod (P) (S)
 
   module D =
   struct
@@ -168,9 +140,9 @@ struct
     let n = Base.threadenter n v in
     let ((p', s') as composed) = compose current n in
     if is_unique composed && S.mem n cs then
-      (p, S.singleton n)
+      [(p, S.singleton n); composed] (* also respawn unique version of the thread to keep it reachable while thread ID sets refer to it *)
     else
-      composed
+      [composed]
 
   let created current cs =
     let els = D.elements cs in
@@ -179,16 +151,9 @@ struct
   let threadspawn cs l v =
     S.add (Base.threadenter l v) cs
 
-  module VarinfoMap = RichVarinfo.Make (M)
-  let to_varinfo = VarinfoMap.to_varinfo
-
   let is_main = function
     | ([fl], s) when S.is_empty s && Base.is_main fl -> true
     | _ -> false
-
-  type marshal = VarinfoMap.marshal
-  let finalize () = VarinfoMap.marshal ()
-  let init m = VarinfoMap.unmarshal m
 end
 
 module ThreadLiftNames = struct
@@ -204,9 +169,9 @@ end
 module FlagConfiguredTID:Stateful =
 struct
   (* Thread IDs with prefix-set history *)
-  module H = History(FunLoc)
+  module H = History(FunNode)
   (* Plain thread IDs *)
-  module P = Unit(FunLoc)
+  module P = Unit(FunNode)
 
   include GroupableFlagHelper(H)(P)(struct
       let msg = "FlagConfiguredTID received a value where not exactly one component is set"
@@ -214,8 +179,6 @@ struct
     end)
 
   module D = Lattice.Lift2(H.D)(P.D)(struct let bot_name = "bot" let top_name = "top" end)
-
-  type marshal = H.marshal option * P.marshal option
 
   let history_enabled () =
     match GobConfig.get_string "ana.thread.domain" with
@@ -225,14 +188,12 @@ struct
 
   let threadinit v ~multiple =
     if history_enabled () then
-      (Some (H.threadinit v multiple), None)
+      (Some (H.threadinit v ~multiple), None)
     else
-      (None, Some (P.threadinit v multiple))
+      (None, Some (P.threadinit v ~multiple))
 
-  let to_varinfo = unop H.to_varinfo P.to_varinfo
   let is_main = unop H.is_main P.is_main
   let is_unique = unop H.is_unique P.is_unique
-  let name_varinfo = unop H.name_varinfo P.name_varinfo
   let may_create = binop H.may_create P.may_create
   let is_must_parent = binop H.is_must_parent P.is_must_parent
 
@@ -260,12 +221,12 @@ struct
 
   let threadenter x n v =
     match x with
-    | ((Some x', None), `Lifted1 d) -> (Some (H.threadenter (x',d) n v), None)
-    | ((Some x', None), `Bot) -> (Some (H.threadenter (x',H.D.bot ()) n v), None)
-    | ((Some x', None), `Top) -> (Some (H.threadenter (x',H.D.top ()) n v), None)
-    | ((None, Some x'), `Lifted2 d) -> (None, Some (P.threadenter (x',d) n v))
-    | ((None, Some x'), `Bot) -> (None, Some (P.threadenter (x',P.D.bot ()) n v))
-    | ((None, Some x'), `Top) -> (None, Some (P.threadenter (x',P.D.top ()) n v))
+    | ((Some x', None), `Lifted1 d) -> H.threadenter (x',d) n v |> List.map (fun t -> (Some t, None))
+    | ((Some x', None), `Bot) -> H.threadenter (x',H.D.bot ()) n v |> List.map (fun t -> (Some t, None))
+    | ((Some x', None), `Top) -> H.threadenter (x',H.D.top ()) n v |> List.map (fun t -> (Some t, None))
+    | ((None, Some x'), `Lifted2 d) -> P.threadenter (x',d) n v |> List.map (fun t -> (None, Some t))
+    | ((None, Some x'), `Bot) -> P.threadenter (x',P.D.bot ()) n v |> List.map (fun t -> (None, Some t))
+    | ((None, Some x'), `Top) -> P.threadenter (x',P.D.top ()) n v |> List.map (fun t -> (None, Some t))
     | _ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
 
   let threadspawn x n v =
@@ -278,24 +239,6 @@ struct
     | `Top  -> `Lifted2 (P.threadspawn (P.D.top ()) n v)
 
   let name () = "FlagConfiguredTID: " ^ if history_enabled () then H.name () else P.name ()
-
-  let finalize () =
-    if history_enabled () then
-      (Some (H.finalize ()), None)
-    else
-      (None, Some (P.finalize ()))
-
-  let init v =
-    if history_enabled () then
-      match v with
-      | None -> H.init None
-      | Some (v', None) -> H.init v'
-      |_ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
-    else
-      match v with
-      | None -> P.init None
-      | Some (None, v') -> P.init v'
-      |_ -> failwith "FlagConfiguredTID received a value where not exactly one component is set"
 end
 
 module Thread = FlagConfiguredTID

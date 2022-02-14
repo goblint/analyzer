@@ -2,6 +2,8 @@
  * IntOps Basics
  * -------------------------------------------------------------- *)
 
+open Batteries
+
 (* IntOps
  * Wrapper around integer types providing unified interface for
  * arithmetic and logical operations. *)
@@ -39,7 +41,10 @@ sig
   (* Comparison *)
   val compare : t -> t -> int
   val equal : t -> t -> bool
+  val hash : t -> int
   val top_range : t -> t -> bool
+  val max : t -> t -> t
+  val min : t -> t -> t
 
   (* Conversions *)
   val of_int : int -> t
@@ -70,7 +75,7 @@ end
  * -------------------------------------------------------------- *)
 module NIntOpsBase : IntOpsBase with type t = int =
 struct
-  type t = int
+  type t = int [@@deriving hash]
   let zero = 0
   let one = 1
   let lower_bound = Some min_int
@@ -91,13 +96,15 @@ struct
   let shift_right = (lsr)
   let bitand = (land)
   let bitor = (lor)
-  let bitxor = Int.logxor
+  let bitxor = (lxor)
   let bitnot = (lnot)
 
 
   let compare = compare
   let equal = Int.equal
   let top_range a b = (a = min_int) && (b = max_int)
+  let max = Int.max
+  let min = Int.min
 
   let of_int x = x
   let to_int x = x
@@ -111,7 +118,7 @@ end
 
 module Int32OpsBase : IntOpsBase with type t = int32 =
 struct
-  type t = int32
+  type t = int32 [@@deriving hash]
   let zero = 0l
   let one = 1l
   let lower_bound = Some Int32.min_int
@@ -141,6 +148,8 @@ struct
 
   let top_range a b =
     (0 = compare a Int32.min_int) && (0 = compare b Int32.max_int)
+  let max = Int32.max
+  let min = Int32.min
 
   let of_int = Int32.of_int
   let to_int = Int32.to_int
@@ -154,7 +163,7 @@ end
 
 module Int64OpsBase : IntOpsBase with type t = int64 =
 struct
-  type t = int64
+  type t = int64 [@@deriving hash]
   let zero = 0L
   let one = 1L
   let lower_bound = Some Int64.min_int
@@ -184,6 +193,8 @@ struct
 
   let top_range a b =
     (0 = compare a Int64.min_int) && (0 = compare b Int64.max_int)
+  let max = Int64.max
+  let min = Int64.min
 
   let of_int = Int64.of_int
   let to_int = Int64.to_int
@@ -222,8 +233,12 @@ struct
   let gcd x y = abs @@ Big_int_Z.gcd_big_int x y
   let compare = Big_int_Z.compare_big_int
   let equal = Big_int_Z.eq_big_int
+  let hash = Z.hash
 
   let top_range _ _ = false
+
+  let max = Z.max
+  let min = Z.min
 
   let of_int = Big_int_Z.big_int_of_int
   let to_int = Big_int_Z.int_of_big_int

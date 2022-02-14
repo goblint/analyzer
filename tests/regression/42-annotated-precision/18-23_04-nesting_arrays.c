@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
 struct kala {
   int i;
   int a[5];
@@ -22,7 +22,18 @@ union uStruct {
   struct kala k;
 };
 
-int main(void) __attribute__((goblint_precision("no-interval"))) {
+int main(void) __attribute__((goblint_precision("no-interval")));
+void example1() __attribute__((goblint_precision("no-def_exc")));
+void example2() __attribute__((goblint_precision("no-def_exc")));
+void example3() __attribute__((goblint_precision("no-def_exc")));
+void example4() __attribute__((goblint_precision("no-def_exc")));
+void example5() __attribute__((goblint_precision("no-def_exc")));
+void example6() __attribute__((goblint_precision("no-def_exc")));
+void example7() __attribute__((goblint_precision("no-def_exc")));
+void example8() __attribute__((goblint_precision("no-def_exc")));
+
+
+int main(void) {
   example1();
   example2();
   example3();
@@ -34,7 +45,7 @@ int main(void) __attribute__((goblint_precision("no-interval"))) {
   return 0;
 }
 
-void example1() __attribute__((goblint_precision("no-def_exc"))) {
+void example1() {
   struct kala l;
   int i = 0;
   int top;
@@ -56,14 +67,14 @@ void example1() __attribute__((goblint_precision("no-def_exc"))) {
   // Destructively assign to i
   i = top;
 
-  // Check the array is still known to be completly initialized
+  // Check the array is still known to be completely initialized
   assert(l.a[1] == 42);
   assert(l.a[2] == 42);
   assert(l.a[3] == 42);
   assert(l.a[4] == 42);
 }
 
-void example2() __attribute__((goblint_precision("no-def_exc"))) {
+void example2() {
   struct kala kalas[5];
 
   int i2 = 0;
@@ -82,7 +93,7 @@ void example2() __attribute__((goblint_precision("no-def_exc"))) {
   assert(kalas[0].a[0] == 8);
 }
 
-void example3() __attribute__((goblint_precision("no-def_exc"))) {
+void example3() {
   struct kala xnn;
   for(int l=0; l < 5; l++) {
       xnn.a[l] = 42;
@@ -91,7 +102,7 @@ void example3() __attribute__((goblint_precision("no-def_exc"))) {
   assert(xnn.a[3] == 42);
 }
 
-void example4() __attribute__((goblint_precision("no-def_exc"))) {
+void example4() {
   struct kala xn;
 
   struct kala xs[5];
@@ -106,7 +117,7 @@ void example4() __attribute__((goblint_precision("no-def_exc"))) {
   assert(xs[3].a[0] == 7);
 }
 
-void example5() __attribute__((goblint_precision("no-def_exc"))) {
+void example5() {
   // This example is a bit contrived to show that splitting and moving works for
   // unions
   union uArray ua;
@@ -145,7 +156,7 @@ void example5() __attribute__((goblint_precision("no-def_exc"))) {
   assert(us.k.a[0] == 0); // FAIL
 }
 
-void example6() __attribute__((goblint_precision("no-def_exc"))) {
+void example6() {
   int a[42];
   int i = 0;
 
@@ -165,7 +176,7 @@ void example6() __attribute__((goblint_precision("no-def_exc"))) {
   assert(a[k.v] != 3);
 }
 
-void example7() __attribute__((goblint_precision("no-def_exc"))) {
+void example7() {
   // Has no asserts, just checks this doesn't cause an infinite loop
   int a[42];
   int i = 0;
@@ -179,7 +190,7 @@ void example7() __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Test correct behavior with more involved expression in subscript operator
-void example8() __attribute__((goblint_precision("no-def_exc"))) {
+void example8() {
   int a[42];
   union uArray ua;
 

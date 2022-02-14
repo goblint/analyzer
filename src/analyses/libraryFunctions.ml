@@ -70,12 +70,12 @@ let classify' fn exps =
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
-    -> `Lock (get_bool "exp.failing-locks", true, true)
+    -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
-    -> `Lock (get_bool "exp.failing-locks", true, false)
+    -> `Lock (get_bool "sem.lock.fail", true, false)
   | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
   | "down_read"
-    -> `Lock (get_bool "exp.failing-locks", false, true)
+    -> `Lock (get_bool "sem.lock.fail", false, true)
   | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
@@ -89,72 +89,79 @@ let classify fn exps =
 
 type action = [ `Write | `Read ]
 
-let drop = List.drop
-let keep ns = List.filteri (fun i _ -> List.mem i ns)
+module Invalidate =
+struct
+  [@@@warning "-unused-value-declaration"] (* some functions are not used below *)
 
-let partition ns x =
-  let rec go n =
-    function
-    | [] -> ([],[])
-    | y :: ys ->
-      let (i,o) = go (n + 1) ys in
-      if List.mem n ns
-      then (y::i,   o)
-      else (   i,y::o)
-  in
-  go 1 x
+  let drop = List.drop
+  let keep ns = List.filteri (fun i _ -> List.mem i ns)
 
-let writesAllButFirst n f a x =
-  match a with
-  | `Write -> f a x @ drop n x
-  | `Read  -> f a x
+  let partition ns x =
+    let rec go n =
+      function
+      | [] -> ([],[])
+      | y :: ys ->
+        let (i,o) = go (n + 1) ys in
+        if List.mem n ns
+        then (y::i,   o)
+        else (   i,y::o)
+    in
+    go 1 x
 
-let readsAllButFirst n f a x =
-  match a with
-  | `Write -> f a x
-  | `Read  -> f a x @ drop n x
+  let writesAllButFirst n f a x =
+    match a with
+    | `Write -> f a x @ drop n x
+    | `Read  -> f a x
 
-let reads ns a x =
-  let i, o = partition ns x in
-  match a with
-  | `Write -> o
-  | `Read  -> i
+  let readsAllButFirst n f a x =
+    match a with
+    | `Write -> f a x
+    | `Read  -> f a x @ drop n x
 
-let writes ns a x =
-  let i, o = partition ns x in
-  match a with
-  | `Write -> i
-  | `Read  -> o
+  let reads ns a x =
+    let i, o = partition ns x in
+    match a with
+    | `Write -> o
+    | `Read  -> i
 
-let onlyReads ns a x =
-  match a with
-  | `Write -> []
-  | `Read  -> keep ns x
+  let writes ns a x =
+    let i, o = partition ns x in
+    match a with
+    | `Write -> i
+    | `Read  -> o
 
-let onlyWrites ns a x =
-  match a with
-  | `Write -> keep ns x
-  | `Read  -> []
+  let onlyReads ns a x =
+    match a with
+    | `Write -> []
+    | `Read  -> keep ns x
 
-let readsWrites rs ws a x =
-  match a with
-  | `Write -> keep ws x
-  | `Read  -> keep rs x
+  let onlyWrites ns a x =
+    match a with
+    | `Write -> keep ns x
+    | `Read  -> []
 
-let readsAll a x =
-  match a with
-  | `Write -> []
-  | `Read  -> x
+  let readsWrites rs ws a x =
+    match a with
+    | `Write -> keep ws x
+    | `Read  -> keep rs x
 
-let writesAll a x =
-  match a with
-  | `Write -> x
-  | `Read  -> []
+  let readsAll a x =
+    match a with
+    | `Write -> []
+    | `Read  -> x
+
+  let writesAll a x =
+    match a with
+    | `Write -> x
+    | `Read  -> []
+end
+
+open Invalidate
 
 (* Data races: which arguments are read/written?
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
-let invalidate_actions = ref [
+let invalidate_actions = [
     "GetResource", readsAll;
     "ReleaseResource", readsAll;
     "GetSpinlock", readsAll;
@@ -166,15 +173,20 @@ let invalidate_actions = ref [
     "fflush", writesAll;          (*unsafe*)
     "fopen", readsAll;            (*safe*)
     "fprintf", writes [1];          (*keep [1]*)
+    "__fprintf_chk", writes [1];    (*keep [1]*)
     "fread", writes [1];            (*keep [1]*)
     "free", writesAll; (*unsafe*)
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
     "memcpy", writes [1];(*keep [1]*)
+    "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
+    "__builtin___mempcpy_chk", writes [1];
     "memset", writesAll;(*unsafe*)
+    "__builtin___memset_chk", writesAll;
     "printf", readsAll;(*safe*)
+    "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
     "perror", readsAll;(*safe*)
     "pthread_mutex_lock", readsAll;(*safe*)
@@ -215,6 +227,7 @@ let invalidate_actions = ref [
     "tolower", readsAll;(*safe*)
     "time", writesAll;(*unsafe*)
     "vfprintf", writes [1];(*keep [1]*)
+    "__vfprintf_chk", writes [1];(*keep [1]*)
     "vprintf", readsAll;(*safe*)
     "vsprintf", writes [1];(*keep [1]*)
     "write", readsAll;(*safe*)
@@ -271,6 +284,8 @@ let invalidate_actions = ref [
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "__builtin_strchr", readsAll;(*safe*)
     "strcpy", writes [1];(*keep [1]*)
+    "__builtin___strcpy", writes [1];(*keep [1]*)
+    "__builtin___strcpy_chk", writes [1];(*keep [1]*)
     "strcat", writes [2];(*keep [2]*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
@@ -333,6 +348,8 @@ let invalidate_actions = ref [
     "dup", readsAll; (*safe*)
     "__builtin_expect", readsAll; (*safe*)
     "vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
+    "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
+    "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
     "syslog", readsAll; (*safe*)
     "strcasecmp", readsAll; (*safe*)
     "strchr", readsAll; (*safe*)
@@ -355,6 +372,7 @@ let invalidate_actions = ref [
     "strtoul", readsAll; (*safe*)
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
+    "strsignal", readsAll;
     "popen", readsAll; (*safe*)
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
@@ -397,6 +415,10 @@ let invalidate_actions = ref [
     "pthread_rwlock_init", readsAll;
     "pthread_rwlock_unlock", readsAll;
     "__builtin_object_size", readsAll;
+    "__builtin_bswap16", readsAll;
+    "__builtin_bswap32", readsAll;
+    "__builtin_bswap64", readsAll;
+    "__builtin_bswap128", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
     "dev_driver_string", readsAll;
     "dev_driver_string", readsAll;
@@ -415,7 +437,6 @@ let invalidate_actions = ref [
     "LAP_Se_CreateProcess", writes [2; 3];
     "LAP_Se_CreateErrorHandler", writes [2; 3]
   ]
-let add_invalidate_actions xs = invalidate_actions := xs @ !invalidate_actions
 
 (* used by get_invalidate_action to make sure
  * that hash of invalidates is built only once
@@ -429,7 +450,7 @@ let get_invalidate_action name =
     | None -> begin
         let hash = Hashtbl.create 113 in
         let f (k, v) = Hashtbl.add hash k v in
-        List.iter f !invalidate_actions;
+        List.iter f invalidate_actions;
         processed_table := (Some hash);
         hash
       end

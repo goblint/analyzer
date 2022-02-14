@@ -13,8 +13,6 @@ struct
 
   (* Map of (local int) variables to flat integers *)
   module D = MapDomain.MapBot (Basetype.Variables) (I)
-  (* No information about globals*)
-  module G = Lattice.Unit
   (* No contexts*)
   module C = Lattice.Unit
 
@@ -34,8 +32,11 @@ struct
   let rec eval (state : D.t) (e: exp) =
     match e with
     | Const c -> (match c with
-      | CInt64 (i,_,_) -> I.of_int i
-      | _ -> I.top ()
+        | CInt (i,_,_) ->
+          (try I.of_int (Z.to_int64 i) with Z.Overflow -> I.top ())
+        (* Our underlying int domain here can not deal with values that do not fit into int64 *)
+        (* Use Z.to_int64 instead of Cilint.int64_of_cilint to get exception instead of silent wrap-around *)
+        | _ -> I.top ()
       )
     | Lval lv -> (match get_local lv with
       | Some v -> D.find v state

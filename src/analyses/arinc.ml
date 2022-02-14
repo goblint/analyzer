@@ -45,6 +45,8 @@ end
 
 module Spec : Analyses.MCPSpec =
 struct
+  [@@@warning "-unused-value-declaration"] (* some functions are only used by commented out code *)
+
   include Analyses.DefaultSpec
 
   let name () = "arinc"
@@ -68,7 +70,6 @@ struct
       v
   let get_by_id (id:id) : (resource*string) option =
     Hashtbl.filter ((=) id) resources |> Hashtbl.keys |> Enum.get
-  let get_name_by_id id = get_by_id id |> Option.get |> snd
 
   (* map process name to integer used in Pid domain *)
   let pnames = Hashtbl.create 13
@@ -82,7 +83,6 @@ struct
       let id = if Enum.is_empty ids then 1L else Int64.succ (Enum.arg_max identity ids) in
       Hashtbl.replace pnames pname id;
       id
-  let get_pid_by_id id = get_by_id id |> Option.get |> snd |> get_pid
 
 
   (* Domains *)
@@ -91,8 +91,7 @@ struct
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (ArincDomain.D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
   module C = D
-
-  let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
+  module V = Printable.UnitConf (struct let name = "tasks" end)
 
   let context fd d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
 
@@ -109,7 +108,6 @@ struct
 
   let is_single ctx =
     not (ThreadFlag.is_multi (Analyses.ask_of_ctx ctx))
-  let tasks_var = Goblintutil.create_var (makeGlobalVar "__GOBLINT_ARINC_TASKS" voidPtrType)
   let is_mainfun name = List.mem name (GobConfig.get_string_list "mainfun")
 
   type env = { d: D.t; node: MyCFG.node; fundec: fundec; pname: string; procid: ArincUtil.id; id: ArincUtil.id }
@@ -136,7 +134,7 @@ struct
   let is_return_code_type exp = Cilfacade.typeOf exp |> unrollTypeDeep |> function
     | TEnum(ei, _) when ei.ename = "T13" -> true
     | _ -> false
-  let return_code_is_success = function 0L | 1L -> true | _ -> false
+  let return_code_is_success z = Cilint.is_zero_cilint z || Cilint.compare_cilint z Cilint.one_cilint = 0
   let str_return_code i = if return_code_is_success i then "SUCCESS" else "ERROR"
   let str_return_dlval (v,o as dlval) =
     sprint d_lval (Lval.CilLval.to_lval dlval) ^ "_" ^ string_of_int v.vdecl.line |>
@@ -163,7 +161,6 @@ struct
       M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
-  let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.compare_length_with xs 1 = 0 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
   let debugMayPointTo ctx exp = M.debug "%a mayPointTo %a" d_exp exp (Pretty.d_list ", " Lval.CilLval.pretty) (mayPointTo ctx exp)
 
@@ -195,7 +192,7 @@ struct
               let add_one str_rhs = add_edges env @@ ArincUtil.Assign (str_return_dlval dlval, str_rhs) in
               let add_top () = add_edges ~r:(str_return_dlval dlval) env @@ ArincUtil.Nop in
               match stripCasts rval with
-              | Const CInt64(i,_,_) -> add_one @@ str_return_code i
+              | Const CInt(i,_,_) -> add_one @@ str_return_code i
               (*       | Lval rlval ->
                         iterMayPointTo ctx (AddrOf rlval) (fun rdlval -> add_return_dlval env `Read rdlval; add_one @@ str_return_dlval rdlval) *)
               | _ -> add_top ()
@@ -212,8 +209,8 @@ struct
         let check a b tv =
           (* we are interested in a comparison between some lval lval (which has the type of the return code enum) and a value of that enum (which gets converted to an Int by CIL) *)
           match a, b with
-          | Lval lval, Const CInt64(i,_,_)
-          | Const CInt64(i,_,_), Lval lval when is_return_code_type (Lval lval) ->
+          | Lval lval, Const CInt(i,_,_)
+          | Const CInt(i,_,_), Lval lval when is_return_code_type (Lval lval) ->
             (* let success = return_code_is_success i = tv in (* both must be true or false *) *)
             (* ignore(printf "if %s: %a = %B (line %i)\n" (if success then "success" else "error") d_plainexp exp tv (!Tracing.current_loc).line); *)
             (match env.node with
@@ -261,7 +258,7 @@ struct
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
     let module BaseMain = (val Base.get_main ()) in
-    let base_context = BaseMain.context_cpa f @@ Obj.obj @@ List.assoc "base" ctx.presub in
+    let base_context = BaseMain.context_cpa f @@ Obj.obj @@ ctx.presub "base" in
     let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
     { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
 
@@ -314,11 +311,6 @@ struct
         { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
       )
 
-  (* ARINC utility functions *)
-  let mode_is_init  i = match Pmo.to_int i with Some 1L | Some 2L -> true | _ -> false
-  let mode_is_multi i = Pmo.to_int i = Some 3L
-  let pname_ErrorHandler = "ErrorHandler"
-
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let open ArincUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
     let d : D.t = ctx.local in
@@ -345,7 +337,7 @@ struct
       let assign_id exp id =
         match exp with
         (* call assign for all analyses (we only need base)! *)
-        | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+        | AddrOf lval -> ctx.emit (Assign {lval; exp = mkAddrOf @@ var id})
         (* TODO not needed for the given code, but we could use Queries.MayPointTo exp in this case *)
         | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
       in
@@ -402,7 +394,7 @@ struct
             let pm = partition_mode_of_enum @@ BI.to_int i in
             if M.tracing then M.tracel "arinc" "setting partition mode to %Ld (%s)\n" (BI.to_int64 i) (show_partition_mode_opt pm);
             if mode_is_multi (Pmo.of_int (BI.to_int64 i)) then (
-              let tasks = ctx.global tasks_var in
+              let tasks = ctx.global () in
               ignore @@ printf "arinc: SetPartitionMode NORMAL: spawning %i processes!\n" (Tasks.cardinal tasks);
               Tasks.iter (fun (fs,f_d) -> Queries.LS.iter (fun f -> ctx.spawn None (fst f) []) fs) tasks;
             );
@@ -507,8 +499,8 @@ struct
             if M.tracing then M.tracel "arinc" "starting a thread %a with priority '%Ld' \n" Queries.LS.pretty funs_ls pri;
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
             let f_d = { pid = Pid.of_int (get_pid name); pri = Pri.of_int pri; per = Per.of_int per; cap = Cap.of_int cap; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
-            let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-            ctx.sideg tasks_var tasks;
+            let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+            ctx.sideg () tasks;
             let pid' = Process, name in
             assign_id pid (get_id pid');
             add_actions (List.map (fun f -> CreateProcess Action.({ pid = pid'; f; pri; per; cap })) funs)
@@ -618,8 +610,8 @@ struct
             let funs_ls = Queries.LS.filter (fun (v,o) -> let lval = Var v, Lval.CilLval.to_ciloffs o in isFunctionType (Cilfacade.typeOfLval lval)) ls in
             let funs = funs_ls |> Queries.LS.elements |> List.map fst |> List.unique in
             let f_d = { pid = Pid.of_int pid; pri = Pri.of_int infinity; per = Per.of_int infinity; cap = Cap.of_int infinity; pmo = Pmo.of_int 3L; pre = PrE.top (); pred = Pred.of_loc f.vdecl; ctx = Ctx.top () } in
-            let tasks = Tasks.add (funs_ls, f_d) (ctx.global tasks_var) in
-            ctx.sideg tasks_var tasks;
+            let tasks = Tasks.add (funs_ls, f_d) (ctx.global ()) in
+            ctx.sideg () tasks;
             add_actions (List.map (fun f -> CreateErrorHandler ((Process, pname_ErrorHandler), f)) funs)
           | _ -> failwith @@ "CreateErrorHandler: could not find out which functions are reachable from first argument!"
         end
@@ -657,7 +649,7 @@ struct
 
   let threadenter ctx lval f args =
     let d : D.t = ctx.local in
-    let tasks = ctx.global tasks_var in
+    let tasks = ctx.global () in
     (* TODO: optimize finding *)
     let tasks_f = Tasks.filter (fun (fs,f_d) ->
         Queries.LS.exists (fun (ls_f, _) -> ls_f = f) fs

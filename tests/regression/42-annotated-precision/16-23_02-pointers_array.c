@@ -1,5 +1,16 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
-int main(void) __attribute__((goblint_precision("no-interval"))) {
+// PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+
+int main(void) __attribute__((goblint_precision("no-interval")));
+void example1(void) __attribute__((goblint_precision("no-def_exc")));
+void example2() __attribute__((goblint_precision("no-def_exc")));
+void example3(void) __attribute__((goblint_precision("no-def_exc")));
+void example4(void) __attribute__((goblint_precision("no-def_exc")));
+void example5(void) __attribute__((goblint_precision("no-def_exc")));
+void example6(void) __attribute__((goblint_precision("no-def_exc")));
+void example7(void) __attribute__((goblint_precision("no-def_exc")));
+
+
+int main(void) {
     example1();
     example2();
     example3();
@@ -11,7 +22,7 @@ int main(void) __attribute__((goblint_precision("no-interval"))) {
 }
 
 // Initializing an array with pointers
-void example1(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example1(void) {
     int top;
 
     int a[42];
@@ -49,7 +60,7 @@ void example1(void) __attribute__((goblint_precision("no-def_exc"))) {
 }
 
 // Tests correct handling when pointers may point to several different things
-void example2() __attribute__((goblint_precision("no-def_exc"))) {
+void example2() {
   int array1[10000000];
   int array2[10000000];
 
@@ -74,7 +85,7 @@ void example2() __attribute__((goblint_precision("no-def_exc"))) {
   assert(*ptr == 6); // UNKNOWN
 }
 
-void example3(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example3(void) {
   int array1[5];
   int *ptr = &array1;
 
@@ -85,7 +96,7 @@ void example3(void) __attribute__((goblint_precision("no-def_exc"))) {
   }
 }
 
-void example4(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example4(void) {
   int array1[5];
   int *ptr = &array1;
   int *end = &(array1[5]);
@@ -99,7 +110,7 @@ void example4(void) __attribute__((goblint_precision("no-def_exc"))) {
   // In an ideal world, I would like to have information about array1[0] and so on. For this the <= would need yo improve
 }
 
-void example5(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example5(void) {
   int array1[5];
   int *ptr = &(array1[4]);
 
@@ -116,7 +127,7 @@ void example5(void) __attribute__((goblint_precision("no-def_exc"))) {
   assert(array1[0] == 42); // UNKNOWN
 }
 
-void example6(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example6(void) {
   int array1[100];
   int* ptr = &array1;
 
@@ -142,7 +153,7 @@ void example6(void) __attribute__((goblint_precision("no-def_exc"))) {
   assert(x==7);
 }
 
-void example7(void) __attribute__((goblint_precision("no-def_exc"))) {
+void example7(void) {
   int top;
 
   int arr1[42];

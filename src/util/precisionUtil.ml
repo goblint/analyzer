@@ -13,7 +13,7 @@ let precision_from_fundec (fd: Cil.fundec): precision =
 let precision_from_node (): precision =
   match !MyCFG.current_node with
   | Some n -> precision_from_fundec (Node.find_fundec n)
-  | _ -> max_precision (* In case a Node is None we have to handle Globals, i.e. we activate all IntDomains (TODO: varify this assumption) *)
+  | _ -> max_precision (* In case a Node is None we have to handle Globals, i.e. we activate all IntDomains (TODO: verify this assumption) *)
 
 let precision_from_node_or_config (): precision =
   if GobConfig.get_bool "annotation.int.enabled" then

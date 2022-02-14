@@ -18,8 +18,7 @@ module SLR3 =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -203,7 +202,7 @@ module Make =
           HM.find keys x
         with Not_found ->
           incr Goblintutil.vars;
-          last_key := !last_key - 1;
+          decr last_key;
           HM.add keys x !last_key;
           !last_key
 
@@ -211,7 +210,7 @@ module Make =
         try (HM.find keys c, true)
         with Not_found ->
           incr Goblintutil.vars;
-          last_key := !last_key - 1;
+          decr last_key;
           HM.add keys c !last_key;
           (!last_key, false)
 
@@ -223,8 +222,7 @@ module Make =
     struct
       module P =
       struct
-        type t = S.Var.t * S.Var.t [@@deriving eq]
-        let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2
+        type t = S.Var.t * S.Var.t [@@deriving eq, hash]
       end
       module HPM = Hashtbl.Make (P)
       let hpm_find_default h x d =
@@ -272,7 +270,6 @@ module Make =
     module P =
     struct
       let single x = tap (fun s -> HM.add s x ()) (HM.create 10)
-      let rem_item = HM.remove
       let to_list s = HM.fold (fun x y z -> x :: z ) s []
       let has_item = HM.mem
       let rem_item = HM.remove
@@ -398,7 +395,7 @@ module Make =
 
           let tmp = do_side x (eq x (eval x) (side x)) in
           let use_box = (not (V.ver>1)) || HM.mem wpoint x in
-          let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "exp.solver.slr4.restart_count") in
+          let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "solvers.slr4.restart_count") in
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -482,7 +479,7 @@ module PrintInfluence =
       let r = S1.solve box x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
-        let s = Pretty.sprint 80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
+        let s = Pretty.sprint ~width:80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
         ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (XmlUtil.escape s) q);
         let f y =
           if try HM.find S1.X.keys k > HM.find S1.X.keys y with Not_found -> false then
