@@ -32,11 +32,7 @@ struct
   type t =
     | Node of Node0.t (** Location identified by a node. Strongly preferred, because output location updates incrementally. *)
     | CilLocation of CilType.Location.t (** Location identified by a literal CIL location. Strongly discouraged, because not updated incrementally. *)
-  [@@deriving eq]
-
-  let hash = function
-    | Node node -> Node0.hash node
-    | CilLocation loc -> CilType.Location.hash loc
+  [@@deriving eq, hash]
 
   let to_cil = function
     | Node node -> UpdateCil0.getLoc node (* use incrementally updated location *)
