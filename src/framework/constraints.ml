@@ -795,7 +795,7 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
 
     type marshal = unit
 
-    let solve box xs vs =
+    let solve box xs vs _ =
       let vh = Sol.solve box xs vs in
       Post.post xs vs vh;
       (vh, ())
@@ -925,7 +925,7 @@ end
 
 (** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
-  : GenericGlobSolver
+  (* : GenericGlobSolver *)
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
     functor (GH:Hashtbl.S with type key=S.GVar.t) ->
@@ -939,11 +939,11 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 
       type marshal = Sol'.marshal
 
-      let solve ls gs l =
+      let solve ls gs l old_data =
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        let hm, solver_data = Sol'.solve EqSys.box vs sv old_data in
         Splitter.split_solution hm, solver_data
     end
 

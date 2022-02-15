@@ -550,7 +550,7 @@ module type GenericEqBoxIncrSolverBase =
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)
-    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t * marshal
+    val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> marshal option -> S.d H.t * marshal
   end
 
 (** (Incremental) solver argument, indicating which postsolving should be performed by the solver. *)
@@ -588,7 +588,7 @@ module type GenericGlobSolver =
     (** The hash-map that is the first component of [solve box xs vs] is a local solution for interesting variables [vs],
         reached from starting values [xs].
         As a second component the solver returns data structures for incremental serialization. *)
-    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> (S.D.t LH.t * S.G.t GH.t) * marshal
+    val solve : (S.LVar.t*S.D.t) list -> (S.GVar.t*S.G.t) list -> S.LVar.t list -> marshal option -> (S.D.t LH.t * S.G.t GH.t) * marshal
   end
 
 module ResultType2 (S:Spec) =

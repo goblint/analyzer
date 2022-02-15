@@ -420,7 +420,7 @@ struct
 
       let lh, gh = if load_run <> "" then (
           let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
-          let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
+          let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
           r2
         ) else if compare_runs <> [] then (
           match compare_runs with
@@ -463,7 +463,7 @@ struct
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
-          let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global) startvars' in
+          let (lh, gh), solver_data = Timing.wrap "solving" (Slvr.solve entrystates entrystates_global) startvars' (Option.map (fun {solver_data; _} -> solver_data) Inc.increment.old_data) in
           if GobConfig.get_bool "incremental.save" then
             Serialize.Cache.(update_data SolverData solver_data);
           if save_run_str <> "" then (
@@ -512,7 +512,7 @@ struct
           end
           in
           let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg2))) (EQSys) (LHT) (GHT) in
-          let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
+          let (r2, _) = S2'.solve entrystates entrystates_global startvars' None in (* TODO: has incremental data? *)
           CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
         compare_with (Selector.choose_solver (get_string "comparesolver"))

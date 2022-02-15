@@ -60,7 +60,7 @@ module Solver = Constraints.GlobSolverFromEqSolver (Constraints.EqIncrSolverFrom
 
 let test1 _ =
   let id x = x in
-  let ((sol, gsol), _) = Solver.solve [] [] ["w"] in
+  let ((sol, gsol), _) = Solver.solve [] [] ["w"] None in
   assert_equal ~printer:id "42" (Int.show (GH.find gsol "g"));
   assert_equal ~printer:id "42" (Int.show (LH.find sol "x"));
   assert_equal ~printer:id "8"  (Int.show (LH.find sol "y"));

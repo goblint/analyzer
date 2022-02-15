@@ -997,12 +997,12 @@ module WP =
       verify_data data;
       {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
-    let solve box st vs =
+    let solve box st vs (old_data: marshal option) =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
       let reuse_wpoint = GobConfig.get_bool "incremental.wpoint" in
       if GobConfig.get_bool "incremental.load" then (
-        let loaded, data = match S.increment.old_data with
-          | Some d -> true, Obj.obj d.solver_data
+        let loaded, data = match old_data with
+          | Some d -> true, d
           | _ -> false, create_empty_data ()
         in
         (* This hack is for fixing hashconsing.

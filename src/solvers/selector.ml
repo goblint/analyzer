@@ -22,10 +22,10 @@ module Make =
   struct
     type marshal = Obj.t (* cannot use Sol.marshal because cannot unpack first-class module in applicative functor *)
 
-    let solve box xs vs =
+    let solve box xs vs (old_data: marshal option) =
       let module Sol = (val choose_solver (get_string "solver") : GenericEqBoxIncrSolver) in
       let module F = Sol (Arg) (S) (VH) in
-      let (vh, marshal) = F.solve box xs vs in
+      let (vh, marshal) = F.solve box xs vs (Option.map Obj.obj old_data) in
       (vh, Obj.repr marshal)
   end
 
