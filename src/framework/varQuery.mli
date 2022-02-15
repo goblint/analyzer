@@ -1,7 +1,8 @@
 type t =
-    Global of Cil.varinfo
-  | Node of { node : Node.t; fundec : Cil.fundec option; }
-val compare : t -> t -> int
+  | Global of Cil.varinfo
+  | Node of {node: Node.t; fundec : Cil.fundec option} (** Optional [fundec] override to allow querying old state in incremental. *)
+[@@deriving ord]
+
 type 'v f = 'v -> unit
 
 (** Takes a [Cil.file] and a list of names of globals.contents
