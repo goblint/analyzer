@@ -113,7 +113,8 @@ let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
     | Some solver_data ->
       let changes = CompareCIL.compareCilFiles file file in
       let old_data = Some { Analyses.cil_file = file; solver_data } in
-      { Analyses.changes; old_data; new_file = file }, false
+      (* TODO: get globals for restarting from config *)
+      { Analyses.changes; old_data; new_file = file; restarting = [] }, false
     | _ -> Analyses.empty_increment_data file, true
   in
   GobConfig.set_bool "incremental.load" (not fresh);

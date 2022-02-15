@@ -439,13 +439,18 @@ type analyzed_data = {
 type increment_data = {
   old_data: analyzed_data option;
   new_file: Cil.file;
-  changes: CompareCIL.change_info
+  changes: CompareCIL.change_info;
+
+  (* Globals for whiche the constraint
+     system unknowns should be restarted *)
+  restarting: VarQuery.t list;
 }
 
 let empty_increment_data file = {
   old_data = None;
   new_file = file;
-  changes = CompareCIL.empty_change_info ()
+  changes = CompareCIL.empty_change_info ();
+  restarting = []
 }
 
 (** A side-effecting system. *)

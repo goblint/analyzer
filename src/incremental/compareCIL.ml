@@ -23,7 +23,8 @@ type change_info = {
   mutable added: global list
 }
 
-let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
+let empty_change_info () : change_info =
+  {added = []; removed = []; changed = []; unchanged = []}
 
 (* If some CFGs of the two functions to be compared are provided, a fine-grained CFG comparison is done that also determines which
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is

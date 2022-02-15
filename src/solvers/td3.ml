@@ -718,6 +718,44 @@ module WP =
             ) marked_for_deletion
         );
 
+        (* [destabilize_leaf] is meant for restarting of globals selected by the user. *)
+        (* Must be called on a leaf! *)
+        let destabilize_leaf (x : S.v) =
+          let destab_side_dep (x : S.v) =
+            let w = HM.find_default side_dep x VS.empty in
+            if not (VS.is_empty w) then (
+              HM.remove side_dep x;
+              (* add side_dep to front to prevent them from being aborted *)
+              destabilize_front ~front:true x w;
+              (* destabilize side dep to redo side effects *)
+              VS.iter (fun y ->
+                  if tracing then trace "sol2" "destabilize_leaf %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                  if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+                  HM.remove stable y;
+                  HM.remove superstable y;
+                  destabilize_normal y
+                ) w
+            )
+          in
+          restart_leaf x;
+          destab_side_dep x;
+          destabilize_normal x
+
+        in
+        let globals_to_restart = S.increment.restarting in
+        let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
+
+        List.iter
+          (fun g ->
+             S.iter_vars get g
+               (fun v ->
+                  if S.system v <> None then
+                    ignore @@ Pretty.printf "Trying to restart non-leaf unknown %a. This has no effect.\n" S.Var.pretty_trace v
+                  else if HM.mem stable v then
+                    destabilize_leaf v)
+          )
+          globals_to_restart;
+
         let restart_and_destabilize x = (* destabilize_with_side doesn't restart x itself *)
           restart_leaf x;
           destabilize x
