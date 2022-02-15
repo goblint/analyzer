@@ -45,6 +45,7 @@ module ConstrSys = struct
     | _   -> None
 
   let iter_vars _ _ _ _ _ = ()
+  let sys_change _ _ = {Analyses.obsolete = []; delete = []; reluctant = []}
 end
 
 module LH = BatHashtbl.Make (ConstrSys.LVar)
