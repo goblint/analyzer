@@ -504,9 +504,6 @@ struct
      1. S.V -> S.G  --  used for Spec
      2. fundec -> set of S.C  --  used for IterSysVars Node *)
 
-  (* Dummy module. No incremental analysis supported here*)
-  let increment = I.increment
-
   let sync ctx =
     match Cfg.prev ctx.prev_node with
     | _ :: _ :: _ -> S.sync ctx `Join
@@ -928,7 +925,7 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
 
     type marshal = unit
 
-    let solve box xs vs =
+    let solve box xs vs _ =
       let vh = Sol.solve box xs vs in
       Post.post xs vs vh;
       (vh, ())
@@ -952,7 +949,6 @@ struct
       | `Lifted2 a -> S.D.printXml f a
       | (`Bot | `Top) as x -> printXml f x
   end
-  let increment = S.increment
   type v = Var.t
   type d = Dom.t
 
@@ -1029,7 +1025,7 @@ end
 
 (** Transforms a [GenericEqBoxIncrSolver] into a [GenericGlobSolver]. *)
 module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
-  : GenericGlobSolver
+  (* : GenericGlobSolver *)
   = functor (S:GlobConstrSys) ->
     functor (LH:Hashtbl.S with type key=S.LVar.t) ->
     functor (GH:Hashtbl.S with type key=S.GVar.t) ->
@@ -1043,11 +1039,11 @@ module GlobSolverFromEqSolver (Sol:GenericEqBoxIncrSolverBase)
 
       type marshal = Sol'.marshal
 
-      let solve ls gs l =
+      let solve ls gs l old_data =
         let vs = List.map (fun (x,v) -> `L x, `Lifted2 v) ls
                  @ List.map (fun (x,v) -> `G x, `Lifted1 v) gs in
         let sv = List.map (fun x -> `L x) l in
-        let hm, solver_data = Sol'.solve EqSys.box vs sv in
+        let hm, solver_data = Sol'.solve EqSys.box vs sv old_data in
         Splitter.split_solution hm, solver_data
     end
 
