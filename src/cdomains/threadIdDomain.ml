@@ -98,6 +98,15 @@ struct
   end
   include Printable.Prod (P) (S)
 
+  let pretty () (p, s) =
+    let p = List.rev p in (* show in "unreversed" order *)
+    if S.is_empty s then
+      P.pretty () p (* hide empty set *)
+    else
+      Pretty.dprintf "%a, %a" P.pretty p S.pretty s
+
+  let show x = Pretty.sprint ~width:max_int (pretty () x)
+
   module D =
   struct
     include S
