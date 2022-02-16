@@ -285,8 +285,6 @@ let merge_preprocessed cpp_file_names =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
 
-  (* direct the output to file if requested  *)
-  if not (get_bool "g2html" || get_string "outfile" = "") then Goblintutil.out := Legacy.open_out (get_string "outfile");
   Errormsg.logChannel := Messages.get_out "cil" cilout;
 
   (* we use CIL to merge all inputs to ONE file *)
@@ -319,6 +317,12 @@ let do_stats () =
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
+  (* direct the output to file if requested  *)
+  if not (get_bool "g2html" || get_string "outfile" = "") then (
+    if !Goblintutil.out <> Legacy.stdout then
+      Legacy.close_out !Goblintutil.out;
+    Goblintutil.out := Legacy.open_out (get_string "outfile"));
+
   let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
