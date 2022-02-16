@@ -183,3 +183,8 @@ let rec for_all_in_range (a, b) f =
   else f a && (for_all_in_range (BI.add a (BI.one), b) f)
 
 let dummy_obj = Obj.repr ()
+
+let jobs () =
+  match get_int "jobs" with
+  | 0 -> Cpu.numcores ()
+  | n -> n

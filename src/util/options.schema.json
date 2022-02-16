@@ -219,9 +219,9 @@
     },
     "jobs": {
       "title": "jobs",
-      "description": "Maximum number of parallel jobs.",
+      "description": "Maximum number of parallel jobs. If 0, then number of cores is used.",
       "type": "integer",
-      "default": 1
+      "default": 0
     },
     "server": {
       "title": "Server",

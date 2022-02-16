@@ -284,7 +284,7 @@ let preprocess_files () =
     | Unix.WEXITED 0 -> ()
     | process_status -> failwith (GobUnix.string_of_process_status process_status)
   in
-  ProcessPool.run ~terminated preprocess_tasks;
+  ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks;
   List.map fst preprocessed
 
 (** Possibly merge all postprocessed files *)

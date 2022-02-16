@@ -3,12 +3,11 @@ type task = {
   cwd: string option;
 }
 
-let run ?(terminated=fun _ _ -> ()) tasks =
-  let n = GobConfig.get_int "jobs" in
-  let procs = Hashtbl.create n in
+let run ~jobs ?(terminated=fun _ _ -> ()) tasks =
+  let procs = Hashtbl.create jobs in
   let rec run tasks =
     match tasks with
-    | task :: tasks when Hashtbl.length procs < n ->
+    | task :: tasks when Hashtbl.length procs < jobs ->
       let old_cwd = Sys.getcwd () in
       let proc =
         match task.cwd with

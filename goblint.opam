@@ -38,6 +38,7 @@ depends: [
   "json-data-encoding"
   "jsonrpc"
   "sha" {>= "1.12"}
+  "cpu"
   "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}
   "benchmark" {with-test}
