@@ -287,6 +287,27 @@ let preprocess_files () =
   ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks;
   List.map fst preprocessed
 
+let fix_ids file =
+  (* simplified from UpdateCil.update_ids *)
+  (* TODO: what about nextCompinfoKey here and in incremental? *)
+  let open Cil in
+  let fix_fun (f: fundec) =
+    f.svar.vid <- Cil.newVID ();
+    List.iter (fun l -> l.vid <- Cil.new_sid ()) f.slocals;
+    List.iter (fun f -> f.vid <- Cil.new_sid ()) f.sformals;
+    List.iter (fun s -> s.sid <- Cil.new_sid ()) f.sallstmts;
+  in
+  let fix_var (v: varinfo) =
+    v.vid <- Cil.newVID ()
+  in
+  let fix_global = function
+    | GFun (nw, _) -> fix_fun nw
+    | GVar (nw, _, _) -> fix_var nw
+    | GVarDecl (nw, _) -> fix_var nw
+    | _ -> ()
+  in
+  iterGlobals file fix_global
+
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
   (* get the AST *)
@@ -294,12 +315,13 @@ let merge_preprocessed cpp_file_names =
   let get_ast_and_record_deps f =
     Cilfacade.getAST f
   in
-  (* let files_AST = Parmap.parmap ~ncores:(Goblintutil.jobs ()) (get_ast_and_record_deps) (L cpp_file_names) in *)
-  let files_AST = List.map (get_ast_and_record_deps) (cpp_file_names) in
+  (* let files_AST = List.map (get_ast_and_record_deps) (cpp_file_names) in *)
+  let files_AST = Parmap.parmap ~ncores:(Goblintutil.jobs ()) (get_ast_and_record_deps) (L cpp_file_names) in
 
   List.iter2 (fun f file ->
       (* Drop <built-in> and <command-line> from dependencies *)
       Hashtbl.add Preprocessor.dependencies f @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.Cil.files;
+      fix_ids file
     ) cpp_file_names files_AST;
 
   (* raise Exit; *)
