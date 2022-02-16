@@ -436,7 +436,7 @@ struct
           if get_bool "dbg.verbose" then
             print_endline ("Solving the constraint system with " ^ get_string "solver" ^ ". Solver statistics are shown every " ^ string_of_int (get_int "dbg.solver-stats-interval") ^ "s or by signal " ^ get_string "dbg.solver-signal" ^ ".");
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
-          let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' (Option.map (fun {solver_data; _} -> solver_data) Inc.increment.old_data) in
+          let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' Inc.increment.solver_data in
           if GobConfig.get_bool "incremental.save" then
             Serialize.store_data solver_data Serialize.SolverData;
           if save_run <> "" then (

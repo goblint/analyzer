@@ -431,17 +431,13 @@ sig
   val access: (D.t, G.t, C.t, V.t) ctx -> exp -> varinfo option -> bool -> A.t
 end
 
-type analyzed_data = {
-  solver_data: Obj.t;
-}
-
 type increment_data = {
-  old_data: analyzed_data option;
+  solver_data: Obj.t option;
   changes: CompareCIL.change_info
 }
 
 let empty_increment_data = {
-  old_data = None;
+  solver_data = None;
   changes = CompareCIL.empty_change_info ()
 }
 

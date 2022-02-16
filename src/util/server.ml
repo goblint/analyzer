@@ -112,8 +112,8 @@ let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
   let increment_data, fresh = match !Serialize.server_solver_data with
     | Some solver_data ->
       let changes = CompareCIL.compareCilFiles file file in
-      let old_data = Some { Analyses.solver_data } in
-      { Analyses.changes; old_data }, false
+      let solver_data = Some solver_data in
+      { Analyses.changes; solver_data }, false
     | _ -> Analyses.empty_increment_data, true
   in
   GobConfig.set_bool "incremental.load" (not fresh);
