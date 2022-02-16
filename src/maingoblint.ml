@@ -472,7 +472,7 @@ let diff_and_rename current_file =
       | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
-    {Analyses.changes = changes; old_data; new_file = current_file}
+    {Analyses.changes = changes; old_data }
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
@@ -505,7 +505,7 @@ let main () =
       )
     in
     if get_bool "server.enabled" then Server.start file do_analyze else (
-      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
+      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data in
       file|> do_analyze changeInfo;
       do_stats ();
       do_html_output ();
