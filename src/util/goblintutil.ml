@@ -186,5 +186,5 @@ let dummy_obj = Obj.repr ()
 
 let jobs () =
   match get_int "jobs" with
-  | 0 -> Cpu.numcores ()
+  | 0 -> Setcore.numcores ()
   | n -> n
