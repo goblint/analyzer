@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <stdio.h>
+#include <assert.h>
 
 int main () {
     int a;
@@ -12,9 +12,9 @@ int main () {
         b = &d;
     }
     if (a) {
-        assert(*b > 0); //FAIL
+        assert(*b < 0);  // SUCCESS
     } else {
-        assert(*b < 0); //FAIL
+        assert(*b > 0);  // SUCCESS
     }
     return 0;
 }
