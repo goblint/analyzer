@@ -217,6 +217,12 @@
       "type": "boolean",
       "default": false
     },
+    "jobs": {
+      "title": "jobs",
+      "description": "Maximum number of parallel jobs.",
+      "type": "integer",
+      "default": 1
+    },
     "server": {
       "title": "Server",
       "description": "Server mode",

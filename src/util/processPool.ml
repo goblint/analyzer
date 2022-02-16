@@ -4,7 +4,7 @@ type task = {
 }
 
 let run ?(terminated=fun _ _ -> ()) tasks =
-  let n = 16 in (* TODO: configure *)
+  let n = GobConfig.get_int "jobs" in
   let procs = Hashtbl.create n in
   let rec run tasks =
     match tasks with
