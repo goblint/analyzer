@@ -1,0 +1,31 @@
+--- tests/incremental/01-force-reanalyze/01-int-reluctant.c
++++ tests/incremental/01-force-reanalyze/01-int-reluctant.c
+@@ -4,7 +4,7 @@ int f(int in){
+   while(in < 17) {
+     in++;
+   }
+-  assert(in == 17); //UNKNOWN
++  assert(in == 17);
+   return in;
+ }
+
+@@ -12,6 +12,6 @@ int main() {
+   int a = 0;
+   assert(a); // FAIL!
+   a = f(a);
+-  assert(a == 17); //UNKNOWN
++  assert(a == 17);
+   return 0;
+ }
+--- tests/incremental/01-force-reanalyze/01-int-reluctant.json
++++ tests/incremental/01-force-reanalyze/01-int-reluctant.json
+@@ -2,6 +2,9 @@
+     "annotation" : {
+         "int" : {
+             "enabled" : true
++        },
++        "goblint_precision": {
++            "interval" : ["f"]
+         }
+     },
+     "ana" : {
