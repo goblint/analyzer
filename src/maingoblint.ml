@@ -318,7 +318,7 @@ let merge_preprocessed cpp_file_names =
     | 1 ->
       List.map Cilfacade.getAST cpp_file_names
     | jobs ->
-      let files = Parmap.parmap ~ncores:jobs Cilfacade.getAST (L cpp_file_names) in
+      let files = Parmap.parmap ~ncores:jobs ~keeporder:true Cilfacade.getAST (L cpp_file_names) in (* keeporder for iter2 below *)
       List.iter fix_ids files;
       files
   in
