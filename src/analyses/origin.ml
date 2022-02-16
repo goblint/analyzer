@@ -207,7 +207,7 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
     let fun_variable = f.svar in
-    let v_out = Goblintutil.create_var @@ makeVarinfo false (fun_variable.vname ^ "#out") fun_variable.vtype in (* temporary local f#out for the output of the function f *)
+    (* let v_out = Goblintutil.create_var @@ makeVarinfo false (fun_variable.vname ^ "#out") fun_variable.vtype in*) (* temporary local f#out for the output of the function f *)
     (* let node = match !MyCFG.current_node with
        | Some n -> `Lifted n
        | _ -> PL.top ()
@@ -245,7 +245,7 @@ struct
           )
         | _ -> let _ = printf "No value\n" in AD.top () 
       ) in
-    let o = D.add v_out new_pair ctx.local in
+    let o = D.add fun_variable new_pair ctx.local in
     let _ = Pretty.printf "Return %s\n" (Pretty.sprint 80 (D.pretty () o)) in 
     o
 
