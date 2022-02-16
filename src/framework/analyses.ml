@@ -476,14 +476,10 @@ sig
   val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
 end
 
-type analyzed_data = {
-  solver_data: Obj.t;
-}
-
 type increment_data = {
   server: bool;
 
-  old_data: analyzed_data option;
+  solver_data: Obj.t option;
   changes: CompareCIL.change_info;
 
   (* Globals for which the constraint
@@ -493,7 +489,7 @@ type increment_data = {
 
 let empty_increment_data ?(server=false) () = {
   server;
-  old_data = None;
+  solver_data = None;
   changes = CompareCIL.empty_change_info ();
   restarting = []
 }
