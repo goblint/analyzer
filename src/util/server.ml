@@ -167,16 +167,14 @@ let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data Sol
   | Some solver_data when reparsed ->
     let s_file = Option.get s.file in
     let changes = CompareCIL.compareCilFiles s_file file in
-    let solver_data = Some solver_data in
     s.max_ids <- UpdateCil.update_ids s_file s.max_ids file changes;
     (* TODO: get globals for restarting from config *)
-    { server = true; Analyses.changes; solver_data; restarting = [] }, false
+    Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
   | Some solver_data ->
     let changes = virtual_changes file in
-    let solver_data = Some solver_data in
     (* TODO: get globals for restarting from config *)
-    { server = true; Analyses.changes; solver_data; restarting = [] }, false
-  | _ -> Analyses.empty_increment_data ~server:true (), true
+    Some { server = true; Analyses.changes; solver_data; restarting = [] }, false
+  | _ -> None, true
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);

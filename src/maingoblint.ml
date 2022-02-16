@@ -526,7 +526,7 @@ let handle_extraspecials () =
 (* Detects changes and renames vids and sids. *)
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
-  let change_info: Analyses.increment_data =
+  let change_info: Analyses.increment_data option =
     let warn m = eprint_color ("{yellow}Warning: "^m) in
     if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
       warn "incremental.load is activated but no data exists that can be loaded."
@@ -562,11 +562,9 @@ let diff_and_rename current_file =
       Serialize.Cache.(update_data CilFile current_file);
       Serialize.Cache.(update_data VersionData max_ids);
     end;
-    let solver_data = match old_file, solver_data with
-      | Some cil_file, Some solver_data -> Some solver_data
-      | _, _ -> None
-    in
-    {server = false; Analyses.changes = changes; restarting; solver_data}
+    match old_file, solver_data with
+    | Some cil_file, Some solver_data -> Some {server = false; Analyses.changes = changes; restarting; solver_data}
+    | _, _ -> None
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)

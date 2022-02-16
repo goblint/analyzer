@@ -479,19 +479,12 @@ end
 type increment_data = {
   server: bool;
 
-  solver_data: Obj.t option;
+  solver_data: Obj.t;
   changes: CompareCIL.change_info;
 
   (* Globals for which the constraint
      system unknowns should be restarted *)
   restarting: VarQuery.t list;
-}
-
-let empty_increment_data ?(server=false) () = {
-  server;
-  solver_data = None;
-  changes = CompareCIL.empty_change_info ();
-  restarting = []
 }
 
 (** A side-effecting system. *)
@@ -514,7 +507,7 @@ sig
   val system : v -> ((v -> d) -> (v -> d -> unit) -> d) m
 
   (** Data used for incremental analysis *)
-  val increment : increment_data
+  val increment : increment_data option
 
   val iter_vars: (v -> d) -> VarQuery.t -> v VarQuery.f -> unit
 end
@@ -530,7 +523,7 @@ sig
 
   module D : Lattice.S
   module G : Lattice.S
-  val increment : increment_data
+  val increment : increment_data option
   val system : LVar.t -> ((LVar.t -> D.t) -> (LVar.t -> D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t) option
   val iter_vars: (LVar.t -> D.t) -> (GVar.t -> G.t) -> VarQuery.t -> LVar.t VarQuery.f -> GVar.t VarQuery.f -> unit
 end

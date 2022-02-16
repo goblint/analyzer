@@ -371,7 +371,10 @@ module WP =
       let restart_write_only = GobConfig.get_bool "incremental.restart.write-only" in
 
       if GobConfig.get_bool "incremental.load" then (
-        let c = S.increment.changes in
+        let c = match S.increment with
+          | Some {changes; _} -> changes
+          | None -> empty_change_info ()
+        in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
 
         let restart_leaf x =
@@ -476,21 +479,21 @@ module WP =
               print_endline ("Completely changed function: " ^ f.svar.vname);
               Some f
             | _ -> None
-          ) S.increment.changes.changed
+          ) c.changed
         in
         let part_changed_funs = List.filter_map (function
             | {old = GFun (f, _); diff = Some nd; _} ->
               print_endline ("Partially changed function: " ^ f.svar.vname);
               Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
             | _ -> None
-          ) S.increment.changes.changed
+          ) c.changed
         in
         let removed_funs = List.filter_map (function
             | GFun (f, _) ->
               print_endline ("Removed function: " ^ f.svar.vname);
               Some f
             | _ -> None
-          ) S.increment.changes.removed
+          ) c.removed
         in
 
         let mark_node hm f node =
@@ -504,7 +507,7 @@ module WP =
         let reanalyze_entry f =
           (* destabilize the entry points of a changed function when reluctant is off,
              or the function is to be force-reanalyzed  *)
-          (not reluctant) || CompareCIL.VarinfoSet.mem f.svar S.increment.changes.exclude_from_rel_destab
+          (not reluctant) || CompareCIL.VarinfoSet.mem f.svar c.exclude_from_rel_destab
         in
         let obsolete_ret = HM.create 103 in
         let obsolete_entry = HM.create 103 in
@@ -630,7 +633,10 @@ module WP =
           destabilize_normal x
 
         in
-        let globals_to_restart = S.increment.restarting in
+        let globals_to_restart = match S.increment with
+          | Some {restarting; _} -> restarting
+          | None -> []
+        in
         let get x = try HM.find rho x with Not_found -> S.Dom.bot () in
 
         List.iter
@@ -1020,7 +1026,7 @@ module WP =
          * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
-        if loaded && S.increment.server then (
+        if loaded && (match S.increment with Some {server; _} -> server | None -> false) then (
           data.rho <- HM.copy data.rho;
           data.stable <- HM.copy data.stable;
           data.wpoint <- HM.copy data.wpoint;

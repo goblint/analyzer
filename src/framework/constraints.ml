@@ -434,7 +434,7 @@ end
 
 module type Increment =
 sig
-  val increment: increment_data
+  val increment: increment_data option
 end
 
 (** The main point of this file---generating a [GlobConstrSys] from a [Spec]. *)
