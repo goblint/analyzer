@@ -1,3 +1,5 @@
+diff --git tests/incremental/01-force-reanalyze/01-int-reluctant.c tests/incremental/01-force-reanalyze/01-int-reluctant.c
+index 38187f1c0..6126fe8cf 100644
 --- tests/incremental/01-force-reanalyze/01-int-reluctant.c
 +++ tests/incremental/01-force-reanalyze/01-int-reluctant.c
 @@ -4,7 +4,7 @@ int f(int in){
@@ -8,7 +10,7 @@
 +  assert(in == 17);
    return in;
  }
-
+ 
 @@ -12,6 +12,6 @@ int main() {
    int a = 0;
    assert(a); // FAIL!
@@ -17,15 +19,19 @@
 +  assert(a == 17);
    return 0;
  }
+diff --git tests/incremental/01-force-reanalyze/01-int-reluctant.json tests/incremental/01-force-reanalyze/01-int-reluctant.json
+index d58c2254b..8834d182d 100644
 --- tests/incremental/01-force-reanalyze/01-int-reluctant.json
 +++ tests/incremental/01-force-reanalyze/01-int-reluctant.json
-@@ -2,6 +2,9 @@
+@@ -2,6 +2,11 @@
      "annotation" : {
          "int" : {
              "enabled" : true
 +        },
 +        "goblint_precision": {
-+            "interval" : ["f"]
++            "interval": [
++                "f"
++            ]
          }
      },
      "ana" : {

@@ -14,7 +14,8 @@
             "funs": ["f"]
         },
         "reluctant" : {
-        "on": true
-        }
+            "on": true
+        },
+        "verify": false
     }
 }
