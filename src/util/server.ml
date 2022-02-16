@@ -138,15 +138,15 @@ let increment_data (s: t) file reparsed = match !Serialize.server_solver_data wi
   | _ -> Analyses.empty_increment_data file, true
 
 let analyze ?(reset=false) (s: t) =
+  Messages.Table.(MH.clear messages_table);
+  Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (
     let version_map, max_ids = VersionLookup.create_map file in
     s.version_map <- version_map;
     s.max_ids <- max_ids;
     Serialize.server_solver_data := None;
-    Serialize.server_analysis_data := None;
-    Messages.Table.(MH.clear messages_table);
-    Messages.Table.messages_list := []);
+    Serialize.server_analysis_data := None);
   let increment_data, fresh = increment_data s file reparsed in
   Cilfacade.reset_lazy ();
   WideningThresholds.reset_lazy ();
