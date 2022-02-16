@@ -29,33 +29,44 @@ module OriginMap = struct
 
   let check_precision_loss (m1: t) (m2: t) (res: t) =
     let s1 = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
-        if (find key res) != v then acc @ [key] else acc) m1 [] in
+        if (find key res) <> v then let _ = Pretty.printf "Lost... %s... was %s is %s \n" (Basetype.Variables.show key) (ValueOriginPair.show v) (ValueOriginPair.show (find key res)) in Set.add key acc else acc) m1 Set.empty in
     let s2 = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
-        if (find key res) != v then acc @ [key] else acc) m2 [] in
-    s1 @ s2
+        if (find key res) <> v then let _ = Pretty.printf "Lost... %s... was %s is %s \n" (Basetype.Variables.show key) (ValueOriginPair.show v) (ValueOriginPair.show (find key res)) in Set.add key acc else acc) m2 Set.empty in
+    Set.union s1 s2
   (*m1 != res or m2 != res*)
 
 
   let update_blame res (x:varinfo) n  =
+    ignore @@ Pretty.printf "Updating precision at node %s\n\n" (Node.show n);
+    let node = match !MyCFG.current_node with
+      | Some n -> `Lifted n
+      | _ -> PL.top ()
+    in
     let curr_val_origin_pair = find x res in
     let curr_val = fst curr_val_origin_pair in
     let curr_origin_set = snd curr_val_origin_pair in
-    let new_pair = (curr_val, curr_origin_set) in 
-    add x new_pair res
+    let new_origin: Origin.t = (`Lifted x, node) in
+    let new_origin_set = OriginSet.add new_origin curr_origin_set in
+    ignore @@ Pretty.printf "New OriginSet %s\n\n" (OriginSet.show new_origin_set);
+    let new_pair = (curr_val, new_origin_set) in 
+    let res = add x new_pair res in
+    ignore @@ Pretty.printf "New Map %s\n\n" (Pretty.sprint 80 (pretty () res));
+    res
 
   let join_with_fct f (m1: t) (m2: t) =
-    (*let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in*)
+    let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in
     let res =  if m1 == m2 then m1 else long_map2 f m1 m2 in
     let losses = check_precision_loss m1 m2 res in
-    if List.length losses > 0 then
+    if Set.cardinal losses > 0 then
       (match !MyCFG.current_node with
        | Some n -> 
          ignore @@ Pretty.printf "Precision lost at node %s\n\n" (Node.show n);
-         ignore @@ List.fold (fun res x -> 
-             update_blame res x n
-           ) res losses;
-       | _ -> ignore @@ Pretty.printf "Precision lost at unknown node\n\n");
-    res
+         Set.fold (fun x r -> 
+             update_blame r x n
+           ) losses res
+       | _ -> ignore @@ Pretty.printf "Precision lost at unknown node\n\n"; res)
+    else
+      res
 
   let join = join_with_fct ValueOriginPair.join
 
@@ -159,9 +170,9 @@ struct
     (* | Some loc -> D.add loc (eval ctx.local rval node) ctx.local *)
     | Some loc -> 
       let domain:D.t = if loc.vglob then
-        ctx.local
-      else
-        ctx.local
+          ctx.local
+        else
+          ctx.local
       in
       (* let _ = Pretty.printf "assign to the var %s\n" loc.vname in *)
       let curr_val_origin_pair = D.find loc ctx.local in
@@ -179,9 +190,9 @@ struct
         | _ -> loc
       in
       let address_set = List.fold_left (fun s (x: Addr.t) -> AD.add x s) curr_val values in
-      let new_origin: Origin.t = (`Lifted responsible_source, node) in
-      let new_origin_set = OriginSet.add new_origin curr_origin_set  in
-      let new_pair = (address_set, new_origin_set) in 
+      (*let new_origin: Origin.t = (`Lifted responsible_source, node) in
+      let new_origin_set = OriginSet.add new_origin curr_origin_set  in*)
+      let new_pair = (address_set, curr_origin_set) in 
       (*let _ = Pretty.printf "assign %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in*)
       (*let new_set = values OriginSet.add (value, node) curr_set in*)
       let ret = D.add loc new_pair ctx.local in
