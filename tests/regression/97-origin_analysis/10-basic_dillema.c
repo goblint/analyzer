@@ -6,17 +6,15 @@ int main () {
     int* b;
     int c = -2;
     int d = 3;
-    int x;
     if (a) {
         b = &c;
     } else {
         b = &d;
     }
     if (a) {
-        x = *b * (-1);
+        assert(*b > 0); //FAIL
     } else {
-        x = *b ;
+        assert(*b < 0); //FAIL
     }
-    assert(x < 0); //FAIL
     return 0;
 }
