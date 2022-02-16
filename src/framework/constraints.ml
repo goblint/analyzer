@@ -448,7 +448,7 @@ end
 
 module type Increment =
 sig
-  val increment: increment_data
+  val increment: increment_data option
 end
 
 (** Combined variables so that we can also use the more common [EqConstrSys]
@@ -824,7 +824,10 @@ struct
   let sys_change getl getg =
     let open CompareCIL in
 
-    let c = I.increment.changes in
+    let c = match I.increment with
+      | Some {changes; _} -> changes
+      | None -> empty_change_info ()
+    in
     List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
 
     let changed_funs = List.filter_map (function
@@ -832,21 +835,21 @@ struct
           print_endline ("Completely changed function: " ^ f.svar.vname);
           Some f
         | _ -> None
-      ) I.increment.changes.changed
+      ) c.changed
     in
     let part_changed_funs = List.filter_map (function
         | {old = GFun (f, _); diff = Some nd; _} ->
           print_endline ("Partially changed function: " ^ f.svar.vname);
           Some (f, nd.primObsoleteNodes, nd.unchangedNodes)
         | _ -> None
-      ) I.increment.changes.changed
+      ) c.changed
     in
     let removed_funs = List.filter_map (function
         | GFun (f, _) ->
           print_endline ("Removed function: " ^ f.svar.vname);
           Some f
         | _ -> None
-      ) I.increment.changes.removed
+      ) c.removed
     in
 
     let module HM = Hashtbl.Make (Var2 (LVar) (GVar)) in

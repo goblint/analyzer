@@ -5,7 +5,7 @@ exception Failure of Response.Error.Code.t * string
 
 type t = {
   file: Cil.file;
-  do_analyze: Analyses.increment_data -> Cil.file -> unit;
+  do_analyze: Analyses.increment_data option -> Cil.file -> unit;
   input: IO.input;
   output: unit IO.output;
 }
@@ -112,9 +112,8 @@ let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
   let increment_data, fresh = match !Serialize.server_solver_data with
     | Some solver_data ->
       let changes = CompareCIL.compareCilFiles file file in
-      let solver_data = Some solver_data in
-      { Analyses.changes; solver_data }, false
-    | _ -> Analyses.empty_increment_data, true
+      Some { Analyses.changes; solver_data }, false
+    | _ -> None, true
   in
   GobConfig.set_bool "incremental.load" (not fresh);
   do_analyze increment_data file;

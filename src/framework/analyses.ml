@@ -432,13 +432,8 @@ sig
 end
 
 type increment_data = {
-  solver_data: Obj.t option;
+  solver_data: Obj.t;
   changes: CompareCIL.change_info
-}
-
-let empty_increment_data = {
-  solver_data = None;
-  changes = CompareCIL.empty_change_info ()
 }
 
 type 'v sys_change_info = {

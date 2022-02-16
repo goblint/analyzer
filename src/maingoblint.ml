@@ -444,7 +444,7 @@ let handle_extraspecials () =
 (* Detects changes and renames vids and sids. *)
 let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
-  let change_info: Analyses.increment_data =
+  let change_info: Analyses.increment_data option =
     if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
       let warn m = eprint_color ("{yellow}Warning: "^m) in
       warn "incremental.load is activated but no data exists that can be loaded."
@@ -468,11 +468,9 @@ let diff_and_rename current_file =
       Serialize.store_data current_file Serialize.CilFile;
       Serialize.store_data (version_map, max_ids) Serialize.VersionData
     end;
-    let solver_data = match old_file, solver_data with
-      | Some cil_file, Some solver_data -> Some solver_data
-      | _, _ -> None
-    in
-    {Analyses.changes = changes; solver_data }
+    match old_file, solver_data with
+    | Some cil_file, Some solver_data -> Some {Analyses.changes = changes; solver_data }
+    | _, _ -> None
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
@@ -505,7 +503,7 @@ let main () =
       )
     in
     if get_bool "server.enabled" then Server.start file do_analyze else (
-      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data in
+      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else None in
       file|> do_analyze changeInfo;
       do_stats ();
       do_html_output ();
