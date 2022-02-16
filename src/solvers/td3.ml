@@ -16,6 +16,8 @@ open Messages
 open CompareCIL
 open Cil
 
+module StringSet = Set.Make(Printable.Strings)
+
 module WP =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
@@ -672,14 +674,14 @@ module WP =
           (* not the same as in CFG, but compares equal because of sid *)
           Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
         in
-        let add_nodes_of_fun (functions: fundec list) withEntry =
+        let add_nodes_of_fun (functions: fundec list) (withEntry: fundec -> bool) =
           let add_stmts (f: fundec) =
             List.iter (fun s ->
                 mark_node marked_for_deletion f (Statement s)
               ) f.sallstmts
           in
           List.iter (fun f ->
-              if withEntry then
+              if withEntry f then
                 mark_node marked_for_deletion f (FunctionEntry f);
               mark_node marked_for_deletion f (Function f);
               add_stmts f;
@@ -687,8 +689,16 @@ module WP =
             ) functions;
         in
 
-        add_nodes_of_fun changed_funs (not (GobConfig.get_bool "incremental.reluctant.on"));
-        add_nodes_of_fun removed_funs true;
+        let force_reanalyze = StringSet.of_list @@ GobConfig.get_string_list "incremental.force-reanalyze.funs" in
+
+        let eager = (not (GobConfig.get_bool "incremental.reluctant.on")) in
+        let with_entry f =
+          (* destabilize the entry points of a changed function when reluctant is off,
+             or the function is to be force-reanalyzed  *)
+          eager || StringSet.mem f.svar.vname force_reanalyze
+        in
+        add_nodes_of_fun changed_funs with_entry;
+        add_nodes_of_fun removed_funs (fun _ -> true);
         (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
         let add_pseudo_return f un =
           let pseudo = dummy_pseudo_return_node f in
