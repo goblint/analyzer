@@ -28,18 +28,25 @@ module OriginMap = struct
   type t = MapDomain.MapBot(Basetype.Variables)(ValueOriginPair).t
 
   let update_blame res (x:varinfo) node =
-    let curr_val_origin_pair = find x res in
-    let curr_val = fst curr_val_origin_pair in
-    let curr_origin_set = snd curr_val_origin_pair in
-    let new_origin: Origin.t = (`Lifted x, node) in
-    let new_origin_set = OriginSet.add new_origin curr_origin_set in
-    ignore @@ Pretty.printf "New OriginSet %s\n\n" (OriginSet.show new_origin_set);
-    let new_pair = (curr_val, new_origin_set) in 
-    let res = add x new_pair res in
-    ignore @@ Pretty.printf "New Map %s\n\n" (Pretty.sprint 80 (pretty () res));
-    res
+    let node_name: string = PL.show node in
+    let curr_list = GobConfig.get_list "ana.path_sens_nodes" in
+    if not (List.mem (`String node_name) curr_list) then
+      (let _ = GobConfig.set_list "ana.path_sens_nodes" (curr_list @ [`String node_name]) in
+       raise Refinement.RestartAnalysis;)
+    else
+      let curr_val_origin_pair = find x res in
+      let curr_val = fst curr_val_origin_pair in
+      let curr_origin_set = snd curr_val_origin_pair in
+      let new_origin: Origin.t = (`Lifted x, node) in
+      let new_origin_set = OriginSet.add new_origin curr_origin_set in
+      ignore @@ Pretty.printf "New OriginSet %s\n\n" (OriginSet.show new_origin_set);
+      let new_pair = (curr_val, new_origin_set) in 
+      let res = add x new_pair res in
+      ignore @@ Pretty.printf "New Map %s\n\n" (Pretty.sprint 80 (pretty () res));
+      res
 
   let check_precision_loss (m1: t) (m2: t) (res: t) node =
+    let _ = Pretty.printf "CHECK %s\n" in
     let res = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
         if (find key res) <> v then update_blame acc key node else acc)
         m1 res in 
@@ -49,7 +56,7 @@ module OriginMap = struct
     res
 
   let join_with_fct f (m1: t) (m2: t) =
-    (*let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in*)
+    let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in
     if m1 == m2 then 
       m1 
     else 
@@ -100,14 +107,11 @@ struct
     try ignore (Str.search_forward re s1 0); true
     with Not_found -> false
 
-  (* TODO: make some smart check here *)
-  let should_split node = false
-  (* let name: string = Node.show node in
-     let we_split = contains name "node 11" || contains name "node 14" in
-     let _ = if we_split then
-     ignore (Pretty.printf "Spliting at %s\n" name);
-     in
-     we_split *)
+  let should_split node =
+    (*let _ = Pretty.printf "SHOULD WE SPLIT? %s %s\n" in*)
+    let name: string = Node.show node in
+    List.mem name (GobConfig.get_string_list "ana.path_sens_nodes")(* ||
+                                                                      contains name "node 85"*)
 
   let should_join node x y = 
     match node with
@@ -138,52 +142,27 @@ struct
   (*`Top*)
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    (*let _ = printf "This i on the left: %a\n" (printExp plainCilPrinter) (Lval lval) in
-      let _ = printf "This is being assigned: %a\n" (printExp plainCilPrinter) rval in*)
-    (*let _ = Pretty.printf "assign %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in*)
-    let node = match !MyCFG.current_node with
-      | Some n -> `Lifted n
-      | _ -> PL.top ()
-    in
+    let _ = Pretty.printf "ASSIGN %s\n" in
     match get_pointer lval with
-    (* | Some loc -> D.add loc (eval ctx.local rval node) ctx.local *)
     | Some loc -> 
-      (* let _ = Pretty.printf "assign to the var %s\n" loc.vname in *)
       let curr_val_origin_pair = D.find loc ctx.local in
       let curr_val = fst curr_val_origin_pair in
       let curr_origin_set = snd curr_val_origin_pair in
-      (* let value = IntDomain.IntDomTuple.tag (ctx.ask (Queries.EvalInt rval)) in *)
       let values: Addr.t list = List.map (
           fun x -> 
             let vinfo: varinfo = fst x in 
             Addr.Addr (vinfo, `NoOffset)
         ) (mayPointTo ctx rval) in
-      (*let module AddrMap = BatMap.Make (AD.Addr) in*)
       let responsible_source = match rval with
         | Lval (Var v, _) -> v
         | _ -> loc
       in
       let address_set = List.fold_left (fun s (x: Addr.t) -> AD.add x s) curr_val values in
-      (*let new_origin: Origin.t = (`Lifted responsible_source, node) in
-        let new_origin_set = OriginSet.add new_origin curr_origin_set  in*)
       let new_pair = (address_set, curr_origin_set) in 
-      (*let _ = Pretty.printf "assign %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in*)
-      (*let new_set = values OriginSet.add (value, node) curr_set in*)
-      let ret = D.add loc new_pair ctx.local in
-      (*let _ = Pretty.printf "after %s\n" (Pretty.sprint 80 (D.pretty () ret)) in*)
-      ret
-    | None -> 
-      (* let _ = Pretty.printf "assign to NOTHING\n"  in *) ctx.local
+      D.add loc new_pair ctx.local
+    | None -> ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
-  (*let node = match !MyCFG.current_node with
-    | Some n -> (`Lifted n)
-    | _ -> PL.top ()
-    in
-    let v = eval ctx.local exp node in
-    match I.to_bool (fst v) with
-    | Some b when b <> tv -> raise Deadcode (* if the expression evaluates to not tv, the tv branch is not reachable *)
-    | _ -> ctx.local *)
 
   let body ctx (f:fundec) : D.t =
     (* Initialize locals to top *)
@@ -270,15 +249,6 @@ struct
       [(ctx.local, callee_state)]*)
     [(ctx.local, ctx.local)]
 
-  let set_local_int_lval_top (state: D.t) (lval: lval option) =
-    match lval with
-    | Some lv ->
-      (match get_pointer lv with
-       | Some local -> D.add local (AD.empty (), OriginSet.empty ()) state
-       | _ -> state
-      )
-    |_ -> state
-
   let set_local_int_lval_to_fun_result (state: D.t) (lval: lval option) (f:fundec) (au:D.t) =
     match lval with
     | Some lv ->
@@ -302,10 +272,7 @@ struct
   (* set_local_int_lval_to_fun_result ctx.local lval f au *)
 
 
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    (* When calling a special function, and assign the result to some local int variable, we also set it to top. *)
-    (* set_local_int_lval_top ctx.local lval *)
-    ctx.local
+  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t = ctx.local
 end
 
 let _ =

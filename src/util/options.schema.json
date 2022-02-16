@@ -266,6 +266,13 @@
           "items": { "type": "string" },
           "default": [ "OSEK", "OSEK2", "mutex", "malloc_null", "uninit" ]
         },
+        "path_sens_nodes": {
+          "title": "ana.path_sens_nodes",
+          "description": "List of node names to do splitting in path-sensitive analyses",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
         "ctx_insens": {
           "title": "ana.ctx_insens",
           "description": "List of context-insensitive analyses",

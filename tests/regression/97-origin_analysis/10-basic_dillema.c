@@ -1,3 +1,5 @@
+// PARAM: --set "ana.activated[+]" origin --set "ana.path_sens[+]" origin
+
 #include <stdio.h>
 #include <assert.h>
 
