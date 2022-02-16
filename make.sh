@@ -36,11 +36,6 @@ rule() {
       eval $(opam config env)
       # dune build -w $TARGET.exe
       dune runtest --no-buffer --watch
-    ;; domaintest)
-      eval $(opam config env)
-      dune build src/maindomaintest.exe &&
-      rm -f goblint.domaintest &&
-      cp _build/default/src/maindomaintest.exe goblint.domaintest
     ;; privPrecCompare)
       eval $(opam config env)
       dune build src/privPrecCompare.exe &&

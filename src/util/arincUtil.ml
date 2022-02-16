@@ -267,7 +267,7 @@ let print_actions () =
 let save_result desc ext content = (* output helper *)
   let dir = Goblintutil.create_dir "result" in (* returns abs. path *)
   let path = dir ^ "/arinc." ^ ext in
-  output_file path content;
+  output_file ~filename:path ~text:content;
   print_endline @@ "saved " ^ desc ^ " as " ^ path
 
 let save_dot_graph () =

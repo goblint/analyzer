@@ -27,10 +27,10 @@ struct
       | [] -> [e]
       | x::xs -> try op e x :: xs with Lattice.Uncomparable -> x :: join op e xs
 
-    (* widen element e with bucket using op *)
+    (* widen new(!) element e with old(!) bucket using op *)
     let rec widen op e = function
       | [] -> []
-      | x::xs -> try if E.leq e x then [op e x] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *)
+      | x::xs -> try if E.leq x e then [op x e] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *)
 
     (* meet element e with bucket using op *)
     let rec meet op e = function
@@ -72,7 +72,7 @@ struct
   let merge_widen f x y =
     Map.merge (fun i a b -> match a, b with
         | Some a, Some b ->
-          let r = List.concat_map (fun x -> B.widen f x b) a in (* a, b switched compared to merge_meet to ensure correct order of widen arguments inside B.widen *)
+          let r = List.concat_map (fun x -> B.widen f x a) b in
           let r = List.fold_left (fun r x -> B.join E.join x r) r b in (* join b per bucket *)
           if r = [] then None else Some r
         | None, Some b -> Some b (* join b per bucket *)
@@ -224,7 +224,7 @@ struct
           fold (fun other acc ->
               (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
             ) s2 nil
-      with _ ->
+      with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)
@@ -336,7 +336,7 @@ struct
           fold' (fun other otherr acc ->
               (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pretty other SpecD.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
             ) s2 nil
-      with _ ->
+      with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)

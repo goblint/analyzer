@@ -157,10 +157,6 @@ let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 let exe_dir = Filename.dirname Sys.executable_name
 let command = String.concat " " (Array.to_list Sys.argv)
 
-let opt_predicate (f : 'a -> bool) = function
-  | Some x -> f x
-  | None -> false
-
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
 (* https://ocaml.github.io/ocamlunix/signals.html *)
 let signal_of_string = let open Sys in function
@@ -180,18 +176,10 @@ let signal_of_string = let open Sys in function
 
 let self_signal signal = Unix.kill (Unix.getpid ()) signal
 
-(* The normal haskell zip that throws no exception *)
-let rec zip x y = match x,y with
-  | (x::xs), (y::ys) -> (x,y) :: zip xs ys
-  | _ -> []
-
 let rec for_all_in_range (a, b) f =
   let module BI = IntOps.BigIntOps in
   if BI.compare a b > 0
   then true
   else f a && (for_all_in_range (BI.add a (BI.one), b) f)
-
-let assoc_eq (x: 'a) (ys: ('a * 'b) list) (eq: 'a -> 'a -> bool): ('b option) =
-  Option.map Batteries.Tuple2.second (List.find_opt (fun (x',_) -> eq x x') ys)
 
 let dummy_obj = Obj.repr ()

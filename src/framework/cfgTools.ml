@@ -423,7 +423,14 @@ let createCFG (file: file) =
                     |> BatList.of_enum
                   in
                   let targets = match targets with
-                    | [] -> [(NH.keys scc.nodes |> BatEnum.get_exn, Lazy.force pseudo_return)] (* default to pseudo return if no suitable candidates *)
+                    | [] ->
+                      let scc_node =
+                        NH.keys scc.nodes
+                        |> BatList.of_enum
+                        |> BatList.min ~cmp:Node.compare (* use min for consistency for incremental CFG comparison *)
+                      in
+                      (* default to pseudo return if no suitable candidates *)
+                      [(scc_node, Lazy.force pseudo_return)]
                     | targets -> targets
                   in
                   List.iter (fun (fromNode, toNode) ->

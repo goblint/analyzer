@@ -15,7 +15,7 @@ struct
 
   module Node = struct
     include Node
-    (* Description that gets appended to the varinfo-name in user ouptut. *)
+    (* Description that gets appended to the varinfo-name in user output. *)
     let describe_varinfo (v: varinfo) node =
       let loc = UpdateCil.getLoc node in
       CilType.Location.show loc
@@ -28,7 +28,6 @@ struct
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(Node)
   let name () = "mallocWrapper"
   module D = PL
-  module G = BoolDomain.MayBool
   module C = D
 
   module Q = Queries

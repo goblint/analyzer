@@ -57,8 +57,8 @@ struct
   let pretty () x = Pretty.text (show x)
 end
 
-let get_flag (state: (string * Obj.t) list) : Flag.t =
-  (Obj.obj (List.assoc "threadflag" state), fst (Obj.obj (List.assoc "threadid" state)))
+let get_flag (state: string -> Obj.t) : Flag.t =
+  (Obj.obj (state "threadflag"), fst (Obj.obj (state "threadid")))
 
 
 module Spec =
@@ -355,7 +355,7 @@ struct
   let strip_flags acc_list = List.map proj2_1 acc_list
 
   let get_flags state: Flags.t =
-    Obj.obj (List.assoc "fmode" state)
+    Obj.obj (state "fmode")
 
   (*/flagstuff*)
   (*prioritystuff*)
@@ -441,11 +441,11 @@ struct
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if !GU.should_warn then begin
           let new_acc = ((loc,fl,rv),ust,o) in
-          let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
+          let curr : AccValSet.t = Acc.find_default acc v AccValSet.empty in
           let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) (remove_acc new_acc curr) in
           Acc.replace acc v neww;
           accKeys := AccKeySet.add v !accKeys;
-          let curr = try Hashtbl.find off_pry_with_flag v.vname with _ -> [] in
+          let curr = Hashtbl.find_default off_pry_with_flag v.vname [] in
           let pry = offpry [new_acc] in
           Hashtbl.replace off_pry_with_flag v.vname ((flagstate,pry)::curr)
         end ;
@@ -584,7 +584,7 @@ struct
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int pry (* TODO: what ikind to use for priorities? *)
-    | Queries.Priority vname -> begin try Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end (* TODO: what ikind to use for priorities? *)
+    | Queries.Priority vname -> begin try Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int (Hashtbl.find offensivepriorities vname) with Not_found -> Queries.Result.top q end (* TODO: what ikind to use for priorities? *)
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
@@ -1142,7 +1142,7 @@ struct
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
         let handle_race def_warn = begin
           if (List.mem gl.vname  (get_string_list "ana.osek.safe_vars")) then begin
-            suppressed := !suppressed+1;
+            incr suppressed;
             if (get_bool "allglobs") then
               msg_group_race_old Success (safe_str "safe variable") warnings
             else
@@ -1157,7 +1157,7 @@ struct
               let warn = def_warn ^ " at " ^ var_str in
               msg_group_race_old Warning warn warnings
             end else begin
-              filtered := !filtered +1;
+              incr filtered;
               (*((_, dom_elem,_),_) -> let lock_names_list = names (Lockset.ReverseAddrSet.elements dom_elem) in
                 any in there also in safe_tasks ... %TODO *)
               let filter_fun ((_, dom_elem,_),_) =

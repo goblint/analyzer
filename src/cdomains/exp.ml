@@ -237,8 +237,7 @@ end
 module LockingPattern =
 struct
   include Printable.Std
-  type t = Exp.t * Exp.t * Exp.t [@@deriving eq, ord, to_yojson]
-  let hash = Hashtbl.hash
+  type t = Exp.t * Exp.t * Exp.t [@@deriving eq, ord, hash, to_yojson]
   let name () = "Per-Element locking triple"
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"

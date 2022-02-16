@@ -26,10 +26,8 @@ end
 
 module Var =
 struct
-  type t = Node.t [@@deriving eq, ord]
+  type t = Node.t [@@deriving eq, ord, hash]
   let relift x = x
-
-  let hash = Node.hash
 
   let getLocation n = Node.location n
 
@@ -46,10 +44,8 @@ end
 
 module VarF (LD: Printable.S) =
 struct
-  type t = Node.t * LD.t [@@deriving eq, ord]
+  type t = Node.t * LD.t [@@deriving eq, ord, hash]
   let relift (n,x) = n, LD.relift x
-
-  let hash (n, c) = Hashtbl.hash (Node.hash n, LD.hash c)
 
   let getLocation (n,d) = Node.location n
 
@@ -121,10 +117,10 @@ struct
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
 
-  include Printable.SimplePretty (
+  include Printable.SimpleShow (
     struct
       type nonrec t = t
-      let pretty = pretty
+      let show = show
     end
     )
 end
@@ -272,19 +268,10 @@ struct
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
       Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
-      let files =
-        let module SH = BatHashtbl.Make (Basetype.RawStrings) in
-        let files = SH.create 100 in
-        iterGlobals file (function
-            | GFun (_, loc)
-            | GVar (_, _, loc) ->
-              SH.replace files loc.file (Hashtbl.find_option Preprocessor.dependencies loc.file)
-            | _ -> () (* TODO: add locs from everything else? would also include system headers *)
-          );
-        files |> SH.to_list
-      in
+      let files = Hashtbl.to_list Preprocessor.dependencies in
+      let filter_system = List.filter_map (fun (f,system) -> if system then None else Some f) in
       let json = `Assoc [
-          ("files", `Assoc (List.map (Tuple2.map2 [%to_yojson: string list option]) files));
+          ("files", `Assoc (List.map (Tuple2.map2 (fun deps -> [%to_yojson:string list] @@ filter_system deps)) files));
           ("messages", Messages.Table.to_yojson ());
         ]
       in
@@ -314,12 +301,11 @@ type ('d,'g,'c,'v) ctx =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; presub   : (string * Obj.t) list
-  ; postsub  : (string * Obj.t) list
+  ; presub   : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
+  ; postsub  : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
-  ; assign   : ?name:string -> lval -> exp -> unit
   }
 
 exception Ctx_failure of string
@@ -383,7 +369,7 @@ sig
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t -> D.t -> D.t
+  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> D.t
 
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list

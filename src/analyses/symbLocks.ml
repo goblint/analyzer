@@ -156,7 +156,7 @@ struct
       (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
       match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
       | Some (v, o) ->
-        let l = Pretty.sprint 80 (d_offset (text "*") () o) in
+        let l = Pretty.sprint ~width:80 (d_offset (text "*") () o) in
         (* ignore (printf "adding lock %s\n" l); *)
         LSSet.add ("p-lock",l) xs
       | None -> xs

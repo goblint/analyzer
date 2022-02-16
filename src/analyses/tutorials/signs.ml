@@ -8,7 +8,7 @@ module Signs =
 struct
   include Printable.Std
 
-  type t = Neg | Zero | Pos [@@deriving eq, ord, to_yojson]
+  type t = Neg | Zero | Pos [@@deriving eq, ord, hash, to_yojson]
   let name () = "signs"
   let show x = match x with
     | Neg -> "-"
@@ -19,7 +19,6 @@ struct
       type nonrec t = t
       let show = show
     end)
-  let hash = Hashtbl.hash
 
   (* TODO: An attempt to abstract integers, but it's just a little wrong... *)
   let of_int i =

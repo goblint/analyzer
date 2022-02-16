@@ -6,10 +6,7 @@ type t = {
   tid: ThreadIdDomain.ThreadLifted.t;
   created: ConcDomain.ThreadSet.t;
   must_joined: ConcDomain.ThreadSet.t;
-} [@@deriving eq, ord]
-
-let hash {tid; created; must_joined} =
-  13 * ThreadIdDomain.ThreadLifted.hash tid + 7 * ConcDomain.ThreadSet.hash created + ConcDomain.ThreadSet.hash must_joined
+} [@@deriving eq, ord, hash]
 
 let pretty () {tid; created; must_joined} =
   Pretty.dprintf "{ tid=%a; created=%a; must_joined=%a }" ThreadIdDomain.ThreadLifted.pretty tid ConcDomain.ThreadSet.pretty created ConcDomain.ThreadSet.pretty must_joined

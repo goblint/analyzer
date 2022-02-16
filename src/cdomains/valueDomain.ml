@@ -57,8 +57,8 @@ module ZeroInit = Lattice.Fake(Basetype.RawBools)
 
 module Blob (Value: S) (Size: IntDomain.Z)=
 struct
-  let name () = "blob"
   include Lattice.Prod3 (Value) (Size) (ZeroInit)
+  let name () = "blob"
   type value = Value.t
   type size = Size.t
   type origin = ZeroInit.t
@@ -99,7 +99,7 @@ struct
     | `List of Lists.t
     | `Thread of Threads.t
     | `Bot
-  ] [@@deriving eq, ord]
+  ] [@@deriving eq, ord, hash]
 
   let is_mutex_type (t: typ): bool = match t with
   | TNamed (info, attr) -> info.tname = "pthread_mutex_t" || info.tname = "spinlock_t"
@@ -144,7 +144,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.top_of ik)
-    | TPtr _ -> `Address (if get_bool "exp.uninit-ptr-safe" then AD.(join null_ptr safe_ptr) else AD.top_ptr)
+    | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
@@ -222,17 +222,6 @@ struct
   let top () = `Top
   let is_top x = x = `Top
   let top_name = "Unknown"
-
-  let hash x =
-    match x with
-    | `Int n -> 17 * ID.hash n
-    | `Address n -> 19 * AD.hash n
-    | `Struct n -> 23 * Structs.hash n
-    | `Union n -> 29 * Unions.hash n
-    | `Array n -> 31 * CArrays.hash n
-    | `Blob n -> 37 * Blobs.hash n
-    | `Thread n -> 41 * Threads.hash n
-    | _ -> Hashtbl.hash x
 
   let pretty () state =
     match state with
@@ -405,16 +394,17 @@ struct
               | _ -> log_top __POS__; AD.top_ptr
             )
         | TArray (ta, l, _) -> (* TODO, why is the length exp option? *)
-          `Array (match v, Prelude.try_opt Cil.lenOfArray l with
-              | `Array x, _ (* Some l' when Some l' = CArrays.length x *) -> x (* TODO handle casts between different sizes? *)
+          (* TODO handle casts between different sizes? *)
+          `Array (match v with
+              | `Array x -> x
               | _ -> log_top __POS__; CArrays.top ()
             )
         | TComp (ci,_) -> (* struct/union *)
           (* rather clumsy, but our abstract values don't keep their type *)
           let same_struct x = (* check if both have the same parent *)
-            (* compinfo is cyclic, so we only check the name *)
-            try compFullName (List.hd (Structs.keys x)).fcomp = compFullName (List.hd ci.cfields).fcomp
-            with _ -> false (* can't say if struct is empty *)
+            match Structs.keys x, ci.cfields with
+            | k :: _, f :: _ -> compFullName k.fcomp = compFullName f.fcomp (* compinfo is cyclic, so we only check the name *)
+            | _, _ -> false (* can't say if struct is empty *)
           in
           (* 1. casting between structs of different type does not work
            * 2. dereferencing a casted pointer works, but is undefined behavior because of the strict aliasing rule (compiler assumes that pointers of different type can never point to the same location)
@@ -871,7 +861,7 @@ struct
               begin
                 do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
               end
-            | x when Goblintutil.opt_predicate (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
+            | x when GobOption.exists (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
             | `Top -> M.debug "Trying to read an index, but the array is unknown"; top ()
             | _ -> M.warn "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
@@ -1009,7 +999,7 @@ struct
               let new_array_value = CArrays.update_length newl new_array_value in
               `Array new_array_value
             | `Top -> M.warn "Trying to update an index, but the array is unknown"; top ()
-            | x when Goblintutil.opt_predicate (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
+            | x when GobOption.exists (BI.equal BI.zero) (IndexDomain.to_int idx) -> do_update_offset ask x offs value exp l' o' v t
             | _ -> M.warn "Trying to update an index, but was not given an array(%a)" pretty x; top ()
           end
       in mu result

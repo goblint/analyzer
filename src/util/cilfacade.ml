@@ -251,28 +251,7 @@ let in_section check attr_list =
   in List.exists f attr_list
 
 let is_init = in_section (fun s -> s = ".init.text")
-let is_initptr = in_section (fun s -> s = ".initcall6.init")
 let is_exit = in_section (fun s -> s = ".exit.text")
-
-let rec get_varinfo exp: varinfo =
-  (* ignore (Pretty.printf "expression: %a\n" (printExp plainCilPrinter) exp); *)
-  match exp with
-  | AddrOf (Var v, _) -> v
-  | CastE (_,e) -> get_varinfo e
-  | _ -> failwith "Unimplemented: searching for variable in more complicated expression"
-
-exception MyException of varinfo
-let find_module_init funs fileAST =
-  try iterGlobals fileAST (
-      function
-      | GVar ({vattr=attr; _}, {init=Some (SingleInit exp) }, _) when is_initptr attr ->
-        raise (MyException (get_varinfo exp))
-      | _ -> ()
-    );
-    (funs, [])
-  with MyException var ->
-    let f (s:fundec) = s.svar.vname = var.vname in
-    List.partition f funs
 
 type startfuns = fundec list * fundec list * fundec list
 

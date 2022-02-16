@@ -559,11 +559,11 @@ struct
     | StartOf (Var _,_)
     | Lval    (Var _,_) -> eq_set e s
     | AddrOf  (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOf (mkMem e ofs)) (eq_set_clos e s)
+      Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
     | StartOf (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem e ofs)) (eq_set_clos e s)
+      Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
     | Lval    (Mem e,ofs) ->
-      Queries.ES.map (fun e -> Lval (mkMem e ofs)) (eq_set_clos e s)
+      Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
     | CastE (t,e) ->
       Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
     | Question _ -> failwith "Logical operations should be compiled away by CIL."

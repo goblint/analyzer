@@ -28,6 +28,7 @@ tests/regression/16-relinv/flags.json
 tests/regression/*/goblint_temp
 linux-headers
 
+.goblint/*
 goblint_temp_*/
 
 src/spec/graph
@@ -77,3 +78,6 @@ relocatable/
 *.sarif
 
 dune-workspace
+
+# gobview
+run/

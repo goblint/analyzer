@@ -1,24 +1,27 @@
 open Prelude.Ana
 open Analyses
 
-type spec_modules = { spec : (module MCPSpec)
+type spec_modules = { name : string
+                    ; dep  : string list
+                    ; spec : (module MCPSpec)
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
                     ; cont : (module Printable.S)
                     ; var  : (module Printable.S)
                     ; acc  : (module MCPA) }
 
-let analyses_list  : (int * spec_modules) list ref = ref []
-let analyses_list' : (int * spec_modules) list ref = ref []
-let dep_list       : (int * (int list)) list ref   = ref []
-let dep_list'      : (int * (string list)) list ref= ref []
-
-let analyses_table = ref []
+let activated  : (int * spec_modules) list ref = ref []
+let activated_ctx_sens: (int * spec_modules) list ref = ref []
+let registered: (int, spec_modules) Hashtbl.t = Hashtbl.create 100
+let registered_name: (string, int) Hashtbl.t = Hashtbl.create 100
 
 let register_analysis =
   let count = ref 0 in
   fun ?(dep=[]) (module S:MCPSpec) ->
-    let s = { spec = (module S : MCPSpec)
+    let n = S.name () in
+    let s = { name = n
+            ; dep
+            ; spec = (module S : MCPSpec)
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
@@ -26,12 +29,13 @@ let register_analysis =
             ; acc  = (module S.A : MCPA)
             }
     in
-    let n = S.name () in
-    analyses_table := (!count,n) :: !analyses_table;
-    analyses_list' := (!count,s) :: !analyses_list';
-    dep_list'      := (!count,dep) :: !dep_list';
-    count := !count + 1
+    Hashtbl.replace registered !count s;
+    Hashtbl.replace registered_name n !count;
+    incr count
 
+let find_spec = Hashtbl.find registered
+let find_spec_name n = (find_spec n).name
+let find_id = Hashtbl.find registered_name
 
 type unknown = Obj.t
 
@@ -77,8 +81,6 @@ struct
     List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
-exception DomListBroken of string
-
 module DomListPrintable (DLSpec : DomainListPrintableSpec)
   : Printable.S with type t = (int * unknown) list
 =
@@ -92,10 +94,7 @@ struct
   type t = (int * unknown) list
 
   let unop_fold f a (x:t) =
-    let f a n d =
-      f a n (assoc_dom n) d
-    in
-    fold_left (fun a (n,d) -> f a n d) a x
+    fold_left2 (fun a (n,d) (n',s) -> assert (n = n'); f a n s d) a x (domain_list ())
 
   let pretty () x =
     let f a n (module S : Printable.S) x = Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x) :: a in
@@ -109,31 +108,36 @@ struct
 
   let show x =
     let xs = unop_fold (fun a n (module S : Printable.S) x ->
-        let analysis_name = assoc n !analyses_table in
+        let analysis_name = find_spec_name n in
         (analysis_name ^ ":(" ^ S.show (obj x) ^ ")") :: a) [] x
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (rev xs)
 
   let to_yojson xs =
     let f a n (module S : Printable.S) x =
-      let name = BatList.assoc n !analyses_table in
+      let name = find_spec_name n in
       (name, S.to_yojson (obj x)) :: a
     in `Assoc (unop_fold f [] xs)
 
-  let binop_fold f a (x:t) (y:t) =
-    let f a n d1 d2 =
-      f a n (assoc_dom n) d1 d2
-    in
-    try if length x <> length y
-      then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
-    with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
+  let binop_for_all f (x:t) (y:t) =
+    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
 
-  let binop_map_rev (f: (module Printable.S) -> Obj.t -> Obj.t -> Obj.t) =
-    binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) []
+  (* too specific for GobList *)
+  let rec compare3 f l1 l2 l3 = match l1, l2, l3 with
+    | [], [], [] -> 0
+    | x1 :: l1, x2 :: l2, x3 :: l3 ->
+      let c = f x1 x2 x3 in
+      if c <> 0 then
+        c
+      else
+        (compare3 [@tailcall]) f l1 l2 l3
+    | _, _, _ -> invalid_arg "DomListPrintable.compare3"
 
-  let equal   x y = binop_fold (fun a n (module S : Printable.S) x y -> a && S.equal (obj x) (obj y)) true x y
-  let compare x y = binop_fold (fun a n (module S : Printable.S) x y -> if a <> 0 then a else S.compare (obj x) (obj y)) 0 x y
+  let binop_compare f (x:t) (y:t) =
+    compare3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+
+  let equal   x y = binop_for_all (fun n (module S : Printable.S) x y -> S.equal (obj x) (obj y)) x y
+  let compare x y = binop_compare (fun n (module S : Printable.S) x y -> S.compare (obj x) (obj y)) x y
 
   let hashmul x y = if x=0 then y else if y=0 then x else x*y
 
@@ -141,14 +145,14 @@ struct
 
   let name () =
     let domain_name (n, (module D: Printable.S)) =
-      let analysis_name = assoc n !analyses_table in
+      let analysis_name = find_spec_name n in
       analysis_name ^ ":(" ^ D.name () ^ ")"
     in
     IO.to_string (List.print ~first:"[" ~last:"]" ~sep:", " String.print) (map domain_name @@ domain_list ())
 
   let printXml f xs =
     let print_one a n (module S : Printable.S) x : unit =
-      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
     in
@@ -183,14 +187,14 @@ struct
     )
 
   let show = unop_map (fun n (module S: Printable.S) x ->
-      let analysis_name = assoc n !analyses_table in
+      let analysis_name = find_spec_name n in
       analysis_name ^ ":" ^ S.show (obj x)
     )
 
   let to_yojson x =
     `Assoc [
       unop_map (fun n (module S: Printable.S) x ->
-          let name = BatList.assoc n !analyses_table in
+          let name = find_spec_name n in
           (name, S.to_yojson (obj x))
         ) x
     ]
@@ -215,13 +219,13 @@ struct
 
   let name () =
     let domain_name (n, (module S: Printable.S)) =
-      let analysis_name = assoc n !analyses_table in
+      let analysis_name = find_spec_name n in
       analysis_name ^ ":" ^ S.name ()
     in
     IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list ())
 
   let printXml f = unop_map (fun n (module S: Printable.S) x ->
-      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (List.assoc n !analyses_table);
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
     )
@@ -246,32 +250,26 @@ struct
   include DomListPrintable (PrintableOfLatticeSpec (DLSpec))
 
   let binop_fold f a (x:t) (y:t) =
-    let f a n d1 d2 =
-      f a n (assoc_dom n) d1 d2
-    in
-    try if length x <> length y
-      then raise (DomListBroken "binop_fold : differing lengths")
-      else fold_left (fun a (n,d) -> f a n d @@ assoc n y) a x
-    with Not_found -> raise (DomListBroken "binop_fold : assoc failure")
+    GobList.fold_left3 (fun a (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f a n s d d') a x y (domain_list ())
 
   let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) x y =
     List.rev @@ binop_fold (fun a n s d1 d2 -> (n, f s d1 d2) :: a) [] x y
 
-  let unop_fold f a (x:t) =
-    let f a n d =
-      f a n (assoc_dom n) d
-    in
-    fold_left (fun a (n,d) -> f a n d) a x
+  let binop_for_all f (x:t) (y:t) =
+    GobList.for_all3 (fun (n,d) (n',d') (n'',s) -> assert (n = n' && n = n''); f n s d d') x y (domain_list ())
+
+  let unop_for_all f (x:t) =
+    List.for_all2 (fun (n,d) (n',s) -> assert (n = n'); f n s d) x (domain_list ())
 
   let narrow = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.narrow (obj x) (obj y))
   let widen  = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.widen  (obj x) (obj y))
   let meet   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.meet   (obj x) (obj y))
   let join   = binop_map (fun (module S : Lattice.S) x y -> repr @@ S.join   (obj x) (obj y))
 
-  let leq    = binop_fold (fun a n (module S : Lattice.S) x y -> a && S.leq (obj x) (obj y)) true
+  let leq    = binop_for_all (fun n (module S : Lattice.S) x y -> S.leq (obj x) (obj y))
 
-  let is_top = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_top (obj x)) true
-  let is_bot = unop_fold (fun a n (module S : Lattice.S) x -> a && S.is_bot (obj x)) true
+  let is_top = unop_for_all (fun n (module S : Lattice.S) x -> S.is_top (obj x))
+  let is_bot = unop_for_all (fun n (module S : Lattice.S) x -> S.is_bot (obj x))
 
   let top () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.top ())) @@ domain_list ()
   let bot () = map (fun (n,(module S : Lattice.S)) -> (n,repr @@ S.bot ())) @@ domain_list ()
@@ -294,9 +292,8 @@ struct
   include DomVariantPrintable (PrintableOfLatticeSpec (DLSpec))
 
   let binop_map' (f: int -> (module Lattice.S) -> Obj.t -> Obj.t -> 'a) (n1, d1) (n2, d2) =
-    if n1 <> n2
-    then raise (DomListBroken "binop_fold : differing variants")
-    else f n1 (assoc_dom n1) d1 d2
+    assert (n1 = n2);
+    f n1 (assoc_dom n1) d1 d2
 
   let binop_map (f: (module Lattice.S) -> Obj.t -> Obj.t -> Obj.t) =
     binop_map' (fun n s d1 d2 -> (n, f s d1 d2))
@@ -326,30 +323,30 @@ module DomVariantLattice (DLSpec : DomainListLatticeSpec) =
 
 module LocalDomainListSpec : DomainListLatticeSpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).dom
-  let domain_list () = List.map (fun (n,p) -> n, p.dom) !analyses_list
+  let assoc_dom n = (find_spec n).dom
+  let domain_list () = List.map (fun (n,p) -> n, p.dom) !activated
 end
 
 module GlobalDomainListSpec : DomainListLatticeSpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).glob
-  let domain_list () = List.map (fun (n,p) -> n, p.glob) !analyses_list
+  let assoc_dom n = (find_spec n).glob
+  let domain_list () = List.map (fun (n,p) -> n, p.glob) !activated
 end
 
 module ContextListSpec : DomainListPrintableSpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).cont
-  let domain_list () = List.map (fun (n,p) -> n, p.cont) !analyses_list
+  let assoc_dom n = (find_spec n).cont
+  let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
 end
 
 module VarListSpec : DomainListPrintableSpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).var
-  let domain_list () = List.map (fun (n,p) -> n, p.var) !analyses_list
+  let assoc_dom n = (find_spec n).var
+  let domain_list () = List.map (fun (n,p) -> n, p.var) !activated
 end
 
 module AccListSpec : DomainListMCPASpec =
 struct
-  let assoc_dom n = (List.assoc n !analyses_list).acc
-  let domain_list () = List.map (fun (n,p) -> n, p.acc) !analyses_list
+  let assoc_dom n = (find_spec n).acc
+  let domain_list () = List.map (fun (n,p) -> n, p.acc) !activated
 end

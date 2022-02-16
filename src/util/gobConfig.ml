@@ -148,7 +148,7 @@ struct
         let fld, pth = split '.' '[' (String.lchop s) in
         Select (fld, parse_path' pth)
       | '[' ->
-        let idx, pth = String.split (String.lchop s) "]" in
+        let idx, pth = String.split (String.lchop s) ~by:"]" in
         Index (parse_index idx, parse_path' pth)
       | _ -> raise PathParseError
 
@@ -178,11 +178,17 @@ struct
   let rec get_value o pth =
     match o, pth with
     | o, Here -> o
-    | `Assoc m, Select (key,pth) -> begin
+    | `Assoc m, Select (key,pth) ->
+      begin
         try get_value (List.assoc key m) pth
-        with Not_found -> raise ConfTypeError end
-    | `List a, Index (Int i, pth) -> get_value (List.at a i) pth
-    | _ -> raise ConfTypeError
+        with Not_found -> raise ConfTypeError
+      end
+    | `List a, Index (Int i, pth) ->
+      begin
+        try get_value (List.at a i) pth
+        with Invalid_argument _ -> raise ConfTypeError
+      end
+    | _, _ -> raise ConfTypeError
 
   (** Recursively create the value for some new path. *)
   let rec create_new v = function
@@ -268,7 +274,7 @@ struct
       let st, x =
         let g st = st, get_value !json_conf (parse_path st) in
         try g ("phases["^ string_of_int !phase ^"]."^st) (* try to find value in config for current phase first *)
-        with _ -> g st (* do global lookup if undefined *)
+        with ConfTypeError -> g st (* do global lookup if undefined *)
       in
       if tracing then trace "conf-reads" "Reading '%s', it is %a.\n" st GobYojson.pretty x;
       try f x
@@ -322,15 +328,6 @@ struct
   let set_list   st l =
     drop_memo ();
     set_value (`List l) json_conf (parse_path st)
-
-  (** A convenience functions for writing values. *)
-  let set_auto' st v =
-    if v = "null" then set_null st else
-      try set_bool st (bool_of_string v)
-      with Invalid_argument _ ->
-      try set_int st (int_of_string v)
-      with Failure _ ->
-        set_string st v
 
   (** The ultimate convenience function for writing values. *)
   let one_quote = Str.regexp "\'"

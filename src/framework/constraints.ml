@@ -157,7 +157,7 @@ struct
     S.special (conv ctx) r f args
 
   let combine ctx r fe f args fc es =
-    S.combine (conv ctx) r fe f args (C.unlift fc) es
+    S.combine (conv ctx) r fe f args (Option.map C.unlift fc) es
 
   let threadenter ctx lval f args =
     S.threadenter (conv ctx) lval f args
@@ -189,7 +189,6 @@ struct
   let name () = S.name ()^" level sliced"
 
   let start_level = ref (`Top)
-  let error_level = ref (`Lifted  0L)
 
   type marshal = S.marshal (* TODO: should hashcons table be in here to avoid relift altogether? *)
   let init marshal =
@@ -494,12 +493,11 @@ struct
       ; edge    = edge
       ; local   = pval
       ; global  = getg
-      ; presub  = []
-      ; postsub = []
+      ; presub  = (fun _ -> raise Not_found)
+      ; postsub = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = sideg
-      ; assign = (fun ?name _    -> failwith "Cannot \"assign\" in common context.")
       }
     and spawn lval f args =
       (* TODO: adjust ctx node/edge? *)
@@ -623,6 +621,7 @@ struct
     List.iter (fun (c,fc,v) -> if not (S.D.is_bot v) then sidel (FunctionEntry f, fc) v) paths;
     let paths = List.map (fun (c,fc,v) -> (c, fc, if S.D.is_bot v then v else getl (Function f, fc))) paths in
     let paths = List.filter (fun (c,fc,v) -> not (D.is_bot v)) paths in
+    let paths = List.map (Tuple3.map2 Option.some) paths in
     if M.tracing then M.traceli "combine" "combining\n";
     let paths = List.map combine paths in
     let r = List.fold_left D.join (D.bot ()) paths in
@@ -759,14 +758,10 @@ module Var2 (LV:VarType) (GV:VarType)
     with type t = [ `L of LV.t  | `G of GV.t ]
 =
 struct
-  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord]
+  type t = [ `L of LV.t  | `G of GV.t ] [@@deriving eq, ord, hash]
   let relift = function
     | `L x -> `L (LV.relift x)
     | `G x -> `G (GV.relift x)
-
-  let hash = function
-    | `L a -> LV.hash a
-    | `G a -> 113 * GV.hash a
 
   let pretty_trace () = function
     | `L a -> LV.pretty_trace () a
@@ -979,14 +974,6 @@ struct
       with Deadcode -> xs
     in
     let d = D.fold h ctx.local (D.empty ()) in
-    if D.is_bot d then raise Deadcode else d
-
-  let fold ctx f g h a =
-    let k x a =
-      try h a @@ g @@ f @@ conv ctx x
-      with Deadcode -> a
-    in
-    let d = D.fold k ctx.local a in
     if D.is_bot d then raise Deadcode else d
 
   let fold' ctx f g h a =

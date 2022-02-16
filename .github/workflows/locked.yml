@@ -52,12 +52,6 @@ jobs:
       - name: Test unit
         run: opam exec -- dune runtest unittest
 
-      - name: Build domaintest
-        run: ./make.sh domaintest
-
-      - name: Test domains
-        run: ./goblint.domaintest
-
       - name: Test incremental regression
         run: ruby scripts/update_suite.rb -i
 

@@ -738,6 +738,12 @@
               "type": "boolean",
               "default": true
             },
+            "strengthening": {
+              "title": "ana.apron.strengthening",
+              "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
+              "type": "boolean",
+              "default": false
+            },
             "domain": {
               "title": "ana.apron.domain",
               "description":
@@ -1353,20 +1359,6 @@
             "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n].",
           "type": "boolean",
           "default": true
-        },
-        "uninit-ptr-safe": {
-          "title": "exp.uninit-ptr-safe",
-          "description":
-            "Assume that uninitialized stack-allocated pointers may only point to variables not in the program or null.",
-          "type": "boolean",
-          "default": false
-        },
-        "ptr-arith-safe": {
-          "title": "exp.ptr-arith-safe",
-          "description":
-            "Assume that pointer arithmetic only yields safe addresses.",
-          "type": "boolean",
-          "default": false
         },
         "architecture": {
           "title": "exp.architecture",
