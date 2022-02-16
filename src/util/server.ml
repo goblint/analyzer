@@ -123,17 +123,11 @@ let reparse (s: t) =
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let changes = CompareCIL.empty_change_info () in
-  let reanalyze = GobConfig.get_string_list "incremental.force-reanalyze.funs" in
-  Cil.iterGlobals file (
-    function
-    | GFun (fundec, _) as global ->
-      if List.mem fundec.svar.vname reanalyze then
-        changes.changed <- { old = global; current = global; unchangedHeader = true; diff = None } :: changes.changed
-      else
-        changes.unchanged <- global :: changes.unchanged
-    | global -> changes.unchanged <- global :: changes.unchanged);
-  changes
+  let eq (glob: Cil.global) _ _ = match glob with
+    | GFun (fdec, _) -> CompareCIL.should_reanalyze fdec, false, None
+    | _ -> false, false, None
+  in
+  CompareCIL.compareCilFiles ~eq file file
 
 let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
   | Some solver_data when reparsed ->
