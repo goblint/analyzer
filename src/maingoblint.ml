@@ -312,19 +312,21 @@ let fix_ids file =
 let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
-  let get_ast_and_record_deps f =
-    Cilfacade.getAST f
+
+  let files_AST =
+    match Goblintutil.jobs () with
+    | 1 ->
+      List.map Cilfacade.getAST cpp_file_names
+    | jobs ->
+      let files = Parmap.parmap ~ncores:jobs Cilfacade.getAST (L cpp_file_names) in
+      List.iter fix_ids files;
+      files
   in
-  (* let files_AST = List.map (get_ast_and_record_deps) (cpp_file_names) in *)
-  let files_AST = Parmap.parmap ~ncores:(Goblintutil.jobs ()) (get_ast_and_record_deps) (L cpp_file_names) in
 
   List.iter2 (fun f file ->
       (* Drop <built-in> and <command-line> from dependencies *)
       Hashtbl.add Preprocessor.dependencies f @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.Cil.files;
-      fix_ids file
     ) cpp_file_names files_AST;
-
-  (* raise Exit; *)
 
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
