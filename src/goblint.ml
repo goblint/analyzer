@@ -24,7 +24,7 @@ let main () =
       print_endline command;
     );
     let file = Fun.protect ~finally:remove_temp_dir preprocess_and_merge in
-    if get_bool "server.enabled" then Server.start file preprocess_and_merge do_analyze else (
+    if get_bool "server.enabled" then Server.start file else (
       let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
       file|> do_analyze changeInfo;
       do_stats ();

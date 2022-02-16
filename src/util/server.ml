@@ -7,8 +7,6 @@ type t = {
   mutable file: Cil.file;
   mutable version_map: (CompareCIL.global_identifier, Cil.global) Hashtbl.t;
   mutable max_ids: VersionLookup.max_ids;
-  preprocess_and_merge: unit -> Cil.file;
-  do_analyze: Analyses.increment_data -> Cil.file -> unit;
   input: IO.input;
   output: unit IO.output;
 }
@@ -84,14 +82,12 @@ let serve serv =
     done
   with IO.No_more_input -> ()
 
-let make ?(input=stdin) ?(output=stdout) file preprocess_and_merge do_analyze : t =
+let make ?(input=stdin) ?(output=stdout) file : t =
   let version_map, max_ids = VersionLookup.create_map file in
   {
     file;
     version_map;
     max_ids;
-    preprocess_and_merge;
-    do_analyze;
     input;
     output
   }
@@ -110,15 +106,15 @@ let bind () =
     Sys.remove path;
     Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
 
-let start file preprocess_and_merge do_analyze =
+let start file =
   let input, output = bind () in
   GobConfig.set_bool "incremental.save" true;
-  serve (make file preprocess_and_merge do_analyze ?input ?output)
+  serve (make file ?input ?output)
 
 let reparse (s: t) =
   if GobConfig.get_bool "server.reparse" then (
     Goblintutil.create_temp_dir ();
-    Fun.protect ~finally:Goblintutil.remove_temp_dir s.preprocess_and_merge, true)
+    Fun.protect ~finally:Goblintutil.remove_temp_dir Maingoblint.preprocess_and_merge, true)
   else s.file, false
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
@@ -154,7 +150,7 @@ let analyze ?(reset=false) (s: t) =
   let increment_data, fresh = increment_data s file reparsed in
   s.file <- file;
   GobConfig.set_bool "incremental.load" (not fresh);
-  s.do_analyze increment_data s.file;
+  Maingoblint.do_analyze increment_data s.file;
   GobConfig.set_bool "incremental.load" true
 
 (* TODO: Add command to abort the analysis in progress. *)
