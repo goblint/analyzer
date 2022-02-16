@@ -432,7 +432,6 @@ sig
 end
 
 type analyzed_data = {
-  cil_file: Cil.file ;
   solver_data: Obj.t;
 }
 

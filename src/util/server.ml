@@ -112,7 +112,7 @@ let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
   let increment_data, fresh = match !Serialize.server_solver_data with
     | Some solver_data ->
       let changes = CompareCIL.compareCilFiles file file in
-      let old_data = Some { Analyses.cil_file = file; solver_data } in
+      let old_data = Some { Analyses.solver_data } in
       { Analyses.changes; old_data }, false
     | _ -> Analyses.empty_increment_data, true
   in

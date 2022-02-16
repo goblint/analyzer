@@ -469,7 +469,7 @@ let diff_and_rename current_file =
       Serialize.store_data (version_map, max_ids) Serialize.VersionData
     end;
     let old_data = match old_file, solver_data with
-      | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
+      | Some cil_file, Some solver_data -> Some ({solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
     {Analyses.changes = changes; old_data }
