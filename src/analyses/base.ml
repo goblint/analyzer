@@ -199,7 +199,7 @@ struct
         | `NoOffset -> `Index(iDtoIdx n, `NoOffset)
       in
       let default = function
-        | Addr.NullPtr when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
+        | Addr.NullPtr when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> Addr.NullPtr
         | _ -> Addr.UnknownPtr
       in
       match Addr.to_var_offset addr with
@@ -346,7 +346,7 @@ struct
    *  which part of an array is involved.  *)
   let rec get ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.get_type addrs in
-    let firstvar = if M.tracing then try (List.hd (AD.to_var_may addrs)).vname with _ -> "" else "" in
+    let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
@@ -359,20 +359,19 @@ struct
           | `Blob (c,s,_) -> c
           | x -> x
       in
-      let f x =
-        match Addr.to_var_offset x with
-        | Some x -> f_addr x                    (* normal reference *)
-        | None when x = Addr.NullPtr -> VD.bot () (* null pointer *)
-        | None -> `Int (ID.top_of IChar)       (* string pointer *)
+      let f = function
+        | Addr.Addr (x, o) -> f_addr (x, o)
+        | Addr.NullPtr -> VD.bot () (* TODO: why bot? *)
+        | Addr.UnknownPtr -> VD.top ()
+        | Addr.StrPtr _ -> `Int (ID.top_of IChar)
       in
       (* We form the collecting function by joining *)
       let c x = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
         | `Int _ when Cil.isArithmeticType at -> VD.cast at x
         | _ -> x
       in
-      let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. If any of the
-       * addresses is a topped value, joining will fail. *)
-      try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
+      let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
+      AD.fold f addrs (VD.bot ())
     in
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
     res
@@ -929,7 +928,7 @@ struct
         | `Address a ->
           let slen = List.map String.length (AD.to_string a) in
           let lenOf = function
-            | TArray (_, l, _) -> (try Some (lenOfArray l) with _ -> None)
+            | TArray (_, l, _) -> (try Some (lenOfArray l) with LenOfArray -> None)
             | _ -> None
           in
           let alen = List.filter_map (fun v -> lenOf v.vtype) (AD.to_var_may a) in
@@ -1027,13 +1026,13 @@ struct
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match ID.to_int i1, ID.to_int i2 with
-            | Some i1', Some i2' when i1' = i2' -> true
+            | Some i1', Some i2' when Z.equal i1' i2' -> true
             | _ -> false
             end
         | _ -> false
       end
     | Q.MayBeEqual (e1, e2) -> begin
-        (* Printf.printf "---------------------->  may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+        (* Printf.printf "---------------------->  may equality check for %s and %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
         let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
         let e2_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e2 in
         match e1_val, e2_val with
@@ -1044,7 +1043,7 @@ struct
             let ik= Cil.commonIntKind e1_ik e2_ik in
             if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
               begin
-                (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+                (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
                 false
               end
             else true
@@ -1052,16 +1051,16 @@ struct
         | _ -> true
       end
     | Q.MayBeLess (e1, e2) -> begin
-        (* Printf.printf "----------------------> may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+        (* Printf.printf "----------------------> may check for %s < %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
         let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
         let e2_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e2 in
         match e1_val, e2_val with
         | `Int i1, `Int i2 -> begin
             match (ID.minimal i1), (ID.maximal i2) with
             | Some i1', Some i2' ->
-              if i1' >= i2' then
+              if Z.geq i1' i2' then
                 begin
-                  (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (ExpDomain.short 20 (`Lifted e1)) (ExpDomain.short 20 (`Lifted e2)); *)
+                  (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
                   false
                 end
               else true
@@ -1107,7 +1106,7 @@ struct
       if M.tracing then M.tracel "setosek" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
-    let firstvar = if M.tracing then try (List.hd (AD.to_var_may lval)).vname with _ -> "" else "" in
+    let firstvar = if M.tracing then match AD.to_var_may lval with [] -> "" | x :: _ -> x.vname else "" in
     let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
     if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
     (* Updating a single varinfo*offset pair. NB! This function's type does
@@ -1458,7 +1457,7 @@ struct
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
-        if GU.opt_predicate (BI.equal BI.zero) (ID.to_int x) then
+        if GobOption.exists (BI.equal BI.zero) (ID.to_int x) then
           (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
           ID.top_of ikind)
         else
@@ -1512,7 +1511,9 @@ struct
          * If the upper bound of a is divisible by b, we can also meet with the result of a/b*b - c to get the precise [3,3].
          * If b is negative we have to look at the lower bound. *)
         let is_divisible bound =
-          try ID.rem (bound a |> Option.get |> ID.of_int ikind) b |> ID.to_int = Some BI.zero with _ -> false
+          match bound a with
+          | Some ba -> ID.rem (ID.of_int ikind ba) b |> ID.to_int = Some BI.zero
+          | None -> false
         in
         let max_pos = match ID.maximal b with None -> true | Some x -> BI.compare x BI.zero >= 0 in
         let min_neg = match ID.minimal b with None -> true | Some x -> BI.compare x BI.zero < 0 in
@@ -2210,7 +2211,7 @@ struct
     | `ThreadJoin (id,ret_var) ->
       let st' =
         match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
-        | `Int n when GU.opt_predicate (BI.equal BI.zero) (ID.to_int n) -> st
+        | `Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
         | `Address ret_a ->
           begin match eval_rv (Analyses.ask_of_ctx ctx) gs st id with
             | `Thread a ->

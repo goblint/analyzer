@@ -337,7 +337,7 @@ struct
       let assign_id exp id =
         match exp with
         (* call assign for all analyses (we only need base)! *)
-        | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+        | AddrOf lval -> ctx.emit (Assign {lval; exp = mkAddrOf @@ var id})
         (* TODO not needed for the given code, but we could use Queries.MayPointTo exp in this case *)
         | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
       in

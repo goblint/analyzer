@@ -122,7 +122,7 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let _ = List.iter no_addr_of_flag arglist in
-    match f.vname with _ -> D.top ()
+    D.top ()
 
   let startstate v = D.top ()
   let threadenter ctx lval f args = [D.top ()]

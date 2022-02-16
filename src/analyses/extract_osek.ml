@@ -265,13 +265,13 @@ struct
         let assign_id exp id =
           if M.tracing then M.trace "extract_osek" "assign_id %a %s\n" d_exp exp id.vname;
           match exp with
-          | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+          | AddrOf lval -> ctx.emit (Assign {lval; exp = mkAddrOf @@ var id})
           | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
         in
         (* evaluates an argument and returns a list of possible values for that argument. *)
         let eval = function
           | Pml.EvalSkip -> const None
-          | Pml.EvalInt -> fun e -> Some (try eval_int e with _ -> eval_id e)
+          | Pml.EvalInt -> fun e -> Some (try eval_int e with Failure _ -> eval_id e)
           | Pml.EvalString -> fun e -> Some (List.map (fun x -> "\""^x^"\"") (eval_str e))
           | Pml.EvalEnum f -> fun e -> Some (List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e))
           | Pml.AssignIdOfString (res, pos) -> fun e ->

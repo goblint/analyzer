@@ -21,7 +21,9 @@ struct
   type t = (fieldinfo, Idx.t) offs
   include Printable.Std
 
-  let is_first_field x = try CilType.Fieldinfo.equal (List.hd x.fcomp.cfields) x with _ -> false
+  let is_first_field x = match x.fcomp.cfields with
+    | [] -> false
+    | f :: _ -> CilType.Fieldinfo.equal f x
 
   let rec cmp_zero_offset : t -> [`MustZero | `MustNonzero | `MayZero] = function
     | `NoOffset -> `MustZero

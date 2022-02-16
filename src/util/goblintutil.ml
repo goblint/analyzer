@@ -171,10 +171,6 @@ let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 let exe_dir = Filename.dirname Sys.executable_name
 let command = String.concat " " (Array.to_list Sys.argv)
 
-let opt_predicate (f : 'a -> bool) = function
-  | Some x -> f x
-  | None -> false
-
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
 (* https://ocaml.github.io/ocamlunix/signals.html *)
 let signal_of_string = let open Sys in function
