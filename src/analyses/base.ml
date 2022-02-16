@@ -363,20 +363,19 @@ struct
           | `Blob (c,s,_) -> c
           | x -> x
       in
-      let f x =
-        match Addr.to_var_offset x with
-        | Some x -> f_addr x                    (* normal reference *)
-        | None when x = Addr.NullPtr -> VD.bot () (* null pointer *)
-        | None -> `Int (ID.top_of IChar)       (* string pointer *)
+      let f = function
+        | Addr.Addr (x, o) -> f_addr (x, o)
+        | Addr.NullPtr -> VD.bot () (* TODO: why bot? *)
+        | Addr.UnknownPtr -> VD.top ()
+        | Addr.StrPtr _ -> `Int (ID.top_of IChar)
       in
       (* We form the collecting function by joining *)
       let c x = match x with (* If address type is arithmetic, and our value is an int, we cast to the correct ik *)
         | `Int _ when Cil.isArithmeticType at -> VD.cast at x
         | _ -> x
       in
-      let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. If any of the
-       * addresses is a topped value, joining will fail. *)
-      try AD.fold f addrs (VD.bot ()) with SetDomain.Unsupported _ -> VD.top ()
+      let f x a = VD.join (c @@ f x) a in      (* Finally we join over all the addresses in the set. *)
+      AD.fold f addrs (VD.bot ())
     in
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
     res
