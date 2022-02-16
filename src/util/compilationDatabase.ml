@@ -18,17 +18,6 @@ let parse_file filename =
 let command_o_regexp = Str.regexp "-o +[^ ]+"
 let command_program_regexp = Str.regexp "^ *\\([^ ]+\\)"
 
-let system ~cwd command =
-  let old_cwd = Sys.getcwd () in
-  Fun.protect ~finally:(fun () ->
-      Sys.chdir old_cwd
-    ) (fun () ->
-      Sys.chdir cwd;
-      match Unix.system command with
-      | WEXITED 0 -> ()
-      | process_status -> failwith (GobUnix.string_of_process_status process_status)
-    )
-
 let load_and_preprocess ~all_cppflags filename =
   let database_dir = Filename.dirname (GobFilename.absolute filename) in (* absolute before dirname to avoid . *)
   let reroot =
@@ -87,8 +76,8 @@ let load_and_preprocess ~all_cppflags filename =
       let cwd = reroot obj.directory in
       if GobConfig.get_bool "dbg.verbose" then
         Printf.printf "Preprocessing %s\n  to %s\n  using %s\n  in %s\n" file preprocessed_file preprocess_command cwd;
-      system ~cwd preprocess_command; (* command/arguments might have paths relative to directory *)
-      Some preprocessed_file
+      let preprocess_task = {ProcessPool.command = preprocess_command; cwd = Some cwd} in (* command/arguments might have paths relative to directory *)
+      Some (preprocessed_file, Some preprocess_task)
     in
   parse_file filename
   |> BatList.filter_map preprocess

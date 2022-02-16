@@ -155,18 +155,13 @@ let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
   if Sys.file_exists (get_string "tempDir") then
-    nname
+    (nname, None)
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
     let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
-
-    try match Unix.system command with
-      | Unix.WEXITED 0 -> nname
-      | _ -> eprintf "Goblint: Preprocessing failed."; raise Exit
-    with Unix.Unix_error (e, f, a) ->
-      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; raise Exit
+    (nname, Some {ProcessPool.command; cwd = None})
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -282,7 +277,14 @@ let preprocess_files () =
   if get_bool "ana.sv-comp.functions" then
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
 
-  List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files)
+  let preprocessed = List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files) in
+  let preprocess_tasks = List.filter_map snd preprocessed in
+  let terminated task = function
+    | Unix.WEXITED 0 -> ()
+    | process_status -> failwith (GobUnix.string_of_process_status process_status)
+  in
+  ProcessPool.run ~terminated preprocess_tasks;
+  List.map fst preprocessed
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
