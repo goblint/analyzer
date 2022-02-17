@@ -15,6 +15,7 @@ int main() {
     } else {
         x = &z;
     }
-    *x = 5;
+    *x = 5; 
+    // here Goblint says: [Error][Behavior > Undefined > NullPointerDereference][CWE-476] Must dereference NULL pointer
     return 0;
 }

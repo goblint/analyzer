@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdio.h>
 
 int* f (int* a1, int* a2) {
     int sol = 1;

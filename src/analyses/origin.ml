@@ -18,6 +18,7 @@ module VL = Lattice.Flat (Basetype.Variables) (struct
   end)
 
 (* Origin is Variable and Node *)
+(* TODO: instead of Node, use Unknown to be able to split only in certain contexts *)
 module Origin = Lattice.Prod (VL) (PL)
 module OriginSet = SetDomain.ToppedSet (Origin) (struct let topname = "All" end)
 module ValueOriginPair = Lattice.Prod (AD) (OriginSet)
@@ -32,6 +33,8 @@ module OriginMap = struct
     let curr_list = GobConfig.get_list "ana.path_sens_nodes" in
     if not (List.mem (`String node_name) curr_list) then
       (let _ = GobConfig.set_list "ana.path_sens_nodes" (curr_list @ [`String node_name]) in
+       ignore @@ Pretty.printf "Restarting %s\n" node_name;
+       (* TODO: Only restart when a warning is produced *)
        raise Refinement.RestartAnalysis;)
     else
       let curr_val_origin_pair = find x res in
@@ -39,24 +42,23 @@ module OriginMap = struct
       let curr_origin_set = snd curr_val_origin_pair in
       let new_origin: Origin.t = (`Lifted x, node) in
       let new_origin_set = OriginSet.add new_origin curr_origin_set in
-      ignore @@ Pretty.printf "New OriginSet %s\n\n" (OriginSet.show new_origin_set);
+      (*ignore @@ Pretty.printf "New OriginSet %s\n\n" (OriginSet.show new_origin_set);*)
       let new_pair = (curr_val, new_origin_set) in 
       let res = add x new_pair res in
-      ignore @@ Pretty.printf "New Map %s\n\n" (Pretty.sprint 80 (pretty () res));
+      (*ignore @@ Pretty.printf "New Map %s\n\n" (Pretty.sprint 80 (pretty () res));*)
       res
 
   let check_precision_loss (m1: t) (m2: t) (res: t) node =
-    let _ = Pretty.printf "CHECK %s\n" in
     let res = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
-        if (find key res) <> v then update_blame acc key node else acc)
+        if (fst (find key res)) <> (fst v) then update_blame acc key node else acc)
         m1 res in 
     let res = fold (fun (key: Basetype.Variables.t) (v:ValueOriginPair.t) acc -> 
-        if (find key res) <> v then update_blame acc key node else acc)
+        if (fst (find key res)) <> (fst v) then update_blame acc key node else acc)
         m2 res in 
     res
 
   let join_with_fct f (m1: t) (m2: t) =
-    let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in
+    (*let _ = Pretty.printf "JOINING %s %s\n" (Pretty.sprint 80 (pretty () m1)) (Pretty.sprint 80 (pretty () m2)) in*)
     if m1 == m2 then 
       m1 
     else 
@@ -102,16 +104,15 @@ struct
     | Var v, NoOffset when is_pointer_var v (* && not v.vglob *)-> Some v (* pointer variable whose address is maybe taken *)
     | _, _ -> None
 
-  let contains s1 s2 =
-    let re = Str.regexp_string s2 in
-    try ignore (Str.search_forward re s1 0); true
-    with Not_found -> false
+  (* This is just for debugging *)
+  (* let contains s1 s2 =
+     let re = Str.regexp_string s2 in
+     try ignore (Str.search_forward re s1 0); true
+     with Not_found -> false *)
 
   let should_split node =
-    (*let _ = Pretty.printf "SHOULD WE SPLIT? %s %s\n" in*)
     let name: string = Node.show node in
-    List.mem name (GobConfig.get_string_list "ana.path_sens_nodes")(* ||
-                                                                      contains name "node 85"*)
+    List.mem name (GobConfig.get_string_list "ana.path_sens_nodes")
 
   let should_join node x y = 
     match node with
@@ -142,7 +143,6 @@ struct
   (*`Top*)
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let _ = Pretty.printf "ASSIGN %s\n" in
     match get_pointer lval with
     | Some loc -> 
       let curr_val_origin_pair = D.find loc ctx.local in
@@ -162,6 +162,7 @@ struct
       D.add loc new_pair ctx.local
     | None -> ctx.local
 
+  (* TODO: treat the guards as assignments *)
   let branch ctx (exp:exp) (tv:bool) : D.t = ctx.local
 
   let body ctx (f:fundec) : D.t =
@@ -171,49 +172,47 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* Do nothing, as we are not interested in return values for now. *)
     let fun_variable = f.svar in
-    ctx.local
-  (* let v_out = Goblintutil.create_var @@ makeVarinfo false (fun_variable.vname ^ "#out") fun_variable.vtype in*) (* temporary local f#out for the output of the function f *)
-  (* let node = match !MyCFG.current_node with
-     | Some n -> `Lifted n
-     | _ -> PL.top ()
-     in *)
-  (*let new_origin: Origin.t = (`Lifted fun_variable, node) in
-    let new_origin_set = OriginSet.add new_origin (OriginSet.empty ())  in*)
-  (* UNcomment*)
-  (*let new_pair = (match exp with
-      | Some (e:exp) -> let _ = printf "EXPRESSION: %a\n" (printExp plainCilPrinter) e in
-        (match e with
-         | AddrOf _ ->  let _ = printf "CASE 1\n" in 
-           let possible_values = List.map (
-               fun x -> 
-                 let vinfo: varinfo = fst x in
-                 let vo_pair = D.find vinfo ctx.local in 
-                 (Addr.Addr (vinfo, `NoOffset), vo_pair)
-             ) (mayPointTo ctx e) in 
-           let newAD = List.fold (fun m x -> AD.add (fst x) m) (AD.empty ()) possible_values in
-           let val_origins_from_caller = List.fold (fun s x -> snd(snd x)) (OriginSet.empty ()) possible_values in
-           (newAD, val_origins_from_caller)
-         | Lval (Var vinfo, _) ->  let _ = printf "CASE 2\n" in  let newAD = AD.add (Addr.Addr (vinfo, `NoOffset)) (AD.empty ()) in 
-           let vo_pair = D.find vinfo ctx.local in 
-           let neworigin_set = snd vo_pair in
-           (newAD, neworigin_set)
-         | CastE(_, AddrOf _) -> let _ = printf "CASE 1\n" in 
-           let possible_values = List.map (
-               fun x -> 
-                 let vinfo: varinfo = fst x in
-                 let vo_pair = D.find vinfo ctx.local in 
-                 (Addr.Addr (vinfo, `NoOffset), vo_pair)
-             ) (mayPointTo ctx e) in 
-           let newAD = List.fold (fun m x -> AD.add (fst x) m) (AD.empty ()) possible_values in
-           let val_origins_from_caller = List.fold (fun s x -> snd(snd x)) (OriginSet.empty ()) possible_values in
-           (newAD, val_origins_from_caller)
-         | _ ->  let _ = printf "CASE 3\n" in  (AD.empty (), OriginSet.empty ())
-        )
-      | _ -> let _ = printf "No value\n" in AD.top () 
-    ) in
+    (* let v_out = Goblintutil.create_var @@ makeVarinfo false (fun_variable.vname ^ "#out") fun_variable.vtype in*) (* temporary local f#out for the output of the function f *)
+    (* let node = match !MyCFG.current_node with
+       | Some n -> `Lifted n
+       | _ -> PL.top ()
+       in *)
+    (*let new_origin: Origin.t = (`Lifted fun_variable, node) in
+      let new_origin_set = OriginSet.add new_origin (OriginSet.empty ())  in*)
+    let new_pair = (match exp with
+        | Some (e:exp) -> let _ = printf "EXPRESSION: %a\n" (printExp plainCilPrinter) e in
+          (match e with
+           | AddrOf _ ->  let _ = printf "CASE 1\n" in 
+             let possible_values = List.map (
+                 fun x -> 
+                   let vinfo: varinfo = fst x in
+                   let vo_pair = D.find vinfo ctx.local in 
+                   (Addr.Addr (vinfo, `NoOffset), vo_pair)
+               ) (mayPointTo ctx e) in 
+             let newAD = List.fold (fun m x -> AD.add (fst x) m) (AD.empty ()) possible_values in
+             let val_origins_from_caller = List.fold (fun s x -> snd(snd x)) (OriginSet.empty ()) possible_values in
+             (newAD, val_origins_from_caller)
+           | Lval (Var vinfo, _) ->  let _ = printf "CASE 2\n" in  let newAD = AD.add (Addr.Addr (vinfo, `NoOffset)) (AD.empty ()) in 
+             let vo_pair = D.find vinfo ctx.local in 
+             let neworigin_set = snd vo_pair in
+             (newAD, neworigin_set)
+           | CastE(_, AddrOf _) -> let _ = printf "CASE 1\n" in 
+             let possible_values = List.map (
+                 fun x -> 
+                   let vinfo: varinfo = fst x in
+                   let vo_pair = D.find vinfo ctx.local in 
+                   (Addr.Addr (vinfo, `NoOffset), vo_pair)
+               ) (mayPointTo ctx e) in 
+             let newAD = List.fold (fun m x -> AD.add (fst x) m) (AD.empty ()) possible_values in
+             let val_origins_from_caller = List.fold (fun s x -> snd(snd x)) (OriginSet.empty ()) possible_values in
+             (newAD, val_origins_from_caller)
+           | _ ->  let _ = printf "CASE 3\n" in  (AD.empty (), OriginSet.empty ())
+          )
+        | _ -> let _ = printf "No value\n" in AD.top () 
+      ) in
     let o = D.add fun_variable new_pair ctx.local in
     let _ = Pretty.printf "Return %s\n" (Pretty.sprint 80 (D.pretty () o)) in 
-    o *)
+    o 
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     (* Set the formal int arguments to top *)
@@ -223,7 +222,8 @@ struct
        ()
        in
        let _ = List.iter (fun a -> prexp a) args in *)
-    (* let callee_state = List.fold (fun m l -> D.add l (AD.empty (), OriginSet.empty ()) m) (D.bot ()) f.sformals in *)
+    let callee_state = List.fold (fun m l -> D.add l (AD.empty (), OriginSet.empty ()) m) (D.bot ()) f.sformals in
+    (* TODO: put back assigning *)
     (*let callee_state = List.fold_left2 (fun m l1 l2 -> 
         let res = (match (l2:exp) with
             | AddrOf _ -> 
@@ -244,10 +244,9 @@ struct
           )
         in
         D.add l1 res m
-      ) (D.bot ()) f.sformals args in
-      (* let _ = Pretty.printf "new state %s\n" (Pretty.sprint 80 (D.pretty () callee_state)) in *)
-      [(ctx.local, callee_state)]*)
-    [(ctx.local, ctx.local)]
+      ) (D.bot ()) f.sformals args in*)
+    (* let _ = Pretty.printf "new state %s\n" (Pretty.sprint 80 (D.pretty () callee_state)) in *)
+    [(ctx.local, callee_state)]
 
   let set_local_int_lval_to_fun_result (state: D.t) (lval: lval option) (f:fundec) (au:D.t) =
     match lval with
@@ -264,9 +263,13 @@ struct
         with a local int variable x on the left, we set it to top *)
     (*set_local_int_lval_top ctx.local lval*)
     let _ = Pretty.printf "AU %s\n" (Pretty.sprint 80 (D.pretty () au)) in
+    let _ = Pretty.printf "CTX %s\n" (Pretty.sprint 80 (D.pretty () ctx.local)) in
+    let _ = List.iter (fun ex ->  ignore @@ printf "Argument: %a\n" (printExp plainCilPrinter) ex;) args in
+    let _ = List.iter (fun vinfo ->  ignore @@ printf "SFormal: %s\n" vinfo.vname;) f.sformals in
+    let _ = List.iter (fun vinfo ->  ignore @@ printf "SLocall: %s\n" vinfo.vname;) f.slocals in
     match lval with
     | Some (Var v, _) -> let value = D.find f.svar au in
-      D.add v value ctx.local
+      let op = D.add v value ctx.local in let _ = Pretty.printf "OP %s\n" (Pretty.sprint 80 (D.pretty () op)) in op
     | _ -> ctx.local
 
   (* set_local_int_lval_to_fun_result ctx.local lval f au *)
