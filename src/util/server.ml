@@ -117,10 +117,12 @@ let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
     | _ -> Analyses.empty_increment_data file, true
   in
   GobConfig.set_bool "incremental.load" (not fresh);
-  do_analyze increment_data file;
-  GobConfig.set_bool "incremental.load" true
+  Fun.protect ~finally:(fun () ->
+      GobConfig.set_bool "incremental.load" true
+    ) (fun () ->
+      do_analyze increment_data file
+    )
 
-(* TODO: Add command to abort the analysis in progress. *)
 let () =
   let register = Registry.register registry in
 
@@ -128,11 +130,17 @@ let () =
     let name = "analyze"
     type params = { reset: bool [@default false] } [@@deriving of_yojson]
     (* TODO: Return analysis results as JSON. Useful for GobPie. *)
-    type response = unit [@@deriving to_yojson]
+    type status = Success | VerifyError | Aborted [@@deriving to_yojson]
+    type response = { status: status } [@@deriving to_yojson]
     (* TODO: Add option to re-parse the input files. *)
     (* TODO: Add options to control the analysis precision/context for specific functions. *)
     (* TODO: Add option to mark functions as modified. *)
-    let process { reset } serve = analyze serve ~reset
+    let process { reset } serve =
+      try
+        analyze serve ~reset;
+        {status = if !Goblintutil.verified = Some false then VerifyError else Success}
+      with Sys.Break ->
+        {status = Aborted}
   end);
 
   register (module struct
