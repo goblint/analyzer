@@ -629,12 +629,27 @@ module WP =
             )
         in
 
+        let force_reanalyze = StringSet.of_list @@ GobConfig.get_string_list "incremental.force-reanalyze.funs" in
+        let eager = (not (GobConfig.get_bool "incremental.reluctant.on")) in
+        let reanalyze_entry f =
+          (* destabilize the entry points of a changed function when reluctant is off,
+             or the function is to be force-reanalyzed  *)
+          eager || StringSet.mem f.svar.vname force_reanalyze
+        in
+
         let obsolete_ret = HM.create 103 in
         let obsolete_entry = HM.create 103 in
         let obsolete_prim = HM.create 103 in
+
+        (* When reluctant is on:
+          Only add function entry nodes to obsolete_entry if they are in force-reanalyze *)
         List.iter (fun f ->
-            mark_node obsolete_entry f (FunctionEntry f);
-            mark_node obsolete_ret f (Function f);
+            if reanalyze_entry f then
+              (* collect function entry for eager destabilization *)
+              mark_node obsolete_entry f (FunctionEntry f)
+            else
+              (* collect function return for reluctant analysis *)
+              mark_node obsolete_ret f (Function f)
           ) changed_funs;
         List.iter (fun (f, pn, _) ->
             List.iter (fun n ->
@@ -653,19 +668,18 @@ module WP =
                 HM.replace old_ret k (old_rho, old_infl)
               )
             ) obsolete_ret;
-        ) else (
-          (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
-             and the primary obsolete nodes of partly changed functions *)
-          print_endline "Destabilizing changed functions and primary old nodes ...";
-          HM.iter (fun k _ ->
-              if HM.mem stable k then
-                destabilize k
-            ) obsolete_entry;
-          HM.iter (fun k _ ->
-              if HM.mem stable k then
-                destabilize k
-            ) obsolete_prim;
         );
+
+        if not (HM.is_empty obsolete_entry) || not (HM.is_empty obsolete_prim) then
+           print_endline "Destabilizing changed functions and primary old nodes ...";
+        HM.iter (fun k _ ->
+            if HM.mem stable k then
+              destabilize k
+          ) obsolete_entry;
+        HM.iter (fun k _ ->
+            if HM.mem stable k then
+              destabilize k
+          ) obsolete_prim;
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         let marked_for_deletion = HM.create 103 in
@@ -689,15 +703,7 @@ module WP =
             ) functions;
         in
 
-        let force_reanalyze = StringSet.of_list @@ GobConfig.get_string_list "incremental.force-reanalyze.funs" in
-
-        let eager = (not (GobConfig.get_bool "incremental.reluctant.on")) in
-        let with_entry f =
-          (* destabilize the entry points of a changed function when reluctant is off,
-             or the function is to be force-reanalyzed  *)
-          eager || StringSet.mem f.svar.vname force_reanalyze
-        in
-        add_nodes_of_fun changed_funs with_entry;
+        add_nodes_of_fun changed_funs reanalyze_entry;
         add_nodes_of_fun removed_funs (fun _ -> true);
         (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
         let add_pseudo_return f un =
