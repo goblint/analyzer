@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --disable ana.context.widen --disable ana.base.context.int --set annotation.goblint_context.base.int[+] f
+// PARAM: --enable ana.int.interval --disable ana.context.widen --disable ana.base.context.int --set annotation.goblint_context.f[+] base.int
 #include <assert.h>
 
 int f(int x) {

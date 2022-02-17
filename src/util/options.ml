@@ -28,7 +28,8 @@ let schema =
 
 let require_all = JsonSchema.schema_require_all schema
 
-let defaults = JsonSchema.schema_defaults schema
+let defaults_additional_field = "__additional__"
+let defaults = JsonSchema.schema_defaults ~additional_field:defaults_additional_field schema
 
 let () =
   (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema.schema_to_yojson require_all); *)
