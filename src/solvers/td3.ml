@@ -642,7 +642,7 @@ module WP =
         let obsolete_prim = HM.create 103 in
 
         (* When reluctant is on:
-          Only add function entry nodes to obsolete_entry if they are in force-reanalyze *)
+           Only add function entry nodes to obsolete_entry if they are in force-reanalyze *)
         List.iter (fun f ->
             if reanalyze_entry f then
               (* collect function entry for eager destabilization *)
@@ -671,7 +671,7 @@ module WP =
         );
 
         if not (HM.is_empty obsolete_entry) || not (HM.is_empty obsolete_prim) then
-           print_endline "Destabilizing changed functions and primary old nodes ...";
+          print_endline "Destabilizing changed functions and primary old nodes ...";
         HM.iter (fun k _ ->
             if HM.mem stable k then
               destabilize k
