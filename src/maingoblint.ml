@@ -159,14 +159,11 @@ let basic_preprocess ~all_cppflags fname =
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let deps_file = Filename.chop_extension nname ^ ".d" in
-    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -MMD -MT " ^ fname ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
 
     try match Unix.system command with
-      | Unix.WEXITED 0 ->
-        Preprocessor.parse_makefile_deps deps_file;
-        nname
+      | Unix.WEXITED 0 -> nname
       | _ -> eprintf "Goblint: Preprocessing failed."; raise Exit
     with Unix.Unix_error (e, f, a) ->
       eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; raise Exit
@@ -291,7 +288,13 @@ let preprocess_files () =
 let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
-  let files_AST = List.map Cilfacade.getAST cpp_file_names in
+  let get_ast_and_record_deps f =
+    let file = Cilfacade.getAST f in
+    (* Drop <built-in> and <command-line> from dependencies *)
+    Hashtbl.add Preprocessor.dependencies f @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
+    file
+  in
+  let files_AST = List.map (get_ast_and_record_deps) cpp_file_names in
 
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")

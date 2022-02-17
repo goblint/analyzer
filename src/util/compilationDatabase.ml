@@ -55,14 +55,13 @@ let load_and_preprocess ~all_cppflags filename =
     else
       let preprocessed_file = Filename.concat preprocessed_dir (Filename.chop_extension (GobFilename.chop_common_prefix database_dir file) ^ ".i") in
       GobSys.mkdir_parents preprocessed_file;
-      let deps_file = Filename.chop_extension preprocessed_file ^ ".d" in
       let preprocess_command = match obj.command, obj.arguments with
         | Some command, None ->
           (* TODO: extract o_file *)
           let command = reroot command in
-          let preprocess_command = Str.replace_first command_program_regexp ("\\1 " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -E -MMD -MT " ^ file) command in
+          let preprocess_command = Str.replace_first command_program_regexp ("\\1 " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -E") command in
           if preprocess_command = command then (* easier way to check if match was found (and replaced) *)
-            failwith "CompilationDatabase.preprocess: no program found for " ^ file
+            failwith ("CompilationDatabase.preprocess: no program found for " ^ file)
           else
             let preprocess_command_o = Str.replace_first command_o_regexp ("-o " ^ preprocessed_file) preprocess_command in
             if preprocess_command_o = preprocess_command then (* easier way to check if match was found (and replaced) *)
@@ -85,7 +84,7 @@ let load_and_preprocess ~all_cppflags filename =
                   end
                 | exception Not_found -> arguments @ "-o" :: [preprocessed_file]
               end in
-            all_cppflags @ "-E" :: "-MMD" :: "-MT" :: file :: suf in
+            all_cppflags @ "-E" :: suf in
           Filename.quote_command arguments_program preprocess_arguments
         | Some _, Some _ ->
           failwith "CompilationDatabase.preprocess: both command and arguments specified for " ^ file
@@ -96,7 +95,6 @@ let load_and_preprocess ~all_cppflags filename =
       if GobConfig.get_bool "dbg.verbose" then
         Printf.printf "Preprocessing %s\n  to %s\n  using %s\n  in %s\n" file preprocessed_file preprocess_command cwd;
       system ~cwd preprocess_command; (* command/arguments might have paths relative to directory *)
-      Preprocessor.parse_makefile_deps deps_file;
       Some preprocessed_file
   in
   parse_file filename

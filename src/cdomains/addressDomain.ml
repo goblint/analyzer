@@ -1,6 +1,5 @@
 open Cil
 open Pretty
-open Goblintutil
 open IntOps
 let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
@@ -52,8 +51,8 @@ struct
 
   let of_int (type a) (module ID : IntDomain.Z with type t = a) i =
     match ID.to_int i with
-    | x when opt_predicate BigIntOps.(equal (zero)) x -> null_ptr
-    | x when opt_predicate BigIntOps.(equal (one)) x -> not_null
+    | x when GobOption.exists BigIntOps.(equal (zero)) x -> null_ptr
+    | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null
     | _ -> match ID.to_excl_list i with
       | Some xs when List.exists BigIntOps.(equal (zero)) xs -> not_null
       | _ -> top_ptr
