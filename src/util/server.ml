@@ -114,7 +114,7 @@ let start file =
 let reparse (s: t) =
   if GobConfig.get_bool "server.reparse" then (
     Goblintutil.create_temp_dir ();
-    Fun.protect ~finally:Goblintutil.remove_temp_dir Maingoblint.preprocess_and_merge, true)
+    Fun.protect ~finally:Goblintutil.remove_temp_dir Goblint.preprocess_and_merge, true)
   else s.file, false
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
@@ -154,7 +154,7 @@ let analyze ?(reset=false) (s: t) =
   ApronDomain.reset_lazy ();
   s.file <- file;
   GobConfig.set_bool "incremental.load" (not fresh);
-  Maingoblint.do_analyze increment_data s.file;
+  Goblint.do_analyze increment_data s.file;
   GobConfig.set_bool "incremental.load" true
 
 (* TODO: Add command to abort the analysis in progress. *)
