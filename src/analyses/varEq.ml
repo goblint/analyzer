@@ -49,8 +49,8 @@ struct
 
   let const_equal c1 c2 =
     match c1, c2 with
-    |	CStr s1  , CStr s2	 -> s1 = s2
-    |	CWStr is1, CWStr is2 -> is1 = is2
+    |	CStr (s1,_)  , CStr (s2,_)	 -> s1 = s2
+    |	CWStr (is1,_), CWStr (is2,_) -> is1 = is2
     |	CChr c1  , CChr c2   -> c1 = c2
     |	CInt (v1,k1,_), CInt (v2,k2,_) -> Cilint.compare_cilint v1 v2 = 0 && k1 = k2
     |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
