@@ -652,6 +652,7 @@ module WP =
               mark_node obsolete_ret f (Function f)
           ) changed_funs;
         (* Unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
+        (* We utilize that force-reanalyzed functions are always considered as completely changed (and not partially changed) *)
         if not reluctant then (
           List.iter (fun (f, pn, _) ->
               List.iter (fun n ->
