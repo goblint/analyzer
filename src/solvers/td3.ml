@@ -630,11 +630,11 @@ module WP =
         in
 
         let force_reanalyze = StringSet.of_list @@ GobConfig.get_string_list "incremental.force-reanalyze.funs" in
-        let eager = (not (GobConfig.get_bool "incremental.reluctant.on")) in
+        let reluctant = GobConfig.get_bool "incremental.reluctant.on" in
         let reanalyze_entry f =
           (* destabilize the entry points of a changed function when reluctant is off,
              or the function is to be force-reanalyzed  *)
-          eager || StringSet.mem f.svar.vname force_reanalyze
+          (not reluctant) || StringSet.mem f.svar.vname force_reanalyze
         in
 
         let obsolete_ret = HM.create 103 in
@@ -652,7 +652,7 @@ module WP =
               mark_node obsolete_ret f (Function f)
           ) changed_funs;
         (* Unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
-        if eager then (
+        if not reluctant then (
           List.iter (fun (f, pn, _) ->
               List.iter (fun n ->
                   mark_node obsolete_prim f n
@@ -662,7 +662,7 @@ module WP =
         );
 
         let old_ret = HM.create 103 in
-        if GobConfig.get_bool "incremental.reluctant.on" then (
+        if reluctant then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v ->
               if HM.mem rho k then (
@@ -817,7 +817,7 @@ module WP =
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
 
-        if GobConfig.get_bool "incremental.reluctant.on" then (
+        if reluctant then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
