@@ -1,0 +1,26 @@
+diff --git tests/incremental/03-precision-annotation/03-reluctant-int-annotation-dyn.c tests/incremental/03-precision-annotation/03-reluctant-int-annotation-dyn.c
+index 58781ecd7..4d2620e84 100644
+--- tests/incremental/03-precision-annotation/03-reluctant-int-annotation-dyn.c
++++ tests/incremental/03-precision-annotation/03-reluctant-int-annotation-dyn.c
+@@ -2,11 +2,12 @@
+ 
+ typedef int int_to_int_fun (int);
+ 
++int f(int in) __attribute__ ((goblint_precision("def_exc", "interval")));
+ int f(int in){
+   while(in < 17) {
+     in++;
+   }
+-  assert(in == 17); //UNKNOWN
++  assert(in == 17);
+   return in;
+ }
+ 
+@@ -19,6 +20,6 @@ int main() {
+   int a = 0;
+   assert(a); // FAIL!
+   a = fun(a);
+-  assert(a == 17); //UNKOWN
++  assert(a == 17);
+   return 0;
+ }

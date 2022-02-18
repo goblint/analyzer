@@ -1,0 +1,18 @@
+{
+    "annotation": {
+        "int": {
+            "enabled": true
+        }
+    },
+    "ana": {
+        "int": {
+            "refinement": "fixpoint"
+        }
+    },
+    "incremental": {
+        "reluctant": {
+            "on": true
+        },
+        "verify": false
+    }
+}
