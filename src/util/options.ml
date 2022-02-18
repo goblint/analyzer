@@ -28,7 +28,7 @@ let schema =
 
 let require_all = JsonSchema.schema_require_all schema
 
-let defaults_additional_field = "__additional__"
+let defaults_additional_field = "__additional__" (* tihs shouldn't conflict with any actual field *)
 let defaults = JsonSchema.schema_defaults ~additional_field:defaults_additional_field schema
 
 let () =

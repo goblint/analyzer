@@ -95,6 +95,7 @@ let rec element_defaults ?additional_field (element: element): Yojson.Safe.t =
       | Object object_specs ->
         let additional = match additional_field, object_specs.additional_properties with
           | Some additional_field, Some additional_properties ->
+            (* create additional field with the additionalProperties default value for lookup in GobConfig *)
             [(additional_field, element_defaults ~additional_field additional_properties)]
           | _, _ ->
             []

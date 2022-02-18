@@ -182,7 +182,7 @@ struct
       begin
         try get_value (List.assoc key m) pth
         with Not_found ->
-          try get_value (List.assoc Options.defaults_additional_field m) pth
+          try get_value (List.assoc Options.defaults_additional_field m) pth (* if schema specifies additionalProperties, then use the default from that *)
           with Not_found -> raise ConfTypeError
       end
     | `List a, Index (Int i, pth) ->
@@ -227,7 +227,8 @@ struct
       match o, pth with
       | `Assoc m, Select (key,pth) ->
         let rec modify = function
-          | [] -> [(key, create_new v pth)]
+          | [] ->
+            [(key, create_new v pth)] (* create new key, validated by schema *)
           | (key', v') :: kvs when key' = key ->
             (key, set_value v v' pth) :: kvs
           | (key', v') :: kvs ->
