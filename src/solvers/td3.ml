@@ -16,8 +16,6 @@ open Messages
 open CompareCIL
 open Cil
 
-module StringSet = Set.Make(Printable.Strings)
-
 module WP =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
@@ -629,7 +627,9 @@ module WP =
             )
         in
 
-        let force_reanalyze = StringSet.of_list @@ GobConfig.get_string_list "incremental.force-reanalyze.funs" in
+        let force_reanalyze = S.increment.changes.force_reanalyze in 
+
+          (* StringSet.of_list @@ GobConfig.get_string_list "incremental.force-reanalyze.funs" in *)
         let reluctant = GobConfig.get_bool "incremental.reluctant.on" in
         let reanalyze_entry f =
           (* destabilize the entry points of a changed function when reluctant is off,
