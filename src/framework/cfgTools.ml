@@ -156,65 +156,230 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
-  let createCFG (file: file) =
-    let cfgF = H.create 113 in
-    let cfgB = H.create 113 in
-    if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
+let createCFG (file: file) =
+  let cfgF = H.create 113 in
+  let cfgB = H.create 113 in
+  if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
-    let fd_nodes = NH.create 113 in
+  let fd_nodes = NH.create 113 in
 
-    let fun_cfgF = H.create 113 in
-    let fun_cfgB = H.create 113 in
+  let fun_cfgF = H.create 113 in
+  let fun_cfgB = H.create 113 in
 
-    let addEdges fromNode edges toNode =
-      if Messages.tracing then
-        Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
-          pretty_edges edges
-          Node.pretty_trace fromNode
-          Node.pretty_trace toNode;
-      NH.replace fd_nodes fromNode ();
-      NH.replace fd_nodes toNode ();
-      H.add cfgB toNode (edges,fromNode); H.add fun_cfgB toNode (edges,fromNode);
-      H.add cfgF fromNode (edges,toNode); H.add fun_cfgF fromNode (edges,toNode);
-      if Messages.tracing then Messages.trace "cfg" "done\n\n"
+  let addEdges fromNode edges toNode =
+    if Messages.tracing then
+      Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
+        pretty_edges edges
+        Node.pretty_trace fromNode
+        Node.pretty_trace toNode;
+    NH.replace fd_nodes fromNode ();
+    NH.replace fd_nodes toNode ();
+    H.add cfgB toNode (edges,fromNode); H.add fun_cfgB toNode (edges,fromNode);
+    H.add cfgF fromNode (edges,toNode); H.add fun_cfgF fromNode (edges,toNode);
+    if Messages.tracing then Messages.trace "cfg" "done\n\n"
+  in
+  let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
+  let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
+
+  (* Find real (i.e. non-empty) successor of statement.
+      CIL CFG contains some unnecessary intermediate statements.
+      If stmt is succ of parent, then optional argument parent must be passed
+      to also detect cycle ending with parent itself.
+      If not_found is true, then a stmt without succs will raise Not_found
+      instead of returning that stmt. *)
+  let find_real_stmt ?parent ?(not_found=false) stmt =
+    if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
+    let rec find visited_sids stmt =
+      if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited_sids stmt.sid dn_stmt stmt;
+      if List.mem stmt.sid visited_sids then (* mem uses structural equality on ints, which is fine *)
+        stmt (* cycle *)
+      else
+        match stmt.skind with
+        | Goto _ (* 1 succ *)
+        | Instr [] (* CIL inserts like unlabelled goto, 0-1 succs *)
+        | Block _ (* just container for stmts, 0-1 succs *)
+        | Loop _ -> (* just container for (prepared) body, 1 succ *)
+          begin match stmt.succs with
+            | [] ->
+              if not_found then
+                raise Not_found
+              else
+                stmt
+            | [next] ->
+              find (stmt.sid :: visited_sids) next
+            | _ -> (* >1 succ *)
+              failwith "MyCFG.createCFG.find_real_stmt: >1 succ"
+          end
+
+        | Instr _
+        | If _
+        | Return _ ->
+          stmt
+
+        | Continue _
+        | Break _
+        | Switch _ ->
+          (* Should be removed by Cil.prepareCFG. *)
+          failwith "MyCFG.createCFG: unprepared stmt"
+
+        | ComputedGoto _->
+          failwith "MyCFG.createCFG: unsupported stmt"
     in
-    let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
-    let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
+    try
+      let initial_visited_sids = match parent with
+        | Some parent -> [parent.sid]
+        | None -> []
+      in
+      let r = find initial_visited_sids stmt in
+      if Messages.tracing then Messages.traceu "cfg" "-> %d\n" r.sid;
+      r
+    with Not_found ->
+      if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
+      raise Not_found
+  in
+  addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
+  Printf.printf "Number of globals %i\n\n" (List.length file.globals);
+  (* We iterate over all globals looking for functions: *)
+  iterGlobals file (fun glob ->
+      match glob with
+      | GFun (fd, fd_loc) ->
+        Printf.printf "Looking at the function %s.\n" fd.svar.vname;
 
-    (* Find real (i.e. non-empty) successor of statement.
-       CIL CFG contains some unnecessary intermediate statements.
-       If stmt is succ of parent, then optional argument parent must be passed
-       to also detect cycle ending with parent itself.
-       If not_found is true, then a stmt without succs will raise Not_found
-       instead of returning that stmt. *)
-    let find_real_stmt ?parent ?(not_found=false) stmt =
-      if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
-      let rec find visited_sids stmt =
-        if Messages.tracing then Messages.trace "cfg" "find_real_stmt visited=[%a] stmt=%d: %a\n" (d_list "; " (fun () x -> Pretty.text (string_of_int x))) visited_sids stmt.sid dn_stmt stmt;
-        if List.mem stmt.sid visited_sids then (* mem uses structural equality on ints, which is fine *)
-          stmt (* cycle *)
-        else
+        if get_bool "dbg.cilcfgdot" then
+          Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
+
+        NH.clear fd_nodes;
+        H.clear fun_cfgB;
+        H.clear fun_cfgF;
+
+        let loop_head_neg1 = NH.create 3 in
+        let pseudo_return = lazy (
+          let newst = mkStmt (Return (None, fd_loc)) in
+          newst.sid <- get_pseudo_return_id fd;
+          Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;
+          let newst_node = Statement newst in
+          addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);
+          newst_node
+        )
+        in
+        Stats.time "makeCFG" (fun () ->
+        (* Find the first statement in the function *)
+        let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
+        (* Add the entry edge to that node *)
+        addEdge (FunctionEntry fd) (fd_loc, Entry fd) (Statement entrynode);
+        (* Return node to be used for infinite loop connection to end of function
+          * lazy, so it's only added when actually needed *)
+
+
+
+        (* So for each statement in the function body, we do the following: *)
+        let handle stmt =
+          if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (Cilfacade.get_stmtLoc stmt);
+
+          let real_succs () = List.map (find_real_stmt ~parent:stmt) stmt.succs in
+
           match stmt.skind with
-          | Goto _ (* 1 succ *)
-          | Instr [] (* CIL inserts like unlabelled goto, 0-1 succs *)
-          | Block _ (* just container for stmts, 0-1 succs *)
-          | Loop _ -> (* just container for (prepared) body, 1 succ *)
-            begin match stmt.succs with
-              | [] ->
-                if not_found then
-                  raise Not_found
-                else
-                  stmt
-              | [next] ->
-                find (stmt.sid :: visited_sids) next
-              | _ -> (* >1 succ *)
-                failwith "MyCFG.createCFG.find_real_stmt: >1 succ"
+          | Instr [] ->
+            (* CIL sometimes inserts empty Instr, which is like a goto without label. *)
+            (* Without this special case, CFG would contain edges without label or transfer function,
+                which is unwanted because such flow is undetectable by the analysis (especially for witness generation). *)
+            (* Generally these are unnecessary and unwanted because find_real_stmt skips over these. *)
+            (* CIL uses empty Instr self-loop for empty Loop, so a Skip self-loop must be added to not lose the loop. *)
+            begin match real_succs () with
+              | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Instr [] itself doesn't have one *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
             end
 
-          | Instr _
-          | If _
-          | Return _ ->
-            stmt
+          | Instr instrs -> (* non-empty Instr *)
+            let edge_of_instr = function
+              | Set (lval,exp,loc,eloc) -> eloc, Assign (lval, exp) (* TODO: eloc loc fallback if unknown here and If *)
+              | Call (lval,func,args,loc,eloc) -> eloc, Proc (lval,func,args)
+              | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
+              | VarDecl (v, loc) -> loc, VDecl(v)
+            in
+            let edges = List.map edge_of_instr instrs in
+            let add_succ_node succ_node = addEdges (Statement stmt) edges succ_node in
+            begin match real_succs () with
+              | [] -> add_succ_node (Lazy.force pseudo_return) (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
+              | [succ] -> add_succ_node (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 non-empty Instr succ"
+            end
+
+          | If (exp, _, _, loc, eloc) ->
+            (* Cannot use true and false blocks from If constructor, because blocks don't have succs (stmts do).
+                Cannot use first stmt in block either, because block may be empty (e.g. missing branch). *)
+            (* Hence we rely on implementation detail of the If case in CIL's succpred_stmt.
+                First, true branch's succ is consed (to empty succs list).
+                Second, false branch's succ is consed (to previous succs list).
+                CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
+            let (true_stmt, false_stmt) = match real_succs () with
+              | [false_stmt; true_stmt] -> (true_stmt, false_stmt)
+              | [same_stmt] -> (same_stmt, same_stmt)
+              | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
+            in
+            addEdge (Statement stmt) (eloc, Test (exp, true )) (Statement true_stmt);
+            addEdge (Statement stmt) (eloc, Test (exp, false)) (Statement false_stmt)
+
+          | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
+            (* CIL already converts Loop logic to Gotos and If. *)
+            (* CIL eliminates the constant true If corresponding to constant true Loop.
+                Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
+                An extra Neg(1) edge is added in such case. *)
+            if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
+            begin match find_real_stmt ~not_found:true brk with (* don't specify stmt as parent because if find_real_stmt finds cycle, it should not return the Loop statement *)
+              | break_stmt ->
+                (* break statement is what follows the (constant true) Loop *)
+                (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
+                    so break statement is just remembered here *)
+                let loop_stmt = find_real_stmt stmt in
+                NH.add loop_head_neg1 (Statement loop_stmt) (Statement break_stmt)
+              | exception Not_found ->
+                (* if the (constant true) Loop and its break statement are at the end of the function,
+                    then find_real_stmt doesn't find a non-empty statement. *)
+                (* pseudo return is used instead by default, so nothing to do here *)
+                ()
+            end
+
+          | Loop (_, _, _, _, _) ->
+            (* CIL's xform_switch_stmt (via prepareCFG) always adds both continue and break statements to all Loops. *)
+            failwith "MyCFG.createCFG: unprepared Loop"
+
+          | Return (exp, loc) ->
+            addEdge (Statement stmt) (loc, Ret (exp, fd)) (Function fd)
+
+          | Goto (_, loc) ->
+            (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
+            (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
+            (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
+            (* stmt.succs for Goto just contains the target ref. *)
+            begin match real_succs () with
+              | [] -> failwith "MyCFG.createCFG: 0 Goto succ" (* target ref is always succ *)
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 Goto succ"
+            end
+
+          | Block {bstmts = []; _} ->
+            (* Blocks are generally unnecessary and unwanted because find_real_stmt skips over these. *)
+            (* CIL inserts empty Blocks before empty goto-loops which contain a semicolon, so a Skip self-loop must be added to not lose the loop. *)
+            (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
+            begin match real_succs () with
+              | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
+              | [succ] ->
+                if CilType.Stmt.equal succ stmt then (* self-loop *)
+                  let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Block [] itself doesn't have one *)
+                  addEdge (Statement stmt) (loc, Skip) (Statement succ)
+              | _ -> failwith "MyCFG.createCFG: >1 Block [] succ"
+            end
+
+          | Block _ -> (* non-empty Block *)
+            (* Nothing to do, find_real_stmt skips over these. *)
+            ()
 
           | Continue _
           | Break _
@@ -222,260 +387,95 @@ let () = Printexc.register_printer (function
             (* Should be removed by Cil.prepareCFG. *)
             failwith "MyCFG.createCFG: unprepared stmt"
 
-          | ComputedGoto _->
+          | ComputedGoto _ ->
             failwith "MyCFG.createCFG: unsupported stmt"
-      in
-      try
-        let initial_visited_sids = match parent with
-          | Some parent -> [parent.sid]
-          | None -> []
         in
-        let r = find initial_visited_sids stmt in
-        if Messages.tracing then Messages.traceu "cfg" "-> %d\n" r.sid;
-        r
-      with Not_found ->
-        if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
-        raise Not_found
-    in
-    addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
-    Printf.printf "Number of globals %i\n\n" (List.length file.globals);
-    (* We iterate over all globals looking for functions: *)
-    iterGlobals file (fun glob ->
-        match glob with
-        | GFun (fd, fd_loc) ->
-          Printf.printf "Looking at the function %s.\n" fd.svar.vname;
+        List.iter handle fd.sallstmts;
 
-          if get_bool "dbg.cilcfgdot" then
-            Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
+        if Messages.tracing then Messages.trace "cfg" "Over\n") ();
 
-          NH.clear fd_nodes;
-          H.clear fun_cfgB;
-          H.clear fun_cfgF;
+        (* Connect remaining infinite loops (e.g made using goto) to end of function
+          * via pseudo return node for demand driven solvers *)
+        let module TmpCfg: CfgBidir =
+        struct
+          let next = H.find_all fun_cfgF
+          let prev = H.find_all fun_cfgB
+        end
+        in
 
-          let loop_head_neg1 = NH.create 3 in
-          let pseudo_return = lazy (
-            let newst = mkStmt (Return (None, fd_loc)) in
-            newst.sid <- get_pseudo_return_id fd;
-            Cilfacade.StmtH.add Cilfacade.pseudo_return_to_fun newst fd;
-            let newst_node = Statement newst in
-            addEdge newst_node (fd_loc, Ret (None, fd)) (Function fd);
-            newst_node
-          )
-          in
-          Stats.time "makeCFG" (fun () ->
-          (* Find the first statement in the function *)
-          let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
-          (* Add the entry edge to that node *)
-          addEdge (FunctionEntry fd) (fd_loc, Entry fd) (Statement entrynode);
-          (* Return node to be used for infinite loop connection to end of function
-           * lazy, so it's only added when actually needed *)
+        let rec iter_connect () =
+          let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
 
+          let added_connect = ref false in
 
-
-          (* So for each statement in the function body, we do the following: *)
-          let handle stmt =
-            if Messages.tracing then Messages.trace "cfg" "Statement %d at %a.\n" stmt.sid d_loc (Cilfacade.get_stmtLoc stmt);
-
-            let real_succs () = List.map (find_real_stmt ~parent:stmt) stmt.succs in
-
-            match stmt.skind with
-            | Instr [] ->
-              (* CIL sometimes inserts empty Instr, which is like a goto without label. *)
-              (* Without this special case, CFG would contain edges without label or transfer function,
-                 which is unwanted because such flow is undetectable by the analysis (especially for witness generation). *)
-              (* Generally these are unnecessary and unwanted because find_real_stmt skips over these. *)
-              (* CIL uses empty Instr self-loop for empty Loop, so a Skip self-loop must be added to not lose the loop. *)
-              begin match real_succs () with
-                | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-                | [succ] ->
-                  if CilType.Stmt.equal succ stmt then (* self-loop *)
-                    let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Instr [] itself doesn't have one *)
-                    addEdge (Statement stmt) (loc, Skip) (Statement succ)
-                | _ -> failwith "MyCFG.createCFG: >1 Instr [] succ"
-              end
-
-            | Instr instrs -> (* non-empty Instr *)
-              let edge_of_instr = function
-                | Set (lval,exp,loc,eloc) -> eloc, Assign (lval, exp) (* TODO: eloc loc fallback if unknown here and If *)
-                | Call (lval,func,args,loc,eloc) -> eloc, Proc (lval,func,args)
-                | Asm (attr,tmpl,out,inp,regs,loc) -> loc, ASM (tmpl,out,inp)
-                | VarDecl (v, loc) -> loc, VDecl(v)
-              in
-              let edges = List.map edge_of_instr instrs in
-              let add_succ_node succ_node = addEdges (Statement stmt) edges succ_node in
-              begin match real_succs () with
-                | [] -> add_succ_node (Lazy.force pseudo_return) (* stmt.succs can be empty if last instruction calls non-returning function (e.g. exit), so pseudo return instead *)
-                | [succ] -> add_succ_node (Statement succ)
-                | _ -> failwith "MyCFG.createCFG: >1 non-empty Instr succ"
-              end
-
-            | If (exp, _, _, loc, eloc) ->
-              (* Cannot use true and false blocks from If constructor, because blocks don't have succs (stmts do).
-                 Cannot use first stmt in block either, because block may be empty (e.g. missing branch). *)
-              (* Hence we rely on implementation detail of the If case in CIL's succpred_stmt.
-                 First, true branch's succ is consed (to empty succs list).
-                 Second, false branch's succ is consed (to previous succs list).
-                 CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
-              let (true_stmt, false_stmt) = match real_succs () with
-                | [false_stmt; true_stmt] -> (true_stmt, false_stmt)
-                | [same_stmt] -> (same_stmt, same_stmt)
-                | _ -> failwith "MyCFG.createCFG: invalid number of If succs"
-              in
-              addEdge (Statement stmt) (eloc, Test (exp, true )) (Statement true_stmt);
-              addEdge (Statement stmt) (eloc, Test (exp, false)) (Statement false_stmt)
-
-            | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
-              (* CIL already converts Loop logic to Gotos and If. *)
-              (* CIL eliminates the constant true If corresponding to constant true Loop.
-                 Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
-                 An extra Neg(1) edge is added in such case. *)
-              if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
-              begin match find_real_stmt ~not_found:true brk with (* don't specify stmt as parent because if find_real_stmt finds cycle, it should not return the Loop statement *)
-                | break_stmt ->
-                  (* break statement is what follows the (constant true) Loop *)
-                  (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
-                     so break statement is just remembered here *)
-                  let loop_stmt = find_real_stmt stmt in
-                  NH.add loop_head_neg1 (Statement loop_stmt) (Statement break_stmt)
-                | exception Not_found ->
-                  (* if the (constant true) Loop and its break statement are at the end of the function,
-                     then find_real_stmt doesn't find a non-empty statement. *)
-                  (* pseudo return is used instead by default, so nothing to do here *)
-                  ()
-              end
-
-            | Loop (_, _, _, _, _) ->
-              (* CIL's xform_switch_stmt (via prepareCFG) always adds both continue and break statements to all Loops. *)
-              failwith "MyCFG.createCFG: unprepared Loop"
-
-            | Return (exp, loc) ->
-              addEdge (Statement stmt) (loc, Ret (exp, fd)) (Function fd)
-
-            | Goto (_, loc) ->
-              (* Gotos are generally unnecessary and unwanted because find_real_stmt skips over these. *)
-              (* CIL uses Goto self-loop for empty goto-based loop, so a Skip self-loop must be added to not lose the loop. *)
-              (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
-              (* stmt.succs for Goto just contains the target ref. *)
-              begin match real_succs () with
-                | [] -> failwith "MyCFG.createCFG: 0 Goto succ" (* target ref is always succ *)
-                | [succ] ->
-                  if CilType.Stmt.equal succ stmt then (* self-loop *)
-                    addEdge (Statement stmt) (loc, Skip) (Statement succ)
-                | _ -> failwith "MyCFG.createCFG: >1 Goto succ"
-              end
-
-            | Block {bstmts = []; _} ->
-              (* Blocks are generally unnecessary and unwanted because find_real_stmt skips over these. *)
-              (* CIL inserts empty Blocks before empty goto-loops which contain a semicolon, so a Skip self-loop must be added to not lose the loop. *)
-              (* real_succs are used instead of stmt.succs to handle empty goto-based loops with multiple mutual gotos. *)
-              begin match real_succs () with
-                | [] -> () (* if stmt.succs is empty (which in other cases requires pseudo return), then it isn't a self-loop to add anyway *)
-                | [succ] ->
-                  if CilType.Stmt.equal succ stmt then (* self-loop *)
-                    let loc = Cilfacade.get_stmtLoc stmt in (* get location from label because Block [] itself doesn't have one *)
-                    addEdge (Statement stmt) (loc, Skip) (Statement succ)
-                | _ -> failwith "MyCFG.createCFG: >1 Block [] succ"
-              end
-
-            | Block _ -> (* non-empty Block *)
-              (* Nothing to do, find_real_stmt skips over these. *)
-              ()
-
-            | Continue _
-            | Break _
-            | Switch _ ->
-              (* Should be removed by Cil.prepareCFG. *)
-              failwith "MyCFG.createCFG: unprepared stmt"
-
-            | ComputedGoto _ ->
-              failwith "MyCFG.createCFG: unsupported stmt"
-          in
-          List.iter handle fd.sallstmts;
-
-          if Messages.tracing then Messages.trace "cfg" "Over\n") ();
-
-          (* Connect remaining infinite loops (e.g made using goto) to end of function
-           * via pseudo return node for demand driven solvers *)
-          let module TmpCfg: CfgBidir =
-          struct
-            let next = H.find_all fun_cfgF
-            let prev = H.find_all fun_cfgB
-          end
-          in
-
-          let rec iter_connect () =
-            let (sccs, node_scc) = computeSCCs (module TmpCfg) (NH.keys fd_nodes |> BatList.of_enum) in
-
-            let added_connect = ref false in
-
-            (* DFS over SCCs starting from FunctionEntry SCC *)
-            let module SH = Hashtbl.Make (SCC) in
-            let visited_scc = SH.create 13 in
-            let rec iter_scc scc =
-              if not (SH.mem visited_scc scc) then (
-                SH.replace visited_scc scc ();
-                if NH.is_empty scc.next then (
-                  if not (NH.mem scc.nodes (Function fd)) then (
-                    (* scc has no successors but also doesn't contain return node, requires additional connections *)
-                    (* find connection candidates from loops *)
-                    let targets =
-                      NH.keys scc.nodes
-                      |> BatEnum.concat_map (fun fromNode ->
-                          NH.find_all loop_head_neg1 fromNode
-                          |> BatList.enum
-                          |> BatEnum.filter (fun toNode ->
-                              not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
-                            )
-                          |> BatEnum.map (fun toNode ->
-                              (fromNode, toNode)
-                            )
-                        )
-                      |> BatList.of_enum
-                    in
-                    let targets = match targets with
-                      | [] ->
-                        let scc_node =
-                          NH.keys scc.nodes
-                          |> BatList.of_enum
-                          |> BatList.min ~cmp:Node.compare (* use min for consistency for incremental CFG comparison *)
-                        in
-                        (* default to pseudo return if no suitable candidates *)
-                        [(scc_node, Lazy.force pseudo_return)]
-                      | targets -> targets
-                    in
-                    List.iter (fun (fromNode, toNode) ->
-                        addEdge_fromLoc fromNode (Test (one, false)) toNode;
-                        added_connect := true;
-                        match NH.find_option node_scc toNode with
-                        | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
-                        | None -> () (* pseudo return, wasn't in scc, but is fine *)
-                      ) targets
-                  )
+          (* DFS over SCCs starting from FunctionEntry SCC *)
+          let module SH = Hashtbl.Make (SCC) in
+          let visited_scc = SH.create 13 in
+          let rec iter_scc scc =
+            if not (SH.mem visited_scc scc) then (
+              SH.replace visited_scc scc ();
+              if NH.is_empty scc.next then (
+                if not (NH.mem scc.nodes (Function fd)) then (
+                  (* scc has no successors but also doesn't contain return node, requires additional connections *)
+                  (* find connection candidates from loops *)
+                  let targets =
+                    NH.keys scc.nodes
+                    |> BatEnum.concat_map (fun fromNode ->
+                        NH.find_all loop_head_neg1 fromNode
+                        |> BatList.enum
+                        |> BatEnum.filter (fun toNode ->
+                            not (NH.mem scc.nodes toNode) (* exclude candidates into the same scc, those wouldn't help *)
+                          )
+                        |> BatEnum.map (fun toNode ->
+                            (fromNode, toNode)
+                          )
+                      )
+                    |> BatList.of_enum
+                  in
+                  let targets = match targets with
+                    | [] ->
+                      let scc_node =
+                        NH.keys scc.nodes
+                        |> BatList.of_enum
+                        |> BatList.min ~cmp:Node.compare (* use min for consistency for incremental CFG comparison *)
+                      in
+                      (* default to pseudo return if no suitable candidates *)
+                      [(scc_node, Lazy.force pseudo_return)]
+                    | targets -> targets
+                  in
+                  List.iter (fun (fromNode, toNode) ->
+                      addEdge_fromLoc fromNode (Test (one, false)) toNode;
+                      added_connect := true;
+                      match NH.find_option node_scc toNode with
+                      | Some toNode_scc -> iter_scc toNode_scc (* continue to target scc as normally, to ensure they are also connected *)
+                      | None -> () (* pseudo return, wasn't in scc, but is fine *)
+                    ) targets
                 )
-                else
-                  NH.iter (fun _ (_, toNode) ->
-                      iter_scc (NH.find node_scc toNode)
-                    ) scc.next
               )
-            in
-            iter_scc (NH.find node_scc (FunctionEntry fd));
-
-            if !added_connect then
-              iter_connect () (* added connect edge might have made a cycle of SCCs, have to recompute SCCs to see if it needs connecting *)
-            else
-              NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
+              else
+                NH.iter (fun _ (_, toNode) ->
+                    iter_scc (NH.find node_scc toNode)
+                  ) scc.next
+            )
           in
-          Stats.time "connect" iter_connect ();
+          iter_scc (NH.find node_scc (FunctionEntry fd));
 
-          (* Verify that function is now connected *)
-          let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
-          (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
-          if not (NH.mem reachable_return' (FunctionEntry fd)) then
-            raise (Not_connect fd)
-        | _ -> ()
-      );
-    if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-    cfgF, cfgB
+          if !added_connect then
+            iter_connect () (* added connect edge might have made a cycle of SCCs, have to recompute SCCs to see if it needs connecting *)
+          else
+            NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
+        in
+        Stats.time "connect" iter_connect ();
+
+        (* Verify that function is now connected *)
+        let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
+        (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
+        if not (NH.mem reachable_return' (FunctionEntry fd)) then
+          raise (Not_connect fd)
+      | _ -> ()
+    );
+  if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
+  cfgF, cfgB
 
 
 let minimizeCFG (fw,bw) =
