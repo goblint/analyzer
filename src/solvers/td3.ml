@@ -651,12 +651,15 @@ module WP =
               (* collect function return for reluctant analysis *)
               mark_node obsolete_ret f (Function f)
           ) changed_funs;
-        List.iter (fun (f, pn, _) ->
-            List.iter (fun n ->
-                mark_node obsolete_prim f n
-              ) pn;
-            mark_node obsolete_ret f (Function f);
-          ) part_changed_funs;
+        (* Unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
+        if eager then (
+          List.iter (fun (f, pn, _) ->
+              List.iter (fun n ->
+                  mark_node obsolete_prim f n
+                ) pn;
+              mark_node obsolete_ret f (Function f);
+            ) part_changed_funs;
+        );
 
         let old_ret = HM.create 103 in
         if GobConfig.get_bool "incremental.reluctant.on" then (
