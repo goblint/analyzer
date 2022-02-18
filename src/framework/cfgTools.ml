@@ -182,11 +182,11 @@ let createCFG (file: file) =
   let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
 
   (* Find real (i.e. non-empty) successor of statement.
-      CIL CFG contains some unnecessary intermediate statements.
-      If stmt is succ of parent, then optional argument parent must be passed
-      to also detect cycle ending with parent itself.
-      If not_found is true, then a stmt without succs will raise Not_found
-      instead of returning that stmt. *)
+     CIL CFG contains some unnecessary intermediate statements.
+     If stmt is succ of parent, then optional argument parent must be passed
+     to also detect cycle ending with parent itself.
+     If not_found is true, then a stmt without succs will raise Not_found
+     instead of returning that stmt. *)
   let find_real_stmt ?parent ?(not_found=false) stmt =
     if Messages.tracing then Messages.tracei "cfg" "find_real_stmt not_found=%B stmt=%d\n" not_found stmt.sid;
     let rec find visited_sids stmt =
@@ -282,7 +282,7 @@ let createCFG (file: file) =
           | Instr [] ->
             (* CIL sometimes inserts empty Instr, which is like a goto without label. *)
             (* Without this special case, CFG would contain edges without label or transfer function,
-                which is unwanted because such flow is undetectable by the analysis (especially for witness generation). *)
+               which is unwanted because such flow is undetectable by the analysis (especially for witness generation). *)
             (* Generally these are unnecessary and unwanted because find_real_stmt skips over these. *)
             (* CIL uses empty Instr self-loop for empty Loop, so a Skip self-loop must be added to not lose the loop. *)
             begin match real_succs () with
@@ -311,11 +311,11 @@ let createCFG (file: file) =
 
           | If (exp, _, _, loc, eloc) ->
             (* Cannot use true and false blocks from If constructor, because blocks don't have succs (stmts do).
-                Cannot use first stmt in block either, because block may be empty (e.g. missing branch). *)
+               Cannot use first stmt in block either, because block may be empty (e.g. missing branch). *)
             (* Hence we rely on implementation detail of the If case in CIL's succpred_stmt.
-                First, true branch's succ is consed (to empty succs list).
-                Second, false branch's succ is consed (to previous succs list).
-                CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
+               First, true branch's succ is consed (to empty succs list).
+               Second, false branch's succ is consed (to previous succs list).
+               CIL doesn't cons duplicate succs, so if both branches have the same succ, then singleton list is returned instead. *)
             let (true_stmt, false_stmt) = match real_succs () with
               | [false_stmt; true_stmt] -> (true_stmt, false_stmt)
               | [same_stmt] -> (same_stmt, same_stmt)
@@ -327,19 +327,19 @@ let createCFG (file: file) =
           | Loop (_, loc, eloc, Some cont, Some brk) -> (* TODO: use loc for something? *)
             (* CIL already converts Loop logic to Gotos and If. *)
             (* CIL eliminates the constant true If corresponding to constant true Loop.
-                Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
-                An extra Neg(1) edge is added in such case. *)
+               Then there is no Goto to after the loop and the CFG is unconnected (to Function node).
+               An extra Neg(1) edge is added in such case. *)
             if Messages.tracing then Messages.trace "cfg" "loop %d cont=%d brk=%d\n" stmt.sid cont.sid brk.sid;
             begin match find_real_stmt ~not_found:true brk with (* don't specify stmt as parent because if find_real_stmt finds cycle, it should not return the Loop statement *)
               | break_stmt ->
                 (* break statement is what follows the (constant true) Loop *)
                 (* Neg(1) edges are lazily added only when unconnectedness is detected at the end,
-                    so break statement is just remembered here *)
+                   so break statement is just remembered here *)
                 let loop_stmt = find_real_stmt stmt in
                 NH.add loop_head_neg1 (Statement loop_stmt) (Statement break_stmt)
               | exception Not_found ->
                 (* if the (constant true) Loop and its break statement are at the end of the function,
-                    then find_real_stmt doesn't find a non-empty statement. *)
+                   then find_real_stmt doesn't find a non-empty statement. *)
                 (* pseudo return is used instead by default, so nothing to do here *)
                 ()
             end
@@ -395,7 +395,7 @@ let createCFG (file: file) =
         if Messages.tracing then Messages.trace "cfg" "Over\n") ();
 
         (* Connect remaining infinite loops (e.g made using goto) to end of function
-          * via pseudo return node for demand driven solvers *)
+         * via pseudo return node for demand driven solvers *)
         let module TmpCfg: CfgBidir =
         struct
           let next = H.find_all fun_cfgF
