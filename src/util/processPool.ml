@@ -27,7 +27,7 @@ let run ~jobs ?(terminated=fun _ _ -> ()) tasks =
     | [] when Hashtbl.length procs = 0 ->
       ()
     | _ ->
-      let (pid, status) = Unix.wait () in
+      let (pid, status) = Unix.wait () in (* wait for any child process to terminate *)
       begin match Hashtbl.find_opt procs pid with
         | Some (task, (proc_in, proc_out)) ->
           (* Unix.close_process proc; *)
