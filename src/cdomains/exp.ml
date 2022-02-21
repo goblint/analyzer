@@ -192,7 +192,7 @@ struct
     let rec separate_fields_index o =
       match o with
       | NoOffset -> None
-      | Index (ie,o) -> Some ((fun x -> x),ie,o)
+      | Index (ie,o) -> Some (Fun.id,ie,o)
       | Field (f,o) ->
         match separate_fields_index o with
         | Some (osf, ie,o) -> Some ((fun o -> Field (f,o)), ie, o)

@@ -23,7 +23,7 @@ let pretty () {tid; created; must_joined} =
     else
       Some (Pretty.dprintf "must_joined=%a" ConcDomain.ThreadSet.pretty must_joined)
   in
-  let docs = List.filter_map (fun doc -> doc) [tid_doc; created_doc; must_joined_doc] in
+  let docs = List.filter_map Fun.id [tid_doc; created_doc; must_joined_doc] in
   Pretty.dprintf "{%a}" (Pretty.d_list "; " Pretty.insert) docs
 
 include Printable.SimplePretty (

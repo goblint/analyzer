@@ -49,25 +49,31 @@ let load_and_preprocess ~all_cppflags filename =
           (* TODO: extract o_file *)
           let command = reroot command in
           let preprocess_command = Str.replace_first command_program_regexp ("\\1 " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " -E") command in
-          let preprocess_command = Str.replace_first command_o_regexp ("-o " ^ preprocessed_file) preprocess_command in
           if preprocess_command = command then (* easier way to check if match was found (and replaced) *)
-            failwith "CompilationDatabase.preprocess: no -o argument found for " ^ file
+            failwith ("CompilationDatabase.preprocess: no program found for " ^ file)
           else
-            preprocess_command
+            let preprocess_command_o = Str.replace_first command_o_regexp ("-o " ^ preprocessed_file) preprocess_command in
+            if preprocess_command_o = preprocess_command then (* easier way to check if match was found (and replaced) *)
+              preprocess_command ^ " -o " ^ preprocessed_file
+            else
+              preprocess_command_o
         | None, Some arguments ->
-          let arguments = List.map reroot arguments in
-          begin match List.findi (fun i e -> e = "-o") arguments with
+          let arguments_program, arguments =
+            match List.map reroot arguments with
+            | arguments_program :: arguments -> arguments_program, arguments
+            | _ -> failwith ("CompilationDatabase.preprocess: no program found for " ^ file)
+          in
+          let preprocess_arguments =
+            match List.findi (fun i e -> e = "-o") arguments with
             | (o_i, _) ->
               begin match List.split_at o_i arguments with
-                | (arguments_program :: arguments_init, _ :: o_file :: arguments_tl) ->
-                  let preprocess_arguments = all_cppflags @ "-E" :: arguments_init @ "-o" :: preprocessed_file :: arguments_tl in
-                  Filename.quote_command arguments_program preprocess_arguments
-                | _ ->
-                  failwith "CompilationDatabase.preprocess: no -o argument value found for " ^ file
+                | (arguments_init, _ :: o_file :: arguments_tl) -> arguments_init @ "-o" :: preprocessed_file :: arguments_tl
+                | _ -> failwith ("CompilationDatabase.preprocess: no argument found for -o option for " ^ file)
               end
-            | exception Not_found ->
-              failwith "CompilationDatabase.preprocess: no -o argument found for " ^ file
-          end
+            | exception Not_found -> arguments @ "-o" :: [preprocessed_file]
+          in
+          let preprocess_arguments = all_cppflags @ "-E" :: preprocess_arguments in
+          Filename.quote_command arguments_program preprocess_arguments
         | Some _, Some _ ->
           failwith "CompilationDatabase.preprocess: both command and arguments specified for " ^ file
         | None, None ->
@@ -78,6 +84,6 @@ let load_and_preprocess ~all_cppflags filename =
         Printf.printf "Preprocessing %s\n  to %s\n  using %s\n  in %s\n" file preprocessed_file preprocess_command cwd;
       let preprocess_task = {ProcessPool.command = preprocess_command; cwd = Some cwd} in (* command/arguments might have paths relative to directory *)
       Some (preprocessed_file, Some preprocess_task)
-    in
+  in
   parse_file filename
   |> BatList.filter_map preprocess
