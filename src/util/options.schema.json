@@ -221,7 +221,7 @@
       "title": "jobs",
       "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
       "type": "integer",
-      "default": 0
+      "default": 1
     },
     "server": {
       "title": "Server",
