@@ -2,7 +2,7 @@
 set -e # exit immediately if a command fails
 set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
-TARGET=src/maingoblint
+TARGET=src/goblint
 
 opam_setup() {
   set -x

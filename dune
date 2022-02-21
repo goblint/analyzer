@@ -1,15 +1,15 @@
-; (rule (copy src/maingoblint.exe goblint)) ; this inferred rule syntax does not allow specifying the mode which is necessary because the standard mode forbids targets to exist in the source tree which would be the case for goblint after running make once
+; (rule (copy src/goblint.exe goblint)) ; this inferred rule syntax does not allow specifying the mode which is necessary because the standard mode forbids targets to exist in the source tree which would be the case for goblint after running make once
 
 (rule
   (target goblint)
-  (deps src/maingoblint.exe)
-  (action (copy src/maingoblint.exe goblint))
+  (deps src/goblint.exe)
+  (action (copy src/goblint.exe goblint))
   (mode (promote (until-clean) (only goblint))) ; replace existing file in source tree, even if releasing (only overrides)
 )
 
 (rule
   (target goblint.byte)
-  (deps src/maingoblint.bc)
-  (action (copy src/maingoblint.bc goblint.byte))
+  (deps src/goblint.bc)
+  (action (copy src/goblint.bc goblint.byte))
   (mode (promote (until-clean) (only goblint.byte))) ; replace existing file in source tree, even if releasing (only overrides)
 )
