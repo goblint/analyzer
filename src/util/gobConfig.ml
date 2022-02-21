@@ -182,8 +182,8 @@ struct
       begin
         try get_value (List.assoc key m) pth
         with Not_found ->
-          try get_value (List.assoc Options.defaults_additional_field m) pth (* if schema specifies additionalProperties, then use the default from that *)
-          with Not_found -> raise ConfTypeError
+        try get_value (List.assoc Options.defaults_additional_field m) pth (* if schema specifies additionalProperties, then use the default from that *)
+        with Not_found -> raise ConfTypeError
       end
     | `List a, Index (Int i, pth) ->
       begin
