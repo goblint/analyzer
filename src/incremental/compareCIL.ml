@@ -44,7 +44,7 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * cfg) option) =
       List.for_all2 eq_varinfo old.sformals current.sformals
     with Invalid_argument _ -> false in
   let change_status, diffOpt =
-    if List.mem old.svar.vname (GobConfig.get_string_list "incremental.force-reanalyze.funs") then
+    if List.mem current.svar.vname (GobConfig.get_string_list "incremental.force-reanalyze.funs") then
       ForceReanalyze current, None
     else
       try
@@ -88,10 +88,16 @@ let compareCilFiles (oldAST: file) (newAST: file) =
          let old_global = GlobalMap.find ident map in
          (* Do a (recursive) equal comparison ignoring location information *)
          let change_status, unchangedHeader, diff = eq_glob old_global global cfgs in
+         let append_changed () =
+          changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
+         in
          match change_status with
-         | Changed -> changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
+         | Changed -> append_changed ()
          | Unchanged -> changes.unchanged <- global :: changes.unchanged
-         | ForceReanalyze f -> changes.force_reanalyze <- f :: changes.force_reanalyze
+         | ForceReanalyze f ->
+            changes.force_reanalyze <- f :: changes.force_reanalyze;
+            append_changed ();
+
        with Not_found -> ())
     with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)  in
   let checkExists map global =
