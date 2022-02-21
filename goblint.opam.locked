@@ -32,12 +32,15 @@ depends: [
   "biniou" {= "1.2.1"}
   "camlidl" {= "1.09"}
   "cmdliner" {= "1.0.4" & with-doc}
+  "conf-autoconf" {= "0.1"}
   "conf-gmp" {= "3"}
   "conf-mpfr" {= "2"}
   "conf-perl" {= "1"}
   "conf-pkg-config" {= "2"}
   "conf-ruby" {= "1.0.0" & with-test}
+  "conf-which" {= "1"}
   "cppo" {= "1.6.7"}
+  "cpu" {= "2.0.0"}
   "dune" {= "2.9.1"}
   "dune-private-libs" {= "2.9.1"}
   "dune-site" {= "2.9.1"}
