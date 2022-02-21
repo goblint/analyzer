@@ -23,10 +23,9 @@ type change_info = {
   mutable unchanged: global list;
   mutable removed: global list;
   mutable added: global list;
-
-  (* Set of functions that are to be force-reanalyzed.
-     These functions are additionally to be included in the [changed] field *)
   mutable force_reanalyze: VarinfoSet.t;
+  (** Set of functions that are to be force-reanalyzed.
+      These functions are additionally included in the [changed] field, among the other changed globals. *)
 }
 
 let empty_change_info () : change_info =
@@ -34,7 +33,7 @@ let empty_change_info () : change_info =
 
 type change_status = Unchanged | Changed | ForceReanalyze of Cil.fundec
 
-(** Give a boolean that indicates whether the code object is identical to the previous version, returns the corresponding [change_status]*)
+(** Given a boolean that indicates whether the code object is identical to the previous version, returns the corresponding [change_status]*)
 let unchanged_to_change_status = function
   | true -> Unchanged
   | false -> Changed
