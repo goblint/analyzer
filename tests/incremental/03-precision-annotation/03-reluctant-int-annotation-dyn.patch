@@ -1,5 +1,5 @@
 diff --git tests/incremental/03-precision-annotation/03-reluctant-int-annotation-dyn.c tests/incremental/03-precision-annotation/03-reluctant-int-annotation-dyn.c
-index 58781ecd7..4d2620e84 100644
+index 30391cdf6..4d2620e84 100644
 --- tests/incremental/03-precision-annotation/03-reluctant-int-annotation-dyn.c
 +++ tests/incremental/03-precision-annotation/03-reluctant-int-annotation-dyn.c
 @@ -2,11 +2,12 @@
@@ -20,7 +20,7 @@ index 58781ecd7..4d2620e84 100644
    int a = 0;
    assert(a); // FAIL!
    a = fun(a);
--  assert(a == 17); //UNKOWN
+-  assert(a == 17); //UNKNOWN
 +  assert(a == 17);
    return 0;
  }

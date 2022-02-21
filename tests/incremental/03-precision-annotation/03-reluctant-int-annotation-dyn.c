@@ -19,6 +19,6 @@ int main() {
   int a = 0;
   assert(a); // FAIL!
   a = fun(a);
-  assert(a == 17); //UNKOWN
+  assert(a == 17); //UNKNOWN
   return 0;
 }
