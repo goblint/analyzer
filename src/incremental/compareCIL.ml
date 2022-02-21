@@ -16,16 +16,21 @@ type changed_global = {
   diff: nodes_diff option
 }
 
+module VarinfoSet = Set.Make(CilType.Varinfo)
+
 type change_info = {
   mutable changed: changed_global list;
   mutable unchanged: global list;
   mutable removed: global list;
   mutable added: global list;
-  mutable force_reanalyze: fundec list;
+
+  (* Set of functions that are to be force-reanalyzed.
+     These functions are additionally to be included in the [changed] field *)
+  mutable force_reanalyze: VarinfoSet.t;
 }
 
 let empty_change_info () : change_info =
-  {added = []; removed = []; changed = []; unchanged = []; force_reanalyze = []}
+  {added = []; removed = []; changed = []; unchanged = []; force_reanalyze = VarinfoSet.empty}
 
 type change_status = Unchanged | Changed | ForceReanalyze of Cil.fundec
 
@@ -88,15 +93,15 @@ let compareCilFiles (oldAST: file) (newAST: file) =
          let old_global = GlobalMap.find ident map in
          (* Do a (recursive) equal comparison ignoring location information *)
          let change_status, unchangedHeader, diff = eq_glob old_global global cfgs in
-         let append_changed () =
-          changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
+         let append_to_changed () =
+           changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
          in
          match change_status with
-         | Changed -> append_changed ()
+         | Changed -> append_to_changed ()
          | Unchanged -> changes.unchanged <- global :: changes.unchanged
          | ForceReanalyze f ->
-            changes.force_reanalyze <- f :: changes.force_reanalyze;
-            append_changed ();
+           changes.force_reanalyze <- VarinfoSet.add f.svar changes.force_reanalyze;
+           append_to_changed ();
 
        with Not_found -> ())
     with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)  in

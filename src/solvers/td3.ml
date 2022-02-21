@@ -16,8 +16,6 @@ open Messages
 open CompareCIL
 open Cil
 
-module VarinfoSet = Set.Make(CilType.Varinfo)
-
 module WP =
   functor (Arg: IncrSolverArg) ->
   functor (S:EqConstrSys) ->
@@ -630,11 +628,10 @@ module WP =
         in
 
         let reluctant = GobConfig.get_bool "incremental.reluctant.on" in
-        let force_reanalyze = VarinfoSet.of_list (List.map (fun f -> f.svar) S.increment.changes.force_reanalyze) in
         let reanalyze_entry f =
           (* destabilize the entry points of a changed function when reluctant is off,
              or the function is to be force-reanalyzed  *)
-          (not reluctant) || VarinfoSet.mem f.svar force_reanalyze
+          (not reluctant) || CompareCIL.VarinfoSet.mem f.svar S.increment.changes.force_reanalyze
         in
         let obsolete_ret = HM.create 103 in
         let obsolete_entry = HM.create 103 in
