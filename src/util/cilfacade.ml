@@ -393,8 +393,8 @@ let fundec_return_type f =
 
 module StmtH = Hashtbl.Make (CilType.Stmt)
 
-let stmt_fundecs: fundec StmtH.t Lazy.t =
-  lazy (
+let stmt_fundecs: fundec StmtH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
     let h = StmtH.create 113 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
@@ -411,13 +411,13 @@ let pseudo_return_to_fun = StmtH.create 113
 (** Find [fundec] which the [stmt] is in. *)
 let find_stmt_fundec stmt =
   try StmtH.find pseudo_return_to_fun stmt
-  with Not_found -> StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+  with Not_found -> StmtH.find (ResettableLazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
 
 
 module VarinfoH = Hashtbl.Make (CilType.Varinfo)
 
-let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
-  lazy (
+let varinfo_fundecs: fundec VarinfoH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
     let h = VarinfoH.create 111 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
@@ -428,13 +428,13 @@ let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
   )
 
 (** Find [fundec] by the function's [varinfo] (has the function name and type). *)
-let find_varinfo_fundec vi = VarinfoH.find (Lazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
+let find_varinfo_fundec vi = VarinfoH.find (ResettableLazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
 
 module StringH = Hashtbl.Make (Printable.Strings)
 
-let name_fundecs: fundec StringH.t Lazy.t =
-  lazy (
+let name_fundecs: fundec StringH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
     let h = StringH.create 111 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
@@ -445,7 +445,7 @@ let name_fundecs: fundec StringH.t Lazy.t =
   )
 
 (** Find [fundec] by the function's name. *)
-let find_name_fundec name = StringH.find (Lazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
+let find_name_fundec name = StringH.find (ResettableLazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
 
 
 type varinfo_role =
@@ -454,8 +454,8 @@ type varinfo_role =
   | Function
   | Global
 
-let varinfo_roles: varinfo_role VarinfoH.t Lazy.t =
-  lazy (
+let varinfo_roles: varinfo_role VarinfoH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
     let h = VarinfoH.create 113 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
@@ -471,7 +471,7 @@ let varinfo_roles: varinfo_role VarinfoH.t Lazy.t =
   )
 
 (** Find the role of the [varinfo]. *)
-let find_varinfo_role vi = VarinfoH.find (Lazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
+let find_varinfo_role vi = VarinfoH.find (ResettableLazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
 let is_varinfo_formal vi =
   match find_varinfo_role vi with
@@ -494,9 +494,9 @@ let find_scope_fundec vi =
     None
 
 
-let original_names: string VarinfoH.t Lazy.t =
+let original_names: string VarinfoH.t ResettableLazy.t =
   (* only invert environment map when necessary (e.g. witnesses) *)
-  lazy (
+  ResettableLazy.from_fun (fun () ->
     let h = VarinfoH.create 113 in
     Hashtbl.iter (fun original_name (envdata, _) ->
         match envdata with
@@ -511,7 +511,15 @@ let original_names: string VarinfoH.t Lazy.t =
     If it was renamed by CIL, then returns the original name before renaming.
     If it wasn't renamed by CIL, then returns the same name.
     If it was inserted by CIL (or Goblint), then returns [None]. *)
-let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
+let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+let reset_lazy () =
+  ResettableLazy.reset stmt_fundecs;
+  ResettableLazy.reset varinfo_fundecs;
+  ResettableLazy.reset name_fundecs;
+  ResettableLazy.reset varinfo_roles;
+  ResettableLazy.reset original_names
 
 
 let stmt_pretty_short () x =

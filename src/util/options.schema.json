@@ -246,6 +246,12 @@
           "description": "The path to the UNIX socket",
           "type": "string",
           "default": "goblint.sock"
+        },
+        "reparse": {
+          "title": "server.reparse",
+          "description": "Reparse source files before each analysis run",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false

@@ -194,6 +194,8 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) =
 
+    Goblintutil.should_warn := false; (* reset for server mode *)
+
     (* exctract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
