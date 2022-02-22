@@ -176,7 +176,7 @@ let invalidate_actions = [
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
     "fopen", readsAll;            (*safe*)
-    "fdopen", writes [1];            (*safe*)
+    "fdopen", readsAll;            (*safe*)
     "setvbuf", writes[2];
     "fprintf", writes [1];          (*keep [1]*)
     "__fprintf_chk", writes [1];    (*keep [1]*)
