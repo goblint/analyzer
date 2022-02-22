@@ -173,8 +173,8 @@ let createCFG (file: file) =
         Node.pretty_trace toNode;
     NH.replace fd_nodes fromNode ();
     NH.replace fd_nodes toNode ();
-    H.add cfgB toNode (edges,fromNode);
-    H.add cfgF fromNode (edges,toNode);
+    H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
+    H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
     if Messages.tracing then Messages.trace "cfg" "done\n\n"
   in
   let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
@@ -390,8 +390,8 @@ let createCFG (file: file) =
          * via pseudo return node for demand driven solvers *)
         let module TmpCfg: CfgBidir =
         struct
-          let next = H.find_all cfgF
-          let prev = H.find_all cfgB
+          let next n = H.find_default cfgF n []
+          let prev n = H.find_default cfgB n []
         end
         in
 
@@ -483,11 +483,12 @@ let createCFG = Stats.time "createCFG" createCFG
 let minimizeCFG (fw,bw) =
   let keep = H.create 113 in
   let comp_keep t (_,f) =
-    if (List.compare_length_with (H.find_all bw t) 1 <> 0) || (List.compare_length_with (H.find_all fw t) 1 <> 0) then
+    if (List.compare_length_with (H.find_default bw t []) 1 <> 0) || (List.compare_length_with (H.find_default fw t []) 1 <> 0) then
       H.replace keep t ();
-    if (List.compare_length_with (H.find_all bw f) 1 <> 0) || (List.compare_length_with (H.find_all fw f) 1 <> 0) then
+    if (List.compare_length_with (H.find_default bw f []) 1 <> 0) || (List.compare_length_with (H.find_default fw f []) 1 <> 0) then
       H.replace keep f ()
   in
+  let comp_keep t es = List.iter (comp_keep t) es in
   H.iter comp_keep bw;
   (* H.iter comp_keep fw; *)
   let cfgB = H.create 113 in
@@ -495,17 +496,17 @@ let minimizeCFG (fw,bw) =
   let ready = H.create 113 in
   let rec add a b t (e,f)=
     if H.mem keep f then begin
-      H.add cfgB b (e@a,f);
-      H.add cfgF f (e@a,b);
+      H.modify_def [] b (List.cons (e@a,f)) cfgB;
+      H.modify_def [] f (List.cons (e@a,b)) cfgF;
       if H.mem ready b then begin
         H.replace ready f ();
-        List.iter (add [] f f) (H.find_all bw f)
+        List.iter (add [] f f) (H.find_default bw f [])
       end
     end else begin
-      List.iter (add (e@a) b f) (H.find_all bw f)
+      List.iter (add (e@a) b f) (H.find_default bw f [])
     end
   in
-  H.iter (fun k _ -> List.iter (add [] k k) (H.find_all bw k)) keep;
+  H.iter (fun k _ -> List.iter (add [] k k) (H.find_default bw k [])) keep;
   H.clear ready;
   H.clear keep;
   cfgF, cfgB
@@ -597,7 +598,7 @@ let fprint_hash_dot cfg  =
   end
   in
   let out = open_out "cfg.dot" in
-  let iter_edges f = H.iter f cfg in
+  let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
   fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
 
 
@@ -610,7 +611,7 @@ let getCFG (file: file) : cfg * cfg =
       (cfgF, cfgB)
   in
   if get_bool "justcfg" then fprint_hash_dot cfgB;
-  H.find_all cfgF, H.find_all cfgB
+  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n [])
 
 
 (* TODO: unused *)
