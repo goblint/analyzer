@@ -2,8 +2,8 @@
 set -e # exit immediately if a command fails
 set -o pipefail # or all $? in pipe instead of returning exit code of the last command only
 
-if [ $# -lt 5 ]; then
-  echo "Usage: $0 <repo_path> <branch> <start_commit> <conf_name> <build_compdb_script> [<number of commits>]"
+if [ $# -lt 6 ]; then
+  echo "Usage: $0 <repo_path> <branch> <start_commit> <conf_name> <build_compdb_script> <output_dir> [<number of commits>]"
   exit 1
 fi
 
@@ -12,7 +12,8 @@ branch=${2}
 start_commit=${3}
 conf_name=${4}
 build_compdb=${5}
-limit=${6-"999"}
+output_dir=${6}
+limit=${7-"999"}
 limit="$((limit+1))"
 out="out"
 analyzer_dir=$PWD
@@ -27,7 +28,7 @@ function git_bwd() { # checkout previous commit
   git -C $repo_path checkout HEAD^
 }
 function git_fwd() { # checkout next commit
-  git -C $repo_path reset --hard
+  git -C $repo_path reset --hard origin/master
   git -C $repo_path log --reverse --pretty=%H $branch | grep -A 1 $(git -C $repo_path rev-parse HEAD) | tail -n1 | xargs git -C $repo_path checkout
 }
 
@@ -55,23 +56,25 @@ function finish {
 }
 trap finish EXIT
 
+outp=$out/$(basename $repo_path)
+outs=$out/$(basename $repo_path)/$output_dir
 
-outp=$out/$(basename $repo_path)/$conf_name
-
-rm -rf "$outp"
+rm -rf "$outs"
 rm -rf "incremental_data"
 function log {
   echo "$*" | tee -a $outp/incremental.log
 }
 
 mkdir -p "$outp"
+mkdir -p "$outs"
 log $(date)
 
+git -C $repo_path reset --hard origin/master
 loc=$(git -C $repo_path diff --shortstat 4b825dc642cb6eb9a060e54bf8d69288fbee4904 $start_commit -- . $diff_exclude)
 git -C $repo_path checkout $start_commit
 i=1
 prev_commit=''
-echo -e "index\tcommit\tl_ins\tl_del\tl_max\ttime\ttime(internally)\tvars\tevals\tchanged\tadded\tremoved\tchanged_start\tnew_start\tmem_safe\tmem_vulnerable\tmem_unsafe\tmem_total" >> $outp/incremental_runtime.log
+echo -e "index\tcommit\tl_ins\tl_del\tl_max\ttime_prepare\ttime\ttime(in Goblint)\ttime_parse\ttime_convert\ttime_compare\ttime_analysis\ttime_postsolver\tvars\tevals\tchanged\tadded\tremoved\tchanged_start\tnew_start\tmem_safe\tmem_vulnerable\tmem_unsafe\tmem_total" >> $outp/incremental_runtime.log
 while
   commit=$(git -C $repo_path rev-parse HEAD)
   if [ "$commit" = "$prev_commit" ]; then
@@ -82,11 +85,14 @@ while
     loc=$(git -C $repo_path diff --shortstat $prev_commit $commit -- . $diff_exclude)
   fi
   prev_commit=$commit
-  outc=$outp/$commit
+  outc=$outs/$commit
   mkdir -p $outc
   git -C $repo_path show > $outc/commit.patch
   log "Build compilation database"
+  start=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   (cd $repo_path && $analyzer_dir/scripts/$build_compdb)
+  end=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
+  runtime_prepare=$(echo "$end-$start" | bc)
   log "Analyze $i. commit $commit"
   if [ -e "$repo_path/.gob/$commit" ]; then
     log "  Incremental results for this commit already exists!"
@@ -104,7 +110,12 @@ while
   end=$(echo "scale=3; $(date +%s%3N) /1000" | bc)
   runtime=$(echo "$end-$start" | bc)
   log "  Goblint ran $runtime seconds"
-  internal_runtime=$(grep 'TOTAL' $outc/analyzer.log | tr -s ' ' | cut -d" " -f2 | cut -d"s" -f1)
+  internal_runtime=$(grep -E 'TOTAL[ 0-9.]+ s' $outc/analyzer.log | tr -s ' ' | cut -d" " -f2)
+  time_parse=$(grep -E 'parse[ 0-9.]+ s' $outc/analyzer.log | tr -s ' ' | cut -d" " -f3)
+  time_convert=$(grep -E 'convert to CIL[ 0-9.]+ s' $outc/analyzer.log | tr -s ' ' | cut -d" " -f5)
+  time_compare=$(grep -E 'compareCilFiles[ 0-9.]+ s' $outc/analyzer.log | tr -s ' ' | cut -d" " -f3)
+  time_analysis=$(grep -E 'analysis[ 0-9.]+ s' $outc/analyzer.log | tr -s ' ' | cut -d" " -f3)
+  time_postsolver=$(grep -E 'postsolver[ 0-9.]+ s' $outc/analyzer.log | tr -s ' ' | cut -d" " -f3)
   vars=$(grep 'vars = ' $outc/analyzer.log | cut -d" " -f3)
   evals=$(grep 'evals = ' $outc/analyzer.log | cut -d" " -f9)
   changed=$(grep 'change_info = { ' $outc/analyzer.log | cut -d" " -f9 | cut -d";" -f1)
@@ -133,7 +144,7 @@ while
   else
     l_max=$l_ins
   fi
-  echo -e "$i\t$commit\t$l_ins\t$l_del\t$l_max\t$runtime\t$internal_runtime\t$vars\t$evals\t$changed\t$added\t$removed\t$changed_start\t$new_start\t$mem_safe\t$mem_vulnerable\t$mem_unsafe\t$mem_total" >> $outp/incremental_runtime.log
+  echo -e "$i\t$commit\t$l_ins\t$l_del\t$l_max\t$runtime_prepare\t$runtime\t$internal_runtime\t$time_parse\t$time_convert\t$time_compare\t$time_analysis\t$time_postsolver\t$vars\t$evals\t$changed\t$added\t$removed\t$changed_start\t$new_start\t$mem_safe\t$mem_vulnerable\t$mem_unsafe\t$mem_total" >> $outp/incremental_runtime.log
   log "  $(grep 'evals = ' $outc/analyzer.log)"
   log "  $(grep 'change_info = ' $outc/analyzer.log)"
   log "  Obsolete functions: $(grep 'Obsolete function' $outc/analyzer.log | wc -l)"
