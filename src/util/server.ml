@@ -4,8 +4,9 @@ open Jsonrpc
 exception Failure of Response.Error.Code.t * string
 
 type t = {
-  file: Cil.file;
-  do_analyze: Analyses.increment_data -> Cil.file -> unit;
+  mutable file: Cil.file;
+  mutable version_map: (CompareCIL.global_identifier, Cil.global) Hashtbl.t;
+  mutable max_ids: VersionLookup.max_ids;
   input: IO.input;
   output: unit IO.output;
 }
@@ -69,8 +70,8 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
 
 let serve serv =
   serv.input
-  |> IO.to_input_channel
-  |> Yojson.Safe.stream_from_channel
+  |> Lexing.from_channel
+  |> Yojson.Safe.stream_from_lexbuf (Yojson.init_lexer ())
   |> Stream.iter (fun json ->
       let message = Message.either_of_yojson json in
       match message.id with
@@ -78,7 +79,15 @@ let serve serv =
       | _ -> () (* We just ignore notifications for now. *)
     )
 
-let make ?(input=stdin) ?(output=stdout) file do_analyze : t = { file; do_analyze; input; output }
+let make ?(input=stdin) ?(output=stdout) file : t =
+  let version_map, max_ids = VersionLookup.create_map file in
+  {
+    file;
+    version_map;
+    max_ids;
+    input;
+    output
+  }
 
 let bind () =
   let mode = GobConfig.get_string "server.mode" in
@@ -94,29 +103,58 @@ let bind () =
     Sys.remove path;
     Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
 
-let start file do_analyze =
+let start file =
   let input, output = bind () in
   GobConfig.set_bool "incremental.save" true;
-  serve (make file do_analyze ?input ?output)
+  serve (make file ?input ?output)
 
-let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
-  if reset then (
-    Serialize.server_solver_data := None;
-    Serialize.server_analysis_data := None;
-    Messages.Table.(MH.clear messages_table);
-    Messages.Table.messages_list := []);
-  let increment_data, fresh = match !Serialize.server_solver_data with
-    | Some solver_data ->
-      let changes = CompareCIL.compareCilFiles file file in
-      let old_data = Some { Analyses.cil_file = file; solver_data } in
-      { Analyses.changes; old_data; new_file = file }, false
-    | _ -> Analyses.empty_increment_data file, true
+let reparse (s: t) =
+  if GobConfig.get_bool "server.reparse" then (
+    Goblintutil.create_temp_dir ();
+    Fun.protect ~finally:Goblintutil.remove_temp_dir Maingoblint.preprocess_and_merge, true)
+  else s.file, false
+
+(* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
+let virtual_changes file =
+  let eq (glob: Cil.global) _ _ = match glob with
+    | GFun (fdec, _) -> CompareCIL.should_reanalyze fdec, false, None
+    | _ -> false, false, None
   in
+  CompareCIL.compareCilFiles ~eq file file
+
+let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
+  | Some solver_data when reparsed ->
+    let _, changes = VersionLookup.updateMap s.file file s.version_map in
+    let old_data = Some { Analyses.cil_file = s.file; solver_data } in
+    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file s.version_map changes;
+    { Analyses.changes; old_data; new_file = file }, false
+  | Some solver_data ->
+    let changes = virtual_changes file in
+    let old_data = Some { Analyses.cil_file = file; solver_data } in
+    { Analyses.changes; old_data; new_file = file }, false
+  | _ -> Analyses.empty_increment_data file, true
+
+let analyze ?(reset=false) (s: t) =
+  Messages.Table.(MH.clear messages_table);
+  Messages.Table.messages_list := [];
+  let file, reparsed = reparse s in
+  if reset then (
+    let version_map, max_ids = VersionLookup.create_map file in
+    s.version_map <- version_map;
+    s.max_ids <- max_ids;
+    Serialize.server_solver_data := None;
+    Serialize.server_analysis_data := None);
+  let increment_data, fresh = increment_data s file reparsed in
+  Cilfacade.reset_lazy ();
+  WideningThresholds.reset_lazy ();
+  IntDomain.reset_lazy ();
+  ApronDomain.reset_lazy ();
+  s.file <- file;
   GobConfig.set_bool "incremental.load" (not fresh);
   Fun.protect ~finally:(fun () ->
       GobConfig.set_bool "incremental.load" true
     ) (fun () ->
-      do_analyze increment_data file
+      Maingoblint.do_analyze increment_data s.file
     )
 
 let () =
@@ -128,7 +166,6 @@ let () =
     (* TODO: Return analysis results as JSON. Useful for GobPie. *)
     type status = Success | VerifyError | Aborted [@@deriving to_yojson]
     type response = { status: status } [@@deriving to_yojson]
-    (* TODO: Add option to re-parse the input files. *)
     (* TODO: Add options to control the analysis precision/context for specific functions. *)
     (* TODO: Add option to mark functions as modified. *)
     let process { reset } serve =

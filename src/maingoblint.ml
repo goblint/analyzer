@@ -38,21 +38,6 @@ let print_help ch =
   fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n";
   exit 0
 
-(* The temp directory for preprocessing the input files *)
-let create_temp_dir () =
-  if Sys.file_exists (get_string "tempDir") then
-    Goblintutil.tempDirName := get_string "tempDir"
-  else
-    (* Using the stdlib to create a free tmp file name. *)
-    let tmpDirRel = Filename.temp_file ~temp_dir:"" "goblint_temp_" "" in
-    (* ... and then delete it to create a directory instead. *)
-    Sys.remove tmpDirRel;
-    let tmpDirName = create_dir tmpDirRel in
-    Goblintutil.tempDirName := tmpDirName
-
-let remove_temp_dir () =
-  if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf !Goblintutil.tempDirName)
-
 (** [Arg] option specification *)
 let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
@@ -90,6 +75,7 @@ let option_spec_list =
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""
   ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
+  ; "-j"                   , Arg.Int (set_int "jobs"), ""
   ; "-I"                   , Arg.String (set_string "includes[+]"), ""
   ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
@@ -155,18 +141,13 @@ let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
   if Sys.file_exists (get_string "tempDir") then
-    nname
+    (nname, None)
   else
     (* Preprocess using cpp. *)
     (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
     let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
     if get_bool "dbg.verbose" then print_endline command;
-
-    try match Unix.system command with
-      | Unix.WEXITED 0 -> nname
-      | _ -> eprintf "Goblint: Preprocessing failed."; raise Exit
-    with Unix.Unix_error (e, f, a) ->
-      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; raise Exit
+    (nname, Some {ProcessPool.command; cwd = None})
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -282,7 +263,14 @@ let preprocess_files () =
   if get_bool "ana.sv-comp.functions" then
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
 
-  List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files)
+  let preprocessed = List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files) in
+  let preprocess_tasks = List.filter_map snd preprocessed in
+  let terminated task = function
+    | Unix.WEXITED 0 -> ()
+    | process_status -> failwith (GobUnix.string_of_process_status process_status)
+  in
+  ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks;
+  List.map fst preprocessed
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
@@ -300,8 +288,6 @@ let merge_preprocessed cpp_file_names =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
 
-  (* direct the output to file if requested  *)
-  if not (get_bool "g2html" || get_string "outfile" = "") then Goblintutil.out := Legacy.open_out (get_string "outfile");
   Errormsg.logChannel := Messages.get_out "cil" cilout;
 
   (* we use CIL to merge all inputs to ONE file *)
@@ -321,6 +307,8 @@ let merge_preprocessed cpp_file_names =
   Cilfacade.current_file := merged_AST;
   merged_AST
 
+let preprocess_and_merge () = preprocess_files () |> merge_preprocessed
+
 let do_stats () =
   if get_bool "printstats" then (
     print_newline ();
@@ -332,6 +320,12 @@ let do_stats () =
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
+  (* direct the output to file if requested  *)
+  if not (get_bool "g2html" || get_string "outfile" = "") then (
+    if !Goblintutil.out <> Legacy.stdout then
+      Legacy.close_out !Goblintutil.out;
+    Goblintutil.out := Legacy.open_out (get_string "outfile"));
+
   let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
@@ -481,44 +475,3 @@ let () = (* signal for printing backtrace; other signals in Generic.SolverStats 
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
   catch_break true;
   set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
-
-(** the main function *)
-let main () =
-  try
-    Stats.reset Stats.SoftwareTimer;
-    parse_arguments ();
-    check_arguments ();
-    AfterConfig.run ();
-
-    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
-
-    Cilfacade.init ();
-
-    handle_extraspecials ();
-    create_temp_dir ();
-    handle_flags ();
-    if get_bool "dbg.verbose" then (
-      print_endline (localtime ());
-      print_endline command;
-    );
-    let file = Fun.protect ~finally:remove_temp_dir (fun () ->
-        preprocess_files () |> merge_preprocessed
-      )
-    in
-    if get_bool "server.enabled" then Server.start file do_analyze else (
-      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
-      file|> do_analyze changeInfo;
-      do_stats ();
-      do_html_output ();
-      do_gobview ();
-      if !verified = Some false then exit 3)  (* verifier failed! *)
-  with
-  | Exit ->
-    exit 1
-  | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
-    (* Printexc.print_backtrace BatInnerIO.stderr *)
-    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
-    exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
-  | Timeout ->
-    eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
-    exit 124

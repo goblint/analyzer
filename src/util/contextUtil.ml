@@ -20,7 +20,7 @@ let has_attribute s1 s2 al =
     ) al
 
 let has_option s1 s2 fd =
-  List.mem fd.svar.vname (GobConfig.get_string_list ("annotation." ^ s1 ^ "." ^ s2))
+  List.mem s2 (GobConfig.get_string_list ("annotation." ^ s1 ^ "." ^ fd.svar.vname))
 
 let should_keep ~isAttr ~keepOption ~removeAttr ~keepAttr fd =
   let al = fd.svar.vattr in

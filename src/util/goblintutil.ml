@@ -23,7 +23,7 @@ let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
 (** The file where everything is output *)
 let out = ref stdout
 
-(** Temp directory, set in maingoblint.ml, but used by the OSEK analysis. *)
+(** Temp directory, set by create_temp_dir, but used by the OSEK analysis. *)
 let tempDirName = ref "goblint_temp"
 
 (** Command for assigning an id to a varinfo. All varinfos directly created by Goblint should be modified by this method *)
@@ -95,6 +95,20 @@ let rm_rf path =
   in
   f path
 
+(* The temp directory for preprocessing the input files *)
+let create_temp_dir () =
+  if Sys.file_exists (get_string "tempDir") then
+    tempDirName := get_string "tempDir"
+  else
+    (* Using the stdlib to create a free tmp file name. *)
+    let tmpDirRel = Filename.temp_file ~temp_dir:"" "goblint_temp_" "" in
+    (* ... and then delete it to create a directory instead. *)
+    Sys.remove tmpDirRel;
+    let tmpDirName = create_dir tmpDirRel in
+    tempDirName := tmpDirName
+
+let remove_temp_dir () =
+  if not (get_bool "keepcpp") then ignore (rm_rf !tempDirName)
 
 exception Timeout
 
@@ -128,7 +142,7 @@ let print_gc_quick_stat chn =
   Printf.fprintf chn
     "Memory statistics: total=%s, max=%s, minor=%s, major=%s, promoted=%s\n    minor collections=%d  major collections=%d compactions=%d\n"
     (printM (gc.Gc.minor_words +. gc.Gc.major_words
-              -. gc.Gc.promoted_words))
+             -. gc.Gc.promoted_words))
     (printM (float_of_int gc.Gc.top_heap_words))
     (printM gc.Gc.minor_words)
     (printM gc.Gc.major_words)
@@ -160,19 +174,19 @@ let command = String.concat " " (Array.to_list Sys.argv)
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
 (* https://ocaml.github.io/ocamlunix/signals.html *)
 let signal_of_string = let open Sys in function
-  | "sigint"  -> sigint  (* Ctrl+C Interactive interrupt *)
-  | "sigtstp" -> sigtstp (* Ctrl+Z Interactive stop *)
-  | "sigquit" -> sigquit (* Ctrl+\ Interactive termination *)
-  | "sigalrm" -> sigalrm (* Timeout *)
-  | "sigkill" -> sigkill (* Termination (cannot be ignored) *)
-  | "sigsegv" -> sigsegv (* Invalid memory reference, https://github.com/goblint/analyzer/issues/206 *)
-  | "sigterm" -> sigterm (* Termination *)
-  | "sigusr1" -> sigusr1 (* Application-defined signal 1 *)
-  | "sigusr2" -> sigusr2 (* Application-defined signal 2 *)
-  | "sigstop" -> sigstop (* Stop *)
-  | "sigprof" -> sigprof (* Profiling interrupt *)
-  | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
-  | s -> failwith ("Unhandled signal " ^ s)
+    | "sigint"  -> sigint  (* Ctrl+C Interactive interrupt *)
+    | "sigtstp" -> sigtstp (* Ctrl+Z Interactive stop *)
+    | "sigquit" -> sigquit (* Ctrl+\ Interactive termination *)
+    | "sigalrm" -> sigalrm (* Timeout *)
+    | "sigkill" -> sigkill (* Termination (cannot be ignored) *)
+    | "sigsegv" -> sigsegv (* Invalid memory reference, https://github.com/goblint/analyzer/issues/206 *)
+    | "sigterm" -> sigterm (* Termination *)
+    | "sigusr1" -> sigusr1 (* Application-defined signal 1 *)
+    | "sigusr2" -> sigusr2 (* Application-defined signal 2 *)
+    | "sigstop" -> sigstop (* Stop *)
+    | "sigprof" -> sigprof (* Profiling interrupt *)
+    | "sigxcpu" -> sigxcpu (* Timeout in cpu time *)
+    | s -> failwith ("Unhandled signal " ^ s)
 
 let self_signal signal = Unix.kill (Unix.getpid ()) signal
 
@@ -183,3 +197,8 @@ let rec for_all_in_range (a, b) f =
   else f a && (for_all_in_range (BI.add a (BI.one), b) f)
 
 let dummy_obj = Obj.repr ()
+
+let jobs () =
+  match get_int "jobs" with
+  | 0 -> Cpu.numcores ()
+  | n -> n

@@ -62,7 +62,7 @@ struct
 
     let equal_exp ctx spec_exp cil_exp = match spec_exp, cil_exp with
       (* TODO match constants right away to avoid queries? *)
-      | `String a, Const(CStr b) -> M.debug "EQUAL String Const: %s = %s" a b; a=b
+      | `String a, Const(CStr (b,_)) -> M.debug "EQUAL String Const: %s = %s" a b; a=b
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
       (* CWStr is done in base.ml, query only returns `Str if it's safe *)
       | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
