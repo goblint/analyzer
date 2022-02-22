@@ -69,18 +69,15 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
   IO.flush serv.output
 
 let serve serv =
-  try
-    while true; do
-      let line = IO.read_line serv.input in
-      try
-        let json = Yojson.Safe.from_string line in
-        let message = Message.either_of_yojson json in
-        match message.id with
-        | Some id -> handle_request serv message id
-        | _ -> () (* We just ignore notifications for now. *)
-      with Yojson.Json_error s | Json.Of_json (s, _) -> prerr_endline s
-    done
-  with IO.No_more_input -> ()
+  serv.input
+  |> Lexing.from_channel
+  |> Yojson.Safe.stream_from_lexbuf (Yojson.init_lexer ())
+  |> Stream.iter (fun json ->
+      let message = Message.either_of_yojson json in
+      match message.id with
+      | Some id -> handle_request serv message id
+      | _ -> () (* We just ignore notifications for now. *)
+    )
 
 let make ?(input=stdin) ?(output=stdout) file : t =
   let version_map, max_ids = VersionLookup.create_map file in
@@ -154,10 +151,12 @@ let analyze ?(reset=false) (s: t) =
   ApronDomain.reset_lazy ();
   s.file <- file;
   GobConfig.set_bool "incremental.load" (not fresh);
-  Maingoblint.do_analyze increment_data s.file;
-  GobConfig.set_bool "incremental.load" true
+  Fun.protect ~finally:(fun () ->
+      GobConfig.set_bool "incremental.load" true
+    ) (fun () ->
+      Maingoblint.do_analyze increment_data s.file
+    )
 
-(* TODO: Add command to abort the analysis in progress. *)
 let () =
   let register = Registry.register registry in
 
@@ -165,10 +164,17 @@ let () =
     let name = "analyze"
     type params = { reset: bool [@default false] } [@@deriving of_yojson]
     (* TODO: Return analysis results as JSON. Useful for GobPie. *)
-    type response = unit [@@deriving to_yojson]
+    type status = Success | VerifyError | Aborted [@@deriving to_yojson]
+    type response = { status: status } [@@deriving to_yojson]
     (* TODO: Add options to control the analysis precision/context for specific functions. *)
     (* TODO: Add option to mark functions as modified. *)
-    let process { reset } serve = analyze serve ~reset
+    let process { reset } serve =
+      try
+        analyze serve ~reset;
+        {status = if !Goblintutil.verified = Some false then VerifyError else Success}
+      with Sys.Break ->
+        assert (GobConfig.get_bool "ana.opt.hashcons"); (* TODO: TD3 doesn't copy input solver data, so will modify it in place and screw up Serialize.server_solver_data accidentally *)
+        {status = Aborted}
   end);
 
   register (module struct
