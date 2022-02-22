@@ -40,5 +40,22 @@
     "print_dead_code": true
   },
   "printstats": true,
+  "warn": {
+    "assert": false,
+    "behavior": false,
+    "integer": false,
+    "cast": false,
+    "race": true,
+    "deadcode": false,
+    "analyzer": false,
+    "unsound": false,
+    "imprecise": false,
+    "unknown": false,
+    "error": false,
+    "warning": false,
+    "info": false,
+    "debug": false,
+    "success": false
+  },
   "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
 }
