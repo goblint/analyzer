@@ -111,10 +111,10 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
     let sccs = List.fold_left (fun sccs node ->
         if not (NH.mem node_scc node) then
           let scc = {
-              nodes = NH.create 25;
-              next = NH.create 5;
-              prev = NH.create 5
-            }
+            nodes = NH.create 1;
+            next = NH.create 1;
+            prev = NH.create 1
+          }
           in
           dfs_inner node scc;
           scc :: sccs
