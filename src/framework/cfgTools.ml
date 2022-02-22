@@ -136,6 +136,8 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   );
   r
 
+let computeSCCs x = Stats.time "computeSCCs" (computeSCCs x)
+
 let rec pretty_edges () = function
   | [] -> Pretty.dprintf ""
   | [_,x] -> Edge.pretty_plain () x
@@ -380,7 +382,7 @@ let createCFG (file: file) =
           | ComputedGoto _ ->
             failwith "MyCFG.createCFG: unsupported stmt"
         in
-        List.iter handle fd.sallstmts;
+        Stats.time "handle" (List.iter handle) fd.sallstmts;
 
         if Messages.tracing then Messages.trace "cfg" "Over\n";
 
@@ -455,7 +457,7 @@ let createCFG (file: file) =
           else
             NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
         in
-        iter_connect ();
+        Stats.time "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
         let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
@@ -466,6 +468,8 @@ let createCFG (file: file) =
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
   cfgF, cfgB
+
+let createCFG = Stats.time "createCFG" createCFG
 
 
 let minimizeCFG (fw,bw) =
