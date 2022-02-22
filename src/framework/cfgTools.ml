@@ -159,27 +159,12 @@ let () = Printexc.register_printer (function
     | _ -> None (* for other exceptions *)
   )
 
+module FH = BatHashtbl.Make (CilType.Fundec)
+
 let createCFG (file: file) =
-  let cfgF = H.create 113 in
-  let cfgB = H.create 113 in
   if Messages.tracing then Messages.trace "cfg" "Starting to build the cfg.\n\n";
 
-  let fd_nodes = NH.create 113 in
-
-  let addEdges fromNode edges toNode =
-    if Messages.tracing then
-      Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
-        pretty_edges edges
-        Node.pretty_trace fromNode
-        Node.pretty_trace toNode;
-    NH.replace fd_nodes fromNode ();
-    NH.replace fd_nodes toNode ();
-    H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
-    H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
-    if Messages.tracing then Messages.trace "cfg" "done\n\n"
-  in
-  let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
-  let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
+  let cfgs = FH.create 13 in
 
   (* Find real (i.e. non-empty) successor of statement.
      CIL CFG contains some unnecessary intermediate statements.
@@ -237,7 +222,7 @@ let createCFG (file: file) =
       if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
       raise Not_found
   in
-  addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
+  (* addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func); *) (* TODO: what is this? *)
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob ->
       match glob with
@@ -247,7 +232,24 @@ let createCFG (file: file) =
         if get_bool "dbg.cilcfgdot" then
           Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
 
-        NH.clear fd_nodes;
+        let cfgF = H.create 113 in
+        let cfgB = H.create 113 in
+        let fd_nodes = NH.create 113 in
+
+        let addEdges fromNode edges toNode =
+          if Messages.tracing then
+            Messages.trace "cfg" "Adding edges [%a] from\n\t%a\nto\n\t%a ... "
+              pretty_edges edges
+              Node.pretty_trace fromNode
+              Node.pretty_trace toNode;
+          NH.replace fd_nodes fromNode ();
+          NH.replace fd_nodes toNode ();
+          H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
+          H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
+          if Messages.tracing then Messages.trace "cfg" "done\n\n"
+        in
+        let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
+        let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
 
         (* Find the first statement in the function *)
         let entrynode = find_real_stmt (Cilfacade.getFirstStmt fd) in
@@ -466,13 +468,15 @@ let createCFG (file: file) =
         let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
-          raise (Not_connect fd)
+          raise (Not_connect fd);
+
+        if get_bool "dbg.verbose" then
+          ignore (Pretty.eprintf "%a: cfgF (%a), cfgB (%a)\n" CilType.Fundec.pretty fd GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
+        FH.replace cfgs fd (cfgF, cfgB);
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-  if get_bool "dbg.verbose" then
-    ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
-  cfgF, cfgB
+  cfgs
 
 let createCFG = Stats.time "createCFG" createCFG
 
@@ -507,6 +511,9 @@ let minimizeCFG (fw,bw) =
   H.clear ready;
   H.clear keep;
   cfgF, cfgB
+
+let minimizeCFG cfgs =
+  FH.map (fun _ -> minimizeCFG) cfgs
 
 
 module type CfgPrinters =
@@ -587,7 +594,7 @@ let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
   flush out;
   close_out_noerr out
 
-let fprint_hash_dot cfg  =
+let fprint_hash_dot cfgs =
   let module NoExtraNodeStyles =
   struct
     let defaultNodeStyles = []
@@ -595,20 +602,20 @@ let fprint_hash_dot cfg  =
   end
   in
   let out = open_out "cfg.dot" in
-  let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
+  let iter_edges f = FH.iter (fun _ (_, cfg) -> H.iter (fun n es -> List.iter (f n) es) cfg) cfgs in
   fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
 
 
 let getCFG (file: file) : cfg * cfg =
-  let cfgF, cfgB = createCFG file in
-  let cfgF, cfgB =
+  let cfgs = createCFG file in
+  let cfgs =
     if get_bool "exp.mincfg" then
-      Stats.time "minimizing the cfg" minimizeCFG (cfgF, cfgB)
+      Stats.time "minimizing the cfg" minimizeCFG cfgs
     else
-      (cfgF, cfgB)
+      cfgs
   in
-  if get_bool "justcfg" then fprint_hash_dot cfgB;
-  (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n [])
+  if get_bool "justcfg" then fprint_hash_dot cfgs;
+  (fun n -> H.find_default (fst @@ FH.find cfgs (Node.find_fundec n)) n []), (fun n -> H.find_default (snd @@ FH.find cfgs (Node.find_fundec n)) n [])
 
 
 (* TODO: unused *)
