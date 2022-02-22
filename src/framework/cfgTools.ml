@@ -222,7 +222,21 @@ let createCFG (file: file) =
       if Messages.tracing then Messages.traceu "cfg" "-> Not_found\n";
       raise Not_found
   in
-  (* addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func); *) (* TODO: what is this? *)
+
+  let dummy_func_cfg =
+    let cfgF = H.create 113 in
+    let cfgB = H.create 113 in
+    let addEdges fromNode edges toNode =
+      H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
+      H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
+    in
+    let addEdge fromNode edge toNode = addEdges fromNode [edge] toNode in
+    let addEdge_fromLoc fromNode edge toNode = addEdge fromNode (Node.location fromNode, edge) toNode in
+    addEdge_fromLoc (FunctionEntry dummy_func) (Ret (None, dummy_func)) (Function dummy_func);
+    (cfgF, cfgB)
+  in
+  FH.replace cfgs dummy_func dummy_func_cfg;
+
   (* We iterate over all globals looking for functions: *)
   iterGlobals file (fun glob ->
       match glob with
