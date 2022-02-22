@@ -627,22 +627,39 @@ module WP =
             )
         in
 
+        let reluctant = GobConfig.get_bool "incremental.reluctant.on" in
+        let reanalyze_entry f =
+          (* destabilize the entry points of a changed function when reluctant is off,
+             or the function is to be force-reanalyzed  *)
+          (not reluctant) || CompareCIL.VarinfoSet.mem f.svar S.increment.changes.force_reanalyze
+        in
         let obsolete_ret = HM.create 103 in
         let obsolete_entry = HM.create 103 in
         let obsolete_prim = HM.create 103 in
+
+        (* When reluctant is on:
+           Only add function entry nodes to obsolete_entry if they are in force-reanalyze *)
         List.iter (fun f ->
-            mark_node obsolete_entry f (FunctionEntry f);
-            mark_node obsolete_ret f (Function f);
+            if reanalyze_entry f then
+              (* collect function entry for eager destabilization *)
+              mark_node obsolete_entry f (FunctionEntry f)
+            else
+              (* collect function return for reluctant analysis *)
+              mark_node obsolete_ret f (Function f)
           ) changed_funs;
-        List.iter (fun (f, pn, _) ->
-            List.iter (fun n ->
-                mark_node obsolete_prim f n
-              ) pn;
-            mark_node obsolete_ret f (Function f);
-          ) part_changed_funs;
+        (* Unknowns from partially changed functions need only to be collected for eager destabilization when reluctant is off *)
+        (* We utilize that force-reanalyzed functions are always considered as completely changed (and not partially changed) *)
+        if not reluctant then (
+          List.iter (fun (f, pn, _) ->
+              List.iter (fun n ->
+                  mark_node obsolete_prim f n
+                ) pn;
+              mark_node obsolete_ret f (Function f);
+            ) part_changed_funs;
+        );
 
         let old_ret = HM.create 103 in
-        if GobConfig.get_bool "incremental.reluctant.on" then (
+        if reluctant then (
           (* save entries of changed functions in rho for the comparison whether the result has changed after a function specific solve *)
           HM.iter (fun k v ->
               if HM.mem rho k then (
@@ -651,19 +668,18 @@ module WP =
                 HM.replace old_ret k (old_rho, old_infl)
               )
             ) obsolete_ret;
-        ) else (
-          (* If reluctant destabilization is turned off we need to destabilize all nodes in completely changed functions
-             and the primary obsolete nodes of partly changed functions *)
-          print_endline "Destabilizing changed functions and primary old nodes ...";
-          HM.iter (fun k _ ->
-              if HM.mem stable k then
-                destabilize k
-            ) obsolete_entry;
-          HM.iter (fun k _ ->
-              if HM.mem stable k then
-                destabilize k
-            ) obsolete_prim;
         );
+
+        if not (HM.is_empty obsolete_entry) || not (HM.is_empty obsolete_prim) then
+          print_endline "Destabilizing changed functions and primary old nodes ...";
+        HM.iter (fun k _ ->
+            if HM.mem stable k then
+              destabilize k
+          ) obsolete_entry;
+        HM.iter (fun k _ ->
+            if HM.mem stable k then
+              destabilize k
+          ) obsolete_prim;
 
         (* We remove all unknowns for program points in changed or removed functions from rho, stable, infl and wpoint *)
         let marked_for_deletion = HM.create 103 in
@@ -672,14 +688,14 @@ module WP =
           (* not the same as in CFG, but compares equal because of sid *)
           Node.Statement ({Cil.dummyStmt with sid = CfgTools.get_pseudo_return_id f})
         in
-        let add_nodes_of_fun (functions: fundec list) withEntry =
+        let add_nodes_of_fun (functions: fundec list) (withEntry: fundec -> bool) =
           let add_stmts (f: fundec) =
             List.iter (fun s ->
                 mark_node marked_for_deletion f (Statement s)
               ) f.sallstmts
           in
           List.iter (fun f ->
-              if withEntry then
+              if withEntry f then
                 mark_node marked_for_deletion f (FunctionEntry f);
               mark_node marked_for_deletion f (Function f);
               add_stmts f;
@@ -687,8 +703,8 @@ module WP =
             ) functions;
         in
 
-        add_nodes_of_fun changed_funs (not (GobConfig.get_bool "incremental.reluctant.on"));
-        add_nodes_of_fun removed_funs true;
+        add_nodes_of_fun changed_funs reanalyze_entry;
+        add_nodes_of_fun removed_funs (fun _ -> true);
         (* it is necessary to remove all unknowns for changed pseudo-returns because they have static ids *)
         let add_pseudo_return f un =
           let pseudo = dummy_pseudo_return_node f in
@@ -798,7 +814,7 @@ module WP =
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
 
-        if GobConfig.get_bool "incremental.reluctant.on" then (
+        if reluctant then (
           (* solve on the return node of changed functions. Only destabilize the function's return node if the analysis result changed *)
           print_endline "Separately solving changed functions...";
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
