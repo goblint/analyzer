@@ -139,7 +139,7 @@ let handle_flags () =
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
+  let nname =  Filename.concat !Goblintutil.tempDirName (Filename.chop_extension (Filename.basename fname) ^ ".i") in
   if get_bool "pre.exist" then (* TODO: also support for compilation database *)
     (nname, None)
   else
