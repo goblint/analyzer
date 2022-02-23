@@ -1,19 +1,20 @@
 from pydriller import Repository, Git
 import os
 import sys
+from pathlib import Path
 import datetime
 import subprocess
 import shutil
 import re
 import json
 import pandas as pd
-import numpy as np
 import matplotlib
 matplotlib.use("pgf")
 matplotlib.rcParams.update(
     {
         "pgf.texsystem": "pdflatex",
         "font.family": "serif",
+        "font.size": 8,
         "text.usetex": True,
         "pgf.rcfonts": False,
         "axes.unicode_minus": False,
@@ -26,13 +27,13 @@ if(sys.argv[0] != 'scripts/incremental_smallcommits.py'):
   sys.exit("The script must be run from the analyzers base directory!")
 
 ##################### Repo specific arguments ##################################
-maxCLOC       = 50
-conf          = "big-benchmarks"
+maxCLOC       = 100
+conf          = "big-benchmarks2"
 repo_name     = "zstd"
 repo_rel_path = "../test-repos/" + repo_name
 build_compdb  = 'build_compdb_zstd.sh'
 analyzer_dir  = os.getcwd()
-beginwith     = datetime.datetime(2022, 2, 15)
+beginwith     = datetime.datetime(2021, 6, 1)
 ################################################################################
 
 
@@ -68,27 +69,18 @@ def analyze_commit(commit_hash, outdir):
         output = subprocess.run(analyze_command, check=True, stdout=outfile, stderr=subprocess.STDOUT)
         outfile.close()
 
-def get_files_compdb(commit):
-    clean_test_repo()
-    gr.checkout(commit.hash)
-    prepare_command = ['sh', analyzer_dir + '/scripts/' + build_compdb]
-    subprocess.run(prepare_command, cwd = repo_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    comp_db_file = open(os.path.join(repo_path, 'compile_commands.json'))
-    files = []
-    for e in json.load(comp_db_file):
-        files.append(os.path.join(e["directory"], e["file"]))
-    return files
-
-def calculateRelCLOC(commit, parent):
-    files_child_compdb = get_files_compdb(commit)
-    files_parent_compdb = get_files_compdb(parent)
+def calculateRelCLOC(commit):
+    diff_exclude = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
+    diff_exclude = map(lambda x: os.path.join(repo_path, x), diff_exclude)
     relcloc = 0
     for f in commit.modified_files:
-        if f.new_path is not None:
-            if f.new_path in files_child_compdb:
-                relcloc += f.added_lines + f.deleted_lines
-        elif f.old_path is not None and f.old_path in files_parent_compdb:
-            relcloc += f.added_lines + f.deleted_lines
+        _, extension = os.path.splitext(f.filename)
+        if not (extension == ".h" or extension == ".c"):
+            continue
+        parents = Path(f.new_path).parents
+        if any(dir in parents for dir in diff_exclude):
+            continue
+        relcloc = relcloc + f.added_lines + f.deleted_lines
     return relcloc
 
 def analyze_small_commits_in_repo():
@@ -103,28 +95,17 @@ def analyze_small_commits_in_repo():
         print('merge commit: ', commit.merge)
 
         # skip merge commits and commits that have less than maxCLOC of relevant code changes
-        parent = gr.get_commit(commit.parents[0])
-        if commit.merge:
-            print('Skip this commit: merge commit')
-            count_skipped+=1
-            continue
-        try:
-            print("Calculate relevant CLOC")
-            relCLOC = calculateRelCLOC(commit, parent) # use this to filter commits by actually relevant changes
-            #relCLOC = commit.lines # calculating actually relevant changed loc is inefficient, use this approximation for faster results
-            print("relevant changed LOC: ", relCLOC)
-            if relCLOC > maxCLOC:
-                print('Skip this commit: too many CLOC')
-                count_skipped+=1
-                continue
-        except subprocess.CalledProcessError:
-            print('Skip this commit: compdb build failed')
+        relCLOC = calculateRelCLOC(commit) # use this to filter commits by actually relevant changes
+        print("relCLOC: ", relCLOC)
+        if commit.merge or relCLOC > maxCLOC:
+            print('Skip this commit: merge commit or too many relevant changed LOC')
             count_skipped+=1
             continue
 
         # analyze
         try_num = count_analyzed + count_failed + 1
         outtry = os.path.join(outdir, str(try_num))
+        parent = gr.get_commit(commit.parents[0])
         os.makedirs(outtry)
         with open(os.path.join(outtry,'commit_properties.log'), "w+") as file:
             json.dump({"hash": commit.hash, "parent_hash": parent.hash, "CLOC": commit.lines, "relCLOC": relCLOC}, file)
@@ -162,7 +143,7 @@ def extract_from_analyzer_log(log):
         file.close()
     runtime_pattern = 'TOTAL[ ]+(?P<runtime>[0-9\.]+) s'
     change_info_pattern = 'change_info = { unchanged = (?P<unchanged>[0-9]*); changed = (?P<changed>[0-9]*); added = (?P<added>[0-9]*); removed = (?P<removed>[0-9]*) }'
-    return find_line(runtime_pattern) | find_line(change_info_pattern)
+    return dict(list(find_line(runtime_pattern).items()) + list(find_line(change_info_pattern).items()))
 
 
 def collect_data():
@@ -174,18 +155,17 @@ def collect_data():
         childlog = os.path.join(outdir, t, 'child', 'analyzer.log')
         commit_prop_log = os.path.join(outdir, t, 'commit_properties.log')
         t = int(t)
+        commit_prop = json.load(open(commit_prop_log, "r"))
+        data["Changed LOC"].append(commit_prop["CLOC"])
+        data["Relevant changed LOC"].append(commit_prop["relCLOC"])
+        index.append(str(t) + ": " + commit_prop["hash"][:7])
         if not os.path.exists(parentlog) or not os.path.exists(childlog):
-            index.append(t)
-            data["parent_runtime"].append(0)
-            data["child_runtime"].append(0)
-            data["rel_fun_changes"].append(0)
+            data["Runtime for parent commit (non-incremental)"].append(0)
+            data["Runtime for commit (incremental)"].append(0)
+            data["Changed/Added/Removed functions"].append(0)
             continue
         parent_info = extract_from_analyzer_log(parentlog)
         child_info = extract_from_analyzer_log(childlog)
-        commit_prop = json.load(open(commit_prop_log, "r"))
-        index.append(str(t) + commit_prop["hash"][:6])
-        data["Changed LOC"].append(commit_prop["CLOC"])
-        data["Relevant changed LOC"].append(commit_prop["relCLOC"])
         data["Runtime for parent commit (non-incremental)"].append(float(parent_info["runtime"]))
         data["Runtime for commit (incremental)"].append(float(child_info["runtime"]))
         data["Changed/Added/Removed functions"].append(int(child_info["changed"]) + int(child_info["added"]) + int(child_info["removed"]))
@@ -193,24 +173,24 @@ def collect_data():
 
 def plot(data_set):
     df = pd.DataFrame(data_set["data"], index=data_set["index"]) # TODO: index=analyzed_commits
-    df.sort_index(inplace=True)
+    df.sort_index(inplace=True, key=lambda idx: idx.map(lambda x: int(x.split(":")[0])))
     print(df)
 
-    df.plot.bar(rot=0)
-    plt.xticks(rotation=45)
-    plt.xlabel('Commit', fontsize=10)
+    df.plot.bar(rot=0, width=1, figsize=(25,5))
+    plt.xticks(rotation=45, ha='right', rotation_mode='anchor')
+    plt.xlabel('Commit')
     plt.tight_layout()
     plt.savefig("figure.pdf")
 
 
-# if os.path.exists(outdir) and os.path.isdir(outdir):
-#     shutil.rmtree(outdir)
-# analyze_small_commits_in_repo()
-# num_commits = count_analyzed + count_skipped
-# print("Commits traversed in total: ", num_commits)
-# print("Analyzed: ", count_analyzed)
-# print("Failed: ", count_failed)
-# print("Skipped: ", count_skipped)
+if os.path.exists(outdir) and os.path.isdir(outdir):
+   shutil.rmtree(outdir)
+analyze_small_commits_in_repo()
+num_commits = count_analyzed + count_skipped
+print("Commits traversed in total: ", num_commits)
+print("Analyzed: ", count_analyzed)
+print("Failed: ", count_failed)
+print("Skipped: ", count_skipped)
 
 data = collect_data()
 plot(data)

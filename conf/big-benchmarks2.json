@@ -3,11 +3,12 @@
     "base": {
       "privatization": "none",
       "context": {
-        "int": false
+        "interval": false
       }
     },
     "int": {
-      "interval": true
+      "interval": true,
+      "enums": true
     }
   },
   "sem": {
@@ -52,10 +53,11 @@
     "imprecise": false,
     "unknown": false,
     "error": false,
-    "warning": false,
+    "warning": true,
     "info": false,
     "debug": false,
     "success": false
   },
+  "result": "json-messages",
   "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
 }

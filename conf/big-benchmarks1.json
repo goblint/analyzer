@@ -46,7 +46,7 @@
     "imprecise": false,
     "unknown": false,
     "error": false,
-    "warning": false,
+    "warning": true,
     "info": false,
     "debug": false,
     "success": false
