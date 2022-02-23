@@ -468,7 +468,7 @@ struct
             if get_bool "dbg.verbose" then (
               print_endline ("Saving the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
-            ignore @@ GU.create_dir (save_run); (* ensure the directory exists *)
+            GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]

@@ -64,20 +64,8 @@ let escape = XmlUtil.escape (* TODO: inline everywhere *)
 
 (** Creates a directory and returns the absolute path **)
 let create_dir name =
-  let dirName = if Filename.is_relative name then Filename.concat (Unix.getcwd ()) name else name in
-  (* The directory should be writable to group and user *)
-  let dirPerm = 0o770 in
-  let _ =
-    try
-      Unix.mkdir dirName dirPerm
-    with Unix.Unix_error(err, ctx1, ctx) as ex ->
-      (* We can discared the EEXIST, we are happy to use the existing directory *)
-      if err != Unix.EEXIST then begin
-        (* Hopefully will be friendly enough :) *)
-        print_endline ("Error, " ^ (Unix.error_message err));
-        raise ex
-      end
-  in
+  let dirName = GobFilename.absolute name in
+  GobSys.mkdir_or_exists dirName;
   dirName
 
 (** Remove directory and its content, as "rm -rf" would do. *)

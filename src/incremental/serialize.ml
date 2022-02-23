@@ -65,9 +65,9 @@ let store_data (data : 'a) (data_type : incremental_data_kind) =
     | AnalysisData -> server_analysis_data := Some (Obj.repr data)
     | _ -> ()
   else (
-    ignore @@ Goblintutil.create_dir (gob_directory ());
+    GobSys.mkdir_or_exists (gob_directory ());
     let d = gob_results_tmp_dir () in
-    ignore @@ Goblintutil.create_dir d;
+    GobSys.mkdir_or_exists d;
     let p = Filename.concat d (type_to_file_name data_type) in
     marshal data p)
 

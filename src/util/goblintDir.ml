@@ -6,8 +6,8 @@ let preprocessed () = Filename.concat (root ()) "preprocessed"
 
 let init () =
   (* TODO: generalize .goblint for everything *)
-  ignore (Goblintutil.create_dir (root ()));
-  ignore (Goblintutil.create_dir (preprocessed ()))
+  GobSys.mkdir_or_exists (root ());
+  GobSys.mkdir_or_exists (preprocessed ())
 
 let finalize () =
   if not (get_bool "pre.keep") then
