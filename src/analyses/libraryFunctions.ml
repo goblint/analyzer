@@ -176,13 +176,14 @@ let invalidate_actions = [
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
     "fopen", readsAll;            (*safe*)
-    "fdopen", readsAll;            (*safe*)
-    "setvbuf", writes[2];
+    "fdopen", readsAll;           (*safe*)
+    "setvbuf", writes[2];         (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
+                                  (* as any future write (or flush) of the stream could result in a write to the buffer *)
     "fprintf", writes [1];          (*keep [1]*)
     "__fprintf_chk", writes [1];    (*keep [1]*)
     "fread", writes [1;4];
     "__fread_alias", writes [1;4];
-    "__fread_chk", writes [1;4]; 
+    "__fread_chk", writes [1;4];
     "utimensat", readsAll;
     "free", writesAll; (*unsafe*)
     "fwrite", readsAll;(*safe*)
