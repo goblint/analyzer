@@ -407,9 +407,9 @@ let invalidate_actions = [
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
     "uncompress", writes [3;4]; (*keep [3;4]*)
-    "stat", writes [1]; (*keep [1]*)
-    "__xstat", writes [1]; (*keep [1]*)
-    "__lxstat", writes [1]; (*keep [1]*)
+    "stat", writes [2]; (*keep [1]*)
+    "__xstat", writes [3]; (*keep [1]*)
+    "__lxstat", writes [3]; (*keep [1]*)
     "remove", readsAll;
     "BZ2_bzBuffToBuffCompress", writes [3;4]; (*keep [3;4]*)
     "compress2", writes [3]; (*keep [3]*)
