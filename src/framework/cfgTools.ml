@@ -468,14 +468,7 @@ let createCFG (file: file) =
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-  let module NH2 = Hashtbl.Make (Node) in
-  let stats (h: 'a NH.t) =
-    let h': 'a NH2.t = Obj.magic h in
-    let s = NH2.stats h' in
-    Format.eprintf "stats: bindings=%d buckets=%d max_length=%d histo=%a load=%f\n" s.num_bindings s.num_buckets s.max_bucket_length (Format.pp_print_list ~pp_sep:(fun f () -> Format.pp_print_char f ',') Format.pp_print_int) (Array.to_list s.bucket_histogram) (float_of_int s.num_bindings /. float_of_int s.num_buckets);
-  in
-  stats cfgF;
-  stats cfgB;
+  ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
   cfgF, cfgB
 
 let createCFG = Stats.time "createCFG" createCFG
