@@ -88,13 +88,6 @@
       "type": "boolean",
       "default": false
     },
-    "keepcpp": {
-      "title": "keepcpp",
-      "description":
-        "Keep the intermediate output of running the C preprocessor.",
-      "type": "boolean",
-      "default": false
-    },
     "tempDir": {
       "title": "tempDir",
       "description": "Reuse temporary directory for preprocessed files.",
@@ -222,6 +215,21 @@
       "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
       "type": "integer",
       "default": 1
+    },
+    "pre": {
+      "title": "Preprocessing",
+      "description": "Preprocessing options",
+      "type": "object",
+      "properties": {
+        "keep": {
+          "title": "pre.keep",
+          "description":
+            "Keep the intermediate output of running the C preprocessor.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
     },
     "server": {
       "title": "Server",

@@ -108,7 +108,7 @@ let create_temp_dir () =
     tempDirName := preprocessed_dir
 
 let remove_temp_dir () =
-  if not (get_bool "keepcpp") then ignore (rm_rf !tempDirName)
+  if not (get_bool "pre.keep") then ignore (rm_rf !tempDirName)
 
 exception Timeout
 
