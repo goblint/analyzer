@@ -472,7 +472,7 @@ let createCFG (file: file) =
   let stats (h: 'a NH.t) =
     let h': 'a NH2.t = Obj.magic h in
     let s = NH2.stats h' in
-    Format.eprintf "stats: bindings=%d buckets=%d max_length=%d histo=%a\n" s.num_bindings s.num_buckets s.max_bucket_length (Format.pp_print_list ~pp_sep:(fun f () -> Format.pp_print_char f ',') Format.pp_print_int) (Array.to_list s.bucket_histogram);
+    Format.eprintf "stats: bindings=%d buckets=%d max_length=%d histo=%a load=%f\n" s.num_bindings s.num_buckets s.max_bucket_length (Format.pp_print_list ~pp_sep:(fun f () -> Format.pp_print_char f ',') Format.pp_print_int) (Array.to_list s.bucket_histogram) (float_of_int s.num_bindings /. float_of_int s.num_buckets);
   in
   stats cfgF;
   stats cfgB;
