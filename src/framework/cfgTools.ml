@@ -31,8 +31,8 @@ let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
 
   loop_heads
 
-let find_backwards_reachable (module Cfg:CfgBackward) (node:node): unit NH.t =
-  let reachable = NH.create 100 in
+let find_backwards_reachable ~initial_size (module Cfg:CfgBackward) (node:node): unit NH.t =
+  let reachable = NH.create initial_size in
 
   (* DFS, copied from Control is_sink *)
   let rec iter_node node =
@@ -64,10 +64,11 @@ end
 (** Compute strongly connected components (SCCs) of [nodes] in [Cfg].
     Returns list of SCCs and a mapping from nodes to those SCCs. *)
 let computeSCCs (module Cfg: CfgBidir) nodes =
+  let nodes_length = List.length nodes in
   (* Kosaraju's algorithm *)
   let finished_rev =
     (* first DFS to construct list of nodes in reverse finished order *)
-    let visited = NH.create 100 in
+    let visited = NH.create nodes_length in
 
     let rec dfs_inner node finished_rev =
       if not (NH.mem visited node) then (
@@ -89,7 +90,7 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
   let open SCC in (* open for SCC.t constructors *)
   let (sccs, node_scc) as r =
     (* second DFS to construct SCCs on transpose graph *)
-    let node_scc = NH.create 100 in (* like visited, but values are assigned SCCs *)
+    let node_scc = NH.create nodes_length in (* like visited, but values are assigned SCCs *)
 
     let rec dfs_inner node scc =
       (* assumes: not (NH.mem node_scc node) *)
@@ -402,7 +403,7 @@ let createCFG (file: file) =
 
           (* DFS over SCCs starting from FunctionEntry SCC *)
           let module SH = Hashtbl.Make (SCC) in
-          let visited_scc = SH.create 13 in
+          let visited_scc = SH.create (List.length sccs) in
           let rec iter_scc scc =
             if not (SH.mem visited_scc scc) then (
               SH.replace visited_scc scc ();
@@ -460,7 +461,7 @@ let createCFG (file: file) =
         Stats.time "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
-        let reachable_return' = find_backwards_reachable (module TmpCfg) (Function fd) in
+        let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
           raise (Not_connect fd)
@@ -481,7 +482,7 @@ let createCFG = Stats.time "createCFG" createCFG
 
 
 let minimizeCFG (fw,bw) =
-  let keep = H.create 113 in
+  let keep = H.create (H.length bw) in
   let comp_keep t (_,f) =
     if (List.compare_length_with (H.find_default bw t []) 1 <> 0) || (List.compare_length_with (H.find_default fw t []) 1 <> 0) then
       H.replace keep t ();
@@ -491,9 +492,9 @@ let minimizeCFG (fw,bw) =
   let comp_keep t es = List.iter (comp_keep t) es in
   H.iter comp_keep bw;
   (* H.iter comp_keep fw; *)
-  let cfgB = H.create 113 in
-  let cfgF = H.create 113 in
-  let ready = H.create 113 in
+  let cfgB = H.create (H.length bw) in
+  let cfgF = H.create (H.length fw) in
+  let ready = H.create (H.length bw) in
   let rec add a b t (e,f)=
     if H.mem keep f then begin
       H.modify_def [] b (List.cons (e@a,f)) cfgB;
