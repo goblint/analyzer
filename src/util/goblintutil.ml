@@ -100,12 +100,12 @@ let create_temp_dir () =
   if Sys.file_exists (get_string "tempDir") then
     tempDirName := get_string "tempDir"
   else
-    (* Using the stdlib to create a free tmp file name. *)
-    let tmpDirRel = Filename.temp_file ~temp_dir:"" "goblint_temp_" "" in
-    (* ... and then delete it to create a directory instead. *)
-    Sys.remove tmpDirRel;
-    let tmpDirName = create_dir tmpDirRel in
-    tempDirName := tmpDirName
+    (* TODO: generalize .goblint for everything *)
+    ignore (create_dir ".goblint");
+    let preprocessed_dir = create_dir (Filename.concat ".goblint" "preprocessed") in
+    assert (Sys.file_exists preprocessed_dir);
+    (* raise Exit; *)
+    tempDirName := preprocessed_dir
 
 let remove_temp_dir () =
   if not (get_bool "keepcpp") then ignore (rm_rf !tempDirName)
