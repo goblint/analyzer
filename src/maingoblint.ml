@@ -139,7 +139,7 @@ let handle_flags () =
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname =  Filename.concat !GoblintDir.tempDirName (Filename.chop_extension (Filename.basename fname) ^ ".i") in
+  let nname =  Filename.concat (GoblintDir.preprocessed ()) (Filename.chop_extension (Filename.basename fname) ^ ".i") in
   if get_bool "pre.exist" then (* TODO: also support for compilation database *)
     (nname, None)
   else
@@ -188,7 +188,7 @@ let preprocess_files () =
 
   (* fill include flags *)
   let one_include_f f x = include_dirs := f x :: !include_dirs in
-  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat !GoblintDir.tempDirName OilUtil.header :: !include_files;
+  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat (GoblintDir.preprocessed ()) OilUtil.header :: !include_files;
   (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
   get_string_list "includes" |> List.iter (one_include_f identity);
 

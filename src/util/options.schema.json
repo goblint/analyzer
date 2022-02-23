@@ -88,12 +88,6 @@
       "type": "boolean",
       "default": false
     },
-    "tempDir": {
-      "title": "tempDir",
-      "description": "Reuse temporary directory for preprocessed files.",
-      "type": "string",
-      "default": ""
-    },
     "cppflags": {
       "title": "cppflags",
       "description": "Pre-processing parameters.",
@@ -215,6 +209,12 @@
       "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
       "type": "integer",
       "default": 1
+    },
+    "goblint-dir": {
+      "title": "goblint-dir",
+      "description": "Directory used for intermediate data.",
+      "type": "string",
+      "default": ".goblint"
     },
     "pre": {
       "title": "Preprocessing",

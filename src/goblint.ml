@@ -17,13 +17,13 @@ let main () =
     Cilfacade.init ();
 
     handle_extraspecials ();
-    GoblintDir.create_temp_dir ();
+    GoblintDir.init ();
     handle_flags ();
     if get_bool "dbg.verbose" then (
       print_endline (localtime ());
       print_endline command;
     );
-    let file = Fun.protect ~finally:GoblintDir.remove_temp_dir preprocess_and_merge in
+    let file = Fun.protect ~finally:GoblintDir.finalize preprocess_and_merge in
     if get_bool "server.enabled" then Server.start file else (
       let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
       file|> do_analyze changeInfo;
