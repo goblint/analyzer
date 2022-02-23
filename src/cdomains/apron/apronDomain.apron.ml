@@ -121,6 +121,8 @@ struct
   let name () = "Polyhedra"
 end
 
+(** Another manager for the Polka domain but specifically for affine equalities.
+    For Documentation for the domain see: https://antoinemine.github.io/Apron/doc/api/ocaml/Polka.html *)
 module AffEqManager =
 struct
   (** Affine equalities in apron used for comparison with our own implementation *)
@@ -200,16 +202,12 @@ let int_of_scalar ?round (scalar: Scalar.t) =
 module Bounds (Man: Manager) =
 struct
   type t = Man.mt A.t
-  type num = Mpqf.t
 
   let bound_texpr d texpr1 =
     let bounds = A.bound_texpr Man.mgr d texpr1 in
     let min = int_of_scalar ~round:`Ceil bounds.inf in
     let max = int_of_scalar ~round:`Floor bounds.sup in
     (min, max)
-
-  let calc_const d texpr1 = None
-
 end
 
 (** Conversion from CIL expressions to Apron. *)
@@ -369,8 +367,8 @@ end
 (** Convenience operations on A. *)
 module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = SharedDomain.Convert (Bounds(Man))
-  include SharedDomain.EnvOps
+  module Convert = SharedFunctions.Convert (Bounds(Man))
+  include SharedFunctions.EnvOps
 
   type t = Man.mt A.t
 
@@ -999,7 +997,7 @@ end
 
 module D2Complete (Man: Manager) =
 struct
-  type var = SharedDomain.Var.t
+  type var = SharedFunctions.Var.t
   type lconsarray = Lincons1.earray
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
@@ -1130,7 +1128,7 @@ module AD2Complete (Man: Manager) = (*ToDo Improve module structure...*)
 struct
   module D2 = D2Complete (Man)
   include D2
-  include SharedDomain.AssertionModule (D2)
+  include SharedFunctions.AssertionModule (D2)
 end
 
 module D2 (Man: Manager): (RelD2 with type var = Var.t) =
@@ -1147,4 +1145,7 @@ end
 =======
   include AD2Complete(Man)
 end
+<<<<<<< HEAD
 >>>>>>> 5b36f7f4d (Fix dim_add, substitute_expr + change int_of_cst to mpqf_of_cst)
+=======
+>>>>>>> 06c37a2d7 (Fix non-affine expr parsing + simplify constant detection + fix overflow handling + add new lines at end of files + revert indentation file settings + add comment for affeqmanager + update affeq tests)

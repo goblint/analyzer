@@ -11,7 +11,7 @@ let spec_module: (module MCPSpec) Lazy.t =
     let module AD = AffineEqualityDomain.AD2 in
     let module RD: RelationDomain.RD =
     struct
-      module Var = SharedDomain.Var
+      module Var = SharedFunctions.Var
       module V = RelationDomain.V(Var)
       module D2 = AD
     end in
@@ -40,5 +40,3 @@ let () =
         Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ()))
       | _ -> None (* for other exceptions *)
     )
-
-

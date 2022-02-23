@@ -142,6 +142,11 @@ struct
         | _, Some (x) when x = (IntOps.BigIntOps.of_int 1) -> true
         | _, _ -> false
 
+  let no_overflow ctx exp =
+    let res = no_overflow ctx exp in
+    if M.tracing then M.tracel "no_ov" "no_ov %b exp: %s\n" res
+        (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)); res
+
 
   let assert_type_bounds apr x ctx =
     assert (AD.varinfo_tracked x);

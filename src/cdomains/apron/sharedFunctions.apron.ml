@@ -19,10 +19,7 @@ end
 module type ConvBounds =
 sig
   type t
-  type num
   val bound_texpr: t -> Texpr1.t -> Z.t option * Z.t option
-
-  val calc_const: t -> Texpr1.expr -> num option
 end
 
 module Tracked =
@@ -100,13 +97,25 @@ struct
     let e = Cil.constFold false e in
     of_expr env (texpr1_expr_of_cil_exp d env ov e)
 
-  let tcons1_of_cil_exp d env e negate ov =
+  let rec contains_unsigned_var expr =
+    match expr with
+    | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v -> not @@ Cil.isSigned @@ Cilfacade.get_ikind_exp expr
+    | Const _ -> false
+    | exp -> begin match exp with
+                  | UnOp (_, e, _) -> contains_unsigned_var e
+                  | BinOp (_, e1, e2, _) -> contains_unsigned_var e1 || contains_unsigned_var e2
+                  | CastE (_, e) -> contains_unsigned_var e
+                  | _ -> false end
+
+
+  let tcons1_of_cil_exp d env e negate no_ov =
     let e = Cil.constFold false e in
+    let no_ov = GobConfig.get_string "sem.int.signed_overflow" = "assume_none" || (no_ov && not @@ contains_unsigned_var e) in
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp d env ov e1 in
-        let texpr1_2 = texpr1_expr_of_cil_exp d env ov e2 in
+        let texpr1_1 = texpr1_expr_of_cil_exp d env no_ov e1 in
+        let texpr1_2 = texpr1_expr_of_cil_exp d env no_ov e2 in
         (* Apron constraints always compare with 0 and only have comparisons one way *)
         begin match r with
           | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)

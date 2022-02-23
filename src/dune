@@ -32,9 +32,9 @@
       (apron -> affineEqualityDomain.apron.ml)
       (-> affineEqualityDomain.no-apron.ml)
     )
-    (select sharedDomain.ml from
-      (apron -> sharedDomain.apron.ml)
-      (-> sharedDomain.no-apron.ml)
+    (select sharedFunctions.ml from
+      (apron -> sharedFunctions.apron.ml)
+      (-> sharedFunctions.no-apron.ml)
     )
     (select violationZ3.ml from
       (z3 !js_of_ocaml -> violationZ3.z3.ml) ; disable in js because no z3 js stubs

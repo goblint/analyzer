@@ -286,7 +286,7 @@ module ListMatrix : AbstractMatrix =
 
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
-  include SharedDomain.EnvOps
+  include SharedFunctions.EnvOps
   module Vector = Vec (Mpqf)
   module Matrix = Mx(Mpqf) (Vec)
 
@@ -342,80 +342,96 @@ struct
     (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
     type_tracked vi.vtype && not vi.vaddrof
 
-end
+  include ConvenienceOps(Mpqf)
 
-let of_union union =
-  let open Coeff in
-  match union with
-  | Interval _ -> failwith "Not a constant"
-  | Scalar x -> (match x with
-      | Float x -> Mpqf.of_float x
-      | Mpqf x -> x
-      | Mpfrf x -> Mpfr.to_mpq x)
+  let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x ->
+      Vector.compare_length_with v (i + 1) > 0 && x <> of_int 0) v) 1 = 0
 
-module ExpressionBounds (V: AbstractVector) (Mx: AbstractMatrix): (SharedDomain.ConvBounds with type t = VarManagement(V) (Mx).t and type num = Mpqf.t) =
-struct
-  include VarManagement (V) (Mx)
-  include ConvenienceOps (Mpqf)
-  open Apron.Texpr1
-  type num = Mpqf.t
+  let rec get_c v = match Vector.findi (fun i x -> x <> (of_int 0)) v with
+    | exception Not_found -> Some (of_int 0)
+    | (i, p) when Vector.compare_length_with v (i + 1) = 0 -> Some (p)
+    | _ -> None
 
-  let calc_const t texp =
-    match t.d with
-    | Some m when m <> Matrix.empty () ->
-      let exception NoConst in
-      let rec parse_replace exp =
-        match exp with
-        | Cst x -> of_union x
-        | Var x -> let n = Environment.dim_of_var t.env x in
-          let row = Matrix.find_opt (fun x -> Vector.nth x n = of_int 1) m in
-          let is_const_row row = Vector.compare_length_with (Vector.filteri (fun i x ->
-              Vector.compare_length_with row (i + 1) > 0 && x <> of_int 0) row) 1 = 0
-          in
-          begin match row with
-            | Some y when is_const_row y -> Vector.nth y (Vector.length y - 1)
-            | _ -> raise NoConst
-          end
+  (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
+    Returns None if the expression is not affine linear*)
+  let get_coeff_vec (t: t) texp =
+    let open Apron.Texpr1 in
+    let exception NotLinear in
+    let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
+    let neg = Vector.map (fun x -> (of_int (-1)) *: x) in
+    let rec convert_texpr texp =
+      begin match texp with
+        | Cst x -> let of_union union =
+                     let open Coeff in
+                     match union with
+                     | Interval _ -> failwith "Not a constant"
+                     | Scalar x -> (match x with
+                         | Float x -> Mpqf.of_float x
+                         | Mpqf x -> x
+                         | Mpfrf x -> Mpfr.to_mpq x) in Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
+        | Var x ->
+          (*If x is a constant, replace it with its const. val. immediately*)
+          let entry_only = Vector.set_val zero_vec (Environment.dim_of_var t.env x) (of_int 1) in
+          begin match t.d with
+            | Some m -> let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) = of_int 1) m in
+              begin match row with
+                | Some v when is_const_vec v ->
+                  Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
+                | _ -> entry_only end
+            | None -> entry_only end
         | Unop (u, e, _, _) ->
           begin match u with
-            | Neg -> of_int (-1) *: parse_replace e
-            | Cast -> parse_replace e (*Ignore*)
-            | Sqrt -> raise NoConst(*fails*)
-          end
+            | Neg -> neg @@ convert_texpr e
+            | Cast -> convert_texpr e (*Ignore*)
+            | Sqrt -> raise NotLinear end
         | Binop (b, e1, e2, _, _) ->
           begin match b with
-            | Add -> parse_replace e1 +: parse_replace e2
-            | Sub -> parse_replace e1 -: parse_replace e2
-            | Mul -> parse_replace e1 *: parse_replace e2
-            | Div -> parse_replace e1 /: parse_replace e2
-            | Mod -> raise NoConst
-            | Pow -> raise NoConst
-          end
-      in
-      begin match parse_replace texp with
-        | c -> Some c
-        | exception NoConst -> None end
-    | _ -> None
+            | Add ->  Vector.map2 (+:)(convert_texpr e1) (convert_texpr e2)
+            | Sub -> Vector.map2 (+:) (convert_texpr  e1) (neg @@ convert_texpr e2)
+            | Mul ->
+              let x1, x2 = convert_texpr e1, convert_texpr e2 in
+              begin match get_c x1, get_c x2 with
+                | _, Some c -> Vector.apply_with_c ( *:) c x1
+                | Some c, _ -> Vector.apply_with_c ( *:) c x2
+                | _, _ -> raise NotLinear end
+            | Div ->
+              let x1, x2 = convert_texpr  e1, convert_texpr e2 in
+              begin match get_c x1, get_c x2 with
+                | _, Some c when c <> (of_int 0) -> Vector.apply_with_c ( /:) c x1
+                | Some c, _ when c <> (of_int 0) -> Vector.apply_with_c ( /:) c x2
+                | _, _ -> raise NotLinear end
+            | _ -> raise NotLinear end
+      end
+    in match convert_texpr texp with
+    | exception NotLinear -> None
+    | x -> Some(x)
+end
+
+module ExpressionBounds (V: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(V) (Mx).t) =
+struct
+  include VarManagement (V) (Mx)
 
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
-    match calc_const t texpr  with
-    | Some c when Mpqf.get_den c = Mpzf.of_int 1 ->
-      let int_val = IntOps.BigIntOps.of_string (Mpzf.to_string (Mpqf.get_num c))
-      in Some int_val, Some int_val
+    match get_coeff_vec t texpr  with
+    | Some v -> begin match get_c v with
+        | Some c when Mpqf.get_den c = Mpzf.of_int 1 ->
+          let int_val = IntOps.BigIntOps.of_string (Mpzf.to_string (Mpqf.get_num c))
+          in Some int_val, Some int_val
+        | _ -> None, None end
     | _ -> None, None
 
 end
 
-module D2(V: AbstractVector) (Mx: AbstractMatrix): SharedDomain.AssertionRelD2 with type var = SharedDomain.Var.t =
+module D2(V: AbstractVector) (Mx: AbstractMatrix): SharedFunctions.AssertionRelD2 with type var = SharedFunctions.Var.t =
 struct
   include ConvenienceOps (Mpqf)
   include VarManagement (V) (Mx)
 
   module Bounds = ExpressionBounds (V) (Mx)
-  module Convert = SharedDomain.Convert (Bounds)
+  module Convert = SharedFunctions.Convert (Bounds)
 
-  type var = SharedDomain.Var.t
+  type var = SharedFunctions.Var.t
 
   let tag t = failwith "No tag"
   let show t =
@@ -562,48 +578,6 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
-    Returns None if the expression is not affine linear*)
-  open Apron.Texpr1
-  let get_coeff_vec env texp =
-    let exception NotLinear in
-    let zero_vec = Vector.zero_vec @@ Environment.size env + 1 in
-    let neg = Vector.map (fun x -> (of_int (-1)) *: x) in
-    let rec convert_texpr env texp =
-      let get_c v = match Vector.findi (fun i x -> x <> (of_int 0)) v with
-        | exception Not_found -> Some (of_int 0)
-        | (i, p) when Vector.compare_length_with v (i + 1) = 0 -> Some (p)
-        | _ -> None
-      in
-      begin match texp with
-        | Cst x -> Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
-        | Var x ->  Vector.set_val zero_vec (Environment.dim_of_var env x) (of_int 1)
-        | Unop (u, e, _, _) ->
-          begin match u with
-            | Neg -> neg @@ convert_texpr env e
-            | Cast -> convert_texpr env e (*Ignore*)
-            | Sqrt -> raise NotLinear end
-        | Binop (b, e1, e2, _, _) ->
-          begin match b with
-            | Add ->  Vector.map2 (+:)(convert_texpr env e1) (convert_texpr env e2)
-            | Sub -> Vector.map2 (+:) (convert_texpr env  e1) (neg @@ convert_texpr env e2)
-            | Mul ->
-              let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
-              begin match get_c x1, get_c x2 with
-                | _, Some c -> Vector.apply_with_c ( *:) c x1
-                | Some c, _ -> Vector.apply_with_c ( *:) c x2
-                | _, _ -> raise NotLinear end
-            | Div ->
-              let x1, x2 = convert_texpr env  e1, convert_texpr env e2 in
-              begin match get_c x1, get_c x2 with
-                | Some c1, Some c2 -> Vector.map2 (/:) x1 x2
-                | _, _ -> raise NotLinear end
-            | _ -> raise NotLinear end
-      end
-    in match convert_texpr env texp with
-    | exception NotLinear -> None
-    | x -> Some(x)
-
   let assign_invertible_rels x var b env =
     let j0 = Environment.dim_of_var env var in
     let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
@@ -636,7 +610,7 @@ struct
 
   let assign_texpr (t: VarManagement(V)(Mx).t) var texp =
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <> of_int 0
-    in let affineEq_vec = get_coeff_vec t.env texp
+    in let affineEq_vec = get_coeff_vec t texp
     in match t.d, affineEq_vec with
     | None, _ -> failwith "Can not assign to bottom state!"
     | Some m, Some v when m = Matrix.empty ()-> if is_invertible v then t else assign_uninvertible_rel (Matrix.empty ()) var v t.env
@@ -688,22 +662,25 @@ struct
 
   (** Assert a constraint expression. *)
   let meet_with_tcons t tcons =
-    let meet_with_const cmp =
-      match Bounds.calc_const t @@ Texpr1.to_expr (Tcons1.get_texpr1 tcons) with
-      | Some c -> if cmp c (of_int 0) then {d = None; env = t.env} else t
-      | None -> t
+    let module ID = Queries.ID in
+    let check_const cmp c = if cmp c (of_int 0) then {d = None; env = t.env} else t
     in
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
       let flip_e = Vector.mapi (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e
       in meet t {d = Matrix.normalize @@ Matrix.of_list [flip_e]; env = t.env}
     in
-    match Tcons1.get_typ tcons, get_coeff_vec t.env (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
-    | DISEQ, Some e | SUP, Some e -> if equal (meet_with_vec e) t then {d = None; env = t.env} else t
-    | SUPEQ, _ -> meet_with_const (<:)
-    | SUP, None  -> meet_with_const (<=:)
-    | EQ, Some e -> meet_with_vec e
-    | _ -> t
+    (* let refine_by x y = if BI.equal (BI.rem v (BI.of_int 2)) BI.zero then *)
+    match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
+    | Some v -> begin match get_c v, Tcons1.get_typ tcons with
+        | Some c, DISEQ -> check_const (=:) c
+        | Some c, SUP -> check_const (<=:) c
+        | Some c, EQ -> check_const (<>) c
+        | Some c, SUPEQ -> check_const (<:) c
+        | None, DISEQ | None, SUP -> if equal (meet_with_vec v) t then {d = None; env = t.env} else t
+        | None, EQ -> meet_with_vec v
+        | _, _ -> t end
+    | None -> t
 
   let unify (a: Bounds.t) (b: Bounds.t) =
     let new_env, a_change, b_change  = Environment.lce_change a.env b.env in
@@ -724,6 +701,7 @@ struct
     res
 
   let assert_cons d e negate no_ov =
+    if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %s \n %b" (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () e)) no_ov;
     begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
       | tcons1 -> meet_with_tcons d tcons1
       | exception Convert.Unsupported_CilExp ->
@@ -744,4 +722,4 @@ end
 
 module ListD2 = D2(ListVector) (ListMatrix)
 
-module AD2 = SharedDomain.AssertionModule (ListD2)
+module AD2 = SharedFunctions.AssertionModule (ListD2)

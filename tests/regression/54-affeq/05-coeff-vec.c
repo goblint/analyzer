@@ -16,4 +16,11 @@ int main() {
     z = a * 2 + c * (1 * (5 - d)) + z;
 
     assert (z == 5); //UNKNOWN!
+
+    int a = 2;
+    int b = 3;
+    int c = 1;
+
+    int x = a * a + c / c;
+    assert (x == 5);
 }
