@@ -224,8 +224,8 @@ let createCFG (file: file) =
   in
 
   let dummy_func_cfg =
-    let cfgF = H.create 113 in
-    let cfgB = H.create 113 in
+    let cfgF = H.create 2 in
+    let cfgB = H.create 2 in
     let addEdges fromNode edges toNode =
       H.modify_def [] toNode (List.cons (edges,fromNode)) cfgB;
       H.modify_def [] fromNode (List.cons (edges,toNode)) cfgF;
@@ -246,9 +246,10 @@ let createCFG (file: file) =
         if get_bool "dbg.cilcfgdot" then
           Cfg.printCfgFilename ("cilcfg." ^ fd.svar.vname ^ ".dot") fd;
 
-        let cfgF = H.create 113 in
-        let cfgB = H.create 113 in
-        let fd_nodes = NH.create 113 in
+        let allstmts_length = List.length fd.sallstmts in
+        let cfgF = H.create allstmts_length in
+        let cfgB = H.create allstmts_length in
+        let fd_nodes = NH.create allstmts_length in
 
         let addEdges fromNode edges toNode =
           if Messages.tracing then
@@ -479,7 +480,7 @@ let createCFG (file: file) =
         Stats.time "iter_connect" iter_connect ();
 
         (* Verify that function is now connected *)
-        let reachable_return' = find_backwards_reachable ~initial_size:(NH.keys fd_nodes |> BatEnum.hard_count) (module TmpCfg) (Function fd) in
+        let reachable_return' = find_backwards_reachable ~initial_size:allstmts_length (module TmpCfg) (Function fd) in
         (* TODO: doesn't check that all branches are connected, but only that there exists one which is *)
         if not (NH.mem reachable_return' (FunctionEntry fd)) then
           raise (Not_connect fd);
