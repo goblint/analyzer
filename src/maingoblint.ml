@@ -140,7 +140,7 @@ let handle_flags () =
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
-  if Sys.file_exists (get_string "tempDir") then
+  if get_bool "pre.exist" then (* TODO: also support for compilation database *)
     (nname, None)
   else
     (* Preprocess using cpp. *)

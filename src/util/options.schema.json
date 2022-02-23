@@ -227,6 +227,12 @@
             "Keep the intermediate output of running the C preprocessor.",
           "type": "boolean",
           "default": false
+        },
+        "exist": {
+          "title": "pre.exist",
+          "description": "Use existing preprocessed files.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
