@@ -180,9 +180,9 @@ let invalidate_actions = [
     "setvbuf", writes[2];
     "fprintf", writes [1];          (*keep [1]*)
     "__fprintf_chk", writes [1];    (*keep [1]*)
-    "fread", writes [1];            (*keep [1]*)
-    "__fread_alias", writes [1];            (*keep [1]*)
-    "__fread_chk", writes [1];            (*keep [1]*)
+    "fread", writes [1;4];
+    "__fread_alias", writes [1;4];
+    "__fread_chk", writes [1;4]; 
     "utimensat", readsAll;
     "free", writesAll; (*unsafe*)
     "fwrite", readsAll;(*safe*)
