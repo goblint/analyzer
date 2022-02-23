@@ -142,7 +142,8 @@ let basic_preprocess ~all_cppflags fname =
   let nname =  Filename.concat (GoblintDir.preprocessed ()) (Filename.chop_extension (Filename.basename fname) ^ ".i") in
   (* Preprocess using cpp. *)
   (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-  let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+  let arguments = "--undef" :: "__BLOCKS__" :: all_cppflags @ fname :: "-o" :: nname :: [] in
+  let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
   if get_bool "dbg.verbose" then print_endline command;
   (nname, Some {ProcessPool.command; cwd = None})
 
