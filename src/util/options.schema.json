@@ -8,33 +8,6 @@
       "type": "string",
       "default": ""
     },
-    "includes": {
-      "title": "includes",
-      "description": "List of directories to include.",
-      "type": "array",
-      "items": { "type": "string" },
-      "default": []
-    },
-    "kernel_includes": {
-      "title": "kernel_includes",
-      "description": "List of kernel directories to include.",
-      "type": "array",
-      "items": { "type": "string" },
-      "default": []
-    },
-    "custom_includes": {
-      "title": "custom_includes",
-      "description": "List of custom directories to include.",
-      "type": "array",
-      "items": { "type": "string" },
-      "default": []
-    },
-    "kernel-root": {
-      "title": "kernel-root",
-      "description": "Root directory for Linux kernel (linux-headers)",
-      "type": "string",
-      "default": ""
-    },
     "justcil": {
       "title": "justcil",
       "description": "Just parse and output the CIL.",
@@ -87,13 +60,6 @@
         "Prints access information about all globals, not just races.",
       "type": "boolean",
       "default": false
-    },
-    "cppflags": {
-      "title": "cppflags",
-      "description": "Pre-processing parameters.",
-      "type": "array",
-      "items": { "type": "string" },
-      "default": []
     },
     "kernel": {
       "title": "kernel",
@@ -233,6 +199,40 @@
           "description": "Use existing preprocessed files.",
           "type": "boolean",
           "default": false
+        },
+        "includes": {
+          "title": "pre.includes",
+          "description": "List of directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "kernel_includes": {
+          "title": "pre.kernel_includes",
+          "description": "List of kernel directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "custom_includes": {
+          "title": "pre.custom_includes",
+          "description": "List of custom directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "kernel-root": {
+          "title": "pre.kernel-root",
+          "description": "Root directory for Linux kernel (linux-headers)",
+          "type": "string",
+          "default": ""
+        },
+        "cppflags": {
+          "title": "pre.cppflags",
+          "description": "Pre-processing parameters.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
         }
       },
       "additionalProperties": false

@@ -1,4 +1,4 @@
-// PARAM: --set cppflags[+] -DGOBLINT_NO_QSORT
+// PARAM: --set pre.cppflags[+] -DGOBLINT_NO_QSORT
 #include<stddef.h>
 
 // There should be no CIL warning about multiple definitions here
