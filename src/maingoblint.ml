@@ -140,14 +140,11 @@ let handle_flags () =
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
   let nname =  Filename.concat (GoblintDir.preprocessed ()) (Filename.chop_extension (Filename.basename fname) ^ ".i") in
-  if get_bool "pre.exist" then (* TODO: also support for compilation database *)
-    (nname, None)
-  else
-    (* Preprocess using cpp. *)
-    (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
-    if get_bool "dbg.verbose" then print_endline command;
-    (nname, Some {ProcessPool.command; cwd = None})
+  (* Preprocess using cpp. *)
+  (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
+  let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
+  if get_bool "dbg.verbose" then print_endline command;
+  (nname, Some {ProcessPool.command; cwd = None})
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
@@ -264,12 +261,14 @@ let preprocess_files () =
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
 
   let preprocessed = List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files) in
-  let preprocess_tasks = List.filter_map snd preprocessed in
-  let terminated task = function
-    | Unix.WEXITED 0 -> ()
-    | process_status -> failwith (GobUnix.string_of_process_status process_status)
-  in
-  ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks;
+  if not (get_bool "pre.exist") then (
+    let preprocess_tasks = List.filter_map snd preprocessed in
+    let terminated task = function
+      | Unix.WEXITED 0 -> ()
+      | process_status -> failwith (GobUnix.string_of_process_status process_status)
+    in
+    ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks
+  );
   List.map fst preprocessed
 
 (** Possibly merge all postprocessed files *)
