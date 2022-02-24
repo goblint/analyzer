@@ -1,4 +1,4 @@
-
+// PARAM: --set ana.base.privatization none --enable exp.earlyglobs
 union bloirg {
    char *zToken ;
    int iValue ;
