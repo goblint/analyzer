@@ -1,9 +1,7 @@
 // PARAM: --set ana.base.privatization none --enable exp.earlyglobs
 union bloirg {
-   char *zToken ;
-   int iValue ;
+   int iValdue ;
 };
-
 
 struct Sqlite3Config {
    union bloirg m ;
@@ -15,14 +13,11 @@ struct Sqlite3Config sqlite3Config;
 
 int main(int argc , char **argv )
 {
-   int rc = 0;
+  int rc = 0;
 
   if ((unsigned long )sqlite3Config.blarg == (unsigned long )((void *(*)(int  ))0)) {
       rc = 5;
   }
 
-  rc = 1;
   assert(1);
-
-   int r = 8;
 }
