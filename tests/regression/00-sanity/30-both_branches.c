@@ -16,6 +16,7 @@ int main(int argc , char **argv )
   int rc = 0;
 
   assert(sqlite3Config.blarg == 0);
+  assert(sqlite3Config.m.iValdue == 0);
 
   if ((unsigned long )sqlite3Config.blarg == (unsigned long )((void *(*)(int  ))0)) {
       rc = 5;
