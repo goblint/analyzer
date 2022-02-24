@@ -1,4 +1,4 @@
-// PARAM: --set ana.base.privatization none --enable exp.earlyglobs
+// PARAM: --set ana.base.privatization none --enable exp.earlyglobs --disable exp.fast_global_inits
 union bloirg {
    int iValdue ;
 };
