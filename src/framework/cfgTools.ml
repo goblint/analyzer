@@ -53,8 +53,8 @@ module SCC =
 struct
   type t = {
     nodes: unit NH.t; (** Set of nodes in SCC, mutated during [computeSCCs]. *)
-    next: (edges * node) NH.t; (** Successor edges from this SCC to another SCC, mutated during [computeSCCs]. *)
-    prev: (edges * node) NH.t; (** Predecessor edges from another SCC to this SCC, mutated during [computeSCCs]. *)
+    next: (edges * node) list NH.t; (** Successor edges from this SCC to another SCC, mutated during [computeSCCs]. *)
+    prev: (edges * node) list NH.t; (** Predecessor edges from another SCC to this SCC, mutated during [computeSCCs]. *)
   }
   (* Identity by physical equality. *)
   let equal = (==)
@@ -102,8 +102,8 @@ let computeSCCs (module Cfg: CfgBidir) nodes =
           else if not (NH.mem scc.nodes prev_node) then (
             (* prev_node has been visited, but not in current SCC, therefore is backwards edge to predecessor scc *)
             if Messages.tracing then Messages.trace "cfg" "SCC edge: %s -> %s\n" (Node.show_id prev_node) (Node.show_id node);
-            NH.add scc.prev node (edges, prev_node);
-            NH.add (NH.find node_scc prev_node).next prev_node (edges, node);
+            NH.modify_def [] node (List.cons (edges, prev_node)) scc.prev;
+            NH.modify_def [] prev_node (List.cons (edges, node)) (NH.find node_scc prev_node).next;
           )
         ) (Cfg.prev node) (* implicitly transpose graph by moving backwards *)
     in
@@ -446,8 +446,10 @@ let createCFG (file: file) =
                 )
               )
               else
-                NH.iter (fun _ (_, toNode) ->
-                    iter_scc (NH.find node_scc toNode)
+                NH.iter (fun _ nexts ->
+                    List.iter (fun (_, toNode) ->
+                        iter_scc (NH.find node_scc toNode)
+                      ) nexts
                   ) scc.next
             )
           in
@@ -456,7 +458,7 @@ let createCFG (file: file) =
           if !added_connect then
             iter_connect () (* added connect edge might have made a cycle of SCCs, have to recompute SCCs to see if it needs connecting *)
           else
-            NH.iter (NH.add node_scc_global) node_scc; (* there's no merge inplace *)
+            NH.iter (NH.replace node_scc_global) node_scc; (* there's no merge inplace *)
         in
         Stats.time "iter_connect" iter_connect ();
 
