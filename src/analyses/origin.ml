@@ -223,8 +223,7 @@ struct
        in
        let _ = List.iter (fun a -> prexp a) args in *)
     let callee_state = List.fold (fun m l -> D.add l (AD.empty (), OriginSet.empty ()) m) (D.bot ()) f.sformals in
-    (* TODO: put back assigning *)
-    (*let callee_state = List.fold_left2 (fun m l1 l2 -> 
+    let callee_state = List.fold_left2 (fun m l1 l2 -> 
         let res = (match (l2:exp) with
             | AddrOf _ -> 
               let possible_values = List.map (
@@ -244,7 +243,7 @@ struct
           )
         in
         D.add l1 res m
-      ) (D.bot ()) f.sformals args in*)
+      ) (D.bot ()) f.sformals args in
     (* let _ = Pretty.printf "new state %s\n" (Pretty.sprint 80 (D.pretty () callee_state)) in *)
     [(ctx.local, callee_state)]
 
