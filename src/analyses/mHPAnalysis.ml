@@ -1,5 +1,4 @@
 (** MHP access analysis. *)
-open Prelude.Ana
 open Analyses
 
 module Spec =
