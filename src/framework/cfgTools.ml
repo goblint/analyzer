@@ -470,7 +470,8 @@ let createCFG (file: file) =
       | _ -> ()
     );
   if Messages.tracing then Messages.trace "cfg" "CFG building finished.\n\n";
-  ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
+  if get_bool "dbg.verbose" then
+    ignore (Pretty.eprintf "cfgF (%a), cfgB (%a)\n" GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgF) GobHashtbl.pretty_statistics (GobHashtbl.magic_stats cfgB));
   cfgF, cfgB
 
 let createCFG = Stats.time "createCFG" createCFG
