@@ -8,33 +8,6 @@
       "type": "string",
       "default": ""
     },
-    "includes": {
-      "title": "includes",
-      "description": "List of directories to include.",
-      "type": "array",
-      "items": { "type": "string" },
-      "default": []
-    },
-    "kernel_includes": {
-      "title": "kernel_includes",
-      "description": "List of kernel directories to include.",
-      "type": "array",
-      "items": { "type": "string" },
-      "default": []
-    },
-    "custom_includes": {
-      "title": "custom_includes",
-      "description": "List of custom directories to include.",
-      "type": "array",
-      "items": { "type": "string" },
-      "default": []
-    },
-    "kernel-root": {
-      "title": "kernel-root",
-      "description": "Root directory for Linux kernel (linux-headers)",
-      "type": "string",
-      "default": ""
-    },
     "justcil": {
       "title": "justcil",
       "description": "Just parse and output the CIL.",
@@ -87,26 +60,6 @@
         "Prints access information about all globals, not just races.",
       "type": "boolean",
       "default": false
-    },
-    "keepcpp": {
-      "title": "keepcpp",
-      "description":
-        "Keep the intermediate output of running the C preprocessor.",
-      "type": "boolean",
-      "default": false
-    },
-    "tempDir": {
-      "title": "tempDir",
-      "description": "Reuse temporary directory for preprocessed files.",
-      "type": "string",
-      "default": ""
-    },
-    "cppflags": {
-      "title": "cppflags",
-      "description": "Pre-processing parameters.",
-      "type": "array",
-      "items": { "type": "string" },
-      "default": []
     },
     "kernel": {
       "title": "kernel",
@@ -217,6 +170,73 @@
       "type": "boolean",
       "default": false
     },
+    "jobs": {
+      "title": "jobs",
+      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
+      "type": "integer",
+      "default": 1
+    },
+    "goblint-dir": {
+      "title": "goblint-dir",
+      "description": "Directory used for intermediate data.",
+      "type": "string",
+      "default": ".goblint"
+    },
+    "pre": {
+      "title": "Preprocessing",
+      "description": "Preprocessing options",
+      "type": "object",
+      "properties": {
+        "keep": {
+          "title": "pre.keep",
+          "description":
+            "Keep the intermediate output of running the C preprocessor.",
+          "type": "boolean",
+          "default": false
+        },
+        "exist": {
+          "title": "pre.exist",
+          "description": "Use existing preprocessed files.",
+          "type": "boolean",
+          "default": false
+        },
+        "includes": {
+          "title": "pre.includes",
+          "description": "List of directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "kernel_includes": {
+          "title": "pre.kernel_includes",
+          "description": "List of kernel directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "custom_includes": {
+          "title": "pre.custom_includes",
+          "description": "List of custom directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "kernel-root": {
+          "title": "pre.kernel-root",
+          "description": "Root directory for Linux kernel (linux-headers)",
+          "type": "string",
+          "default": ""
+        },
+        "cppflags": {
+          "title": "pre.cppflags",
+          "description": "Pre-processing parameters.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
     "server": {
       "title": "Server",
       "description": "Server mode",
@@ -240,6 +260,12 @@
           "description": "The path to the UNIX socket",
           "type": "string",
           "default": "goblint.sock"
+        },
+        "reparse": {
+          "title": "server.reparse",
+          "description": "Reparse source files before each analysis run",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
@@ -1112,156 +1138,26 @@
         "goblint_context": {
           "title": "annotation.goblint_context",
           "type": "object",
-          "properties": {
-            "base": {
-              "title": "annotation.goblint_context.base",
-              "type": "object",
-              "properties": {
-                "no-non-ptr": {
-                  "title": "annotation.goblint_context.base.no-non-ptr",
-                  "description": "",
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "default": []
-                },
-                "non-ptr": {
-                  "title": "annotation.goblint_context.base.non-ptr",
-                  "description": "",
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "default": []
-                },
-                "no-int": {
-                  "title": "annotation.goblint_context.base.no-int",
-                  "description": "",
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "default": []
-                },
-                "int": {
-                  "title": "annotation.goblint_context.base.int",
-                  "description": "",
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "default": []
-                },
-                "no-interval": {
-                  "title": "annotation.goblint_context.base.no-interval",
-                  "description": "",
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "default": []
-                },
-                "interval": {
-                  "title": "annotation.goblint_context.base.interval",
-                  "description": "",
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "default": []
-                }
-              },
-              "additionalProperties": false
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "apron.no-context", "apron.context", "no-widen", "widen"]
             },
-            "apron": {
-              "title": "annotation.goblint_context.apron",
-              "type": "object",
-              "properties": {
-                "no-context": {
-                  "title": "annotation.goblint_context.apron.no-context",
-                  "description": "",
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "default": []
-                },
-                "context": {
-                  "title": "annotation.goblint_context.apron.context",
-                  "description": "",
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "default": []
-                }
-              },
-              "additionalProperties": false
-            },
-            "no-widen": {
-              "title": "annotation.goblint_context.no-widen",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "widen": {
-              "title": "annotation.goblint_context.widen",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            }
-          },
-          "additionalProperties": false
+            "default": []
+          }
         },
         "goblint_precision": {
           "title": "annotation.goblint_precision",
           "type": "object",
-          "properties": {
-            "no-def_exc": {
-              "title": "annotation.goblint_precision.no-def_exc",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["no-def_exc", "def_exc", "no-interval", "interval", "no-enums", "enums", "no-congruence", "congruence"]
             },
-            "def_exc": {
-              "title": "annotation.goblint_precision.def_exc",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "no-interval": {
-              "title": "annotation.goblint_precision.no-interval",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "interval": {
-              "title": "annotation.goblint_precision.interval",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "no-enums": {
-              "title": "annotation.goblint_precision.no-enums",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "enums": {
-              "title": "annotation.goblint_precision.enums",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "no-congruence": {
-              "title": "annotation.goblint_precision.no-congruence",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "congruence": {
-              "title": "annotation.goblint_precision.congruence",
-              "description": "",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            }
-          },
-          "additionalProperties": false
+            "default": []
+          }
         }
       },
       "additionalProperties": false

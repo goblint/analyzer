@@ -10,7 +10,7 @@ index 38187f1c0..6126fe8cf 100644
 +  assert(in == 17);
    return in;
  }
- 
+
 @@ -12,6 +12,6 @@ int main() {
    int a = 0;
    assert(a); // FAIL!
@@ -29,8 +29,8 @@ index d58c2254b..8834d182d 100644
              "enabled" : true
 +        },
 +        "goblint_precision": {
-+            "interval": [
-+                "f"
++            "f": [
++                "interval"
 +            ]
          }
      },

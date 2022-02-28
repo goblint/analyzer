@@ -247,10 +247,10 @@ struct
       let f k m w =
         let m = check_overwrite_open k m in
         (match arglist with
-         | Const(CStr(filename))::Const(CStr(mode))::[] ->
+         | Const(CStr(filename,_))::Const(CStr(mode,_))::[] ->
            (* M.debug @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
            D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
-         | e::Const(CStr(mode))::[] ->
+         | e::Const(CStr(mode,_))::[] ->
            (* ignore(printf "CIL: %a\n" d_plainexp e); *)
            (match ctx.ask (Queries.EvalStr e) with
             | `Lifted filename -> D.fopen k loc filename mode m

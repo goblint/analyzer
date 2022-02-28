@@ -503,7 +503,7 @@ struct
       let toInt i =
         match IdxDom.to_int @@ ID.cast_to ik i with
         | Some x -> Const (CInt (x,ik, None))
-        | _ -> mkCast ~e:(Const (CStr "unknown")) ~newt:intType
+        | _ -> mkCast ~e:(Const (CStr ("unknown",No_encoding))) ~newt:intType
 
       in
       match o with
@@ -685,8 +685,8 @@ struct
         (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
       (* String literals *)
-      | Const (CStr x) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
-      | Const (CWStr xs as c) -> (* wide character strings, type: wchar_t* *)
+      | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
+      | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
         let x = Pretty.sprint ~width:80 (d_const () c) in (* escapes, see impl. of d_const in cil.ml *)
         let x = String.sub x 2 (String.length x - 3) in (* remove surrounding quotes: L"foo" -> foo *)
         `Address (AD.from_string x) (* `Address (AD.str_ptr ()) *)
@@ -777,7 +777,7 @@ struct
           | None -> ad
         in
         `Address (AD.map array_start (eval_lv a gs st lval))
-      | CastE (t, Const (CStr x)) -> (* VD.top () *) eval_rv a gs st (Const (CStr x)) (* TODO safe? *)
+      | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv a gs st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
         let v = eval_rv a gs st exp in
         VD.cast ~torg:(Cilfacade.typeOf exp) t v
@@ -2179,7 +2179,7 @@ struct
       end
     | `Unknown "__builtin" ->
       begin match args with
-        | Const (CStr "invariant") :: ((_ :: _) as args) ->
+        | Const (CStr ("invariant",_)) :: ((_ :: _) as args) ->
           List.fold_left (fun d e -> invariant ctx (Analyses.ask_of_ctx ctx) ctx.global d e true) ctx.local args
         | _ -> failwith "Unknown __builtin."
       end

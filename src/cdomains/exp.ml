@@ -110,8 +110,8 @@ struct
   let eq_const c1 c2 =
     match c1, c2 with
     | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0
-    |	CStr s1        , CStr s2         -> s1=s2
-    |	CWStr s1       , CWStr s2        -> s1=s2
+    |	CStr (s1,_)        , CStr (s2,_)         -> s1=s2
+    |	CWStr (s1,_)       , CWStr (s2,_)        -> s1=s2
     |	CChr c1        , CChr c2         -> c1=c2
     |	CReal (f1,_,_) , CReal (f2,_,_)  -> f1=f2
     |	CEnum (_,n1,_) , CEnum (_,n2,_)  -> n1=n2
@@ -192,7 +192,7 @@ struct
     let rec separate_fields_index o =
       match o with
       | NoOffset -> None
-      | Index (ie,o) -> Some ((fun x -> x),ie,o)
+      | Index (ie,o) -> Some (Fun.id,ie,o)
       | Field (f,o) ->
         match separate_fields_index o with
         | Some (osf, ie,o) -> Some ((fun o -> Field (f,o)), ie, o)

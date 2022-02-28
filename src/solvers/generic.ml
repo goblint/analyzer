@@ -110,7 +110,7 @@ struct
   let stats_csv =
     let save_run = GobConfig.get_string "save_run" in
     if save_run <> "" then (
-      ignore @@ Goblintutil.create_dir save_run;
+      GobSys.mkdir_or_exists save_run;
       save_run ^ Filename.dir_sep ^ "solver_stats.csv" |> open_out |> Option.some
     ) else None
   let write_csv xs oc = output_string oc @@ String.concat ",\t" xs ^ "\n"

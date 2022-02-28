@@ -178,6 +178,8 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) =
 
+    Goblintutil.should_warn := false; (* reset for server mode *)
+
     (* exctract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
@@ -257,7 +259,11 @@ struct
               (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
             | _ -> ()
           );
-          Spec.assign {ctx with local = st} lval exp
+          let res = Spec.assign {ctx with local = st} lval exp in
+          (* Needed for privatizations (e.g. None) that do not side immediately *)
+          let res' = Spec.sync {ctx with local = res} `Normal in
+          if M.tracing then M.trace "global_inits" "\t\t -> state:%a\n" Spec.D.pretty res;
+          res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
       let with_externs = do_extern_inits ctx file in
@@ -450,7 +456,7 @@ struct
             if get_bool "dbg.verbose" then (
               print_endline ("Saving the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
-            ignore @@ GU.create_dir (save_run); (* ensure the directory exists *)
+            GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]

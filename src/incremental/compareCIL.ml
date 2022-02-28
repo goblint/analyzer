@@ -38,6 +38,9 @@ let unchanged_to_change_status = function
   | true -> Unchanged
   | false -> Changed
 
+let should_reanalyze (fdec: Cil.fundec) =
+  List.mem fdec.svar.vname (GobConfig.get_string_list "incremental.force-reanalyze.funs")
+
 (* If some CFGs of the two functions to be compared are provided, a fine-grained CFG comparison is done that also determines which
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
@@ -48,7 +51,7 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * cfg) option) =
       List.for_all2 eq_varinfo old.sformals current.sformals
     with Invalid_argument _ -> false in
   let change_status, diffOpt =
-    if List.mem current.svar.vname (GobConfig.get_string_list "incremental.force-reanalyze.funs") then
+    if should_reanalyze current then
       ForceReanalyze current, None
     else
       try
@@ -72,7 +75,7 @@ let eq_glob (old: global) (current: global) (cfgs : (cfg * cfg) option) = match 
   | GVarDecl (x, _), GVarDecl (y, _) -> unchanged_to_change_status (eq_varinfo x y), false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global old Cil.d_global current; Changed, false, None
 
-let compareCilFiles (oldAST: file) (newAST: file) =
+let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
     then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST |> fst)
     else None in
@@ -91,7 +94,7 @@ let compareCilFiles (oldAST: file) (newAST: file) =
       (try
          let old_global = GlobalMap.find ident map in
          (* Do a (recursive) equal comparison ignoring location information *)
-         let change_status, unchangedHeader, diff = eq_glob old_global global cfgs in
+         let change_status, unchangedHeader, diff = eq old_global global cfgs in
          let append_to_changed () =
            changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
          in

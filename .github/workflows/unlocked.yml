@@ -221,8 +221,8 @@ jobs:
       - name: Symlink installed goblint to repository # because tests want to use locally built one
         run: ln -s $(opam exec -- which goblint) goblint
 
-      - name: Set gobopt with kernel-root # because linux-headers are not installed
-        run: echo "gobopt=--set kernel-root $PWD/linux-headers" >> $GITHUB_ENV
+      - name: Set gobopt with pre.kernel-root # because linux-headers are not installed
+        run: echo "gobopt=--set pre.kernel-root $PWD/linux-headers" >> $GITHUB_ENV
 
       - name: Test regression
         run: ./make.sh headers testci
