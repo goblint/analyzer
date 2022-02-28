@@ -110,8 +110,8 @@ let start file =
 
 let reparse (s: t) =
   if GobConfig.get_bool "server.reparse" then (
-    Goblintutil.create_temp_dir ();
-    Fun.protect ~finally:Goblintutil.remove_temp_dir Maingoblint.preprocess_and_merge, true)
+    GoblintDir.init ();
+    Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge, true)
   else s.file, false
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)

@@ -126,7 +126,7 @@ module SaveRun: F =
       let solver = Filename.concat save_run solver_file in
       if get_bool "dbg.verbose" then
         print_endline ("Saving the solver result to " ^ solver);
-      ignore @@ GU.create_dir save_run; (* ensure the directory exists *)
+      GobSys.mkdir_or_exists save_run;
       Serialize.marshal vh solver
   end
 

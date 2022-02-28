@@ -76,8 +76,8 @@ let option_spec_list =
   [ "-o"                   , Arg.String (set_string "outfile"), ""
   ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
   ; "-j"                   , Arg.Int (set_int "jobs"), ""
-  ; "-I"                   , Arg.String (set_string "includes[+]"), ""
-  ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
+  ; "-I"                   , Arg.String (set_string "pre.includes[+]"), ""
+  ; "-IK"                  , Arg.String (set_string "pre.kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
   ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
   ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
@@ -139,26 +139,24 @@ let handle_flags () =
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
-  if Sys.file_exists (get_string "tempDir") then
-    (nname, None)
-  else
-    (* Preprocess using cpp. *)
-    (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
-    if get_bool "dbg.verbose" then print_endline command;
-    (nname, Some {ProcessPool.command; cwd = None})
+  let nname =  Filename.concat (GoblintDir.preprocessed ()) (Filename.chop_extension (Filename.basename fname) ^ ".i") in
+  (* Preprocess using cpp. *)
+  (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
+  let arguments = "--undef" :: "__BLOCKS__" :: all_cppflags @ fname :: "-o" :: nname :: [] in
+  let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
+  if get_bool "dbg.verbose" then print_endline command;
+  (nname, Some {ProcessPool.command; cwd = None})
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
   Hashtbl.clear Preprocessor.dependencies; (* clear for server mode *)
 
   (* Preprocessor flags *)
-  let cppflags = ref (get_string_list "cppflags") in
+  let cppflags = ref (get_string_list "pre.cppflags") in
 
   (* the base include directory *)
   let custom_include_dirs =
-    get_string_list "custom_includes" @
+    get_string_list "pre.custom_includes" @
     Filename.concat exe_dir "includes" ::
     Goblint_sites.includes
   in
@@ -188,16 +186,16 @@ let preprocess_files () =
 
   (* fill include flags *)
   let one_include_f f x = include_dirs := f x :: !include_dirs in
-  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat !Goblintutil.tempDirName OilUtil.header :: !include_files;
+  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat (GoblintDir.preprocessed ()) OilUtil.header :: !include_files;
   (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
-  get_string_list "includes" |> List.iter (one_include_f identity);
+  get_string_list "pre.includes" |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
     let kernel_roots = [
-      get_string "kernel-root";
+      get_string "pre.kernel-root";
       Filename.concat exe_dir "linux-headers";
       (* linux-headers not installed with goblint package *)
     ]
@@ -207,7 +205,7 @@ let preprocess_files () =
     let kernel_dir = kernel_root ^ "/include" in
     let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
 
-    get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
+    get_string_list "pre.kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
     let preconf = find_custom_include "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
@@ -264,12 +262,14 @@ let preprocess_files () =
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
 
   let preprocessed = List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files) in
-  let preprocess_tasks = List.filter_map snd preprocessed in
-  let terminated task = function
-    | Unix.WEXITED 0 -> ()
-    | process_status -> failwith (GobUnix.string_of_process_status process_status)
-  in
-  ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks;
+  if not (get_bool "pre.exist") then (
+    let preprocess_tasks = List.filter_map snd preprocessed in
+    let terminated task = function
+      | Unix.WEXITED 0 -> ()
+      | process_status -> failwith (GobUnix.string_of_process_status process_status)
+    in
+    ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks
+  );
   List.map fst preprocessed
 
 (** Possibly merge all postprocessed files *)

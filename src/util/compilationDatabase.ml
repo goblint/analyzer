@@ -33,9 +33,7 @@ let load_and_preprocess ~all_cppflags filename =
     else
       Fun.id
   in
-  (* TODO: generalize .goblint for everything *)
-  ignore (Goblintutil.create_dir ".goblint");
-  let preprocessed_dir = Goblintutil.create_dir (Filename.concat ".goblint" "preprocessed") in
+  let preprocessed_dir = GobFilename.absolute (GoblintDir.preprocessed ()) in (* absolute due to cwd changes *)
   let preprocess obj =
     let file = obj.file in
     let extension = Filename.extension file in
