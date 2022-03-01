@@ -147,11 +147,7 @@ struct
   module Bounds = Bounds(Man)
   exception Unsupported_CilExp
 
-  (* TODO: move this into some general place *)
-  let is_cast_injective from_type to_type =
-    let (from_min, from_max) = IntDomain.Size.range (Cilfacade.get_ikind from_type) in
-    let (to_min, to_max) = IntDomain.Size.range (Cilfacade.get_ikind to_type) in
-    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+
 
   let texpr1_expr_of_cil_exp d env =
     (* recurse without env argument *)
@@ -182,7 +178,7 @@ struct
             Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
           | BinOp (Mod, e1, e2, _) ->
             Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+          | CastE (TInt _ as t, e) when IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
             Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
           | _ ->
             raise Unsupported_CilExp
