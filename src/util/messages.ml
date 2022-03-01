@@ -172,7 +172,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
       let prefix = BatString.slice ~last:(loc.column - 1) line in
       let middle = BatString.slice ~first:(loc.column - 1) ~last:(loc.endColumn - 1) line in
       let suffix = BatString.slice ~first:(loc.endColumn - 1) line in
-      Format.fprintf ppf "@{<turquoise>%s@}@{<TURQUOISE>%s@}@{<turquoise>%s@}" prefix middle suffix
+      Format.fprintf ppf "%s@{<turquoise>%s@}%s" prefix middle suffix
     | first :: rest ->
       begin match BatList.split_at (List.length rest - 1) rest with
         | (middles, [last]) ->
@@ -180,7 +180,7 @@ let print ?(ppf= !formatter) (m: Message.t) =
           let first_middle = BatString.slice ~first:(loc.column - 1) first in
           let last_middle = BatString.slice ~last:(loc.endColumn - 1) last in
           let last_suffix = BatString.slice ~first:(loc.endColumn - 1) last in
-          Format.fprintf ppf "@{<turquoise>%s@}@{<TURQUOISE>%a@}@{<turquoise>%s@}" first_prefix (Format.pp_print_list Format.pp_print_string) (first_middle :: middles @ [last_middle]) last_suffix
+          Format.fprintf ppf "%s@{<turquoise>%a@}%s" first_prefix (Format.pp_print_list Format.pp_print_string) (first_middle :: middles @ [last_middle]) last_suffix
         | _ -> assert false
       end
   in
