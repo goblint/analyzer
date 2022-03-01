@@ -1598,6 +1598,12 @@
           "description": "Success severity messages",
           "type": "boolean",
           "default": true
+        },
+        "quote-code": {
+          "title": "warn.quote-code",
+          "description": "Quote code in message output.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false

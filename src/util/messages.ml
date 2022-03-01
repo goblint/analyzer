@@ -185,8 +185,12 @@ let print ?(ppf= !formatter) (m: Message.t) =
       end
   in
   let pp_piece ppf piece =
-    let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" (Format.pp_print_option pp_quote) in
-    Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote piece.loc
+    if get_bool "warn.quote-code" then (
+      let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" (Format.pp_print_option pp_quote) in
+      Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote piece.loc
+    )
+    else
+      pp_piece ppf piece
   in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
