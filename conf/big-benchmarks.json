@@ -39,6 +39,9 @@
   "dbg": {
     "print_dead_code": true
   },
+  "pre": {
+    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+  },
   "printstats": true,
   "warn": {
     "assert": false,
@@ -52,10 +55,9 @@
     "imprecise": false,
     "unknown": false,
     "error": false,
-    "warning": false,
+    "warning": true,
     "info": false,
     "debug": false,
     "success": false
-  },
-  "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+  }
 }

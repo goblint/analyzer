@@ -40,6 +40,9 @@
   "dbg": {
     "print_dead_code": true
   },
+  "pre": {
+    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+  },
   "printstats": true,
   "warn": {
     "assert": false,
@@ -58,6 +61,5 @@
     "debug": false,
     "success": false
   },
-  "result": "json-messages",
-  "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+  "result": "json-messages"
 }
