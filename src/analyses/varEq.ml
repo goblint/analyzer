@@ -402,7 +402,10 @@ struct
       | None -> None
       | Some st ->
         let vs = ask.f (Queries.ReachableFrom e) in
-        Some (Queries.LS.join vs st)
+        if Queries.LS.is_top vs then
+          None
+        else
+          Some (Queries.LS.join vs st)
     in
     List.fold_right reachable es (Some (Queries.LS.empty ()))
 
@@ -496,6 +499,8 @@ struct
         D.B.fold remove_reachable2 es st
       in
       D.fold remove_reachable1 ctx.local ctx.local
+      (* TODO: do something like this instead to be sound? *)
+      (* List.fold_left (fun st e -> remove_exp (Analyses.ask_of_ctx ctx) e st) ctx.local (Queries.LS.fold (fun lval acc -> mkAddrOf (Lval.CilLval.to_lval lval) :: acc) rs []) *)
 
   let unknown_fn ctx lval f args =
     let args =
