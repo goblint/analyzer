@@ -7,11 +7,6 @@
     ]
   },
   "ana": {
-    "base": {
-      "partition-arrays": {
-        "enabled": true
-      }
-    },
     "sv-comp": {
       "enabled": true,
       "functions": true
@@ -31,14 +26,8 @@
       "access",
       "escape",
       "expRelation",
-      "var_eq",
-      "symb_locks",
-      "region",
-      "thread"
+      "mhp"
     ],
-    "context": {
-      "widen": false
-    },
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -59,9 +48,6 @@
         "ldv_calloc"
       ]
     }
-  },
-  "exp": {
-    "region-offsets": true
   },
   "witness": {
     "id": "enumerate",
