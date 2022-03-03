@@ -97,20 +97,24 @@ struct
     let e = Cil.constFold false e in
     of_expr env (texpr1_expr_of_cil_exp d env ov e)
 
-  let rec contains_unsigned_var expr =
+  let rec determine_bounds_one_var expr =
     match expr with
-    | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v -> not @@ Cil.isSigned @@ Cilfacade.get_ikind_exp expr
-    | Const _ -> false
+    | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v -> let i_min, i_max = IntDomain.Size.range (Cilfacade.get_ikind_exp expr)
+                                                                 in Some (expr, i_min, i_max)
+    | Const _ -> None
     | exp -> begin match exp with
-                  | UnOp (_, e, _) -> contains_unsigned_var e
-                  | BinOp (_, e1, e2, _) -> contains_unsigned_var e1 || contains_unsigned_var e2
-                  | CastE (_, e) -> contains_unsigned_var e
-                  | _ -> false end
+                   | UnOp (_, e, _) -> determine_bounds_one_var e
+                   | BinOp (_, e1, e2, _) -> begin match determine_bounds_one_var e1, determine_bounds_one_var e2 with
+                                             | Some (ev1, min, max), Some(ev2, _, _) ->  if ev1 = ev2 then Some (ev1, min, max) else None
+                                             | Some(x), None | None, Some(x)  -> Some (x)
+                                             | _, _ -> None end
+                   | CastE (_, e) -> determine_bounds_one_var e
+                   | _ -> None end
+
 
 
   let tcons1_of_cil_exp d env e negate no_ov =
     let e = Cil.constFold false e in
-    let no_ov = GobConfig.get_string "sem.int.signed_overflow" = "assume_none" || (no_ov && not @@ contains_unsigned_var e) in
     let (texpr1_plus, texpr1_minus, typ) =
       match e with
       | BinOp (r, e1, e2, _) ->
@@ -228,7 +232,7 @@ sig
 
   include RelationDomain.D2 with type t = Bounds.t
 
-  val meet_with_tcons: t -> Tcons1.t -> t
+  val meet_with_tcons: t -> Tcons1.t -> exp -> t
 
   val is_bot_env: t -> bool
 

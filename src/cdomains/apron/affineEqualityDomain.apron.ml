@@ -344,9 +344,6 @@ struct
 
   include ConvenienceOps(Mpqf)
 
-  let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x ->
-      Vector.compare_length_with v (i + 1) > 0 && x <> of_int 0) v) 1 = 0
-
   let rec get_c v = match Vector.findi (fun i x -> x <> (of_int 0)) v with
     | exception Not_found -> Some (of_int 0)
     | (i, p) when Vector.compare_length_with v (i + 1) = 0 -> Some (p)
@@ -359,6 +356,8 @@ struct
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
     let neg = Vector.map (fun x -> (of_int (-1)) *: x) in
+    let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x ->
+      Vector.compare_length_with v (i + 1) > 0 && x <> of_int 0) v) 1 = 0 in
     let rec convert_texpr texp =
       begin match texp with
         | Cst x -> let of_union union =
@@ -393,12 +392,6 @@ struct
               begin match get_c x1, get_c x2 with
                 | _, Some c -> Vector.apply_with_c ( *:) c x1
                 | Some c, _ -> Vector.apply_with_c ( *:) c x2
-                | _, _ -> raise NotLinear end
-            | Div ->
-              let x1, x2 = convert_texpr  e1, convert_texpr e2 in
-              begin match get_c x1, get_c x2 with
-                | _, Some c when c <> (of_int 0) -> Vector.apply_with_c ( /:) c x1
-                | Some c, _ when c <> (of_int 0) -> Vector.apply_with_c ( /:) c x2
                 | _, _ -> raise NotLinear end
             | _ -> raise NotLinear end
       end
@@ -661,14 +654,25 @@ struct
     in if M.tracing then M.tracel "sub" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res); res
 
   (** Assert a constraint expression. *)
-  let meet_with_tcons t tcons =
+  let meet_with_tcons t tcons expr =
     let module ID = Queries.ID in
     let check_const cmp c = if cmp c (of_int 0) then {d = None; env = t.env} else t
     in
+    let exception UnsignedVar in
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
-      let flip_e = Vector.mapi (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e
-      in meet t {d = Matrix.normalize @@ Matrix.of_list [flip_e]; env = t.env}
+      let flip_e = Vector.mapi (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e in
+      let res = meet t {d = Matrix.normalize @@ Matrix.of_list [flip_e]; env = t.env} in
+      match Convert.determine_bounds_one_var expr with
+      | None -> res
+      | Some (ev, min, max) ->
+        begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
+              | Some b_min, Some b_max ->  let module BI = IntOps.BigIntOps in
+                                            if min = BI.of_int 0 && b_min = b_max then raise UnsignedVar
+                                            else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
+                                                    (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then {d = None; env = t.env} else t)
+                                                    else res
+              | _, _ -> res end
     in
     (* let refine_by x y = if BI.equal (BI.rem v (BI.of_int 2)) BI.zero then *)
     match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
@@ -677,8 +681,13 @@ struct
         | Some c, SUP -> check_const (<=:) c
         | Some c, EQ -> check_const (<>) c
         | Some c, SUPEQ -> check_const (<:) c
-        | None, DISEQ | None, SUP -> if equal (meet_with_vec v) t then {d = None; env = t.env} else t
-        | None, EQ -> meet_with_vec v
+        | None, DISEQ | None, SUP ->
+         begin match meet_with_vec v with
+          | exception UnsignedVar -> t
+          | res -> if equal res t then {d = None; env = t.env} else t end
+        | None, EQ -> begin match meet_with_vec v with
+                            | exception UnsignedVar -> t
+                            | res -> res end
         | _, _ -> t end
     | None -> t
 
@@ -703,7 +712,7 @@ struct
   let assert_cons d e negate no_ov =
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %s \n %b" (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () e)) no_ov;
     begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-      | tcons1 -> meet_with_tcons d tcons1
+      | tcons1 -> meet_with_tcons d tcons1 e
       | exception Convert.Unsupported_CilExp ->
         d
     end

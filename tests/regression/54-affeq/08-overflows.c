@@ -7,8 +7,4 @@ int main() {
 
    assert (c < 2147483647); //UNKNOWN!
 
-   int x = c * 2;
-
-   assert (c < 2147483647); //UNKNOWN!
-
 }

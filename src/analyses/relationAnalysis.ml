@@ -376,7 +376,8 @@ struct
 
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let no_overflow ctx' exp' = if not (GobConfig.get_string "sem.int.signed_overflow" = "assume_none") then false else no_overflow ctx' exp' in (*ToDo Overflow handling...*)
+    let no_overflow ctx' exp' =
+       IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp exp') in
     let open Queries in
     let st = ctx.local in
     let eval_int e no_ov =
@@ -388,7 +389,7 @@ struct
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
-      let r = eval_int e false in
+      let r = eval_int e (no_overflow ctx e)  in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
     | Queries.MustBeEqual (exp1,exp2) ->
