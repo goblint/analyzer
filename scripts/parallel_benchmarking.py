@@ -4,6 +4,7 @@ import sys
 from pydriller import Repository
 from datetime import datetime
 import shutil
+import math
 
 # runs the incremental_smallcommits.py script in an parallel mode (for faster benchmarking on the test server)
 # the directory 'result' in the cwd will be overwritten!
@@ -17,27 +18,27 @@ if os.path.exists(res_dir):
 os.mkdir(res_dir)
 os.chdir(res_dir)
 
-num = sys.argv[1]
+num = int(sys.argv[1])
 processes = []
 url = 'https://github.com/facebook/zstd'
 repo_name = 'zstd'
-conf = "big-benchmarks"
+conf = "big-benchmarks1"
 build_script = 'build_compdb_zstd.sh'
-full_path_analyzer = '/home/sarah/code/analyzer'
+full_path_analyzer = '/home/goblint/zstd-benchmarks/analyzer'
 begin = datetime(2021,1,1)
 
 # calculate number of interesting commits
 i = sum(1 for _ in Repository(url, since=begin, only_no_merge=True).traverse_commits())
 print("Number of potentially interesting commits:", i)
-perprocess = i / num
+perprocess = math.ceil(i / num)
 
 for i in range(num):
     f = open("process" + str(i) + ".log", "a+")
-    dir = "process1" + str(i)
+    dir = "process" + str(i)
     os.mkdir(dir)
     os.chdir(dir)
     # run script
-    p = subprocess.Popen(['python3', os.path.join(full_path_analyzer, 'scripts', 'incremental_smallcommits.py'), full_path_analyzer, url, repo_name, build_script, conf, datetime.strftime(begin, '%Y/%m/%d'), str(perprocess * i), str(perprocess * (i + 1))], stdout=f)
+    p = subprocess.Popen(['python3', os.path.join(full_path_analyzer, 'scripts', 'incremental_smallcommits.py'), full_path_analyzer, url, repo_name, build_script, conf, datetime.strftime(begin, '%Y/%m/%d'), str(perprocess * i), str(perprocess * (i + 1))], stdout=f, stderr=f)
     processes.append((p, f))
     os.chdir(res_dir)
 

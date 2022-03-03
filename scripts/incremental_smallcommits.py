@@ -48,10 +48,6 @@ count_analyzed = 0
 count_skipped = 0
 count_failed = 0
 
-def clean_test_repo(gr):
-    print('Cleanup test repository')
-    gr.clear()
-    subprocess.run(['make', 'clean'], cwd = repo_path, check=True)
 
 def reset_incremental_data():
     incr_data_dir = os.path.join(cwd, 'incremental_data')
@@ -73,13 +69,17 @@ def analyze_commit(gr, commit_hash, outdir):
 
 def calculateRelCLOC(commit):
     diff_exclude = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
-    diff_exclude = map(lambda x: os.path.join(repo_path, x), diff_exclude)
+    diff_exclude = list(map(lambda x: os.path.join(repo_path, x), diff_exclude))
     relcloc = 0
     for f in commit.modified_files:
         _, extension = os.path.splitext(f.filename)
         if not (extension == ".h" or extension == ".c"):
             continue
-        parents = Path(f.new_path).parents
+        filepath = f.new_path
+        if filepath is None:
+            filepath = f.old_path
+        parents = Path(filepath).parents
+        parents = list(map(lambda x: os.path.join(repo_path, x), parents))
         if any(dir in parents for dir in diff_exclude):
             continue
         relcloc = relcloc + f.added_lines + f.deleted_lines
@@ -121,13 +121,11 @@ def analyze_small_commits_in_repo():
             print('Starting from parent', str(parent.hash), ".")
             outparent = os.path.join(outtry, 'parent')
             os.makedirs(outparent)
-            clean_test_repo(gr)
             analyze_commit(gr, parent.hash, outparent)
 
             print('And now analyze', str(commit.hash), 'incrementally.')
             outchild = os.path.join(outtry, 'child')
             os.makedirs(outchild)
-            clean_test_repo(gr)
             analyze_commit(gr, commit.hash, outchild)
 
             count_analyzed+=1
@@ -173,6 +171,7 @@ def collect_data():
             data["Runtime for parent commit (non-incremental)"].append(0)
             data["Runtime for commit (incremental)"].append(0)
             data["Changed/Added/Removed functions"].append(0)
+            data["Change in number of race warnings"].append(0)
             continue
         parent_info = extract_from_analyzer_log(parentlog)
         child_info = extract_from_analyzer_log(childlog)
@@ -198,7 +197,7 @@ def plot(data_set):
 if os.path.exists(outdir) and os.path.isdir(outdir):
    shutil.rmtree(outdir)
 analyze_small_commits_in_repo()
-num_commits = count_analyzed + count_skipped
+num_commits = count_analyzed + count_skipped + count_failed
 print("\nCommits traversed in total: ", num_commits)
 print("Analyzed: ", count_analyzed)
 print("Failed: ", count_failed)
