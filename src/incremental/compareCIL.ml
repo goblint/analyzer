@@ -38,15 +38,17 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
       false, None
     else
       let sameDef = unchangedHeader && GobList.equal eq_varinfo a.slocals b.slocals in
-      match cfgs with
-      | None -> sameDef && eq_block (a.sbody, a) (b.sbody, b), None
-      | Some (cfgOld, cfgNew) ->
-        let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
-        let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
-        let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
-        if not sameDef then (false, None)
-        else if diffNodes1 = [] && diffNodes2 = [] then (true, None)
-        else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
+      if not sameDef then
+        (false, None)
+      else
+        match cfgs with
+        | None -> eq_block (a.sbody, a) (b.sbody, b), None
+        | Some (cfgOld, cfgNew) ->
+          let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
+          let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
+          let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
+          if diffNodes1 = [] && diffNodes2 = [] then (true, None)
+          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
   in
   identical, unchangedHeader, diffOpt
 
