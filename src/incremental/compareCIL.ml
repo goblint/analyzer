@@ -32,28 +32,22 @@ let should_reanalyze (fdec: Cil.fundec) =
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
-  let unchangedHeader =
-    try
-      eq_varinfo a.svar b.svar &&
-      List.for_all2 eq_varinfo a.sformals b.sformals
-    with Invalid_argument _ -> false in
+  let unchangedHeader = eq_varinfo a.svar b.svar && GobList.equal eq_varinfo a.sformals b.sformals in
   let identical, diffOpt =
     if should_reanalyze a then
       false, None
     else
-      try
-        let sameDef = unchangedHeader && List.for_all2 eq_varinfo a.slocals b.slocals in
-        match cfgs with
-        | None -> sameDef && eq_block (a.sbody, a) (b.sbody, b), None
-        | Some (cfgOld, cfgNew) ->
-          let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
-          let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
-          let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
-          if not sameDef then (false, None)
-          else if diffNodes1 = [] && diffNodes2 = [] then (true, None)
-          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
-      with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
-        false, None in
+      let sameDef = unchangedHeader && GobList.equal eq_varinfo a.slocals b.slocals in
+      match cfgs with
+      | None -> sameDef && eq_block (a.sbody, a) (b.sbody, b), None
+      | Some (cfgOld, cfgNew) ->
+        let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
+        let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
+        let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
+        if not sameDef then (false, None)
+        else if diffNodes1 = [] && diffNodes2 = [] then (true, None)
+        else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
+  in
   identical, unchangedHeader, diffOpt
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * cfg) option) = match a, b with

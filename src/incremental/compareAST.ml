@@ -13,10 +13,7 @@ module GlobalMap = Map.Make(struct
     type t = global_identifier [@@deriving ord]
   end)
 
-let eq_list eq xs ys =
-  try
-    List.for_all2 eq xs ys
-  with Invalid_argument _ -> false
+let eq_list = GobList.equal
 
 (* hack: CIL generates new type names for anonymous types - we want to ignore these *)
 let compare_name a b =
@@ -198,11 +195,11 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   | _, _ -> false
 
 and eq_stmt ?(cfg_comp = false) ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
-  List.for_all2 eq_label a.labels b.labels &&
+  GobList.equal eq_label a.labels b.labels &&
   eq_stmtkind ~cfg_comp (a.skind, af) (b.skind, bf)
 
 and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
-  a.battrs = b.battrs && List.for_all2 (fun x y -> eq_stmt (x, af) (y, bf)) a.bstmts b.bstmts
+  a.battrs = b.battrs && GobList.equal (fun x y -> eq_stmt (x, af) (y, bf)) a.bstmts b.bstmts
 
 let rec eq_init (a: init) (b: init) = match a, b with
   | SingleInit e1, SingleInit e2 -> eq_exp e1 e2

@@ -5,7 +5,7 @@ include CompareAST
 
 let eq_node (x, fun1) (y, fun2) =
   match x,y with
-  | Statement s1, Statement s2 -> (try eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) with Invalid_argument _ -> false)
+  | Statement s1, Statement s2 -> eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2)
   | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar
   | FunctionEntry f1, FunctionEntry f2 -> eq_varinfo f1.svar f2.svar
   | _ -> false
