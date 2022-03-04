@@ -13,7 +13,6 @@ module GlobalMap = Map.Make(struct
     type t = global_identifier [@@deriving ord]
   end)
 
-let eq_list = GobList.equal
 
 (* hack: CIL generates new type names for anonymous types - we want to ignore these *)
 let compare_name a b =
@@ -55,16 +54,16 @@ and pretty_length () l = Pretty.num (List.length l)
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
   if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
   let r = (match a, b with
-        | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
-        | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  eq_list eq_attribute attr1 attr2
-        | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
+        | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && GobList.equal eq_attribute attr1 attr2
+        | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  GobList.equal eq_attribute attr1 attr2
+        | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && GobList.equal eq_attribute attr1 attr2
         | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2)
-          ->  eq_typ_acc typ1 typ2 acc && eq_list (eq_args acc) list1 list2 && varArg1 = varArg2 &&
-              eq_list eq_attribute attr1 attr2
+          ->  eq_typ_acc typ1 typ2 acc && GobList.equal (eq_args acc) list1 list2 && varArg1 = varArg2 &&
+              GobList.equal eq_attribute attr1 attr2
         | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2)
           ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
-              eq_list eq_attribute attr1 attr2
-        | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typ_acc typinfo1.ttype typeinfo2.ttype acc && eq_list eq_attribute attr1 attr2 (* Ignore tname, treferenced *)
+              GobList.equal eq_attribute attr1 attr2
+        | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typ_acc typinfo1.ttype typeinfo2.ttype acc && GobList.equal eq_attribute attr1 attr2 (* Ignore tname, treferenced *)
         | TNamed (tinf, attr), b -> eq_typ_acc tinf.ttype b acc (* Ignore tname, treferenced. TODO: dismiss attributes, or not? *)
         | a, TNamed (tinf, attr) -> eq_typ_acc a tinf.ttype acc (* Ignore tname, treferenced . TODO: dismiss attributes, or not? *)
         (* The following two lines are a hack to ensure that anonymous types get the same name and thus, the same typsig *)
@@ -75,18 +74,18 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
           )
           else (
             let acc = (a, b) :: acc in
-            let res = eq_compinfo compinfo1 compinfo2 acc && eq_list eq_attribute attr1 attr2 in
+            let res = eq_compinfo compinfo1 compinfo2 acc && GobList.equal eq_attribute attr1 attr2 in
             if res && compinfo1.cname <> compinfo2.cname then
               compinfo2.cname <- compinfo1.cname;
             if res then
               global_typ_acc := (a, b) :: !global_typ_acc;
             res
           )
-        | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && eq_list eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
-        | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> eq_list eq_attribute attr1 attr2
-        | TVoid attr1, TVoid attr2 -> eq_list eq_attribute attr1 attr2
-        | TInt (ik1, attr1), TInt (ik2, attr2) -> ik1 = ik2 && eq_list eq_attribute attr1 attr2
-        | TFloat (fk1, attr1), TFloat (fk2, attr2) -> fk1 = fk2 && eq_list eq_attribute attr1 attr2
+        | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && GobList.equal eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
+        | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> GobList.equal eq_attribute attr1 attr2
+        | TVoid attr1, TVoid attr2 -> GobList.equal eq_attribute attr1 attr2
+        | TInt (ik1, attr1), TInt (ik2, attr2) -> ik1 = ik2 && GobList.equal eq_attribute attr1 attr2
+        | TFloat (fk1, attr1), TFloat (fk2, attr2) -> fk1 = fk2 && GobList.equal eq_attribute attr1 attr2
         | _, _ -> false)
   in
   if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a\n" d_type a d_type b;
@@ -100,15 +99,15 @@ and eq_eitems (a: string * exp * location) (b: string * exp * location) = match 
 
 and eq_enuminfo (a: enuminfo) (b: enuminfo) =
   compare_name a.ename b.ename &&
-  eq_list eq_attribute a.eattr b.eattr &&
-  eq_list eq_eitems a.eitems b.eitems
+  GobList.equal eq_attribute a.eattr b.eattr &&
+  GobList.equal eq_eitems a.eitems b.eitems
 (* Ignore ereferenced *)
 
 and eq_args (acc: (typ * typ) list) (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
-    (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ_acc typ1 typ2 acc && eq_list eq_attribute attr1 attr2
+    (name1, typ1, attr1), (name2, typ2, attr2) -> name1 = name2 && eq_typ_acc typ1 typ2 acc && GobList.equal eq_attribute attr1 attr2
 
 and eq_attrparam (a: attrparam) (b: attrparam) = match a, b with
-  | ACons (str1, attrparams1), ACons (str2, attrparams2) -> str1 = str2 && eq_list eq_attrparam attrparams1 attrparams2
+  | ACons (str1, attrparams1), ACons (str2, attrparams2) -> str1 = str2 && GobList.equal eq_attrparam attrparams1 attrparams2
   | ASizeOf typ1, ASizeOf typ2 -> eq_typ typ1 typ2
   | ASizeOfE attrparam1, ASizeOfE attrparam2 -> eq_attrparam attrparam1 attrparam2
   | ASizeOfS typsig1, ASizeOfS typsig2 -> typsig1 = typsig2
@@ -125,9 +124,9 @@ and eq_attrparam (a: attrparam) (b: attrparam) = match a, b with
   | a, b -> a = b
 
 and eq_attribute (a: attribute) (b: attribute) = match a, b with
-    Attr (name1, params1), Attr (name2, params2) -> name1 = name2 && eq_list eq_attrparam params1 params2
+    Attr (name1, params1), Attr (name2, params2) -> name1 = name2 && GobList.equal eq_attrparam params1 params2
 
-and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b.vtype && eq_list eq_attribute a.vattr b.vattr &&
+and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b.vtype && GobList.equal eq_attribute a.vattr b.vattr &&
                                            a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
 
@@ -135,13 +134,13 @@ and eq_varinfo (a: varinfo) (b: varinfo) = a.vname = b.vname && eq_typ a.vtype b
 and eq_compinfo (a: compinfo) (b: compinfo) (acc: (typ * typ) list) =
   a.cstruct = b.cstruct &&
   compare_name a.cname b.cname &&
-  eq_list (fun a b-> eq_fieldinfo a b acc) a.cfields b.cfields &&
-  eq_list eq_attribute a.cattr b.cattr &&
+  GobList.equal (fun a b-> eq_fieldinfo a b acc) a.cfields b.cfields &&
+  GobList.equal eq_attribute a.cattr b.cattr &&
   a.cdefined = b.cdefined (* Ignore ckey, and ignore creferenced *)
 
 and eq_fieldinfo (a: fieldinfo) (b: fieldinfo) (acc: (typ * typ) list)=
   if Messages.tracing then Messages.tracei "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
-  let r = a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  eq_list eq_attribute a.fattr b.fattr in
+  let r = a.fname = b.fname && eq_typ_acc a.ftype b.ftype acc && a.fbitfield = b.fbitfield &&  GobList.equal eq_attribute a.fattr b.fattr in
   if Messages.tracing then Messages.traceu "compareast" "fieldinfo %s vs %s\n" a.fname b.fname;
   r
 
@@ -156,9 +155,9 @@ and eq_lval (a: lval) (b: lval) = match a, b with
 
 let eq_instr (a: instr) (b: instr) = match a, b with
   | Set (lv1, exp1, _l1, _el1), Set (lv2, exp2, _l2, _el2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
-  | Call (Some lv1, f1, args1, _l1, _el1), Call (Some lv2, f2, args2, _l2, _el2) -> eq_lval lv1 lv2 && eq_exp f1 f2 && eq_list eq_exp args1 args2
-  | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) -> eq_exp f1 f2 && eq_list eq_exp args1 args2
-  | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) -> eq_list String.equal tmp1 tmp2 && eq_list(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval z1 z2) ci1 ci2 && eq_list(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp z1 z2) dj1 dj2 && eq_list String.equal rk1 rk2(* ignore attributes and locations *)
+  | Call (Some lv1, f1, args1, _l1, _el1), Call (Some lv2, f2, args2, _l2, _el2) -> eq_lval lv1 lv2 && eq_exp f1 f2 && GobList.equal eq_exp args1 args2
+  | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) -> eq_exp f1 f2 && GobList.equal eq_exp args1 args2
+  | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) -> GobList.equal String.equal tmp1 tmp2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval z1 z2) ci1 ci2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp z1 z2) dj1 dj2 && GobList.equal String.equal rk1 rk2(* ignore attributes and locations *)
   | VarDecl (v1, _l1), VarDecl (v2, _l2) -> eq_varinfo v1 v2
   | _, _ -> false
 
@@ -172,7 +171,7 @@ let eq_label (a: label) (b: label) = match a, b with
 let eq_stmt_with_location ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
   let offsetA = a.sid - (List.hd af.sallstmts).sid in
   let offsetB = b.sid - (List.hd bf.sallstmts).sid in
-  eq_list eq_label a.labels b.labels && offsetA = offsetB
+  GobList.equal eq_label a.labels b.labels && offsetA = offsetB
 
 (* cfg_comp: blocks need only be compared in the AST comparison. For cfg comparison of functions one instead walks
    through the cfg and only compares the currently visited node (The cil blocks inside an if statement should not be
@@ -181,7 +180,7 @@ let eq_stmt_with_location ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
 let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): stmtkind * fundec) =
   let eq_block' = fun x y -> if cfg_comp then true else eq_block (x, af) (y, bf) in
   match a, b with
-  | Instr is1, Instr is2 -> eq_list eq_instr is1 is2
+  | Instr is1, Instr is2 -> GobList.equal eq_instr is1 is2
   | Return (Some exp1, _l1), Return (Some exp2, _l2) -> eq_exp exp1 exp2
   | Return (None, _l1), Return (None, _l2) -> true
   | Return _, Return _ -> false
@@ -189,7 +188,7 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   | Break _, Break _ -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else true
   | Continue _, Continue _ -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else true
   | If (exp1, then1, else1, _l1, _el1), If (exp2, then2, else2, _l2, _el2) -> eq_exp exp1 exp2 && eq_block' then1 then2 && eq_block' else1 else2
-  | Switch (exp1, block1, stmts1, _l1, _el1), Switch (exp2, block2, stmts2, _l2, _el2) -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else eq_exp exp1 exp2 && eq_block' block1 block2 && eq_list (fun a b -> eq_stmt (a,af) (b,bf)) stmts1 stmts2
+  | Switch (exp1, block1, stmts1, _l1, _el1), Switch (exp2, block2, stmts2, _l2, _el2) -> if cfg_comp then failwith "CompareCFG: Invalid stmtkind in CFG" else eq_exp exp1 exp2 && eq_block' block1 block2 && GobList.equal (fun a b -> eq_stmt (a,af) (b,bf)) stmts1 stmts2
   | Loop (block1, _l1, _el1, _con1, _br1), Loop (block2, _l2, _el2, _con2, _br2) -> eq_block' block1 block2
   | Block block1, Block block2 -> eq_block' block1 block2
   | _, _ -> false
@@ -203,7 +202,7 @@ and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
 
 let rec eq_init (a: init) (b: init) = match a, b with
   | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
-  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 && eq_list (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 && eq_init i1 i2) l1 l2
+  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 && GobList.equal (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 && eq_init i1 i2) l1 l2
   | _, _ -> false
 
 let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
