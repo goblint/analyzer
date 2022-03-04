@@ -22,16 +22,6 @@ let eq_list eq xs ys =
     List.for_all2 eq xs ys
   with Invalid_argument _ -> false
 
-
-let eqB (a: Cil.block) (b: Cil.block) =
-  a.Cil.battrs = b.Cil.battrs && a.bstmts = b.bstmts
-
-let eqS (a: Cil.stmt) (b: Cil.stmt) =
-  a.Cil.skind = b.Cil.skind
-
-let print (a: Pretty.doc)  =
-  print_endline @@ Pretty.sprint ~width:100 a
-
 (* hack: CIL generates new type names for anonymous types - we want to ignore these *)
 let compare_name a b =
   let anon_struct = "__anonstruct_" in
