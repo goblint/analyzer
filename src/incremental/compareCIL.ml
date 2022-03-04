@@ -71,25 +71,25 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     try
       GlobalMap.add (identifier_of_global global) global map
     with
-      NoGlobalIdentifier _ -> map
+      Not_found -> map
   in
   let changes = empty_change_info () in
   global_typ_acc := [];
   let checkUnchanged map global =
     try
       let ident = identifier_of_global global in
-      (try
-         let old_global = GlobalMap.find ident map in
-         (* Do a (recursive) equal comparison ignoring location information *)
-         let identical, unchangedHeader, diff = eq old_global global cfgs in
-         if identical
-         then changes.unchanged <- global :: changes.unchanged
-         else changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
-       with Not_found -> ())
-    with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)  in
+      let old_global = GlobalMap.find ident map in
+      (* Do a (recursive) equal comparison ignoring location information *)
+      let identical, unchangedHeader, diff = eq old_global global cfgs in
+      if identical
+      then changes.unchanged <- global :: changes.unchanged
+      else changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
+    with Not_found -> () (* Global was no variable or function, it does not belong into the map *)
+  in
   let checkExists map global =
-    let name = identifier_of_global global in
-    GlobalMap.mem name map
+    match identifier_of_global global with
+    | name -> GlobalMap.mem name map
+    | exception Not_found -> true (* return true, so isn't considered a change *)
   in
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
@@ -100,6 +100,6 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     (fun glob -> checkUnchanged oldMap glob);
 
   (* We check whether functions have been added or removed *)
-  Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with NoGlobalIdentifier _ -> ());
-  Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with NoGlobalIdentifier _ -> ());
+  Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then changes.added <- (glob::changes.added));
+  Cil.iterGlobals oldAST (fun glob -> if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed));
   changes

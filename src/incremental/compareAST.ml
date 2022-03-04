@@ -2,14 +2,12 @@ open Cil
 
 type global_identifier = string [@@deriving ord]
 
-exception NoGlobalIdentifier of global
-
 let identifier_of_global glob =
   match glob with
   | GFun (fundec, l) -> fundec.svar.vname
   | GVar (var, init, l) -> var.vname
   | GVarDecl (var, l) -> var.vname
-  | _ -> raise (NoGlobalIdentifier glob)
+  | _ -> raise Not_found
 
 module GlobalMap = Map.Make(struct
     type t = global_identifier [@@deriving ord]
