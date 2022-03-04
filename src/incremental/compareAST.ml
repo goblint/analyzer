@@ -1,16 +1,14 @@
 open Cil
 
-type global_type = Fun | Decl | Var | Other
-
-and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
+type global_identifier = {name: string} [@@deriving ord]
 
 exception NoGlobalIdentifier of global
 
 let identifier_of_global glob =
   match glob with
-  | GFun (fundec, l) -> {name = fundec.svar.vname; global_t = Fun}
-  | GVar (var, init, l) -> {name = var.vname; global_t = Var}
-  | GVarDecl (var, l) -> {name = var.vname; global_t = Decl}
+  | GFun (fundec, l) -> {name = fundec.svar.vname}
+  | GVar (var, init, l) -> {name = var.vname}
+  | GVarDecl (var, l) -> {name = var.vname}
   | _ -> raise (NoGlobalIdentifier glob)
 
 module GlobalMap = Map.Make(struct
