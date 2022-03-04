@@ -5,11 +5,15 @@ from pydriller import Repository
 from datetime import datetime
 import shutil
 import math
+import pandas
 
 # runs the incremental_smallcommits.py script in an parallel mode (for faster benchmarking on the test server)
 # the directory 'result' in the cwd will be overwritten!
 
 # Usage: python3 parallel_benchmarking.py <number of processes>]
+if len(sys.argv) != 3:
+    print("Wrong number of parameters.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
+    exit()
 
 wd = os.getcwd()
 res_dir = os.path.join(wd, 'result')
@@ -18,13 +22,17 @@ if os.path.exists(res_dir):
 os.mkdir(res_dir)
 os.chdir(res_dir)
 
-num = int(sys.argv[1])
+full_path_analyzer = sys.argv[1]
+try:
+    num = int(sys.argv[2])
+except ValueError:
+    print("Parameter should be a number.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
+    exit()
 processes = []
 url = 'https://github.com/facebook/zstd'
 repo_name = 'zstd'
 conf = "big-benchmarks1"
 build_script = 'build_compdb_zstd.sh'
-full_path_analyzer = '/home/goblint/zstd-benchmarks/analyzer'
 begin = datetime(2021,1,1)
 
 # calculate number of interesting commits

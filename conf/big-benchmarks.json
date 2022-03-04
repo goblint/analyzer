@@ -16,8 +16,9 @@
     }
   },
   "incremental": {
-    "save": true,
-    "load": true,
+    "reluctant": {
+      "compare": "leq"
+    },
     "restart": {
       "sided": {
         "enabled": false

@@ -54,7 +54,7 @@ def reset_incremental_data():
     if os.path.exists(incr_data_dir) and os.path.isdir(incr_data_dir):
         shutil.rmtree(incr_data_dir)
 
-def analyze_commit(gr, commit_hash, outdir):
+def analyze_commit(gr, commit_hash, outdir, extra_options):
     gr.checkout(commit_hash)
 
     prepare_command = ['sh', os.path.join(analyzer_dir, 'scripts', build_compdb)]
@@ -62,7 +62,7 @@ def analyze_commit(gr, commit_hash, outdir):
         subprocess.run(prepare_command, cwd = repo_path, check=True, stdout=outfile, stderr=subprocess.STDOUT)
         outfile.close()
 
-    analyze_command = [os.path.join(analyzer_dir, 'goblint'), '--conf', os.path.join(analyzer_dir, 'conf', conf + '.json'), repo_path]
+    analyze_command = [os.path.join(analyzer_dir, 'goblint'), '--conf', os.path.join(analyzer_dir, 'conf', conf + '.json'), *extra_options, repo_path]
     with open(outdir+'/analyzer.log', "w+") as outfile:
         subprocess.run(analyze_command, check=True, stdout=outfile, stderr=subprocess.STDOUT)
         outfile.close()
@@ -121,12 +121,20 @@ def analyze_small_commits_in_repo():
             print('Starting from parent', str(parent.hash), ".")
             outparent = os.path.join(outtry, 'parent')
             os.makedirs(outparent)
-            analyze_commit(gr, parent.hash, outparent)
+            add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save']
+            analyze_commit(gr, parent.hash, outparent, add_options)
 
             print('And now analyze', str(commit.hash), 'incrementally.')
             outchild = os.path.join(outtry, 'child')
             os.makedirs(outchild)
-            analyze_commit(gr, commit.hash, outchild)
+            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save']
+            analyze_commit(gr, commit.hash, outchild, add_options)
+
+            print('And again incremental, this time reluctantly')
+            outchildrel = os.path.join(outtry, 'child-rel')
+            os.makedirs(outchildrel)
+            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.on']
+            analyze_commit(gr, commit.hash, outchildrel, add_options)
 
             count_analyzed+=1
         except subprocess.CalledProcessError as e:
@@ -157,10 +165,11 @@ def collect_data():
     index = []
     data = {"Changed LOC": [], "Relevant changed LOC": [], "Changed/Added/Removed functions": [],
       "Runtime for parent commit (non-incremental)": [], "Runtime for commit (incremental)": [],
-      "Change in number of race warnings": []}
+      "Runtime for commit (incremental, reluctant)": [], "Change in number of race warnings": []}
     for t in os.listdir(outdir):
         parentlog = os.path.join(outdir, t, 'parent', 'analyzer.log')
         childlog = os.path.join(outdir, t, 'child', 'analyzer.log')
+        childrellog = os.path.join(outdir, t, 'child-rel', 'analyzer.log')
         commit_prop_log = os.path.join(outdir, t, 'commit_properties.log')
         t = int(t)
         commit_prop = json.load(open(commit_prop_log, "r"))
@@ -170,14 +179,17 @@ def collect_data():
         if not os.path.exists(parentlog) or not os.path.exists(childlog):
             data["Runtime for parent commit (non-incremental)"].append(0)
             data["Runtime for commit (incremental)"].append(0)
+            data["Runtime for commit (incremental, reluctant)"].append(0)
             data["Changed/Added/Removed functions"].append(0)
             data["Change in number of race warnings"].append(0)
             continue
         parent_info = extract_from_analyzer_log(parentlog)
         child_info = extract_from_analyzer_log(childlog)
+        child_rel_info = extract_from_analyzer_log(childrellog)
         data["Changed/Added/Removed functions"].append(int(child_info["changed"]) + int(child_info["added"]) + int(child_info["removed"]))
         data["Runtime for parent commit (non-incremental)"].append(float(parent_info["runtime"]))
         data["Runtime for commit (incremental)"].append(float(child_info["runtime"]))
+        data["Runtime for commit (incremental, reluctant)"].append(float(child_rel_info["runtime"]))
         data["Change in number of race warnings"].append(int(parent_info["race_warnings"]) - int(child_info["race_warnings"]))
     return {"index": index, "data": data}
 
@@ -187,7 +199,7 @@ def plot(data_set):
     print(df)
     df.to_csv('results.csv')
 
-    df.plot.bar(rot=0, width=0.8, figsize=(25,10))
+    df.plot.bar(rot=0, width=0.7, figsize=(25,10))
     plt.xticks(rotation=45, ha='right', rotation_mode='anchor')
     plt.xlabel('Commit')
     plt.tight_layout()
