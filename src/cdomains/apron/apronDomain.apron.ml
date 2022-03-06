@@ -159,12 +159,6 @@ let manager =
 let get_manager (): (module Manager) =
   Lazy.force manager
 
-module type Tracked =
-sig
-  val type_tracked: typ -> bool
-  val varinfo_tracked: varinfo -> bool
-end
-
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
@@ -365,7 +359,7 @@ end
 
 
 (** Convenience operations on A. *)
-module AOps (Tracked: Tracked) (Man: Manager) =
+module AOps (Tracked: SharedFunctions.Tracked) (Man: Manager) =
 struct
   module Convert = SharedFunctions.Convert (Bounds(Man))
   include SharedFunctions.EnvOps
@@ -399,8 +393,15 @@ struct
   let mem_var d v = Environment.mem_var (A.env d) v
 
   let add_vars_with nd vs =
-    let env = add_vars_with (A.env nd) vs in
-    A.change_environment_with Man.mgr nd env false
+    let env = A.env nd in
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> not (Environment.mem_var env v))
+      |> Array.of_enum
+    in
+    let env' = Environment.add env vs' [||] in
+    A.change_environment_with Man.mgr nd env' false
 
   let add_vars d vs =
     let nd = copy d in
@@ -408,8 +409,15 @@ struct
     nd
 
   let remove_vars_with nd vs =
-    let env = remove_vars_with (A.env nd) vs in
-    A.change_environment_with Man.mgr nd env false
+    let env = A.env nd in
+    let vs' =
+      vs
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var env v)
+      |> Array.of_enum
+    in
+    let env' = Environment.remove env vs' in
+    A.change_environment_with Man.mgr nd env' false
 
   let remove_vars d vs =
     let nd = copy d in
@@ -417,7 +425,7 @@ struct
     nd
 
   let remove_filter_with nd f =
-    let env = remove_filter_with (A.env nd) f in
+    let env = remove_filter (A.env nd) f in
     A.change_environment_with Man.mgr nd env false
 
   let remove_filter d f =
@@ -427,7 +435,7 @@ struct
 
 
   let keep_vars_with nd vs =
-    let env = keep_vars_with (A.env nd) vs in
+    let env = keep_vars (A.env nd) vs in
     A.change_environment_with Man.mgr nd env false
 
   let keep_vars d vs =
@@ -436,7 +444,7 @@ struct
     nd
 
   let keep_filter_with nd f =
-    let env = keep_filter_with (A.env nd) f in
+    let env = keep_filter (A.env nd) f in
     A.change_environment_with Man.mgr nd env false
 
   let keep_filter d f =
@@ -590,13 +598,13 @@ struct
     | None -> res
     | Some (ev, min, max) ->
       let module Bounds = Bounds(Man) in
-        let module BI = IntOps.BigIntOps in
-        begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
-              | Some b_min, Some b_max -> if min = BI.of_int 0 && b_min = b_max then d
-                                            else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
-                                                    (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then A.bottom (A.manager d) (A.env d) else d)
-                                                    else res
-              | _, _ -> res end
+      let module BI = IntOps.BigIntOps in
+      begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
+        | Some b_min, Some b_max -> if min = BI.of_int 0 && b_min = b_max then d
+          else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
+            (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then A.bottom (A.manager d) (A.env d) else d)
+          else res
+        | _, _ -> res end
 
 
   let to_lincons_array d =
@@ -662,15 +670,7 @@ module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
 
-  module Tracked =
-  struct
-    let type_tracked typ =
-      isIntegralType typ
-
-    let varinfo_tracked vi =
-      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-      type_tracked vi.vtype && not vi.vaddrof
-  end
+  module Tracked = SharedFunctions.Tracked
 
   include AOps (Tracked) (Man)
 
@@ -996,9 +996,9 @@ end
 module type S2 =
 sig
   module Man: Manager
-  module Tracked : Tracked
+  module Tracked : SharedFunctions.Tracked
   include module type of AOps (Tracked) (Man)
-  include Tracked
+  include SharedFunctions.Tracked
   include SLattice with type t = Man.mt A.t
 
   val exp_is_cons : exp -> bool

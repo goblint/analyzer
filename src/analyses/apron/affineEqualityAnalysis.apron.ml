@@ -13,10 +13,11 @@ let spec_module: (module MCPSpec) Lazy.t =
     struct
       module Var = SharedFunctions.Var
       module V = RelationDomain.V(Var)
-      module D2 = AD
+      include AD
     end in
     let module Priv = (val RelationPriv.get_priv ()) in
-    let module Spec = SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil) in
+    let module Spec = struct include SpecFunctor (Priv) (RD) (RelationPrecCompareUtil.DummyUtil)
+      let name () = "affeq" end in
     (module Spec)
   )
 

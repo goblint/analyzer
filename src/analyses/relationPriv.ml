@@ -15,12 +15,12 @@ module type S =
     module D: Lattice.S
     module G: Lattice.S
     module V: Printable.S
-    type apron_components_t := RelationDomain.RelComponent (RD.D2) (D).t
+    type apron_components_t := RelationDomain.RelComponent (RD) (D).t
     val name: unit -> string
     val startstate: unit -> D.t
     val should_join: apron_components_t -> apron_components_t -> bool
 
-    val read_global: Q.ask -> (V.t -> G.t) -> apron_components_t -> varinfo -> varinfo -> RD.D2.t
+    val read_global: Q.ask -> (V.t -> G.t) -> apron_components_t -> varinfo -> varinfo -> RD.t
 
     (* [invariant]: Check if we should avoid producing a side-effect, such as updates to
       * the state when following conditional guards. *)
@@ -516,7 +516,7 @@ struct
     module RelV = RD.V
     module V = Printable.UnitConf (struct let name = "global" end)
 
-    type apron_components_t = RelationComponents (RD.D2) (D).t
+    type apron_components_t = RelationComponents (RD) (D).t
 
     module VM =
     struct
@@ -544,7 +544,7 @@ struct
 
     (** Restrict environment to global invariant variables. *)
     let restrict_global apr =
-      RD.D2.remove_filter apr (fun var ->
+      RD.remove_filter apr (fun var ->
           match AV.find_metadata var with
           | Some (Unprot _ | Prot _) -> false
           | _ -> true
@@ -553,9 +553,9 @@ struct
     (** Restrict environment to local variables and still-protected global variables. *)
     let restrict_local is_unprot apr w_remove =
       let remove_local_vars = List.map AV.local (W.elements w_remove) in
-      let apr' = RD.D2.remove_vars apr remove_local_vars in
+      let apr' = RD.remove_vars apr remove_local_vars in
       (* remove global vars *)
-      RD.D2.remove_filter apr' (fun var ->
+      RD.remove_filter apr' (fun var ->
           match AV.find_metadata var with
           | Some (Unprot g | Prot g) -> is_unprot g
           | _ -> false
@@ -579,34 +579,34 @@ struct
       let x_var = RD.Var.of_string x.vname in
       let apr_local =
         if W.mem g w then
-          RD.D2.assign_var apr x_var g_local_var
+          RD.assign_var apr x_var g_local_var
         else
-          RD.D2.bot ()
+          RD.bot ()
       in
       let apr_local' =
         if P.mem g p then
           apr_local
         else if is_unprotected ask g then (
           let g_unprot_var = AV.unprot g in
-          let apr_unprot = RD.D2.add_vars apr [g_unprot_var] in
-          let apr_unprot = RD.D2.assign_var apr_unprot x_var g_unprot_var in
-          (* let oct_unprot' = RD.D2.join oct_local oct_unprot in
+          let apr_unprot = RD.add_vars apr [g_unprot_var] in
+          let apr_unprot = RD.assign_var apr_unprot x_var g_unprot_var in
+          (* let oct_unprot' = RD.join oct_local oct_unprot in
              (* unlock *)
-             let oct_unprot' = RD.D2.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
+             let oct_unprot' = RD.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
              (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
              (* TODO: why removing g_unprot_var? *)
              oct_unprot' *)
-          RD.D2.join apr_local apr_unprot
+          RD.join apr_local apr_unprot
         )
         else (
           let g_prot_var = AV.prot g in
-          let apr_prot = RD.D2.add_vars apr [g_prot_var] in
-          let apr_prot = RD.D2.assign_var apr_prot x_var g_prot_var in
-          RD.D2.join apr_local apr_prot
+          let apr_prot = RD.add_vars apr [g_prot_var] in
+          let apr_prot = RD.assign_var apr_prot x_var g_prot_var in
+          RD.join apr_local apr_prot
         )
       in
       let apr_local' = restrict_local (is_unprotected ask) apr_local' (W.empty ()) in
-      let apr_local' = RD.D2.meet apr_local' (getg ()) in
+      let apr_local' = RD.meet apr_local' (getg ()) in
       apr_local'
 
     let write_global ?(invariant=false) ask getg sideg (st: apron_components_t) g x =
@@ -615,10 +615,10 @@ struct
       let g_local_var = AV.local g in
       let g_unprot_var = AV.unprot g in
       let x_var = RD.Var.of_string x.vname in
-      let apr_local = RD.D2.add_vars apr [g_local_var] in
-      let apr_local = RD.D2.assign_var apr_local g_local_var x_var in
-      let apr_side = RD.D2.add_vars apr_local [g_unprot_var] in
-      let apr_side = RD.D2.assign_var apr_side g_unprot_var g_local_var in
+      let apr_local = RD.add_vars apr [g_local_var] in
+      let apr_local = RD.assign_var apr_local g_local_var x_var in
+      let apr_side = RD.add_vars apr_local [g_unprot_var] in
+      let apr_side = RD.assign_var apr_side g_unprot_var g_local_var in
       let apr' = apr_side in
       let apr_side = restrict_global apr_side in
       sideg () apr_side;
@@ -636,7 +636,7 @@ struct
           {apr = restrict_local (is_unprotected ask) apr' (W.empty ()); priv = (p', w')}
         )
       in
-      let apr_local' = RD.D2.meet st'.apr (getg ()) in
+      let apr_local' = RD.meet st'.apr (getg ()) in
       {st' with apr = apr_local'}
 
     let lock ask getg (st: apron_components_t) m = st
@@ -667,16 +667,16 @@ struct
       let apr_side = List.fold_left (fun acc omega ->
           let g_prot_vars = List.map AV.prot omega in
           let g_local_vars = List.map AV.local omega in
-          let apr_side1 = RD.D2.add_vars apr g_prot_vars in
-          let apr_side1 = RD.D2.assign_var_parallel' apr_side1 g_prot_vars g_local_vars in
-          RD.D2.join acc apr_side1
-        ) (RD.D2.bot ()) big_omega
+          let apr_side1 = RD.add_vars apr g_prot_vars in
+          let apr_side1 = RD.assign_var_parallel' apr_side1 g_prot_vars g_local_vars in
+          RD.join acc apr_side1
+        ) (RD.bot ()) big_omega
       in
       let apr' = apr_side in
       let apr_side = restrict_global apr_side in
       sideg () apr_side;
       let apr_local = restrict_local (fun g -> is_unprotected_without ask g m) apr' w_remove in
-      let apr_local' = RD.D2.meet apr_local (getg ()) in
+      let apr_local' = RD.meet apr_local (getg ()) in
       {apr = apr_local'; priv = (p', w')}
 
 
@@ -700,7 +700,7 @@ struct
           (* must be like enter_multithreaded *)
           let apr = st.apr in
           let (g_vars, gs) =
-            RD.D2.vars apr
+            RD.vars apr
             |> List.enum
             |> Enum.filter_map (fun var ->
                 match RD.V.find_metadata var with
@@ -712,9 +712,9 @@ struct
           in
           let g_unprot_vars = List.map AV.unprot gs in
           let g_prot_vars = List.map AV.prot gs in
-          let apr_side = RD.D2.add_vars apr (g_unprot_vars @ g_prot_vars) in
-          let apr_side = RD.D2.assign_var_parallel' apr_side g_unprot_vars g_vars in
-          let apr_side = RD.D2.assign_var_parallel' apr_side g_prot_vars g_vars in
+          let apr_side = RD.add_vars apr (g_unprot_vars @ g_prot_vars) in
+          let apr_side = RD.assign_var_parallel' apr_side g_unprot_vars g_vars in
+          let apr_side = RD.assign_var_parallel' apr_side g_prot_vars g_vars in
           let apr_side = restrict_global apr_side in
           sideg () apr_side;
           (* TODO: why not remove at all? should only remove unprotected? *)
@@ -730,7 +730,7 @@ struct
     let enter_multithreaded ask getg sideg (st: apron_components_t): apron_components_t =
       let apr = st.apr in
       let (g_vars, gs) =
-        RD.D2.vars apr
+        RD.vars apr
         |> List.enum
         |> Enum.filter_map (fun var ->
             match RelV.find_metadata var with
@@ -742,13 +742,13 @@ struct
       in
       let g_unprot_vars = List.map AV.unprot gs in
       let g_prot_vars = List.map AV.prot gs in
-      let apr_side = RD.D2.add_vars apr (g_unprot_vars @ g_prot_vars) in
-      let apr_side = RD.D2.assign_var_parallel' apr_side g_unprot_vars g_vars in
-      let apr_side = RD.D2.assign_var_parallel' apr_side g_prot_vars g_vars in
+      let apr_side = RD.add_vars apr (g_unprot_vars @ g_prot_vars) in
+      let apr_side = RD.assign_var_parallel' apr_side g_unprot_vars g_vars in
+      let apr_side = RD.assign_var_parallel' apr_side g_prot_vars g_vars in
       let apr_side = restrict_global apr_side in
       sideg () apr_side;
-      let apr_local = RD.D2.remove_vars apr g_vars in
-      let apr_local' = RD.D2.meet apr_local (getg ()) in
+      let apr_local = RD.remove_vars apr g_vars in
+      let apr_local' = RD.meet apr_local (getg ()) in
       {apr = apr_local'; priv = startstate ()}
 
     let threadenter ask getg (st: apron_components_t): apron_components_t =
@@ -767,14 +767,14 @@ struct
       | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
       | _ -> false
     in
-    RD.D2.remove_filter oct newly_unprot
+    RD.remove_filter oct newly_unprot
 
   let keep_only_protected_globals ask m oct =
     let protected var = match V.find_metadata var with
       | Some (Global g) -> is_protected_by ask m g
       | _ -> false
     in
-    RD.D2.keep_filter oct protected
+    RD.keep_filter oct protected
 
   let finalize () = ProtectionLogging.dump ()
 end
@@ -786,9 +786,9 @@ struct
   include MutexGlobals
 
   module D = Lattice.Unit
-  module G = RD.D2
+  module G = RD
 
-  type apron_components_t = RelationDomain.RelComponent (RD.D2) (D).t
+  type apron_components_t = RelationDomain.RelComponent (RD) (D).t
 
   module AV = RD.V
 
@@ -802,28 +802,28 @@ struct
     let get_m = getg (V.mutex m) in
     let get_mutex_inits = getg V.mutex_inits in
     let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
-    RD.D2.join get_m get_mutex_inits'
+    RD.join get_m get_mutex_inits'
 
   let get_mutex_global_g_with_mutex_inits ask getg g =
     let get_mutex_global_g = getg (V.global g) in
     let get_mutex_inits = getg V.mutex_inits in
     let g_var = AV.global g in
-    let get_mutex_inits' = RD.D2.keep_vars get_mutex_inits [g_var] in
-    RD.D2.join get_mutex_global_g get_mutex_inits'
+    let get_mutex_inits' = RD.keep_vars get_mutex_inits [g_var] in
+    RD.join get_mutex_global_g get_mutex_inits'
 
-  let read_global ask getg (st: apron_components_t) g x: RD.D2.t =
+  let read_global ask getg (st: apron_components_t) g x: RD.t =
     let apr = st.apr in
     (* lock *)
-    let apr = RD.D2.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let apr = RD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* read *)
     let g_var = AV.global g in
     let x_var = RD.Var.of_string x.vname in
-    let apr_local = RD.D2.add_vars apr [g_var] in
-    let apr_local = RD.D2.assign_var apr_local x_var g_var in
+    let apr_local = RD.add_vars apr [g_var] in
+    let apr_local = RD.assign_var apr_local x_var g_var in
     (* unlock *)
     let apr_local' =
       if is_unprotected ask g then
-        RD.D2.remove_vars apr_local [g_var]
+        RD.remove_vars apr_local [g_var]
       else
         apr_local
     in
@@ -832,18 +832,18 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: apron_components_t) g x: apron_components_t =
     let apr = st.apr in
     (* lock *)
-    let apr = RD.D2.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
+    let apr = RD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* write *)
     let g_var = AV.global g in
     let x_var = RD.Var.of_string x.vname in
-    let apr_local = RD.D2.add_vars apr [g_var] in
-    let apr_local = RD.D2.assign_var apr_local g_var x_var in
+    let apr_local = RD.add_vars apr [g_var] in
+    let apr_local = RD.assign_var apr_local g_var x_var in
     (* unlock *)
-    let apr_side = RD.D2.keep_vars apr_local [g_var] in
+    let apr_side = RD.keep_vars apr_local [g_var] in
     sideg (V.global g) apr_side;
     let apr_local' =
       if is_unprotected ask g then
-        RD.D2.remove_vars apr_local [g_var]
+        RD.remove_vars apr_local [g_var]
       else
         apr_local
     in
@@ -854,7 +854,7 @@ struct
     let get_m = get_m_with_mutex_inits ask getg m in
     (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
     let get_m = keep_only_protected_globals ask m get_m in
-    let apr' = RD.D2.meet apr get_m in
+    let apr' = RD.meet apr get_m in
     {st with apr = apr'}
 
   let unlock ask getg sideg (st: apron_components_t) m: apron_components_t =
@@ -886,11 +886,11 @@ struct
             match AV.find_metadata var with
             | Some (Global _) -> true
             | _ -> false
-          ) (RD.D2.vars apr)
+          ) (RD.vars apr)
         in
-        let apr_side = RD.D2.keep_vars apr g_vars in
+        let apr_side = RD.keep_vars apr g_vars in
         sideg V.mutex_inits apr_side;
-        let apr_local = RD.D2.remove_filter apr (fun var ->
+        let apr_local = RD.remove_filter apr (fun var ->
             match AV.find_metadata var with
             | Some (Global g) -> is_unprotected ask g
             | _ -> false
@@ -909,15 +909,15 @@ struct
         match AV.find_metadata var with
         | Some (Global _) -> true
         | _ -> false
-      ) (RD.D2.vars apr)
+      ) (RD.vars apr)
     in
-    let apr_side = RD.D2.keep_vars apr g_vars in
+    let apr_side = RD.keep_vars apr g_vars in
     sideg V.mutex_inits apr_side;
-    let apr_local = RD.D2.remove_vars apr g_vars in (* TODO: side effect initial values to mutex_globals? *)
+    let apr_local = RD.remove_vars apr g_vars in (* TODO: side effect initial values to mutex_globals? *)
     {st with apr = apr_local}
 
   let threadenter ask getg (st: apron_components_t): apron_components_t =
-    {apr = RD.D2.bot (); priv = startstate ()}
+    {apr = RD.bot (); priv = startstate ()}
 
   let init () = ()
   let finalize () = finalize ()
@@ -937,8 +937,8 @@ sig
   val keep_only_protected_globals: Q.ask -> LockDomain.Addr.t -> LAD.t -> LAD.t
   val keep_global: varinfo -> LAD.t -> LAD.t
 
-  val lock: RD.D2.t -> LAD.t -> LAD.t -> RD.D2.t
-  val unlock: W.t -> RD.D2.t -> LAD.t
+  val lock: RD.t -> LAD.t -> LAD.t -> RD.t
+  val unlock: W.t -> RD.t -> LAD.t
 
   val name: unit -> string
 end
@@ -946,7 +946,7 @@ end
 (** No clustering. *)
 module NoCluster:ClusterArg = functor (RD: RelationDomain.RD) ->
 struct
-  module AD = RD.D2
+  module AD = RD
   open CommonPerMutex(RD)
   module LAD = AD
 
@@ -954,7 +954,7 @@ struct
 
   let keep_global g oct =
     let g_var = V.global g in
-    RD.D2.keep_vars oct [g_var]
+    RD.keep_vars oct [g_var]
 
   let lock oct local_m get_m =
     AD.meet oct (AD.join local_m get_m)
@@ -1036,7 +1036,7 @@ struct
     include Printable.Std
     include SetDomain.Make (CilType.Varinfo)
   end
-  module LAD = MapDomain.MapBot (VS) (RD.D2)
+  module LAD = MapDomain.MapBot (VS) (RD)
 
   let keep_only_protected_globals ask m octs =
     (* normal (strong) mapping: contains only still fully protected *)
@@ -1050,28 +1050,28 @@ struct
     (* normal (strong) mapping: contains only still fully protected *)
     let g' = VS.singleton g in
     let oct = LAD.find g' octs in
-    LAD.singleton g' (RD.D2.keep_vars oct [g_var])
+    LAD.singleton g' (RD.keep_vars oct [g_var])
 
   let lock_get_m oct local_m get_m =
     let joined = LAD.join local_m get_m in
     if M.tracing then M.traceli "apronpriv" "lock_get_m:\n  get=%a\n  joined=%a\n" LAD.pretty get_m LAD.pretty joined;
-    let r = LAD.fold (fun _ -> RD.D2.meet) joined (RD.D2.bot ()) in (* bot is top with empty env *)
-    if M.tracing then M.trace "apronpriv" "meet=%a\n" RD.D2.pretty r;
-    let r = RD.D2.meet oct r in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" RD.D2.pretty r;
+    let r = LAD.fold (fun _ -> RD.meet) joined (RD.bot ()) in (* bot is top with empty env *)
+    if M.tracing then M.trace "apronpriv" "meet=%a\n" RD.pretty r;
+    let r = RD.meet oct r in
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" RD.pretty r;
     r
 
   let lock oct local_m get_m =
     if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD.pretty local_m;
     let r = lock_get_m oct local_m get_m in
     (* is_bot check commented out because it's unnecessarily expensive *)
-    (* if RD.D2.is_bot_env r then
+    (* if RD.is_bot_env r then
        failwith "DownwardClosedCluster.lock: not downward closed?"; *)
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" RD.D2.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" RD.pretty r;
     r
 
   let unlock w oct_side =
-    let vars = RD.D2.vars oct_side in
+    let vars = RD.vars oct_side in
     let gs = List.map (fun var -> match V.find_metadata var with
         | Some (Global g) -> g
         | _ -> assert false (* oct_side should only contain (protected) globals *)
@@ -1083,7 +1083,7 @@ struct
       |> List.filter (VS.exists (fun g -> W.mem g w)) (* cluster intersection w is non-empty *)
     in
     let oct_side_cluster gs =
-      RD.D2.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
+      RD.keep_vars oct_side (gs |> VS.elements |> List.map V.global)
     in
     LAD.add_list_fun clusters oct_side_cluster (LAD.empty ())
 
@@ -1107,7 +1107,7 @@ struct
     LAD1.fold (fun k v acc ->
         match f k v with
         | Some (k', v') ->
-          LAD1.add k' (RD.D2.join (LAD1.find k' acc) v') acc
+          LAD1.add k' (RD.join (LAD1.find k' acc) v') acc
         | None ->
           acc
       ) m (LAD1.empty ())
@@ -1137,7 +1137,7 @@ struct
           (* must filter by protection to avoid later meeting with non-protecting *)
           if VS.mem g gs then
             (* must restrict cluster down to m_g (join) *)
-            Some (VS.singleton g, RD.D2.keep_vars oct [g_var])
+            Some (VS.singleton g, RD.keep_vars oct [g_var])
           else
             None
         ) octs
@@ -1148,9 +1148,9 @@ struct
     if M.tracing then M.traceli "apronpriv" "cluster lock: local=%a\n" LAD1.pretty local_m;
     let r =
       let locked = DCCluster.lock_get_m oct local_m get_m in
-      if RD.D2.is_bot_env locked then (
+      if RD.is_bot_env locked then (
         let locked' = DCCluster.lock_get_m oct local_m get_m' in
-        if RD.D2.is_bot_env locked' then
+        if RD.is_bot_env locked' then
           raise Deadcode
         else
           locked'
@@ -1158,7 +1158,7 @@ struct
       else
         locked
     in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" RD.D2.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" RD.pretty r;
     r
 
   let unlock w oct_side =
@@ -1262,7 +1262,7 @@ struct
   let merge_all v =
     GMutex.fold (fun _ v acc -> LAD.join acc v) v (LAD.bot ())
 
-  type apron_components_t =  RelationDomain.RelComponent (RD.D2) (D).t
+  type apron_components_t =  RelationDomain.RelComponent (RD) (D).t
 
 
   let startstate () = W.bot (), LMust.top (), L.bot ()
@@ -1299,7 +1299,7 @@ struct
     if M.tracing then M.traceu "apronpriv" "-> %a\n" LAD.pretty r;
     r
 
-  let read_global ask getg (st: apron_components_t) g x: RD.D2.t =
+  let read_global ask getg (st: apron_components_t) g x: RD.t =
     let _,lmust,l = st.priv in
     let apr = st.apr in
     let lm = LLock.global g in
@@ -1311,12 +1311,12 @@ struct
     (* read *)
     let g_var = AV.global g in
     let x_var = RD.Var.of_string x.vname in
-    let apr_local = RD.D2.add_vars apr [g_var] in
-    let apr_local = RD.D2.assign_var apr_local x_var g_var in
+    let apr_local = RD.add_vars apr [g_var] in
+    let apr_local = RD.assign_var apr_local x_var g_var in
     (* unlock *)
     let apr_local' =
       if is_unprotected ask g then
-        RD.D2.remove_vars apr_local [g_var]
+        RD.remove_vars apr_local [g_var]
       else
         apr_local
     in
@@ -1334,10 +1334,10 @@ struct
     (* write *)
     let g_var = AV.global g in
     let x_var = RD.Var.of_string x.vname in
-    let apr_local = RD.D2.add_vars apr [g_var] in
-    let apr_local = RD.D2.assign_var apr_local g_var x_var in
+    let apr_local = RD.add_vars apr [g_var] in
+    let apr_local = RD.assign_var apr_local g_var x_var in
     (* unlock *)
-    let apr_side = RD.D2.keep_vars apr_local [g_var] in
+    let apr_side = RD.keep_vars apr_local [g_var] in
     let apr_side = Cluster.unlock (W.singleton g) apr_side in
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid apr_side in
@@ -1345,7 +1345,7 @@ struct
     let l' = L.add lm apr_side l in
     let apr_local' =
       if is_unprotected ask g then
-        RD.D2.remove_vars apr_local [g_var]
+        RD.remove_vars apr_local [g_var]
       else
         apr_local
     in
@@ -1418,7 +1418,7 @@ struct
         (* There can be no branched going multi-threaded here *)
         (* TODO: Do we need to remove no longer protected variables here? *)
         (* TODO: Is not potentially even unsound to do so?! *)
-        let apr_local = RD.D2.remove_filter apr (fun var ->
+        let apr_local = RD.remove_filter apr (fun var ->
             match AV.find_metadata var with
             | Some (Global g) -> is_unprotected ask g
             | _ -> false
@@ -1437,9 +1437,9 @@ struct
         match AV.find_metadata var with
         | Some (Global _) -> true
         | _ -> false
-      ) (RD.D2.vars apr)
+      ) (RD.vars apr)
     in
-    let apr_side = RD.D2.keep_vars apr g_vars in
+    let apr_side = RD.keep_vars apr g_vars in
     let apr_side = Cluster.unlock (W.top ()) apr_side in (* top W to avoid any filtering *)
     let tid = ThreadId.get_current ask in
     let sidev = GMutex.singleton tid apr_side in
@@ -1447,12 +1447,12 @@ struct
     (* Introduction into local state not needed, will be read via initializer *)
     (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
     (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
-    let apr_local = RD.D2.remove_vars apr g_vars in
+    let apr_local = RD.remove_vars apr g_vars in
     {st with apr = apr_local}
 
   let threadenter ask getg (st: apron_components_t): apron_components_t =
     let _,lmust,l = st.priv in
-    {apr = RD.D2.bot (); priv = (W.bot (),lmust,l)}
+    {apr = RD.bot (); priv = (W.bot (),lmust,l)}
 
   let finalize () = finalize ()
 end
@@ -1463,7 +1463,7 @@ struct
   include Priv
 
   module D = Priv.D
-  module ApronComponents = RelationDomain.RelComponent (RD.D2) (D)
+  module ApronComponents = RelationDomain.RelComponent (RD) (D)
 
   let read_global ask getg st g x =
     if M.tracing then M.traceli "apronpriv" "read_global %a %a\n" d_varinfo g d_varinfo x;
@@ -1474,7 +1474,7 @@ struct
       r
     in
     let r = Priv.read_global ask getg st g x in
-    if M.tracing then M.traceu "apronpriv" "-> %a\n" RD.D2.pretty r;
+    if M.tracing then M.traceu "apronpriv" "-> %a\n" RD.pretty r;
     r
 
   let write_global ?invariant ask getg sideg st g x =

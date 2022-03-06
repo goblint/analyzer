@@ -100,16 +100,16 @@ struct
   let rec determine_bounds_one_var expr =
     match expr with
     | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v -> let i_min, i_max = IntDomain.Size.range (Cilfacade.get_ikind_exp expr)
-                                                                 in Some (expr, i_min, i_max)
+      in Some (expr, i_min, i_max)
     | Const _ -> None
     | exp -> begin match exp with
-                   | UnOp (_, e, _) -> determine_bounds_one_var e
-                   | BinOp (_, e1, e2, _) -> begin match determine_bounds_one_var e1, determine_bounds_one_var e2 with
-                                             | Some (ev1, min, max), Some(ev2, _, _) ->  if ev1 = ev2 then Some (ev1, min, max) else None
-                                             | Some(x), None | None, Some(x)  -> Some (x)
-                                             | _, _ -> None end
-                   | CastE (_, e) -> determine_bounds_one_var e
-                   | _ -> None end
+        | UnOp (_, e, _) -> determine_bounds_one_var e
+        | BinOp (_, e1, e2, _) -> begin match determine_bounds_one_var e1, determine_bounds_one_var e2 with
+            | Some (ev1, min, max), Some(ev2, _, _) ->  if ev1 = ev2 then Some (ev1, min, max) else None
+            | Some(x), None | None, Some(x)  -> Some (x)
+            | _, _ -> None end
+        | CastE (_, e) -> determine_bounds_one_var e
+        | _ -> None end
 
 
 
@@ -157,39 +157,7 @@ struct
     assert (Array.length fvs = 0); (* shouldn't ever contain floats *)
     List.of_enum (Array.enum ivs)
 
-  let mem_var env v = Environment.mem_var env v
-
-  let add_vars_with env vs =
-    let vs' =
-      vs
-      |> List.enum
-      |> Enum.filter (fun v -> not (Environment.mem_var env v))
-      |> Array.of_enum
-    in
-    Environment.add env vs' [||]
-
-  let remove_vars_with env vs =
-    let vs' =
-      vs
-      |> List.enum
-      |> Enum.filter (fun v -> Environment.mem_var env v)
-      |> Array.of_enum
-    in
-    Environment.remove env vs'
-
-  let get_filtered_vars_add env vs =
-    vs
-    |> List.enum
-    |> Enum.filter (fun v -> not (Environment.mem_var env v))
-    |> Array.of_enum
-
-  let get_filtered_vars_remove env vs =
-    vs
-    |> List.enum
-    |> Enum.filter (fun v -> Environment.mem_var env v)
-    |> Array.of_enum
-
-  let remove_filter_with env f =
+  let remove_filter env f =
     let vs' =
       vars env
       |> List.enum
@@ -198,13 +166,7 @@ struct
     in
     Environment.remove env vs'
 
-  let filter_vars env f =
-    vars env
-    |> List.enum
-    |> Enum.filter f
-    |> Array.of_enum
-
-  let keep_vars_with env vs =
+  let keep_vars env vs =
     let vs' =
       vs
       |> List.enum
@@ -213,7 +175,7 @@ struct
     in
     Environment.make vs' [||]
 
-  let keep_filter_with env f =
+  let keep_filter env f =
     (* Instead of removing undesired vars,
        make a new env with just the desired vars. *)
     let vs' =
@@ -247,12 +209,7 @@ struct
 
   module Convert = Convert (Bounds)
 
-  let type_tracked typ =
-    isIntegralType typ
-
-  let varinfo_tracked vi =
-    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-    type_tracked vi.vtype && not vi.vaddrof
+  include Tracked
 
   let exp_is_cons = function
     (* constraint *)

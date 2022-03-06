@@ -17,27 +17,9 @@ sig
   type var
   type t
   type marshal
+
+  include Lattice.S with type t:= t
   val is_bot_env : t -> bool
-  val equal : t -> t -> bool
-  val hash : t -> int
-  val compare : t -> t -> int
-  val show : t -> string
-  val pretty : unit -> t -> doc
-  val printXml : 'a BatInnerIO.output -> t -> unit
-  val name : unit -> string
-  val to_yojson : t -> Printable.json
-  val invariant : Invariant.context -> t -> Invariant.t
-  val arbitrary : unit -> t QCheck.arbitrary
-  val leq : t -> t -> bool
-  val join : t -> t -> t
-  val meet : t -> t -> t
-  val widen : t -> t -> t
-  val narrow : t -> t -> t
-  val pretty_diff : unit -> t * t -> doc
-  val bot : unit -> t
-  val is_bot : t -> bool
-  val top : unit -> t
-  val is_top : t -> bool
   val vars : t -> var list
   val add_vars : t -> var list -> t
   val remove_vars : t -> var list -> t
@@ -51,11 +33,7 @@ sig
   val assign_var_parallel' : t -> var list -> var list -> t
   val substitute_exp : t -> var -> exp -> bool -> t
   val unify: t -> t -> t
-  val tag: t -> int
-  val relift: t -> t
-
   val marshal: t -> marshal
-
   val unmarshal: marshal -> t
 end
 
@@ -184,5 +162,5 @@ module type RD =
 sig
   module Var : RelVar
   module V : module type of struct include V(Var) end
-  module D2 : RelD2 with type var = Var.t
+  include RelD2 with type var = Var.t
 end

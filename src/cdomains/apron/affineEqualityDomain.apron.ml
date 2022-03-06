@@ -312,35 +312,37 @@ struct
     in {d = d'; env = new_env}
 
   let add_vars t vars =
-    let vs' = get_filtered_vars_add (t.env) vars in
+    let vs' =
+      vars
+      |> List.enum
+      |> Enum.filter (fun v -> not (Environment.mem_var t.env v))
+      |> Array.of_enum in
     let env' = Environment.add t.env vs' [||] in
     change_d t env' true
 
   let remove_vars t vars =
-    let vs' = get_filtered_vars_remove (t.env) vars in
+    let vs' =
+      vars
+      |> List.enum
+      |> Enum.filter (fun v -> Environment.mem_var t.env v)
+      |> Array.of_enum
+    in
     let env' = Environment.remove t.env vs' in
     change_d t env' false
 
   let remove_filter t f =
-    let env' = remove_filter_with t.env f in
+    let env' = remove_filter t.env f in
     change_d t env' false
 
   let keep_filter t f =
-    let env' = keep_filter_with t.env f in
+    let env' = keep_filter t.env f in
     change_d t env' false
 
   let keep_vars t vs =
-    let env' = keep_vars_with t.env vs in
+    let env' = keep_vars t.env vs in
     change_d t env' false
 
   let vars t = vars t.env
-
-  let type_tracked typ =
-    isIntegralType typ
-
-  let varinfo_tracked vi =
-    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-    type_tracked vi.vtype && not vi.vaddrof
 
   include ConvenienceOps(Mpqf)
 
@@ -357,7 +359,7 @@ struct
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
     let neg = Vector.map (fun x -> (of_int (-1)) *: x) in
     let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x ->
-      Vector.compare_length_with v (i + 1) > 0 && x <> of_int 0) v) 1 = 0 in
+        Vector.compare_length_with v (i + 1) > 0 && x <> of_int 0) v) 1 = 0 in
     let rec convert_texpr texp =
       begin match texp with
         | Cst x -> let of_union union =
@@ -530,14 +532,16 @@ struct
         in
         let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
         match Int.compare (Matrix.num_rows a) r, Int.compare (Matrix.num_rows b) r with
-        | 1 , 1 ->  let a_rs, b_rs = Mpqf.to_float (Vector.nth col_a r), Mpqf.to_float (Vector.nth col_b r) in
-          begin match  a_rs, b_rs with
-            | 1., 1. -> lin_disjunc (r + 1) (s + 1) a b
-            | 1., 0. -> lin_disjunc r (s + 1) (case_two a r col_b) b
-            | 0., 1. -> lin_disjunc r (s + 1) a (case_two b r col_a)
-            | 0., 0. ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
-              lin_disjunc new_r (s + 1) new_a new_b
-            | _      -> failwith "Matrix not normalized" end
+        | 1 , 1 ->
+          let a_rs, b_rs = Vector.nth col_a r, Vector.nth col_b r in
+          if Mpqf.get_den a_rs <> (Mpzf.of_int 1) || Mpqf.get_den b_rs <> (Mpzf.of_int 1) then failwith "Matrix not normalized" else
+            begin match Int.of_float @@ Mpqf.to_float @@ a_rs, Int.of_float @@ Mpqf.to_float @@ b_rs with
+              | 1, 1 -> lin_disjunc (r + 1) (s + 1) a b
+              | 1, 0 -> lin_disjunc r (s + 1) (case_two a r col_b) b
+              | 0, 1 -> lin_disjunc r (s + 1) a (case_two b r col_a)
+              | 0, 0 ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
+                lin_disjunc new_r (s + 1) new_a new_b
+              | _      -> failwith "Matrix not normalized" end
         | 1 , _  -> let a_rs = Vector.nth col_a r in
           if a_rs = (of_int 1) then lin_disjunc r (s + 1) (case_two a r col_b) b
           else
@@ -667,12 +671,12 @@ struct
       | None -> res
       | Some (ev, min, max) ->
         begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
-              | Some b_min, Some b_max ->  let module BI = IntOps.BigIntOps in
-                                            if min = BI.of_int 0 && b_min = b_max then raise UnsignedVar
-                                            else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
-                                                    (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then {d = None; env = t.env} else t)
-                                                    else res
-              | _, _ -> res end
+          | Some b_min, Some b_max ->  let module BI = IntOps.BigIntOps in
+            if min = BI.of_int 0 && b_min = b_max then raise UnsignedVar
+            else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
+              (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then {d = None; env = t.env} else t)
+            else res
+          | _, _ -> res end
     in
     (* let refine_by x y = if BI.equal (BI.rem v (BI.of_int 2)) BI.zero then *)
     match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
@@ -682,12 +686,12 @@ struct
         | Some c, EQ -> check_const (<>) c
         | Some c, SUPEQ -> check_const (<:) c
         | None, DISEQ | None, SUP ->
-         begin match meet_with_vec v with
-          | exception UnsignedVar -> t
-          | res -> if equal res t then {d = None; env = t.env} else t end
+          begin match meet_with_vec v with
+            | exception UnsignedVar -> t
+            | res -> if equal res t then {d = None; env = t.env} else t end
         | None, EQ -> begin match meet_with_vec v with
-                            | exception UnsignedVar -> t
-                            | res -> res end
+            | exception UnsignedVar -> t
+            | res -> res end
         | _, _ -> t end
     | None -> t
 

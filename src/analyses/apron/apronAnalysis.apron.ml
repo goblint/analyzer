@@ -479,6 +479,8 @@ struct
   let init marshal =
     Priv.init ()
 
+  let name () = "apron"
+
   let store_data file =
     let convert (m: AD.t PCU.RH.t): OctApron.t PCU.RH.t =
       let convert_single (a: AD.t): OctApron.t =
@@ -512,7 +514,7 @@ let spec_module: (module MCPSpec) Lazy.t =
     struct
       module Var = SharedFunctions.Var
       module V = RelationDomain.V(Var)
-      module D2 = AD
+      include AD
     end in
     let module Priv = (val RelationPriv.get_priv ()) in
     let module Spec = ExtendedSpecFunctor (Priv) (RD) in
