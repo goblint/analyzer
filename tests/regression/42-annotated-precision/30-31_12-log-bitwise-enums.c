@@ -3,7 +3,9 @@
 #include<assert.h>
 #include<stdio.h>
 
-int main() __attribute__((goblint_precision("no-def_exc","enums"))) {
+int main() __attribute__((goblint_precision("no-def_exc","enums")));
+
+int main() {
     int x = 2;
     int y = 3;
     int n = 0;

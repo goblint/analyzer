@@ -61,7 +61,8 @@ let run_cilly (path: string) ~all_cppflags =
     remove_comb_files path;
     (* Combine source files with make using cilly as compiler *)
     let gcc_path = GobConfig.get_string "exp.gcc_path" in
-    let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\" CFLAGS+=" ^ String.join " " (List.map Filename.quote all_cppflags) ^ " " ^
+    let cflags = if all_cppflags = [] then "" else " CFLAGS+=" ^ Filename.quote (String.join " " all_cppflags) in
+    let (exit_code, output) = exec_command ~path ("make CC=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"" ^cflags ^ " " ^
                                                   "LD=\"cilly --gcc=" ^ gcc_path ^ " --merge --keepmerged\"") in
     print_string output;
     (* fail if make failed *)
@@ -80,9 +81,9 @@ let generate_and_combine makefile ~all_cppflags =
     let generate_makefile_with (name, command, file) = if Sys.file_exists file then (
         print_endline ("Trying to run " ^ name ^ " to generate Makefile");
         let exit_code, output = exec_command ~path command in
-        print_endline (command ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
+        print_endline (command ^ " " ^ GobUnix.string_of_process_status exit_code ^ ". Output: " ^ output);
         if not (Sys.file_exists makefile) then raise MakefileNotGenerated
-      ); raise MakefileNotGenerated in
+      ) else raise MakefileNotGenerated in
     try generate_makefile_with configure
     with MakefileNotGenerated ->
     try generate_makefile_with autogen

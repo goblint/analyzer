@@ -79,7 +79,7 @@ struct
     | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
 
   let access_byval a (rw: bool) (exps: exp list) =
-    List.concat (List.map (access_one_byval a rw) exps)
+    List.concat_map (access_one_byval a rw) exps
 
   (* TODO: unused? remove? *)
   let access_byref ask (exps: exp list) =
@@ -89,11 +89,11 @@ struct
       match ask (Queries.ReachableFrom e) with
       | a when not (Queries.LS.is_top a) ->
         let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
-        Queries.LS.fold to_extra a []
+        Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
       (* Ignore soundness warnings, as invalidation proper will raise them. *)
       | _ -> []
     in
-    List.concat (List.map do_exp exps)
+    List.concat_map do_exp exps
 
   (* list accessed addresses *)
   let varoffs a (rval:exp) =
@@ -116,10 +116,10 @@ struct
   (* Does it contain non-initialized variables? *)
   let is_expr_initd a (expr:exp) (st:D.t) : bool =
     let variables = vars a expr in
-    let raw_vars = List.concat (List.map Addr.to_var_offset variables) in
+    let raw_vars = List.filter_map Addr.to_var_offset variables in
     let will_addr_init (t:bool) a =
       let f addr =
-        List.exists (is_prefix_of a) (Addr.to_var_offset addr)
+        GobOption.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
         Messages.warn "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
@@ -131,7 +131,7 @@ struct
   let remove_if_prefix (pr: varinfo * (Addr.field,Addr.idx) Lval.offs) (uis: D.t) : D.t =
     let f ad =
       let vals = Addr.to_var_offset ad in
-      List.for_all (fun a -> not (is_prefix_of pr a)) vals
+      GobOption.for_all (fun a -> not (is_prefix_of pr a)) vals
     in
     D.filter f uis
 
@@ -227,15 +227,15 @@ struct
         match ask.f (Queries.ReachableFrom e) with
         | a when not (Queries.LS.is_top a) ->
           let to_extra (v,o) xs = AD.from_var_offset (v,(conv_offset o)) :: xs  in
-          Queries.LS.fold to_extra a []
+          Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
         (* Ignore soundness warnings, as invalidation proper will raise them. *)
         | _ -> []
       in
-      List.concat (List.map do_exp args)
+      List.concat_map do_exp args
     in
     let add_exploded_struct (one: AD.t) (many: AD.t) : AD.t =
       let vars = AD.to_var_may one in
-      List.fold_right AD.add (List.concat (List.map to_addrs vars)) many
+      List.fold_right AD.add (List.concat_map to_addrs vars) many
     in
     let vars = List.fold_right add_exploded_struct reachable (AD.empty ()) in
     if D.is_top st

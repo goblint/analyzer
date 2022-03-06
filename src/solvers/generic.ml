@@ -32,171 +32,6 @@ module LoadRunSolver: GenericEqBoxSolver =
 module LoadRunIncrSolver: GenericEqBoxIncrSolver =
   Constraints.EqIncrSolverFromEqSolver (LoadRunSolver)
 
-
-module SolverInteractiveWGlob
-    (S:Analyses.GlobConstrSys)
-    (LH:Hashtbl.S with type key=S.LVar.t)
-    (GH:Hashtbl.S with type key=S.GVar.t) =
-struct
-  open S
-  open Printf
-  open Cil
-
-  let enabled = ref false
-  let step    = ref 1
-  let stopped = ref false
-
-  let interact_init () =
-    enabled := get_bool "interact.enabled";
-    stopped := get_bool "interact.paused"
-
-  let _ =
-    let open Sys in
-    set_signal sigtstp (Signal_handle (fun i -> stopped := true));
-    set_signal sigusr1 (Signal_handle (fun i -> stopped := false));
-    set_signal sigusr2 (Signal_handle (fun i -> step    := 1))
-
-  let loc_start f =
-    fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"../node.xsl\"?>\n<loc>"
-
-  let glob_start f =
-    fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"../globals.xsl\"?>\n<globs>"
-
-  let loc_end f =
-    fprintf f "</loc>\n"
-
-  let glob_end f =
-    fprintf f "</globs>\n"
-
-  let write_one_call v d f =
-    fprintf f "%a%a</call>\n" LVar.printXml v D.printXml d
-
-  let write_one_glob v d f =
-    fprintf f "<glob><key>%a</key>\n%a</glob>\n" GVar.printXml v G.printXml d
-
-  let mkdirs =
-    List.fold_left (fun p d -> Goblintutil.create_dir (p^"/"^d)) "."
-
-  let warning_id = ref 1
-  let writeXmlWarnings () =
-    let one_text f Messages.Piece.{loc; text = m; _} =
-      match loc with
-      | Some l ->
-        BatPrintf.fprintf f "\n<text file=\"%s\" line=\"%d\" column=\"%d\">%s</text>" l.file l.line l.column (GU.escape m)
-      | None ->
-        () (* TODO: not outputting warning without location *)
-    in
-    let one_w f (m: Messages.Message.t) = match m.multipiece with
-      | Single piece  -> one_text f piece
-      | Group {group_text = n; pieces = e} ->
-        fprintf f "<group name=\"%s\">%a</group>\n" n (List.print ~first:"" ~last:"" ~sep:"" one_text) e
-    in
-    let one_w x f = fprintf f "\n<warning>%a</warning>" one_w x in
-    let res_dir = mkdirs [get_string "interact.out" ^ "/warn"] in
-    let write_warning x =
-      let full_name = res_dir ^ "/warn" ^ string_of_int !warning_id ^ ".xml" in
-      incr warning_id;
-      File.with_file_out ~mode:[`create;`excl;`text] full_name (one_w x)
-    in
-    List.iter write_warning !Messages.Table.messages_list
-
-  module SSH = Hashtbl.Make (struct include String let hash (x:string) = Hashtbl.hash x end)
-  let funs = SSH.create 100
-  module NH = Hashtbl.Make (Node)
-  let liveness = NH.create 100
-  let updated_l = NH.create 100
-  let updated_g = GH.create 100
-
-  let write_files lh gh =
-    let res_dir = mkdirs [get_string "interact.out"; "nodes"] in
-    let created_files = Hashtbl.create 100 in
-    let one_var v d =
-      let fname = LVar.var_id v in
-      let full_name = res_dir ^ "/" ^ fname ^ ".xml" in
-      if not (Sys.file_exists full_name) then begin
-        File.with_file_out ~mode:[`excl;`create;`text] full_name loc_start;
-        Hashtbl.add created_files full_name ()
-      end;
-      File.with_file_out ~mode:[`append;`excl;`text] full_name (write_one_call v d)
-    in
-    LH.iter one_var lh;
-    let full_gname = res_dir ^ "/globals.xml" in
-    File.with_file_out ~mode:[`excl;`create;`text] full_gname glob_start;
-    let one_glob v d =
-      File.with_file_out ~mode:[`append;`excl;`text] full_gname (write_one_glob v d)
-    in
-    GH.iter one_glob gh;
-    File.with_file_out ~mode:[`append;`excl;`text] full_gname glob_end;
-    let close_vars f _ =
-      File.with_file_out ~mode:[`append;`excl;`text] f loc_end
-    in
-    Hashtbl.iter close_vars created_files
-
-  let write_updates () =
-    let dir = get_string "interact.out" in
-    let full_name = dir ^ "/updates.xml" in
-    let write_updates f =
-      fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"updates.xsl\"?>\n<updates>\n";
-      NH.iter (fun v () -> fprintf f "%a</call>\n" Var.printXml v) updated_l;
-      GH.iter (fun v () -> fprintf f "<global>\n%a</global>\n" GVar.printXml v) updated_g;
-      let g n _ = fprintf f "<warning warn=\"warn%d\" />\n" (n + !warning_id) in
-      List.iteri g !Messages.Table.messages_list;
-      (* List.iter write_warning !Messages.messages_list *)
-      fprintf f "</updates>\n";
-    in
-    File.with_file_out ~mode:[`excl;`create;`text] full_name write_updates
-
-  let write_index () =
-    let dir = get_string "interact.out" in
-    let full_name = dir ^ "/index.xml" in
-    let write_index f =
-      let print_funs f fs =
-        Set.iter (fun n -> fprintf f "<function name=\"%s\"></function>\n" n) fs
-      in
-      fprintf f "<?xml version=\"1.0\" ?>\n<?xml-stylesheet type=\"text/xsl\" href=\"report.xsl\"?>\n<report>\n";
-      SSH.iter (fun file funs -> fprintf f "<file name=\"%s\">%a</file>" file print_funs funs) funs;
-      fprintf f "</report>\n";
-    in
-    File.with_file_out ~mode:[`excl;`create;`text] full_name write_index
-
-  let delete_old_results () =
-    let dir = get_string "interact.out" in
-    if Sys.file_exists dir && Sys.is_directory dir then
-      try Goblintutil.rm_rf dir with _ -> ()
-
-  let write_all hl hg =
-    delete_old_results ();
-    write_files hl hg;
-    write_index ();
-    if !stopped then
-      write_updates ();
-    writeXmlWarnings (); (* must be after write_update! *)
-    !write_cfgs (NH.mem liveness);
-    NH.clear updated_l;
-    GH.clear updated_g
-
-  let update_var_event_local hl hg x o n =
-    if !enabled && not (D.is_bot n) then begin
-      let node = LVar.node x in
-      let file = (Node.find_fundec node).svar in
-      NH.replace updated_l node ();
-      NH.replace liveness node ();
-      SSH.replace funs file.vdecl.file (Set.add file.vname (SSH.find_default funs file.vdecl.file Set.empty));
-      if !stopped then begin
-        write_all hl hg;
-        decr step;
-        while !stopped && !step <=0 do Unix.sleep 1 done
-      end
-    end
-
-  let update_var_event_global hl hg x o n =
-    GH.replace updated_g x ()
-
-  let done_event hl hg =
-    if !enabled then
-      write_all hl hg
-end
-
 module SolverStats (S:EqConstrSys) (HM:Hashtbl.S with type key = S.v) =
 struct
   open S
@@ -231,7 +66,7 @@ struct
   let stop_event () = ()
 
   let new_var_event x =
-    Goblintutil.vars := !Goblintutil.vars + 1;
+    incr Goblintutil.vars;
     if tracing then trace "sol" "New %a\n" Var.pretty_trace x
 
   let get_var_event x =
@@ -239,7 +74,7 @@ struct
 
   let eval_rhs_event x =
     if full_trace then trace "sol" "(Re-)evaluating %a\n" Var.pretty_trace x;
-    Goblintutil.evals := !Goblintutil.evals + 1;
+    incr Goblintutil.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
   let update_var_event x o n =
@@ -272,7 +107,7 @@ struct
   let stats_csv =
     let save_run = GobConfig.get_string "save_run" in
     if save_run <> "" then (
-      ignore @@ Goblintutil.create_dir save_run;
+      GobSys.mkdir_or_exists save_run;
       save_run ^ Filename.dir_sep ^ "solver_stats.csv" |> open_out |> Option.some
     ) else None
   let write_csv xs oc = output_string oc @@ String.concat ",\t" xs ^ "\n"

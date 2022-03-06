@@ -25,11 +25,11 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   let update_sid_max sid = update_id_max sid_max sid  in
 
   let make_vid () =
-    vid_max := !vid_max +1;
+    incr vid_max;
     !vid_max
   in
   let make_sid () =
-    sid_max := !sid_max +1;
+    incr sid_max;
     !sid_max
   in
   let override_fundec (target: fundec) (src: fundec) =

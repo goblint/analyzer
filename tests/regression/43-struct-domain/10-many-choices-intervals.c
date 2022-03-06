@@ -1,4 +1,4 @@
-// PARAM: --set exp.structs.domain "sets" --enable ana.int.interval
+// PARAM: --set ana.base.structs.domain "sets" --enable ana.int.interval
 
 #include<assert.h>
 #include<stdio.h>

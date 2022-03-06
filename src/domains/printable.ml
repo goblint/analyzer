@@ -34,10 +34,7 @@ end
 
 module Empty: S =
 struct
-  type t = |
-  let equal (x: t) (_: t) = match x with _ -> .
-  let hash (x: t) = match x with _ -> .
-  let compare (x: t) (_: t) = match x with _ -> .
+  type t = | [@@deriving eq, ord, hash]
   let show (x: t) = match x with _ -> .
   let pretty () (x: t) = match x with _ -> .
   let printXml _ (x: t) = match x with _ -> .
@@ -85,20 +82,32 @@ sig
   val show: t -> string
 end
 
-module PrintSimple (P: Showable) =
+module SimpleShow (P: Showable) =
 struct
   let pretty () x = text (P.show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (P.show x))
   let to_yojson x = `String (P.show x)
 end
 
+module type Prettyable =
+sig
+  type t
+  val pretty: unit -> t -> doc
+end
+
+module SimplePretty (P: Prettyable) =
+struct
+  let show x = Pretty.sprint ~width:max_int (P.pretty () x)
+  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  let to_yojson x = `String (show x)
+end
+
 
 module type Name = sig val name: string end
 module UnitConf (N: Name) =
 struct
-  type t = unit [@@deriving eq, ord]
+  type t = unit [@@deriving eq, ord, hash]
   include Std
-  let hash () = 7134679
   let pretty () _ = text N.name
   let show _ = N.name
   let name () = "Unit"
@@ -199,16 +208,11 @@ end
 
 module Lift (Base: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord]
+  type t = [`Bot | `Lifted of Base.t | `Top] [@@deriving eq, ord, hash]
   include Std
   include N
 
   let lift x = `Lifted x
-
-  let hash = function
-    | `Top -> 4627833
-    | `Bot -> -30385673
-    | `Lifted x -> Base.hash x * 13
 
   let show state =
     match state with
@@ -257,13 +261,8 @@ end
 
 module Either (Base1: S) (Base2: S) =
 struct
-  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord]
+  type t = [`Left of Base1.t | `Right of Base2.t] [@@deriving eq, ord, hash]
   include Std
-
-  let hash state =
-    match state with
-    | `Left n ->  Base1.hash n
-    | `Right n ->  133 * Base2.hash n
 
   let pretty () (state:t) =
     match state with
@@ -291,13 +290,8 @@ end
 
 module Option (Base: S) (N: Name) =
 struct
-  type t = Base.t option [@@deriving eq, ord]
+  type t = Base.t option [@@deriving eq, ord, hash]
   include Std
-
-  let hash state =
-    match state with
-    | None -> 7134679
-    | Some n -> 133 * Base.hash n
 
   let pretty () (state:t) =
     match state with
@@ -323,16 +317,9 @@ end
 
 module Lift2 (Base1: S) (Base2: S) (N: LiftingNames) =
 struct
-  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord]
+  type t = [`Bot | `Lifted1 of Base1.t | `Lifted2 of Base2.t | `Top] [@@deriving eq, ord, hash]
   include Std
   include N
-
-  let hash state =
-    match state with
-    | `Lifted1 n -> Base1.hash n
-    | `Lifted2 n -> 77 * Base2.hash n
-    | `Bot -> 13432255
-    | `Top -> -33434577
 
   let pretty () (state:t) =
     match state with
@@ -377,11 +364,9 @@ module ProdConf (C: ProdConfiguration) (Base1: S) (Base2: S)=
 struct
   include C
 
-  type t = Base1.t * Base2.t [@@deriving eq, ord]
+  type t = Base1.t * Base2.t [@@deriving eq, ord, hash]
 
   include Std
-
-  let hash (x,y) = Base1.hash x + Base2.hash y * 17
 
   let show (x,y) =
     (* TODO: remove ref *)
@@ -420,9 +405,8 @@ module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = fal
 
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
-  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord]
+  type t = Base1.t * Base2.t * Base3.t [@@deriving eq, ord, hash]
   include Std
-  let hash (x,y,z) = Base1.hash x + Base2.hash y * 17 + Base3.hash z * 33
 
   let show (x,y,z) =
     (* TODO: remove ref *)
@@ -458,9 +442,8 @@ end
 
 module Liszt (Base: S) =
 struct
-  type t = Base.t list [@@deriving eq, ord, to_yojson]
+  type t = Base.t list [@@deriving eq, ord, hash, to_yojson]
   include Std
-  let hash = List.fold_left (fun xs x -> xs + Base.hash x) 996699
 
   let show x =
     let elems = List.map Base.show x in
@@ -500,12 +483,11 @@ end
 
 module Chain (P: ChainParams): S with type t = int =
 struct
-  type t = int [@@deriving eq, ord]
+  type t = int [@@deriving eq, ord, hash]
   include Std
 
   let show x = P.names x
   let pretty () x = text (show x)
-  let hash x = x-5284
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (P.names x)
   let to_yojson x = `String (P.names x)
 
@@ -515,14 +497,10 @@ end
 
 module LiftBot (Base : S) =
 struct
-  type t = [`Bot | `Lifted of Base.t ] [@@deriving eq, ord]
+  type t = [`Bot | `Lifted of Base.t ] [@@deriving eq, ord, hash]
   include Std
 
   let lift x = `Lifted x
-
-  let hash = function
-    | `Bot -> 56613454
-    | `Lifted n -> Base.hash n
 
   let show state =
     match state with
@@ -550,14 +528,10 @@ end
 
 module LiftTop (Base : S) =
 struct
-  type t = [`Top | `Lifted of Base.t ] [@@deriving eq, ord]
+  type t = [`Top | `Lifted of Base.t ] [@@deriving eq, ord, hash]
   include Std
 
   let lift x = `Lifted x
-
-  let hash = function
-    | `Top -> 7890
-    | `Lifted n -> Base.hash n
 
   let show state =
     match state with
@@ -598,9 +572,8 @@ end
 
 module Strings =
 struct
-  type t = string [@@deriving eq, ord, to_yojson]
+  type t = string [@@deriving eq, ord, hash, to_yojson]
   include Std
-  let hash (x:t) = Hashtbl.hash x
   let pretty () n = text n
   let show n = n
   let name () = "String"

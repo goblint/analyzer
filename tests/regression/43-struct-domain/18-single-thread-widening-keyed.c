@@ -1,4 +1,4 @@
-// PARAM: --set exp.structs.domain "keyed" --enable exp.structs.key.avoid-ints
+// PARAM: --set ana.base.structs.domain "keyed" --enable ana.base.structs.key.avoid-ints
 
 #include<assert.h>
 #include<stdio.h>

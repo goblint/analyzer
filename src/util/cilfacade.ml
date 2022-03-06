@@ -34,15 +34,14 @@ let get_stmtLoc stmt =
 
 let init () =
   initCIL ();
-  lowerConstants := GobConfig.get_bool "exp.lower-constants";
+  lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
+  Mergecil.merge_inlines := true; (* work around https://github.com/goblint/analyzer/pull/603#issuecomment-1054204635 *)
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
 
-let current_statement = ref dummyStmt
 let current_file = ref dummyFile
-let showtemps = ref false
 
 let parse fileName =
   Frontc.parse fileName ()
@@ -177,28 +176,7 @@ let in_section check attr_list =
   in List.exists f attr_list
 
 let is_init = in_section (fun s -> s = ".init.text")
-let is_initptr = in_section (fun s -> s = ".initcall6.init")
 let is_exit = in_section (fun s -> s = ".exit.text")
-
-let rec get_varinfo exp: varinfo =
-  (* ignore (Pretty.printf "expression: %a\n" (printExp plainCilPrinter) exp); *)
-  match exp with
-  | AddrOf (Var v, _) -> v
-  | CastE (_,e) -> get_varinfo e
-  | _ -> failwith "Unimplemented: searching for variable in more complicated expression"
-
-exception MyException of varinfo
-let find_module_init funs fileAST =
-  try iterGlobals fileAST (
-      function
-      | GVar ({vattr=attr; _}, {init=Some (SingleInit exp) }, _) when is_initptr attr ->
-        raise (MyException (get_varinfo exp))
-      | _ -> ()
-    );
-    (funs, [])
-  with MyException var ->
-    let f (s:fundec) = s.svar.vname = var.vname in
-    List.partition f funs
 
 type startfuns = fundec list * fundec list * fundec list
 
@@ -300,9 +278,9 @@ let rec typeOf (e: exp) : typ =
   (* The type of a string is a pointer to characters ! The only case when
    * you would want it to be an array is as an argument to sizeof, but we
    * have SizeOfStr for that *)
-  | Const(CStr s) -> !stringLiteralType
+  | Const(CStr (s,_)) -> !stringLiteralType
 
-  | Const(CWStr s) -> TPtr(!wcharType,[])
+  | Const(CWStr (s,_)) -> TPtr(!wcharType,[])
 
   | Const(CReal (_, fk, _)) -> TFloat(fk, [])
 
@@ -416,8 +394,8 @@ let fundec_return_type f =
 
 module StmtH = Hashtbl.Make (CilType.Stmt)
 
-let stmt_fundecs: fundec StmtH.t Lazy.t =
-  lazy (
+let stmt_fundecs: fundec StmtH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
     let h = StmtH.create 113 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
@@ -434,13 +412,13 @@ let pseudo_return_to_fun = StmtH.create 113
 (** Find [fundec] which the [stmt] is in. *)
 let find_stmt_fundec stmt =
   try StmtH.find pseudo_return_to_fun stmt
-  with Not_found -> StmtH.find (Lazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
+  with Not_found -> StmtH.find (ResettableLazy.force stmt_fundecs) stmt (* stmt argument must be explicit, otherwise force happens immediately *)
 
 
 module VarinfoH = Hashtbl.Make (CilType.Varinfo)
 
-let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
-  lazy (
+let varinfo_fundecs: fundec VarinfoH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
     let h = VarinfoH.create 111 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
@@ -451,13 +429,13 @@ let varinfo_fundecs: fundec VarinfoH.t Lazy.t =
   )
 
 (** Find [fundec] by the function's [varinfo] (has the function name and type). *)
-let find_varinfo_fundec vi = VarinfoH.find (Lazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
+let find_varinfo_fundec vi = VarinfoH.find (ResettableLazy.force varinfo_fundecs) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
 
 module StringH = Hashtbl.Make (Printable.Strings)
 
-let name_fundecs: fundec StringH.t Lazy.t =
-  lazy (
+let name_fundecs: fundec StringH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
     let h = StringH.create 111 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
@@ -468,7 +446,7 @@ let name_fundecs: fundec StringH.t Lazy.t =
   )
 
 (** Find [fundec] by the function's name. *)
-let find_name_fundec name = StringH.find (Lazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
+let find_name_fundec name = StringH.find (ResettableLazy.force name_fundecs) name (* name argument must be explicit, otherwise force happens immediately *)
 
 
 type varinfo_role =
@@ -477,8 +455,8 @@ type varinfo_role =
   | Function
   | Global
 
-let varinfo_roles: varinfo_role VarinfoH.t Lazy.t =
-  lazy (
+let varinfo_roles: varinfo_role VarinfoH.t ResettableLazy.t =
+  ResettableLazy.from_fun (fun () ->
     let h = VarinfoH.create 113 in
     iterGlobals !current_file (function
         | GFun (fd, _) ->
@@ -494,7 +472,7 @@ let varinfo_roles: varinfo_role VarinfoH.t Lazy.t =
   )
 
 (** Find the role of the [varinfo]. *)
-let find_varinfo_role vi = VarinfoH.find (Lazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
+let find_varinfo_role vi = VarinfoH.find (ResettableLazy.force varinfo_roles) vi (* vi argument must be explicit, otherwise force happens immediately *)
 
 let is_varinfo_formal vi =
   match find_varinfo_role vi with
@@ -517,9 +495,9 @@ let find_scope_fundec vi =
     None
 
 
-let original_names: string VarinfoH.t Lazy.t =
+let original_names: string VarinfoH.t ResettableLazy.t =
   (* only invert environment map when necessary (e.g. witnesses) *)
-  lazy (
+  ResettableLazy.from_fun (fun () ->
     let h = VarinfoH.create 113 in
     Hashtbl.iter (fun original_name (envdata, _) ->
         match envdata with
@@ -534,7 +512,15 @@ let original_names: string VarinfoH.t Lazy.t =
     If it was renamed by CIL, then returns the original name before renaming.
     If it wasn't renamed by CIL, then returns the same name.
     If it was inserted by CIL (or Goblint), then returns [None]. *)
-let find_original_name vi = VarinfoH.find_opt (Lazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
+let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_names) vi (* vi argument must be explicit, otherwise force happens immediately *)
+
+
+let reset_lazy () =
+  ResettableLazy.reset stmt_fundecs;
+  ResettableLazy.reset varinfo_fundecs;
+  ResettableLazy.reset name_fundecs;
+  ResettableLazy.reset varinfo_roles;
+  ResettableLazy.reset original_names
 
 
 let stmt_pretty_short () x =

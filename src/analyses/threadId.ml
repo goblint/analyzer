@@ -78,15 +78,6 @@ struct
   let is_unique ctx =
     ctx.ask Queries.MustBeUniqueThread
 
-  let part_access ctx e v w =
-    let es = Access.LSSet.empty () in
-    if is_unique ctx then
-      let tid = fst ctx.local in
-      let tid = ThreadLifted.show tid in
-      (Access.LSSSet.singleton es, Access.LSSet.add ("thread",tid) es)
-    else
-      (Access.LSSSet.singleton es, es)
-
   let created (current, td) =
     match current with
     | `Lifted current -> BatOption.map_default (ConcDomain.ThreadSet.of_list) (ConcDomain.ThreadSet.top ()) (Thread.created current td)
@@ -96,14 +87,29 @@ struct
     match x with
     | Queries.CurrentThreadId -> fst ctx.local
     | Queries.CreatedThreads -> created ctx.local
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
     | Queries.MustBeUniqueThread ->
       begin match fst ctx.local with
         | `Lifted tid -> Thread.is_unique tid
         | _ -> Queries.MustBool.top ()
       end
     | _ -> Queries.Result.top x
+
+  module A =
+  struct
+    include Printable.Option (ThreadLifted) (struct let name = "nonunique" end)
+    let name () = "thread"
+    let may_race (t1: t) (t2: t) = match t1, t2 with
+      | Some t1, Some t2 when ThreadLifted.equal t1 t2 -> false (* only unique threads *)
+      | _, _ -> true
+    let should_print = Option.is_some
+  end
+
+  let access ctx e vo w =
+    if is_unique ctx then
+      let tid = fst ctx.local in
+      Some tid
+    else
+      None
 
   let threadenter ctx lval f args =
     let+ tid = create_tid ctx.local ctx.prev_node f in

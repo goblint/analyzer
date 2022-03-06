@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] thread --enable exp.partition-arrays.enabled
+// PARAM: --set ana.activated[+] thread --enable ana.base.partition-arrays.enabled
 #include <pthread.h>
 
 pthread_t t_ids[10000];

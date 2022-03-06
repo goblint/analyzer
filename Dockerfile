@@ -8,7 +8,7 @@ COPY --chown=opam Makefile make.sh goblint.opam goblint.opam.locked /home/opam/a
 WORKDIR /home/opam/analyzer/
 # TODO: use opam depext
 RUN sudo apt-get update \
-    && sudo apt-get install -y libgmp-dev libmpfr-dev
+    && sudo apt-get install -y libgmp-dev libmpfr-dev pkg-config autoconf
 # update local opam repository because base image may be outdated
 RUN cd /home/opam/opam-repository \
     && git pull origin master \

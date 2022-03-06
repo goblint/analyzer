@@ -80,7 +80,8 @@ type 'a basecomponents_t = {
   deps: PartDeps.t;
   weak: WeakUpdates.t;
   priv: 'a;
-} [@@deriving eq, ord]
+} [@@deriving eq, ord, hash]
+
 
 module BaseComponents (PrivD: Lattice.S):
 sig
@@ -88,12 +89,10 @@ sig
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
-  type t = PrivD.t basecomponents_t [@@deriving eq, ord]
+  type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash]
 
   include Printable.Std
   open Pretty
-  let hash r  = CPA.hash r.cpa + PartDeps.hash r.deps * 17 + WeakUpdates.hash r.weak * 51 + PrivD.hash r.priv * 33
-
 
   let show r =
     let first  = CPA.show r.cpa in
@@ -173,18 +172,16 @@ module DomFunctor (PrivD: Lattice.S) (ExpEval: ExpEvaluator with type t = BaseCo
 struct
   include BaseComponents (PrivD)
 
-  let (%) = Batteries.(%)
-  let eval_exp x = Option.map BI.to_int64 % (ExpEval.eval_exp x)
   let join (one:t) (two:t): t =
-    let cpa_join = CPA.join_with_fct (VD.smart_join (eval_exp one) (eval_exp two)) in
+    let cpa_join = CPA.join_with_fct (VD.smart_join (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
     op_scheme cpa_join PartDeps.join WeakUpdates.join PrivD.join one two
 
   let leq one two =
-    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (eval_exp one) (eval_exp two)) in
+    let cpa_leq = CPA.leq_with_fct (VD.smart_leq (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
     cpa_leq one.cpa two.cpa && PartDeps.leq one.deps two.deps && WeakUpdates.leq one.weak two.weak && PrivD.leq one.priv two.priv
 
   let widen one two: t =
-    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (eval_exp one) (eval_exp two)) in
+    let cpa_widen = CPA.widen_with_fct (VD.smart_widen (ExpEval.eval_exp one) (ExpEval.eval_exp two)) in
     op_scheme cpa_widen PartDeps.widen WeakUpdates.widen PrivD.widen one two
 end
 

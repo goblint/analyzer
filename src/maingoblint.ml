@@ -2,7 +2,6 @@
 
 open Prelude
 open GobConfig
-open Defaults
 open Printf
 open Goblintutil
 
@@ -39,21 +38,6 @@ let print_help ch =
   fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n";
   exit 0
 
-(* The temp directory for preprocessing the input files *)
-let create_temp_dir () =
-  if Sys.file_exists (get_string "tempDir") then
-    Goblintutil.tempDirName := get_string "tempDir"
-  else
-    (* Using the stdlib to create a free tmp file name. *)
-    let tmpDirRel = Filename.temp_file ~temp_dir:"" "goblint_temp_" "" in
-    (* ... and then delete it to create a directory instead. *)
-    Sys.remove tmpDirRel;
-    let tmpDirName = create_dir tmpDirRel in
-    Goblintutil.tempDirName := tmpDirName
-
-let remove_temp_dir () =
-  if not (get_bool "keepcpp") then ignore (Goblintutil.rm_rf !Goblintutil.tempDirName)
-
 (** [Arg] option specification *)
 let option_spec_list =
   let add_string l = let f str = l := str :: !l in Arg.String f in
@@ -83,16 +67,17 @@ let option_spec_list =
     set_bool "dbg.print_dead_code" true;
     set_string "result" "sarif"
   in
-  let defaults_spec_list = List.map (fun (_, (name, (_, _))) ->
+  let defaults_spec_list = List.map (fun path ->
       (* allow "--option value" as shorthand for "--set option value" *)
-      ("--" ^ name, Arg.String (set_auto name), "")
-    ) !Defaults.registrar
+      ("--" ^ path, Arg.String (set_auto path), "")
+    ) Options.paths
   in
   let tmp_arg = ref "" in
   [ "-o"                   , Arg.String (set_string "outfile"), ""
   ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
-  ; "-I"                   , Arg.String (set_string "includes[+]"), ""
-  ; "-IK"                  , Arg.String (set_string "kernel_includes[+]"), ""
+  ; "-j"                   , Arg.Int (set_int "jobs"), ""
+  ; "-I"                   , Arg.String (set_string "pre.includes[+]"), ""
+  ; "-IK"                  , Arg.String (set_string "pre.kernel_includes[+]"), ""
   ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
   ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
   ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
@@ -100,8 +85,8 @@ let option_spec_list =
   ; "--conf"               , Arg.String merge_file, ""
   ; "--writeconf"          , Arg.String (fun fn -> writeconffile := fn), ""
   ; "--version"            , Arg.Unit print_version, ""
-  ; "--print_options"      , Arg.Unit (fun _ -> printCategory stdout Std; exit 0), ""
-  ; "--print_all_options"  , Arg.Unit (fun _ -> printAllCategories stdout; exit 0), ""
+  ; "--print_options"      , Arg.Unit (fun () -> Options.print_options (); exit 0), ""
+  ; "--print_all_options"  , Arg.Unit (fun () -> Options.print_all_options (); exit 0), ""
   ; "--trace"              , Arg.String set_trace, ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
@@ -154,31 +139,24 @@ let handle_flags () =
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname =  Filename.concat !Goblintutil.tempDirName (Filename.basename fname) in
-  if Sys.file_exists (get_string "tempDir") then
-    nname
-  else
-    (* Preprocess using cpp. *)
-    (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-    let command = (Preprocessor.get_cpp ()) ^ " --undef __BLOCKS__ " ^ String.join " " (List.map Filename.quote all_cppflags) ^ " \"" ^ fname ^ "\" -o \"" ^ nname ^ "\"" in
-    if get_bool "dbg.verbose" then print_endline command;
-
-    (* if something goes wrong, we need to clean up and exit *)
-    let rm_and_exit () = remove_temp_dir (); raise Exit in
-    try match Unix.system command with
-      | Unix.WEXITED 0 -> nname
-      | _ -> eprintf "Goblint: Preprocessing failed."; rm_and_exit ()
-    with Unix.Unix_error (e, f, a) ->
-      eprintf "%s at syscall %s with argument \"%s\".\n" (Unix.error_message e) f a; rm_and_exit ()
+  let nname =  Filename.concat (GoblintDir.preprocessed ()) (Filename.chop_extension (Filename.basename fname) ^ ".i") in
+  (* Preprocess using cpp. *)
+  (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
+  let arguments = "--undef" :: "__BLOCKS__" :: all_cppflags @ fname :: "-o" :: nname :: [] in
+  let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
+  if get_bool "dbg.verbose" then print_endline command;
+  (nname, Some {ProcessPool.command; cwd = None})
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
+  Hashtbl.clear Preprocessor.dependencies; (* clear for server mode *)
+
   (* Preprocessor flags *)
-  let cppflags = ref (get_string_list "cppflags") in
+  let cppflags = ref (get_string_list "pre.cppflags") in
 
   (* the base include directory *)
   let custom_include_dirs =
-    get_string_list "custom_includes" @
+    get_string_list "pre.custom_includes" @
     Filename.concat exe_dir "includes" ::
     Goblint_sites.includes
   in
@@ -208,16 +186,16 @@ let preprocess_files () =
 
   (* fill include flags *)
   let one_include_f f x = include_dirs := f x :: !include_dirs in
-  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat !Goblintutil.tempDirName OilUtil.header :: !include_files;
+  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat (GoblintDir.preprocessed ()) OilUtil.header :: !include_files;
   (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
-  get_string_list "includes" |> List.iter (one_include_f identity);
+  get_string_list "pre.includes" |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
     let kernel_roots = [
-      get_string "kernel-root";
+      get_string "pre.kernel-root";
       Filename.concat exe_dir "linux-headers";
       (* linux-headers not installed with goblint package *)
     ]
@@ -227,7 +205,7 @@ let preprocess_files () =
     let kernel_dir = kernel_root ^ "/include" in
     let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
 
-    get_string_list "kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
+    get_string_list "pre.kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
 
     let preconf = find_custom_include "linux/goblint_preconf.h" in
     let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
@@ -242,8 +220,8 @@ let preprocess_files () =
   );
 
   let include_args =
-    List.flatten (List.map (fun include_dir -> ["-I"; include_dir]) !include_dirs) @
-    List.flatten (List.map (fun include_file -> ["-include"; include_file]) !include_files)
+    List.concat_map (fun include_dir -> ["-I"; include_dir]) !include_dirs @
+    List.concat_map (fun include_file -> ["-include"; include_file]) !include_files
   in
 
   let all_cppflags = !cppflags @ include_args in
@@ -278,26 +256,38 @@ let preprocess_files () =
 
   let extra_arg_files = ref [] in
 
-  extra_arg_files := find_custom_include "stdlib.c" :: !extra_arg_files;
+  extra_arg_files := find_custom_include "stdlib.c" :: find_custom_include "pthread.c" :: !extra_arg_files;
 
   if get_bool "ana.sv-comp.functions" then
     extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
 
-  List.flatten (List.map preprocess_arg_file (!extra_arg_files @ !arg_files))
+  let preprocessed = List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files) in
+  if not (get_bool "pre.exist") then (
+    let preprocess_tasks = List.filter_map snd preprocessed in
+    let terminated task = function
+      | Unix.WEXITED 0 -> ()
+      | process_status -> failwith (GobUnix.string_of_process_status process_status)
+    in
+    ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks
+  );
+  List.map fst preprocessed
 
 (** Possibly merge all postprocessed files *)
 let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
-  let files_AST = List.map Cilfacade.getAST cpp_file_names in
-  remove_temp_dir ();
+  let get_ast_and_record_deps f =
+    let file = Cilfacade.getAST f in
+    (* Drop <built-in> and <command-line> from dependencies *)
+    Hashtbl.add Preprocessor.dependencies f @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
+    file
+  in
+  let files_AST = List.map (get_ast_and_record_deps) cpp_file_names in
 
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
   in
 
-  (* direct the output to file if requested  *)
-  if not (get_bool "g2html" || get_string "outfile" = "") then Goblintutil.out := Legacy.open_out (get_string "outfile");
   Errormsg.logChannel := Messages.get_out "cil" cilout;
 
   (* we use CIL to merge all inputs to ONE file *)
@@ -317,6 +307,8 @@ let merge_preprocessed cpp_file_names =
   Cilfacade.current_file := merged_AST;
   merged_AST
 
+let preprocess_and_merge () = preprocess_files () |> merge_preprocessed
+
 let do_stats () =
   if get_bool "printstats" then (
     print_newline ();
@@ -328,6 +320,12 @@ let do_stats () =
 
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
+  (* direct the output to file if requested  *)
+  if not (get_bool "g2html" || get_string "outfile" = "") then (
+    if !Goblintutil.out <> Legacy.stdout then
+      Legacy.close_out !Goblintutil.out;
+    Goblintutil.out := Legacy.open_out (get_string "outfile"));
+
   let module L = Printable.Liszt (CilType.Fundec) in
   if get_bool "justcil" then
     (* if we only want to print the output created by CIL: *)
@@ -362,13 +360,12 @@ let do_analyze change_info merged_AST =
           Printexc.raise_with_backtrace e backtrace (* re-raise with captured inner backtrace *)
           (* Cilfacade.current_file := ast'; *)
       in
-      (* old style is ana.activated = [phase_1, ...] with phase_i = [ana_1, ...]
-         new style (Goblintutil.phase_config = true) is phases[i].ana.activated = [ana_1, ...]
+      (* new style is phases[i].ana.activated = [ana_1, ...]
          phases[i].ana.x overwrites setting ana.x *)
       let num_phases =
         let np,na,nt = Tuple3.mapn (List.length % get_list) ("phases", "ana.activated", "trans.activated") in
-        phase_config := np > 0; (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
-        if get_bool "dbg.verbose" then print_endline @@ "Using " ^ if !phase_config then "new" else "old" ^ " format for phases!";
+        (* TODO what about wrong usage like { phases = [...], ana.activated = [...] }? should child-lists add to parent-lists? *)
+        if get_bool "dbg.verbose" then print_endline @@ "Using new format for phases!";
         if np = 0 && na = 0 && nt = 0 then failwith "No phases and no activated analyses or transformations!";
         max np 1
       in
@@ -429,11 +426,11 @@ let check_arguments () =
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
-  if get_string "ana.osek.oil" <> "" && not (get_string "exp.privatization" = "protection-vesal" || get_string "exp.privatization" = "protection-old") then (set_string "exp.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization");
+  if get_string "ana.osek.oil" <> "" && not (get_string "ana.base.privatization" = "protection-vesal" || get_string "ana.base.privatization" = "protection-old") then (set_string "ana.base.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
-  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.rename-load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
+  if get_bool "incremental.only-rename" then (set_bool "incremental.load" true; warn "incremental.only-rename implicitly activates incremental.load. Previous AST is loaded for diff and rename, but analyis results are not reused.")
 
 let handle_extraspecials () =
   let funs = get_string_list "exp.extraspecials" in
@@ -478,44 +475,3 @@ let () = (* signal for printing backtrace; other signals in Generic.SolverStats 
   (* whether interactive interrupt (ctrl-C) terminates the program or raises the Break exception which we use below to print a backtrace. https://ocaml.org/api/Sys.html#VALcatch_break *)
   catch_break true;
   set_signal (Goblintutil.signal_of_string (get_string "dbg.backtrace-signal")) (Signal_handle (fun _ -> Printexc.get_callstack 999 |> Printexc.print_raw_backtrace Stdlib.stderr; print_endline "\n...\n")) (* e.g. `pkill -SIGUSR2 goblint`, or `kill`, `htop` *)
-
-(** the main function *)
-let main () =
-  try
-    Stats.reset Stats.SoftwareTimer;
-    parse_arguments ();
-    check_arguments ();
-    AfterConfig.run ();
-
-    Sys.set_signal (Goblintutil.signal_of_string (get_string "dbg.solver-signal")) Signal_ignore; (* Ignore solver-signal before solving (e.g. MyCFG), otherwise exceptions self-signal the default, which crashes instead of printing backtrace. *)
-
-    (* Cil.lowerConstants assumes wrap-around behavior for signed intger types, which conflicts with checking
-      for overflows, as this will replace potential overflows with constants after wrap-around *)
-    (if GobConfig.get_bool "ana.sv-comp.enabled" && Svcomp.Specification.of_option () = NoOverflow then
-      set_bool "exp.lower-constants" false);
-    Cilfacade.init ();
-
-    handle_extraspecials ();
-    create_temp_dir ();
-    handle_flags ();
-    if get_bool "dbg.verbose" then (
-      print_endline (localtime ());
-      print_endline command;
-    );
-    let file = preprocess_files () |> merge_preprocessed in
-    let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
-    file|> do_analyze changeInfo;
-    do_stats ();
-    do_html_output ();
-    do_gobview ();
-    if !verified = Some false then exit 3;  (* verifier failed! *)
-  with
-    | Exit ->
-      exit 1
-    | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
-      (* Printexc.print_backtrace BatInnerIO.stderr *)
-      eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
-      exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
-    | Timeout ->
-      eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
-      exit 124

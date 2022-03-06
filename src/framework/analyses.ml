@@ -26,10 +26,8 @@ end
 
 module Var =
 struct
-  type t = Node.t [@@deriving eq, ord]
+  type t = Node.t [@@deriving eq, ord, hash]
   let relift x = x
-
-  let hash = Node.hash
 
   let getLocation n = Node.location n
 
@@ -46,10 +44,8 @@ end
 
 module VarF (LD: Printable.S) =
 struct
-  type t = Node.t * LD.t [@@deriving eq, ord]
+  type t = Node.t * LD.t [@@deriving eq, ord, hash]
   let relift (n,x) = n, LD.relift x
-
-  let hash (n, c) = Hashtbl.hash (Node.hash n, LD.hash c)
 
   let getLocation (n,d) = Node.location n
 
@@ -120,9 +116,13 @@ struct
     let x = UpdateCil.getLoc a in
     let f = Node.find_fundec a in
     CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty () x = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
 
 module type ResultConf =
@@ -184,9 +184,6 @@ struct
     let out = Messages.get_out result_name !GU.out in
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
-    | "indented" -> failwith " `indented` is no longer supported for `result`, use fast_xml instead "
-    | "compact" -> failwith " `compact` is no longer supported for `result`, use fast_xml instead "
-    | "html" -> failwith " `html` is no longer supported for `result`, run with --html instead "
     | "fast_xml" ->
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
@@ -271,7 +268,14 @@ struct
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
       Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
-      Yojson.Safe.pretty_to_channel ~std:true out (Messages.Table.to_yojson ())
+      let files = Hashtbl.to_list Preprocessor.dependencies in
+      let filter_system = List.filter_map (fun (f,system) -> if system then None else Some f) in
+      let json = `Assoc [
+          ("files", `Assoc (List.map (Tuple2.map2 (fun deps -> [%to_yojson:string list] @@ filter_system deps)) files));
+          ("messages", Messages.Table.to_yojson ());
+        ]
+      in
+      Yojson.Safe.pretty_to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -297,12 +301,11 @@ type ('d,'g,'c,'v) ctx =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; presub   : (string * Obj.t) list
-  ; postsub  : (string * Obj.t) list
+  ; presub   : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
+  ; postsub  : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
-  ; assign   : ?name:string -> lval -> exp -> unit
   }
 
 exception Ctx_failure of string
@@ -366,7 +369,7 @@ sig
 
   val special : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t
   val enter   : (D.t, G.t, C.t, V.t) ctx -> lval option -> fundec -> exp list -> (D.t * D.t) list
-  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t -> D.t -> D.t
+  val combine : (D.t, G.t, C.t, V.t) ctx -> lval option -> exp -> fundec -> exp list -> C.t option -> D.t -> D.t
 
   (** Returns initial state for created thread. *)
   val threadenter : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> D.t list
@@ -375,10 +378,20 @@ sig
   val threadspawn : (D.t, G.t, C.t, V.t) ctx -> lval option -> varinfo -> exp list -> (D.t, G.t, C.t, V.t) ctx -> D.t
 end
 
+module type MCPA =
+sig
+  include Printable.S
+  val may_race: t -> t -> bool
+  val should_print: t -> bool (** Whether value should be printed in race output. *)
+end
+
 module type MCPSpec =
 sig
   include Spec
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
+
+  module A: MCPA
+  val access: (D.t, G.t, C.t, V.t) ctx -> exp -> varinfo option -> bool -> A.t
 end
 
 type analyzed_data = {
@@ -501,6 +514,14 @@ end
 module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
 module EmptyV = Printable.Empty
 
+module UnitA =
+struct
+  include Printable.Unit
+  let may_race _ _ = true
+  let should_print _ = false
+end
+
+
 (** Relatively safe default implementations of some boring Spec functions. *)
 module DefaultSpec =
 struct
@@ -546,6 +567,9 @@ struct
 
   let context fd x = x
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
+
+  module A = UnitA
+  let access _ _ _ _ = ()
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

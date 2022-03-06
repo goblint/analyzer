@@ -1,6 +1,5 @@
 module GU = Goblintutil
 open Cil
-open Pretty
 
 
 (** Location with special alphanumeric output for extraction. *)
@@ -11,9 +10,12 @@ struct
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let pretty () x = text (show x)
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let to_yojson x = `String (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
 
 module Variables =
@@ -21,7 +23,6 @@ struct
   include CilType.Varinfo
   let trace_enabled = true
   let is_global v = v.vglob
-  let copy x = x
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
@@ -49,8 +50,7 @@ module RawStrings: Printable.S with type t = string =
 struct
   include Printable.Std
   open Pretty
-  type t = string [@@deriving eq, ord, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
+  type t = string [@@deriving eq, ord, hash, to_yojson]
   let show x = "\"" ^ x ^ "\""
   let pretty () x = text (show x)
   let name () = "raw strings"
@@ -67,8 +67,7 @@ module RawBools: Printable.S with type t = bool =
 struct
   include Printable.Std
   open Pretty
-  type t = bool [@@deriving eq, ord, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
+  type t = bool [@@deriving eq, ord, hash, to_yojson]
   let show (x:t) =  if x then "true" else "false"
   let pretty () x = text (show x)
   let name () = "raw bools"
@@ -84,7 +83,6 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 module CilExp =
 struct
   include CilType.Exp
-  let copy x = x
 
   let name () = "expressions"
 
@@ -153,7 +151,6 @@ end
 module CilStmt: Printable.S with type t = stmt =
 struct
   include CilType.Stmt
-  let copy x = x
   let show x = "<stmt>"
   let pretty = Cilfacade.stmt_pretty_short
 

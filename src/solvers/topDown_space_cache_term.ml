@@ -16,8 +16,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     type phase = Widen | Narrow
@@ -172,7 +171,7 @@ module WP =
         )
       in
       (* restore values for non-widening-points *)
-      if GobConfig.get_bool "exp.solver.wp.restore" then (
+      if GobConfig.get_bool "solvers.wp.restore" then (
         if (GobConfig.get_bool "dbg.verbose") then
           print_endline ("Restoring missing values.");
         let restore () =

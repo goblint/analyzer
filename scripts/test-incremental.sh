@@ -15,11 +15,11 @@ args="--enable dbg.debug --enable printstats -v"
 
 ./goblint --conf $conf $args --enable incremental.save $source &> $base/$test.before.log
 
-patch -b $source $patch
+patch -p0 -b <$patch
 
 ./goblint --conf $conf $args --enable incremental.load --set save_run $base/$test-incrementalrun $source &> $base/$test.after.incr.log
 ./goblint --conf $conf $args --enable incremental.only-rename --set save_run $base/$test-originalrun $source &> $base/$test.after.scratch.log
 ./goblint --conf $conf --enable solverdiffs --compare_runs $base/$test-originalrun $base/$test-incrementalrun $source
 
-patch -b -R $source $patch
+patch -p0 -b -R <$patch
 rm -r $base/$test-originalrun $base/$test-incrementalrun

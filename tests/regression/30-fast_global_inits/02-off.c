@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --disable exp.fast_global_inits
+// PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --disable exp.fast_global_inits
 // This checks that partitioned arrays and fast_global_inits are no longer incompatible
 int global_array[50];
 int global_array_multi[50][2][2];

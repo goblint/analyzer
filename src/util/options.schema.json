@@ -1,0 +1,1750 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "properties": {
+    "outfile": {
+      "title": "outfile",
+      "description": "File to print output to.",
+      "type": "string",
+      "default": ""
+    },
+    "justcil": {
+      "title": "justcil",
+      "description": "Just parse and output the CIL.",
+      "type": "boolean",
+      "default": false
+    },
+    "justcfg": {
+      "title": "justcfg",
+      "description": "Only output the CFG in cfg.dot .",
+      "type": "boolean",
+      "default": false
+    },
+    "printstats": {
+      "title": "printstats",
+      "description": "Outputs timing information.",
+      "type": "boolean",
+      "default": false
+    },
+    "verify": {
+      "title": "verify",
+      "description":
+        "Verify that the solver reached a post-fixpoint. Beware that disabling this also disables output of warnings since post-processing of the results is done in the verification phase!",
+      "type": "boolean",
+      "default": true
+    },
+    "mainfun": {
+      "title": "mainfun",
+      "description": "Sets the name of the main functions.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [ "main" ]
+    },
+    "exitfun": {
+      "title": "exitfun",
+      "description": "Sets the name of the cleanup functions.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "otherfun": {
+      "title": "otherfun",
+      "description": "Sets the name of other functions.",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "allglobs": {
+      "title": "allglobs",
+      "description":
+        "Prints access information about all globals, not just races.",
+      "type": "boolean",
+      "default": false
+    },
+    "kernel": {
+      "title": "kernel",
+      "description": "For analyzing Linux Device Drivers.",
+      "type": "boolean",
+      "default": false
+    },
+    "dump_globs": {
+      "title": "dump_globs",
+      "description": "Print out the global invariant.",
+      "type": "boolean",
+      "default": false
+    },
+    "result": {
+      "title": "result",
+      "description":
+        "Result style: none, fast_xml, json, pretty, json-messages, sarif.",
+      "type": "string",
+      "enum": ["none", "fast_xml", "json", "pretty", "json-messages", "sarif"],
+      "default": "none"
+    },
+    "solver": {
+      "title": "solver",
+      "description": "Picks the solver.",
+      "type": "string",
+      "default": "td3"
+    },
+    "comparesolver": {
+      "title": "comparesolver",
+      "description": "Picks another solver for comparison.",
+      "type": "string",
+      "default": ""
+    },
+    "solverdiffs": {
+      "title": "solverdiffs",
+      "description": "Print out solver differences.",
+      "type": "boolean",
+      "default": false
+    },
+    "allfuns": {
+      "title": "allfuns",
+      "description":
+        "Analyzes all the functions (not just beginning from main). This requires exp.earlyglobs!",
+      "type": "boolean",
+      "default": false
+    },
+    "nonstatic": {
+      "title": "nonstatic",
+      "description": "Analyzes all non-static functions.",
+      "type": "boolean",
+      "default": false
+    },
+    "colors": {
+      "title": "colors",
+      "description":
+        "Colored output (via ANSI escape codes). 'auto': enabled if stdout is a terminal (instead of a pipe); 'always', 'never'.",
+      "type": "string",
+      "enum": ["auto", "always", "never"],
+      "default": "auto"
+    },
+    "g2html": {
+      "title": "g2html",
+      "description": "Run g2html.jar on the generated xml.",
+      "type": "boolean",
+      "default": false
+    },
+    "phases": {
+      "title": "phases",
+      "description":
+        "List of phases. Per-phase settings overwrite global ones.",
+      "type": "array",
+      "items": { "$ref": "#" },
+      "default": []
+    },
+    "save_run": {
+      "title": "save_run",
+      "description":
+        "Save the result of the solver, the current configuration and meta-data about the run to this directory (if set). The data can then be loaded (without solving again) to do post-processing like generating output in a different format or comparing results.",
+      "type": "string",
+      "default": ""
+    },
+    "load_run": {
+      "title": "load_run",
+      "description": "Load a saved run. See save_run.",
+      "type": "string",
+      "default": ""
+    },
+    "compare_runs": {
+      "title": "compare_runs",
+      "description":
+        "Load these saved runs and compare the results. Note that currently only two runs can be compared!",
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "warn_at": {
+      "title": "warn_at",
+      "description":
+        "When to output warnings. Values: 'post' (default): after solving; 'never': no warnings; 'early': for debugging - outputs warnings already while solving (may lead to spurious warnings/asserts that would disappear after narrowing).",
+      "type": "string",
+      "enum": ["post", "never", "early"],
+      "default": "post"
+    },
+    "gobview": {
+      "title": "gobview",
+      "description":
+        "Include additional information for Gobview (e.g., the Goblint warning messages) in the directory specified by 'save_run'.",
+      "type": "boolean",
+      "default": false
+    },
+    "jobs": {
+      "title": "jobs",
+      "description": "Maximum number of parallel jobs. If 0, then number of cores is used. Currently used for preprocessing.",
+      "type": "integer",
+      "default": 1
+    },
+    "goblint-dir": {
+      "title": "goblint-dir",
+      "description": "Directory used for intermediate data.",
+      "type": "string",
+      "default": ".goblint"
+    },
+    "pre": {
+      "title": "Preprocessing",
+      "description": "Preprocessing options",
+      "type": "object",
+      "properties": {
+        "keep": {
+          "title": "pre.keep",
+          "description":
+            "Keep the intermediate output of running the C preprocessor.",
+          "type": "boolean",
+          "default": false
+        },
+        "exist": {
+          "title": "pre.exist",
+          "description": "Use existing preprocessed files.",
+          "type": "boolean",
+          "default": false
+        },
+        "includes": {
+          "title": "pre.includes",
+          "description": "List of directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "kernel_includes": {
+          "title": "pre.kernel_includes",
+          "description": "List of kernel directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "custom_includes": {
+          "title": "pre.custom_includes",
+          "description": "List of custom directories to include.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "kernel-root": {
+          "title": "pre.kernel-root",
+          "description": "Root directory for Linux kernel (linux-headers)",
+          "type": "string",
+          "default": ""
+        },
+        "cppflags": {
+          "title": "pre.cppflags",
+          "description": "Pre-processing parameters.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    },
+    "server": {
+      "title": "Server",
+      "description": "Server mode",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "title": "server.enabled",
+          "description": "Enable server mode",
+          "type": "boolean",
+          "default": false
+        },
+        "mode": {
+          "title": "server.mode",
+          "description": "Server transport mode",
+          "type": "string",
+          "enum": ["stdio", "unix"],
+          "default": "stdio"
+        },
+        "unix-socket": {
+          "title": "server.unix-socket",
+          "description": "The path to the UNIX socket",
+          "type": "string",
+          "default": "goblint.sock"
+        },
+        "reparse": {
+          "title": "server.reparse",
+          "description": "Reparse source files before each analysis run",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "ana": {
+      "title": "Analyses",
+      "description": "Options for analyses",
+      "type": "object",
+      "properties": {
+        "activated": {
+          "title": "ana.activated",
+          "description": "Lists of activated analyses in this phase.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "expRelation", "base", "threadid", "threadflag", "threadreturn",
+            "escape", "mutex", "access", "mallocWrapper", "mhp"
+          ]
+        },
+        "path_sens": {
+          "title": "ana.path_sens",
+          "description": "List of path-sensitive analyses",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [ "OSEK", "OSEK2", "mutex", "malloc_null", "uninit" ]
+        },
+        "ctx_insens": {
+          "title": "ana.ctx_insens",
+          "description": "List of context-insensitive analyses",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [ "OSEK2", "stack_loc", "stack_trace_set" ]
+        },
+        "osek": {
+          "title": "ana.osek",
+          "type": "object",
+          "properties": {
+            "oil": {
+              "title": "ana.osek.oil",
+              "description": "Oil file for the analyzed program",
+              "type": "string",
+              "default": ""
+            },
+            "defaults": {
+              "title": "ana.osek.defaults",
+              "description": "Generate default definitions for TASK and ISR",
+              "type": "boolean",
+              "default": true
+            },
+            "isrprefix": {
+              "title": "ana.osek.isrprefix",
+              "description": "Prefix added by the ISR macro",
+              "type": "string",
+              "default": "function_of_"
+            },
+            "taskprefix": {
+              "title": "ana.osek.taskprefix",
+              "description": "Prefix added by the TASK macro",
+              "type": "string",
+              "default": "function_of_"
+            },
+            "isrsuffix": {
+              "title": "ana.osek.isrsuffix",
+              "description": "Suffix added by the ISR macro",
+              "type": "string",
+              "default": ""
+            },
+            "tasksuffix": {
+              "title": "ana.osek.tasksuffix",
+              "description": "Suffix added by the TASK macro",
+              "type": "string",
+              "default": ""
+            },
+            "intrpts": {
+              "title": "ana.osek.intrpts",
+              "description": "Enable constraints for interrupts.",
+              "type": "boolean",
+              "default": false
+            },
+            "check": {
+              "title": "ana.osek.check",
+              "description":
+                "Check if (assumed) OSEK conventions are fullfilled.",
+              "type": "boolean",
+              "default": false
+            },
+            "names": {
+              "title": "ana.osek.names",
+              "description":
+                "OSEK API function (re)names for the analysed program",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "warnfiles": {
+              "title": "ana.osek.warnfiles",
+              "description": "Print all warning types to separate file",
+              "type": "boolean",
+              "default": false
+            },
+            "safe_vars": {
+              "title": "ana.osek.safe_vars",
+              "description": "Suppress warnings on these vars",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "safe_task": {
+              "title": "ana.osek.safe_task",
+              "description": "Ignore accesses in these tasks",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "safe_isr": {
+              "title": "ana.osek.safe_isr",
+              "description": "Ignore accesses in these isr",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "flags": {
+              "title": "ana.osek.flags",
+              "description": "List of global variables that are flags.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            },
+            "def_header": {
+              "title": "ana.osek.def_header",
+              "description":
+                "Generate TASK/ISR macros with default structure",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "int": {
+          "title": "ana.int",
+          "type": "object",
+          "properties": {
+            "def_exc": {
+              "title": "ana.int.def_exc",
+              "description":
+                "Use IntDomain.DefExc: definite value/exclusion set.",
+              "type": "boolean",
+              "default": true
+            },
+            "interval": {
+              "title": "ana.int.interval",
+              "description":
+                "Use IntDomain.Interval32: (int64 * int64) option.",
+              "type": "boolean",
+              "default": false
+            },
+            "enums": {
+              "title": "ana.int.enums",
+              "description":
+                "Use IntDomain.Enums: Inclusion/Exclusion sets. Go to top on arithmetic operations (except for some easy cases, e.g. multiplication with 0). Joins on widen, i.e. precise integers as long as not derived from arithmetic expressions.",
+              "type": "boolean",
+              "default": false
+            },
+            "congruence": {
+              "title": "ana.int.congruence",
+              "description":
+                "Use IntDomain.Congruence: (c, m) option, meaning congruent to c modulo m",
+              "type": "boolean",
+              "default": false
+            },
+            "refinement": {
+              "title": "ana.int.refinement",
+              "description":
+                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'",
+              "type": "string",
+              "enum": ["never", "once", "fixpoint"],
+              "default": "never"
+            },
+            "def_exc_widen_by_join": {
+              "title": "ana.int.def_exc_widen_by_join",
+              "description":
+                "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_threshold_widening": {
+              "title": "ana.int.interval_threshold_widening",
+              "description":
+                "Use constants appearing in program as threshold for widening",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "file": {
+          "title": "ana.file",
+          "type": "object",
+          "properties": {
+            "optimistic": {
+              "title": "ana.file.optimistic",
+              "description": "Assume fopen never fails.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "spec": {
+          "title": "ana.spec",
+          "type": "object",
+          "properties": {
+            "file": {
+              "title": "ana.spec.file",
+              "description": "Path to the specification file.",
+              "type": "string",
+              "default": ""
+            }
+          },
+          "additionalProperties": false
+        },
+        "pml": {
+          "title": "ana.pml",
+          "type": "object",
+          "properties": {
+            "debug": {
+              "title": "ana.pml.debug",
+              "description":
+                "Insert extra assertions into Promela code for debugging.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "arinc": {
+          "title": "ana.arinc",
+          "type": "object",
+          "properties": {
+            "assume_success": {
+              "title": "ana.arinc.assume_success",
+              "description":
+                "Assume that all ARINC functions succeed (sets return code to NO_ERROR, otherwise invalidates it).",
+              "type": "boolean",
+              "default": true
+            },
+            "simplify": {
+              "title": "ana.arinc.simplify",
+              "description":
+                "Simplify the graph by merging functions consisting of the same edges and contracting call chains where functions just consist of another call.",
+              "type": "boolean",
+              "default": true
+            },
+            "validate": {
+              "title": "ana.arinc.validate",
+              "description":
+                "Validate the graph and output warnings for: call to functions without edges, multi-edge-calls for intermediate contexts, branching on unset return variables.",
+              "type": "boolean",
+              "default": true
+            },
+            "export": {
+              "title": "ana.arinc.export",
+              "description":
+                "Generate dot graph and Promela for ARINC calls right after analysis. Result is saved in result/arinc.out either way.",
+              "type": "boolean",
+              "default": true
+            },
+            "merge_globals": {
+              "title": "ana.arinc.merge_globals",
+              "description":
+                "Merge all global return code variables into one.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "opt": {
+          "title": "ana.opt",
+          "type": "object",
+          "properties": {
+            "hashcons": {
+              "title": "ana.opt.hashcons",
+              "description":
+                "Should we try to save memory and speed up equality by hashconsing?",
+              "type": "boolean",
+              "default": true
+            },
+            "equal": {
+              "title": "ana.opt.equal",
+              "description":
+                "First try physical equality (==) before {D,G,C}.equal (only done if hashcons is disabled since it basically does the same via its tags).",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "mutex": {
+          "title": "ana.mutex",
+          "type": "object",
+          "properties": {
+            "disjoint_types": {
+              "title": "ana.mutex.disjoint_types",
+              "description":
+                "Do not propagate basic type writes to all struct fields",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "sv-comp": {
+          "title": "ana.sv-comp",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "ana.sv-comp.enabled",
+              "description": "SV-COMP mode",
+              "type": "boolean",
+              "default": false
+            },
+            "functions": {
+              "title": "ana.sv-comp.functions",
+              "description": "Handle SV-COMP __VERIFIER* functions",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "specification": {
+          "title": "ana.specification",
+          "description": "SV-COMP specification (path or string)",
+          "type": "string",
+          "default": ""
+        },
+        "wp": {
+          "title": "ana.wp",
+          "description":
+            "Weakest precondition feasibility analysis for SV-COMP violations",
+          "type": "boolean",
+          "default": false
+        },
+        "arrayoob": {
+          "title": "ana.arrayoob",
+          "description": "Array out of bounds check",
+          "type": "boolean",
+          "default": false
+        },
+        "base": {
+          "title": "ana.base",
+          "type": "object",
+          "properties": {
+            "context": {
+              "title": "ana.base.context",
+              "type": "object",
+              "properties": {
+                "non-ptr": {
+                  "title": "ana.base.context.non-ptr",
+                  "description": "Non-address values in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "int": {
+                  "title": "ana.base.context.int",
+                  "description": "Integer values in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                },
+                "interval": {
+                  "title": "ana.base.context.interval",
+                  "description":
+                    "Integer values of the Interval domain in function contexts.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "partition-arrays": {
+              "title": "ana.base.partition-arrays",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.partition-arrays.enabled",
+                  "description":
+                    "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
+                  "type": "boolean",
+                  "default": false
+                },
+                "keep-expr": {
+                  "title": "ana.base.partition-arrays.keep-expr",
+                  "description":
+                    "When using the partitioning which expression should be used for partitioning ('first', 'last')",
+                  "type": "string",
+                  "enum": ["first", "last"],
+                  "default": "first"
+                },
+                "partition-by-const-on-return": {
+                  "title": "ana.base.partition-arrays.partition-by-const-on-return",
+                  "description":
+                    "When using the partitioning should arrays be considered partitioned according to a constant if a var in the expression used for partitioning goes out of scope?",
+                  "type": "boolean",
+                  "default": false
+                },
+                "smart-join": {
+                  "title": "ana.base.partition-arrays.smart-join",
+                  "description":
+                    "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "structs": {
+              "title": "ana.base.structs",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.structs.domain",
+                  "description":
+                    "The domain that should be used for structs. simple/sets/keyed/combined-all/combined-sk",
+                  "type": "string",
+                  "enum": ["simple", "sets", "keyed", "combined-all", "combined-sk"],
+                  "default": "simple"
+                },
+                "key": {
+                  "title": "ana.base.structs.key",
+                  "type": "object",
+                  "properties": {
+                    "forward": {
+                      "title": "ana.base.structs.key.forward",
+                      "description":
+                        "Whether the struct key should be picked going from first field to last.",
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "avoid-ints": {
+                      "title": "ana.base.structs.key.avoid-ints",
+                      "description":
+                        "Whether integers should be avoided for key.",
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "prefer-ptrs": {
+                      "title": "ana.base.structs.key.prefer-ptrs",
+                      "description":
+                        "Whether pointers should be preferred for key.",
+                      "type": "boolean",
+                      "default": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "privatization": {
+              "title": "ana.base.privatization",
+              "description":
+                "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+              "type": "string",
+              "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "default": "protection-read"
+            }
+          },
+          "additionalProperties": false
+        },
+        "malloc": {
+          "title": "ana.malloc",
+          "type": "object",
+          "properties": {
+            "wrappers": {
+              "title": "ana.malloc.wrappers",
+              "description":
+                "Loads a list of known malloc wrapper functions.",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
+                "kzalloc"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "apron": {
+          "title": "ana.apron",
+          "type": "object",
+          "properties": {
+            "context": {
+              "title": "ana.apron.context",
+              "description": "Entire relation in function contexts.",
+              "type": "boolean",
+              "default": true
+            },
+            "strengthening": {
+              "title": "ana.apron.strengthening",
+              "description": "Apply strengthening in join for extra precision with heterogeneous environments. Expensive!",
+              "type": "boolean",
+              "default": false
+            },
+            "domain": {
+              "title": "ana.apron.domain",
+              "description":
+                "Which domain should be used for the Apron analysis. Can be 'octagon', 'interval' or 'polyhedra'",
+              "type": "string",
+              "enum": ["octagon", "interval", "polyhedra"],
+              "default": "octagon"
+            },
+            "threshold_widening": {
+              "title": "ana.apron.threshold_widening",
+              "description":
+                "Use constants appearing in program as threshold for widening",
+              "type": "boolean",
+              "default": false
+            },
+            "privatization": {
+              "title": "ana.apron.privatization",
+              "description":
+                "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+              "type": "string",
+              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "default": "mutex-meet"
+            },
+            "priv": {
+              "title": "ana.apron.priv",
+              "type": "object",
+              "properties": {
+                "not-started": {
+                  "title": "ana.apron.priv.not-started",
+                  "description":
+                    "Exclude writes from threads that may not be started yet",
+                  "type": "boolean",
+                  "default": true
+                },
+                "must-joined": {
+                  "title": "ana.apron.priv.must-joined",
+                  "description":
+                    "Exclude writes from threads that must have been joined",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "context": {
+          "title": "ana.context",
+          "type": "object",
+          "properties": {
+            "widen": {
+              "title": "ana.context.widen",
+              "description":
+                "Do widening on contexts. Keeps a map of function to call state; enter will then return the widened local state for recursive calls.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "thread": {
+          "title": "ana.thread",
+          "type": "object",
+          "properties": {
+            "domain": {
+              "title": "ana.thread.domain",
+              "description":
+                "Which domain should be used for the thread ids. Can be 'history' or 'plain'",
+              "type": "string",
+              "enum": ["history", "plain"],
+              "default": "history"
+            },
+            "include-node" : {
+              "title": "ana.thread.include-node",
+              "description":
+                "Whether the node at which a thread is created is part of its threadid",
+              "type": "boolean",
+              "default" : true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "incremental": {
+      "title": "Incremental",
+      "description": "Incremental analysis options",
+      "type": "object",
+      "properties": {
+        "load": {
+          "title": "incremental.load",
+          "description":
+            "Load incremental analysis results, in case any exist.",
+          "type": "boolean",
+          "default": false
+        },
+        "only-rename": {
+          "title": "incremental.only-rename",
+          "description":
+            "Only reset IDs of unchanged objects in the AST. Do  not reuse solver results. This option is mainly useful for benchmarking purposes.",
+          "type": "boolean",
+          "default": false
+        },
+        "save": {
+          "title": "incremental.save",
+          "description": "Store incremental analysis results.",
+          "type": "boolean",
+          "default": false
+        },
+        "stable": {
+          "title": "incremental.stable",
+          "description":
+            "Reuse the stable set and selectively destabilize it (recommended).",
+          "type": "boolean",
+          "default": true
+        },
+        "wpoint": {
+          "title": "incremental.wpoint",
+          "description":
+            "Reuse the wpoint set (not recommended). Reusing the wpoint will combine existing results at previous widening points.",
+          "type": "boolean",
+          "default": false
+        },
+        "reluctant": {
+          "title": "incremental.reluctant",
+          "type": "object",
+          "properties": {
+            "on": {
+              "title": "incremental.reluctant.on",
+              "description":
+                "Destabilize nodes in changed functions reluctantly",
+              "type": "boolean",
+              "default": true
+            },
+            "compare": {
+              "title": "incremental.reluctant.compare",
+              "description":
+                "In order to reuse the function's old abstract value the new abstract value must be leq (focus on efficiency) or equal (focus on precision) compared to the old.",
+              "type": "string",
+              "enum": ["leq", "equal"],
+              "default": "leq"
+            }
+          },
+          "additionalProperties": false
+        },
+        "compare": {
+          "title": "incremental.compare",
+          "description":
+            "Which comparison should be used for functions? 'ast'/'cfg' (cfg comparison also differentiates which nodes of a function have changed)",
+          "type": "string",
+          "enum": ["ast", "cfg"],
+          "default": "ast"
+        },
+        "force-reanalyze": {
+          "title": "incremental.force-reanalyze",
+          "type": "object",
+          "properties": {
+            "funs": {
+              "title": "incremental.force-reanalyze.funs",
+              "description":
+                "List of functions that are to be re-analayzed from scratch",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": []
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "sem": {
+      "title": "Semantics",
+      "description": "Options for semantics",
+      "type": "object",
+      "properties": {
+        "unknown_function": {
+          "title": "sem.unknown_function",
+          "type": "object",
+          "properties": {
+            "spawn": {
+              "title": "sem.unknown_function.spawn",
+              "description":
+                "Unknown function call spawns reachable functions",
+              "type": "boolean",
+              "default": true
+            },
+            "invalidate": {
+              "title": "sem.unknown_function.invalidate",
+              "type": "object",
+              "properties": {
+                "globals": {
+                  "title": "sem.unknown_function.invalidate.globals",
+                  "description":
+                    "Unknown function call invalidates all globals",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "builtin_unreachable": {
+          "title": "sem.builtin_unreachable",
+          "type": "object",
+          "properties": {
+            "dead_code": {
+              "title": "sem.builtin_unreachable.dead_code",
+              "description":
+                "__builtin_unreachable is assumed to be dead code",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "int": {
+          "title": "sem.int",
+          "type": "object",
+          "properties": {
+            "signed_overflow": {
+              "title": "sem.int.signed_overflow",
+              "description":
+                "How to handle overflows of signed types. Values: 'assume_top' (default): Assume signed overflow results in a top value; 'assume_none': Assume program is free of signed overflows;  'assume_wraparound': Assume signed types wrap-around and two's complement representation of signed integers",
+              "type": "string",
+              "enum": ["assume_top", "assume_none", "assume_wraparound"],
+              "default": "assume_top"
+            }
+          },
+          "additionalProperties": false
+        },
+        "malloc": {
+          "title": "sem.malloc",
+          "type": "object",
+          "properties": {
+            "fail": {
+              "title": "sem.malloc.fail",
+              "description":
+                "Consider the case where malloc or calloc fails.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "lock": {
+          "title": "sem.lock",
+          "type": "object",
+          "properties": {
+            "fail": {
+              "title": "sem.lock.fail",
+              "description":
+                "Takes the possible failing of locking operations into account.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "trans": {
+      "title": "Transformations",
+      "description": "Options for transformations",
+      "type": "object",
+      "properties": {
+        "activated": {
+          "title": "trans.activated",
+          "description":
+            "Lists of activated transformations in this phase. Transformations happen after analyses.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "expeval": {
+          "title": "trans.expeval",
+          "type": "object",
+          "properties": {
+            "query_file_name": {
+              "title": "trans.expeval.query_file_name",
+              "description":
+                "Path to the JSON file containing an expression evaluation query.",
+              "type": "string",
+              "default": ""
+            }
+          },
+          "additionalProperties": false
+        },
+        "output" : {
+          "title": "trans.output",
+          "description": "Output filename for transformations that output a transformed file.",
+          "type":"string",
+          "default": "transformed.c"
+        },
+        "assert": {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "query_file_name": {
+              "title": "trans.assert.full",
+              "description":
+                "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "annotation": {
+      "title": "Annotation",
+      "description": "Options for annotations",
+      "type": "object",
+      "properties": {
+        "int": {
+          "title": "annotation.int",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "annotation.int.enabled",
+              "description":
+                "Enable manual annotation of functions with desired precision, i.e. the activated IntDomains.",
+              "type": "boolean",
+              "default": false
+            },
+            "privglobs": {
+              "title": "annotation.int.privglobs",
+              "description":
+                "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "goblint_context": {
+          "title": "annotation.goblint_context",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["base.no-non-ptr", "base.non-ptr", "base.no-int", "base.int", "base.no-interval", "base.interval", "apron.no-context", "apron.context", "no-widen", "widen"]
+            },
+            "default": []
+          }
+        },
+        "goblint_precision": {
+          "title": "annotation.goblint_precision",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["no-def_exc", "def_exc", "no-interval", "interval", "no-enums", "enums", "no-congruence", "congruence"]
+            },
+            "default": []
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "exp": {
+      "title": "Experimental",
+      "description": "Experimental features",
+      "type": "object",
+      "properties": {
+        "priv-prec-dump": {
+          "title": "exp.priv-prec-dump",
+          "description": "File to dump privatization precision data to.",
+          "type": "string",
+          "default": ""
+        },
+        "priv-distr-init": {
+          "title": "exp.priv-distr-init",
+          "description":
+            "Distribute global initializations to all global invariants for more consistent widening dynamics.",
+          "type": "boolean",
+          "default": false
+        },
+        "apron": {
+          "title": "exp.apron",
+          "type": "object",
+          "properties": {
+            "prec-dump": {
+              "title": "exp.apron.prec-dump",
+              "description": "File to dump apron precision data to.",
+              "type": "string",
+              "default": ""
+            }
+          },
+          "additionalProperties": false
+        },
+        "cfgdot": {
+          "title": "exp.cfgdot",
+          "description": "Output CFG to dot files",
+          "type": "boolean",
+          "default": false
+        },
+        "mincfg": {
+          "title": "exp.mincfg",
+          "description": "Try to minimize the number of CFG nodes.",
+          "type": "boolean",
+          "default": false
+        },
+        "earlyglobs": {
+          "title": "exp.earlyglobs",
+          "description":
+            "Side-effecting of globals right after initialization.",
+          "type": "boolean",
+          "default": false
+        },
+        "region-offsets": {
+          "title": "exp.region-offsets",
+          "description": "Considers offsets for region accesses.",
+          "type": "boolean",
+          "default": false
+        },
+        "unique": {
+          "title": "exp.unique",
+          "description": "For types that have only one value.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "forward": {
+          "title": "exp.forward",
+          "description":
+            "Use implicit forward propagation instead of the demand driven approach.",
+          "type": "boolean",
+          "default": false
+        },
+        "volatiles_are_top": {
+          "title": "exp.volatiles_are_top",
+          "description":
+            "volatile and extern keywords set variables permanently to top",
+          "type": "boolean",
+          "default": true
+        },
+        "single-threaded": {
+          "title": "exp.single-threaded",
+          "description": "Ensures analyses that no threads are created.",
+          "type": "boolean",
+          "default": false
+        },
+        "globs_are_top": {
+          "title": "exp.globs_are_top",
+          "description": "Set globals permanently to top.",
+          "type": "boolean",
+          "default": false
+        },
+        "precious_globs": {
+          "title": "exp.precious_globs",
+          "description":
+            "Global variables that should be handled flow-sensitively when using earlyglobs.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "list-type": {
+          "title": "exp.list-type",
+          "description": "Use a special abstract value for lists.",
+          "type": "boolean",
+          "default": false
+        },
+        "g2html_path": {
+          "title": "exp.g2html_path",
+          "description": "Location of the g2html.jar file.",
+          "type": "string",
+          "default": "."
+        },
+        "extraspecials": {
+          "title": "exp.extraspecials",
+          "description":
+            "List of functions that must be analyzed as unknown extern functions",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "no-narrow": {
+          "title": "exp.no-narrow",
+          "description": "Overwrite narrow a b = a",
+          "type": "boolean",
+          "default": false
+        },
+        "basic-blocks": {
+          "title": "exp.basic-blocks",
+          "description":
+            "Only keep values for basic blocks instead of for every node. Should take longer but need less space.",
+          "type": "boolean",
+          "default": false
+        },
+        "fast_global_inits": {
+          "title": "exp.fast_global_inits",
+          "description":
+            "Only generate one 'a[MyCFG.all_array_index_exp] = x' for all assignments a[...] = x for a global array a[n].",
+          "type": "boolean",
+          "default": true
+        },
+        "architecture": {
+          "title": "exp.architecture",
+          "description": "Architecture for analysis, currently for witness",
+          "type": "string",
+          "default": "64bit"
+        },
+        "gcc_path": {
+          "title": "exp.gcc_path",
+          "description":
+            "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise).",
+          "type": "string",
+          "default": "/usr/bin/gcc"
+        },
+        "compdb": {
+          "title": "exp.compdb",
+          "type": "object",
+          "properties": {
+            "original-path": {
+              "title": "exp.compdb.original-path",
+              "description":
+                "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
+              "type": "string",
+              "default": ""
+            }
+          },
+          "additionalProperties": false
+        },
+        "cpp-path": {
+          "title": "exp.cpp-path",
+          "description":
+            "Path to C preprocessor (cpp) to use. If empty, then automatically searched.",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "additionalProperties": false
+    },
+    "dbg": {
+      "title": "Debugging",
+      "description": "Debugging options",
+      "type": "object",
+      "properties": {
+        "debug": {
+          "title": "dbg.debug",
+          "description": "Debug mode: for testing the analyzer itself.",
+          "type": "boolean",
+          "default": false
+        },
+        "verbose": {
+          "title": "dbg.verbose",
+          "description": "Prints some status information.",
+          "type": "boolean",
+          "default": false
+        },
+        "trace": {
+          "title": "dbg.trace",
+          "type": "object",
+          "properties": {
+            "context": {
+              "title": "dbg.trace.context",
+              "description": "Also print the context of solver variables.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "uncalled": {
+          "title": "dbg.uncalled",
+          "description": "Display uncalled functions.",
+          "type": "boolean",
+          "default": true
+        },
+        "dump": {
+          "title": "dbg.dump",
+          "description": "Dumps the results to the given path",
+          "type": "string",
+          "default": ""
+        },
+        "cilout": {
+          "title": "dbg.cilout",
+          "description": "Where to dump cil output",
+          "type": "string",
+          "default": ""
+        },
+        "timeout": {
+          "title": "dbg.timeout",
+          "description":
+            "Stop solver after this time. 0 means no timeout. Supports optional units h, m, s. E.g. 1m6s = 01m06s = 66; 6h = 6*60*60.",
+          "type": "string",
+          "default": "0"
+        },
+        "solver-stats-interval": {
+          "title": "dbg.solver-stats-interval",
+          "description":
+            "Interval in seconds to print statistics while solving. Set to 0 to deactivate.",
+          "type": "integer",
+          "default": 10
+        },
+        "solver-signal": {
+          "title": "dbg.solver-signal",
+          "description":
+            "Signal to print statistics while solving. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml).",
+          "type": "string",
+          "default": "sigusr1"
+        },
+        "backtrace-signal": {
+          "title": "dbg.backtrace-signal",
+          "description":
+            "Signal to print a raw backtrace on stderr. Possible values: sigint (Ctrl+C), sigtstp (Ctrl+Z), sigquit (Ctrl+\\), sigusr1, sigusr2, sigalrm, sigprof etc. (see signal_of_string in goblintutil.ml).",
+          "type": "string",
+          "default": "sigusr2"
+        },
+        "solver-progress": {
+          "title": "dbg.solver-progress",
+          "description":
+            "Used for debugging. Prints out a symbol on solving a rhs.",
+          "type": "boolean",
+          "default": false
+        },
+        "print_wpoints": {
+          "title": "dbg.print_wpoints",
+          "description":
+            "Print the widening points after solving (does not include the removed wpoints during solving by the slr solvers). Currently only implemented in: slr*, td3.",
+          "type": "boolean",
+          "default": false
+        },
+        "print_dead_code": {
+          "title": "dbg.print_dead_code",
+          "description": "Print information about dead code",
+          "type": "boolean",
+          "default": false
+        },
+        "slice": {
+          "title": "dbg.slice",
+          "type": "object",
+          "properties": {
+            "on": {
+              "title": "dbg.slice.on",
+              "description": "Turn slicer on or off.",
+              "type": "boolean",
+              "default": false
+            },
+            "n": {
+              "title": "dbg.slice.n",
+              "description": "How deep function stack do we analyze.",
+              "type": "integer",
+              "default": 10
+            }
+          },
+          "additionalProperties": false
+        },
+        "limit": {
+          "title": "dbg.limit",
+          "type": "object",
+          "properties": {
+            "widen": {
+              "title": "dbg.limit.widen",
+              "description":
+                "Limit for number of widenings per node (0 = no limit).",
+              "type": "integer",
+              "default": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "warn_with_context": {
+          "title": "dbg.warn_with_context",
+          "description":
+            "Keep warnings for different contexts apart (currently only done for asserts).",
+          "type": "boolean",
+          "default": false
+        },
+        "regression": {
+          "title": "dbg.regression",
+          "description":
+            "Only output warnings for assertions that have an unexpected result (no comment, comment FAIL, comment UNKNOWN)",
+          "type": "boolean",
+          "default": false
+        },
+        "test": {
+          "title": "dbg.test",
+          "type": "object",
+          "properties": {
+            "domain": {
+              "title": "dbg.test.domain",
+              "description": "Test domain properties",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "cilcfgdot": {
+          "title": "dbg.cilcfgdot",
+          "description": "Output dot files for CIL CFGs.",
+          "type": "boolean",
+          "default": false
+        },
+        "cfg": {
+          "title": "dbg.cfg",
+          "type": "object",
+          "properties": {
+            "loop-clusters": {
+              "title": "dbg.cfg.loop-clusters",
+              "description": "Add loop SCC clusters to CFG .dot output.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "compare_runs": {
+          "title": "dbg.compare_runs",
+          "type": "object",
+          "properties": {
+            "glob": {
+              "title": "dbg.compare_runs.glob",
+              "description": "Compare GlobConstrSys in compare_runs",
+              "type": "boolean",
+              "default": true
+            },
+            "eq": {
+              "title": "dbg.compare_runs.eq",
+              "description": "Compare EqConstrSys in compare_runs",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "print_tids": {
+          "title": "dbg.print_tids",
+          "description":
+            "Should the analysis print information on the encountered TIDs",
+          "type": "boolean",
+          "default": false
+        },
+        "print_protection": {
+          "title": "dbg.print_protection",
+          "description":
+            "Should the analysis print information on which globals are protected by which mutex?",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "warn": {
+      "title": "Warnings",
+      "description": "Filtering of warnings",
+      "type": "object",
+      "properties": {
+        "assert": {
+          "title": "warn.assert",
+          "description": "Assert messages",
+          "type": "boolean",
+          "default": true
+        },
+        "behavior": {
+          "title": "warn.behavior",
+          "description": "undefined behavior warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "integer": {
+          "title": "warn.integer",
+          "description": "integer (Overflow, Div_by_zero) warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "cast": {
+          "title": "warn.cast",
+          "description": "Cast (Type_mismatch(bug) warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "race": {
+          "title": "warn.race",
+          "description": "Race warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "deadcode": {
+          "title": "warn.deadcode",
+          "description": "Dead code warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "analyzer": {
+          "title": "warn.analyzer",
+          "description": "Analyzer messages",
+          "type": "boolean",
+          "default": true
+        },
+        "unsound": {
+          "title": "warn.unsound",
+          "description": "Unsoundness messages",
+          "type": "boolean",
+          "default": true
+        },
+        "imprecise": {
+          "title": "warn.imprecise",
+          "description": "Imprecision messages",
+          "type": "boolean",
+          "default": true
+        },
+        "unknown": {
+          "title": "warn.unknown",
+          "description": "Unknown (of string) warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "error": {
+          "title": "warn.error",
+          "description": "Error severity messages",
+          "type": "boolean",
+          "default": true
+        },
+        "warning": {
+          "title": "warn.warning",
+          "description": "Warning severity messages",
+          "type": "boolean",
+          "default": true
+        },
+        "info": {
+          "title": "warn.info",
+          "description": "Info severity messages",
+          "type": "boolean",
+          "default": true
+        },
+        "debug": {
+          "title": "warn.debug",
+          "description": "Debug severity messages",
+          "type": "boolean",
+          "default": false
+        },
+        "success": {
+          "title": "warn.success",
+          "description": "Success severity messages",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "solvers": {
+      "title": "solvers",
+      "type": "object",
+      "properties": {
+        "td3": {
+          "title": "solvers.td3",
+          "type": "object",
+          "properties": {
+            "term": {
+              "title": "solvers.td3.term",
+              "description":
+                "Should the td3 solver use the phased/terminating strategy?",
+              "type": "boolean",
+              "default": true
+            },
+            "side_widen": {
+              "title": "solvers.td3.side_widen",
+              "description":
+                "When to widen in side. never: never widen, always: always widen, sides: widen if there are multiple side-effects from the same var resulting in a new value, cycle: widen if a called or a start var get destabilized, unstable_called: widen if any called var gets destabilized, unstable_self: widen if side-effected var gets destabilized, sides-pp: widen if there are multiple side-effects from the same program point resulting in a new value.",
+              "type": "string",
+              "enum": ["never", "always", "sides", "cycle", "unstable_called", "unstable_self", "sides-pp"],
+              "default": "sides"
+            },
+            "space": {
+              "title": "solvers.td3.space",
+              "description":
+                "Should the td3 solver only keep values at widening points?",
+              "type": "boolean",
+              "default": false
+            },
+            "space_cache": {
+              "title": "solvers.td3.space_cache",
+              "description": "Should the td3-space solver cache values?",
+              "type": "boolean",
+              "default": true
+            },
+            "space_restore": {
+              "title": "solvers.td3.space_restore",
+              "description":
+                "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "slr4": {
+          "title": "solvers.slr4",
+          "type": "object",
+          "properties": {
+            "restart_count": {
+              "title": "solvers.slr4.restart_count",
+              "description":
+                "How many times SLR4 is allowed to switch from restarting iteration to increasing iteration.",
+              "type": "integer",
+              "default": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "witness": {
+      "title": "witness",
+      "type": "object",
+      "properties": {
+        "path": {
+          "title": "witness.path",
+          "description": "Witness output path",
+          "type": "string",
+          "default": "witness.graphml"
+        },
+        "id": {
+          "title": "witness.id",
+          "description": "Which witness node IDs to use? node/enumerate",
+          "type": "string",
+          "enum": ["node", "enumerate"],
+          "default": "node"
+        },
+        "invariant": {
+          "title": "witness.invariant",
+          "type": "object",
+          "properties": {
+            "nodes": {
+              "title": "witness.invariant.nodes",
+              "description":
+                "Which witness nodes to add invariants to? all/loop_heads/none",
+              "type": "string",
+              "enum": ["all", "loop_heads", "none"],
+              "default": "all"
+            }
+          },
+          "additionalProperties": false
+        },
+        "minimize": {
+          "title": "witness.minimize",
+          "description": "Try to minimize the witness",
+          "type": "boolean",
+          "default": false
+        },
+        "uncil": {
+          "title": "witness.uncil",
+          "description":
+            "Try to undo CIL control flow transformations in witness",
+          "type": "boolean",
+          "default": false
+        },
+        "stack": {
+          "title": "witness.stack",
+          "description": "Construct stacktrace-based witness nodes",
+          "type": "boolean",
+          "default": true
+        },
+        "unknown": {
+          "title": "witness.unknown",
+          "description": "Output witness for unknown result",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

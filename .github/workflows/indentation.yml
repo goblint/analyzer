@@ -9,7 +9,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - 4.12.0 # setup-ocaml@v1 does not support 4.12.x for ocaml-version
+          - 4.13.1 # setup-ocaml@v1 does not support 4.13.x for ocaml-version
 
     runs-on: ${{ matrix.os }}
 
@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 

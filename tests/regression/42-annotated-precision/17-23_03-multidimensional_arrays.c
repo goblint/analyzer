@@ -1,12 +1,16 @@
-// PARAM: --set solver td3 --enable exp.partition-arrays.enabled  --set exp.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set exp.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// PARAM: --set solver td3 --enable ana.base.partition-arrays.enabled  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
 int main(void) {
     example1();
     example2();
     return 0;
 }
 
+void example1(void) __attribute__((goblint_precision("no-def_exc","interval")));
+void example2(void) __attribute__((goblint_precision("no-def_exc","interval")));
+
+
 // Two-dimensional array
-void example1(void) __attribute__((goblint_precision("no-def_exc","interval"))) {
+void example1(void) {
     int a[10][10];
     int i=0;
     int j=0;
@@ -36,7 +40,7 @@ void example1(void) __attribute__((goblint_precision("no-def_exc","interval"))) 
 }
 
 // Combines backwards- and forwards-iteration
-void example2(void) __attribute__((goblint_precision("no-def_exc","interval"))) {
+void example2(void) {
     int array[10][10];
     int i = 9;
 

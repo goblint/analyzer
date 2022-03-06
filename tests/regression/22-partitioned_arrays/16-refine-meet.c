@@ -1,4 +1,4 @@
-// PARAM: --enable exp.partition-arrays.enabled
+// PARAM: --enable ana.base.partition-arrays.enabled
 int garr[7];
 
 int main(int argc, char **argv)

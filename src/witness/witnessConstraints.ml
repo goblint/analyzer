@@ -21,19 +21,19 @@ end
 
 module Edge: Printable.S with type t = MyARG.inline_edge =
 struct
-  type t = MyARG.inline_edge [@@deriving to_yojson]
+  type t = MyARG.inline_edge [@@deriving to_yojson] (* TODO: deriving gets overridden *)
 
   let equal = Util.equals
   let compare = Stdlib.compare
   let hash = Hashtbl.hash
 
-  let show x = Pretty.sprint ~width:max_int (MyARG.pretty_inline_edge () x)
   let name () = "edge"
 
-  include Printable.PrintSimple (
+  let pretty = MyARG.pretty_inline_edge
+  include Printable.SimplePretty (
     struct
       type nonrec t = t
-      let show = show
+      let pretty = pretty
     end
     )
 
@@ -88,7 +88,15 @@ struct
     let bot () = failwith "VIE bot"
     let is_bot _ = failwith "VIE is_bot"
 
-    let pretty_diff () _ = failwith "VIE pretty_diff"
+    let pretty_diff () (((v, c, x'), e), ((w, d, y'), f)) =
+      if not (Node.equal v w) then
+        Pretty.dprintf "%a not equal %a" Node.pretty v Node.pretty w
+      else if not (Spec.C.equal c d) then
+        Pretty.dprintf "%a not equal %a" Spec.C.pretty c Spec.C.pretty d
+      else if not (Edge.equal e f) then
+        Pretty.dprintf "%a not equal %a" Edge.pretty e Edge.pretty f
+      else
+        I.pretty_diff () (x', y')
   end
   (* Bot is needed for Hoare widen *)
   (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
@@ -202,14 +210,6 @@ struct
     let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
-  let fold ctx f g h a =
-    let k x a =
-      try h a @@ g @@ f @@ conv ctx x
-      with Deadcode -> a
-    in
-    let d = Dom.fold k (fst ctx.local) a in
-    if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
-
   let fold' ctx f g h a =
     let k x a =
       try h a x @@ g @@ f @@ conv ctx x
@@ -315,7 +315,7 @@ struct
         if should_inline f then
           let nosync = (Sync.singleton x (SyncSet.singleton x)) in
           (* returns already post-sync in FromSpec *)
-          step (Function f) fc x (InlineReturn l) nosync
+          step (Function f) (Option.get fc) x (InlineReturn l) nosync (* fc should be Some outside of MCP *)
         else
           step_ctx_edge ctx cd
       in

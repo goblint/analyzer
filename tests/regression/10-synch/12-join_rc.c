@@ -18,7 +18,7 @@ int main(void) {
   for (i=0; i<10; i++)
     pthread_create(&id[i], NULL, t_fun, NULL);
   pthread_mutex_lock(&mutex);
-  myglobal=myglobal+1; // RACE
+  myglobal=myglobal+1; // NORACE (same lock with t_fun, same unique thread with main)
   pthread_mutex_unlock(&mutex);
   for (i=0; i<9; i++)
     pthread_join(id[i], NULL);

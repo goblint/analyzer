@@ -143,7 +143,7 @@ struct
       ust
 
   let add_per_element_access ctx e rw =
-    let module LSSet = Access.LSSet in
+    let module LSSet = OldAccess.LSSet in
     (* Per-element returns a triple of exps, first are the "element" pointers,
        in the second and third positions are the respectively access and mutex.
        Access and mutex expressions have exactly the given "elements" as "prefixes".
@@ -156,7 +156,7 @@ struct
       (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
       match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
       | Some (v, o) ->
-        let l = Pretty.sprint 80 (d_offset (text "*") () o) in
+        let l = Pretty.sprint ~width:80 (d_offset (text "*") () o) in
         (* ignore (printf "adding lock %s\n" l); *)
         LSSet.add ("p-lock",l) xs
       | None -> xs
@@ -210,17 +210,16 @@ struct
     Queries.ES.fold do_lockstep matching_exps
       (Queries.ES.fold do_perel matching_exps (LSSet.empty ()))
 
-  let part_access ctx e v _ =
-    let open Access in
-    let ls = add_per_element_access ctx e false in
-    (* ignore (printf "bla %a %a = %a\n" d_exp e D.pretty ctx.local LSSet.pretty ls); *)
-    (LSSSet.singleton (LSSet.empty ()), ls)
-
-  let query ctx (type a) (q: a Queries.t): a Queries.result =
-    match q with
-    | Queries.PartAccess {exp; var_opt; write} ->
-      part_access ctx exp var_opt write
-    | _ -> Queries.Result.top q
+  module A =
+  struct
+    (* TODO: non-string symblocks *)
+    include OldAccess.LSSet
+    let name () = "symblock"
+    let may_race lp lp2 = is_empty @@ inter lp lp2
+    let should_print lp = not (is_empty lp)
+  end
+  let access ctx e vo w =
+    add_per_element_access ctx e false
 end
 
 let _ =

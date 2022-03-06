@@ -18,6 +18,7 @@ nav:
   - Home: index.md
   - 'User guide':
     - user-guide/running.md
+    - user-guide/configuring.md
     - user-guide/inspecting.md
     - user-guide/annotating.md
   - 'Developer guide':

@@ -64,19 +64,19 @@ struct
 
   let add (addr,rw) set =
     match (Addr.to_var_offset addr) with
-    | [(_,x)] when Offs.is_definite x -> ReverseAddrSet.add (addr,rw) set
+    | Some (_,x) when Offs.is_definite x -> ReverseAddrSet.add (addr,rw) set
     | _ -> set
 
   let remove (addr,rw) set =
     let collect_diff_varinfo_with (vi,os) (addr,rw) =
       match (Addr.to_var_offset addr) with
-      | [(v,o)] when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
-      | [(v,o)] -> true
-      | _ -> false
+      | Some (v,o) when CilType.Varinfo.equal vi v -> not (may_be_same_offset o os)
+      | Some (v,o) -> true
+      | None -> false
     in
     match (Addr.to_var_offset addr) with
-    | [(_,x)] when Offs.is_definite x -> ReverseAddrSet.remove (addr,rw) set
-    | [x] -> ReverseAddrSet.filter (collect_diff_varinfo_with x) set
+    | Some (_,x) when Offs.is_definite x -> ReverseAddrSet.remove (addr,rw) set
+    | Some x -> ReverseAddrSet.filter (collect_diff_varinfo_with x) set
     | _   -> AddrSet.top ()
 
   let empty = ReverseAddrSet.empty
@@ -140,7 +140,7 @@ struct
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.union addrs st
-  let remove ask e st = 
+  let remove ask e st =
     (* TODO: Removing based on must-equality sets is not sound! *)
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in

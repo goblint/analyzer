@@ -15,11 +15,14 @@ module M = Messages
     - C API docs PDF (alternative mathematical descriptions): https://antoinemine.github.io/Apron/doc/api/c/apron.pdf
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
-let widening_thresholds_apron = lazy (
-  let t = WideningThresholds.thresholds () in
-  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_string @@ Z.to_string x) t in
+let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
+  let t = WideningThresholds.thresholds_incl_mul2 () in
+  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
   Array.of_list r
 )
+
+let reset_lazy () =
+  ResettableLazy.reset widening_thresholds_apron
 
 module Var =
 struct
@@ -123,7 +126,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
             | None -> None
           end
       in
-      Option.map (fun z -> BI.of_string (Mpzf.to_string z)) z_opt
+      Option.map Z_mlgmpidl.z_of_mpzf z_opt
     | _ ->
       failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
 
@@ -146,8 +149,8 @@ struct
 
   (* TODO: move this into some general place *)
   let is_cast_injective from_type to_type =
-    let (from_min, from_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind from_type) in
-    let (to_min, to_max) = IntDomain.Size.range_big_int (Cilfacade.get_ikind to_type) in
+    let (from_min, from_max) = IntDomain.Size.range (Cilfacade.get_ikind from_type) in
+    let (to_min, to_max) = IntDomain.Size.range (Cilfacade.get_ikind to_type) in
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let texpr1_expr_of_cil_exp d env =
@@ -163,8 +166,7 @@ struct
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
       | Const (CInt (i, _, _)) ->
-        let str = Cilint.string_of_cilint i in
-        Cst (Coeff.s_of_mpqf (Mpqf.of_string str))
+        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
       | exp ->
         let expr =
           match exp with
@@ -187,7 +189,7 @@ struct
         in
         let ik = Cilfacade.get_ikind_exp exp in
         if not (IntDomain.should_ignore_overflow ik) then (
-          let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+          let (type_min, type_max) = IntDomain.Size.range ik in
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
@@ -543,8 +545,6 @@ struct
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
-
-  let pretty_diff () (x,y) = text "pretty_diff"
 end
 
 
@@ -635,13 +635,13 @@ struct
       match check_assert d e with
       | `True -> ID.of_bool ik true
       | `False -> ID.of_bool ik false
-      | `Top -> ID.top ()
+      | `Top -> ID.top_of ik
     else
       match eval_interval_expr d e with
       | (Some min, Some max) -> ID.of_interval ik (min, max)
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top ()
+      | (None, None) -> ID.top_of ik
 end
 
 
@@ -740,6 +740,7 @@ struct
     A.meet_lincons_array Man.mgr d earray
 
   let strengthening j x y =
+    (* TODO: optimize strengthening *)
     if M.tracing then M.traceli "apron" "strengthening %a\n" pretty j;
     let x_env = A.env x in
     let y_env = A.env y in
@@ -805,6 +806,8 @@ struct
   let is_bot = equal (bot ())
   let is_top _ = false
 
+  let strengthening_enabled = GobConfig.get_bool "ana.apron.strengthening"
+
   let join x y =
     (* just to optimize joining folds, which start with bot *)
     if is_bot x then
@@ -815,8 +818,12 @@ struct
       if M.tracing then M.traceli "apron" "join %a %a\n" pretty x pretty y;
       let j = join x y in
       if M.tracing then M.trace "apron" "j = %a\n" pretty j;
-      (* TODO: optimize strengthening, currently disabled because relational traces doesn't join different environments *)
-      (* let j = strengthening j x y in *)
+      let j =
+        if strengthening_enabled then
+          strengthening j x y
+        else
+          j
+      in
       if M.tracing then M.traceu "apron" "-> %a\n" pretty j;
       j
     )
@@ -842,7 +849,7 @@ struct
     if Environment.equal x_env y_env  then
       if GobConfig.get_bool "ana.apron.threshold_widening" && Oct.manager_is_oct Man.mgr then
         let octmgr = Oct.manager_to_oct Man.mgr in
-        let ts = Lazy.force widening_thresholds_apron in
+        let ts = ResettableLazy.force widening_thresholds_apron in
         let x_oct = Oct.Abstract1.to_oct x in
         let y_oct = Oct.Abstract1.to_oct y in
         let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
@@ -874,10 +881,10 @@ sig
   val assert_inv : t -> exp -> bool -> t
   val check_assert : t -> exp -> [> `False | `Top | `True ]
   val eval_interval_expr : t -> exp -> Z.t option * Z.t option
-  val eval_int : t -> exp -> IntDomain.IntDomTuple.t
+  val eval_int : t -> exp -> Queries.ID.t
 end
 
-type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, to_yojson]
+type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, hash, to_yojson]
 
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
@@ -893,11 +900,10 @@ sig
 end =
 struct
   module AD = D2
-  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, to_yojson]
+  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
 
   include Printable.Std
   open Pretty
-  let hash (r: t)  = D2.hash r.apr + PrivD.hash r.priv * 33
 
   let show r =
     let first  = D2.show r.apr in

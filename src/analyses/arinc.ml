@@ -45,6 +45,8 @@ end
 
 module Spec : Analyses.MCPSpec =
 struct
+  [@@@warning "-unused-value-declaration"] (* some functions are only used by commented out code *)
+
   include Analyses.DefaultSpec
 
   let name () = "arinc"
@@ -68,7 +70,6 @@ struct
       v
   let get_by_id (id:id) : (resource*string) option =
     Hashtbl.filter ((=) id) resources |> Hashtbl.keys |> Enum.get
-  let get_name_by_id id = get_by_id id |> Option.get |> snd
 
   (* map process name to integer used in Pid domain *)
   let pnames = Hashtbl.create 13
@@ -82,7 +83,6 @@ struct
       let id = if Enum.is_empty ids then 1L else Int64.succ (Enum.arg_max identity ids) in
       Hashtbl.replace pnames pname id;
       id
-  let get_pid_by_id id = get_by_id id |> Option.get |> snd |> get_pid
 
 
   (* Domains *)
@@ -92,8 +92,6 @@ struct
   module G = Tasks
   module C = D
   module V = Printable.UnitConf (struct let name = "tasks" end)
-
-  let sprint_map f xs = String.concat ", " @@ List.map (sprint f) xs
 
   let context fd d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
 
@@ -163,7 +161,6 @@ struct
       M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
-  let mustPointTo ctx exp = let xs = mayPointTo ctx exp in if List.compare_length_with xs 1 = 0 then Some (List.hd xs) else None
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
   let debugMayPointTo ctx exp = M.debug "%a mayPointTo %a" d_exp exp (Pretty.d_list ", " Lval.CilLval.pretty) (mayPointTo ctx exp)
 
@@ -261,7 +258,7 @@ struct
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
     let module BaseMain = (val Base.get_main ()) in
-    let base_context = BaseMain.context_cpa f @@ Obj.obj @@ List.assoc "base" ctx.presub in
+    let base_context = BaseMain.context_cpa f @@ Obj.obj @@ ctx.presub "base" in
     let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
     { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
 
@@ -314,11 +311,6 @@ struct
         { d_callee with pred = Pred.of_node env.node; ctx = d_caller.ctx }
       )
 
-  (* ARINC utility functions *)
-  let mode_is_init  i = match Pmo.to_int i with Some 1L | Some 2L -> true | _ -> false
-  let mode_is_multi i = Pmo.to_int i = Some 3L
-  let pname_ErrorHandler = "ErrorHandler"
-
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let open ArincUtil in let _ = 42 in (* sublime's syntax highlighter gets confused without the second let... *)
     let d : D.t = ctx.local in
@@ -345,7 +337,7 @@ struct
       let assign_id exp id =
         match exp with
         (* call assign for all analyses (we only need base)! *)
-        | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+        | AddrOf lval -> ctx.emit (Assign {lval; exp = mkAddrOf @@ var id})
         (* TODO not needed for the given code, but we could use Queries.MayPointTo exp in this case *)
         | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
       in

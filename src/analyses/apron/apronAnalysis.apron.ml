@@ -129,7 +129,7 @@ struct
     assert (AD.varinfo_tracked x);
     let ik = Cilfacade.get_ikind x.vtype in
     if not (IntDomain.should_ignore_overflow ik) then ( (* don't add type bounds for signed when assume_none *)
-      let (type_min, type_max) = IntDomain.Size.range_big_int ik in
+      let (type_min, type_max) = IntDomain.Size.range ik in
       (* TODO: don't go through CIL exp? *)
       let apr = AD.assert_inv apr (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) false in
       let apr = AD.assert_inv apr (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) false in
@@ -177,7 +177,7 @@ struct
     if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
     if M.tracing then M.tracel "combine" "apron enter local: %a\n" D.pretty ctx.local;
     let arg_assigns =
-      Goblintutil.zip f.sformals args
+      GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
@@ -254,7 +254,7 @@ struct
     if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
     let new_fun_apr = AD.add_vars fun_st.apr (AD.vars st.apr) in
     let arg_substitutes =
-      Goblintutil.zip f.sformals args
+      GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
@@ -278,7 +278,7 @@ struct
         | _ -> false (* remove everything else (globals, global privs) *)
       )
     in
-    let unify_apr = A.unify Man.mgr new_apr new_fun_apr in (* TODO: unify_with *)
+    let unify_apr = ApronDomain.A.unify Man.mgr new_apr new_fun_apr in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_apr AD.pretty new_fun_apr AD.pretty unify_apr;
     let unify_st = {fun_st with apr = unify_apr} in
     if AD.type_tracked (Cilfacade.fundec_return_type f) then (
@@ -353,15 +353,30 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
+    let eval_int e =
+      read_from_globals_wrapper
+        (Analyses.ask_of_ctx ctx)
+        ctx.global st e
+        (fun apr' e' -> AD.eval_int apr' e')
+    in
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
-      let r = read_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun apr' e' ->
-          AD.eval_int apr' e'
-        )
-      in
+      let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
+    | Queries.MustBeEqual (exp1,exp2) ->
+      let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
+      let is_eq = eval_int exp in
+      Option.default false (ID.to_bool is_eq)
+    | Queries.MayBeEqual (exp1,exp2) ->
+      let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
+      let is_neq = eval_int exp in
+      Option.default true (ID.to_bool is_neq)
+    | Queries.MayBeLess (exp1, exp2) ->
+      let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
+      let is_lt = eval_int exp in
+      Option.default true (ID.to_bool is_lt)
     | _ -> Result.top q
 
 

@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper','apron']" --set exp.privatization none --set exp.apron.privatization dummy --set ana.apron.domain "interval"
+// SKIP PARAM: --set solver td3 --enable ana.int.interval  --enable ana.base.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper','apron']" --set ana.base.privatization none --set ana.apron.privatization dummy --set ana.apron.domain "interval"
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf, adapted
 void main(void) {
   int X = 0;

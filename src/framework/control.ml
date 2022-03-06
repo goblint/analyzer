@@ -194,6 +194,8 @@ struct
   (** The main function to preform the selected analyses. *)
   let analyze (file: file) (startfuns, exitfuns, otherfuns: Analyses.fundecs) =
 
+    Goblintutil.should_warn := false; (* reset for server mode *)
+
     (* exctract global xml from result *)
     let make_global_fast_xml f g =
       let open Printf in
@@ -245,12 +247,11 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = Spec.D.top ()
         ; global  = getg
-        ; presub  = []
-        ; postsub = []
+        ; presub  = (fun _ -> raise Not_found)
+        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = sideg
-        ; assign  = (fun ?name _ -> failwith "Global initializers trying to assign.")
         }
       in
       let edges = CfgTools.getGlobalInits file in
@@ -274,7 +275,11 @@ struct
               (try funs := Cilfacade.find_varinfo_fundec f :: !funs with Not_found -> ())
             | _ -> ()
           );
-          Spec.assign {ctx with local = st} lval exp
+          let res = Spec.assign {ctx with local = st} lval exp in
+          (* Needed for privatizations (e.g. None) that do not side immediately *)
+          let res' = Spec.sync {ctx with local = res} `Normal in
+          if M.tracing then M.trace "global_inits" "\t\t -> state:%a\n" Spec.D.pretty res;
+          res'
         | _                       -> failwith "Unsupported global initializer edge"
       in
       let with_externs = do_extern_inits ctx file in
@@ -298,11 +303,15 @@ struct
 
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
-    if get_string "load_run" <> "" then (
-      Spec.init (Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal")))
-    )
-    else
-      Spec.init None;
+    let marshal =
+      if get_string "load_run" <> "" then
+        Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal"))
+      else if Serialize.results_exist () && get_bool "incremental.load" then
+        Some (Serialize.load_data Serialize.AnalysisData)
+      else
+        None
+    in
+    Spec.init marshal;
     Access.init file;
 
     let test_domain (module D: Lattice.S): unit =
@@ -339,12 +348,11 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = getg
-        ; presub  = []
-        ; postsub = []
+        ; presub  = (fun _ -> raise Not_found)
+        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = sideg
-        ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
       let args = List.map (fun x -> MyCFG.unknown_exp) fd.sformals in
@@ -374,12 +382,11 @@ struct
         ; edge    = MyCFG.Skip
         ; local   = st
         ; global  = getg
-        ; presub  = []
-        ; postsub = []
+        ; presub  = (fun _ -> raise Not_found)
+        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = sideg
-        ; assign  = (fun ?name _ -> failwith "Bug4: Using enter_func for toplevel functions with 'otherstate'.")
         }
       in
       (* TODO: don't hd *)
@@ -465,7 +472,7 @@ struct
             if get_bool "dbg.verbose" then (
               print_endline ("Saving the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
-            ignore @@ GU.create_dir (save_run); (* ensure the directory exists *)
+            GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
@@ -478,7 +485,7 @@ struct
               if get_bool "dbg.verbose" then (
                 print_endline ("Saving the analysis table to " ^ analyses ^ ", the CIL state to " ^ cil ^ ", the warning table to " ^ warnings ^ ", and the runtime stats to " ^ stats);
               );
-              Serialize.marshal !MCP.analyses_table analyses;
+              Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
               Serialize.marshal !Messages.Table.messages_list warnings;
               Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
@@ -498,7 +505,7 @@ struct
             let should_save_run = false (* we already save main solver *)
           end
           in
-          let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg))) (EQSys) (LHT) (GHT) in
+          let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg2))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
           Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
@@ -507,10 +514,6 @@ struct
 
       (* Most warnings happen before durin postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       Goblintutil.should_warn := PostSolverArg.should_warn;
-
-      if GobConfig.get_bool "incremental.save" then (
-        Serialize.move_tmp_results_to_results () (* Move new incremental results to place where they will be reused *)
-      );
 
       let insrt k _ s = match k with
         | (MyCFG.Function fn,_) -> if not (get_bool "exp.forward") then Set.Int.add fn.svar.vid s else s
@@ -569,12 +572,11 @@ struct
             ; edge    = MyCFG.Skip
             ; local  = Hashtbl.find joined loc
             ; global = GHT.find gh
-            ; presub = []
-            ; postsub= []
+            ; presub = (fun _ -> raise Not_found)
+            ; postsub= (fun _ -> raise Not_found)
             ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
             ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
             ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-            ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in query context.")
             }
           in
           Spec.query ctx
@@ -608,17 +610,47 @@ struct
         fun _ -> true (* TODO: warn about conflicting options *)
     in
 
-    if get_bool "ana.sv-comp.enabled" then
-      WResult.write lh gh entrystates;
-
     if get_bool "exp.cfgdot" then
       CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
-    let marshal = Spec.finalize () in
-    if get_string "save_run" <> "" then (
-      Serialize.marshal marshal (Filename.concat (get_string "save_run") "spec_marshal")
-    );
+    let warn_global g v =
+      (* ignore (Pretty.printf "warn_global %a %a\n" CilType.Varinfo.pretty g EQSys.G.pretty v); *)
+      (* build a ctx for using the query system *)
+      let rec ctx =
+        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+        ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+        ; context = (fun () -> ctx_failwith "No context in query context.")
+        ; edge    = MyCFG.Skip
+        ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
+        ; global = (fun v -> try GHT.find gh v with Not_found -> EQSys.G.bot ())
+        ; presub = (fun _ -> raise Not_found)
+        ; postsub= (fun _ -> raise Not_found)
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+        }
+      in
+      Spec.query ctx (WarnGlobal (Obj.repr g))
+    in
+    Stats.time "warn_global" (GHT.iter warn_global) gh;
 
+    if get_bool "ana.sv-comp.enabled" then
+      WResult.write lh gh entrystates;
+
+    let marshal = Spec.finalize () in
+    (* copied from solve_and_postprocess *)
+    let gobview = get_bool "gobview" in
+    let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+    if save_run <> "" then (
+      Serialize.marshal marshal (Filename.concat save_run "spec_marshal")
+    );
+    if get_bool "incremental.save" then (
+      Serialize.store_data marshal Serialize.AnalysisData;
+      Serialize.move_tmp_results_to_results ()
+    );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Result.output (lazy local_xml) gh make_global_fast_xml file
 end

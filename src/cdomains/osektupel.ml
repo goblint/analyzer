@@ -1,7 +1,7 @@
 include Printable.Blank
 
 type t' = Val of int | Bot
-and t = t' * t' * t'* t' [@@deriving eq, ord, to_yojson]
+and t = t' * t' * t'* t' [@@deriving eq, ord, hash, to_yojson]
 
 (* lowest priority obtained over:
    1st component = critical region (between first and last variable access)
@@ -15,14 +15,6 @@ let name () = "Transactionality tupels"
 
 let is_bot_c x = (x = Bot)
 
-let hash (a,b,c,d) =
-  let a' = match a with Bot -> -1 | Val a'' -> a'' in
-  let b' = match b with Bot -> -1 | Val b'' -> b'' in
-  let c' = match c with Bot -> -1 | Val c'' -> c'' in
-  let d' = match d with Bot -> -1 | Val d'' -> d'' in
-  a' lxor b' lxor c' lxor d'
-
-let copy x = x
 let top () = (Val 0, Val 0, Val 0, Val 0)
 let is_top x = (x = top())
 let bot () = (Bot, Bot, Bot, Bot)
@@ -39,7 +31,7 @@ let pretty () x = Pretty.text (show x)
 
 let pretty_diff () (x,y) = Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-(* include Printable.PrintSimple (struct type t' = t let show = show let name = name end) *)
+(* include Printable.SimpleShow (struct type t' = t let show = show let name = name end) *)
 (* let pretty () x = Pretty.nil *)
 
 let min_t' a b = match (a,b) with

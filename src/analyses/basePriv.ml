@@ -1382,7 +1382,7 @@ struct
     (* LVH.iter (fun (l, x) v ->
         ignore (Pretty.printf "%a %a = %a\n" CilType.Location.pretty l d_varinfo x VD.pretty v)
       ) lvh; *)
-    Marshal.output f ({name = get_string "exp.privatization"; results = lvh}: result);
+    Marshal.output f ({name = get_string "ana.base.privatization"; results = lvh}: result);
     close_out_noerr f
 
   let finalize () =
@@ -1497,7 +1497,7 @@ end
 let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
-      (val match get_string "exp.privatization" with
+      (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
         | "protection-old" -> (module ProtectionBasedOldPriv)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
@@ -1512,7 +1512,7 @@ let priv_module: (module S) Lazy.t =
         | "lock" -> (module LockCenteredPriv)
         | "write" -> (module WriteCenteredPriv)
         | "write+lock" -> (module WriteAndLockCenteredPriv)
-        | _ -> failwith "exp.privatization: illegal value"
+        | _ -> failwith "ana.base.privatization: illegal value"
       )
     in
     let module Priv = PrecisionDumpPriv (Priv) in

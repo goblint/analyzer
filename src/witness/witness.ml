@@ -11,15 +11,15 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
   let is_invariant_node cfgnode =
-    match get_string "exp.witness.invariant.nodes" with
+    match get_string "witness.invariant.nodes" with
     | "all" -> true
     | "loop_heads" -> WitnessUtil.NH.mem loop_heads cfgnode
     | "none" -> false
-    | _ -> failwith "exp.witness.invariant.nodes: invalid value"
+    | _ -> failwith "witness.invariant.nodes: invalid value"
   in
 
   let module TaskResult =
-    (val if get_bool "exp.witness.stack" then
+    (val if get_bool "witness.stack" then
         (module StackTaskResult (Cfg) (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
@@ -30,7 +30,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   struct
     (* type node = N.t
     type edge = TaskResult.Arg.Edge.t *)
-    let minwitness = get_bool "exp.witness.minimize"
+    let minwitness = get_bool "witness.minimize"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
       (* startlines aren't currently interesting because broken, see below *)
@@ -64,12 +64,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module N = Arg.Node in
   let module GML = XmlGraphMlWriter in
   let module GML =
-    (val match get_string "exp.witness.id" with
+    (val match get_string "witness.id" with
       | "node" ->
         (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
       | "enumerate" ->
         (module EnumerateNodeGraphMlWriter (N) (GML))
-      | _ -> failwith "exp.witness.id: illegal value"
+      | _ -> failwith "witness.id: illegal value"
     )
   in
   let module GML = DeDupGraphMlWriter (N) (GML) in
@@ -304,12 +304,11 @@ struct
         ; edge    = MyCFG.Skip
         ; local  = local
         ; global = GHT.find gh
-        ; presub = []
-        ; postsub= []
+        ; presub = (fun _ -> raise Not_found)
+        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }
       in
       Spec.query ctx
@@ -531,7 +530,7 @@ struct
         let next _ = []
       end
       in
-      if Access.is_all_safe () then (
+      if !Access.is_all_safe then (
         let module TaskResult =
         struct
           module Arg = TrivialArg
@@ -592,8 +591,8 @@ struct
 
     print_task_result (module TaskResult);
 
-    if TaskResult.result <> Result.Unknown || get_bool "exp.witness.unknown" then (
-      let witness_path = get_string "exp.witness.path" in
+    if TaskResult.result <> Result.Unknown || get_bool "witness.unknown" then (
+      let witness_path = get_string "witness.path" in
       Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
     )
 

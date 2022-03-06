@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-base-compiler.4.12.0 --locked
+  opam switch -y create . --deps-only ocaml-base-compiler.4.13.1 --locked
 }
 
 rule() {
@@ -36,11 +36,6 @@ rule() {
       eval $(opam config env)
       # dune build -w $TARGET.exe
       dune runtest --no-buffer --watch
-    ;; domaintest)
-      eval $(opam config env)
-      dune build src/maindomaintest.exe &&
-      rm -f goblint.domaintest &&
-      cp _build/default/src/maindomaintest.exe goblint.domaintest
     ;; privPrecCompare)
       eval $(opam config env)
       dune build src/privPrecCompare.exe &&
@@ -63,7 +58,7 @@ rule() {
     ;; deps)
       eval $(opam config env)
       {
-        opam install -y . --deps-only --locked --update-invariant
+        opam install -y . --deps-only --locked --update-invariant &&
         opam upgrade -y $(opam list --pinned -s)
       } || {
         opam update
@@ -72,7 +67,7 @@ rule() {
         opam upgrade -y $(opam list --pinned -s)
       }
     ;; setup)
-      echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev"
+      echo "Make sure you have the following installed: opam >= 2.0.0, git, patch, m4, autoconf, libgmp-dev, libmpfr-dev, pkg-config"
       echo "For the --html output you also need: javac, ant, dot (graphviz)"
       echo "For running the regression tests you also need: ruby, gem, curl"
       echo "For reference see ./Dockerfile or ./scripts/travis-ci.sh"

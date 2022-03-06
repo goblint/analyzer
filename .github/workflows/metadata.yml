@@ -1,8 +1,13 @@
 name: metadata
 
 on:
+  # only run on metadata file changes
   push:
+    paths:
+      - 'CITATION.cff'
   pull_request:
+    paths:
+      - 'CITATION.cff'
 
 jobs:
   cff-validate:
@@ -10,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Validate CITATION.cff
         uses: docker://citationcff/cffconvert:latest

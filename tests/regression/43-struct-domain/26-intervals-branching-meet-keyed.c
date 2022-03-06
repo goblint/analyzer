@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --set exp.structs.domain "keyed"
+// PARAM: --enable ana.int.interval --set ana.base.structs.domain "keyed"
 
 #include<assert.h>
 
@@ -23,7 +23,7 @@ void example1() {
 
     if (pair.first == 15) {
         // This should be unreachable!
-        b = 0; // This line is not dead if we --disable exp.structs.meet-condition
+        b = 0; // This line is not dead if we --disable ana.base.structs.meet-condition
     } else if (pair.first == 10) {
         assert(pair.second == 20);
         b = 1;

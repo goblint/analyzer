@@ -176,7 +176,3 @@ attribute_value:
   | OIL_STRING   {String $1}
   | AUTO         {Auto}
 ;
-
-%%
-
-let parse_error s = print_endline s

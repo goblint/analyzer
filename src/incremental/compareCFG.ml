@@ -34,9 +34,7 @@ let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
 module NH = Hashtbl.Make(Node)
 module NTH = Hashtbl.Make(
   struct
-    type t = Node.t * Node.t
-    [@@deriving eq]
-    let hash (n1,n2) = (Node.hash n1 * 13) + Node.hash n2
+    type t = Node.t * Node.t [@@deriving eq, hash]
   end)
 
 (* This function compares two CFGs by doing a breadth-first search on the old CFG. Matching node tuples are stored in same,
@@ -64,6 +62,7 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
           | [] -> NH.replace diff toNode1 ()
           | (locEdgeList2, toNode2)::remSuc' ->
               let edgeList2 = to_edge_list locEdgeList2 in
+              (* TODO: don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
               if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
                 begin
                   let notInSame = not (NTH.mem same (toNode1, toNode2)) in
@@ -102,31 +101,29 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
 let reexamine f1 f2 (same : unit NTH.t) (diffNodes1 : unit NH.t) (module CfgOld : CfgForward) (module CfgNew : CfgForward) =
   NTH.filter_map_inplace (fun (n1,n2) _ -> if NH.mem diffNodes1 n1 then None else Some ()) same;
   NTH.add same (FunctionEntry f1, FunctionEntry f2) ();
-  let vis = NH.create 103 in
+  let module NS = Set.Make(Node) in
   let diffNodes2 = NH.create 103 in
 
   let asSndInSame k = NTH.fold (fun (n1,n2) _ acc -> acc || Node.equal n2 k) same false in
   (* remove all nodes that are affected by a primary new node from same, add the first reached tuple to the primary differing node sets *)
-  let rec refine_same firstReached k =
-    if NH.mem vis k then ()
-    else begin
-      NH.add vis k ();
-      if asSndInSame k then begin
-        NTH.filter_map_inplace (fun (n1,n2) _ -> if Node.equal n2 k then (if not firstReached then (NH.replace diffNodes1 n1 (); NH.replace diffNodes2 n2 ()); None) else Some ()) same;
-        dfs2 k (refine_same true) end
-      else if firstReached || NH.mem diffNodes2 k then ()
-      else dfs2 k (refine_same firstReached) end
+  let rec refine_same firstReached vis k =
+    if asSndInSame k then begin
+      NTH.filter_map_inplace (fun (n1,n2) _ -> if Node.equal n2 k then (if not firstReached then (NH.replace diffNodes1 n1 (); NH.replace diffNodes2 n2 ()); None) else Some ()) same;
+      dfs2 vis k (refine_same true) end
+    else if firstReached || NH.mem diffNodes2 k then ()
+    else dfs2 vis k (refine_same firstReached)
   (* find the primary new nodes, the first non-classified nodes in the new cfg (correspond to the primary obsolete nodes) *)
-  and classify_prim_new k =
-    if NH.mem vis k then ()
+  and classify_prim_new vis k =
+    if asSndInSame k then dfs2 vis k classify_prim_new
+    else (NH.add diffNodes2 k (); dfs2 NS.empty k (refine_same false))
+  and dfs2 vis node f =
+    if NS.mem node vis then ()
     else begin
-      NH.replace vis k ();
-      if asSndInSame k then dfs2 k classify_prim_new
-      else (NH.add diffNodes2 k (); NH.clear vis; dfs2 k (refine_same false)) end
-  and dfs2 node f =
-    let succ = List.map snd (CfgNew.next node) in
-    List.iter f succ in
-  dfs2 (FunctionEntry f2) classify_prim_new;
+      let vis' = NS.add node vis in
+      let succ = List.map snd (CfgNew.next node) in
+      List.iter (f vis') succ
+    end in
+  dfs2 NS.empty (FunctionEntry f2) classify_prim_new;
   (NTH.to_seq_keys same, NH.to_seq_keys diffNodes1, NH.to_seq_keys diffNodes2)
 
 let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 fun2 =

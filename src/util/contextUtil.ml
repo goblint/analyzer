@@ -1,6 +1,6 @@
 open Cil
 
-(** Definition of Goblint specific user defined C attributes **)
+(** Definition of Goblint specific user defined C attributes and their alternatives via options **)
 
 type attribute =
   | GobContext
@@ -19,10 +19,14 @@ let has_attribute s1 s2 al =
       | _ -> false
     ) al
 
+let has_option s1 s2 fd =
+  List.mem s2 (GobConfig.get_string_list ("annotation." ^ s1 ^ "." ^ fd.svar.vname))
+
 let should_keep ~isAttr ~keepOption ~removeAttr ~keepAttr fd =
   let al = fd.svar.vattr in
   let s = attribute_to_string isAttr in
-  match GobConfig.get_bool keepOption, has_attribute s removeAttr al, has_attribute s keepAttr al with
+  let has_annot a = has_option s a fd || has_attribute s a al in
+  match GobConfig.get_bool keepOption, has_annot removeAttr, has_annot keepAttr with
   | _, true, true ->
     failwith (Printf.sprintf "ContextUtil.should_remove: conflicting context attributes %s and %s on %s" removeAttr keepAttr (CilType.Fundec.show fd))
   | _, false, true

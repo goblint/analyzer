@@ -1,7 +1,7 @@
 (** Incremental terminating top down solver that optionally only keeps values at widening points and restores other values afterwards. *)
 (* Incremental: see paper 'Incremental Abstract Interpretation' https://link.springer.com/chapter/10.1007/978-3-030-41103-9_5 *)
 (* TD3: see paper 'Three Improvements to the Top-Down Solver' https://dl.acm.org/doi/10.1145/3236950.3236967
- * Option exp.solver.td3.* (default) ? true : false (solver in paper):
+ * Option solvers.td3.* (default) ? true : false (solver in paper):
  * - term (true) ? use phases for widen+narrow (TDside) : use box (TDwarrow)
  * - space (false) ? only keep values at widening points (TDspace + side) in rho : keep all values in rho
  * - space_cache (true) ? local cache l for eval calls in each solve (TDcombined) : no cache
@@ -59,8 +59,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -68,10 +67,10 @@ module WP =
     type phase = Widen | Narrow
 
     let solve box st vs data =
-      let term  = GobConfig.get_bool "exp.solver.td3.term" in
-      let side_widen = GobConfig.get_string "exp.solver.td3.side_widen" in
-      let space = GobConfig.get_bool "exp.solver.td3.space" in
-      let cache = GobConfig.get_bool "exp.solver.td3.space_cache" in
+      let term  = GobConfig.get_bool "solvers.td3.term" in
+      let side_widen = GobConfig.get_string "solvers.td3.side_widen" in
+      let space = GobConfig.get_bool "solvers.td3.space" in
+      let cache = GobConfig.get_bool "solvers.td3.space_cache" in
       let called = HM.create 10 in
 
       let infl = data.infl in
@@ -128,7 +127,7 @@ module WP =
             | None -> eq x (eval l x) (side ~x)
           in
           let new_eq = tmp in
-          (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would uneccessarily destabilize below. Seems like this does not happen. *) *)
+          (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would unnecessarily destabilize below. Seems like this does not happen. *) *)
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
@@ -245,7 +244,7 @@ module WP =
             wpoint_if @@ not (HM.mem stable y)
           | "unstable_called" -> (* TODO test/remove. Widen if any called var (not just y) is no longer stable. Expensive! *)
             wpoint_if @@ exists_key (neg (HM.mem stable)) called (* this is very expensive since it folds over called! see https://github.com/goblint/analyzer/issues/265#issuecomment-880748636 *)
-          | x -> failwith ("Unknown value '" ^ x ^ "' for option exp.solver.td3.side_widen!")
+          | x -> failwith ("Unknown value '" ^ x ^ "' for option solvers.td3.side_widen!")
         )
       and init x =
         if tracing then trace "sol2" "init %a\n" S.Var.pretty_trace x;
@@ -274,7 +273,7 @@ module WP =
         in
         let changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), None -> Some f | _ -> None) S.increment.changes.changed in
         let part_changed_funs = filter_map (fun c -> match c.old, c.diff with GFun (f,l), Some nd -> Some (f,nd.primObsoleteNodes,nd.unchangedNodes) | _ -> None) S.increment.changes.changed in
-        let prim_old_nodes_ids = Set.of_list (List.concat (List.map (fun (_,pn,_) -> List.map Node.show_id pn) part_changed_funs)) in
+        let prim_old_nodes_ids = Set.of_list (List.concat_map (fun (_,pn,_) -> List.map Node.show_id pn) part_changed_funs) in
         let removed_funs = filter_map (fun g -> match g with GFun (f,l) -> Some f | _ -> None) S.increment.changes.removed in
         (* TODO: don't use string-based nodes, make obsolete of type Node.t BatSet.t *)
         let obsolete_ret = Set.union (Set.of_list (List.map (fun f -> Node.show_id (Function f)) changed_funs))
@@ -409,7 +408,7 @@ module WP =
         )
       in
       (* restore values for non-widening-points *)
-      if space && GobConfig.get_bool "exp.solver.td3.space_restore" then (
+      if space && GobConfig.get_bool "solvers.td3.space_restore" then (
         if GobConfig.get_bool "dbg.verbose" then
           print_endline ("Restoring missing values.");
         let restore () =

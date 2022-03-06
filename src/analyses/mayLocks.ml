@@ -38,7 +38,7 @@ struct
   (* locking logic -- add all locks we can add *)
   let lock ctx rw may_fail return_value_on_success a lv arglist ls : D.ReverseAddrSet.t =
     let add_one ls e = D.add (e,rw) ls in
-    let nls = List.fold_left add_one ls (List.concat (List.map (eval_exp_addr a) arglist)) in
+    let nls = List.fold_left add_one ls (List.concat_map (eval_exp_addr a) arglist) in
     match lv with
     | None -> nls
     | Some lv ->

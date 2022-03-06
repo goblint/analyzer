@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval  --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','octagon','mallocWrapper']" --set exp.privatization none
+// SKIP PARAM: --set solver td3 --enable ana.int.interval  --enable ana.base.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper']" --set ana.base.privatization none
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf
 void main(void) {
   int X = 0;
@@ -10,7 +10,7 @@ void main(void) {
   }
 
   assert(X-N == 0);
-  // assert(X == N); // Currently not able to assert this because octagon doesn't handle it
+  assert(X == N);
 
   if(X == N) {
     N = 8;

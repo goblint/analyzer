@@ -1,0 +1,21 @@
+diff --git tests/incremental/03-precision-annotation/01-change_precision.c tests/incremental/03-precision-annotation/01-change_precision2.c
+index 47170c52e..4e7a04f88 100644
+--- tests/incremental/03-precision-annotation/01-change_precision.c
++++ tests/incremental/03-precision-annotation/01-change_precision2.c
+@@ -3,6 +3,7 @@
+ #include <math.h>
+ 
+ int main() __attribute__ ((goblint_precision("def_exc","interval")));
++int foo(int in) __attribute__ ((goblint_precision("def_exc", "interval")));
+ 
+ int foo(int x){
+     if(x < 10){
+@@ -22,7 +23,7 @@ int main(){
+     int x = rand() % 10;
+ 
+     int a = foo(x);
+-    assert(a == 0); //UNKNOWN
++    assert(a == 0);
+ 
+     int b = bar(x);
+     assert(b == 0); //UNKNOWN

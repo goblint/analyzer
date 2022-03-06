@@ -49,8 +49,8 @@ struct
 
   let const_equal c1 c2 =
     match c1, c2 with
-    |	CStr s1  , CStr s2	 -> s1 = s2
-    |	CWStr is1, CWStr is2 -> is1 = is2
+    |	CStr (s1,_)  , CStr (s2,_)	 -> s1 = s2
+    |	CWStr (is1,_), CWStr (is2,_) -> is1 = is2
     |	CChr c1  , CChr c2   -> c1 = c2
     |	CInt (v1,k1,_), CInt (v2,k2,_) -> Cilint.compare_cilint v1 v2 = 0 && k1 = k2
     |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
@@ -559,11 +559,11 @@ struct
     | StartOf (Var _,_)
     | Lval    (Var _,_) -> eq_set e s
     | AddrOf  (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOf (mkMem e ofs)) (eq_set_clos e s)
+      Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
     | StartOf (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem e ofs)) (eq_set_clos e s)
+      Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
     | Lval    (Mem e,ofs) ->
-      Queries.ES.map (fun e -> Lval (mkMem e ofs)) (eq_set_clos e s)
+      Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
     | CastE (t,e) ->
       Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
     | Question _ -> failwith "Logical operations should be compiled away by CIL."
