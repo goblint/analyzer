@@ -140,9 +140,10 @@ let virtual_changes file =
 let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
   | Some solver_data when reparsed ->
     let s_file = Option.get s.file in
-    let _, changes = VersionLookup.updateMap s_file file s.version_map in
+    let version_map, changes = VersionLookup.updateMap s_file file s.version_map in
     let old_data = Some { Analyses.cil_file = s_file; solver_data } in
     s.max_ids <- UpdateCil.update_ids s_file s.max_ids file s.version_map changes;
+    s.version_map <- version_map;
     (* TODO: get globals for restarting from config *)
     { Analyses.changes; old_data; new_file = file; restarting = [] }, false
   | Some solver_data ->
