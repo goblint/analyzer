@@ -23,15 +23,17 @@ type change_info = {
   mutable unchanged: global list;
   mutable removed: global list;
   mutable added: global list;
-  mutable force_reanalyze: VarinfoSet.t;
+  mutable exclude_from_rel_destab: VarinfoSet.t;
   (** Set of functions that are to be force-reanalyzed.
       These functions are additionally included in the [changed] field, among the other changed globals. *)
 }
 
 let empty_change_info () : change_info =
-  {added = []; removed = []; changed = []; unchanged = []; force_reanalyze = VarinfoSet.empty}
+  {added = []; removed = []; changed = []; unchanged = []; exclude_from_rel_destab = VarinfoSet.empty}
 
-type change_status = Unchanged | Changed | ForceReanalyze of Cil.fundec
+(* 'ChangedFunHeader' is used for functions whose varinfo or formal parameters changed. 'Changed' is used only for
+ * changed functions whose header is unchanged and changed non-function globals *)
+type change_status = Unchanged | Changed | ChangedFunHeader of Cil.fundec | ForceReanalyze of Cil.fundec
 
 (** Given a boolean that indicates whether the code object is identical to the previous version, returns the corresponding [change_status]*)
 let unchanged_to_change_status = function
@@ -45,13 +47,14 @@ let should_reanalyze (fdec: Cil.fundec) =
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * cfg) option) =
-  let unchangedHeader = eq_varinfo old.svar current.svar && GobList.equal eq_varinfo old.sformals current.sformals in
-  let change_status, diffOpt =
-    if should_reanalyze current then
-      ForceReanalyze current, None
+  if should_reanalyze current then
+    ForceReanalyze current, None
+  else
+    let unchangedHeader = eq_varinfo old.svar current.svar && GobList.equal eq_varinfo old.sformals current.sformals in
+    if not unchangedHeader then ChangedFunHeader current, None
     else
-      let sameDef = unchangedHeader && GobList.equal eq_varinfo old.slocals current.slocals in
-      if not sameDef then
+      let sameLocals = GobList.equal eq_varinfo old.slocals current.slocals in
+      if not sameLocals then
         (Changed, None)
       else
         match cfgs with
@@ -62,14 +65,12 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * cfg) option) =
           let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) old current in
           if diffNodes1 = [] && diffNodes2 = [] then (Changed, None)
           else (Changed, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
-  in
-  change_status, unchangedHeader, diffOpt
 
 let eq_glob (old: global) (current: global) (cfgs : (cfg * cfg) option) = match old, current with
   | GFun (f,_), GFun (g,_) -> eqF f g cfgs
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> unchanged_to_change_status (eq_varinfo x y), false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> unchanged_to_change_status (eq_varinfo x y), false, None
-  | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global old Cil.d_global current; Changed, false, None
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> unchanged_to_change_status (eq_varinfo x y), None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> unchanged_to_change_status (eq_varinfo x y), None
+  | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global old Cil.d_global current; Changed, None
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
@@ -94,16 +95,20 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       let ident = identifier_of_global global in
       let old_global = GlobalMap.find ident map in
       (* Do a (recursive) equal comparison ignoring location information *)
-      let change_status, unchangedHeader, diff = eq old_global global cfgs in
-      let append_to_changed () =
+      let change_status, diff = eq old_global global cfgs in
+      let append_to_changed (unchangedHeader) =
         changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
       in
       match change_status with
-      | Changed -> append_to_changed ()
+      | ChangedFunHeader f ->
+        changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
+        append_to_changed false
+      | Changed ->
+        append_to_changed true
       | Unchanged -> changes.unchanged <- global :: changes.unchanged
       | ForceReanalyze f ->
-        changes.force_reanalyze <- VarinfoSet.add f.svar changes.force_reanalyze;
-        append_to_changed ()
+        changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
+        append_to_changed false;
     with Not_found -> () (* Global was no variable or function, it does not belong into the map *)
   in
   let checkExists map global =
