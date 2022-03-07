@@ -6,6 +6,8 @@ open MyCFG
 include UpdateCil0
 
 let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global) Hashtbl.t) (changes: change_info) =
+  UpdateCil0.init (); (* reset for server mode *)
+
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 
