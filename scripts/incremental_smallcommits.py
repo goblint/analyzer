@@ -153,7 +153,9 @@ def extract_from_analyzer_log(log):
                 return m.groupdict()
     runtime_pattern = 'TOTAL[ ]+(?P<runtime>[0-9\.]+) s'
     change_info_pattern = 'change_info = { unchanged = (?P<unchanged>[0-9]*); changed = (?P<changed>[0-9]*); added = (?P<added>[0-9]*); removed = (?P<removed>[0-9]*) }'
-    d = dict(list(find_line(runtime_pattern).items()) + list(find_line(change_info_pattern).items()))
+    r = find_line(runtime_pattern)
+    ch = find_line(change_info_pattern) or {"unchanged": 0, "changed": 0, "added": 0, "removed": 0}
+    d = dict(list(r.items()) + list(ch.items()))
     file = open(log, "r")
     num_racewarnings = file.read().count('[Warning][Race]')
     d["race_warnings"] = num_racewarnings
@@ -176,7 +178,7 @@ def collect_data():
         data["Changed LOC"].append(commit_prop["CLOC"])
         data["Relevant changed LOC"].append(commit_prop["relCLOC"])
         index.append(str(t) + ": " + commit_prop["hash"][:7])
-        if not os.path.exists(parentlog) or not os.path.exists(childlog):
+        if not os.path.exists(parentlog) or not os.path.exists(childlog) or not os.path.exists(childrellog):
             data["Runtime for parent commit (non-incremental)"].append(0)
             data["Runtime for commit (incremental)"].append(0)
             data["Runtime for commit (incremental, reluctant)"].append(0)
