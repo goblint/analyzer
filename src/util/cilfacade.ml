@@ -490,6 +490,7 @@ let find_original_name vi = VarinfoH.find_opt (ResettableLazy.force original_nam
 
 
 let reset_lazy () =
+  StmtH.clear pseudo_return_to_fun;
   ResettableLazy.reset stmt_fundecs;
   ResettableLazy.reset varinfo_fundecs;
   ResettableLazy.reset name_fundecs;
