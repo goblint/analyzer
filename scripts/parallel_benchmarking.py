@@ -36,9 +36,9 @@ build_script = 'build_compdb_zstd.sh'
 begin = datetime(2021,1,1)
 
 # calculate number of interesting commits
-i = sum(1 for _ in Repository(url, since=begin, only_no_merge=True).traverse_commits())
-print("Number of potentially interesting commits:", i)
-perprocess = math.ceil(i / num)
+num_commits = sum(1 for _ in Repository(url, since=begin, only_no_merge=True).traverse_commits())
+print("Number of potentially interesting commits:", num_commits)
+perprocess = num_commits // num
 
 for i in range(num):
     f = open("process" + str(i) + ".log", "a+")
@@ -46,7 +46,9 @@ for i in range(num):
     os.mkdir(dir)
     os.chdir(dir)
     # run script
-    p = subprocess.Popen(['python3', os.path.join(full_path_analyzer, 'scripts', 'incremental_smallcommits.py'), full_path_analyzer, url, repo_name, build_script, conf, datetime.strftime(begin, '%Y/%m/%d'), str(perprocess * i), str(perprocess * (i + 1))], stdout=f, stderr=f)
+    start = str(perprocess * i)
+    end = str(perprocess * (i + 1)) if i < num - 1 else num_commits
+    p = subprocess.Popen(['python3', os.path.join(full_path_analyzer, 'scripts', 'incremental_smallcommits.py'), full_path_analyzer, url, repo_name, build_script, conf, datetime.strftime(begin, '%Y/%m/%d'), start, end], stdout=f, stderr=f)
     processes.append((p, f))
     os.chdir(res_dir)
 
