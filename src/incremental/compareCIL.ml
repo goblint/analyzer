@@ -45,28 +45,24 @@ let should_reanalyze (fdec: Cil.fundec) =
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * cfg) option) =
-  let unchangedHeader =
-    try
-      eq_varinfo old.svar current.svar &&
-      List.for_all2 eq_varinfo old.sformals current.sformals
-    with Invalid_argument _ -> false in
+  let unchangedHeader = eq_varinfo old.svar current.svar && GobList.equal eq_varinfo old.sformals current.sformals in
   let change_status, diffOpt =
     if should_reanalyze current then
       ForceReanalyze current, None
     else
-      try
-        let sameDef = unchangedHeader && List.for_all2 eq_varinfo old.slocals current.slocals in
+      let sameDef = unchangedHeader && GobList.equal eq_varinfo old.slocals current.slocals in
+      if not sameDef then
+        (Changed, None)
+      else
         match cfgs with
-        | None -> unchanged_to_change_status (sameDef && eq_block (old.sbody, old) (current.sbody, current)), None
+        | None -> unchanged_to_change_status (eq_block (old.sbody, old) (current.sbody, current)), None
         | Some (cfgOld, cfgNew) ->
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
           let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) old current in
-          if not sameDef then (Changed, None)
-          else if diffNodes1 = [] && diffNodes2 = [] then (Changed, None)
+          if diffNodes1 = [] && diffNodes2 = [] then (Changed, None)
           else (Changed, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
-      with Invalid_argument _ -> (* The combine failed because the lists have differend length *)
-        Changed, None in
+  in
   change_status, unchangedHeader, diffOpt
 
 let eq_glob (old: global) (current: global) (cfgs : (cfg * cfg) option) = match old, current with
@@ -84,32 +80,31 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     try
       GlobalMap.add (identifier_of_global global) global map
     with
-      NoGlobalIdentifier _ -> map
+      Not_found -> map
   in
   let changes = empty_change_info () in
   global_typ_acc := [];
   let checkUnchanged map global =
     try
       let ident = identifier_of_global global in
-      (try
-         let old_global = GlobalMap.find ident map in
-         (* Do a (recursive) equal comparison ignoring location information *)
-         let change_status, unchangedHeader, diff = eq old_global global cfgs in
-         let append_to_changed () =
-           changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
-         in
-         match change_status with
-         | Changed -> append_to_changed ()
-         | Unchanged -> changes.unchanged <- global :: changes.unchanged
-         | ForceReanalyze f ->
-           changes.force_reanalyze <- VarinfoSet.add f.svar changes.force_reanalyze;
-           append_to_changed ();
-
-       with Not_found -> ())
-    with NoGlobalIdentifier _ -> () (* Global was no variable or function, it does not belong into the map *)  in
+      let old_global = GlobalMap.find ident map in
+      (* Do a (recursive) equal comparison ignoring location information *)
+      let change_status, unchangedHeader, diff = eq old_global global cfgs in
+      let append_to_changed () =
+        changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
+      in
+      match change_status with
+      | Changed -> append_to_changed ()
+      | Unchanged -> changes.unchanged <- global :: changes.unchanged
+      | ForceReanalyze f ->
+        changes.force_reanalyze <- VarinfoSet.add f.svar changes.force_reanalyze;
+        append_to_changed ()
+    with Not_found -> () (* Global was no variable or function, it does not belong into the map *)
+  in
   let checkExists map global =
-    let name = identifier_of_global global in
-    GlobalMap.mem name map
+    match identifier_of_global global with
+    | name -> GlobalMap.mem name map
+    | exception Not_found -> true (* return true, so isn't considered a change *)
   in
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
@@ -120,6 +115,6 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     (fun glob -> checkUnchanged oldMap glob);
 
   (* We check whether functions have been added or removed *)
-  Cil.iterGlobals newAST (fun glob -> try if not (checkExists oldMap glob) then changes.added <- (glob::changes.added) with NoGlobalIdentifier _ -> ());
-  Cil.iterGlobals oldAST (fun glob -> try if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed) with NoGlobalIdentifier _ -> ());
+  Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then changes.added <- (glob::changes.added));
+  Cil.iterGlobals oldAST (fun glob -> if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed));
   changes

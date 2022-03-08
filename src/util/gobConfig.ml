@@ -114,7 +114,7 @@ struct
     | Index (New  ,p) -> fprintf ch "[*]%a"    print_path' p
 
   (** Path printing where you can ignore the first dot. *)
-  let print_path ch = function
+  let[@warning "-unused-value-declaration"] print_path ch = function
     | Select (s,p) -> fprintf ch "%s%a" s print_path' p
     | pth -> print_path' ch pth
 

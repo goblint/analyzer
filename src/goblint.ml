@@ -37,12 +37,15 @@ let main () =
       if !verified = Some false then exit 3)  (* verifier failed! *)
   with
   | Exit ->
+    do_stats ();
     exit 1
   | Sys.Break -> (* raised on Ctrl-C if `Sys.catch_break true` *)
+    do_stats ();
     (* Printexc.print_backtrace BatInnerIO.stderr *)
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted by SIGINT (Ctrl-C)!"));
     exit 131 (* same exit code as without `Sys.catch_break true`, otherwise 0 *)
   | Timeout ->
+    do_stats ();
     eprintf "%s\n" (MessageUtil.colorize ~fd:Unix.stderr ("{RED}Analysis was aborted because it reached the set timeout of " ^ get_string "dbg.timeout" ^ " or was signalled SIGPROF!"));
     exit 124
 

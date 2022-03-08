@@ -244,7 +244,7 @@ struct
   open Cil
 
   let is_equiv_stmtkind sk1 sk2 = match sk1, sk2 with
-    | Instr is1, Instr is2 -> List.for_all2 (=) is1 is2
+    | Instr is1, Instr is2 -> GobList.equal (=) is1 is2
     | Return _, Return _ -> sk1 = sk2
     | _, _ -> false (* TODO: also consider others? not sure if they ever get duplicated *)
   let is_equiv_stmt s1 s2 = is_equiv_stmtkind s1.skind s2.skind (* TODO: also consider labels *)

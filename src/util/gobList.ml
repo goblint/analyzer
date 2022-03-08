@@ -17,3 +17,5 @@ let rec for_all3 f l1 l2 l3 = match l1, l2, l3 with
   | [], [], [] -> true
   | x1 :: l1, x2 :: l2, x3 :: l3 -> f x1 x2 x3 && (for_all3 [@tailcall]) f l1 l2 l3
   | _, _, _ -> invalid_arg "GobList.for_all3"
+
+let equal = List.eq

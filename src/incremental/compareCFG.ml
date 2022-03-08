@@ -5,7 +5,7 @@ include CompareAST
 
 let eq_node (x, fun1) (y, fun2) =
   match x,y with
-  | Statement s1, Statement s2 -> (try eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) with Invalid_argument _ -> false)
+  | Statement s1, Statement s2 -> eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2)
   | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar
   | FunctionEntry f1, FunctionEntry f2 -> eq_varinfo f1.svar f2.svar
   | _ -> false
@@ -13,9 +13,9 @@ let eq_node (x, fun1) (y, fun2) =
 (* TODO: compare ASMs properly instead of simply always assuming that they are not the same *)
 let eq_edge x y = match x, y with
   | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 && eq_exp rv1 rv2
-  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 && eq_list eq_exp ars1 ars2
+  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 && GobList.equal eq_exp ars1 ars2
   | Proc (Some r1,f1,ars1), Proc (Some r2,f2,ars2) ->
-      eq_lval r1 r2 && eq_exp f1 f2 && eq_list eq_exp ars1 ars2
+      eq_lval r1 r2 && eq_exp f1 f2 && GobList.equal eq_exp ars1 ars2
   | Entry f1, Entry f2 -> eq_varinfo f1.svar f2.svar
   | Ret (None,fd1), Ret (None,fd2) -> eq_varinfo fd1.svar fd2.svar
   | Ret (Some r1,fd1), Ret (Some r2,fd2) -> eq_exp r1 r2 && eq_varinfo fd1.svar fd2.svar
@@ -27,7 +27,7 @@ let eq_edge x y = match x, y with
   | _ -> false
 
 (* The order of the edges in the list is relevant. Therefore compare them one to one without sorting first *)
-let eq_edge_list xs ys = eq_list eq_edge xs ys
+let eq_edge_list xs ys = GobList.equal eq_edge xs ys
 
 let to_edge_list ls = List.map (fun (loc, edge) -> edge) ls
 
