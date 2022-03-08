@@ -1,12 +1,12 @@
 open Cil
 
-type global_identifier = string [@@deriving ord]
+type global_identifier = {name: string} [@@deriving ord]
 
 let identifier_of_global glob =
   match glob with
-  | GFun (fundec, l) -> fundec.svar.vname
-  | GVar (var, init, l) -> var.vname
-  | GVarDecl (var, l) -> var.vname
+  | GFun (fundec, l) -> {name = fundec.svar.vname}
+  | GVar (var, init, l) -> {name = var.vname}
+  | GVarDecl (var, l) -> {name = var.vname}
   | _ -> raise Not_found
 
 module GlobalMap = Map.Make(struct
