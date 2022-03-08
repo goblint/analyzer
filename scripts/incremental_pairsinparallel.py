@@ -4,8 +4,6 @@ import sys
 from pydriller import Repository
 from datetime import datetime
 import shutil
-import math
-import pandas
 
 # runs the incremental_smallcommits.py script in an parallel mode (for faster benchmarking on the test server)
 # the directory 'result' in the cwd will be overwritten!
@@ -48,7 +46,7 @@ for i in range(num):
     # run script
     start = str(perprocess * i)
     end = str(perprocess * (i + 1)) if i < num - 1 else str(num_commits)
-    p = subprocess.Popen(['python3', os.path.join(full_path_analyzer, 'scripts', 'incremental_smallcommits.py'), full_path_analyzer, url, repo_name, build_script, conf, datetime.strftime(begin, '%Y/%m/%d'), start, end], stdout=f, stderr=f)
+    p = subprocess.Popen(['python3', os.path.join(full_path_analyzer, 'scripts', 'incremental_pairsofcommits.py'), full_path_analyzer, url, repo_name, build_script, conf, datetime.strftime(begin, '%Y/%m/%d'), start, end], stdout=f, stderr=f)
     processes.append((p, f))
     os.chdir(res_dir)
 

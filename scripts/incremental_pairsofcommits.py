@@ -37,12 +37,13 @@ conf          = sys.argv[5]
 begin         = datetime.strptime(sys.argv[6], '%Y/%m/%d')
 from_c        = int(sys.argv[7])
 to_c          = int(sys.argv[8])
-diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
+dirs_to_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
 ################################################################################
 
 cwd  = os.getcwd()
 outdir = os.path.join(cwd, 'out')
 repo_path = os.path.normpath(os.path.join(cwd, repo_name))
+paths_to_exclude = list(map(lambda x: os.path.join(repo_path, x), dirs_to_exclude))
 
 analyzed_commits = {}
 count_analyzed = 0
@@ -69,7 +70,6 @@ def analyze_commit(gr, commit_hash, outdir, extra_options):
         outfile.close()
 
 def calculateRelCLOC(commit):
-    diff_exclude = list(map(lambda x: os.path.join(repo_path, x), diff_exclude))
     relcloc = 0
     for f in commit.modified_files:
         _, extension = os.path.splitext(f.filename)
@@ -80,7 +80,7 @@ def calculateRelCLOC(commit):
             filepath = f.old_path
         parents = Path(filepath).parents
         parents = list(map(lambda x: os.path.join(repo_path, x), parents))
-        if any(dir in parents for dir in diff_exclude):
+        if any(dir in parents for dir in paths_to_exclude):
             continue
         relcloc = relcloc + f.added_lines + f.deleted_lines
     return relcloc
