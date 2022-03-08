@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 # Executing the script will overwrite the directory 'out' in the cwd.
 # The script for building the compilation database is assumed to be found in the analyzers script directory and the
 # config file is assumed to be found in the conf directory of the analyzers repository.
-maxCLOC       = 50
+maxCLOC       = None
 analyzer_dir  = sys.argv[1]
 url           = sys.argv[2]
 repo_name     = sys.argv[3]
@@ -37,6 +37,7 @@ conf          = sys.argv[5]
 begin         = datetime.strptime(sys.argv[6], '%Y/%m/%d')
 from_c        = int(sys.argv[7])
 to_c          = int(sys.argv[8])
+diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
 ################################################################################
 
 cwd  = os.getcwd()
@@ -68,7 +69,6 @@ def analyze_commit(gr, commit_hash, outdir, extra_options):
         outfile.close()
 
 def calculateRelCLOC(commit):
-    diff_exclude = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
     diff_exclude = list(map(lambda x: os.path.join(repo_path, x), diff_exclude))
     relcloc = 0
     for f in commit.modified_files:
@@ -101,7 +101,7 @@ def analyze_small_commits_in_repo():
         # skip merge commits and commits that have less than maxCLOC of relevant code changes
         relCLOC = calculateRelCLOC(commit) # use this to filter commits by actually relevant changes
         print("relCLOC: ", relCLOC)
-        if relCLOC > maxCLOC:
+        if maxCLOC is not None and relCLOC > maxCLOC:
             print('Skip this commit: merge commit or too many relevant changed LOC')
             count_skipped+=1
             continue

@@ -47,7 +47,7 @@ for i in range(num):
     os.chdir(dir)
     # run script
     start = str(perprocess * i)
-    end = str(perprocess * (i + 1)) if i < num - 1 else num_commits
+    end = str(perprocess * (i + 1)) if i < num - 1 else str(num_commits)
     p = subprocess.Popen(['python3', os.path.join(full_path_analyzer, 'scripts', 'incremental_smallcommits.py'), full_path_analyzer, url, repo_name, build_script, conf, datetime.strftime(begin, '%Y/%m/%d'), start, end], stdout=f, stderr=f)
     processes.append((p, f))
     os.chdir(res_dir)
