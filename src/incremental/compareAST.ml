@@ -56,40 +56,40 @@ and pretty_length () l = Pretty.num (List.length l)
 
 and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) =
   if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
-  let r = (match a, b with
-        | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && GobList.equal eq_attribute attr1 attr2
-        | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  GobList.equal eq_attribute attr1 attr2
-        | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && GobList.equal eq_attribute attr1 attr2
-        | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2)
-          ->  eq_typ_acc typ1 typ2 acc && GobList.equal (eq_args acc) list1 list2 && varArg1 = varArg2 &&
-              GobList.equal eq_attribute attr1 attr2
-        | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2)
-          ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
-              GobList.equal eq_attribute attr1 attr2
-        | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typ_acc typinfo1.ttype typeinfo2.ttype acc && GobList.equal eq_attribute attr1 attr2 (* Ignore tname, treferenced *)
-        | TNamed (tinf, attr), b -> eq_typ_acc tinf.ttype b acc (* Ignore tname, treferenced. TODO: dismiss attributes, or not? *)
-        | a, TNamed (tinf, attr) -> eq_typ_acc a tinf.ttype acc (* Ignore tname, treferenced . TODO: dismiss attributes, or not? *)
-        (* The following two lines are a hack to ensure that anonymous types get the same name and thus, the same typsig *)
-        | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->
-          if mem_typ_acc a b acc || mem_typ_acc a b !global_typ_acc then (
-            if Messages.tracing then Messages.trace "compareast" "in acc\n";
-            true
-          )
-          else (
-            let acc = (a, b) :: acc in
-            let res = eq_compinfo compinfo1 compinfo2 acc && GobList.equal eq_attribute attr1 attr2 in
-            if res && compinfo1.cname <> compinfo2.cname then
-              compinfo2.cname <- compinfo1.cname;
-            if res then
-              global_typ_acc := (a, b) :: !global_typ_acc;
-            res
-          )
-        | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && GobList.equal eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
-        | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> GobList.equal eq_attribute attr1 attr2
-        | TVoid attr1, TVoid attr2 -> GobList.equal eq_attribute attr1 attr2
-        | TInt (ik1, attr1), TInt (ik2, attr2) -> ik1 = ik2 && GobList.equal eq_attribute attr1 attr2
-        | TFloat (fk1, attr1), TFloat (fk2, attr2) -> fk1 = fk2 && GobList.equal eq_attribute attr1 attr2
-        | _, _ -> false)
+  let r = match a, b with
+    | TPtr (typ1, attr1), TPtr (typ2, attr2) -> eq_typ_acc typ1 typ2 acc && GobList.equal eq_attribute attr1 attr2
+    | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc && eq_exp lenExp1 lenExp2 &&  GobList.equal eq_attribute attr1 attr2
+    | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc && GobList.equal eq_attribute attr1 attr2
+    | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2)
+      ->  eq_typ_acc typ1 typ2 acc && GobList.equal (eq_args acc) list1 list2 && varArg1 = varArg2 &&
+          GobList.equal eq_attribute attr1 attr2
+    | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2)
+      ->  eq_typ_acc typ1 typ2 acc && varArg1 = varArg2 &&
+          GobList.equal eq_attribute attr1 attr2
+    | TNamed (typinfo1, attr1), TNamed (typeinfo2, attr2) -> eq_typ_acc typinfo1.ttype typeinfo2.ttype acc && GobList.equal eq_attribute attr1 attr2 (* Ignore tname, treferenced *)
+    | TNamed (tinf, attr), b -> eq_typ_acc tinf.ttype b acc (* Ignore tname, treferenced. TODO: dismiss attributes, or not? *)
+    | a, TNamed (tinf, attr) -> eq_typ_acc a tinf.ttype acc (* Ignore tname, treferenced . TODO: dismiss attributes, or not? *)
+    (* The following two lines are a hack to ensure that anonymous types get the same name and thus, the same typsig *)
+    | TComp (compinfo1, attr1), TComp (compinfo2, attr2) ->
+      if mem_typ_acc a b acc || mem_typ_acc a b !global_typ_acc then (
+        if Messages.tracing then Messages.trace "compareast" "in acc\n";
+        true
+      )
+      else (
+        let acc = (a, b) :: acc in
+        let res = eq_compinfo compinfo1 compinfo2 acc && GobList.equal eq_attribute attr1 attr2 in
+        if res && compinfo1.cname <> compinfo2.cname then
+          compinfo2.cname <- compinfo1.cname;
+        if res then
+          global_typ_acc := (a, b) :: !global_typ_acc;
+        res
+      )
+    | TEnum (enuminfo1, attr1), TEnum (enuminfo2, attr2) -> let res = eq_enuminfo enuminfo1 enuminfo2 && GobList.equal eq_attribute attr1 attr2 in (if res && enuminfo1.ename <> enuminfo2.ename then enuminfo2.ename <- enuminfo1.ename); res
+    | TBuiltin_va_list attr1, TBuiltin_va_list attr2 -> GobList.equal eq_attribute attr1 attr2
+    | TVoid attr1, TVoid attr2 -> GobList.equal eq_attribute attr1 attr2
+    | TInt (ik1, attr1), TInt (ik2, attr2) -> ik1 = ik2 && GobList.equal eq_attribute attr1 attr2
+    | TFloat (fk1, attr1), TFloat (fk2, attr2) -> fk1 = fk2 && GobList.equal eq_attribute attr1 attr2
+    | _, _ -> false
   in
   if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a\n" d_type a d_type b;
   r
