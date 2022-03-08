@@ -961,6 +961,12 @@
                   "description": "TODO",
                   "type": "boolean",
                   "default": false
+                },
+                "fuel": {
+                  "title": "incremental.restart.sided.fuel",
+                  "description": "TODO",
+                  "type": "integer",
+                  "default": -1
                 }
               },
               "additionalProperties": false

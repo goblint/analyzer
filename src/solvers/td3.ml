@@ -543,7 +543,8 @@ module WP =
         in
 
         (* destabilize which restarts side-effected vars *)
-        let rec destabilize_with_side ?(front=true) x =
+        (* side_fuel specifies how many times (in recursion depth) to destabilize side_infl, None means infinite *)
+        let rec destabilize_with_side ~side_fuel ?(front=true) x =
           if tracing then trace "sol2" "destabilize_with_side %a\n" S.Var.pretty_trace x;
 
           (* is side-effected var (global/function entry)? *)
@@ -563,7 +564,7 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                destabilize_with_side ~front:false y
+                destabilize_with_side ~side_fuel ~front:false y
               ) w
           );
 
@@ -576,25 +577,35 @@ module WP =
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              destabilize_with_side ~front:false y
+              destabilize_with_side ~side_fuel ~front:false y
             ) w;
 
           (* destabilize side infl *)
           let w = HM.find_default side_infl x VS.empty in
           HM.remove side_infl x;
-          (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
-          VS.iter (fun y ->
-              if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-              if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
-              HM.remove stable y;
-              HM.remove superstable y;
-              destabilize_with_side ~front:false y
-            ) w
+
+          if side_fuel <> Some 0 then ( (* non-0 or infinite fuel is fine *)
+            let side_fuel' = Option.map Int.pred side_fuel in
+            (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+                HM.remove stable y;
+                HM.remove superstable y;
+                destabilize_with_side ~side_fuel:side_fuel' ~front:false y
+              ) w
+          )
         in
 
         destabilize_ref :=
-          if restart_sided then
-            destabilize_with_side
+          if restart_sided then (
+            let side_fuel =
+              match GobConfig.get_int "incremental.restart.sided.fuel" with
+              | fuel when fuel >= 0 -> Some fuel
+              | _ -> None (* infinite *)
+            in
+            destabilize_with_side ~side_fuel
+          )
           else
             destabilize_normal;
 
