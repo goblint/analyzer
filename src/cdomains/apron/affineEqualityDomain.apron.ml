@@ -521,39 +521,29 @@ struct
             let i, (x, y) = Vector.find2i (fun i x y -> x <> y) a_rev b_rev in
             let r, diff = Vector.length a_rev - (i + 1), x -: y  in
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-            let multiply_by_t' m col_v t i =
-              let zero_vec = Vector.of_list @@ List.init (Matrix.num_rows m - Vector.length col_v) (fun x -> of_int 0) in
-              let cs = Vector.append col_v zero_vec in
-              Matrix.map2i (fun i' x c -> if i' <= i then let beta = c /: diff in
+            let sub_col = Vector.map2 (fun x y -> x -: y) col_a col_b in
+            let multiply_by_t m t =
+              let zero_vec = Vector.of_list @@ List.init (Matrix.num_rows m - Vector.length sub_col) (fun x -> of_int 0) in
+              let cs = Vector.append sub_col zero_vec in
+              Matrix.map2i (fun i' x c -> if i' <= max then let beta = c /: diff in
                                let mul_t = Vector.apply_with_c ( *:) beta t in Vector.map2 (-:) x mul_t else x) m cs
             in
-            let sub_col = Vector.map2 (fun x y -> x -: y) col_a col_b in
-            Matrix.remove_row (multiply_by_t' a sub_col a_r max) r, Matrix.remove_row (multiply_by_t' b sub_col b_r max) r, (max - 1)
+            Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
         in
         let col_a, col_b = Matrix.get_col a s, Matrix.get_col b s in
-        match Int.compare (Matrix.num_rows a) r, Int.compare (Matrix.num_rows b) r with
-        | 1 , 1 ->
-          let a_rs, b_rs = Vector.nth col_a r, Vector.nth col_b r in
-          if Mpqf.get_den a_rs <> (Mpzf.of_int 1) || Mpqf.get_den b_rs <> (Mpzf.of_int 1) then failwith "Matrix not normalized" else
-            begin match Int.of_float @@ Mpqf.to_float @@ a_rs, Int.of_float @@ Mpqf.to_float @@ b_rs with
-              | 1, 1 -> lin_disjunc (r + 1) (s + 1) a b
-              | 1, 0 -> lin_disjunc r (s + 1) (case_two a r col_b) b
-              | 0, 1 -> lin_disjunc r (s + 1) a (case_two b r col_a)
-              | 0, 0 ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
-                lin_disjunc new_r (s + 1) new_a new_b
-              | _      -> failwith "Matrix not normalized" end
-        | 1 , _  -> let a_rs = Vector.nth col_a r in
-          if a_rs = (of_int 1) then lin_disjunc r (s + 1) (case_two a r col_b) b
-          else
-            let new_a, new_b, new_r = case_three a b col_a col_b r in
-            lin_disjunc new_r (s + 1) new_a new_b
-        | _ , 1  -> let b_rs = Vector.nth col_b r in
-          if b_rs = (of_int 1) then lin_disjunc r (s + 1) a (case_two b r col_a)
-          else
-            let new_a, new_b, new_r = case_three a b col_a col_b r in
-            lin_disjunc new_r (s + 1) new_a new_b
-        | _      -> let new_a, new_b, new_r = case_three a b col_a col_b r in
-          lin_disjunc new_r (s + 1) new_a new_b
+        let nth_zero v i =  match Vector.nth v i with
+          | exception Invalid_argument _ -> of_int 0
+          | x -> x
+        in
+        let a_rs, b_rs = nth_zero col_a r, nth_zero col_b r in
+        if Mpqf.get_den a_rs <> (Mpzf.of_int 1) || Mpqf.get_den b_rs <> (Mpzf.of_int 1) then failwith "Matrix not normalized" else
+          begin match Int.of_float @@ Mpqf.to_float @@ a_rs, Int.of_float @@ Mpqf.to_float @@ b_rs with
+            | 1, 1 -> lin_disjunc (r + 1) (s + 1) a b
+            | 1, 0 -> lin_disjunc r (s + 1) (case_two a r col_b) b
+            | 0, 1 -> lin_disjunc r (s + 1) a (case_two b r col_a)
+            | 0, 0 ->  let new_a, new_b, new_r = case_three a b col_a col_b r in
+              lin_disjunc new_r (s + 1) new_a new_b
+            | _      -> failwith "Matrix not normalized" end
     in
     match a.d, b.d with
     | None, m -> b
