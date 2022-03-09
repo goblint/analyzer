@@ -8,12 +8,53 @@ type command_object = {
   command: string option [@default None];
   arguments: string list option [@default None];
   output: string option [@default None];
-} [@@deriving yojson]
+} [@@deriving yojson, show]
 
-type t = command_object list [@@deriving yojson]
+type t = command_object list [@@deriving yojson, show]
 
 let parse_file filename =
   Result.get_ok (of_yojson (Yojson.Safe.from_file filename))
+
+(* TODO: allow quoted .c file name? *)
+let command_c_regexp = Str.regexp " +\\([^ ]+\\.c\\)\\b"
+let argument_c_regexp = Str.regexp ".*\\.c$"
+
+let split (obj: command_object): command_object list =
+  match obj.command, obj.arguments with
+  | Some command, None ->
+    let rec map_command start =
+      match Str.search_forward command_c_regexp command start with
+      | match_begin ->
+        let match_end = Str.match_end () in
+        let init = Str.string_before command match_begin in
+        let tail = Str.string_after command match_end in
+        let matched_string = Str.matched_string command in (* must do before global_replace! *)
+        let file' = Str.matched_group 1 command in (* must do before global_replace! *)
+        let init' = Str.global_replace command_c_regexp "" init in
+        let tail' = Str.global_replace command_c_regexp "" tail in
+        let command' = init' ^ matched_string ^ tail' in
+        {obj with command = Some command'; file = file'} :: map_command match_end
+      | exception Not_found ->
+        []
+    in
+    map_command 0
+  | None, Some arguments ->
+    let is_c s = Str.string_match argument_c_regexp s 0 in
+    List.filteri_map (fun i argument ->
+        if is_c argument then (
+          let (init, tail) = List.split_at i arguments in
+          let init' = List.filter (Fun.negate is_c) init in
+          let tail' = List.filter (Fun.negate is_c) tail in
+          let arguments' = init' @ argument :: tail' in
+          Some {obj with arguments = Some arguments'; file = argument}
+        )
+        else
+          None
+      ) arguments
+  | Some _, Some _ ->
+    failwith ("CompilationDatabase.split: both command and arguments specified for " ^ obj.file)
+  | None, None ->
+    failwith ("CompilationDatabase.split: neither command nor arguments specified for " ^ obj.file)
 
 let command_o_regexp = Str.regexp "-o +[^ ]+"
 let command_program_regexp = Str.regexp "^ *\\([^ ]+\\)"
@@ -73,9 +114,9 @@ let load_and_preprocess ~all_cppflags filename =
           let preprocess_arguments = all_cppflags @ "-E" :: preprocess_arguments in
           Filename.quote_command arguments_program preprocess_arguments
         | Some _, Some _ ->
-          failwith "CompilationDatabase.preprocess: both command and arguments specified for " ^ file
+          failwith ("CompilationDatabase.preprocess: both command and arguments specified for " ^ file)
         | None, None ->
-          failwith "CompilationDatabase.preprocess: neither command nor arguments specified for " ^ file
+          failwith ("CompilationDatabase.preprocess: neither command nor arguments specified for " ^ file)
       in
       let cwd = reroot obj.directory in
       if GobConfig.get_bool "dbg.verbose" then
