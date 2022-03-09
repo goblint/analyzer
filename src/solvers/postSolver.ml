@@ -72,8 +72,11 @@ module Verify: F =
   struct
     include Unit (S) (VH)
 
+    let accs = VH.create 123
+
     let init () =
-      Goblintutil.verified := Some true
+      Goblintutil.verified := Some true;
+      VH.clear accs
 
     let complain_constraint x ~lhs ~rhs =
       Goblintutil.verified := Some false;
@@ -84,8 +87,18 @@ module Verify: F =
       ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let one_side ~vh ~x ~y ~d =
-      let y_lhs = try VH.find vh y with Not_found -> S.Dom.bot () in
-      if not (S.Dom.leq d y_lhs) then
+      (* HACK: incremental accesses insanity! *)
+      (* ignore (Pretty.printf "one_side %s: %a\n" (S.Var.var_id y) S.Dom.pretty d); *)
+      let is_acc = String.starts_with (S.Var.var_id y) "access:" in
+      let y_lhs =
+        if is_acc && not (VH.mem accs y) then (
+          VH.replace accs y ();
+          S.Dom.bot ()
+        )
+        else
+          try VH.find vh y with Not_found -> S.Dom.bot ()
+      in
+      if not is_acc && not (S.Dom.leq d y_lhs) then
         complain_side x y ~lhs:y_lhs ~rhs:d
       else
         VH.replace vh y (S.Dom.join y_lhs d) (* HACK: allow warnings/accesses to be added *)
