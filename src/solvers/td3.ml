@@ -542,10 +542,12 @@ module WP =
             ()
         in
 
+        let restart_fuel_only_globals = GobConfig.get_bool "incremental.restart.sided.fuel-only-global" in
+
         (* destabilize which restarts side-effected vars *)
         (* side_fuel specifies how many times (in recursion depth) to destabilize side_infl, None means infinite *)
         let rec destabilize_with_side ~side_fuel ?(front=true) x =
-          if tracing then trace "sol2" "destabilize_with_side %a\n" S.Var.pretty_trace x;
+          if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pretty_trace x (Pretty.docOpt (Pretty.dprintf "%d")) side_fuel;
 
           (* is side-effected var (global/function entry)? *)
           let w = HM.find_default side_dep x VS.empty in
@@ -585,7 +587,12 @@ module WP =
           HM.remove side_infl x;
 
           if side_fuel <> Some 0 then ( (* non-0 or infinite fuel is fine *)
-            let side_fuel' = Option.map Int.pred side_fuel in
+            let side_fuel' =
+              if not restart_fuel_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec) then
+                Option.map Int.pred side_fuel
+              else
+                side_fuel (* don't decrease fuel for function entry side effect *)
+            in
             (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
             VS.iter (fun y ->
                 if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
