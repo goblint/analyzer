@@ -1279,6 +1279,12 @@
                 "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
               "type": "string",
               "default": ""
+            },
+            "split": {
+              "title": "exp.compdb.split",
+              "description": "Split Compilation Database entries containing multiple .c files.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false

@@ -125,4 +125,10 @@ let load_and_preprocess ~all_cppflags filename =
       Some (preprocessed_file, Some preprocess_task)
   in
   parse_file filename
+  |> (
+    if GobConfig.get_bool "exp.compdb.split" then
+      List.concat_map split
+    else
+      Fun.id
+  )
   |> BatList.filter_map preprocess
