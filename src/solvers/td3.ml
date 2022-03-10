@@ -1149,7 +1149,7 @@ module WP =
           HM.iter (fun x w ->
               let w' = HM.create (HM.length w) in
               HM.iter (fun y d ->
-                  HM.replace w' (S.Var.relift y) (S.Dom.relift d)
+                  HM.add w' (S.Var.relift y) (S.Dom.relift d) (* w contains duplicate keys, so must add not replace! *)
                 ) w;
               HM.replace rho_write' (S.Var.relift x) w';
             ) data.rho_write;
