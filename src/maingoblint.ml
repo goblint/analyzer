@@ -111,6 +111,11 @@ let option_spec_list =
 let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
+  if get_string_list "files" = [] then (
+    prerr_endline "No files for Goblint?";
+    prerr_endline "Try `goblint --help' for more information.";
+    raise Exit
+  );
   if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
 
 (** Initialize some globals in other modules. *)
@@ -291,8 +296,8 @@ let merge_preprocessed cpp_file_names =
   let merged_AST =
     match files_AST with
     | [one] -> Cilfacade.callConstructors one
-    | [] -> prerr_endline "No arguments for Goblint?";
-      prerr_endline "Try `goblint --help' for more information.";
+    | [] ->
+      prerr_endline "No files to analyze!";
       raise Exit
     | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
   in
