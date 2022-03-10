@@ -949,6 +949,18 @@ module WP =
           filter_vs_hm infl;
           filter_vs_hm side_infl;
           filter_vs_hm side_dep;
+
+          VH.filteri_inplace (fun x w ->
+              if VH.mem reachable x then (
+                VH.filteri_inplace (fun y _ ->
+                    VH.mem reachable y
+                  ) w;
+                true
+              )
+              else
+                false
+            ) rho_write
+
           (* TODO: prune other data structures? *)
       end
       in
