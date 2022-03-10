@@ -34,6 +34,7 @@ module WP =
       mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
       mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
       mutable var_messages: Message.t HM.t;
+      mutable rho_write: S.Dom.t HM.t HM.t;
     }
 
     type marshal = solver_data
@@ -48,6 +49,7 @@ module WP =
       side_dep = HM.create 10;
       side_infl = HM.create 10;
       var_messages = HM.create 10;
+      rho_write = HM.create 10;
     }
 
     let print_data data str =
@@ -130,6 +132,7 @@ module WP =
       let superstable = HM.copy stable in
 
       let var_messages = data.var_messages in
+      let rho_write = data.rho_write in
 
       let abort = GobConfig.get_bool "solvers.td3.abort" in
       let destab_infl = HM.create 10 in
@@ -955,16 +958,27 @@ module WP =
       struct
         include PostSolver.Unit (S) (HM)
 
-        let one_side ~vh ~x ~y ~d =
+        let one_side ~vh ~vhw ~x ~y ~d =
           HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
           HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
       end
       in
 
-      if incr_verify then
-        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages
-      else
+      (* restart write-only *)
+      HM.iter (fun x w ->
+          HM.iter (fun y d ->
+              HM.replace rho y (S.Dom.bot ());
+            ) w
+        ) rho_write;
+
+      if incr_verify then (
+        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages;
+        HM.filteri_inplace (fun x _ -> HM.mem superstable x) rho_write
+      )
+      else (
         HM.clear var_messages;
+        HM.clear rho_write
+      );
 
       let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
       struct
@@ -978,6 +992,13 @@ module WP =
             HM.iter (fun _ m ->
                 Messages.add m
               ) var_messages;
+            (* retrigger *)
+            HM.iter (fun x w ->
+                HM.iter (fun y d ->
+                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
+                    HM.replace rho y (S.Dom.join old_d d)
+                  ) w
+              ) rho_write
           );
 
           (* hook to collect new messages *)
@@ -1009,11 +1030,11 @@ module WP =
 
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
 
-      Post.post st vs rho;
+      Post.post st vs rho rho_write;
 
       print_data data "Data after postsolve";
 
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages}
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write}
 
     let solve box st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
@@ -1078,6 +1099,15 @@ module WP =
               HM.add var_messages' (S.Var.relift k) v (* var_messages contains duplicate keys, so must add not replace! *)
             ) data.var_messages;
           data.var_messages <- var_messages';
+          let rho_write' = HM.create (HM.length data.rho_write) in
+          HM.iter (fun x w ->
+              let w' = HM.create (HM.length w) in
+              HM.iter (fun y d ->
+                  HM.replace w' (S.Var.relift y) (S.Dom.relift d)
+                ) w;
+              HM.replace rho_write' (S.Var.relift x) w';
+            ) data.rho_write;
+          data.rho_write <- rho_write';
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";

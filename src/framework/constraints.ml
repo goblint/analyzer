@@ -808,7 +808,7 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
 
     let solve box xs vs =
       let vh = Sol.solve box xs vs in
-      Post.post xs vs vh;
+      Post.post xs vs vh (VH.create 0);
       (vh, ())
   end
 

@@ -25,6 +25,7 @@ struct
   module V =
   struct
     include Printable.Either (V0) (CilType.Varinfo)
+    let name () = "access" (* HACK: incremental accesses rely on this! *)
     let access x = `Left x
     let vars x = `Right x
   end

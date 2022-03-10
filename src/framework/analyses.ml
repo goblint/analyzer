@@ -71,7 +71,7 @@ struct
   let contexts x = `Right x
 
   (* from Basetype.Variables *)
-  let var_id _ = "globals"
+  let var_id = show (* HACK: incremental accesses rely on this! *)
   let node _ = MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
 end
