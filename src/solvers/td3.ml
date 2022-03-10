@@ -553,7 +553,7 @@ module WP =
           let w = HM.find_default side_dep x VS.empty in
           HM.remove side_dep x;
 
-          if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) then (
+          if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) && not (S.Var.is_write_only x) then (
             (* restart side-effected var *)
             restart_leaf x;
 
