@@ -92,8 +92,6 @@ module Verify: F =
       )
       else if not (S.Dom.leq d y_lhs) then
         complain_side x y ~lhs:y_lhs ~rhs:d
-      else
-        VH.replace vh y (S.Dom.join y_lhs d) (* HACK: allow warnings/accesses to be added *)
 
     let one_constraint ~vh ~vhw ~x ~rhs =
       let lhs = try VH.find vh x with Not_found -> S.Dom.bot () in

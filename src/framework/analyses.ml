@@ -91,7 +91,6 @@ struct
         let printXml f c = BatPrintf.fprintf f "<value>%a</value>" printXml c (* wrap in <value> for HTML printing *)
       end
       )
-    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
 
   include Lattice.Lift2 (G) (CSet) (Printable.DefaultNames)
