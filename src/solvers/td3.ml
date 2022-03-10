@@ -958,7 +958,7 @@ module WP =
       struct
         include PostSolver.Unit (S) (HM)
 
-        let one_side ~vh ~vhw ~x ~y ~d =
+        let one_side ~vh ~x ~y ~d =
           HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
           HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
       end
@@ -992,13 +992,6 @@ module WP =
             HM.iter (fun _ m ->
                 Messages.add m
               ) var_messages;
-            (* retrigger *)
-            HM.iter (fun x w ->
-                HM.iter (fun y d ->
-                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
-                    HM.replace rho y (S.Dom.join old_d d)
-                  ) w
-              ) rho_write
           );
 
           (* hook to collect new messages *)
@@ -1009,6 +1002,30 @@ module WP =
           );
       end
       in
+
+      let module IncrWrite: PostSolver.S with module S = S and module VH = HM =
+      struct
+        include PostSolver.Unit (S) (HM)
+
+        let init () =
+          (* retrigger superstable side writes *)
+          if incr_verify then (
+            HM.iter (fun x w ->
+                HM.iter (fun y d ->
+                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
+                    HM.replace rho y (S.Dom.join old_d d)
+                  ) w
+              ) rho_write
+          )
+
+        let one_side ~vh ~x ~y ~d =
+          if S.Var.is_write_only y then (
+            (* HACK: incremental accesses etc insanity! *)
+            VH.modify_def (VH.create 1) x (fun w -> VH.add w y d; w) rho_write (* inner add intentional *)
+          )
+      end
+      in
+
       let module MakeIncrListArg =
       struct
         module Arg =
@@ -1018,7 +1035,7 @@ module WP =
         end
         include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
 
-        let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWarn: M) :: postsolvers
+        let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWrite: M) :: (module IncrWarn: M) :: postsolvers
 
         let init_reachable ~vh =
           if incr_verify then

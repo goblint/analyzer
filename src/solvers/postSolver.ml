@@ -9,8 +9,8 @@ sig
   module VH: Hashtbl.S with type key = S.v
 
   val init: unit -> unit
-  val one_side: vh:S.Dom.t VH.t -> vhw:S.Dom.t VH.t VH.t -> x:S.v -> y:S.v -> d:S.Dom.t -> unit
-  val one_constraint: vh:S.Dom.t VH.t -> vhw:S.Dom.t VH.t VH.t -> x:S.v -> rhs:S.Dom.t -> unit
+  val one_side: vh:S.Dom.t VH.t -> x:S.v -> y:S.v -> d:S.Dom.t -> unit
+  val one_constraint: vh:S.Dom.t VH.t -> x:S.v -> rhs:S.Dom.t -> unit
   val finalize: vh:S.Dom.t VH.t -> reachable:unit VH.t -> unit
 end
 
@@ -26,8 +26,8 @@ module Unit: F =
     module S = S
     module VH = VH
     let init () = ()
-    let one_side ~vh ~vhw ~x ~y ~d = ()
-    let one_constraint ~vh ~vhw ~x ~rhs = ()
+    let one_side ~vh ~x ~y ~d = ()
+    let one_constraint ~vh ~x ~rhs = ()
     let finalize ~vh ~reachable = ()
   end
 
@@ -40,12 +40,12 @@ struct
   let init () =
     PS1.init ();
     PS2.init ()
-  let one_side ~vh ~vhw ~x ~y ~d =
-    PS1.one_side ~vh ~vhw ~x ~y ~d;
-    PS2.one_side ~vh ~vhw ~x ~y ~d
-  let one_constraint ~vh ~vhw ~x ~rhs =
-    PS1.one_constraint ~vh ~vhw ~x ~rhs;
-    PS2.one_constraint ~vh ~vhw ~x ~rhs
+  let one_side ~vh ~x ~y ~d =
+    PS1.one_side ~vh ~x ~y ~d;
+    PS2.one_side ~vh ~x ~y ~d
+  let one_constraint ~vh ~x ~rhs =
+    PS1.one_constraint ~vh ~x ~rhs;
+    PS2.one_constraint ~vh ~x ~rhs
   let finalize ~vh ~reachable =
     PS1.finalize ~vh ~reachable;
     PS2.finalize ~vh ~reachable
@@ -83,17 +83,16 @@ module Verify: F =
       Goblintutil.verified := Some false;
       ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
-    let one_side ~vh ~vhw ~x ~y ~d =
+    let one_side ~vh ~x ~y ~d =
       let y_lhs = try VH.find vh y with Not_found -> S.Dom.bot () in
       if S.Var.is_write_only y then (
         (* HACK: incremental accesses etc insanity! *)
-        VH.replace vh y (S.Dom.join y_lhs d);
-        VH.modify_def (VH.create 1) x (fun w -> VH.add w y d; w) vhw (* inner add intentional *)
+        VH.replace vh y (S.Dom.join y_lhs d)
       )
       else if not (S.Dom.leq d y_lhs) then
         complain_side x y ~lhs:y_lhs ~rhs:d
 
-    let one_constraint ~vh ~vhw ~x ~rhs =
+    let one_constraint ~vh ~x ~rhs =
       let lhs = try VH.find vh x with Not_found -> S.Dom.bot () in
       if not (S.Dom.leq rhs lhs) then
         complain_constraint x ~lhs ~rhs
@@ -203,12 +202,12 @@ struct
         try VH.find vh y with Not_found -> S.Dom.bot ()
       in
       let set y d =
-        PS.one_side ~vh ~vhw ~x ~y ~d;
+        PS.one_side ~vh ~x ~y ~d;
         (* check before recursing *)
         one_var y
       in
       let rhs = f get set in
-      PS.one_constraint ~vh ~vhw ~x ~rhs
+      PS.one_constraint ~vh ~x ~rhs
     in
     List.iter one_var vs;
 
