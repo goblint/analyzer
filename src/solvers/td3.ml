@@ -992,6 +992,13 @@ module WP =
         HM.clear rho_write
       );
 
+      let init_reachable =
+        if incr_verify then
+          HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
+        else
+          HM.create 0 (* doesn't matter, not used *)
+      in
+
       let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
       struct
         include PostSolver.Warn (S) (HM)
@@ -1026,7 +1033,8 @@ module WP =
                 HM.iter (fun y d ->
                     let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
                     (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d); *)
-                    HM.replace rho y (S.Dom.join old_d d)
+                    HM.replace rho y (S.Dom.join old_d d);
+                    HM.replace init_reachable y ();
                   ) w
               ) rho_write
           )
@@ -1060,7 +1068,7 @@ module WP =
 
         let init_reachable ~vh =
           if incr_verify then
-            HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
+            init_reachable
           else
             HM.create (HM.length vh)
       end
