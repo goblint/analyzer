@@ -767,24 +767,22 @@ struct
           | Some (v') ->
             begin
               try
-                begin
-                  (* This should mean the entire expression we have here is a pointer into the array *)
-                  if Cil.isArrayType (Cilfacade.typeOfLval v') then
-                    let expr = ptr in
-                    let start_of_array = StartOf v' in
-                    let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
-                    let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
-                    (* Comparing types for structural equality is incorrect here, use typeSig *)
-                    (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
-                    if start_type = expr_type then
-                      `Lifted (equiv_expr expr v')
-                    else
-                      (* If types do not agree here, this means that we were looking at pointers that *)
-                      (* contain more than one array access. Those are not supported. *)
-                      ExpDomain.top ()
+                (* This should mean the entire expression we have here is a pointer into the array *)
+                if Cil.isArrayType (Cilfacade.typeOfLval v') then
+                  let expr = ptr in
+                  let start_of_array = StartOf v' in
+                  let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
+                  let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
+                  (* Comparing types for structural equality is incorrect here, use typeSig *)
+                  (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
+                  if start_type = expr_type then
+                    `Lifted (equiv_expr expr v')
                   else
+                    (* If types do not agree here, this means that we were looking at pointers that *)
+                    (* contain more than one array access. Those are not supported. *)
                     ExpDomain.top ()
-                end
+                else
+                  ExpDomain.top ()
               with (Cilfacade.TypeOfError _) -> ExpDomain.top ()
             end
           | _ ->
