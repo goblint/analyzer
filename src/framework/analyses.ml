@@ -21,6 +21,7 @@ sig
   val printXml : 'a BatInnerIO.output -> t -> unit
   val var_id   : t -> string
   val node      : t -> MyCFG.node
+  val is_write_only: t -> bool
   val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
 end
 
@@ -62,18 +63,22 @@ struct
 
   let var_id (n,_) = Var.var_id n
   let node (n,_) = n
+  let is_write_only _ = false
 end
 
-module GVarF (V: Printable.S) =
+module GVarF (V: Printable.W) =
 struct
   include Printable.Either (V) (CilType.Fundec)
   let spec x = `Left x
   let contexts x = `Right x
 
   (* from Basetype.Variables *)
-  let var_id = show (* HACK: incremental accesses rely on this! *)
+  let var_id = show
   let node _ = MyCFG.Function Cil.dummyFunDec
   let pretty_trace = pretty
+  let is_write_only = function
+    | `Left x -> V.is_write_only x
+    | `Right _ -> true
 end
 
 module GVarG (G: Lattice.S) (C: Printable.S) =
@@ -366,7 +371,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   module C : Printable.S
-  module V: Printable.S (** Global constraint variables. *)
+  module V: Printable.W (** Global constraint variables. *)
 
   val name : unit -> string
 
@@ -557,7 +562,11 @@ struct
 end
 
 module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
-module EmptyV = Printable.Empty
+module EmptyV =
+struct
+  include Printable.Empty
+  let is_write_only _ = false
+end
 
 module UnitA =
 struct

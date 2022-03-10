@@ -14,7 +14,11 @@ struct
   module D = RegionDomain.RegionDom
   module G = RegPart
   module C = D
-  module V = Printable.UnitConf (struct let name = "partitions" end)
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "partitions" end)
+    let is_write_only _ = false
+  end
 
   let regions exp part st : Lval.CilLval.t list =
     match st with

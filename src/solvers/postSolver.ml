@@ -84,11 +84,9 @@ module Verify: F =
       ignore (Pretty.printf "Fixpoint not reached at %a\nOrigin: %a\n @[Solver computed:\n%a\nSide-effect:\n%a\nDifference: %a\n@]" S.Var.pretty_trace y S.Var.pretty_trace x S.Dom.pretty lhs S.Dom.pretty rhs S.Dom.pretty_diff (rhs, lhs))
 
     let one_side ~vh ~vhw ~x ~y ~d =
-      (* HACK: incremental accesses insanity! *)
-      (* ignore (Pretty.printf "one_side %s: %a\n" (S.Var.var_id y) S.Dom.pretty d); *)
-      let is_acc = String.starts_with (S.Var.var_id y) "access:" in
       let y_lhs = try VH.find vh y with Not_found -> S.Dom.bot () in
-      if is_acc then (
+      if S.Var.is_write_only y then (
+        (* HACK: incremental accesses etc insanity! *)
         VH.replace vh y (S.Dom.join y_lhs d);
         VH.modify_def (VH.create 1) x (fun w -> VH.add w y d; w) vhw (* inner add intentional *)
       )

@@ -7,7 +7,7 @@ type spec_modules = { name : string
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
                     ; cont : (module Printable.S)
-                    ; var  : (module Printable.S)
+                    ; var  : (module Printable.W)
                     ; acc  : (module MCPA) }
 
 let activated  : (int * spec_modules) list ref = ref []
@@ -25,7 +25,7 @@ let register_analysis =
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
-            ; var  = (module S.V : Printable.S)
+            ; var  = (module S.V : Printable.W)
             ; acc  = (module S.A : MCPA)
             }
     in
@@ -43,6 +43,12 @@ module type DomainListPrintableSpec =
 sig
   val assoc_dom : int -> (module Printable.S)
   val domain_list : unit -> (int * (module Printable.S)) list
+end
+
+module type DomainListPrintableWSpec =
+sig
+  val assoc_dom : int -> (module Printable.W)
+  val domain_list : unit -> (int * (module Printable.W)) list
 end
 
 module type DomainListMCPASpec =
@@ -239,6 +245,83 @@ struct
     QCheck.oneof arbs
 end
 
+(* TODO: deduplicate *)
+module DomVariantPrintableW (DLSpec : DomainListPrintableWSpec)
+  : Printable.W with type t = int * unknown
+=
+struct
+  include Printable.Std (* for default invariant, tag, ... *)
+
+  open DLSpec
+  open List
+  open Obj
+
+  type t = int * unknown
+
+  let unop_map f ((n, d):t) =
+    f n (assoc_dom n) d
+
+  let pretty () = unop_map (fun n (module S: Printable.W) x ->
+      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x)
+    )
+
+  let show = unop_map (fun n (module S: Printable.W) x ->
+      let analysis_name = find_spec_name n in
+      analysis_name ^ ":" ^ S.show (obj x)
+    )
+
+  let is_write_only = unop_map (fun n (module S: Printable.W) x ->
+      S.is_write_only (obj x)
+    )
+
+  let to_yojson x =
+    `Assoc [
+      unop_map (fun n (module S: Printable.W) x ->
+          let name = find_spec_name n in
+          (name, S.to_yojson (obj x))
+        ) x
+    ]
+
+  let equal (n1, x1) (n2, x2) =
+    n1 = n2 && (
+      let module S = (val assoc_dom n1) in
+      S.equal (obj x1) (obj x2)
+    )
+
+  let compare (n1, x1) (n2, x2) =
+    let r = Stdlib.compare n1 n2 in
+    if r <> 0 then
+      r
+    else
+      let module S = (val assoc_dom n1) in
+      S.compare (obj x1) (obj x2)
+
+  let hash = unop_map (fun n (module S: Printable.W) x ->
+      Hashtbl.hash (n, S.hash (obj x))
+    )
+
+  let name () =
+    let domain_name (n, (module S: Printable.W)) =
+      let analysis_name = find_spec_name n in
+      analysis_name ^ ":" ^ S.name ()
+    in
+    IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list ())
+
+  let printXml f = unop_map (fun n (module S: Printable.W) x ->
+      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
+      S.printXml f (obj x);
+      BatPrintf.fprintf f "</analysis>\n"
+    )
+
+  let invariant c = unop_map (fun n (module S: Printable.W) x ->
+      S.invariant c (obj x)
+    )
+
+  let arbitrary () =
+    let arbs = map (fun (n, (module S: Printable.W)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
+    QCheck.oneof arbs
+end
+
 module DomListLattice (DLSpec : DomainListLatticeSpec)
   : Lattice.S with type t = (int * unknown) list
 =
@@ -339,7 +422,7 @@ struct
   let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
 end
 
-module VarListSpec : DomainListPrintableSpec =
+module VarListSpec : DomainListPrintableWSpec =
 struct
   let assoc_dom n = (find_spec n).var
   let domain_list () = List.map (fun (n,p) -> n, p.var) !activated

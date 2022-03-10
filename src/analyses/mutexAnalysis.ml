@@ -34,7 +34,11 @@ struct
 
   (** We do not add global state, so just lift from [BS]*)
   module G = P.G
-  module V = VarinfoV
+  module V =
+  struct
+    include VarinfoV
+    let is_write_only _ = false
+  end
 
   let should_join x y = D.equal x y
 

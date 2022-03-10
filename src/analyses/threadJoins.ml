@@ -14,7 +14,11 @@ struct
   module D = MustTIDs
   module C = D
   module G = MustTIDs
-  module V = TID
+  module V =
+  struct
+    include TID
+    let is_write_only _ = false
+  end
 
   (* transfer functions *)
   let return ctx (exp:exp option) (f:fundec) : D.t =

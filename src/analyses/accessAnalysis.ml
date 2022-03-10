@@ -25,9 +25,10 @@ struct
   module V =
   struct
     include Printable.Either (V0) (CilType.Varinfo)
-    let name () = "access" (* HACK: incremental accesses rely on this! *)
+    let name () = "access"
     let access x = `Left x
     let vars x = `Right x
+    let is_write_only _ = true
   end
 
   module V0Set = SetDomain.Make (V0)

@@ -839,6 +839,10 @@ struct
   let node = function
     | `L a -> LV.node a
     | `G a -> GV.node a
+
+  let is_write_only = function
+    | `L a -> LV.is_write_only a
+    | `G a -> GV.is_write_only a
 end
 
 (** Translate a [GlobConstrSys] into a [EqConstrSys] *)
@@ -1107,6 +1111,9 @@ struct
     include Printable.Either (S.V) (Node)
     let s x = `Left x
     let node x = `Right x
+    let is_write_only = function
+      | `Left x -> S.V.is_write_only x
+      | `Right _ -> true
   end
 
   module EM =
