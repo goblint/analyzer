@@ -19,7 +19,7 @@ struct
   module V =
   struct
     include Priv.V
-    let is_write_only _ = false
+    include StdV
   end
 
   open AD

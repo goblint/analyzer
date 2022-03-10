@@ -572,11 +572,21 @@ struct
     BatPrintf.fprintf f "<context>\n%a</context>\n%a" C.printXml c D.printXml d
 end
 
-module VarinfoV = CilType.Varinfo (* TODO: or Basetype.Variables? *)
+module StdV =
+struct
+  let is_write_only _ = false
+end
+
+module VarinfoV =
+struct
+  include CilType.Varinfo (* TODO: or Basetype.Variables? *)
+  include StdV
+end
+
 module EmptyV =
 struct
   include Printable.Empty
-  let is_write_only _ = false
+  include StdV
 end
 
 module UnitA =

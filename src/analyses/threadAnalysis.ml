@@ -17,7 +17,7 @@ struct
   module V =
   struct
     include T
-    let is_write_only _ = false
+    include StdV
   end
 
   let should_join = D.equal

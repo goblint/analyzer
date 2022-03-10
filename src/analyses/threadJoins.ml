@@ -17,7 +17,7 @@ struct
   module V =
   struct
     include TID
-    let is_write_only _ = false
+    include StdV
   end
 
   (* transfer functions *)

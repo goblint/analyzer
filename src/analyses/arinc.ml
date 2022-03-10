@@ -94,7 +94,7 @@ struct
   module V =
   struct
     include Printable.UnitConf (struct let name = "tasks" end)
-    let is_write_only _ = false
+    include StdV
   end
 
   let context fd d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
