@@ -170,7 +170,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.warn "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
+          Messages.debug ~category:Analyzer ~loc:(CilLocation loc) "Calculated state for undefined function: unexpected node %a" Node.pretty_trace n
     in
     LHT.iter add_local_var h;
     res

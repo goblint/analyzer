@@ -4,7 +4,7 @@ open Jsonrpc
 exception Failure of Response.Error.Code.t * string
 
 type t = {
-  mutable file: Cil.file;
+  mutable file: Cil.file option;
   mutable version_map: (CompareCIL.global_identifier, Cil.global) Hashtbl.t;
   mutable max_ids: VersionLookup.max_ids;
   input: IO.input;
@@ -80,7 +80,11 @@ let serve serv =
     )
 
 let make ?(input=stdin) ?(output=stdout) file : t =
-  let version_map, max_ids = VersionLookup.create_map file in
+  let version_map, max_ids =
+    match file with
+    | Some file -> VersionLookup.create_map file
+    | None -> VersionLookup.create_map Cil.dummyFile (* TODO: avoid this altogether *)
+  in
   {
     file;
     version_map;
@@ -111,8 +115,19 @@ let start file =
 let reparse (s: t) =
   if GobConfig.get_bool "server.reparse" then (
     GoblintDir.init ();
-    Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge, true)
-  else s.file, false
+    let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge in
+    begin match s.file with
+      | None ->
+        let version_map, max_ids = VersionLookup.create_map file in
+        s.version_map <- version_map;
+        s.max_ids <- max_ids
+      | Some _ ->
+        ()
+    end;
+    (file, true)
+  )
+  else
+    (Option.get s.file, false)
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
@@ -124,9 +139,11 @@ let virtual_changes file =
 
 let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
   | Some solver_data when reparsed ->
-    let _, changes = VersionLookup.updateMap s.file file s.version_map in
-    let old_data = Some { Analyses.cil_file = s.file; solver_data } in
-    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file s.version_map changes;
+    let s_file = Option.get s.file in
+    let version_map, changes = VersionLookup.updateMap s_file file s.version_map in
+    let old_data = Some { Analyses.cil_file = s_file; solver_data } in
+    s.max_ids <- UpdateCil.update_ids s_file s.max_ids file s.version_map changes;
+    s.version_map <- version_map;
     (* TODO: get globals for restarting from config *)
     { Analyses.changes; old_data; new_file = file; restarting = [] }, false
   | Some solver_data ->
@@ -151,12 +168,12 @@ let analyze ?(reset=false) (s: t) =
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
-  s.file <- file;
+  s.file <- Some file;
   GobConfig.set_bool "incremental.load" (not fresh);
   Fun.protect ~finally:(fun () ->
       GobConfig.set_bool "incremental.load" true
     ) (fun () ->
-      Maingoblint.do_analyze increment_data s.file
+      Maingoblint.do_analyze increment_data (Option.get s.file)
     )
 
 let () =
