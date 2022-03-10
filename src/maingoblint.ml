@@ -251,14 +251,14 @@ let preprocess_files () =
       [basic_preprocess ~all_cppflags filename]
   in
 
-  let extra_arg_files = ref [] in
+  let extra_files = ref [] in
 
-  extra_arg_files := find_custom_include "stdlib.c" :: find_custom_include "pthread.c" :: !extra_arg_files;
+  extra_files := find_custom_include "stdlib.c" :: find_custom_include "pthread.c" :: !extra_files;
 
   if get_bool "ana.sv-comp.functions" then
-    extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
+    extra_files := find_custom_include "sv-comp.c" :: !extra_files;
 
-  let preprocessed = List.concat_map preprocess_arg_file (!extra_arg_files @ get_string_list "files") in
+  let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ get_string_list "files") in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
     let terminated task = function
