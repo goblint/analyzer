@@ -7,7 +7,7 @@ type spec_modules = { name : string
                     ; dom  : (module Lattice.S)
                     ; glob : (module Lattice.S)
                     ; cont : (module Printable.S)
-                    ; var  : (module Printable.W)
+                    ; var  : (module SpecSysVar)
                     ; acc  : (module MCPA) }
 
 let activated  : (int * spec_modules) list ref = ref []
@@ -25,7 +25,7 @@ let register_analysis =
             ; dom  = (module S.D : Lattice.S)
             ; glob = (module S.G : Lattice.S)
             ; cont = (module S.C : Printable.S)
-            ; var  = (module S.V : Printable.W)
+            ; var  = (module S.V : SpecSysVar)
             ; acc  = (module S.A : MCPA)
             }
     in
@@ -47,8 +47,8 @@ end
 
 module type DomainListPrintableWSpec =
 sig
-  val assoc_dom : int -> (module Printable.W)
-  val domain_list : unit -> (int * (module Printable.W)) list
+  val assoc_dom : int -> (module SpecSysVar)
+  val domain_list : unit -> (int * (module SpecSysVar)) list
 end
 
 module type DomainListMCPASpec =
@@ -247,7 +247,7 @@ end
 
 (* TODO: deduplicate *)
 module DomVariantPrintableW (DLSpec : DomainListPrintableWSpec)
-  : Printable.W with type t = int * unknown
+  : SpecSysVar with type t = int * unknown
 =
 struct
   include Printable.Std (* for default invariant, tag, ... *)
@@ -261,22 +261,22 @@ struct
   let unop_map f ((n, d):t) =
     f n (assoc_dom n) d
 
-  let pretty () = unop_map (fun n (module S: Printable.W) x ->
+  let pretty () = unop_map (fun n (module S: SpecSysVar) x ->
       Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x)
     )
 
-  let show = unop_map (fun n (module S: Printable.W) x ->
+  let show = unop_map (fun n (module S: SpecSysVar) x ->
       let analysis_name = find_spec_name n in
       analysis_name ^ ":" ^ S.show (obj x)
     )
 
-  let is_write_only = unop_map (fun n (module S: Printable.W) x ->
+  let is_write_only = unop_map (fun n (module S: SpecSysVar) x ->
       S.is_write_only (obj x)
     )
 
   let to_yojson x =
     `Assoc [
-      unop_map (fun n (module S: Printable.W) x ->
+      unop_map (fun n (module S: SpecSysVar) x ->
           let name = find_spec_name n in
           (name, S.to_yojson (obj x))
         ) x
@@ -296,29 +296,29 @@ struct
       let module S = (val assoc_dom n1) in
       S.compare (obj x1) (obj x2)
 
-  let hash = unop_map (fun n (module S: Printable.W) x ->
+  let hash = unop_map (fun n (module S: SpecSysVar) x ->
       Hashtbl.hash (n, S.hash (obj x))
     )
 
   let name () =
-    let domain_name (n, (module S: Printable.W)) =
+    let domain_name (n, (module S: SpecSysVar)) =
       let analysis_name = find_spec_name n in
       analysis_name ^ ":" ^ S.name ()
     in
     IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list ())
 
-  let printXml f = unop_map (fun n (module S: Printable.W) x ->
+  let printXml f = unop_map (fun n (module S: SpecSysVar) x ->
       BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
     )
 
-  let invariant c = unop_map (fun n (module S: Printable.W) x ->
+  let invariant c = unop_map (fun n (module S: SpecSysVar) x ->
       S.invariant c (obj x)
     )
 
   let arbitrary () =
-    let arbs = map (fun (n, (module S: Printable.W)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
+    let arbs = map (fun (n, (module S: SpecSysVar)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
     QCheck.oneof arbs
 end
 

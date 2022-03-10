@@ -32,12 +32,6 @@ sig
   val relift: t -> t
 end
 
-module type W =
-sig
-  include S
-  val is_write_only: t -> bool (* TODO: move elsewhere *)
-end
-
 module Empty: S =
 struct
   type t = | [@@deriving eq, ord, hash]

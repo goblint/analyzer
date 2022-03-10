@@ -12,16 +12,22 @@ module M  = Messages
   * other functions. *)
 type fundecs = fundec list * fundec list * fundec list
 
+module type SysVar =
+sig
+  type t
+  val is_write_only: t -> bool
+end
+
 module type VarType =
 sig
   include Hashtbl.HashedType
+  include SysVar with type t := t
   val pretty_trace: unit -> t -> doc
   val compare : t -> t -> int
 
   val printXml : 'a BatInnerIO.output -> t -> unit
   val var_id   : t -> string
   val node      : t -> MyCFG.node
-  val is_write_only: t -> bool
   val relift    : t -> t (* needed only for incremental+hashcons to re-hashcons contexts after loading *)
 end
 
@@ -66,7 +72,13 @@ struct
   let is_write_only _ = false
 end
 
-module GVarF (V: Printable.W) =
+module type SpecSysVar =
+sig
+  include Printable.S
+  include SysVar with type t := t
+end
+
+module GVarF (V: SpecSysVar) =
 struct
   include Printable.Either (V) (CilType.Fundec)
   let spec x = `Left x
@@ -370,7 +382,7 @@ sig
   module D : Lattice.S
   module G : Lattice.S
   module C : Printable.S
-  module V: Printable.W (** Global constraint variables. *)
+  module V: SpecSysVar (** Global constraint variables. *)
 
   val name : unit -> string
 
