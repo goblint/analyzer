@@ -1032,8 +1032,15 @@ module WP =
 
         let one_side ~vh ~x ~y ~d =
           if S.Var.is_write_only y then (
-            (* HACK: incremental accesses etc insanity! *)
-            VH.modify_def (VH.create 1) x (fun w -> VH.add w y d; w) rho_write (* inner add intentional *)
+            let w =
+              try
+                VH.find rho_write x
+              with Not_found ->
+                let w = VH.create 1 in (* only create on demand, modify_def would eagerly allocate *)
+                VH.replace rho_write x w;
+                w
+            in
+            VH.add w y d (* intentional add *)
           )
       end
       in
