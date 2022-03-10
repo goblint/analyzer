@@ -2,6 +2,15 @@
   "$schema": "http://json-schema.org/draft-04/schema#",
   "type": "object",
   "properties": {
+    "files": {
+      "title": "files",
+      "description": "Files to analyze.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
     "outfile": {
       "title": "outfile",
       "description": "File to print output to.",

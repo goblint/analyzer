@@ -107,13 +107,15 @@ let option_spec_list =
   ] @ defaults_spec_list (* lowest priority *)
 
 
-(** Parse arguments and fill [arg_files]. Print help if needed. *)
+(** Parse arguments. Print help if needed. *)
 let parse_arguments () =
-  let anon_arg filename =
-    arg_files := filename :: !arg_files
-  in
+  let anon_arg = set_string "files[+]" in
   Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
-  arg_files := List.rev !arg_files; (* reverse files to get given order *)
+  if get_string_list "files" = [] then (
+    prerr_endline "No files for Goblint?";
+    prerr_endline "Try `goblint --help' for more information.";
+    raise Exit
+  );
   if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
 
 (** Initialize some globals in other modules. *)
@@ -254,14 +256,14 @@ let preprocess_files () =
       [basic_preprocess ~all_cppflags filename]
   in
 
-  let extra_arg_files = ref [] in
+  let extra_files = ref [] in
 
-  extra_arg_files := find_custom_include "stdlib.c" :: find_custom_include "pthread.c" :: !extra_arg_files;
+  extra_files := find_custom_include "stdlib.c" :: find_custom_include "pthread.c" :: !extra_files;
 
   if get_bool "ana.sv-comp.functions" then
-    extra_arg_files := find_custom_include "sv-comp.c" :: !extra_arg_files;
+    extra_files := find_custom_include "sv-comp.c" :: !extra_files;
 
-  let preprocessed = List.concat_map preprocess_arg_file (!extra_arg_files @ !arg_files) in
+  let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ get_string_list "files") in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
     let terminated task = function
@@ -294,8 +296,8 @@ let merge_preprocessed cpp_file_names =
   let merged_AST =
     match files_AST with
     | [one] -> Cilfacade.callConstructors one
-    | [] -> prerr_endline "No arguments for Goblint?";
-      prerr_endline "Try `goblint --help' for more information.";
+    | [] ->
+      prerr_endline "No files to analyze!";
       raise Exit
     | xs -> Cilfacade.getMergedAST xs |> Cilfacade.callConstructors
   in
