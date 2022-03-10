@@ -1066,7 +1066,7 @@ module WP =
 
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
 
-      Post.post st vs rho rho_write;
+      Post.post st vs rho;
 
       print_data data "Data after postsolve";
 

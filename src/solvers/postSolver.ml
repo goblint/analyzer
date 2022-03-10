@@ -175,7 +175,7 @@ struct
   module S = PS.S
   module VH = PS.VH
 
-  let post xs vs vh vhw =
+  let post xs vs vh =
     if get_bool "dbg.verbose" then
       print_endline "Postsolving\n";
 
@@ -254,7 +254,7 @@ struct
       in
       Some (List.reduce compose postsolvers)
 
-  let post xs vs vh vhw =
+  let post xs vs vh =
     match postsolver_opt with
     | None -> ()
     | Some (module PS) ->
@@ -265,7 +265,7 @@ struct
       end
       in
       let module M = MakeIncr (IncrPS) in
-      M.post xs vs vh vhw
+      M.post xs vs vh
 end
 
 (** Make complete (non-incremental) postsolving function from list of postsolvers.
