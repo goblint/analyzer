@@ -45,7 +45,7 @@ sig
   val domain_list : unit -> (int * (module Printable.S)) list
 end
 
-module type DomainListPrintableWSpec =
+module type DomainListSysVarSpec =
 sig
   val assoc_dom : int -> (module SpecSysVar)
   val domain_list : unit -> (int * (module SpecSysVar)) list
@@ -84,6 +84,18 @@ struct
 
   let domain_list () =
     let f (module L:MCPA) = (module L : Printable.S) in
+    List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
+end
+
+module PrintableOfSysVarSpec (D:DomainListSysVarSpec) : DomainListPrintableSpec =
+struct
+  let assoc_dom n =
+    let f (module L:SpecSysVar) = (module L : Printable.S)
+    in
+    f (D.assoc_dom n)
+
+  let domain_list () =
+    let f (module L:SpecSysVar) = (module L : Printable.S) in
     List.map (fun (x,y) -> (x,f y)) (D.domain_list ())
 end
 
@@ -245,81 +257,21 @@ struct
     QCheck.oneof arbs
 end
 
-(* TODO: deduplicate *)
-module DomVariantPrintableW (DLSpec : DomainListPrintableWSpec)
+module DomVariantSysVar (DLSpec : DomainListSysVarSpec)
   : SpecSysVar with type t = int * unknown
 =
 struct
-  include Printable.Std (* for default invariant, tag, ... *)
-
   open DLSpec
-  open List
   open Obj
 
-  type t = int * unknown
+  include DomVariantPrintable (PrintableOfSysVarSpec (DLSpec))
 
   let unop_map f ((n, d):t) =
     f n (assoc_dom n) d
 
-  let pretty () = unop_map (fun n (module S: SpecSysVar) x ->
-      Pretty.dprintf "%s:%a" (S.name ()) S.pretty (obj x)
-    )
-
-  let show = unop_map (fun n (module S: SpecSysVar) x ->
-      let analysis_name = find_spec_name n in
-      analysis_name ^ ":" ^ S.show (obj x)
-    )
-
   let is_write_only = unop_map (fun n (module S: SpecSysVar) x ->
       S.is_write_only (obj x)
     )
-
-  let to_yojson x =
-    `Assoc [
-      unop_map (fun n (module S: SpecSysVar) x ->
-          let name = find_spec_name n in
-          (name, S.to_yojson (obj x))
-        ) x
-    ]
-
-  let equal (n1, x1) (n2, x2) =
-    n1 = n2 && (
-      let module S = (val assoc_dom n1) in
-      S.equal (obj x1) (obj x2)
-    )
-
-  let compare (n1, x1) (n2, x2) =
-    let r = Stdlib.compare n1 n2 in
-    if r <> 0 then
-      r
-    else
-      let module S = (val assoc_dom n1) in
-      S.compare (obj x1) (obj x2)
-
-  let hash = unop_map (fun n (module S: SpecSysVar) x ->
-      Hashtbl.hash (n, S.hash (obj x))
-    )
-
-  let name () =
-    let domain_name (n, (module S: SpecSysVar)) =
-      let analysis_name = find_spec_name n in
-      analysis_name ^ ":" ^ S.name ()
-    in
-    IO.to_string (List.print ~first:"" ~last:"" ~sep:" | " String.print) (map domain_name @@ domain_list ())
-
-  let printXml f = unop_map (fun n (module S: SpecSysVar) x ->
-      BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
-      S.printXml f (obj x);
-      BatPrintf.fprintf f "</analysis>\n"
-    )
-
-  let invariant c = unop_map (fun n (module S: SpecSysVar) x ->
-      S.invariant c (obj x)
-    )
-
-  let arbitrary () =
-    let arbs = map (fun (n, (module S: SpecSysVar)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ S.arbitrary ()) @@ domain_list () in
-    QCheck.oneof arbs
 end
 
 module DomListLattice (DLSpec : DomainListLatticeSpec)
@@ -422,7 +374,7 @@ struct
   let domain_list () = List.map (fun (n,p) -> n, p.cont) !activated_ctx_sens
 end
 
-module VarListSpec : DomainListPrintableWSpec =
+module VarListSpec : DomainListSysVarSpec =
 struct
   let assoc_dom n = (find_spec n).var
   let domain_list () = List.map (fun (n,p) -> n, p.var) !activated
