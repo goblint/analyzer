@@ -85,10 +85,8 @@ module Verify: F =
 
     let one_side ~vh ~x ~y ~d =
       let y_lhs = try VH.find vh y with Not_found -> S.Dom.bot () in
-      if S.Var.is_write_only y then (
-        (* HACK: incremental accesses etc insanity! *)
-        VH.replace vh y (S.Dom.join y_lhs d)
-      )
+      if S.Var.is_write_only y then
+        VH.replace vh y (S.Dom.join y_lhs d) (* HACK: allow warnings/accesses to be added without complaining *)
       else if not (S.Dom.leq d y_lhs) then
         complain_side x y ~lhs:y_lhs ~rhs:d
 
