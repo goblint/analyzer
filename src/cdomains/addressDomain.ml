@@ -54,7 +54,7 @@ struct
     | x when GobOption.exists BigIntOps.(equal (zero)) x -> null_ptr
     | x when GobOption.exists BigIntOps.(equal (one)) x -> not_null
     | _ -> match ID.to_excl_list i with
-      | Some xs when List.exists BigIntOps.(equal (zero)) xs -> not_null
+      | Some (_, xs) when List.exists BigIntOps.(equal (zero)) xs -> not_null
       | _ -> top_ptr
 
   let get_type xs =

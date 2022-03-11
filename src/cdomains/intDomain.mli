@@ -192,7 +192,7 @@ sig
   (** Checks if the element is a definite boolean value. If this function
     * returns [true], the above [to_bool] should return a real value. *)
 
-  val to_excl_list: t -> int_t list option
+  val to_excl_list: t -> ((int64 * int64) * int_t list) option
   (** Gives a list representation of the excluded values if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
@@ -271,7 +271,7 @@ sig
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> ((int64 * int64) * int_t list) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
