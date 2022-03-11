@@ -148,10 +148,10 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.bot ())  (if get_bool "ana.base.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+      `Array (CArrays.make (IndexDomain.bot ())  (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (init_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if get_bool "ana.base.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
@@ -163,10 +163,10 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.top ()) (if get_bool "ana.base.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+      `Array (CArrays.make (IndexDomain.top ()) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (top_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if get_bool "ana.base.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 

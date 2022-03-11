@@ -178,11 +178,43 @@ let print ?(ppf= !formatter) (m: Message.t) =
     let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
     Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) (Option.map Location.to_cil piece.loc)
   in
+  let pp_quote ppf (loc: Cil.location) =
+    let lines = BatFile.lines_of loc.file in
+    BatEnum.drop (loc.line - 1) lines;
+    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in
+    let lines = BatList.of_enum lines in
+    match lines with
+    | [] -> assert false
+    | [line] ->
+      let prefix = BatString.slice ~last:(loc.column - 1) line in
+      let middle = BatString.slice ~first:(loc.column - 1) ~last:(loc.endColumn - 1) line in
+      let suffix = BatString.slice ~first:(loc.endColumn - 1) line in
+      Format.fprintf ppf "%s@{<turquoise>%s@}%s" prefix middle suffix
+    | first :: rest ->
+      begin match BatList.split_at (List.length rest - 1) rest with
+        | (middles, [last]) ->
+          let first_prefix = BatString.slice ~last:(loc.column - 1) first in
+          let first_middle = BatString.slice ~first:(loc.column - 1) first in
+          let last_middle = BatString.slice ~last:(loc.endColumn - 1) last in
+          let last_suffix = BatString.slice ~first:(loc.endColumn - 1) last in
+          Format.fprintf ppf "%s@{<turquoise>%a@}%s" first_prefix (Format.pp_print_list Format.pp_print_string) (first_middle :: middles @ [last_middle]) last_suffix
+        | _ -> assert false
+      end
+  in
+  let pp_piece ppf piece =
+    if get_bool "warn.quote-code" then (
+      let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" (Format.pp_print_option pp_quote) in
+      Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote (Option.map Location.to_cil piece.loc)
+    )
+    else
+      pp_piece ppf piece
+  in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
       pp_piece ppf piece
     | Group {group_text; pieces} ->
-      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece) pieces
+      let pp_piece2 ppf = Format.fprintf ppf "@[<v 2>%a@]" pp_piece in (* indented box for quote *)
+      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece2) pieces
   in
   Format.fprintf ppf "@[<v 2>%t %t@]\n%!" pp_prefix pp_multipiece
 

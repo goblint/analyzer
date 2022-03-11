@@ -2,6 +2,15 @@
   "$schema": "http://json-schema.org/draft-04/schema#",
   "type": "object",
   "properties": {
+    "files": {
+      "title": "files",
+      "description": "Files to analyze.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
     "outfile": {
       "title": "outfile",
       "description": "File to print output to.",
@@ -650,13 +659,6 @@
               "title": "ana.base.partition-arrays",
               "type": "object",
               "properties": {
-                "enabled": {
-                  "title": "ana.base.partition-arrays.enabled",
-                  "description":
-                    "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
-                  "type": "boolean",
-                  "default": false
-                },
                 "keep-expr": {
                   "title": "ana.base.partition-arrays.keep-expr",
                   "description":
@@ -678,6 +680,27 @@
                     "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
                   "type": "boolean",
                   "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "arrays":{
+              "title": "ana.base.arrays",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.arrays.domain",
+                  "description":
+                    "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
+                  "type": "string",
+                  "enum": ["trivial", "partitioned", "unroll"],
+                  "default": "trivial"
+                },
+                "unrolling-factor": {
+                  "title": "ana.base.arrays.unrolling-factor",
+                  "description": "Indicates how many values will the unrolled part of the unrolled array domain contain.",
+                  "type": "integer",
+                  "default": 0
                 }
               },
               "additionalProperties": false
@@ -1641,6 +1664,12 @@
           "description": "Success severity messages",
           "type": "boolean",
           "default": true
+        },
+        "quote-code": {
+          "title": "warn.quote-code",
+          "description": "Quote code in message output.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false
