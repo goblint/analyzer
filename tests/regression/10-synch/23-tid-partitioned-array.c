@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] thread --enable ana.base.partition-arrays.enabled
+// PARAM: --set ana.activated[+] thread --set ana.base.arrays.domain partitioned
 #include <pthread.h>
 
 void *t_fun(void *arg) {
