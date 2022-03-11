@@ -460,6 +460,12 @@
               "type": "boolean",
               "default": false
             },
+            "interval_narrow_by_meet": {
+              "title": "ana.int.interval_narrow_by_meet",
+              "description": "Perform interval narrowing by meets. Avoids precision loss if intervals are refined by def_exc ranges, which are more precise than type range.",
+              "type": "boolean",
+              "default": true
+            },
             "interval_threshold_widening": {
               "title": "ana.int.interval_threshold_widening",
               "description":

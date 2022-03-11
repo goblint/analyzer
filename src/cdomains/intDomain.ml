@@ -652,6 +652,12 @@ struct
       let ur = if Ints_t.compare (max_int ik) x2 = 0 then y2 else x2 in
       norm ik @@ Some (lr,ur)
 
+  let narrow ik x y =
+    if get_bool "ana.int.interval_narrow_by_meet" then
+      meet ik x y
+    else
+      narrow ik x y
+
   let log f ik i1 i2 =
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
