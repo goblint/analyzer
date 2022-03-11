@@ -78,7 +78,7 @@ struct
   let name () = "unrolled arrays"
   type idx = Idx.t
   type value = Val.t
-  let factor () = 
+  let factor () =
     match get_int "ana.base.arrays.unrolling-factor" with
     | 0 -> failwith "ArrayDomain: ana.base.arrays.unrolling-factor needs to be set when using the unroll domain"
     | x -> x
@@ -92,8 +92,8 @@ struct
   let pretty () x = text "Array: " ++ text (show x)
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let extract x = match x with
-      | Some c -> c
-      | None -> failwith "arrarDomain: that sould not happen"
+    | Some c -> c
+    | None -> failwith "arrayDomain: that should not happen"
   let get (ask: Q.ask) (xl, xr) (_,i) =
     let search_unrolled_values min_i max_i =
       let mi = Z.to_int min_i in
@@ -125,10 +125,10 @@ struct
           else if i>ma then (hd::tl)
           else (Val.join hd v)::(weak_update tl (i+1)) in
       let rec full_update l i = match l with
-          | [] -> []
-          | hd::tl ->
-            if i<mi then hd::(full_update tl (i+1))
-            else v::tl in
+        | [] -> []
+        | hd::tl ->
+          if i<mi then hd::(full_update tl (i+1))
+          else v::tl in
       if mi=ma then full_update xl 0
       else weak_update xl 0 in
     let f = Z.of_int (factor ()) in
@@ -830,10 +830,10 @@ struct
   end
 
   let to_t = function
-  | (Some p, None, None) -> (Some p, None)
-  | (None, Some t, None) -> (None, Some (Some t, None))
-  | (None, None, Some u) -> (None, Some (None, Some u))
-  | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+    | (Some p, None, None) -> (Some p, None)
+    | (None, Some t, None) -> (None, Some (Some t, None))
+    | (None, None, Some u) -> (None, Some (None, Some u))
+    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
 
   module I = struct include LatticeFlagHelper (T) (U) (K) let name () = "" end
   include LatticeFlagHelper (P) (I) (K)
@@ -845,20 +845,19 @@ struct
 
   (* Simply call appropriate function for component that is not None *)
   let get a x (e,i) = unop' (fun x ->
-    if e = `Top then
-      let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x)) (`Top) (Idx.to_int i) in
-      P.get a x (e', i)
-    else
-      P.get a x (e, i)
-  ) (fun x -> T.get a x (e,i)) (fun x -> U.get a x (e,i)) x
+      if e = `Top then
+        let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x)) (`Top) (Idx.to_int i) in
+        P.get a x (e', i)
+      else
+        P.get a x (e, i)
+    ) (fun x -> T.get a x (e,i)) (fun x -> U.get a x (e,i)) x
   let set (ask:Q.ask) x i a = unop_to_t' (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) (fun x -> U.set ask x i a) x
   let length = unop' P.length T.length U.length
   let map f = unop_to_t' (P.map f) (T.map f) (U.map f)
   let fold_left f s = unop' (P.fold_left f s) (T.fold_left f s) (U.fold_left f s)
   let fold_left2 f s = binop' (P.fold_left2 f s) (T.fold_left2 f s) (U.fold_left2 f s)
 
-  let move_if_affected ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t' (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f)
-  (fun x -> U.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
+  let move_if_affected ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t' (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> U.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
   let get_vars_in_e = unop' P.get_vars_in_e T.get_vars_in_e U.get_vars_in_e
   let smart_join f g = binop_to_t' (P.smart_join f g) (T.smart_join f g) (U.smart_join f g)
   let smart_widen f g = binop_to_t' (P.smart_widen f g) (T.smart_widen f g) (U.smart_widen f g)
