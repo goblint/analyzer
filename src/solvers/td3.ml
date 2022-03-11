@@ -1022,6 +1022,8 @@ module WP =
       end
       in
 
+      (** Incremental write-only side effect restart handling:
+          retriggers superstable ones (after restarting above) and collects new (non-superstable) ones. *)
       let module IncrWrite: PostSolver.S with module S = S and module VH = HM =
       struct
         include PostSolver.Unit (S) (HM)
