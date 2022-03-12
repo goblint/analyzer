@@ -101,9 +101,9 @@ class loopUnrollingVisitor = object
   (* The price we need to pay for this simpler handling of labels and still wanting to benefit from unrolling nested loops is that    *)
   (* we need to put our unrolled code into fake while(1) loops such that breaks have something to break out of, add artificial breaks *)
   (* at the end of loops, and replacing (top level!) continues with breaks. *)
-  (* This is still a lot more intuitive than complicated handling of gotos as would be required when doing it after the unrolling     *)
+  (* This is still a lot more intuitive than complicated handling of gotos as would be required when doing it after the removal of breaks  *)
   inherit nopCilVisitor
-    
+  
   method! vstmt s =
     let labelsRemover = new removeLabelsVisitor in
     match s.skind with
