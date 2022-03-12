@@ -103,7 +103,7 @@ class loopUnrollingVisitor = object
   (* at the end of loops, and replacing (top level!) continues with breaks. *)
   (* This is still a lot more intuitive than complicated handling of gotos as would be required when doing it after the removal of breaks  *)
   inherit nopCilVisitor
-  
+    
   method! vstmt s =
     let labelsRemover = new removeLabelsVisitor in
     match s.skind with
