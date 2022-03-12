@@ -22,8 +22,12 @@ let should_wrap ik = not (Cil.isSigned ik) || get_string "sem.int.signed_overflo
   * Always false for unsigned types, true for signed types if 'sem.int.signed_overflow' is 'assume_none'  *)
 let should_ignore_overflow ik = Cil.isSigned ik && get_string "sem.int.signed_overflow" = "assume_none"
 
-let widening_thresholds = lazy (WideningThresholds.thresholds ())
-let widening_thresholds_desc = lazy (List.rev (Lazy.force widening_thresholds)) (* Lazy.map in 4.13*)
+let widening_thresholds = ResettableLazy.from_fun WideningThresholds.thresholds
+let widening_thresholds_desc = ResettableLazy.from_fun (List.rev % WideningThresholds.thresholds)
+
+let reset_lazy () =
+  ResettableLazy.reset widening_thresholds;
+  ResettableLazy.reset widening_thresholds_desc
 
 module type Arith =
 sig
@@ -615,13 +619,13 @@ struct
   let widen ik x y =
     let threshold = get_bool "ana.int.interval_threshold_widening" in
     let upper_threshold u =
-      let ts = Lazy.force widening_thresholds in
+      let ts = ResettableLazy.force widening_thresholds in
       let u = Ints_t.to_bigint u in
       let t = List.find_opt (fun x -> Z.compare u x <= 0) ts in
       BatOption.map_default Ints_t.of_bigint (max_int ik) t
     in
     let lower_threshold l =
-      let ts = Lazy.force widening_thresholds_desc in
+      let ts = ResettableLazy.force widening_thresholds_desc in
       let l = Ints_t.to_bigint l in
       let t = List.find_opt (fun x -> Z.compare l x >= 0) ts in
       BatOption.map_default Ints_t.of_bigint (min_int ik) t

@@ -1,4 +1,4 @@
-// PARAM: --enable ana.base.partition-arrays.enabled
+// PARAM: --set ana.base.arrays.domain partitioned
 int garr[7];
 
 int main(int argc, char **argv)

@@ -167,23 +167,35 @@ let invalidate_actions = [
     "GetSpinlock", readsAll;
     "ReleaseSpinlock", readsAll;
     "atoi", readsAll;             (*safe*)
+    "__builtin_ctz", readsAll;
+    "__builtin_ctzl", readsAll;
+    "__builtin_ctzll", readsAll;
+    "__builtin_clz", readsAll;
     "bzero", writes [1]; (*keep 1*)
     "connect", readsAll;          (*safe*)
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
     "fopen", readsAll;            (*safe*)
+    "fdopen", readsAll;           (*safe*)
+    "setvbuf", writes[1;2];       (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
+                                  (* as any future write (or flush) of the stream could result in a write to the buffer *)
     "fprintf", writes [1];          (*keep [1]*)
     "__fprintf_chk", writes [1];    (*keep [1]*)
-    "fread", writes [1];            (*keep [1]*)
+    "fread", writes [1;4];
+    "__fread_alias", writes [1;4];
+    "__fread_chk", writes [1;4];
+    "utimensat", readsAll;
     "free", writesAll; (*unsafe*)
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
     "memcpy", writes [1];(*keep [1]*)
+    "__builtin_memcpy", writes [1];(*keep [1]*)
     "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
     "__builtin___mempcpy_chk", writes [1];
     "memset", writesAll;(*unsafe*)
+    "__builtin_memset", writesAll;(*unsafe*)
     "__builtin___memset_chk", writesAll;
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
@@ -214,6 +226,7 @@ let invalidate_actions = [
     "scanf",  writesAllButFirst 1 readsAll;(*drop 1*)
     "send", readsAll;(*safe*)
     "snprintf", writes [1];(*keep [1]*)
+    "__builtin___snprintf_chk", writes [1];(*keep [1]*)
     "sprintf", writes [1];(*keep [1]*)
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
     "strcmp", readsAll;(*safe*)
@@ -244,12 +257,15 @@ let invalidate_actions = [
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
+    "strtol", writes [2];
     "geteuid", readsAll;(*safe*)
     "opendir", readsAll;  (*safe*)
     "readdir_r", writesAll;(*unsafe*)
     "atoi__extinline", readsAll;(*safe*)
     "getpid", readsAll;(*safe*)
     "fgetc", writesAll;(*unsafe*)
+    "getc", writesAll;(*unsafe*)
+    "_IO_getc", writesAll;(*unsafe*)
     "closedir", writesAll;(*unsafe*)
     "setrlimit", readsAll;(*safe*)
     "chdir", readsAll;(*safe*)
@@ -265,10 +281,12 @@ let invalidate_actions = [
     "pthread_cond_wait", readsAll; (*safe*)
     "pthread_cond_signal", readsAll;(*safe*)
     "pthread_cond_broadcast", readsAll;(*safe*)
+    "pthread_cond_destroy", readsAll;(*safe*)
     "__pthread_cond_init", readsAll; (*safe*)
     "__pthread_cond_wait", readsAll; (*safe*)
     "__pthread_cond_signal", readsAll;(*safe*)
     "__pthread_cond_broadcast", readsAll;(*safe*)
+    "__pthread_cond_destroy", readsAll;(*safe*)
     "pthread_key_create", writesAll;(*unsafe*)
     "sigemptyset", writesAll;(*unsafe*)
     "sigaddset", writesAll;(*unsafe*)
@@ -291,11 +309,15 @@ let invalidate_actions = [
     "umount2", readsAll;(*safe*)
     "memchr", readsAll;(*safe*)
     "memmove", writes [2;3];(*keep [2;3]*)
+    "__builtin_memmove", writes [2;3];(*keep [2;3]*)
+    "__builtin___memmove_chk", writes [2;3];(*keep [2;3]*)
     "waitpid", readsAll;(*safe*)
     "statfs", writes [1;3;4];(*keep [1;3;4]*)
     "mkdir", readsAll;(*safe*)
     "mount", readsAll;(*safe*)
     "open", readsAll;(*safe*)
+    "__open_alias", readsAll;(*safe*)
+    "__open_2", readsAll;(*safe*)
     "fcntl", readsAll;(*safe*)
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
@@ -313,8 +335,13 @@ let invalidate_actions = [
     "textdomain", readsAll;(*safe*)
     "dcgettext", readsAll;(*safe*)
     "syscall", writesAllButFirst 1 readsAll;(*drop 1*)
+    "sysconf", readsAll;
     "fputs", readsAll;(*safe*)
     "fputc", readsAll;(*safe*)
+    "fseek", writes[1];
+    "fileno", readsAll;
+    "ferror", readsAll;
+    "ftell", readsAll;
     "putc", readsAll;(*safe*)
     "putw", readsAll;(*safe*)
     "putchar", readsAll;(*safe*)
@@ -368,7 +395,10 @@ let invalidate_actions = [
     "accept", writesAll; (*keep [1]*)
     "getpeername", writes [1]; (*keep [1]*)
     "times", writesAll; (*unsafe*)
+    "timespec_get", writes [1];
     "fgets", writes [1;3]; (*keep [3]*)
+    "__fgets_alias", writes [1;3]; (*keep [3]*)
+    "__fgets_chk", writes [1;3]; (*keep [3]*)
     "strtoul", readsAll; (*safe*)
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
@@ -377,7 +407,10 @@ let invalidate_actions = [
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
     "uncompress", writes [3;4]; (*keep [3;4]*)
-    "stat", writes [1]; (*keep [1]*)
+    "stat", writes [2]; (*keep [1]*)
+    "__xstat", writes [3]; (*keep [1]*)
+    "__lxstat", writes [3]; (*keep [1]*)
+    "remove", readsAll;
     "BZ2_bzBuffToBuffCompress", writes [3;4]; (*keep [3;4]*)
     "compress2", writes [3]; (*keep [3]*)
     "__toupper", readsAll; (*safe*)
@@ -405,6 +438,7 @@ let invalidate_actions = [
     "htons", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
     "mmap", readsAll;(*safe*)
+    "clock", readsAll;
     "pthread_rwlock_wrlock", readsAll;
     "pthread_rwlock_trywrlock", readsAll;
     "pthread_rwlock_rdlock", readsAll;
@@ -419,6 +453,8 @@ let invalidate_actions = [
     "__builtin_bswap32", readsAll;
     "__builtin_bswap64", readsAll;
     "__builtin_bswap128", readsAll;
+    "__builtin_va_arg_pack_len", readsAll;
+    "__open_too_many_args", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
     "dev_driver_string", readsAll;
     "dev_driver_string", readsAll;
@@ -435,7 +471,10 @@ let invalidate_actions = [
     (* prevent base from spawning ARINC processes early, handled by arinc/extract_arinc *)
     (* "LAP_Se_SetPartitionMode", writes [2]; *)
     "LAP_Se_CreateProcess", writes [2; 3];
-    "LAP_Se_CreateErrorHandler", writes [2; 3]
+    "LAP_Se_CreateErrorHandler", writes [2; 3];
+    "isatty", readsAll;
+    "setpriority", readsAll;
+    "getpriority", readsAll;
   ]
 
 (* used by get_invalidate_action to make sure

@@ -125,7 +125,7 @@ struct
       else remove Addr.NullPtr x
     in
     match is_top x, is_top y with
-    | true, true -> uop x y
+    | true, true -> no_null (no_null (uop x y) x) y
     | false, true -> no_null x y
     | true, false -> no_null y x
     | false, false -> cop x y

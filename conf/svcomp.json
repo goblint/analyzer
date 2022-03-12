@@ -1,8 +1,8 @@
 {
   "ana": {
     "base": {
-      "partition-arrays": {
-        "enabled": true
+      "arrays": {
+        "domain": "partitioned"
       }
     },
     "sv-comp": {

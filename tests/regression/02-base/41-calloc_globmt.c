@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutex','access','mallocWrapper']" --set ana.int.interval true --enable ana.base.partition-arrays.enabled
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mutex','access','mallocWrapper']" --set ana.int.interval true --set ana.base.arrays.domain partitioned
 #include <stdlib.h>
 #include <pthread.h>
 #include <assert.h>
