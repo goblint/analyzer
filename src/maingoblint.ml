@@ -111,12 +111,12 @@ let option_spec_list =
 let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
+  if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit);
   if get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
     prerr_endline "Try `goblint --help' for more information.";
     raise Exit
-  );
-  if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
+  )
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
