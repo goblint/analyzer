@@ -96,7 +96,7 @@ end
 (*
   Makes a copy, replacing top-level breaks with goto loopEnd and top-level continues with
   goto currentIterationEnd
-  Also assigns fresh names to all labels and pacthes gotos for labels appearing in the current
+  Also assigns fresh names to all labels and patches gotos for labels appearing in the current
   fragment to their new name
 *)
 class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
