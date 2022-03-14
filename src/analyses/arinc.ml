@@ -91,7 +91,11 @@ struct
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (ArincDomain.D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
   module C = D
-  module V = Printable.UnitConf (struct let name = "tasks" end)
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "tasks" end)
+    include StdV
+  end
 
   let context fd d = { d with pred = Pred.bot (); ctx = Ctx.bot () }
 

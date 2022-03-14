@@ -484,13 +484,8 @@ struct
     | _ -> S.sync ctx `Normal
 
   let side_context sideg f c =
-    let d =
-      if !GU.postsolving then
-        G.create_contexts (G.CSet.singleton c)
-      else
-        G.create_contexts (G.CSet.empty ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
-    in
-    sideg (GVar.contexts f) d
+    if !GU.postsolving then
+      sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
@@ -839,6 +834,10 @@ struct
   let node = function
     | `L a -> LV.node a
     | `G a -> GV.node a
+
+  let is_write_only = function
+    | `L a -> LV.is_write_only a
+    | `G a -> GV.is_write_only a
 end
 
 (** Translate a [GlobConstrSys] into a [EqConstrSys] *)
@@ -1107,13 +1106,12 @@ struct
     include Printable.Either (S.V) (Node)
     let s x = `Left x
     let node x = `Right x
+    let is_write_only = function
+      | `Left x -> S.V.is_write_only x
+      | `Right _ -> true
   end
 
-  module EM =
-  struct
-    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
-    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
-  end
+  module EM = MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
 
   module G =
   struct

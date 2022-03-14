@@ -16,7 +16,11 @@ struct
   module D = ApronComponents (AD) (Priv.D)
   module G = Priv.G
   module C = D
-  module V = Priv.V
+  module V =
+  struct
+    include Priv.V
+    include StdV
+  end
 
   open AD
   open (ApronDomain: (sig module V: (module type of ApronDomain.V) end)) (* open only V from ApronDomain (to shadow V of Spec), but don't open D (to not shadow D here) *)

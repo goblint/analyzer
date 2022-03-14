@@ -598,7 +598,7 @@ struct
       CfgTools.dead_code_cfg file (module Cfg : CfgBidir) liveness;
 
     let warn_global g v =
-      (* ignore (Pretty.printf "warn_global %a %a\n" CilType.Varinfo.pretty g EQSys.G.pretty v); *)
+      (* ignore (Pretty.printf "warn_global %a %a\n" EQSys.GVar.pretty_trace g EQSys.G.pretty v); *)
       (* build a ctx for using the query system *)
       let rec ctx =
         { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)

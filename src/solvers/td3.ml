@@ -34,6 +34,7 @@ module WP =
       mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
       mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
       mutable var_messages: Message.t HM.t;
+      mutable rho_write: S.Dom.t HM.t HM.t;
     }
 
     type marshal = solver_data
@@ -48,6 +49,7 @@ module WP =
       side_dep = HM.create 10;
       side_infl = HM.create 10;
       var_messages = HM.create 10;
+      rho_write = HM.create 10;
     }
 
     let print_data data str =
@@ -130,6 +132,7 @@ module WP =
       let superstable = HM.copy stable in
 
       let var_messages = data.var_messages in
+      let rho_write = data.rho_write in
 
       let abort = GobConfig.get_bool "solvers.td3.abort" in
       let destab_infl = HM.create 10 in
@@ -550,7 +553,7 @@ module WP =
           let w = HM.find_default side_dep x VS.empty in
           HM.remove side_dep x;
 
-          if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) then (
+          if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) && not (S.Var.is_write_only x) then (
             (* restart side-effected var *)
             restart_leaf x;
 
@@ -946,6 +949,18 @@ module WP =
           filter_vs_hm infl;
           filter_vs_hm side_infl;
           filter_vs_hm side_dep;
+
+          VH.filteri_inplace (fun x w ->
+              if VH.mem reachable x then (
+                VH.filteri_inplace (fun y _ ->
+                    VH.mem reachable y
+                  ) w;
+                true
+              )
+              else
+                false
+            ) rho_write
+
           (* TODO: prune other data structures? *)
       end
       in
@@ -961,10 +976,28 @@ module WP =
       end
       in
 
-      if incr_verify then
-        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages
-      else
+      (* restart write-only *)
+      HM.iter (fun x w ->
+          HM.iter (fun y d ->
+              HM.replace rho y (S.Dom.bot ());
+            ) w
+        ) rho_write;
+
+      if incr_verify then (
+        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages;
+        HM.filteri_inplace (fun x _ -> HM.mem superstable x) rho_write
+      )
+      else (
         HM.clear var_messages;
+        HM.clear rho_write
+      );
+
+      let init_reachable =
+        if incr_verify then
+          HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
+        else
+          HM.create 0 (* doesn't matter, not used *)
+      in
 
       let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
       struct
@@ -988,6 +1021,44 @@ module WP =
           );
       end
       in
+
+      (** Incremental write-only side effect restart handling:
+          retriggers superstable ones (after restarting above) and collects new (non-superstable) ones. *)
+      let module IncrWrite: PostSolver.S with module S = S and module VH = HM =
+      struct
+        include PostSolver.Unit (S) (HM)
+
+        let init () =
+          (* retrigger superstable side writes *)
+          if incr_verify then (
+            HM.iter (fun x w ->
+                HM.iter (fun y d ->
+                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
+                    (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d); *)
+                    HM.replace rho y (S.Dom.join old_d d);
+                    HM.replace init_reachable y ();
+                    HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
+                  ) w
+              ) rho_write
+          )
+
+        let one_side ~vh ~x ~y ~d =
+          if S.Var.is_write_only y then (
+            (* ignore (Pretty.printf "rho_write collect %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d); *)
+            HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
+            let w =
+              try
+                VH.find rho_write x
+              with Not_found ->
+                let w = VH.create 1 in (* only create on demand, modify_def would eagerly allocate *)
+                VH.replace rho_write x w;
+                w
+            in
+            VH.add w y d (* intentional add *)
+          )
+      end
+      in
+
       let module MakeIncrListArg =
       struct
         module Arg =
@@ -997,11 +1068,11 @@ module WP =
         end
         include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
 
-        let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWarn: M) :: postsolvers
+        let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWrite: M) :: (module IncrWarn: M) :: postsolvers
 
         let init_reachable ~vh =
           if incr_verify then
-            HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
+            init_reachable
           else
             HM.create (HM.length vh)
       end
@@ -1013,7 +1084,7 @@ module WP =
 
       print_data data "Data after postsolve";
 
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages}
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write}
 
     let solve box st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
@@ -1078,6 +1149,15 @@ module WP =
               HM.add var_messages' (S.Var.relift k) v (* var_messages contains duplicate keys, so must add not replace! *)
             ) data.var_messages;
           data.var_messages <- var_messages';
+          let rho_write' = HM.create (HM.length data.rho_write) in
+          HM.iter (fun x w ->
+              let w' = HM.create (HM.length w) in
+              HM.iter (fun y d ->
+                  HM.add w' (S.Var.relift y) (S.Dom.relift d) (* w contains duplicate keys, so must add not replace! *)
+                ) w;
+              HM.replace rho_write' (S.Var.relift x) w';
+            ) data.rho_write;
+          data.rho_write <- rho_write';
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";

@@ -33,7 +33,11 @@ struct
   module C = D
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
-  module V = Printable.UnitConf (struct let name = "tasks" end)
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "tasks" end)
+    include StdV
+  end
 
   type pname = string (* process name *)
   type fname = string (* function name *)

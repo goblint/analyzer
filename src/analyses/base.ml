@@ -47,6 +47,7 @@ struct
     include Printable.Either (Priv.V) (ThreadIdDomain.Thread)
     let priv x = `Left x
     let thread x = `Right x
+    include StdV
   end
 
   module G =

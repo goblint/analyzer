@@ -25,8 +25,10 @@ struct
   module V =
   struct
     include Printable.Either (V0) (CilType.Varinfo)
+    let name () = "access"
     let access x = `Left x
     let vars x = `Right x
+    let is_write_only _ = true
   end
 
   module V0Set = SetDomain.Make (V0)
@@ -44,8 +46,6 @@ struct
       | _ -> failwith "Access.vars"
     let create_access access = `Lifted1 access
     let create_vars vars = `Lifted2 vars
-
-    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
 
   let safe       = ref 0
@@ -60,24 +60,14 @@ struct
   let side_vars ctx lv_opt ty =
     match lv_opt with
     | Some (v, _) ->
-      let d =
-        if !GU.should_warn then
-          G.create_vars (V0Set.singleton (lv_opt, ty))
-        else
-          G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
-      in
-      ctx.sideg (V.vars v) d;
+      if !GU.should_warn then
+        ctx.sideg (V.vars v) (G.create_vars (V0Set.singleton (lv_opt, ty)))
     | None ->
       ()
 
   let side_access ctx ty lv_opt (conf, w, loc, e, a) =
-    let d =
-      if !GU.should_warn then
-        G.create_access (Access.AS.singleton (conf, w, loc, e, a))
-      else
-        G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
-    in
-    ctx.sideg (V.access (lv_opt, ty)) d;
+    if !GU.should_warn then
+      ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
     side_vars ctx lv_opt ty
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
