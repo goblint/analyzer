@@ -1627,8 +1627,8 @@ struct
     | x, Some(i) -> meet ik x (of_interval ik i)
     | _ -> a
   let refine_with_excl_list ik a b = match a, b with
-  | `Excluded (s, r), Some(ls, _) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
-  | _ -> a
+    | `Excluded (s, r), Some(ls, _) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
+    | _ -> a
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
