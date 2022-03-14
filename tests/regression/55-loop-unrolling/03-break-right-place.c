@@ -6,7 +6,11 @@ int main(void) {
     int j = 0;
 
     while(i< 17) {
-        if (j==0) { j=1;  break; }
+        if (j==0) {
+            j = 1;
+            // the break is not just out of this unrolling, but out of the entire loop!
+            break;
+        }
         i++;
     }
 
