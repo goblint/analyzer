@@ -17,6 +17,16 @@ sig
   val cmp : t -> t -> int
   val to_string:  t -> string
   val of_int: int -> t
+  val get_den: t -> IntOps.BigIntOps.t
+  val get_num: t -> IntOps.BigIntOps.t
+end
+
+module Mpqf = struct
+  include Mpqf
+
+  let get_den x = IntOps.BigIntOps.of_string @@ Mpzf.to_string @@ Mpqf.get_den x
+
+  let get_num x = IntOps.BigIntOps.of_string @@ Mpzf.to_string @@ Mpqf.get_num x
 end
 
 module ConvenienceOps (A: Arith) =
@@ -105,18 +115,18 @@ module ListVector: AbstractVector =
       "["^list_str t^"\n"
 
     let equal v1 v2 =
-      equal (=:) v1 v2
+      List.equal (=:) v1 v2
 
     let keep_vals v n =
-      filteri (fun i x -> i < n) v
+      List.filteri (fun i x -> i < n) v
 
     let remove_val v n =
-      if n < 0 || n >= length v then failwith "Entry does not exist"
-      else filteri (fun i x -> i <> n) v
+      if n < 0 || n >= List.length v then failwith "Entry does not exist"
+      else List.filteri (fun i x -> i <> n) v
 
     let set_val (v: A.t List.t) n (new_val: A.t) =
-      if n < 0 || n >= length v then failwith "Entry does not exist"
-      else mapi (fun i x -> if i = n then new_val else x) v
+      if n < 0 || n >= List.length v then failwith "Entry does not exist"
+      else List.mapi (fun i x -> if i = n then new_val else x) v
 
     let rec insert_val n vl v =
       match v with
@@ -124,9 +134,9 @@ module ListVector: AbstractVector =
       | x :: xs -> if n > 0 then x :: insert_val (n-1) vl xs else vl :: x :: xs
 
     let apply_with_c op c v =
-      map (fun x -> op x c) v
+      List.map (fun x -> op x c) v
 
-    let zero_vec size = init size (fun i -> of_int 0)
+    let zero_vec size = List.init size (fun i -> of_int 0)
 
     let of_list l = l
 
@@ -410,8 +420,8 @@ struct
     let texpr = Texpr1.to_expr texpr in
     match get_coeff_vec t texpr  with
     | Some v -> begin match get_c v with
-        | Some c when Mpqf.get_den c = Mpzf.of_int 1 ->
-          let int_val = IntOps.BigIntOps.of_string (Mpzf.to_string (Mpqf.get_num c))
+        | Some c when Mpqf.get_den c = IntOps.BigIntOps.of_int 1 ->
+          let int_val = Mpqf.get_num c
           in Some int_val, Some int_val
         | _ -> None, None end
     | _ -> None, None
@@ -536,7 +546,7 @@ struct
           | x -> x
         in
         let a_rs, b_rs = nth_zero col_a r, nth_zero col_b r in
-        if Mpqf.get_den a_rs <> (Mpzf.of_int 1) || Mpqf.get_den b_rs <> (Mpzf.of_int 1) then failwith "Matrix not normalized" else
+        if Mpqf.get_den a_rs <> (IntOps.BigIntOps.of_int 1) || Mpqf.get_den b_rs <> (IntOps.BigIntOps.of_int 1) then failwith "Matrix not normalized" else
           begin match Int.of_float @@ Mpqf.to_float @@ a_rs, Int.of_float @@ Mpqf.to_float @@ b_rs with
             | 1, 1 -> lin_disjunc (r + 1) (s + 1) a b
             | 1, 0 -> lin_disjunc r (s + 1) (case_two a r col_b) b
