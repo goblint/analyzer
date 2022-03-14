@@ -448,7 +448,7 @@
             "refinement": {
               "title": "ana.int.refinement",
               "description":
-                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'",
+                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'. Counterintuitively, may reduce precision unless ana.int.interval_narrow_by_meet is also enabled.",
               "type": "string",
               "enum": ["never", "once", "fixpoint"],
               "default": "never"
@@ -464,7 +464,7 @@
               "title": "ana.int.interval_narrow_by_meet",
               "description": "Perform interval narrowing by meets. Avoids precision loss if intervals are refined by def_exc ranges, which are more precise than type range.",
               "type": "boolean",
-              "default": true
+              "default": false
             },
             "interval_threshold_widening": {
               "title": "ana.int.interval_threshold_widening",
