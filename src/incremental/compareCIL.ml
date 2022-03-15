@@ -65,7 +65,13 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 
   let addGlobal map global  =
     try
-      GlobalMap.add (identifier_of_global global) global map
+      let gid = identifier_of_global global in
+      let gid_to_string gid = match gid.global_t with
+        | Var -> "Var " ^ gid.name
+        | Decl -> "Decl " ^ gid.name
+        | Fun -> "Fun " ^ gid.name
+        | _ -> raise (NoGlobalIdentifier global) in
+      if GlobalMap.mem gid map then failwith ("Duplicate global identifier: " ^ gid_to_string gid) else GlobalMap.add gid global map
     with
       Not_found -> map
   in
