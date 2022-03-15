@@ -20,7 +20,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.15.0"}
   "apron" {= "v0.9.13"}
-  "astring" {= "0.8.5" & with-doc}
+  "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
@@ -46,7 +46,7 @@ depends: [
   "dune-site" {= "2.9.1"}
   "easy-format" {= "1.3.2"}
   "fmt" {= "0.9.0" & with-doc}
-  "fpath" {= "0.7.3" & with-doc}
+  "fpath" {= "0.7.3"}
   "goblint-cil" {= "1.8.2"}
   "json-data-encoding" {= "0.10"}
   "jsonrpc" {= "1.9.1"}
@@ -82,7 +82,7 @@ depends: [
   "sha" {= "1.15.1"}
   "stdlib-shims" {= "0.3.0"}
   "stringext" {= "1.6.0"}
-  "topkg" {= "1.0.3" & with-doc}
+  "topkg" {= "1.0.3"}
   "tyxml" {= "4.4.0" & with-doc}
   "uchar" {= "0.0.2" & with-doc}
   "uri" {= "4.2.0"}
