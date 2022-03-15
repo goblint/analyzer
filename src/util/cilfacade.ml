@@ -87,11 +87,19 @@ class patchLabelsGotosVisitor(newtarget) = object
   method! vstmt s =
     match s.skind with
     | Goto (target,loc) ->
-      (match newtarget target with
+      (match newtarget !target with
        | None -> SkipChildren
-       | Some nt -> s.skind <- Goto (nt, loc); DoChildren)
+       | Some nt -> s.skind <- Goto (ref nt, loc); DoChildren)
     | _ -> DoChildren
 end
+
+(* Hashtable used to patch gotos later *)
+module StatementHashTable = Hashtbl.Make(struct
+    type t = stmt
+    (* Identity by physical equality. *)
+    let equal = (==)
+    let hash = Hashtbl.hash
+  end)
 
 (*
   Makes a copy, replacing top-level breaks with goto loopEnd and top-level continues with
@@ -104,7 +112,8 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
 
   val mutable depth = 0
   val mutable loopNestingDepth = 0
-  val gotos = Hashtbl.create 20
+
+  val gotos = StatementHashTable.create 20
 
   method! vstmt s =
     let after x =
@@ -112,9 +121,9 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
       if depth = 0 then
         (* the labels can only be patched once the entire part of the AST we want has been transformed, and *)
         (* we know all lables appear in the hash table *)
-        let patchLabelsVisitor = new patchLabelsGotosVisitor(Hashtbl.find_opt gotos) in
+        let patchLabelsVisitor = new patchLabelsGotosVisitor(StatementHashTable.find_opt gotos) in
         let x  = visitCilStmt patchLabelsVisitor x in
-        Hashtbl.clear gotos;
+        StatementHashTable.clear gotos;
         x
       else
         x
@@ -126,7 +135,7 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
       if new_s.labels <> [] then
         (* Use original s, ns might be temporay e.g. if the type of statement changed *)
         (* record that goto s; appearing in the current fragment should later be patched to goto new_s *)
-        Hashtbl.add gotos (ref s) (ref new_s);
+        StatementHashTable.add gotos s new_s;
       new_s
     in
     depth <- depth+1;
