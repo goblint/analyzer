@@ -111,12 +111,12 @@ let option_spec_list =
 let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
+  if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit);
   if get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
     prerr_endline "Try `goblint --help' for more information.";
     raise Exit
-  );
-  if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit)
+  )
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
@@ -202,7 +202,10 @@ let preprocess_files () =
       (* linux-headers not installed with goblint package *)
     ]
     in
-    let kernel_root = List.find Sys.file_exists kernel_roots in
+    let kernel_root = 
+      try List.find Sys.file_exists kernel_roots 
+      with Not_found -> prerr_endline "Root directory for kernel include files not found!"; raise Exit
+    in
 
     let kernel_dir = kernel_root ^ "/include" in
     let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)

@@ -1355,6 +1355,13 @@
             "Path to C preprocessor (cpp) to use. If empty, then automatically searched.",
           "type": "string",
           "default": ""
+        },
+        "unrolling-factor": {
+          "title": "exp.unrolling-factor",
+          "description":
+            "Sets the unrolling factor for the loopUnrollingVisitor.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false
