@@ -104,7 +104,7 @@ sig
 
   val to_bool: t -> bool option
   val is_bool: t -> bool
-  val to_excl_list: t -> int_t list option
+  val to_excl_list: t -> (int_t list * (int64 * int64)) option
   val of_excl_list: Cil.ikind -> int_t list -> t
   val is_excl_list: t -> bool
 
@@ -159,7 +159,7 @@ sig
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> precision -> t -> t
@@ -224,7 +224,7 @@ struct
       Old.equal_to (BI.to_int64 x) a
     with Z.Overflow | Failure _ -> `Top
 
-  let to_excl_list a = Option.map (List.map BI.of_int64) (Old.to_excl_list a)
+  let to_excl_list a = Option.map (BatTuple.Tuple2.map1 (List.map BI.of_int64)) (Old.to_excl_list a)
   let of_excl_list ik xs =
     let xs' = List.map BI.to_int64 xs in
     Old.of_excl_list ik xs'
@@ -652,6 +652,12 @@ struct
       let ur = if Ints_t.compare (max_int ik) x2 = 0 then y2 else x2 in
       norm ik @@ Some (lr,ur)
 
+  let narrow ik x y =
+    if get_bool "ana.int.interval_narrow_by_meet" then
+      meet ik x y
+    else
+      narrow ik x y
+
   let log f ik i1 i2 =
     match is_bot i1, is_bot i2 with
     | true, true -> bot_of ik
@@ -874,10 +880,10 @@ struct
 
   let refine_with_interval ik a b = meet ik a b
 
-  let refine_with_excl_list ik (intv : t) (excl : (int_t list) option) : t =
+  let refine_with_excl_list ik (intv : t) (excl : (int_t list * (int64 * int64)) option) : t =
     match intv, excl with
     | None, _ | _, None -> intv
-    | Some(l, u), Some(ls) ->
+    | Some(l, u), Some(ls, (rl, rh)) ->
       let rec shrink op b =
         let new_b = (op b (Ints_t.of_int(Bool.to_int(List.mem b ls)))) in
            if not (Ints_t.equal b new_b) then shrink op new_b else new_b
@@ -888,7 +894,9 @@ struct
        let u' =
        if Ints_t.equal u (max_int ik) then u else
        shrink Ints_t.sub u in
-       norm ik @@ Some(l', u')
+       let intv' = norm ik @@ Some(l', u') in
+       let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
+       meet ik intv' range
 
   let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
     match intv, incl with
@@ -1452,9 +1460,9 @@ struct
     let r = size t in (* elements in l are excluded from the full range of t! *)
     `Excluded (List.fold_right S.add l (S.empty ()), r)
   let is_excl_list l = match l with `Excluded _ -> true | _ -> false
-  let to_excl_list x = match x with
+  let to_excl_list (x:t) = match x with
     | `Definite _ -> None
-    | `Excluded (s,r) -> Some (S.elements s)
+    | `Excluded (s,r) -> Some (S.elements s, (Option.get (R.minimal r), Option.get (R.maximal r)))
     | `Bot -> None
 
   let to_incl_list x = match x with
@@ -1619,8 +1627,8 @@ struct
     | x, Some(i) -> meet ik x (of_interval ik i)
     | _ -> a
   let refine_with_excl_list ik a b = match a, b with
-  | `Excluded (s, r), Some(ls) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls)
-  | _ -> a
+    | `Excluded (s, r), Some(ls, _) -> meet ik (`Excluded (s, r)) (of_excl_list ik ls) (* TODO: refine with excl range? *)
+    | _ -> a
   let refine_with_incl_list ik a b = a
 
   let project ik p t = t
@@ -1918,7 +1926,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let to_int = function Inc x when BISet.is_singleton x -> Some (BISet.choose x) | _ -> None
   let is_int = BatOption.is_some % to_int
 
-  let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x) | _ -> None
+  let to_excl_list = function Exc (x,r) when not (BISet.is_empty x) -> Some (BISet.elements x, (Option.get (R.minimal r), Option.get (R.maximal r))) | _ -> None
   let of_excl_list ik xs =
     let min_ik, max_ik = Size.range ik in
     let exc = BISet.of_list @@ List.filter (value_in_range (min_ik, max_ik)) xs in
@@ -2033,7 +2041,7 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let refine_with_excl_list ik a b =
     match b with
-    | Some (ls) -> meet ik a (of_excl_list ik ls)
+    | Some (ls, _) -> meet ik a (of_excl_list ik ls) (* TODO: refine with excl range? *)
     | _ -> a
 
   let refine_with_incl_list ik a b =
@@ -2643,7 +2651,13 @@ module IntDomTupleImpl = struct
 
   let flat f x = match to_list_some x with [] -> None | xs -> Some (f xs)
 
-  let to_excl_list x = mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat List.concat
+  let to_excl_list x =
+    let merge ps =
+      let (vs, rs) = List.split ps in
+      let (mins, maxs) = List.split rs in
+      (List.concat vs, (List.min mins, List.max maxs))
+    in
+    mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_excl_list } x |> flat merge
 
   let to_incl_list x =
     let hd l = match l with h::t -> h | _ -> [] in

@@ -191,8 +191,8 @@ let test_meet _ =
   assert_equal ~printer:T.show tone (T.meet tex0  tone )
 
 let test_ex_set _ =
-  assert_equal (Some [zero; one]) (T.to_excl_list tex10);
-  assert_equal (Some [zero; one]) (T.to_excl_list tex01);
+  assert_equal (Some [zero; one]) (T.to_excl_list tex10 |> Option.map fst);
+  assert_equal (Some [zero; one]) (T.to_excl_list tex01 |> Option.map fst);
   assert_bool  "Not [1;0] is not excl set" (T.is_excl_list tex10);
   assert_bool  "bot is excl set" (not (T.is_excl_list tbot));
   assert_bool  "42  is excl set" (not (T.is_excl_list t42));
