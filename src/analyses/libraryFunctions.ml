@@ -54,7 +54,7 @@ let classify' fn exps =
       | p::size::_ -> `Realloc (p, size)
       | _ -> strange_arguments ()
     end
-  | "assert" ->
+  | "__goblint_assert" ->
     begin match exps with
       | [e] -> `Assert e
       | _ -> M.warn "Assert argument mismatch!"; `Unknown fn
