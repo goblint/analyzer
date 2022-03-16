@@ -1102,7 +1102,7 @@
           "title": "trans.assert",
           "type": "object",
           "properties": {
-            "query_file_name": {
+            "full": {
               "title": "trans.assert.full",
               "description":
                 "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
