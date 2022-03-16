@@ -1,7 +1,6 @@
 open Prelude
 open Cil
 open Formatcil
-open Str
 
 (** Instruments a program by inserting asserts:
       - After an assignment to a variable
