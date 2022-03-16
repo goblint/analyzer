@@ -886,17 +886,13 @@ struct
     | Some(l, u), Some(ls, (rl, rh)) ->
       let rec shrink op b =
         let new_b = (op b (Ints_t.of_int(Bool.to_int(List.mem b ls)))) in
-           if not (Ints_t.equal b new_b) then shrink op new_b else new_b
-          in
-       let l' =
-       if Ints_t.equal l (min_int ik) then l else
-       shrink Ints_t.add l  in
-       let u' =
-       if Ints_t.equal u (max_int ik) then u else
-       shrink Ints_t.sub u in
-       let intv' = norm ik @@ Some(l', u') in
-       let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
-       meet ik intv' range
+        if not (Ints_t.equal b new_b) then shrink op new_b else new_b
+      in
+      let l' = if Ints_t.equal l (min_int ik) then l else shrink Ints_t.add l in
+      let u' = if Ints_t.equal u (max_int ik) then u else shrink Ints_t.sub u in
+      let intv' = norm ik @@ Some (l', u') in
+      let range = norm ik (Some (Ints_t.of_bigint (Size.min_from_bit_range rl), Ints_t.of_bigint (Size.max_from_bit_range rh))) in
+      meet ik intv' range
 
   let refine_with_incl_list ik (intv: t) (incl : (int_t list) option) : t =
     match intv, incl with
