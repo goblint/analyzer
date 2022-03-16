@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable ana.base.partition-arrays.enabled
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned
 #include <assert.h>
 #include <stdlib.h>
 #include <limits.h>

@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint --set sem.int.signed_overflow assume_none
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint --set sem.int.signed_overflow assume_none
 
 void main(void) __attribute__((goblint_precision("no-interval")));
 void example1(void) __attribute__((goblint_precision("no-def_exc")));

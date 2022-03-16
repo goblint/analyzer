@@ -148,10 +148,10 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.bot ())  (if get_bool "ana.base.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+      `Array (CArrays.make (IndexDomain.bot ())  (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (init_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if get_bool "ana.base.partition-arrays.enabled" then (init_value ai) else (bot_value ai)))
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
@@ -163,10 +163,10 @@ struct
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
     | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.top ()) (if get_bool "ana.base.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+      `Array (CArrays.make (IndexDomain.top ()) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (top_value ai) else (bot_value ai)))
     | TArray (ai, Some exp, _) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if get_bool "ana.base.partition-arrays.enabled" then (top_value ai) else (bot_value ai)))
+      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (top_value ai) else (bot_value ai)))
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
@@ -766,22 +766,24 @@ struct
           match v with
           | Some (v') ->
             begin
-              (* This should mean the entire expression we have here is a pointer into the array *)
-              if Cil.isArrayType (Cilfacade.typeOfLval v') then
-                let expr = ptr in
-                let start_of_array = StartOf v' in
-                let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
-                let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
-                (* Comparing types for structural equality is incorrect here, use typeSig *)
-                (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
-                if start_type = expr_type then
-                  `Lifted (equiv_expr expr v')
+              try
+                (* This should mean the entire expression we have here is a pointer into the array *)
+                if Cil.isArrayType (Cilfacade.typeOfLval v') then
+                  let expr = ptr in
+                  let start_of_array = StartOf v' in
+                  let start_type = typeSigWithoutArraylen (Cilfacade.typeOf start_of_array) in
+                  let expr_type = typeSigWithoutArraylen (Cilfacade.typeOf ptr) in
+                  (* Comparing types for structural equality is incorrect here, use typeSig *)
+                  (* as explained at https://people.eecs.berkeley.edu/~necula/cil/api/Cil.html#TYPEtyp *)
+                  if start_type = expr_type then
+                    `Lifted (equiv_expr expr v')
+                  else
+                    (* If types do not agree here, this means that we were looking at pointers that *)
+                    (* contain more than one array access. Those are not supported. *)
+                    ExpDomain.top ()
                 else
-                  (* If types do not agree here, this means that we were looking at pointers that *)
-                  (* contain more than one array access. Those are not supported. *)
                   ExpDomain.top ()
-              else
-                ExpDomain.top ()
+              with (Cilfacade.TypeOfError _) -> ExpDomain.top ()
             end
           | _ ->
             ExpDomain.top ()

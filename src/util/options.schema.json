@@ -2,6 +2,15 @@
   "$schema": "http://json-schema.org/draft-04/schema#",
   "type": "object",
   "properties": {
+    "files": {
+      "title": "files",
+      "description": "Files to analyze.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
     "outfile": {
       "title": "outfile",
       "description": "File to print output to.",
@@ -439,7 +448,7 @@
             "refinement": {
               "title": "ana.int.refinement",
               "description":
-                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'",
+                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'. Counterintuitively, may reduce precision unless ana.int.interval_narrow_by_meet is also enabled.",
               "type": "string",
               "enum": ["never", "once", "fixpoint"],
               "default": "never"
@@ -448,6 +457,12 @@
               "title": "ana.int.def_exc_widen_by_join",
               "description":
                 "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_narrow_by_meet": {
+              "title": "ana.int.interval_narrow_by_meet",
+              "description": "Perform interval narrowing by meets. Avoids precision loss if intervals are refined by def_exc ranges, which are more precise than type range.",
               "type": "boolean",
               "default": false
             },
@@ -650,13 +665,6 @@
               "title": "ana.base.partition-arrays",
               "type": "object",
               "properties": {
-                "enabled": {
-                  "title": "ana.base.partition-arrays.enabled",
-                  "description":
-                    "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
-                  "type": "boolean",
-                  "default": false
-                },
                 "keep-expr": {
                   "title": "ana.base.partition-arrays.keep-expr",
                   "description":
@@ -678,6 +686,27 @@
                     "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
                   "type": "boolean",
                   "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "arrays":{
+              "title": "ana.base.arrays",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.arrays.domain",
+                  "description":
+                    "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
+                  "type": "string",
+                  "enum": ["trivial", "partitioned", "unroll"],
+                  "default": "trivial"
+                },
+                "unrolling-factor": {
+                  "title": "ana.base.arrays.unrolling-factor",
+                  "description": "Indicates how many values will the unrolled part of the unrolled array domain contain.",
+                  "type": "integer",
+                  "default": 0
                 }
               },
               "additionalProperties": false
@@ -1309,6 +1338,13 @@
             "Path to C preprocessor (cpp) to use. If empty, then automatically searched.",
           "type": "string",
           "default": ""
+        },
+        "unrolling-factor": {
+          "title": "exp.unrolling-factor",
+          "description":
+            "Sets the unrolling factor for the loopUnrollingVisitor.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false
@@ -1618,6 +1654,12 @@
           "description": "Success severity messages",
           "type": "boolean",
           "default": true
+        },
+        "quote-code": {
+          "title": "warn.quote-code",
+          "description": "Quote code in message output.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false

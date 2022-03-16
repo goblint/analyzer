@@ -18,6 +18,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
+          - ocaml-base-compiler.4.14.0~beta1
           - 4.13.x
           - 4.12.x
           - 4.10.x
