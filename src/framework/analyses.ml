@@ -271,7 +271,7 @@ struct
       let files = Hashtbl.to_list Preprocessor.dependencies in
       let filter_system = List.filter_map (fun (f,system) -> if system then None else Some f) in
       let json = `Assoc [
-          ("files", `Assoc (List.map (Tuple2.map2 (fun deps -> [%to_yojson:string list] @@ filter_system deps)) files));
+          ("files", `Assoc (List.map (Tuple2.map Fpath.to_string (fun deps -> [%to_yojson: GobFpath.t list] @@ filter_system deps)) files));
           ("messages", Messages.Table.to_yojson ());
         ]
       in

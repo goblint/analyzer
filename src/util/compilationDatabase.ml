@@ -13,13 +13,13 @@ type command_object = {
 type t = command_object list [@@deriving yojson]
 
 let parse_file filename =
-  Result.get_ok (of_yojson (Yojson.Safe.from_file filename))
+  Result.get_ok (of_yojson (Yojson.Safe.from_file (Fpath.to_string filename)))
 
 let command_o_regexp = Str.regexp "-o +[^ ]+"
 let command_program_regexp = Str.regexp "^ *\\([^ ]+\\)"
 
 let load_and_preprocess ~all_cppflags filename =
-  let database_dir = Fpath.parent @@ Fpath.normalize @@ GobFpath.cwd_append @@ GobFpath.of_string_exn filename in
+  let database_dir = Fpath.parent @@ Fpath.normalize @@ GobFpath.cwd_append filename in
   let (reroot_string, reroot_path) =
     let original_path = GobConfig.get_string "exp.compdb.original-path" in
     if original_path <> "" then (
@@ -47,7 +47,7 @@ let load_and_preprocess ~all_cppflags filename =
     if extension = ".s" || extension = ".S" then
       None
     else
-      let preprocessed_file = Fpath.append preprocessed_dir (Fpath.set_ext "i" (GobFpath.rem_find_prefix database_dir file)) in
+      let preprocessed_file = Fpath.append preprocessed_dir (Fpath.set_ext ".i" (GobFpath.rem_find_prefix database_dir file)) in
       GobSys.mkdir_parents (Fpath.to_string preprocessed_file);
       let preprocess_command = match obj.command, obj.arguments with
         | Some command, None ->
@@ -88,7 +88,7 @@ let load_and_preprocess ~all_cppflags filename =
       if GobConfig.get_bool "dbg.verbose" then
         Format.printf "Preprocessing %a\n  to %a\n  using %s\n  in %a\n" Fpath.pp file Fpath.pp preprocessed_file preprocess_command Fpath.pp cwd;
       let preprocess_task = {ProcessPool.command = preprocess_command; cwd = Some (Fpath.to_string cwd)} in (* command/arguments might have paths relative to directory *)
-      Some (Fpath.to_string preprocessed_file, Some preprocess_task)
+      Some (preprocessed_file, Some preprocess_task)
   in
   parse_file filename
   |> BatList.filter_map preprocess

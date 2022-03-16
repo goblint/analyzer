@@ -141,10 +141,10 @@ let handle_flags () =
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname =  Filename.concat (GoblintDir.preprocessed ()) (Filename.chop_extension (Filename.basename fname) ^ ".i") in
+  let nname = Fpath.append (GobFpath.of_string_exn (GoblintDir.preprocessed ())) (Fpath.set_ext ".i" (Fpath.base fname)) in
   (* Preprocess using cpp. *)
   (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
-  let arguments = "--undef" :: "__BLOCKS__" :: all_cppflags @ fname :: "-o" :: nname :: [] in
+  let arguments = "--undef" :: "__BLOCKS__" :: all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
   let command = Filename.quote_command (Preprocessor.get_cpp ()) arguments in
   if get_bool "dbg.verbose" then print_endline command;
   (nname, Some {ProcessPool.command; cwd = None})
@@ -158,24 +158,24 @@ let preprocess_files () =
 
   (* the base include directory *)
   let custom_include_dirs =
-    get_string_list "pre.custom_includes" @
-    Filename.concat exe_dir "includes" ::
-    Goblint_sites.includes
+    List.map GobFpath.of_string_exn (get_string_list "pre.custom_includes") @
+    Fpath.(GobFpath.of_string_exn exe_dir / "includes") ::
+    List.map GobFpath.of_string_exn Goblint_sites.includes
   in
   if get_bool "dbg.verbose" then (
     print_endline "Custom include dirs:";
     List.iteri (fun i custom_include_dir ->
-        Printf.printf "  %d. %s (exists=%B)\n" (i + 1) custom_include_dir (Sys.file_exists custom_include_dir)
+        Format.printf "  %d. %a (exists=%B)\n" (i + 1) Fpath.pp custom_include_dir (Sys.file_exists (Fpath.to_string custom_include_dir))
       ) custom_include_dirs
   );
-  let custom_include_dirs = List.filter Sys.file_exists custom_include_dirs in
+  let custom_include_dirs = List.filter (Sys.file_exists % Fpath.to_string) custom_include_dirs in
   if custom_include_dirs = [] then
     print_endline "Warning, cannot find goblint's custom include files.";
 
   let find_custom_include subpath =
     List.find_map (fun custom_include_dir ->
-        let path = Filename.concat custom_include_dir subpath in
-        if Sys.file_exists path then
+        let path = Fpath.append custom_include_dir (Fpath.v subpath) in
+        if Sys.file_exists (Fpath.to_string path) then
           Some path
         else
           None
@@ -188,45 +188,53 @@ let preprocess_files () =
 
   (* fill include flags *)
   let one_include_f f x = include_dirs := f x :: !include_dirs in
-  if get_string "ana.osek.oil" <> "" then include_files := Filename.concat (GoblintDir.preprocessed ()) OilUtil.header :: !include_files;
+  if get_string "ana.osek.oil" <> "" then include_files := Fpath.append (GobFpath.of_string_exn (GoblintDir.preprocessed ())) (GobFpath.of_string_exn OilUtil.header) :: !include_files;
   (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
-  get_string_list "pre.includes" |> List.iter (one_include_f identity);
+  get_string_list "pre.includes" |> List.map GobFpath.of_string_exn |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
 
   (* If we analyze a kernel module, some special includes are needed. *)
   if get_bool "kernel" then (
-    let kernel_roots = [
-      get_string "pre.kernel-root";
-      Filename.concat exe_dir "linux-headers";
-      (* linux-headers not installed with goblint package *)
-    ]
+    let kernel_root = get_string "pre.kernel-root" in
+    let kernel_roots =
+      begin if kernel_root <> "" then (* cannot parse empty *)
+          [GobFpath.of_string_exn (get_string "pre.kernel-root")]
+        else
+          []
+      end @ [
+        Fpath.add_seg (GobFpath.of_string_exn exe_dir) "linux-headers";
+        (* linux-headers not installed with goblint package *)
+      ]
     in
-    let kernel_root = 
-      try List.find Sys.file_exists kernel_roots 
-      with Not_found -> prerr_endline "Root directory for kernel include files not found!"; raise Exit
+    let kernel_root =
+      try
+        List.find (Sys.file_exists % Fpath.to_string) kernel_roots
+      with Not_found ->
+        prerr_endline "Root directory for kernel include files not found!";
+        raise Exit
     in
 
-    let kernel_dir = kernel_root ^ "/include" in
-    let arch_dir = kernel_root ^ "/arch/x86/include" in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
+    let kernel_dir = Fpath.(kernel_root / "include") in
+    let arch_dir = Fpath.(kernel_root / "arch" / "x86" / "include") in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
 
-    get_string_list "pre.kernel_includes" |> List.iter (Filename.concat kernel_root |> one_include_f);
+    get_string_list "pre.kernel_includes" |> List.map GobFpath.of_string_exn |> List.iter (Fpath.append kernel_root |> one_include_f);
 
     let preconf = find_custom_include "linux/goblint_preconf.h" in
-    let autoconf = Filename.concat kernel_dir "linux/kconfig.h" in
+    let autoconf = Fpath.(kernel_dir / "linux" / "kconfig.h") in
     cppflags := "-D__KERNEL__" :: "-U__i386__" :: "-D__x86_64__" :: !cppflags;
     include_files := preconf :: autoconf :: !include_files;
     (* These are not just random permutations of directories, but based on USERINCLUDE from the
      * Linux kernel Makefile (in the root directory of the kernel distribution). *)
     include_dirs := !include_dirs @ [
-        kernel_dir; kernel_dir ^ "/uapi"; kernel_dir ^ "include/generated/uapi"; (* TODO: no / and duplicate include with kernel_dir is bug? *)
-        arch_dir; arch_dir ^ "/generated"; arch_dir ^ "/uapi"; arch_dir ^ "/generated/uapi";
+        kernel_dir; Fpath.(kernel_dir / "uapi"); Fpath.(kernel_dir / "include" / "generated" / "uapi"); (* TODO: duplicate include with kernel_dir is bug? *)
+        arch_dir; Fpath.(arch_dir / "generated"); Fpath.(arch_dir / "uapi"); Fpath.(arch_dir / "generated" / "uapi");
       ]
   );
 
   let include_args =
-    List.concat_map (fun include_dir -> ["-I"; include_dir]) !include_dirs @
-    List.concat_map (fun include_file -> ["-include"; include_file]) !include_files
+    List.concat_map (fun include_dir -> ["-I"; Fpath.to_string include_dir]) !include_dirs @
+    List.concat_map (fun include_file -> ["-include"; Fpath.to_string include_file]) !include_files
   in
 
   let all_cppflags = !cppflags @ include_args in
@@ -235,24 +243,24 @@ let preprocess_files () =
   if get_bool "dbg.verbose" then print_endline "Preprocessing files.";
 
   let rec preprocess_arg_file = function
-    | filename when Filename.basename filename = "Makefile" ->
-      let comb_file = MakefileUtil.generate_and_combine filename ~all_cppflags in
-      [basic_preprocess ~all_cppflags comb_file]
+    | filename when Fpath.filename filename = "Makefile" ->
+      let comb_file = MakefileUtil.generate_and_combine (Fpath.to_string filename) ~all_cppflags in
+      [basic_preprocess ~all_cppflags (GobFpath.of_string_exn comb_file)]
 
-    | filename when Filename.basename filename = CompilationDatabase.basename ->
+    | filename when Fpath.filename filename = CompilationDatabase.basename ->
       CompilationDatabase.load_and_preprocess ~all_cppflags filename
 
-    | filename when Sys.is_directory filename ->
-      let dir_files = Sys.readdir filename in
+    | filename when Sys.is_directory (Fpath.to_string filename) ->
+      let dir_files = Sys.readdir (Fpath.to_string filename) in
       if Array.mem CompilationDatabase.basename dir_files then (* prefer compilation database to Makefile in case both exist, because compilation database is more robust *)
-        preprocess_arg_file (Filename.concat filename CompilationDatabase.basename)
+        preprocess_arg_file (Fpath.add_seg filename CompilationDatabase.basename)
       else if Array.mem "Makefile" dir_files then
-        preprocess_arg_file (Filename.concat filename "Makefile")
+        preprocess_arg_file (Fpath.add_seg filename "Makefile")
       else
         [] (* don't recurse for anything else *)
 
-    | filename when Filename.extension filename = ".json" ->
-      eprintf "Unexpected JSON file argument (possibly missing --conf): %s\n" filename;
+    | filename when Fpath.get_ext filename = ".json" ->
+      Format.eprintf "Unexpected JSON file argument (possibly missing --conf): %a\n" Fpath.pp filename;
       raise Exit
 
     | filename ->
@@ -266,7 +274,7 @@ let preprocess_files () =
   if get_bool "ana.sv-comp.functions" then
     extra_files := find_custom_include "sv-comp.c" :: !extra_files;
 
-  let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ get_string_list "files") in
+  let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ List.map GobFpath.of_string_exn (get_string_list "files")) in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
     let terminated task = function
@@ -282,9 +290,9 @@ let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
   let get_ast_and_record_deps f =
-    let file = Cilfacade.getAST f in
+    let file = Cilfacade.getAST (Fpath.to_string f) in
     (* Drop <built-in> and <command-line> from dependencies *)
-    Hashtbl.add Preprocessor.dependencies f @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
+    Hashtbl.add Preprocessor.dependencies f @@ List.map (Tuple2.map1 GobFpath.of_string_exn) @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
     file
   in
   let files_AST = List.map (get_ast_and_record_deps) cpp_file_names in
