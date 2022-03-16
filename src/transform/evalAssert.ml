@@ -17,6 +17,12 @@ open Formatcil
 module EvalAssert = struct
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
   let ass = ref (makeVarinfo true "assert" (TVoid []))
+  let separateLands = true
+
+  let rec separateLand = function
+    | BinOp(LAnd,e1,e2,_) -> separateLand e1 @ separateLand e2
+    | e -> [e]
+
   let locals = ref []
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
@@ -50,7 +56,8 @@ module EvalAssert = struct
             []
           else
             let e = Queries.ES.choose res in
-            [cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]]
+            let es = if separateLands then separateLand e else [e] in
+            List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]) es
         with
           Not_found -> []
       in
