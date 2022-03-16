@@ -193,7 +193,7 @@ sig
     * returns [true], the above [to_bool] should return a real value. *)
 
   val to_excl_list: t -> (int_t list * (int64 * int64)) option
-  (** Gives a list representation of the excluded values if possible. *)
+  (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
   (** Creates an exclusion set from a given list of integers. *)
