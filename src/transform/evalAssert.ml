@@ -17,7 +17,10 @@ open Formatcil
 module EvalAssert = struct
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
   let ass = ref (makeVarinfo true "assert" (TVoid []))
+  let atomicBegin = ref (makeVarinfo true "__VERIFIER_atomic_begin" (TVoid []))
+  let atomicEnd = ref (makeVarinfo true "__VERIFIER_atomic_end" (TVoid []))
   let separateLands = true
+  let surroundByAtomic = true
 
   let rec separateLand = function
     | BinOp(LAnd,e1,e2,_) -> separateLand e1 @ separateLand e2
@@ -34,10 +37,14 @@ module EvalAssert = struct
 
     method! vglob g = match g with
       | GVarDecl (v, l) ->
-        if v.vname = "assert" then begin
-          ass := v;
-          SkipChildren end
-        else DoChildren
+        if v.vname = "assert" then
+          (ass := v; SkipChildren)
+        else if v.vname = "__VERIFIER_atomic_begin" then
+          (atomicBegin := v; SkipChildren)
+        else if v.vname = "__VERIFIER_atomic_end" then
+          (atomicEnd := v; SkipChildren)
+        else
+          SkipChildren
       | _ -> DoChildren
 
     method! vstmt s =
@@ -57,7 +64,13 @@ module EvalAssert = struct
           else
             let e = Queries.ES.choose res in
             let es = if separateLands then separateLand e else [e] in
-            List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]) es
+            let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]) es in
+            if surroundByAtomic then
+              let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv !atomicBegin)]) in
+              let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv !atomicEnd)]) in
+              abegin :: (asserts @ [aend])
+            else
+              asserts
         with
           Not_found -> []
       in
