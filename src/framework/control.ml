@@ -56,7 +56,7 @@ struct
   end
   module Slvr  = (GlobSolverFromEqSolver (Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
-  module Comp = Compare (Spec) (EQSys) (LHT) (GHT)
+  module CompareGlobSys = Constraints.CompareGlobSys (Spec) (EQSys) (LHT) (GHT)
 
   (* Triple of the function, context, and the local value. *)
   module RT = Analyses.ResultType2 (Spec)
@@ -445,12 +445,20 @@ struct
               ) (d1, d2)
             in
 
-            if get_bool "dbg.compare_runs.glob" then
-              Comp.compare (d1, d2) r1 r2;
+            if get_bool "dbg.compare_runs.globsys" then
+              CompareGlobSys.compare (d1, d2) r1 r2;
 
-            let module Compare2 = Constraints.CompareEq (S2) (VH) in
-            if get_bool "dbg.compare_runs.eq" then
-              Compare2.compare (d1, d2) r1' r2';
+            let module CompareEqSys = Constraints.CompareEqSys (S2) (VH) in
+            if get_bool "dbg.compare_runs.eqsys" then
+              CompareEqSys.compare (d1, d2) r1' r2';
+
+            let module CompareGlobal = Constraints.CompareGlobal (EQSys.GVar) (EQSys.G) (GHT) in
+            if get_bool "dbg.compare_runs.global" then
+              CompareGlobal.compare (d1, d2) (snd r1) (snd r2);
+
+            let module CompareNode = Constraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
+            if get_bool "dbg.compare_runs.node" then
+              CompareNode.compare (d1, d2) (fst r1) (fst r2);
 
             r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
           | _ -> failwith "Currently only two runs can be compared!";
@@ -507,7 +515,7 @@ struct
           in
           let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg2))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
-          Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
+          CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
         compare_with (Selector.choose_solver (get_string "comparesolver"))
       );
