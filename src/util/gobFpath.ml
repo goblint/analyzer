@@ -1,7 +1,10 @@
 type t = Fpath.t
 
 let of_string_exn s =
-  Result.get_ok (Fpath.of_string s)
+  match Fpath.of_string s with
+  | Ok p -> p
+  | Error (`Msg m) ->
+    invalid_arg ("GobFpath.of_string_exn: " ^ m)
 
 let to_yojson p = `String (Fpath.to_string p)
 
