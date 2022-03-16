@@ -1,5 +1,7 @@
 // SKIP PARAM: --set solver td3 --enable ana.int.interval  --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper','apron']" --set ana.base.privatization none --set ana.apron.privatization dummy --set ana.apron.domain "polyhedra"
 // Example from https://www-apr.lip6.fr/~mine/publi/article-mine-HOSC06.pdf, adapted
+#include <assert.h>
+
 void main(void) {
   int X = 0;
   int N = rand();

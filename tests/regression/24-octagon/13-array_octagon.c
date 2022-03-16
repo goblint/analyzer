@@ -1,4 +1,6 @@
 // SKIP PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','apron','mallocWrapper']" --set ana.base.privatization none --set sem.int.signed_overflow assume_none
+#include <assert.h>
+
 void main(void) {
   example0();
   example1();

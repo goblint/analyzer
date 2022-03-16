@@ -1,3 +1,5 @@
+#include <assert.h>
+
 char rec (int x) {
   char v;
   if (x) {

@@ -2,6 +2,7 @@
 #include <linux/module.h>
 #include <linux/miscdevice.h>
 #include <linux/device.h>
+#include <assert.h>
 
 static struct class *misc_class;
 

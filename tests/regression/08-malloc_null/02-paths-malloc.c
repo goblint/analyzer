@@ -1,6 +1,7 @@
 // PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']" --set ana.base.privatization none
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 
 int main(void) {

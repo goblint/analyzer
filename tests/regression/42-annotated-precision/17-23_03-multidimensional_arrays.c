@@ -1,4 +1,6 @@
 // PARAM: --set solver td3 --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+#include <assert.h>
+
 int main(void) {
     example1();
     example2();

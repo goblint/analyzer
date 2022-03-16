@@ -1,4 +1,5 @@
 // PARAM: --set exp.earlyglobs true --set exp.precious_globs[+] "'g'"
+#include <assert.h>
 
 int g = 10;
 int main(void){

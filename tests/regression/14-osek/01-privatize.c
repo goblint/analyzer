@@ -1,4 +1,5 @@
 // NOMARSHAL PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --set ana.osek.oil 01-privatize.oil --set ana.osek.taskprefix function_of_ --set ana.osek.isrprefix function_of_
+#include <assert.h>
 
 int x = 1;
 int y;

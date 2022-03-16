@@ -1,3 +1,5 @@
+#include <assert.h>
+
 extern int printf(char *, ...);
 extern int scanf(char *, ...);
 

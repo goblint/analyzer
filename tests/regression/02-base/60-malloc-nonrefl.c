@@ -1,5 +1,6 @@
 #include<stdlib.h>
 #include<stdint.h>
+#include <assert.h>
 
 void* malloc_2(size_t s) {
     return malloc(s);

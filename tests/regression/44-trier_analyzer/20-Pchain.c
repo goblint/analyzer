@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <assert.h>
 
 extern void *malloc(size_t);
 extern int putchar(int);

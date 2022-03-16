@@ -2,6 +2,7 @@
 // Fig 5 from Miné 2014
 #include <pthread.h>
 #include <stdio.h>
+#include <assert.h>
 
 int x;
 int y;

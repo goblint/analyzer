@@ -1,3 +1,5 @@
+#include <assert.h>
+
 extern int scanf(char *, ...);
 
 /* pointer backward along the stack to a formal parameter */

@@ -2,6 +2,8 @@
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>
+#include <assert.h>
+
 int global = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
