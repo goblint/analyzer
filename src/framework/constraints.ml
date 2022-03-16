@@ -1196,7 +1196,8 @@ struct
 
   let compare (name1, name2) vh1 vh2 =
     Printf.printf "\nComparing EqConstrSys precision of %s (left) with %s (right):\n" name1 name2;
-    let (_, msg) = Compare.compare ~name1 vh1 ~name2 vh2 in
+    let verbose = get_bool "solverdiffs" in
+    let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
     ignore (Pretty.printf "EqConstrSys comparison summary: %t\n" (fun () -> msg));
     print_newline ();
 end
@@ -1207,7 +1208,8 @@ struct
 
   let compare (name1, name2) vh1 vh2 =
     Printf.printf "\nComparing globals precision of %s (left) with %s (right):\n" name1 name2;
-    let (_, msg) = Compare.compare ~name1 vh1 ~name2 vh2 in
+    let verbose = get_bool "solverdiffs" in
+    let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
     ignore (Pretty.printf "Globals comparison summary: %t\n" (fun () -> msg));
     print_newline ();
 end
@@ -1236,7 +1238,8 @@ struct
     Printf.printf "\nComparing nodes precision of %s (left) with %s (right):\n" name1 name2;
     let vh1' = join_contexts vh1 in
     let vh2' = join_contexts vh2 in
-    let (_, msg) = Compare.compare ~name1 vh1' ~name2 vh2' in
+    let verbose = get_bool "solverdiffs" in
+    let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
     ignore (Pretty.printf "Nodes comparison summary: %t\n" (fun () -> msg));
     print_newline ();
 end

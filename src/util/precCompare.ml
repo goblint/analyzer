@@ -72,7 +72,7 @@ struct
     let compared = KH.map (fun k (v1, v2) ->
         let v1 = v1 |? D.bot () in
         let v2 = v2 |? D.bot () in
-        CompareD.compare ~name1 ~name2 v1 v2
+        CompareD.compare ~verbose ~name1 ~name2 v1 v2
       ) kh
     in
     KH.iter (fun k (c, msg) ->
