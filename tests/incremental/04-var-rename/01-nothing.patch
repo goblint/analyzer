@@ -1,0 +1,8 @@
+--- tests/incremental/04-var-rename/01-nothing.c
++++ tests/incremental/04-var-rename/01-nothing.c
+@@ -1,4 +1,5 @@
+ int main() {
+     int x = 0;
++    
+     return 0;
+ }
