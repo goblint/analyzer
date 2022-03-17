@@ -251,7 +251,7 @@ struct
     in
     let rec cil_exp_of_expr (expr:Texpr1.expr) = match expr with
       | Cst (Scalar s) ->
-        let i = Option.get @@ int_of_scalar ~round:`Ceil s in (*TODO: which way should one round? *)
+        let i = Option.get @@ int_of_scalar ~round:`Floor s in (*TODO: which way should one round? *)
         Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
       | Var v ->
         (let fundec = Option.map_default Node.find_fundec !EvalAssert.currentFundec !MyCFG.current_node in
@@ -264,20 +264,20 @@ struct
         let e, typ = cil_exp_of_expr exp in
         UnOp(Neg, e, typ), typ
       | Binop(op, e1, e2, _, _) ->
-        let op' = convertop op in
-        let e1, typ1 = cil_exp_of_expr e1 in
-        let e2, typ2 = cil_exp_of_expr e2 in
-        BinOp(op',e1,e2,typ1), typ1
+        (let op' = convertop op in
+         let e1, typ1 = cil_exp_of_expr e1 in
+         let e2, typ2 = cil_exp_of_expr e2 in
+         (BinOp(op',e1,e2,typ1)), typ1)
       | _ -> raise (Invalid_argument "cannot convert")
     in
     let zero = Cil.zero in
     try
       let cilexp = cil_exp_of_expr (Texpr1.to_expr (Tcons1.get_texpr1 tcons1)) in
       match Tcons1.get_typ tcons1 with
-      | EQ -> Some (BinOp(Eq,fst cilexp,zero,TInt(IInt,[])))
-      | SUPEQ -> Some (BinOp(Ge,fst cilexp,zero,TInt(IInt,[])))
-      | SUP -> Some (BinOp(Gt,fst cilexp,zero,TInt(IInt,[])))
-      | DISEQ -> Some (BinOp(Ne,fst cilexp,zero,TInt(IInt,[])))
+      | EQ -> Some (Cil.constFold false @@ BinOp(Eq,fst cilexp,zero,TInt(IInt,[])))
+      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge,fst cilexp,zero,TInt(IInt,[])))
+      | SUP -> Some (Cil.constFold false @@ BinOp(Gt,fst cilexp,zero,TInt(IInt,[])))
+      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne,fst cilexp,zero,TInt(IInt,[])))
       | EQMOD _ -> None
     with
       _ -> None
