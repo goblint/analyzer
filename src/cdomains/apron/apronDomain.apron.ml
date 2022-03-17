@@ -691,7 +691,8 @@ struct
     let cons = Array.to_list cons in
     let convert_one constr = Convert.cil_exp_of_tcons1 {tcons0=constr; env=env} in
     let cil_cons = List.filter_map convert_one cons in
-    List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None cil_cons
+    let interesting = List.filter Cilfacade.more_than_one_var cil_cons in
+    List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None interesting
 end
 
 
