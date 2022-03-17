@@ -616,8 +616,8 @@ struct
         in assign_uninvertible_rel new_x var v t.env
     | Some x, None -> {d = Matrix.normalize @@ remove_rels_with_var x var t.env; env = t.env}
 
-  let assign_exp (t: VarManagement(V)(Mx).t) var exp (no_ov: bool) =
-    match Convert.texpr1_expr_of_cil_exp t t.env no_ov exp with
+  let assign_exp (t: VarManagement(V)(Mx).t) var exp (no_ov: bool Lazy.t) =
+    match Convert.texpr1_expr_of_cil_exp t t.env (Lazy.force no_ov) exp with
     | exp -> assign_texpr t var exp
     | exception Convert.Unsupported_CilExp -> match t.d with
       | None -> t
@@ -626,7 +626,7 @@ struct
   let assign_exp t var exp no_ov =
     let res = assign_exp t var exp no_ov in
     if M.tracing then M.tracel "assign" "assign_exp t:\n %s \n var: %s \n exp: %s\n no_ov: %b -> \n %s\n"
-        (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) no_ov (show res) ;
+        (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (Lazy.force no_ov) (show res) ;
     res
   let assign_var (t: VarManagement(V)(Mx).t) v v' =
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
@@ -659,24 +659,26 @@ struct
 
   (** Assert a constraint expression. *)
   let meet_with_tcons t tcons expr =
+    if M.tracing then M.tracel "assert_cons" "Meeting with tcons";
     let module ID = Queries.ID in
     let check_const cmp c = if cmp c (of_int 0) then {d = None; env = t.env} else t
     in
-    let exception UnsignedVar in
+    let exception NotRefinable in
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
       let flip_e = Vector.mapi (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e in
       let res = meet t {d = Matrix.normalize @@ Matrix.of_list [flip_e]; env = t.env} in
+      let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
       match Convert.determine_bounds_one_var expr with
-      | None -> res
+      | None -> overflow_res res
       | Some (ev, min, max) ->
         begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
           | Some b_min, Some b_max ->  let module BI = IntOps.BigIntOps in
-            if min = BI.of_int 0 && b_min = b_max then raise UnsignedVar
+            if min = BI.of_int 0 && b_min = b_max then raise NotRefinable
             else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
-              (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then {d = None; env = t.env} else t)
+              (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then {d = None; env = t.env} else raise NotRefinable)
             else res
-          | _, _ -> res end
+          | _, _ -> overflow_res res end
     in
     (* let refine_by x y = if BI.equal (BI.rem v (BI.of_int 2)) BI.zero then *)
     match get_coeff_vec t (Texpr1.to_expr @@ Tcons1.get_texpr1 tcons) with
@@ -687,10 +689,10 @@ struct
         | Some c, SUPEQ -> check_const (<:) c
         | None, DISEQ | None, SUP ->
           begin match meet_with_vec v with
-            | exception UnsignedVar -> t
+            | exception NotRefinable -> t
             | res -> if equal res t then {d = None; env = t.env} else t end
         | None, EQ -> begin match meet_with_vec v with
-            | exception UnsignedVar -> t
+            | exception NotRefinable -> t
             | res -> res end
         | _, _ -> t end
     | None -> t
@@ -714,6 +716,7 @@ struct
     res
 
   let assert_cons d e negate no_ov =
+    let no_ov = Lazy.force no_ov in
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %s \n %b" (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () e)) no_ov;
     begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
       | tcons1 -> meet_with_tcons d tcons1 e

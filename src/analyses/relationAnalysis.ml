@@ -152,8 +152,8 @@ struct
       (* TODO: don't go through CIL exp? *)
       let e1 = (BinOp (Le, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_max)), intType)) in
       let e2 = (BinOp (Ge, Lval (Cil.var x), (Cil.kintegerCilint ik (Cilint.cilint_of_big_int type_min)), intType)) in
-      let apr = RD.assert_inv apr e1 false (no_overflow ctx e1) in
-      let apr = RD.assert_inv apr e2 false (no_overflow ctx e2) in
+      let apr = RD.assert_inv apr e1 false (lazy(no_overflow ctx e1)) in
+      let apr = RD.assert_inv apr e2 false (lazy(no_overflow ctx e2)) in
       apr
     )
     else
@@ -171,7 +171,7 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
-              RD.assign_exp apr' (RV.local v) e' (no_overflow ctx e')
+              RD.assign_exp apr' (RV.local v) e' (lazy(no_overflow ctx e'))
             )
         )
       in
@@ -183,7 +183,7 @@ struct
     let st = ctx.local in
     let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun apr' e' ->
         (* not an assign, but must remove g#in-s still *)
-        RD.assert_inv apr' e' (not b) (no_overflow ctx e')
+        RD.assert_inv apr' e' (not b) (lazy(no_overflow ctx e'))
       )
     in
     if RD.is_bot_env res then raise Deadcode;
@@ -209,7 +209,7 @@ struct
     let ask = Analyses.ask_of_ctx ctx in
     let new_apr = List.fold_left (fun new_apr (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with apr = new_apr} e (fun apr' e' ->
-            RD.assign_exp apr' var e' (no_overflow ctx e')
+            RD.assign_exp apr' var e' (lazy(no_overflow ctx e'))
           )
       ) new_apr arg_assigns
     in
@@ -246,7 +246,7 @@ struct
         match e with
         | Some e ->
           assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global {st with apr = apr'} e (fun apr' e' ->
-              RD.assign_exp apr' RV.return e' (no_overflow ctx e')
+              RD.assign_exp apr' RV.return e' (lazy(no_overflow ctx e'))
             )
         | None ->
           apr' (* leaves V.return unconstrained *)
@@ -285,7 +285,7 @@ struct
     let new_fun_apr = List.fold_left (fun new_fun_apr (var, e) ->
         assign_from_globals_wrapper ask ctx.global {st with apr = new_fun_apr} e (fun apr' e' ->
             (* not an assign, but still works? *)
-            RD.substitute_exp apr' var e' (no_overflow ctx e')
+            RD.substitute_exp apr' var e' (lazy(no_overflow ctx e'))
           )
       ) new_fun_apr arg_substitutes
     in
@@ -385,20 +385,20 @@ struct
     match q with
     | EvalInt e ->
       if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
-      let r = eval_int e (no_overflow ctx e)  in
+      let r = eval_int e (lazy(no_overflow ctx e))  in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
     | Queries.MustBeEqual (exp1,exp2) ->
       let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
-      let is_eq = eval_int exp (no_overflow ctx exp) in
+      let is_eq = eval_int exp (lazy(no_overflow ctx exp)) in
       Option.default false (ID.to_bool is_eq)
     | Queries.MayBeEqual (exp1,exp2) ->
       let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
-      let is_neq = eval_int exp (no_overflow ctx exp) in
+      let is_neq = eval_int exp (lazy(no_overflow ctx exp)) in
       Option.default true (ID.to_bool is_neq)
     | Queries.MayBeLess (exp1, exp2) ->
       let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
-      let is_lt = eval_int exp (no_overflow ctx exp) in
+      let is_lt = eval_int exp (lazy(no_overflow ctx exp)) in
       Option.default true (ID.to_bool is_lt)
     | _ -> Result.top q
 

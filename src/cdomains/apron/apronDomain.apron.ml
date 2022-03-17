@@ -463,7 +463,8 @@ struct
     nd
 
   let assign_exp_with nd v e ov =
-    match Convert.texpr1_of_cil_exp nd (A.env nd) ov e with
+    let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e no_ov with
     | texpr1 ->
       A.assign_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
@@ -471,7 +472,7 @@ struct
 
   let assign_exp d v e ov =
     let nd = copy d in
-    assign_exp_with nd v ov e;
+    assign_exp_with nd v e ov;
     nd
 
   let assign_exp_parallel_with nd ves ov =
@@ -543,8 +544,9 @@ struct
     in
     A.assign_texpr_array Man.mgr d vs texpr1s None
 
-  let substitute_exp_with nd v ov e =
-    match Convert.texpr1_of_cil_exp nd (A.env nd) ov e with
+  let substitute_exp_with nd v e ov =
+    let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in
+    match Convert.texpr1_of_cil_exp nd (A.env nd) e no_ov with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
@@ -593,19 +595,7 @@ struct
   let meet_with_tcons d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
-    let res = A.meet_tcons_array Man.mgr d earray in
-    match Convert.determine_bounds_one_var e with
-    | None -> res
-    | Some (ev, min, max) ->
-      let module Bounds = Bounds(Man) in
-      let module BI = IntOps.BigIntOps in
-      begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
-        | Some b_min, Some b_max -> if min = BI.of_int 0 && b_min = b_max then d
-          else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
-            (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then A.bottom (A.manager d) (A.env d) else d)
-          else res
-        | _, _ -> res end
-
+    A.meet_tcons_array Man.mgr d earray
 
   let to_lincons_array d =
     A.to_lincons_array Man.mgr d
@@ -685,17 +675,18 @@ struct
     | _ -> false
 
   (** Assert a constraint expression. *)
-  let rec assert_cons d e negate no_ov =
+  let rec assert_cons d e negate (ov: bool Lazy.t) =
+    let no_ov = IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) in
     match e with
     (* Apron doesn't properly meet with DISEQ constraints: https://github.com/antoinemine/apron/issues/37.
        Join Gt and Lt versions instead. *)
     | BinOp (Ne, lhs, rhs, intType) when not negate ->
-      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) negate no_ov in
-      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) negate no_ov in
+      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) negate ov in
+      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) negate ov in
       join assert_gt assert_lt
     | BinOp (Eq, lhs, rhs, intType) when negate ->
-      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) no_ov in
-      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) no_ov in
+      let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) ov in
+      let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) ov in
       join assert_gt assert_lt
     | UnOp (LNot,e,_) -> assert_cons d e (not negate)
     | _ ->
@@ -1002,7 +993,7 @@ sig
   include SLattice with type t = Man.mt A.t
 
   val exp_is_cons : exp -> bool
-  val assert_cons : t -> exp -> bool -> t
+  val assert_cons : t -> exp -> bool Lazy.t -> t
   val assert_inv : t -> exp -> bool -> t
   val eval_int : t -> exp -> Queries.ID.t
 end

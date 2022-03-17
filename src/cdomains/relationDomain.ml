@@ -27,11 +27,11 @@ sig
   val keep_vars : t -> var list -> t
   val keep_filter : t -> (var -> bool) -> t
   val forget_vars : t -> var list -> t
-  val assign_exp : t -> var -> exp -> bool -> t
+  val assign_exp : t -> var -> exp -> bool Lazy.t -> t
   val assign_var : t -> var -> var -> t
   val assign_var_parallel : t -> (var * var) list -> t
   val assign_var_parallel' : t -> var list -> var list -> t
-  val substitute_exp : t -> var -> exp -> bool -> t
+  val substitute_exp : t -> var -> exp -> bool Lazy.t -> t
   val unify: t -> t -> t
   val marshal: t -> marshal
   val unmarshal: marshal -> t
@@ -42,8 +42,8 @@ sig
   include D2
   val type_tracked : typ -> bool
   val varinfo_tracked : varinfo -> bool
-  val assert_inv : t -> exp -> bool -> bool -> t
-  val eval_int : t -> exp -> bool -> IntDomain.IntDomTuple.t
+  val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
+  val eval_int : t -> exp -> bool Lazy.t -> IntDomain.IntDomTuple.t
 end
 
 module RelVM =

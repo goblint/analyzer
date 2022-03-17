@@ -194,13 +194,11 @@ sig
 
   include RelationDomain.D2 with type t = Bounds.t
 
-  val meet_with_tcons: t -> Tcons1.t -> exp -> t
-
   val is_bot_env: t -> bool
 
   val env: t -> Environment.t
 
-  val assert_cons: t -> exp -> bool -> bool -> t
+  val assert_cons: t -> exp -> bool -> bool Lazy.t -> t
 end
 
 module AssertionModule (AD2: AssertionRelD2) =
