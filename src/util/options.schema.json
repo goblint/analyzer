@@ -102,12 +102,6 @@
       "type": "string",
       "default": ""
     },
-    "solverdiffs": {
-      "title": "solverdiffs",
-      "description": "Print out solver differences.",
-      "type": "boolean",
-      "default": false
-    },
     "allfuns": {
       "title": "allfuns",
       "description":
@@ -1529,6 +1523,12 @@
             "node": {
               "title": "dbg.compare_runs.node",
               "description": "Compare nodes (with joined contexts) in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "diff": {
+              "title": "dbg.compare_runs.diff",
+              "description": "Print differences",
               "type": "boolean",
               "default": false
             }

@@ -1082,11 +1082,11 @@ struct
       if b1 && b2 then
         f_eq ()
       else if b1 then begin
-        if get_bool "solverdiffs" then
+        if get_bool "dbg.compare_runs.diff" then
           ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_le ()
       end else if b2 then begin
-        if get_bool "solverdiffs" then
+        if get_bool "dbg.compare_runs.diff" then
           ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_gr ()
       end else
@@ -1105,11 +1105,11 @@ struct
         if b1 && b2 then
           incr eq
         else if b1 then begin
-          if get_bool "solverdiffs" then
+          if get_bool "dbg.compare_runs.diff" then
             ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr le
         end else if b2 then begin
-          if get_bool "solverdiffs" then
+          if get_bool "dbg.compare_runs.diff" then
             ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr gr
         end else
@@ -1137,11 +1137,11 @@ struct
         if b1 && b2 then
           f_eq ()
         else if b1 then begin
-          (* if get_bool "solverdiffs" then *)
+          (* if get_bool "dbg.compare_runs.diff" then *)
           (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
           f_le ()
         end else if b2 then begin
-          (* if get_bool "solverdiffs" then *)
+          (* if get_bool "dbg.compare_runs.diff" then *)
           (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
           f_gr ()
         end else
@@ -1196,7 +1196,7 @@ struct
 
   let compare (name1, name2) vh1 vh2 =
     Printf.printf "\nComparing EqConstrSys precision of %s (left) with %s (right):\n" name1 name2;
-    let verbose = get_bool "solverdiffs" in
+    let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
     ignore (Pretty.printf "EqConstrSys comparison summary: %t\n" (fun () -> msg));
     print_newline ();
@@ -1208,7 +1208,7 @@ struct
 
   let compare (name1, name2) vh1 vh2 =
     Printf.printf "\nComparing globals precision of %s (left) with %s (right):\n" name1 name2;
-    let verbose = get_bool "solverdiffs" in
+    let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
     ignore (Pretty.printf "Globals comparison summary: %t\n" (fun () -> msg));
     print_newline ();
@@ -1238,7 +1238,7 @@ struct
     Printf.printf "\nComparing nodes precision of %s (left) with %s (right):\n" name1 name2;
     let vh1' = join_contexts vh1 in
     let vh2' = join_contexts vh2 in
-    let verbose = get_bool "solverdiffs" in
+    let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
     ignore (Pretty.printf "Nodes comparison summary: %t\n" (fun () -> msg));
     print_newline ();
