@@ -239,6 +239,48 @@ struct
     in
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
+
+  let cil_exp_of_tcons1 (tcons1:Tcons1.t) =
+    let convertop = function
+      | Add -> PlusA
+      | Sub -> MinusA
+      | Mul -> Mult
+      | Div -> Div
+      | Mod -> Mod
+      | Pow -> raise (Invalid_argument "cannot convert")
+    in
+    let rec cil_exp_of_expr (expr:Texpr1.expr) = match expr with
+      | Cst (Scalar s) ->
+        let i = Option.get @@ int_of_scalar ~round:`Ceil s in (*TODO: which way should one round? *)
+        Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
+      | Var v ->
+        (let fundec = Option.map_default Node.find_fundec !EvalAssert.currentFundec !MyCFG.current_node in
+         let vname = Var.to_string v in
+         let vinfo = List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) in
+         match vinfo with
+         | Some vinfo -> (Lval(Var vinfo,NoOffset), vinfo.vtype)
+         | None -> raise (Invalid_argument "cannot convert "))
+      | Unop(Neg, exp, _,_) ->
+        let e, typ = cil_exp_of_expr exp in
+        UnOp(Neg, e, typ), typ
+      | Binop(op, e1, e2, _, _) ->
+        let op' = convertop op in
+        let e1, typ1 = cil_exp_of_expr e1 in
+        let e2, typ2 = cil_exp_of_expr e2 in
+        BinOp(op',e1,e2,typ1), typ1
+      | _ -> raise (Invalid_argument "cannot convert")
+    in
+    let zero = Cil.zero in
+    try
+      let cilexp = cil_exp_of_expr (Texpr1.to_expr (Tcons1.get_texpr1 tcons1)) in
+      match Tcons1.get_typ tcons1 with
+      | EQ -> Some (BinOp(Eq,fst cilexp,zero,TInt(IInt,[])))
+      | SUPEQ -> Some (BinOp(Ge,fst cilexp,zero,TInt(IInt,[])))
+      | SUP -> Some (BinOp(Gt,fst cilexp,zero,TInt(IInt,[])))
+      | DISEQ -> Some (BinOp(Ne,fst cilexp,zero,TInt(IInt,[])))
+      | EQMOD _ -> None
+    with
+      _ -> None
 end
 
 
@@ -642,6 +684,14 @@ struct
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max
       | (None, None) -> ID.top_of ik
+
+  let invariant ctx x =
+    let r = A.to_tcons_array Man.mgr x in
+    let cons, env = r.tcons0_array, r.array_env in
+    let cons = Array.to_list cons in
+    let convert_one constr = Convert.cil_exp_of_tcons1 {tcons0=constr; env=env} in
+    let cil_cons = List.filter_map convert_one cons in
+    List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None cil_cons
 end
 
 

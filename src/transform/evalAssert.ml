@@ -14,6 +14,9 @@ open Formatcil
       - Removes comments, so if the original program had //UNKNOWN assertions, the unknown
         will be removed and they will fail on the next iteration
 *)
+
+let currentFundec = ref dummyFunDec
+
 module EvalAssert = struct
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
   let ass = ref (makeVarinfo true "assert" (TVoid []))
@@ -33,6 +36,7 @@ module EvalAssert = struct
 
     method! vfunc f =
       locals := !locals @ f.slocals;
+      currentFundec := f;
       DoChildren
 
     method! vglob g = match g with
