@@ -1,0 +1,13 @@
+diff --git tests/incremental/13-restart-write/04-malloc-node.c tests/incremental/13-restart-write/04-malloc-node.c
+index 87bbc0f14..3cd6dc5c7 100644
+--- tests/incremental/13-restart-write/04-malloc-node.c
++++ tests/incremental/13-restart-write/04-malloc-node.c
+@@ -11,6 +11,8 @@ int main() {
+   pthread_t id;
+   int *iarg;
+ 
++  assert(1);
++
+   for (int i = 0; i < 10; i++) {
+     iarg = malloc(sizeof(int));
+     *iarg = 0;
