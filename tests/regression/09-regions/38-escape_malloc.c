@@ -1,5 +1,5 @@
 // PARAM: --set ana.activated[+] region
-// Copy of 04/34 with a malloc'ed variable (works without region).
+// Copy of 09/34 with a malloc'ed variable (works without region).
 #include <pthread.h>
 #include <stdlib.h>
 
