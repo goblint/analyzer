@@ -12,7 +12,10 @@ struct
     | Info
     | Debug
     | Success
-  [@@deriving eq, hash, show { with_path = false }]
+  [@@deriving eq, hash, show { with_path = false }, enum]
+  (* TODO: fix ord Error: https://github.com/ocaml-ppx/ppx_deriving/issues/254 *)
+
+  let compare x y = Stdlib.compare (to_enum x) (to_enum y)
 
   let should_warn e =
     let to_string = function
@@ -39,8 +42,8 @@ struct
   type t = {
     loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
-    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))] [@of_yojson fun x -> Result.Ok Goblintutil.dummy_obj]) option; (* TODO: this equality is terrible... *)
-  } [@@deriving eq, hash, yojson]
+    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@compare fun x y -> Stdlib.compare (Hashtbl.hash (Obj.obj x)) (Hashtbl.hash (Obj.obj y))] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))] [@of_yojson fun x -> Result.Ok Goblintutil.dummy_obj]) option; (* TODO: this equality is terrible... *)
+  } [@@deriving eq, ord, hash, yojson]
 
   let text_with_context {text; context; _} =
     match context with
@@ -50,11 +53,11 @@ end
 
 module MultiPiece =
 struct
-  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, hash, yojson]
+  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, ord, hash, yojson]
   type t =
     | Single of Piece.t
     | Group of group
-  [@@deriving eq, hash, yojson]
+  [@@deriving eq, ord, hash, yojson]
 
   let to_yojson = function
     | Single piece -> Piece.to_yojson piece
@@ -74,7 +77,7 @@ struct
   type t =
     | Category of Category.t
     | CWE of int
-  [@@deriving eq, hash]
+  [@@deriving eq, ord, hash]
 
   let pp ppf = function
     | Category category -> Format.pp_print_string ppf (Category.show category)
@@ -100,7 +103,7 @@ end
 
 module Tags =
 struct
-  type t = Tag.t list [@@deriving eq, hash, yojson]
+  type t = Tag.t list [@@deriving eq, ord, hash, yojson]
 
   let pp =
     let pp_tag_brackets ppf tag = Format.fprintf ppf "[%a]" Tag.pp tag in
@@ -115,7 +118,7 @@ struct
     tags: Tags.t;
     severity: Severity.t;
     multipiece: MultiPiece.t;
-  } [@@deriving eq, hash, yojson]
+  } [@@deriving eq, ord, hash, yojson]
 
   let should_warn {tags; severity; _} =
     Tags.should_warn tags && Severity.should_warn severity

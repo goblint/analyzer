@@ -4,23 +4,23 @@ type array_oob =
   | PastEnd
   | BeforeStart
   | Unknown
-[@@deriving eq, hash]
+[@@deriving eq, ord, hash]
 
 type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
   | UseAfterFree
-[@@deriving eq, hash]
+[@@deriving eq, ord, hash]
 
 type behavior =
   | Undefined of undefined_behavior
   | Implementation
   | Machine
-[@@deriving eq, hash]
+[@@deriving eq, ord, hash]
 
-type integer = Overflow | DivByZero [@@deriving eq, hash]
+type integer = Overflow | DivByZero [@@deriving eq, ord, hash]
 
-type cast = TypeMismatch [@@deriving eq, hash]
+type cast = TypeMismatch [@@deriving eq, ord, hash]
 
 type category =
   | Assert
@@ -33,9 +33,9 @@ type category =
   | Analyzer
   | Unsound
   | Imprecise
-[@@deriving eq, hash]
+[@@deriving eq, ord, hash]
 
-type t = category [@@deriving eq, hash]
+type t = category [@@deriving eq, ord, hash]
 
 module Behavior =
 struct
