@@ -226,3 +226,10 @@ let from_string_list (s: string list) =
     | _ -> Unknown
 
 let to_yojson x = `List (List.map (fun x -> `String x) (path_show x))
+let of_yojson = function
+  | `List l ->
+    l
+    |> List.map Yojson.Safe.Util.to_string
+    |> from_string_list
+    |> Result.ok
+  | _ -> Result.Error "MessageCategory.of_yojson"
