@@ -32,18 +32,34 @@ let should_reanalyze (fdec: Cil.fundec) =
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
-  let unchangedHeader = eq_varinfo a.svar b.svar && GobList.equal eq_varinfo a.sformals b.sformals in
+  let unchangedHeader = eq_varinfo a.svar b.svar [] && GobList.equal (eq_varinfo2 []) a.sformals b.sformals in
   let identical, diffOpt =
     if should_reanalyze a then
       false, None
     else
-      let sameDef = unchangedHeader && GobList.equal eq_varinfo a.slocals b.slocals in
+      (* Here the local variables are checked to be equal *)
+      let rec context_aware_compare (alocals: varinfo list) (blocals: varinfo list) (context: context) = match alocals, blocals with
+        | [], [] -> true, context
+        | origLocal :: als, nowLocal :: bls -> 
+          let newContext = if origLocal.vname = nowLocal.vname then context else context @ [(origLocal.vname, nowLocal.vname)] in
+          (*TODO: also call eq_varinfo*)
+          context_aware_compare als bls newContext
+        | _, _ -> false, context
+        in
+
+      let sizeEqual, context = context_aware_compare a.slocals b.slocals [] in
+
+      let _ = Printf.printf "Context=%s\n" (CompareAST.context_to_string context) in
+      let _ = Printf.printf "SizeEqual=%b; unchangedHeader=%b\n" sizeEqual unchangedHeader in
+
+      let sameDef = unchangedHeader && sizeEqual in
       if not sameDef then
         (false, None)
       else
         match cfgs with
-        | None -> eq_block (a.sbody, a) (b.sbody, b), None
+        | None -> eq_block (a.sbody, a) (b.sbody, b) context, None
         | Some (cfgOld, cfgNew) ->
+          let _ = Printf.printf "compareCIL.eqF: Compaing 2 cfgs now\n" in
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
           let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
@@ -53,12 +69,16 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
   identical, unchangedHeader, diffOpt
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * cfg) option) = match a, b with
-  | GFun (f,_), GFun (g,_) -> eqF f g cfgs
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y, false, None
+  | GFun (f,_), GFun (g,_) -> 
+    let _ = Printf.printf "Comparing funs %s with %s\n" f.svar.vname g.svar.vname in
+    eqF f g cfgs
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y [], false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y [], false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
+  let _ = Printf.printf "Comparing Cil files\n" in
+
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
     then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST |> fst)
     else None in
