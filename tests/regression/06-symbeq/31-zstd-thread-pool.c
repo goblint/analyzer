@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] region --set ana.activated[+] symb_locks
+// PARAM: --set ana.activated[+] symb_locks
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.
@@ -146,7 +146,7 @@ static void* POOL_thread(void* opaque) {
         /* Lock the mutex and wait for a non-empty queue or until shutdown */
         ZSTD_pthread_mutex_lock(&ctx->queueMutex);
 
-        while ( ctx->queueEmpty
+        while ( ctx->queueEmpty // RACE! (threadLimit)
             || (ctx->numThreadsBusy >= ctx->threadLimit) ) {
             if (ctx->shutdown) {
                 /* even if !queueEmpty, (possible if numThreadsBusy >= threadLimit),
@@ -224,7 +224,7 @@ POOL_ctx* POOL_create_advanced(size_t numThreads, size_t queueSize,
                 return NULL;
         }   }
         ctx->threadCapacity = numThreads;
-        ctx->threadLimit = numThreads;
+        ctx->threadLimit = numThreads; // RACE!
     }
     return ctx;
 }
