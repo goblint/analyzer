@@ -9,6 +9,9 @@
     "ana": {
         "thread": {
             "include-node": false
+        },
+        "malloc": {
+            "include-node": false
         }
     }
 }

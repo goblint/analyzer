@@ -779,6 +779,13 @@
                 "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
                 "kzalloc"
               ]
+            },
+            "include-node" : {
+              "title": "ana.malloc.include-node",
+              "description":
+                "Whether the node at which memory is allocated is part of its variable ID",
+              "type": "boolean",
+              "default" : true
             }
           },
           "additionalProperties": false

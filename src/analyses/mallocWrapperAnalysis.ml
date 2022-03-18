@@ -13,19 +13,27 @@ struct
       let bot_name = "Unreachable node"
     end)
 
-  module Node = struct
-    include Node
+  module NodeFundec =
+  struct
+    include Printable.Either (Node) (CilType.Fundec)
+
     (* Description that gets appended to the varinfo-name in user output. *)
-    let describe_varinfo (v: varinfo) node =
-      let loc = UpdateCil.getLoc node in
+    let describe_varinfo (v: varinfo) node_fundec =
+      let loc =
+        match node_fundec with
+        | `Left node -> UpdateCil.getLoc node
+        | `Right fundec -> fundec.svar.vdecl
+      in
       CilType.Location.show loc
 
-    let name_varinfo node = match node with
-      | Node.Statement s -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
-      | _ -> failwith "A function entry or return node can not be the node after a malloc"
+    let name_varinfo node_fundec =
+      match node_fundec with
+      | `Left (Node.Statement s) -> "(alloc@sid:" ^ (string_of_int s.sid) ^ ")"
+      | `Left _ -> failwith "A function entry or return node can not be the node after a malloc"
+      | `Right fundec -> "(alloc@" ^ fundec.svar.vname ^ ")"
   end
 
-  module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(Node)
+  module NodeFundecVarinfoMap = RichVarinfo.BiVarinfoMap.Make(NodeFundec)
   let name () = "mallocWrapper"
   module D = PL
   module C = D
@@ -67,9 +75,9 @@ struct
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
-  type marshal = NodeVarinfoMap.marshal
+  type marshal = NodeFundecVarinfoMap.marshal
 
-  let get_heap_var = NodeVarinfoMap.to_varinfo
+  let get_heap_var = NodeFundecVarinfoMap.to_varinfo
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Queries.result =
     match q with
     | Q.HeapVar ->
@@ -77,21 +85,32 @@ struct
         | `Lifted vinfo -> vinfo
         | _ -> ctx.node
       in
-      let var = get_heap_var node in
-      var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
+      let node_fundec =
+        if get_bool "ana.malloc.include-node" then
+          `Left node
+        else
+          `Right (Node.find_fundec node)
+      in
+      let loc =
+        match node_fundec with
+        | `Left node -> UpdateCil.getLoc node
+        | `Right fundec -> fundec.svar.vdecl
+      in
+      let var = get_heap_var node_fundec in
+      var.vdecl <- loc; (* TODO: does this do anything bad for incremental? *)
       `Lifted var
     | Q.IsHeapVar v ->
-      NodeVarinfoMap.mem_varinfo v
+      NodeFundecVarinfoMap.mem_varinfo v
     | Q.IsMultiple v ->
-      NodeVarinfoMap.mem_varinfo v
+      NodeFundecVarinfoMap.mem_varinfo v
     | _ -> Queries.Result.top q
 
   let init marshal =
     List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "ana.malloc.wrappers");
-    NodeVarinfoMap.unmarshal marshal
+    NodeFundecVarinfoMap.unmarshal marshal
 
   let finalize () =
-    NodeVarinfoMap.marshal ()
+    NodeFundecVarinfoMap.marshal ()
 end
 
 let _ =
