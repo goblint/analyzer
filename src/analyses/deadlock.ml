@@ -34,10 +34,9 @@ struct
       ctx.sideg (fst a) d
     in
 
-    (* Add forbidden order *)
     D.iter (
       fun lock ->
-        add_comb newLock lock;
+        add_comb lock newLock;
       ) lockList
 
 
@@ -73,11 +72,10 @@ struct
           let pieces =
             List.concat_map (fun ((alock, aloc), (block, bloc)) ->
                 [
-                  (* backwards to get correct printout order *)
-                  (Pretty.dprintf "lock before: %a" Lock.pretty block, Some bloc);
-                  (Pretty.dprintf "lock after: %a" Lock.pretty alock, Some aloc);
+                  (Pretty.dprintf "lock before: %a" Lock.pretty alock, Some aloc);
+                  (Pretty.dprintf "lock after: %a" Lock.pretty block, Some bloc);
                 ]
-              ) path_visited_nodes'
+              ) (List.rev path_visited_nodes') (* backwards to get correct printout order *)
           in
           M.msg_group Warning "Deadlock order" pieces
         )
