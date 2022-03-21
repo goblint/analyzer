@@ -5,7 +5,7 @@ module M = Messages
 open Apron
 
 
-module type Arith =
+module type RatOps =
 sig
   type t
   val add : t -> t -> t
@@ -24,12 +24,12 @@ end
 module Mpqf = struct
   include Mpqf
 
-  let get_den x = IntOps.BigIntOps.of_string @@ Mpzf.to_string @@ Mpqf.get_den x
+  let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
 
-  let get_num x = IntOps.BigIntOps.of_string @@ Mpzf.to_string @@ Mpqf.get_num x
+  let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
 end
 
-module ConvenienceOps (A: Arith) =
+module ConvenienceOps (A: RatOps) =
 struct
   let ( *: ) = A.mul
   let (+:) = A.add
@@ -94,13 +94,13 @@ sig
 end
 
 module type AbstractVector =
-  functor (A: Arith) ->
+  functor (A: RatOps) ->
   sig
     include Vector with type num:= A.t
   end
 
 module ListVector: AbstractVector =
-  functor (A: Arith) ->
+  functor (A: RatOps) ->
   struct
     include List
     include ConvenienceOps (A)
@@ -199,13 +199,13 @@ sig
 end
 
 module type AbstractMatrix =
-  functor (A: Arith) (V: AbstractVector) ->
+  functor (A: RatOps) (V: AbstractVector) ->
   sig
     include Matrix with type vec := V(A).t and type num := A.t
   end
 
 module ListMatrix : AbstractMatrix =
-  functor (A: Arith) (V: AbstractVector) ->
+  functor (A: RatOps) (V: AbstractVector) ->
   struct
     include ConvenienceOps(A)
     module V = V(A)
