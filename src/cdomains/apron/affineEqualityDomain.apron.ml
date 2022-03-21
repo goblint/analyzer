@@ -660,7 +660,6 @@ struct
   (** Assert a constraint expression. *)
   let meet_with_tcons t tcons expr =
     if M.tracing then M.tracel "assert_cons" "Meeting with tcons";
-    let module ID = Queries.ID in
     let check_const cmp c = if cmp c (of_int 0) then {d = None; env = t.env} else t
     in
     let exception NotRefinable in

@@ -688,7 +688,7 @@ struct
       let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) ov in
       let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) ov in
       join assert_gt assert_lt
-    | UnOp (LNot,e,_) -> assert_cons d e (not negate)
+    | UnOp (LNot,e,_) -> assert_cons d e (not negate) ov
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate no_ov with
         | tcons1 ->

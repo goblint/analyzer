@@ -43,7 +43,7 @@ sig
   val type_tracked : typ -> bool
   val varinfo_tracked : varinfo -> bool
   val assert_inv : t -> exp -> bool -> bool Lazy.t -> t
-  val eval_int : t -> exp -> bool Lazy.t -> IntDomain.IntDomTuple.t
+  val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
 end
 
 module RelVM =

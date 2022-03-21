@@ -124,7 +124,7 @@ struct
     if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then true else
       let eval_int ctx exp =
         match ctx.ask (Queries.EvalInt exp) with
-        | x when Queries.ID.is_int x -> Queries.ID.to_int x
+        | `Lifted x when IntDomain.IntDomTuple.is_int x -> IntDomain.IntDomTuple.to_int x
         | _ -> None
       in
       let int_min, int_max = IntDomain.Size.range ik in
