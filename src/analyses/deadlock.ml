@@ -10,13 +10,12 @@ struct
 
   let name () = "deadlock"
 
-  (* The domain for the analysis *)
-  module D = DeadlockDomain.Lockset (* MayLockset *)
-  module C = DeadlockDomain.Lockset
+  module D = MayLockEvents
+  module C = D
   module V = Printable.UnitConf (struct let name = "deadlock" end)
   module G =
   struct
-    include SetDomain.Make (Printable.Prod (MyLock) (MyLock))
+    include SetDomain.Make (Printable.Prod (LockEvent) (LockEvent))
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
 
@@ -47,10 +46,10 @@ struct
   let event ctx (e: Events.t) octx =
     match e with
     | Lock addr ->
-      addLockingInfo ctx {addr; loc = !Tracing.current_loc } ctx.local;
-      D.add {addr; loc = !Tracing.current_loc } ctx.local
+      addLockingInfo ctx (addr, !Tracing.current_loc) ctx.local;
+      D.add (addr, !Tracing.current_loc) ctx.local
     | Unlock addr ->
-      let inLockAddrs e = ValueDomain.Addr.equal addr e.addr in
+      let inLockAddrs (e, _) = Lock.equal addr e in
       D.filter (neg inLockAddrs) ctx.local
     | _ ->
       ctx.local
@@ -59,12 +58,12 @@ struct
     match q with
     | WarnGlobal _ -> (* just repr of () *)
       let order_set = ctx.global () in
-      let module LH = Hashtbl.Make (ValueDomain.Addr) in
-      let module LS = Set.Make (ValueDomain.Addr) in
+      let module LH = Hashtbl.Make (Lock) in
+      let module LS = Set.Make (Lock) in
       let order: G.t LH.t LH.t = LH.create 12 in
       G.iter (fun (a, b) ->
-          LH.modify_def (LH.create 1) a.addr (fun h ->
-              LH.modify_def (G.empty ()) b.addr (G.add (a, b)) h;
+          LH.modify_def (LH.create 1) (fst a) (fun h ->
+              LH.modify_def (G.empty ()) (fst b) (G.add (a, b)) h;
               h
             ) order
         ) order_set;
@@ -76,11 +75,11 @@ struct
       let rec iter_node (path_visited_nodes: LS.t) (path_visited_nodes': G.elt list) (node: LS.elt) =
         if LS.mem node path_visited_nodes then (
           let pieces =
-            List.concat_map (fun (a, b) ->
+            List.concat_map (fun ((alock, aloc), (block, bloc)) ->
                 [
                   (* backwards to get correct printout order *)
-                  (Pretty.dprintf "lock before: %a" MyLock.pretty b, Some b.loc);
-                  (Pretty.dprintf "lock after: %a" MyLock.pretty a, Some a.loc);
+                  (Pretty.dprintf "lock before: %a" Lock.pretty block, Some bloc);
+                  (Pretty.dprintf "lock after: %a" Lock.pretty alock, Some aloc);
                 ]
               ) path_visited_nodes'
           in
