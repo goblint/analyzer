@@ -65,14 +65,15 @@ struct
       let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
         if LS.mem lock path_visited_locks then (
           let msgs =
-            List.concat_map (fun ((alock, aloc), (block, bloc)) ->
+            List.rev path_visited_lock_event_pairs (* backwards to get correct printout order *)
+            |> List.concat_map (fun ((before_lock, before_loc), (after_lock, after_loc)) ->
                 [
-                  (Pretty.dprintf "lock before: %a" Lock.pretty alock, Some aloc);
-                  (Pretty.dprintf "lock after: %a" Lock.pretty block, Some bloc);
+                  (Pretty.dprintf "lock before: %a" Lock.pretty before_lock, Some before_loc);
+                  (Pretty.dprintf "lock after: %a" Lock.pretty after_lock, Some after_loc);
                 ]
-              ) (List.rev path_visited_lock_event_pairs) (* backwards to get correct printout order *)
+              )
           in
-          M.msg_group Warning "Deadlock order" msgs
+          M.msg_group Warning ~category:Deadlock "Locking order cycle" msgs
         )
         else if not (LH.mem global_visited_locks lock) then begin
           LH.replace global_visited_locks lock ();
