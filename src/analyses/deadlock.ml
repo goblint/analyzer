@@ -16,7 +16,7 @@ struct
   module V = Printable.UnitConf (struct let name = "deadlock" end)
   module G =
   struct
-    include SetDomain.Make (Printable.Prod (MyLock0) (MyLock0))
+    include SetDomain.Make (Printable.Prod (MyLock) (MyLock))
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
 
@@ -109,11 +109,12 @@ struct
     match q with
     | WarnGlobal _ -> (* just repr of () *)
       let order_set = ctx.global () in
-      let module LH = Hashtbl.Make (MyLock) in
+      let module LH = Hashtbl.Make (ValueDomain.Addr) in
+      let module LS = Set.Make (ValueDomain.Addr) in
       let order: G.t LH.t LH.t = LH.create 12 in
       G.iter (fun (a, b) ->
-          LH.modify_def (LH.create 1) a (fun h ->
-              LH.modify_def (G.empty ()) b (G.add (a, b)) h;
+          LH.modify_def (LH.create 1) a.addr (fun h ->
+              LH.modify_def (G.empty ()) b.addr (G.add (a, b)) h;
               h
             ) order
         ) order_set;
@@ -122,8 +123,8 @@ struct
       let global_visited_nodes = LH.create 100 in
 
       (* DFS *)
-      let rec iter_node path_visited_nodes (path_visited_nodes': G.elt list) node =
-        if D.mem node path_visited_nodes then (
+      let rec iter_node (path_visited_nodes: LS.t) (path_visited_nodes': G.elt list) (node: LS.elt) =
+        if LS.mem node path_visited_nodes then (
           let pieces =
             List.concat_map (fun (a, b) ->
                 [
@@ -137,7 +138,7 @@ struct
         )
         else if not (LH.mem global_visited_nodes node) then begin
           LH.replace global_visited_nodes node ();
-          let new_path_visited_nodes = D.add node path_visited_nodes in
+          let new_path_visited_nodes = LS.add node path_visited_nodes in
           LH.iter (fun to_node gs ->
               G.iter (fun g ->
                   let new_path_visited_nodes' = g :: path_visited_nodes' in
@@ -148,7 +149,7 @@ struct
       in
 
       LH.iter (fun a _ ->
-          iter_node (D.empty ()) [] a
+          iter_node LS.empty [] a
         ) order
     | _ -> Queries.Result.top q
 end
