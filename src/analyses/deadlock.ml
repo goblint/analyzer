@@ -64,14 +64,17 @@ struct
       (* DFS *)
       let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
         if LS.mem lock path_visited_locks then (
-          let msgs =
-            List.rev path_visited_lock_event_pairs (* backwards to get correct printout order *)
-            |> List.concat_map (fun ((before_lock, before_loc), (after_lock, after_loc)) ->
-                [
-                  (Pretty.dprintf "lock before: %a" Lock.pretty before_lock, Some before_loc);
-                  (Pretty.dprintf "lock after: %a" Lock.pretty after_lock, Some after_loc);
-                ]
-              )
+          (* normalize path_visited_lock_event_pairs such that we don't get the same cycle multiple times, starting from different events *)
+          let min = List.min ~cmp:LockEventPair.compare path_visited_lock_event_pairs in
+          let (mini, _) = List.findi (fun i x -> LockEventPair.equal min x) path_visited_lock_event_pairs in
+          let (init, tail) = List.split_at mini path_visited_lock_event_pairs in
+          let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
+          let msgs = List.concat_map (fun ((before_lock, before_loc), (after_lock, after_loc)) ->
+              [
+                (Pretty.dprintf "lock before: %a" Lock.pretty before_lock, Some before_loc);
+                (Pretty.dprintf "lock after: %a" Lock.pretty after_lock, Some after_loc);
+              ]
+            ) normalized
           in
           M.msg_group Warning ~category:Deadlock "Locking order cycle" msgs
         )
