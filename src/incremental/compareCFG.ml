@@ -106,11 +106,11 @@ let reexamine f1 f2 (same : biDirectionNodeMap ref) (diffNodes1 : unit NH.t) (mo
           let n1 = NH.find !same.node2to1 n in
           NH.replace diffNodes1 n1 ();
           NH.remove !same.node1to2 n1; NH.remove !same.node2to1 n;
-          repeat (); false
+          false
         ) else check_nodes_in_same ps' n in
     let rec check_predecessors ls = match ls with
       | [] -> ()
-      | (n2::ls') -> if Node.equal n2 entry2 || check_nodes_in_same (List.map snd (CfgNewPred.prev n2)) n2 then check_predecessors ls' in
+      | (n2::ls') -> if Node.equal n2 entry2 || check_nodes_in_same (List.map snd (CfgNewPred.prev n2)) n2 then check_predecessors ls' else repeat () in
     check_predecessors ls
   in repeat (); NH.to_seq !same.node1to2, NH.to_seq_keys diffNodes1
 
