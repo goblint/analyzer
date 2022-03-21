@@ -16,7 +16,7 @@ struct
   module V = Printable.UnitConf (struct let name = "deadlock" end)
   module G =
   struct
-    include SetDomain.Make (Printable.Prod (MyLock) (MyLock))
+    include SetDomain.Make (Printable.Prod (MyLock0) (MyLock0))
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
 
@@ -109,23 +109,28 @@ struct
     match q with
     | WarnGlobal _ -> (* just repr of () *)
       let order_set = ctx.global () in
-      ignore (Pretty.printf "deadlock: %a\n" G.pretty order_set);
       let module LH = Hashtbl.Make (MyLock) in
-      let order = LH.create 12 in
+      let order: G.t LH.t LH.t = LH.create 12 in
       G.iter (fun (a, b) ->
-          LH.modify_def (D.empty ()) a (D.add b) order
+          LH.modify_def (LH.create 1) a (fun h ->
+              LH.modify_def (G.empty ()) b (G.add (a, b)) h;
+              h
+            ) order
         ) order_set;
 
       (* TODO: find all cycles/SCCs *)
       let global_visited_nodes = LH.create 100 in
 
       (* DFS *)
-      let rec iter_node path_visited_nodes path_visited_nodes' node =
+      let rec iter_node path_visited_nodes (path_visited_nodes': G.elt list) node =
         if D.mem node path_visited_nodes then (
           let pieces =
-            List.map (fun lock ->
-                let doc = MyLock.pretty () lock in
-                (doc, Some lock.loc)
+            List.concat_map (fun (a, b) ->
+                [
+                  (* backwards to get correct printout order *)
+                  (Pretty.dprintf "lock before: %a" MyLock.pretty b, Some b.loc);
+                  (Pretty.dprintf "lock after: %a" MyLock.pretty a, Some a.loc);
+                ]
               ) path_visited_nodes'
           in
           M.msg_group Warning "Deadlock order" pieces
@@ -133,10 +138,12 @@ struct
         else if not (LH.mem global_visited_nodes node) then begin
           LH.replace global_visited_nodes node ();
           let new_path_visited_nodes = D.add node path_visited_nodes in
-          let new_path_visited_nodes' = node :: path_visited_nodes' in
-          D.iter (fun to_node ->
-              iter_node new_path_visited_nodes new_path_visited_nodes' to_node
-            ) (LH.find_default order node (D.empty ()))
+          LH.iter (fun to_node gs ->
+              G.iter (fun g ->
+                  let new_path_visited_nodes' = g :: path_visited_nodes' in
+                  iter_node new_path_visited_nodes new_path_visited_nodes' to_node
+                ) gs
+            ) (LH.find_default order node (LH.create 0))
         end
       in
 

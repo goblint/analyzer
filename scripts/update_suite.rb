@@ -153,6 +153,7 @@ class Tests
                     when /\(conf\. \d+\)/            then "race"
                     when /lockset:/                  then "race" # osek races have their own legacy-like output
                     when /Deadlock/                  then "deadlock"
+                    when /lock (before|after):/           then "deadlock"
                     when /Assertion .* will fail/    then "fail"
                     when /Assertion .* will succeed/ then "success"
                     when /Assertion .* is unknown/   then "unknown"
