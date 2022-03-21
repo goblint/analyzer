@@ -422,7 +422,13 @@ struct
       let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
       let lh, gh = if load_run <> "" then (
-          let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
+          let module PostSolverArg2 =
+          struct
+            include PostSolverArg
+            let should_prune = false (* the run should have been already pruned *)
+          end
+          in
+          let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg2))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
           r2
         ) else if compare_runs <> [] then (
