@@ -12,10 +12,13 @@ struct
 
   module D = MayLockEvents
   module C = D
-  module V = Printable.UnitConf (struct let name = "deadlock" end)
+  module V = Lock
+
+  module LockEventPair = Printable.Prod (LockEvent) (LockEvent)
+  module MayLockEventPairs = SetDomain.Make (LockEventPair)
   module G =
   struct
-    include SetDomain.Make (Printable.Prod (LockEvent) (LockEvent))
+    include MapDomain.MapBot (Lock) (MayLockEventPairs)
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
 
@@ -24,11 +27,11 @@ struct
     let add_comb a b =
       let d =
         if !GU.should_warn then
-          G.singleton (a, b)
+          G.singleton (fst b) (MayLockEventPairs.singleton (a, b))
         else
           G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
       in
-      ctx.sideg () d
+      ctx.sideg (fst a) d
     in
 
     (* Add forbidden order *)
@@ -56,23 +59,16 @@ struct
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
-    | WarnGlobal _ -> (* just repr of () *)
-      let order_set = ctx.global () in
+    | WarnGlobal g ->
+      let g: V.t = Obj.obj g in
+
       let module LH = Hashtbl.Make (Lock) in
       let module LS = Set.Make (Lock) in
-      let order: G.t LH.t LH.t = LH.create 12 in
-      G.iter (fun (a, b) ->
-          LH.modify_def (LH.create 1) (fst a) (fun h ->
-              LH.modify_def (G.empty ()) (fst b) (G.add (a, b)) h;
-              h
-            ) order
-        ) order_set;
-
       (* TODO: find all cycles/SCCs *)
       let global_visited_nodes = LH.create 100 in
 
       (* DFS *)
-      let rec iter_node (path_visited_nodes: LS.t) (path_visited_nodes': G.elt list) (node: LS.elt) =
+      let rec iter_node (path_visited_nodes: LS.t) (path_visited_nodes': LockEventPair.t list) (node: Lock.t) =
         if LS.mem node path_visited_nodes then (
           let pieces =
             List.concat_map (fun ((alock, aloc), (block, bloc)) ->
@@ -88,18 +84,16 @@ struct
         else if not (LH.mem global_visited_nodes node) then begin
           LH.replace global_visited_nodes node ();
           let new_path_visited_nodes = LS.add node path_visited_nodes in
-          LH.iter (fun to_node gs ->
-              G.iter (fun g ->
+          G.iter (fun to_node gs ->
+              MayLockEventPairs.iter (fun g ->
                   let new_path_visited_nodes' = g :: path_visited_nodes' in
                   iter_node new_path_visited_nodes new_path_visited_nodes' to_node
                 ) gs
-            ) (LH.find_default order node (LH.create 0))
+            ) (ctx.global node)
         end
       in
 
-      LH.iter (fun a _ ->
-          iter_node LS.empty [] a
-        ) order
+      iter_node LS.empty [] g
     | _ -> Queries.Result.top q
 end
 
