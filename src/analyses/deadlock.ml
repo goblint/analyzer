@@ -40,7 +40,7 @@ struct
   let event ctx (e: Events.t) octx =
     match e with
     | Lock addr ->
-      let after = (addr, !Tracing.current_loc) in
+      let after = (addr, ctx.prev_node) in
       D.iter (fun before ->
           side_lock_event_pair ctx before after
         ) ctx.local;
@@ -69,10 +69,10 @@ struct
           let (mini, _) = List.findi (fun i x -> LockEventPair.equal min x) path_visited_lock_event_pairs in
           let (init, tail) = List.split_at mini path_visited_lock_event_pairs in
           let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
-          let msgs = List.concat_map (fun ((before_lock, before_loc), (after_lock, after_loc)) ->
+          let msgs = List.concat_map (fun ((before_lock, before_node), (after_lock, after_node)) ->
               [
-                (Pretty.dprintf "lock before: %a" Lock.pretty before_lock, Some before_loc);
-                (Pretty.dprintf "lock after: %a" Lock.pretty after_lock, Some after_loc);
+                (Pretty.dprintf "lock before: %a" Lock.pretty before_lock, Some (UpdateCil.getLoc before_node));
+                (Pretty.dprintf "lock after: %a" Lock.pretty after_lock, Some (UpdateCil.getLoc after_node));
               ]
             ) normalized
           in
