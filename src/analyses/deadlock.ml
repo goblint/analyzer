@@ -32,23 +32,11 @@ struct
       ctx.sideg () d
     in
 
-    (* Check forbidden list *)
-    if true || !Goblintutil.postsolving then begin (* TODO: only postsolving *)
-      D.iter (fun e -> G.iter (fun (a,b) ->
-          if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
-            Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc CilType.Location.pretty b.loc CilType.Location.pretty a.loc;
-            Messages.warn ~loc:a.loc "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr CilType.Location.pretty b.loc CilType.Location.pretty a.loc CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc;
-          )
-          else () ) (ctx.global ()) ) lockList;
-
-      (* Add forbidden order *)
-      D.iter (
-        fun lock ->
-          add_comb newLock lock;
-          let transAddList = G.filter (fun (a,b) -> MyLock.equal a lock) (ctx.global ()) in
-          G.iter (fun (a,b) -> add_comb newLock b) transAddList
+    (* Add forbidden order *)
+    D.iter (
+      fun lock ->
+        add_comb newLock lock;
       ) lockList
-    end
 
 
   (* Some required states *)
@@ -117,6 +105,45 @@ struct
         else ctx.local
       | _ -> ctx.local
 
+  let query ctx (type a) (q: a Queries.t): a Queries.result =
+    match q with
+    | WarnGlobal _ -> (* just repr of () *)
+      let order_set = ctx.global () in
+      ignore (Pretty.printf "deadlock: %a\n" G.pretty order_set);
+      let module LH = Hashtbl.Make (MyLock) in
+      let order = LH.create 12 in
+      G.iter (fun (a, b) ->
+          LH.modify_def (D.empty ()) a (D.add b) order
+        ) order_set;
+
+      (* TODO: find all cycles/SCCs *)
+      let global_visited_nodes = LH.create 100 in
+
+      (* DFS *)
+      let rec iter_node path_visited_nodes path_visited_nodes' node =
+        if D.mem node path_visited_nodes then (
+          let pieces =
+            List.map (fun lock ->
+                let doc = MyLock.pretty () lock in
+                (doc, Some lock.loc)
+              ) path_visited_nodes'
+          in
+          M.msg_group Warning "Deadlock order" pieces
+        )
+        else if not (LH.mem global_visited_nodes node) then begin
+          LH.replace global_visited_nodes node ();
+          let new_path_visited_nodes = D.add node path_visited_nodes in
+          let new_path_visited_nodes' = node :: path_visited_nodes' in
+          D.iter (fun to_node ->
+              iter_node new_path_visited_nodes new_path_visited_nodes' to_node
+            ) (LH.find_default order node (D.empty ()))
+        end
+      in
+
+      LH.iter (fun a _ ->
+          iter_node (D.empty ()) [] a
+        ) order
+    | _ -> Queries.Result.top q
 end
 
 let _ =
