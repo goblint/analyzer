@@ -22,22 +22,14 @@ struct
     let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
   end
 
-  let addLockingInfo ctx newLock lockList =
-
-    let add_comb a b =
-      let d =
-        if !GU.should_warn then
-          G.singleton (fst b) (MayLockEventPairs.singleton (a, b))
-        else
-          G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
-      in
-      ctx.sideg (fst a) d
+  let side_lock_event_pair ctx before after =
+    let d =
+      if !GU.should_warn then
+        G.singleton (fst after) (MayLockEventPairs.singleton (before, after))
+      else
+        G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
     in
-
-    D.iter (
-      fun lock ->
-        add_comb lock newLock;
-      ) lockList
+    ctx.sideg (fst before) d
 
 
   (* Some required states *)
@@ -48,8 +40,11 @@ struct
   let event ctx (e: Events.t) octx =
     match e with
     | Lock addr ->
-      addLockingInfo ctx (addr, !Tracing.current_loc) ctx.local;
-      D.add (addr, !Tracing.current_loc) ctx.local
+      let after = (addr, !Tracing.current_loc) in
+      D.iter (fun before ->
+          side_lock_event_pair ctx before after
+        ) ctx.local;
+      D.add after ctx.local
     | Unlock addr ->
       let inLockAddrs (e, _) = Lock.equal addr e in
       D.filter (neg inLockAddrs) ctx.local
