@@ -6,7 +6,7 @@ open DeadlockDomain
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "deadlock"
 
@@ -42,35 +42,7 @@ struct
   (* Some required states *)
   let startstate _ : D.t = D.empty ()
   let threadenter ctx lval f args = [D.empty ()]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  _ : D.t = D.empty ()
-
-  (* ======== Transfer functions ======== *)
-  (* Called for assignments, branches, ... *)
-
-  (* Assignment lval <- exp *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  (* Branch *)
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  (* Body of a function starts *)
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  (* Returns from a function *)
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
-  (* Calls/Enters a function *)
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [D.bot (),ctx.local]
-
-  (* Leaves a function *)
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    au
 
   (* Helper function to convert query-offsets to valuedomain-offsets *)
   let rec conv_offset x =
