@@ -2,6 +2,7 @@ import incremental_benchmark_utils as utils
 from pydriller import Repository, Git
 import itertools
 import os
+import sys
 from datetime import datetime
 import json
 import shutil
@@ -12,7 +13,7 @@ import shutil
 # The script for building the compilation database is assumed to be found in the analyzers script directory and the
 # config file is assumed to be found in the conf directory of the analyzers repository.
 maxCLOC       = None
-analyzer_dir  = #sys.argv[1]
+analyzer_dir  = sys.argv[1]
 url           = "https://github.com/facebook/zstd" #sys.argv[2]
 repo_name     = "zstd" #sys.argv[3]
 build_compdb  = "build_compdb_zstd.sh" #sys.argv[4]

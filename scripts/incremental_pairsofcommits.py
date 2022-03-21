@@ -110,13 +110,10 @@ def analyze_small_commits_in_repo():
         try_num = from_c + count_analyzed + count_failed + 1
         outtry = os.path.join(outdir, str(try_num))
         parent = gr.get_commit(commit.parents[0])
-        os.makedirs(outtry)
-        with open(os.path.join(outtry,'commit_properties.log'), "w+") as file:
-            json.dump({"hash": commit.hash, "parent_hash": parent.hash, "CLOC": commit.lines, "relCLOC": relCLOC}, file)
         print('Analyze this commit incrementally. #', try_num)
 
         reset_incremental_data()
-
+        failed = True
         try:
             print('Starting from parent', str(parent.hash), ".")
             outparent = os.path.join(outtry, 'parent')
@@ -137,9 +134,13 @@ def analyze_small_commits_in_repo():
             analyze_commit(gr, commit.hash, outchildrel, add_options)
 
             count_analyzed+=1
+            failed = False
         except subprocess.CalledProcessError as e:
             print('Aborted because command ', e.cmd, 'failed.')
             count_failed+=1
+        os.makedirs(outtry, exist_ok=True)
+        with open(os.path.join(outtry,'commit_properties.log'), "w+") as file:
+            json.dump({"hash": commit.hash, "parent_hash": parent.hash, "CLOC": commit.lines, "relCLOC": relCLOC, "failed": failed}, file)
         analyzed_commits[try_num]=(str(commit.hash)[:6], relCLOC)
 
 
@@ -165,7 +166,7 @@ def extract_from_analyzer_log(log):
 
 def collect_data():
     index = []
-    data = {"Changed LOC": [], "Relevant changed LOC": [], "Changed/Added/Removed functions": [],
+    data = {"Failed?": [], "Changed LOC": [], "Relevant changed LOC": [], "Changed/Added/Removed functions": [],
       "Runtime for parent commit (non-incremental)": [], "Runtime for commit (incremental)": [],
       "Runtime for commit (incremental, reluctant)": [], "Change in number of race warnings": []}
     for t in os.listdir(outdir):
@@ -177,8 +178,9 @@ def collect_data():
         commit_prop = json.load(open(commit_prop_log, "r"))
         data["Changed LOC"].append(commit_prop["CLOC"])
         data["Relevant changed LOC"].append(commit_prop["relCLOC"])
+        data["Failed?"].append(commit_prop["failed"])
         index.append(str(t) + ": " + commit_prop["hash"][:7])
-        if not os.path.exists(parentlog) or not os.path.exists(childlog) or not os.path.exists(childrellog):
+        if commit_prop["failed"] == True:
             data["Runtime for parent commit (non-incremental)"].append(0)
             data["Runtime for commit (incremental)"].append(0)
             data["Runtime for commit (incremental, reluctant)"].append(0)
