@@ -59,34 +59,34 @@ struct
       let module LH = Hashtbl.Make (Lock) in
       let module LS = Set.Make (Lock) in
       (* TODO: find all cycles/SCCs *)
-      let global_visited_nodes = LH.create 100 in
+      let global_visited_locks = LH.create 100 in
 
       (* DFS *)
-      let rec iter_node (path_visited_nodes: LS.t) (path_visited_nodes': LockEventPair.t list) (node: Lock.t) =
-        if LS.mem node path_visited_nodes then (
-          let pieces =
+      let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
+        if LS.mem lock path_visited_locks then (
+          let msgs =
             List.concat_map (fun ((alock, aloc), (block, bloc)) ->
                 [
                   (Pretty.dprintf "lock before: %a" Lock.pretty alock, Some aloc);
                   (Pretty.dprintf "lock after: %a" Lock.pretty block, Some bloc);
                 ]
-              ) (List.rev path_visited_nodes') (* backwards to get correct printout order *)
+              ) (List.rev path_visited_lock_event_pairs) (* backwards to get correct printout order *)
           in
-          M.msg_group Warning "Deadlock order" pieces
+          M.msg_group Warning "Deadlock order" msgs
         )
-        else if not (LH.mem global_visited_nodes node) then begin
-          LH.replace global_visited_nodes node ();
-          let new_path_visited_nodes = LS.add node path_visited_nodes in
-          G.iter (fun to_node gs ->
-              MayLockEventPairs.iter (fun g ->
-                  let new_path_visited_nodes' = g :: path_visited_nodes' in
-                  iter_node new_path_visited_nodes new_path_visited_nodes' to_node
-                ) gs
-            ) (ctx.global node)
+        else if not (LH.mem global_visited_locks lock) then begin
+          LH.replace global_visited_locks lock ();
+          let new_path_visited_locks = LS.add lock path_visited_locks in
+          G.iter (fun to_lock lock_event_pairs ->
+              MayLockEventPairs.iter (fun lock_event_pair ->
+                  let new_path_visited_lock_event_pairs' = lock_event_pair :: path_visited_lock_event_pairs in
+                  iter_lock new_path_visited_locks new_path_visited_lock_event_pairs' to_lock
+                ) lock_event_pairs
+            ) (ctx.global lock)
         end
       in
 
-      iter_node LS.empty [] g
+      iter_lock LS.empty [] g
     | _ -> Queries.Result.top q
 end
 
