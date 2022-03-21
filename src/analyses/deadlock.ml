@@ -44,38 +44,16 @@ struct
   let threadenter ctx lval f args = [D.empty ()]
   let exitstate  _ : D.t = D.empty ()
 
-  (* Helper function to convert query-offsets to valuedomain-offsets *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
-  (* Query the value (of the locking argument) to a list of locks. *)
-  let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a.f (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | b -> Messages.warn "Could not evaluate '%a' to an points-to set, instead got '%a'." d_exp exp Queries.LS.pretty b; []
-
-  (* Called when calling a special/unknown function *)
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    if D.is_top ctx.local then ctx.local else
-      match LibraryFunctions.classify f.vname arglist with
-      | `Lock (_, _, _) ->
-        List.fold_left (fun d lockAddr ->
-            addLockingInfo ctx {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-            D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
-          ) ctx.local (eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist))
-      | `Unlock ->
-        let lockAddrs = eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist) in
-        if List.compare_length_with lockAddrs 1 = 0 then
-          let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
-          D.filter (neg inLockAddrs) ctx.local
-        else ctx.local
-      | _ -> ctx.local
+  let event ctx (e: Events.t) octx =
+    match e with
+    | Lock addr ->
+      addLockingInfo ctx {addr; loc = !Tracing.current_loc } ctx.local;
+      D.add {addr; loc = !Tracing.current_loc } ctx.local
+    | Unlock addr ->
+      let inLockAddrs e = ValueDomain.Addr.equal addr e.addr in
+      D.filter (neg inLockAddrs) ctx.local
+    | _ ->
+      ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
