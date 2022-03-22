@@ -34,7 +34,7 @@ struct
   let name () = "threadid"
 
   let startstate v = (ThreadLifted.bot (), TD.bot ())
-  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
+  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 
   let morphstate v _ =
     let tid = Thread.threadinit v ~multiple:false in
