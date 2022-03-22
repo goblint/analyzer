@@ -64,6 +64,14 @@ struct
       (* DFS *)
       let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
         if LS.mem lock path_visited_locks then (
+          (* cycle may not return to first lock, but an intermediate one, cut off the non-cyclic stem *)
+          let path_visited_lock_event_pairs =
+            (* path_visited_lock_event_pairs cannot be empty *)
+            List.hd path_visited_lock_event_pairs ::
+            List.take_while (fun (_, (after_lock, _)) ->
+                not (Lock.equal after_lock lock)
+              ) (List.tl path_visited_lock_event_pairs)
+          in
           (* normalize path_visited_lock_event_pairs such that we don't get the same cycle multiple times, starting from different events *)
           let min = List.min ~cmp:LockEventPair.compare path_visited_lock_event_pairs in
           let (mini, _) = List.findi (fun i x -> LockEventPair.equal min x) path_visited_lock_event_pairs in
