@@ -147,7 +147,7 @@ module EvalAssert = struct
           let vars = get_vars e in
           let asserts loc vs = if full then make_assert loc None else List.map (fun x -> make_assert loc (Some (Var x,NoOffset))) vs |> List.concat in
           let add_asserts block =
-            if List.length block.bstmts > 0 then
+            if block.bstmts <> [] then
               let with_asserts =
                 let b_loc = get_stmtLoc (List.hd block.bstmts).skind in
                 let b_assert_instr = asserts b_loc vars in
