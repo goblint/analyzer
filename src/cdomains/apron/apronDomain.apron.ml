@@ -241,6 +241,7 @@ struct
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
   let cil_exp_of_tcons1 (tcons1:Tcons1.t) =
+    (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
     let convertop = function
       | Add -> PlusA
       | Sub -> MinusA
@@ -258,7 +259,7 @@ struct
          let vname = Var.to_string v in
          let vinfo = List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) in
          match vinfo with
-         | Some vinfo -> (Lval(Var vinfo,NoOffset), vinfo.vtype)
+         | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
          | None -> raise (Invalid_argument "cannot convert "))
       | Unop(Neg, exp, _,_) ->
         let e, typ = cil_exp_of_expr exp in
