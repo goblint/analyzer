@@ -163,7 +163,7 @@ struct
   end
 
   let access ctx e vo w =
-    if w then
+    if e = MyCFG.unknown_exp || w then
       (* when writing: ignore reader locks *)
       Lockset.filter snd ctx.local
     else

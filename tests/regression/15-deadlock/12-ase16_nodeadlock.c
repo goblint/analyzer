@@ -14,8 +14,8 @@ void func1() {
 }
 
 int func2(int a) {
-  pthread_mutex_lock(&m5); // TODO NODEADLOCK (thread joined)
-  pthread_mutex_lock(&m4); // TODO NODEADLOCK (thread joined)
+  pthread_mutex_lock(&m5); // NODEADLOCK (thread joined)
+  pthread_mutex_lock(&m4); // NODEADLOCK (thread joined)
   if (a)
     x = 3; // NORACE (thread joined)
   else
@@ -27,15 +27,15 @@ int func2(int a) {
 
 void *thread() {
   pthread_mutex_lock(&m1); // NODEADLOCK
-  pthread_mutex_lock(&m2); // TODO NODEADLOCK (common m1)
-  pthread_mutex_lock(&m3); // TODO NODEADLOCK (common m1)
+  pthread_mutex_lock(&m2); // NODEADLOCK (common m1)
+  pthread_mutex_lock(&m3); // NODEADLOCK (common m1)
   x = 1; // NORACE (thread joined)
   pthread_mutex_unlock(&m3);
   pthread_mutex_unlock(&m2);
   pthread_mutex_unlock(&m1);
 
-  pthread_mutex_lock(&m4); // TODO NODEADLOCK (thread joined)
-  pthread_mutex_lock(&m5); // TODO NODEADLOCK (thread joined)
+  pthread_mutex_lock(&m4); // NODEADLOCK (thread joined)
+  pthread_mutex_lock(&m5); // NODEADLOCK (thread joined)
   x = 2; // RACE!
   pthread_mutex_unlock(&m5);
   pthread_mutex_unlock(&m4);
@@ -49,8 +49,8 @@ int main() {
   pthread_create(&tid, NULL, thread, NULL);
 
   pthread_mutex_lock(&m1); // NODEADLOCK
-  pthread_mutex_lock(&m3); // TODO NODEADLOCK (common m1)
-  pthread_mutex_lock(&m2); // TODO NODEADLOCK (common m1)
+  pthread_mutex_lock(&m3); // NODEADLOCK (common m1)
+  pthread_mutex_lock(&m2); // NODEADLOCK (common m1)
   func1();
   pthread_mutex_unlock(&m2);
   pthread_mutex_unlock(&m3);

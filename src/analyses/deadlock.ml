@@ -25,11 +25,11 @@ struct
   let side_lock_event_pair ctx before after =
     let d =
       if !GU.should_warn then
-        G.singleton (fst after) (MayLockEventPairs.singleton (before, after))
+        G.singleton (Tuple3.first after) (MayLockEventPairs.singleton (before, after))
       else
         G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
     in
-    ctx.sideg (fst before) d
+    ctx.sideg (Tuple3.first before) d
 
 
   (* Some required states *)
@@ -37,16 +37,19 @@ struct
   let threadenter ctx lval f args = [D.empty ()]
   let exitstate  _ : D.t = D.empty ()
 
+  let part_access ctx: MCPAccess.A.t =
+    Obj.obj (ctx.ask (PartAccess {exp=MyCFG.unknown_exp; var_opt=None; write=false}))
+
   let event ctx (e: Events.t) octx =
     match e with
     | Lock addr ->
-      let after = (addr, ctx.prev_node) in
+      let after = (addr, ctx.prev_node, part_access octx) in (* use octx for access to use locksets before event *)
       D.iter (fun before ->
           side_lock_event_pair ctx before after
         ) ctx.local;
       D.add after ctx.local
     | Unlock addr ->
-      let inLockAddrs (e, _) = Lock.equal addr e in
+      let inLockAddrs (e, _, _) = Lock.equal addr e in
       D.filter (neg inLockAddrs) ctx.local
     | _ ->
       ctx.local
@@ -68,23 +71,31 @@ struct
           let path_visited_lock_event_pairs =
             (* path_visited_lock_event_pairs cannot be empty *)
             List.hd path_visited_lock_event_pairs ::
-            List.take_while (fun (_, (after_lock, _)) ->
+            List.take_while (fun (_, (after_lock, _, _)) ->
                 not (Lock.equal after_lock lock)
               ) (List.tl path_visited_lock_event_pairs)
           in
-          (* normalize path_visited_lock_event_pairs such that we don't get the same cycle multiple times, starting from different events *)
-          let min = List.min ~cmp:LockEventPair.compare path_visited_lock_event_pairs in
-          let (mini, _) = List.findi (fun i x -> LockEventPair.equal min x) path_visited_lock_event_pairs in
-          let (init, tail) = List.split_at mini path_visited_lock_event_pairs in
-          let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
-          let msgs = List.concat_map (fun ((before_lock, before_node), (after_lock, after_node)) ->
-              [
-                (Pretty.dprintf "lock before: %a" Lock.pretty before_lock, Some (UpdateCil.getLoc before_node));
-                (Pretty.dprintf "lock after: %a" Lock.pretty after_lock, Some (UpdateCil.getLoc after_node));
-              ]
-            ) normalized
+          let mhp =
+            Enum.cartesian_product (List.enum path_visited_lock_event_pairs) (List.enum path_visited_lock_event_pairs)
+            |> Enum.for_all (fun (((_, (_, _, access1)) as p1), ((_, (_, _, access2)) as p2)) ->
+                LockEventPair.equal p1 p2 || MCPAccess.A.may_race access1 access2
+              )
           in
-          M.msg_group Warning ~category:Deadlock "Locking order cycle" msgs
+          if mhp then (
+            (* normalize path_visited_lock_event_pairs such that we don't get the same cycle multiple times, starting from different events *)
+            let min = List.min ~cmp:LockEventPair.compare path_visited_lock_event_pairs in
+            let (mini, _) = List.findi (fun i x -> LockEventPair.equal min x) path_visited_lock_event_pairs in
+            let (init, tail) = List.split_at mini path_visited_lock_event_pairs in
+            let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
+            let msgs = List.concat_map (fun ((before_lock, before_node, _), (after_lock, after_node, _)) ->
+                [
+                  (Pretty.dprintf "lock before: %a" Lock.pretty before_lock, Some (UpdateCil.getLoc before_node));
+                  (Pretty.dprintf "lock after: %a" Lock.pretty after_lock, Some (UpdateCil.getLoc after_node));
+                ]
+              ) normalized
+            in
+            M.msg_group Warning ~category:Deadlock "Locking order cycle" msgs
+          )
         )
         else if not (LH.mem global_visited_locks lock) then begin
           LH.replace global_visited_locks lock ();

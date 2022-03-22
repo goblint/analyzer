@@ -219,7 +219,10 @@ struct
     let should_print lp = not (is_empty lp)
   end
   let access ctx e vo w =
-    add_per_element_access ctx e false
+    if e = MyCFG.unknown_exp then
+      A.empty ()
+    else
+      add_per_element_access ctx e false
 end
 
 let _ =

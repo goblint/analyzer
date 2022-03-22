@@ -9,8 +9,8 @@ pthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t1(void *arg) {
   pthread_mutex_lock(&mutex3); // NODEADLOCK
-  pthread_mutex_lock(&mutex1); // TODO NODEADLOCK (common mutex3)
-  pthread_mutex_lock(&mutex2); // TODO NODEADLOCK (common mutex3)
+  pthread_mutex_lock(&mutex1); // NODEADLOCK (common mutex3)
+  pthread_mutex_lock(&mutex2); // NODEADLOCK (common mutex3)
   g1 = g2 + 1;
   pthread_mutex_unlock(&mutex2);
   pthread_mutex_unlock(&mutex1);
@@ -19,8 +19,8 @@ void *t1(void *arg) {
 
 void *t2(void *arg) {
   pthread_mutex_lock(&mutex3); // NODEADLOCK
-  pthread_mutex_lock(&mutex2); // TODO NODEADLOCK (common mutex3)
-  pthread_mutex_lock(&mutex1); // TODO NODEADLOCK (common mutex3)
+  pthread_mutex_lock(&mutex2); // NODEADLOCK (common mutex3)
+  pthread_mutex_lock(&mutex1); // NODEADLOCK (common mutex3)
   g2 = g1 + 1;
   pthread_mutex_unlock(&mutex1);
   pthread_mutex_unlock(&mutex2);
