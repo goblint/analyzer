@@ -260,7 +260,11 @@ struct
          let vinfo = List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) in
          match vinfo with
          | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
-         | None -> raise (Invalid_argument "cannot convert "))
+         | None ->
+           let g = List.find_map_opt (function GVar(v,_,_) when v.vname = vname -> Some v | _ -> None) !Cilfacade.current_file.globals in
+           match g with
+           | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
+           | None -> M.warn "cannot convert to cil var: %s"  vname; raise (Invalid_argument "cannot convert "))
       | Unop(Neg, exp, _,_) ->
         let e, typ = cil_exp_of_expr exp in
         UnOp(Neg, e, typ), typ
