@@ -218,10 +218,11 @@ struct
     let may_race lp lp2 = is_empty @@ inter lp lp2
     let should_print lp = not (is_empty lp)
   end
-  let access ctx e vo w =
-    if e = MyCFG.unknown_exp then
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point ->
       A.empty ()
-    else
+    | Memory {exp = e; _} ->
       add_per_element_access ctx e false
 end
 

@@ -69,10 +69,11 @@ struct
       | Some r when Lvals.is_empty r -> false
       | _ -> true
   end
-  let access ctx e vo w =
-    if e = MyCFG.unknown_exp then
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point ->
       Some (Lvals.empty ())
-    else (
+    | Memory {exp = e; _} ->
       (* TODO: remove regions that cannot be reached from the var*)
       let rec unknown_index = function
         | `NoOffset -> `NoOffset
@@ -80,7 +81,6 @@ struct
         | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
       in
       Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
-    )
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

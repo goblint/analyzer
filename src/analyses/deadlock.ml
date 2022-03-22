@@ -38,7 +38,7 @@ struct
   let exitstate  _ : D.t = D.empty ()
 
   let part_access ctx: MCPAccess.A.t =
-    Obj.obj (ctx.ask (PartAccess {exp=MyCFG.unknown_exp; var_opt=None; write=false}))
+    Obj.obj (ctx.ask (PartAccess Point))
 
   let event ctx (e: Events.t) octx =
     match e with
