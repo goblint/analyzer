@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.interval --set ana.specification ./tests/sv-comp/unreach-call-__VERIFIER_error.prp
+//PARAM: --enable ana.int.interval
 #include<stdlib.h>
 
 static long sound_ioctl(unsigned int cmd , unsigned long arg )
