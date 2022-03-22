@@ -33,6 +33,7 @@ module EvalAssert = struct
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
     val full = GobConfig.get_bool "trans.assert.full"
+    val only_at_locks = GobConfig.get_bool "trans.assert.only-at-locks"
 
     method! vfunc f =
       locals := !locals @ f.slocals;
@@ -52,6 +53,15 @@ module EvalAssert = struct
       | _ -> DoChildren
 
     method! vstmt s =
+      let is_lock exp args =
+        match exp with
+        | Lval(Var v,_) ->
+          (match LibraryFunctions.classify v.vname args with
+           | `Lock _ -> true
+           | _ -> false)
+        | _ -> false
+      in
+
       let make_assert loc lval =
         try
           let context: Invariant.context = {
@@ -79,29 +89,33 @@ module EvalAssert = struct
           Not_found -> []
       in
 
-      let rec instrument_instructions il s = match il with
-        | i1 :: i2 :: is ->
-          begin
-            match i1 with
-            | Set (lval, _, _, _)
-            | Call (Some lval, _, _, _, _) ->
-              let a = if full then (make_assert (get_instrLoc i2) None) else (make_assert (get_instrLoc i2) (Some lval)) in
-              [i1] @ a @ instrument_instructions (i2 :: is) s
-            | _ -> i1 :: instrument_instructions (i2 :: is) s
-          end
-        | [i] ->
-          if List.length s.succs > 0 && (List.hd s.succs).preds |> List.length < 2 then begin
-            (* If the successor of this has more than one predecessor, it is a join point, and we can not query for the value there *)
+      let rec instrument_instructions il s =
+        (* Does this statement have a successor that has only on predecessor? *)
+        let unique_succ = List.length s.succs > 0 && (List.hd s.succs).preds |> List.length < 2 in
+        let instrument i loc =
+          let instrument' lval =
+            let lval_arg = if full || only_at_locks then None else lval in
+            make_assert loc lval_arg
+          in
+          match i with
+          | Set  (lval, _, _, _) when not only_at_locks -> instrument' (Some lval)
+          | Call (lval, _, _, _, _) when not only_at_locks -> instrument' lval
+          | Call (_, exp, args, _, _) when is_lock exp args -> instrument' None
+          | _ -> []
+        in
+        let rec instrument_instructions = function
+          | i1 :: ((i2 :: _) as is) ->
+            (* List contains successor statement, use location of successor for values *)
+            let loc = get_instrLoc i2 in
+            i1 :: ((instrument i1 loc) @ instrument_instructions is)
+          | [i] when unique_succ ->
+            (* Last statement in list *)
+            (* Successor of has only one predecessor we can not query for the value there *)
             let loc = get_stmtLoc (List.hd s.succs).skind in
-            match i with
-            | Set (lval, _, _, _)
-            | Call (Some lval, _, _, _, _) ->
-              let a = if full then make_assert loc None else make_assert loc (Some lval) in
-              [i] @ a
-            | _ -> [i]
-          end
-          else [i]
-        | _ -> []
+            i :: (instrument i loc)
+          | x -> x
+        in
+        instrument_instructions il
       in
 
       let rec get_vars e =
