@@ -32,17 +32,20 @@ struct
   (* pair Addr and RW; also change pretty printing*)
   module Lock =
   struct
-    module  L = Printable.Prod (Addr) (RW)
-    include L
+    include Printable.Prod (Addr) (RW)
 
-    let show (a,write) =
-      let addr_str = Addr.show a in
+    let pretty () (a, write) =
       if write then
-        addr_str
+        Addr.pretty () a
       else
-        "read lock " ^ addr_str
+        Pretty.dprintf "read lock %a" Addr.pretty a
 
-    let pretty () x = text (show x)
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
   end
 
   (* TODO: use SetDomain.Reverse *)
@@ -90,6 +93,9 @@ struct
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in
     fold f ls (Mutexes.empty ())
+
+  let import_locks ls write =
+    Mutexes.fold (fun x acc -> add (x, write) acc) ls (empty ())
 end
 
 module MayLockset =

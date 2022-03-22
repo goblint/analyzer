@@ -155,20 +155,27 @@ struct
 
   module A =
   struct
-    include D
+    include Printable.Prod (Mutexes) (Mutexes) (* exclusive locks (normal, writer); non-exclusive locks (reader) *)
     let name () = "lock"
-    let may_race ls1 ls2 =
-      is_empty (join ls1 ls2) (* D is reversed, so join is intersect *)
-    let should_print ls = not (is_empty ls)
+    let may_race (ws1, rs1) (ws2, rs2) =
+      Mutexes.is_empty (Mutexes.inter ws1 ws2) && Mutexes.is_empty (Mutexes.inter ws1 rs2) && Mutexes.is_empty (Mutexes.inter rs1 ws2)
+    let should_print (ws, rs) = not (Mutexes.is_empty ws) || not (Mutexes.is_empty rs)
+
+    let pretty () (ws, rs) =
+      let ls = Lockset.meet (Lockset.import_locks ws true) (Lockset.import_locks rs false) in
+      Lockset.pretty () ls
+
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
   end
 
   let access ctx e vo w =
-    if w then
-      (* when writing: ignore reader locks *)
-      Lockset.filter snd ctx.local
-    else
-      (* when reading: bump reader locks to exclusive as they protect reads *)
-      Lockset.map (fun (x,_) -> (x,true)) ctx.local
+    let (writers, readers) = Lockset.ReverseAddrSet.partition snd ctx.local in
+    (Lockset.export_locks writers, Lockset.export_locks readers)
 
   (** Transfer functions: *)
 
