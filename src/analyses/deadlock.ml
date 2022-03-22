@@ -95,4 +95,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["mutex"] (module Spec : MCPSpec)
