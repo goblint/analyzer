@@ -29,6 +29,14 @@ struct
   include Var
 
   let equal x y = Var.compare x y = 0
+
+  let to_cil_varinfo v =
+    let fundec = Option.map_default Node.find_fundec !EvalAssert.currentFundec !MyCFG.current_node in
+    let vname = to_string v in
+    let vinfo = List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) in
+    let ginfo () = List.find_map_opt (function GVar(v,_,_) when v.vname = vname -> Some v | _ -> None) !Cilfacade.current_file.globals in
+    Option.map_default (Option.some) (ginfo ()) vinfo
+
 end
 
 module type Manager =
@@ -255,16 +263,9 @@ struct
         let i = Option.get @@ int_of_scalar ~round:`Floor s in (*TODO: which way should one round? *)
         Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
       | Var v ->
-        (let fundec = Option.map_default Node.find_fundec !EvalAssert.currentFundec !MyCFG.current_node in
-         let vname = Var.to_string v in
-         let vinfo = List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) in
-         match vinfo with
+        (match Var.to_cil_varinfo v with
          | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
-         | None ->
-           let g = List.find_map_opt (function GVar(v,_,_) when v.vname = vname -> Some v | _ -> None) !Cilfacade.current_file.globals in
-           match g with
-           | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
-           | None -> M.warn "cannot convert to cil var: %s"  vname; raise (Invalid_argument "cannot convert "))
+         | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise (Invalid_argument "cannot convert "))
       | Unop(Neg, exp, _,_) ->
         let e, typ = cil_exp_of_expr exp in
         UnOp(Neg, e, typ), typ
