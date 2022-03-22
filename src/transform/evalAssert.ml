@@ -128,7 +128,7 @@ module EvalAssert = struct
 
       let instrument_join s =
         match s.preds with
-        | [p1; p2] ->
+        | [p1; p2] when not only_at_locks ->
           (* exactly two predecessors -> join point, assert locals if they changed *)
           let join_loc = get_stmtLoc s.skind in
           (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if trans.assert.full is false *)
