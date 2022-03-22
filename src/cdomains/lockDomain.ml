@@ -89,6 +89,8 @@ struct
   let filter = ReverseAddrSet.filter
   let fold = ReverseAddrSet.fold
   let singleton = ReverseAddrSet.singleton
+  let mem = ReverseAddrSet.mem
+  let exists = ReverseAddrSet.exists
 
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in

@@ -159,13 +159,13 @@ struct
     let name () = "lock"
     let may_race ls1 ls2 =
       (* not mutually exclusive *)
-      not @@ D.ReverseAddrSet.exists (fun ((m1, w1) as l1) ->
+      not @@ D.exists (fun ((m1, w1) as l1) ->
           if w1 then
             (* write lock is exclusive with write lock or read lock *)
-            D.ReverseAddrSet.mem l1 ls2 || D.ReverseAddrSet.mem (m1, false) ls2
+            D.mem l1 ls2 || D.mem (m1, false) ls2
           else
             (* read lock is exclusive with just write lock *)
-            D.ReverseAddrSet.mem (m1, true) ls2
+            D.mem (m1, true) ls2
         ) ls1
     let should_print ls = not (is_empty ls)
   end
