@@ -87,10 +87,10 @@ struct
             let (mini, _) = List.findi (fun i x -> LockEventPair.equal min x) path_visited_lock_event_pairs in
             let (init, tail) = List.split_at mini path_visited_lock_event_pairs in
             let normalized = List.rev_append init (List.rev tail) in (* backwards to get correct printout order *)
-            let msgs = List.concat_map (fun ((before_lock, before_node, _), (after_lock, after_node, _)) ->
+            let msgs = List.concat_map (fun ((before_lock, before_node, before_access), (after_lock, after_node, after_access)) ->
                 [
-                  (Pretty.dprintf "lock before: %a" Lock.pretty before_lock, Some (UpdateCil.getLoc before_node));
-                  (Pretty.dprintf "lock after: %a" Lock.pretty after_lock, Some (UpdateCil.getLoc after_node));
+                  (Pretty.dprintf "lock before: %a with %a" Lock.pretty before_lock MCPAccess.A.pretty before_access, Some (UpdateCil.getLoc before_node));
+                  (Pretty.dprintf "lock after: %a with %a" Lock.pretty after_lock MCPAccess.A.pretty after_access, Some (UpdateCil.getLoc after_node));
                 ]
               ) normalized
             in
