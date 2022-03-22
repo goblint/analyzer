@@ -93,9 +93,6 @@ struct
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in
     fold f ls (Mutexes.empty ())
-
-  let import_locks ls write =
-    Mutexes.fold (fun x acc -> add (x, write) acc) ls (empty ())
 end
 
 module MayLockset =
