@@ -30,13 +30,14 @@ struct
 
   let equal x y = Var.compare x y = 0
 
+  (* TODO: This is a mess, there should be a better way! *)
   let to_cil_varinfo v =
     let fundec = Option.map_default Node.find_fundec !EvalAssert.currentFundec !MyCFG.current_node in
     let vname = to_string v in
+    (* This works because CIL ensures that no local and global have the same name *)
     let vinfo = List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) in
     let ginfo () = List.find_map_opt (function GVar(v,_,_) when v.vname = vname -> Some v | _ -> None) !Cilfacade.current_file.globals in
     Option.map_default (Option.some) (ginfo ()) vinfo
-
 end
 
 module type Manager =
