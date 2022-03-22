@@ -1,4 +1,4 @@
-//SKIP! PARAM: --set ana.activated "['mallocWrapper','base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']" --set ana.base.privatization protection-old --set ana.osek.oil 17-multicore.oil --set ana.osek.taskprefix function_of_ --set ana.osek.isrprefix function_of_
+//SKIP! PARAM: --set ana.activated "['mallocWrapper','base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set']" --set ana.osek.oil 17-multicore.oil --set ana.osek.taskprefix function_of_ --set ana.osek.isrprefix function_of_
 
 int x = 0;
 int y;
