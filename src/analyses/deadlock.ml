@@ -8,7 +8,7 @@ let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 
 module Spec =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   let name () = "deadlock"
 
@@ -44,69 +44,19 @@ struct
   (* Some required states *)
   let startstate _ : D.t = D.empty ()
   let threadenter ctx lval f args = [D.empty ()]
-  let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  _ : D.t = D.empty ()
 
-  (* ======== Transfer functions ======== *)
-  (* Called for assignments, branches, ... *)
-
-  (* Assignment lval <- exp *)
-  let assign ctx (lval:lval) (rval:exp) : D.t =
-    ctx.local
-
-  (* Branch *)
-  let branch ctx (exp:exp) (tv:bool) : D.t =
-    ctx.local
-
-  (* Body of a function starts *)
-  let body ctx (f:fundec) : D.t =
-    ctx.local
-
-  (* Returns from a function *)
-  let return ctx (exp:exp option) (f:fundec) : D.t =
-    ctx.local
-
-  (* Calls/Enters a function *)
-  let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    [D.bot (),ctx.local]
-
-  (* Leaves a function *)
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    au
-
-  (* Helper function to convert query-offsets to valuedomain-offsets *)
-  let rec conv_offset x =
-    match x with
-    | `NoOffset    -> `NoOffset
-    | `Index (Const (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_offset o)
-    | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
-    | `Field (f,o) -> `Field (f, conv_offset o)
-
-  (* Query the value (of the locking argument) to a list of locks. *)
-  let eval_exp_addr (a: Queries.ask) exp =
-    let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
-    match a.f (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | b -> Messages.warn "Could not evaluate '%a' to an points-to set, instead got '%a'." d_exp exp Queries.LS.pretty b; []
-
-  (* Called when calling a special/unknown function *)
-  let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    if D.is_top ctx.local then ctx.local else
-      match LibraryFunctions.classify f.vname arglist with
-      | `Lock (_, _, _) ->
-        List.fold_left (fun d lockAddr ->
-          addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-          D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
-        ) ctx.local (eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist))
-      | `Unlock ->
-        let lockAddrs = eval_exp_addr (Analyses.ask_of_ctx ctx) (List.hd arglist) in
-        if List.compare_length_with lockAddrs 1 = 0 then
-          let inLockAddrs e = List.exists (fun r -> ValueDomain.Addr.equal r e.addr) lockAddrs in
-          D.filter (neg inLockAddrs) ctx.local
-        else ctx.local
-      | _ -> ctx.local
-
+  let event ctx e octx =
+    match e with
+    | Events.Lock2 l ->
+      let lockAddr = fst l in
+      addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
+      D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
+    | Events.Unlock2 l ->
+      let inLockAddrs e = ValueDomain.Addr.equal (fst l) e.addr in
+      D.filter (neg inLockAddrs) ctx.local
+    | _ ->
+      ctx.local
 end
 
 let _ =
