@@ -268,9 +268,6 @@ struct
           Result.meet a @@ S.query ctx' q
         in
         match q with
-        | Queries.Invariant context ->
-          let e = D.invariant context ctx.local in
-          BatOption.map_default (Queries.ES.singleton) (Queries.ES.top ()) e
         | Queries.PrintFullState ->
           ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
           ()
