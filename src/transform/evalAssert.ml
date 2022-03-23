@@ -157,9 +157,7 @@ module EvalAssert = struct
             else
               ()
           in
-
-          add_asserts b1;
-          add_asserts b2;
+          if not only_at_locks then (add_asserts b1; add_asserts b2);
           s
         | _ -> s
       in
