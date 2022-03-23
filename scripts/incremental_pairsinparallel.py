@@ -31,7 +31,7 @@ url = 'https://github.com/facebook/zstd'
 repo_name = 'zstd'
 conf = "big-benchmarks1"
 build_script = 'build_compdb_zstd.sh'
-begin = datetime(2021,1,1)
+begin = datetime(2021,2,1)
 
 # calculate number of interesting commits
 num_commits = sum(1 for _ in Repository(url, since=begin, only_no_merge=True).traverse_commits())

@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 # Executing the script will overwrite the directory 'out' in the cwd.
 # The script for building the compilation database is assumed to be found in the analyzers script directory and the
 # config file is assumed to be found in the conf directory of the analyzers repository.
-maxCLOC       = None
+maxCLOC       = 50
 analyzer_dir  = sys.argv[1]
 url           = sys.argv[2]
 repo_name     = sys.argv[3]

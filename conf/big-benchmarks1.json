@@ -35,7 +35,7 @@
     "print_dead_code": true
   },
   "pre": {
-    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH", "-D__LINE__=0"]
   },
   "printstats": true,
   "warn": {
