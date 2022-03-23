@@ -23,7 +23,7 @@ end
 (** Mutex analyzer without base --- this is the new standard *)
 module MakeSpec (P: SpecParam) =
 struct
-  include Analyses.DefaultSpec
+  include Analyses.IdentitySpec
 
   (** name for the analysis (btw, it's "Only Mutex Must") *)
   let name () = "mutex"
@@ -111,33 +111,6 @@ struct
     else
       (* when reading: bump reader locks to exclusive as they protect reads *)
       Lockset.map (fun (x,_) -> (x,true)) ctx.local
-
-  (** Transfer functions: *)
-
-  let assign ctx lval rval : D.t =
-    ctx.local
-
-  let branch ctx exp tv : D.t =
-    ctx.local
-
-  let return ctx exp fundec : D.t =
-    ctx.local
-
-  let body ctx f : D.t =
-    ctx.local
-
-  let special ctx lv f arglist : D.t =
-    ctx.local
-
-  let enter ctx lv f args : (D.t * D.t) list =
-    [(ctx.local,ctx.local)]
-
-  let combine ctx lv fexp f args fc al =
-    al
-
-
-  let threadspawn ctx lval f args fctx =
-    ctx.local
 
   let event ctx e octx =
     match e with
