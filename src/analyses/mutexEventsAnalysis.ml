@@ -62,13 +62,13 @@ struct
             ls
           else (
             (* If the lockset did not change, do not emit Lock event *)
-            if changed then ctx.emit (Events.Lock e);
+            if changed then ctx.emit (Events.Lock2 (e, rw));
             nls
           )
         | Some lv ->
           let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
           if changed then
-            ctx.split nls [sb; Events.Lock e]
+            ctx.split nls [sb; Events.Lock2 (e, rw)]
           else
             ctx.split nls [sb];
           if may_fail then (
@@ -92,7 +92,7 @@ struct
   let return ctx exp fundec : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then (
-      ctx.emit (Events.Unlock verifier_atomic);
+      ctx.emit (Events.Unlock2 (verifier_atomic, true));
       (* Lockset.remove (verifier_atomic, true) ctx.local *)
       ctx.local
     )
@@ -102,7 +102,7 @@ struct
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then (
-      ctx.emit (Events.Lock verifier_atomic);
+      ctx.emit (Events.Lock2 (verifier_atomic, true));
       (* Lockset.add (verifier_atomic, true) ctx.local *)
       ctx.local
     )
@@ -111,7 +111,8 @@ struct
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
     let remove_rw x st =
-      ctx.emit (Events.Unlock x);
+      ctx.emit (Events.Unlock2 (x, true));
+      ctx.emit (Events.Unlock2 (x, false));
       (* Lockset.remove (x,true) (Lockset.remove (x,false) st) *)
       st
     in
@@ -133,11 +134,11 @@ struct
     in
     match (LF.classify f.vname arglist, f.vname) with
     | _, "_lock_kernel" ->
-      ctx.emit (Events.Lock big_kernel_lock);
+      ctx.emit (Events.Lock2 (big_kernel_lock, true));
       (* Lockset.add (big_kernel_lock,true) ctx.local *)
       ctx.local
     | _, "_unlock_kernel" ->
-      ctx.emit (Events.Unlock big_kernel_lock);
+      ctx.emit (Events.Unlock2 (big_kernel_lock, true));
       (* Lockset.remove (big_kernel_lock,true) ctx.local *)
       ctx.local
     | `Lock (failing, rw, nonzero_return_when_aquired), _
@@ -164,21 +165,21 @@ struct
       unlock remove_rw
     | _, "spinlock_check" -> ctx.local
     | _, "acquire_console_sem" when get_bool "kernel" ->
-      ctx.emit (Events.Lock console_sem);
+      ctx.emit (Events.Lock2 (console_sem, true));
       (* Lockset.add (console_sem,true) ctx.local *)
       ctx.local
     | _, "release_console_sem" when get_bool "kernel" ->
-      ctx.emit (Events.Unlock console_sem);
+      ctx.emit (Events.Unlock2 (console_sem, true));
       (* Lockset.remove (console_sem,true) ctx.local *)
       ctx.local
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ctx.local
     | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
-      ctx.emit (Events.Lock verifier_atomic);
+      ctx.emit (Events.Lock2 (verifier_atomic, true));
       (* Lockset.add (verifier_atomic, true) ctx.local *)
       ctx.local
     | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
-      ctx.emit (Events.Unlock verifier_atomic);
+      ctx.emit (Events.Unlock2 (verifier_atomic, true));
       (* Lockset.remove (verifier_atomic, true) ctx.local *)
       ctx.local
     | _, "pthread_cond_wait"
@@ -190,7 +191,7 @@ struct
       List.iter (fun m ->
           (* unlock-lock each possible mutex as a split to be dependent *)
           (* otherwise may-point-to {a, b} might unlock a, but relock b *)
-          ctx.split ctx.local [Events.Unlock m; Events.Lock m];
+          ctx.split ctx.local [Events.Unlock2 (m, true); Events.Lock2 (m, true)];
         ) ms;
       raise Deadcode (* splits cover all cases *)
     | _, x ->
