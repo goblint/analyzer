@@ -142,8 +142,30 @@ struct
     | _ ->
       ust
 
+  module A =
+  struct
+    module E = struct
+      include Printable.Either (CilType.Offset) (ValueDomain.Addr)
+
+      let pretty () = function
+        | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
+        | `Right addr -> Pretty.dprintf "i-lock:%a" ValueDomain.Addr.pretty addr
+
+      include Printable.SimplePretty (
+        struct
+          type nonrec t = t
+          let pretty = pretty
+        end
+        )
+    end
+    include SetDomain.Make (E)
+
+    let name () = "symblock"
+    let may_race lp lp2 = is_empty @@ inter lp lp2
+    let should_print lp = not (is_empty lp)
+  end
+
   let add_per_element_access ctx e rw =
-    let module LSSet = OldAccess.LSSet in
     (* Per-element returns a triple of exps, first are the "element" pointers,
        in the second and third positions are the respectively access and mutex.
        Access and mutex expressions have exactly the given "elements" as "prefixes".
@@ -156,9 +178,8 @@ struct
       (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
       match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
       | Some (v, o) ->
-        let l = Pretty.sprint ~width:80 (d_offset (text "*") () o) in
         (* ignore (printf "adding lock %s\n" l); *)
-        LSSet.add ("p-lock",l) xs
+        A.add (`Left o) xs
       | None -> xs
     in
     (* Array lockstep also returns a triple of exps. Second and third elements in
@@ -172,7 +193,7 @@ struct
       match m with
       | AddrOf (Var v,o) ->
         let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
-        LSSet.add ("i-lock",ValueDomain.Addr.show lock) xs
+        A.add (`Right lock) xs
       | _ ->
         Messages.warn "Internal error: found a strange lockstep pattern.";
         xs
@@ -208,16 +229,8 @@ struct
          | _ -> Queries.ES.singleton e)
     in
     Queries.ES.fold do_lockstep matching_exps
-      (Queries.ES.fold do_perel matching_exps (LSSet.empty ()))
+      (Queries.ES.fold do_perel matching_exps (A.empty ()))
 
-  module A =
-  struct
-    (* TODO: non-string symblocks *)
-    include OldAccess.LSSet
-    let name () = "symblock"
-    let may_race lp lp2 = is_empty @@ inter lp lp2
-    let should_print lp = not (is_empty lp)
-  end
   let access ctx e vo w =
     add_per_element_access ctx e false
 end
