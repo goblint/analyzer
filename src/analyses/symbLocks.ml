@@ -99,14 +99,6 @@ struct
     | _ ->
       ctx.local
 
-  module ExpSet = BatSet.Make (Exp)
-  let type_inv_tbl = Hashtbl.create 13
-  let type_inv (c:compinfo) : Lval.CilLval.t list =
-    try [Hashtbl.find type_inv_tbl c,`NoOffset]
-    with Not_found ->
-      let i = Goblintutil.create_var (makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[]))) in
-      Hashtbl.add type_inv_tbl c i;
-      [i, `NoOffset]
 
   let rec conv_const_offset x =
     match x with
@@ -115,32 +107,6 @@ struct
     | Index (Const  (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
-
-  let one_perelem ask (e,a,l) es =
-    (* Type invariant variables. *)
-    let b_comp = Exp.base_compinfo e a in
-    let f es (v,o) =
-      match Exp.fold_offs (Exp.replace_base (v,o) e l) with
-      | Some (v,o) -> ExpSet.add (Lval (Var v,o)) es
-      | None -> es
-    in
-    match b_comp with
-    | Some ci -> List.fold_left f es (type_inv ci)
-    | None -> es
-
-  let one_lockstep (_,a,m) ust =
-    let rec conv_const_offset x =
-      match x with
-      | NoOffset    -> `NoOffset
-      | Index (Const  (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
-      | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
-      | Field (f,o) -> `Field (f, conv_const_offset o)
-    in
-    match m with
-    | AddrOf (Var v,o) ->
-      LockDomain.Lockset.add (ValueDomain.Addr.from_var_offset (v, conv_const_offset o),true) ust
-    | _ ->
-      ust
 
   module A =
   struct
