@@ -248,7 +248,26 @@ struct
     let check_fun = effect_fun
   end
 
-  module M = Mutex.MakeSpec (MyParam)
+  module M =
+  struct
+    include Mutex.MakeSpec (MyParam)
+
+    let extract_lock lock =
+      match lock with
+      | AddrOf (Var varinfo,NoOffset) -> LockDomain.Addr.from_var varinfo
+      | _ -> assert false
+
+    let special ctx lval f args =
+      (* simulate old mutex analysis special by emitting events directly, a la mutexEvents *)
+      begin match f.vname, args with
+        | ("GetResource" | "GetSpinlock"), [lock] ->
+          ctx.emit (Events.Lock2 (extract_lock lock, true))
+        | ("ReleaseResource" | "ReleaseSpinlock"), [lock] ->
+          ctx.emit (Events.Unlock2 (extract_lock lock, true))
+        | _, _ -> ()
+      end;
+      special ctx lval f args
+  end
   module Offs = ValueDomain.Offs
   module Lockset = LockDomain.Lockset
 
@@ -716,20 +735,13 @@ struct
     add_accesses ctx accessed (get_flags ctx.presub) ctx.local;
     ctx.local
 
-  let extract_lock lock =
-    match lock with
-    | AddrOf (Var varinfo,NoOffset) -> LockDomain.Addr.from_var varinfo
-    | _ -> assert false
-
   let body ctx (f:fundec) : D.t =
     if tracing then trace "osek" "Analyzing function %s\n" f.svar.vname;
     let m_st = ctx.local in
     if (is_task f.svar.vname) then begin
       (* print_endline ( (string_of_int !Goblintutil.current_loc.line)  ^ " in " ^ !Goblintutil.current_loc.file); *)
       (* print_endline ( "Looking for " ^ f.svar.vname); *)
-      let lock = get_lock (trim f.svar.vname) in
-      ctx.emit (Events.Lock2 (extract_lock lock, true));
-      M.special (swap_st ctx m_st) None (dummy_get f) [lock]
+      M.special (swap_st ctx m_st) None (dummy_get f) [get_lock (trim f.svar.vname)]
     end else
       m_st
 
@@ -745,9 +757,7 @@ struct
     let fname = f.svar.vname in
     if (is_task fname) then begin
       (* let _ = print_endline ( "Leaving task " ^ f.svar.vname) in *)
-      let lock = get_lock (trim fname) in
-      ctx.emit (Events.Unlock2 (extract_lock lock, true));
-      let x = M.special (swap_st ctx m_st) None (dummy_release f) [lock] in
+      let x = M.special (swap_st ctx m_st) None (dummy_release f) [get_lock (trim fname)] in
       if (get_bool "ana.osek.check") && not(List.mem fname !warned) && not(D.is_empty x) then begin
         warned := fname :: !warned;
         let typ = if (Hashtbl.mem isrs fname) then "Interrupt " else "Task " in
@@ -774,45 +784,19 @@ struct
     match fvname with (* suppress all fails *)
     | "GetResource" | "ReleaseResource" -> if (get_bool "ana.osek.check") then check_api_use 1 fvname (lockset_to_task (proj2_1 (partition ctx.local)));
       M.special ctx lval f (match arglist with
-          | [Lval (Var info,_)] ->
-            let lock = get_lock info.vname in
-            begin if fvname = "GetResource" then
-                ctx.emit (Events.Lock2 (extract_lock lock, true))
-              else
-                ctx.emit (Events.Unlock2 (extract_lock lock, true))
-            end;
-            [lock]
+          | [Lval (Var info,_)] -> [get_lock info.vname]
           | [CastE (_, Const c ) | Const c] ->
             if tracing then trace "osek" "Looking up Resource-ID %a\n" d_const c;
             let name = Hashtbl.find resourceids (Const c) in
-            let lock = get_lock name in
-            begin if fvname = "GetResource" then
-                ctx.emit (Events.Lock2 (extract_lock lock, true))
-              else
-                ctx.emit (Events.Unlock2 (extract_lock lock, true))
-            end;
-            [lock]
+            [get_lock name]
           | x -> x)
     | "GetSpinlock" | "ReleaseSpinlock" ->
       M.special ctx lval f (match arglist with
-          | [Lval (Var info,_)] ->
-            let lock = get_spinlock info.vname in
-            begin if fvname = "GetSpinlock" then
-                ctx.emit (Events.Lock2 (extract_lock lock, true))
-              else
-                ctx.emit (Events.Unlock2 (extract_lock lock, true))
-            end;
-            [lock]
+          | [Lval (Var info,_)] -> [get_spinlock info.vname]
           | [CastE (_, Const c ) | Const c] ->
             if tracing then trace "osek" "Looking up Spinlock-ID %a\n" d_const c;
             let name = Hashtbl.find spinlockids (Const c) in
-            let lock = get_spinlock name in
-            begin if fvname = "GetSpinlock" then
-                ctx.emit (Events.Lock2 (extract_lock lock, true))
-              else
-                ctx.emit (Events.Unlock2 (extract_lock lock, true))
-            end;
-            [lock]
+            [get_spinlock name]
           | x -> x)
     | "DisableAllInterrupts" -> let res = get_lock "DisableAllInterrupts" in
       if get_bool "ana.osek.check" && mem res ctx.local then print_endline "Nested calls of DisableAllInterrupts are not allowed!";
