@@ -14,9 +14,9 @@ type t =
 
 let pretty () = function
   | Lock m -> dprintf "Lock %a" LockDomain.Addr.pretty m
-  | Unlock m -> dprintf "Unock %a" LockDomain.Addr.pretty m
+  | Unlock m -> dprintf "Unlock %a" LockDomain.Addr.pretty m
   | Lock2 m -> dprintf "Lock2 %a" LockDomain.Lockset.Lock.pretty m
-  | Unlock2 m -> dprintf "Unock2 %a" LockDomain.Lockset.Lock.pretty m
+  | Unlock2 m -> dprintf "Unlock2 %a" LockDomain.Lockset.Lock.pretty m
   | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped
   | EnterMultiThreaded -> text "EnterMultiThreaded"
   | SplitBranch (exp, tv) -> dprintf "SplitBranch (%a, %B)" d_exp exp tv
