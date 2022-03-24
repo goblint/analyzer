@@ -2,34 +2,24 @@
 
 open Prelude.Ana
 open Analyses
-open ValueDomain
+
+module Arg =
+struct
+  module D = LockDomain.MayLockset
+
+  let add ctx l =
+    D.add l ctx.local
+
+  let remove ctx l =
+    D.remove (l, true) (D.remove (l, false) ctx.local)
+end
 
 module Spec =
 struct
-  include Analyses.IdentitySpec
-
+  include LocksetAnalysis.MakeMay (Arg)
   let name () = "maylocks"
-  module D = LockDomain.MayLockset
-  module C = LockDomain.MayLockset
 
-  let startstate v = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
-  let exitstate  v = D.top ()
-
-  let event ctx e octx =
-    match e with
-    | Events.Lock l ->
-      D.add l ctx.local
-    | Events.Unlock l when Addr.equal l (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
-      (* unlock nothing *)
-      ctx.local
-    | Events.Unlock Addr (v, _) when ctx.ask (IsMultiple v) ->
-      (* unlock nothing *)
-      ctx.local
-    | Events.Unlock l ->
-      D.remove (l, true) (D.remove (l, false) ctx.local)
-    | _ ->
-      ctx.local
+  let exitstate  v = D.top () (* TODO: why? *)
 end
 
 let _ =

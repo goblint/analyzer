@@ -7,15 +7,9 @@ open ValueDomain
 
 let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 
-module Spec =
+module Arg =
 struct
-  include Analyses.IdentitySpec
-
-  let name () = "deadlock"
-
-  (* The domain for the analysis *)
-  module D = DeadlockDomain.Lockset (* MayLockset *)
-  module C = DeadlockDomain.Lockset
+  module D = DeadlockDomain.Lockset
 
   let addLockingInfo newLock lockList =
     let add_comb a b =
@@ -49,29 +43,20 @@ struct
       ) lockList
     end
 
+  let add ctx l =
+    let lockAddr = fst l in
+    addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
+    D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
 
-  (* Some required states *)
-  let startstate _ : D.t = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
-  let exitstate  _ : D.t = D.empty ()
+  let remove ctx l =
+    let inLockAddrs e = ValueDomain.Addr.equal l e.addr in
+    D.filter (neg inLockAddrs) ctx.local
+end
 
-  let event ctx e octx =
-    match e with
-    | Events.Lock l ->
-      let lockAddr = fst l in
-      addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
-      D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
-    | Events.Unlock l when Addr.equal l (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
-      (* unlock nothing *)
-      ctx.local
-    | Events.Unlock Addr (v, _) when ctx.ask (IsMultiple v) ->
-      (* unlock nothing *)
-      ctx.local
-    | Events.Unlock l ->
-      let inLockAddrs e = ValueDomain.Addr.equal l e.addr in
-      D.filter (neg inLockAddrs) ctx.local
-    | _ ->
-      ctx.local
+module Spec =
+struct
+  include LocksetAnalysis.MakeMay (Arg)
+  let name () = "deadlock"
 end
 
 let _ =
