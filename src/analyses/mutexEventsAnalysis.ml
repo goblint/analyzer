@@ -39,9 +39,14 @@ struct
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a.f (Queries.MayPointTo exp) with
     | a when Queries.LS.is_top a ->
-      [ValueDomain.Addr.from_var_offset (dummyFunDec.svar, `NoOffset)]
+      [Addr.UnknownPtr]
     | a ->
-      Queries.LS.fold gather_addr a []
+      let top_elt = (dummyFunDec.svar, `NoOffset) in
+      let addrs = Queries.LS.fold gather_addr (Queries.LS.remove top_elt a) [] in
+      if Queries.LS.mem top_elt a then
+        Addr.UnknownPtr :: addrs
+      else
+        addrs
 
   let lock ctx rw may_fail nonzero_return_when_aquired a lv arg =
     match lv with

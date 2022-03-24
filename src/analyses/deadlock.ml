@@ -18,9 +18,8 @@ struct
     in
 
     let may_equal l1 l2 = match l1, l2 with
-      | {addr = a; _}, _ when Addr.equal a (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
-        true
-      | _, {addr = a; _} when Addr.equal a (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
+      | {addr = UnknownPtr; _}, _
+      | _, {addr = UnknownPtr; _} ->
         true
       | _, _ -> MyLock.equal l1 l2
     in
