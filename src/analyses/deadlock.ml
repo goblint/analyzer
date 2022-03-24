@@ -3,6 +3,7 @@
 open Prelude.Ana
 open Analyses
 open DeadlockDomain
+open ValueDomain
 
 let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 
@@ -22,10 +23,18 @@ struct
       else forbiddenList := (a,b)::!forbiddenList
     in
 
+    let may_equal l1 l2 = match l1, l2 with
+      | {addr = a; _}, _ when Addr.equal a (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
+        true
+      | _, {addr = a; _} when Addr.equal a (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
+        true
+      | _, _ -> MyLock.equal l1 l2
+    in
+
     (* Check forbidden list *)
     if !Goblintutil.postsolving then begin
       D.iter (fun e -> List.iter (fun (a,b) ->
-          if ((MyLock.equal a e) && (MyLock.equal b newLock)) then (
+          if ((may_equal a e) && (may_equal b newLock)) then (
             Messages.warn "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty e.addr ValueDomain.Addr.pretty newLock.addr CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc CilType.Location.pretty b.loc CilType.Location.pretty a.loc;
             Messages.warn ~loc:a.loc "Deadlock warning: Locking order %a, %a at %a, %a violates order at %a, %a." ValueDomain.Addr.pretty newLock.addr ValueDomain.Addr.pretty e.addr CilType.Location.pretty b.loc CilType.Location.pretty a.loc CilType.Location.pretty e.loc CilType.Location.pretty newLock.loc;
           )
