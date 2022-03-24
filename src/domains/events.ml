@@ -4,7 +4,7 @@ type t =
   | MustLock of LockDomain.Addr.t  (** This is only emitted if the mutex was not previously held *)
   | MustUnlock of LockDomain.Addr.t
   | Lock of LockDomain.Lockset.Lock.t
-  | Unlock of LockDomain.Lockset.Lock.t
+  | Unlock of LockDomain.Addr.t
   | Escape of EscapeDomain.EscapedVars.t
   | EnterMultiThreaded
   | SplitBranch of exp * bool (** Used to simulate old branch-based split. *)
@@ -16,7 +16,7 @@ let pretty () = function
   | MustLock m -> dprintf "MustLock %a" LockDomain.Addr.pretty m
   | MustUnlock m -> dprintf "MustUnlock %a" LockDomain.Addr.pretty m
   | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
-  | Unlock m -> dprintf "Unlock %a" LockDomain.Lockset.Lock.pretty m
+  | Unlock m -> dprintf "Unlock %a" LockDomain.Addr.pretty m
   | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped
   | EnterMultiThreaded -> text "EnterMultiThreaded"
   | SplitBranch (exp, tv) -> dprintf "SplitBranch (%a, %B)" d_exp exp tv

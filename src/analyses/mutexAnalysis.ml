@@ -131,9 +131,8 @@ struct
         ctx.emit (MustLock (fst l));
       nls
     | Events.Unlock l ->
-      if snd l then
-        ctx.emit (MustUnlock (fst l));
-      D.remove l ctx.local
+      ctx.emit (MustUnlock l);
+      D.remove (l, true) (D.remove (l, false) ctx.local)
     | _ ->
       ctx.local
 

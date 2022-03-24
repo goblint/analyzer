@@ -41,7 +41,7 @@ struct
     | Events.Lock l ->
       D.add l ctx.local
     | Events.Unlock l ->
-      D.remove l ctx.local
+      D.remove (l, true) (D.remove (l, false) ctx.local)
     | _ ->
       ctx.local
 end

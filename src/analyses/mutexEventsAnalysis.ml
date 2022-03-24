@@ -78,7 +78,7 @@ struct
   let return ctx exp fundec : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
-      ctx.emit (Events.Unlock (verifier_atomic, true))
+      ctx.emit (Events.Unlock verifier_atomic)
 
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
@@ -87,8 +87,7 @@ struct
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
     let remove_rw x =
-      ctx.emit (Events.Unlock (x, true));
-      ctx.emit (Events.Unlock (x, false))
+      ctx.emit (Events.Unlock x)
     in
     let unlock remove_fn =
       let remove_nonspecial x =
@@ -110,7 +109,7 @@ struct
     | _, "_lock_kernel" ->
       ctx.emit (Events.Lock (big_kernel_lock, true))
     | _, "_unlock_kernel" ->
-      ctx.emit (Events.Unlock (big_kernel_lock, true))
+      ctx.emit (Events.Unlock big_kernel_lock)
     | `Lock (failing, rw, nonzero_return_when_aquired), _
       -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
       (*print_endline @@ "Mutex `Lock "^f.vname;*)
@@ -137,13 +136,13 @@ struct
     | _, "acquire_console_sem" when get_bool "kernel" ->
       ctx.emit (Events.Lock (console_sem, true))
     | _, "release_console_sem" when get_bool "kernel" ->
-      ctx.emit (Events.Unlock (console_sem, true))
+      ctx.emit (Events.Unlock console_sem)
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ()
     | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
       ctx.emit (Events.Lock (verifier_atomic, true))
     | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
-      ctx.emit (Events.Unlock (verifier_atomic, true))
+      ctx.emit (Events.Unlock verifier_atomic)
     | _, "pthread_cond_wait"
     | _, "pthread_cond_timedwait" ->
       (* mutex is unlocked while waiting but relocked when returns *)
@@ -153,7 +152,7 @@ struct
       List.iter (fun m ->
           (* unlock-lock each possible mutex as a split to be dependent *)
           (* otherwise may-point-to {a, b} might unlock a, but relock b *)
-          ctx.split () [Events.Unlock (m, true); Events.Lock (m, true)];
+          ctx.split () [Events.Unlock m; Events.Lock (m, true)];
         ) ms;
       raise Deadcode (* splits cover all cases *)
     | _, x ->

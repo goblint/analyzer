@@ -53,7 +53,7 @@ struct
       addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
       D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
     | Events.Unlock l ->
-      let inLockAddrs e = ValueDomain.Addr.equal (fst l) e.addr in
+      let inLockAddrs e = ValueDomain.Addr.equal l e.addr in
       D.filter (neg inLockAddrs) ctx.local
     | _ ->
       ctx.local

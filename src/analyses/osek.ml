@@ -263,7 +263,7 @@ struct
         | ("GetResource" | "GetSpinlock"), [lock] ->
           ctx.emit (Events.Lock (extract_lock lock, true))
         | ("ReleaseResource" | "ReleaseSpinlock"), [lock] ->
-          ctx.emit (Events.Unlock (extract_lock lock, true))
+          ctx.emit (Events.Unlock (extract_lock lock))
         | _, _ -> ()
       end;
       special ctx lval f args
