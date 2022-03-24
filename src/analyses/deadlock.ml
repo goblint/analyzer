@@ -64,6 +64,9 @@ struct
     | Events.Unlock l when Addr.equal l (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
       (* unlock nothing *)
       ctx.local
+    | Events.Unlock Addr (v, _) when ctx.ask (IsMultiple v) ->
+      (* unlock nothing *)
+      ctx.local
     | Events.Unlock l ->
       let inLockAddrs e = ValueDomain.Addr.equal l e.addr in
       D.filter (neg inLockAddrs) ctx.local

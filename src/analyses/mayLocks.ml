@@ -44,6 +44,9 @@ struct
     | Events.Unlock l when Addr.equal l (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
       (* unlock nothing *)
       ctx.local
+    | Events.Unlock Addr (v, _) when ctx.ask (IsMultiple v) ->
+      (* unlock nothing *)
+      ctx.local
     | Events.Unlock l ->
       D.remove (l, true) (D.remove (l, false) ctx.local)
     | _ ->
