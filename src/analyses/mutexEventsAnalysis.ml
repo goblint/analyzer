@@ -76,24 +76,22 @@ struct
       ctx.emit (Events.Lock (verifier_atomic, true))
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
-    let remove_rw x =
-      ctx.emit (Events.Unlock x)
-    in
+    let remove_rw x = x in
     let unlock remove_fn =
-      let remove_nonspecial x =
+      (* let remove_nonspecial x =
         (* if Lockset.is_top x then x else
            Lockset.filter (fun (v,_) -> match LockDomain.Addr.to_var v with
                | Some v when v.vname.[0] = '{' -> true
                | _ -> false
              ) x *)
         ()
-      in
+      in *)
       match arglist with
       | [arg] ->
-        begin match eval_exp_addr (Analyses.ask_of_ctx ctx) arg with
-          | [] -> remove_nonspecial ctx.local
-          | es -> List.iter remove_fn es
-        end
+        List.iter (fun e ->
+            ctx.split () [Events.Unlock (remove_fn e)]
+          ) (eval_exp_addr (Analyses.ask_of_ctx ctx) arg);
+        raise Analyses.Deadcode
       | _ -> failwith "unlock has multiple arguments"
     in
     match (LF.classify f.vname arglist, f.vname) with
