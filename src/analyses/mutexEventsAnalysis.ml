@@ -42,7 +42,7 @@ struct
       Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
     | _ -> []
 
-  let lock ctx rw may_fail nonzero_return_when_aquired a lv arglist =
+  let lock ctx rw may_fail nonzero_return_when_aquired a lv arg =
     let is_a_blob addr =
       match LockDomain.Addr.to_var addr with
       | Some a -> a.vname.[0] = '('
@@ -64,14 +64,9 @@ struct
           raise Analyses.Deadcode
       end
     in
-    match arglist with
-    | [x] -> begin match  (eval_exp_addr a x) with
-        | [e]  -> lock_one e
-        | _ -> ()
-      end
-    | _ ->
-      (* Lockset.top () *)
-      ()
+    match eval_exp_addr a arg with
+    | [e] -> lock_one e
+    | _ -> ()
 
 
 
@@ -99,21 +94,25 @@ struct
         ()
       in
       match arglist with
-      | x::xs -> begin match  (eval_exp_addr (Analyses.ask_of_ctx ctx) x) with
+      | [arg] ->
+        begin match eval_exp_addr (Analyses.ask_of_ctx ctx) arg with
           | [] -> remove_nonspecial ctx.local
           | es -> List.iter remove_fn es
         end
-      | _ -> ()
+      | _ -> failwith "unlock has multiple arguments"
     in
     match (LF.classify f.vname arglist, f.vname) with
     | _, "_lock_kernel" ->
       ctx.emit (Events.Lock (big_kernel_lock, true))
     | _, "_unlock_kernel" ->
       ctx.emit (Events.Unlock big_kernel_lock)
-    | `Lock (failing, rw, nonzero_return_when_aquired), _
-      -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
-      (*print_endline @@ "Mutex `Lock "^f.vname;*)
-      lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arglist
+    | `Lock (failing, rw, nonzero_return_when_aquired), _ ->
+      begin match arglist with
+        | [arg] ->
+          (*print_endline @@ "Mutex `Lock "^f.vname;*)
+          lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arg
+        | _ -> failwith "lock has multiple arguments"
+      end
     | `Unlock, "__raw_read_unlock"
     | `Unlock, "__raw_write_unlock"  ->
       let drop_raw_lock x =
