@@ -53,10 +53,10 @@ struct
         match lv with
         | None ->
           if not may_fail then
-            ctx.emit (Events.Lock2 (e, rw))
+            ctx.emit (Events.Lock (e, rw))
         | Some lv ->
           let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
-          ctx.split () [sb; Events.Lock2 (e, rw)];
+          ctx.split () [sb; Events.Lock (e, rw)];
           if may_fail then (
             let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
             ctx.split () [Events.SplitBranch (fail_exp, not nonzero_return_when_aquired)]
@@ -78,17 +78,17 @@ struct
   let return ctx exp fundec : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with fundec.svar.vname "__VERIFIER_atomic_" then
-      ctx.emit (Events.Unlock2 (verifier_atomic, true))
+      ctx.emit (Events.Unlock (verifier_atomic, true))
 
   let body ctx f : D.t =
     (* deprecated but still valid SV-COMP convention for atomic block *)
     if get_bool "ana.sv-comp.functions" && String.starts_with f.svar.vname "__VERIFIER_atomic_" then
-      ctx.emit (Events.Lock2 (verifier_atomic, true))
+      ctx.emit (Events.Lock (verifier_atomic, true))
 
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
     let remove_rw x =
-      ctx.emit (Events.Unlock2 (x, true));
-      ctx.emit (Events.Unlock2 (x, false))
+      ctx.emit (Events.Unlock (x, true));
+      ctx.emit (Events.Unlock (x, false))
     in
     let unlock remove_fn =
       let remove_nonspecial x =
@@ -108,9 +108,9 @@ struct
     in
     match (LF.classify f.vname arglist, f.vname) with
     | _, "_lock_kernel" ->
-      ctx.emit (Events.Lock2 (big_kernel_lock, true))
+      ctx.emit (Events.Lock (big_kernel_lock, true))
     | _, "_unlock_kernel" ->
-      ctx.emit (Events.Unlock2 (big_kernel_lock, true))
+      ctx.emit (Events.Unlock (big_kernel_lock, true))
     | `Lock (failing, rw, nonzero_return_when_aquired), _
       -> let arglist = if f.vname = "LAP_Se_WaitSemaphore" then [List.hd arglist] else arglist in
       (*print_endline @@ "Mutex `Lock "^f.vname;*)
@@ -135,15 +135,15 @@ struct
       unlock remove_rw
     | _, "spinlock_check" -> ()
     | _, "acquire_console_sem" when get_bool "kernel" ->
-      ctx.emit (Events.Lock2 (console_sem, true))
+      ctx.emit (Events.Lock (console_sem, true))
     | _, "release_console_sem" when get_bool "kernel" ->
-      ctx.emit (Events.Unlock2 (console_sem, true))
+      ctx.emit (Events.Unlock (console_sem, true))
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ()
     | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
-      ctx.emit (Events.Lock2 (verifier_atomic, true))
+      ctx.emit (Events.Lock (verifier_atomic, true))
     | _, "__VERIFIER_atomic_end" when get_bool "ana.sv-comp.functions" ->
-      ctx.emit (Events.Unlock2 (verifier_atomic, true))
+      ctx.emit (Events.Unlock (verifier_atomic, true))
     | _, "pthread_cond_wait"
     | _, "pthread_cond_timedwait" ->
       (* mutex is unlocked while waiting but relocked when returns *)
@@ -153,7 +153,7 @@ struct
       List.iter (fun m ->
           (* unlock-lock each possible mutex as a split to be dependent *)
           (* otherwise may-point-to {a, b} might unlock a, but relock b *)
-          ctx.split () [Events.Unlock2 (m, true); Events.Lock2 (m, true)];
+          ctx.split () [Events.Unlock (m, true); Events.Lock (m, true)];
         ) ms;
       raise Deadcode (* splits cover all cases *)
     | _, x ->

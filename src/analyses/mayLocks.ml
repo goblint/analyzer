@@ -38,9 +38,9 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Lock2 l ->
+    | Events.Lock l ->
       D.add l ctx.local
-    | Events.Unlock2 l ->
+    | Events.Unlock l ->
       D.remove l ctx.local
     | _ ->
       ctx.local

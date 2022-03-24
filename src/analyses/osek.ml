@@ -261,9 +261,9 @@ struct
       (* simulate old mutex analysis special by emitting events directly, a la mutexEvents *)
       begin match f.vname, args with
         | ("GetResource" | "GetSpinlock"), [lock] ->
-          ctx.emit (Events.Lock2 (extract_lock lock, true))
+          ctx.emit (Events.Lock (extract_lock lock, true))
         | ("ReleaseResource" | "ReleaseSpinlock"), [lock] ->
-          ctx.emit (Events.Unlock2 (extract_lock lock, true))
+          ctx.emit (Events.Unlock (extract_lock lock, true))
         | _, _ -> ()
       end;
       special ctx lval f args

@@ -1,10 +1,10 @@
 open Prelude.Ana
 
 type t =
-  | Lock of LockDomain.Addr.t  (** This is only emitted if the mutex was not previously held *)
-  | Unlock of LockDomain.Addr.t
-  | Lock2 of LockDomain.Lockset.Lock.t
-  | Unlock2 of LockDomain.Lockset.Lock.t
+  | MustLock of LockDomain.Addr.t  (** This is only emitted if the mutex was not previously held *)
+  | MustUnlock of LockDomain.Addr.t
+  | Lock of LockDomain.Lockset.Lock.t
+  | Unlock of LockDomain.Lockset.Lock.t
   | Escape of EscapeDomain.EscapedVars.t
   | EnterMultiThreaded
   | SplitBranch of exp * bool (** Used to simulate old branch-based split. *)
@@ -13,10 +13,10 @@ type t =
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *)
 
 let pretty () = function
-  | Lock m -> dprintf "Lock %a" LockDomain.Addr.pretty m
-  | Unlock m -> dprintf "Unlock %a" LockDomain.Addr.pretty m
-  | Lock2 m -> dprintf "Lock2 %a" LockDomain.Lockset.Lock.pretty m
-  | Unlock2 m -> dprintf "Unlock2 %a" LockDomain.Lockset.Lock.pretty m
+  | MustLock m -> dprintf "MustLock %a" LockDomain.Addr.pretty m
+  | MustUnlock m -> dprintf "MustUnlock %a" LockDomain.Addr.pretty m
+  | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
+  | Unlock m -> dprintf "Unlock %a" LockDomain.Lockset.Lock.pretty m
   | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped
   | EnterMultiThreaded -> text "EnterMultiThreaded"
   | SplitBranch (exp, tv) -> dprintf "SplitBranch (%a, %B)" d_exp exp tv

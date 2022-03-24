@@ -48,11 +48,11 @@ struct
 
   let event ctx e octx =
     match e with
-    | Events.Lock2 l ->
+    | Events.Lock l ->
       let lockAddr = fst l in
       addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
       D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
-    | Events.Unlock2 l ->
+    | Events.Unlock l ->
       let inLockAddrs e = ValueDomain.Addr.equal (fst l) e.addr in
       D.filter (neg inLockAddrs) ctx.local
     | _ ->

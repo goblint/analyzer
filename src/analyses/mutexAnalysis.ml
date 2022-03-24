@@ -125,14 +125,14 @@ struct
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       end;
       ctx.local
-    | Events.Lock2 l ->
+    | Events.Lock l ->
       let nls = D.add l ctx.local in
       if not (D.equal ctx.local nls) then
-        ctx.emit (Lock (fst l));
+        ctx.emit (MustLock (fst l));
       nls
-    | Events.Unlock2 l ->
+    | Events.Unlock l ->
       if snd l then
-        ctx.emit (Unlock (fst l));
+        ctx.emit (MustUnlock (fst l));
       D.remove l ctx.local
     | _ ->
       ctx.local
