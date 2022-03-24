@@ -130,6 +130,12 @@ struct
       if not (D.equal ctx.local nls) then
         ctx.emit (MustLock (fst l));
       nls
+    | Events.Unlock l when Addr.equal l (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
+      (* unlock everything! *)
+      Mutexes.iter (fun m ->
+          ctx.emit (MustUnlock m)
+        ) (D.export_locks ctx.local);
+      D.empty ()
     | Events.Unlock l ->
       ctx.emit (MustUnlock l);
       D.remove (l, true) (D.remove (l, false) ctx.local)
