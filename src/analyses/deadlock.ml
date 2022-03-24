@@ -3,7 +3,6 @@
 open Prelude.Ana
 open Analyses
 open DeadlockDomain
-open ValueDomain
 
 let forbiddenList : ( (myowntypeEntry*myowntypeEntry) list ref) = ref []
 

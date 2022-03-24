@@ -132,7 +132,7 @@ struct
       end;
       ctx.local
     | _ ->
-      event ctx e octx
+      event ctx e octx (* delegate to must lockset analysis *)
 end
 
 module MyParam =

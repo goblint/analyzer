@@ -2,7 +2,6 @@
 
 open Prelude.Ana
 open Analyses
-open ValueDomain
 
 
 module type DS =
@@ -29,7 +28,7 @@ module type MayArg =
 sig
   module D: DS
   val add: (D.t, _, D.t, _) ctx -> LockDomain.Lockset.Lock.t -> D.t
-  val remove: (D.t, _, D.t, _) ctx -> Addr.t -> D.t
+  val remove: (D.t, _, D.t, _) ctx -> ValueDomain.Addr.t -> D.t
 end
 
 module MakeMay (Arg: MayArg) =
