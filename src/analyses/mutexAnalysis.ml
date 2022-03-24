@@ -13,6 +13,28 @@ let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlob
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
 let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType))
 
+module Arg =
+struct
+  module D = Lockset
+
+  let add ctx l =
+    let nls = D.add l ctx.local in
+    if not (D.equal ctx.local nls) then
+      ctx.emit (MustLock (fst l));
+    nls
+
+  let remove ctx l =
+    ctx.emit (MustUnlock l);
+    D.remove (l, true) (D.remove (l, false) ctx.local)
+
+  let remove_all ctx =
+    Mutexes.iter (fun m ->
+        ctx.emit (MustUnlock m)
+      ) (D.export_locks ctx.local);
+    (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
+    D.empty ()
+end
+
 module type SpecParam =
 sig
   module G: Lattice.S
@@ -23,33 +45,21 @@ end
 (** Mutex analyzer without base --- this is the new standard *)
 module MakeSpec (P: SpecParam) =
 struct
-  include Analyses.IdentitySpec
-
-  (** name for the analysis (btw, it's "Only Mutex Must") *)
+  include LocksetAnalysis.MakeMust (Arg)
   let name () = "mutex"
 
-  (** Add current lockset alongside to the base analysis domain. Global data is collected using dirty side-effecting. *)
-  module D = Lockset
-  module C = Lockset
+  module D = Arg.D (* help type checker using explicit constraint *)
+  let should_join x y = D.equal x y
 
-  (** We do not add global state, so just lift from [BS]*)
+  (** Global data is collected using dirty side-effecting. *)
   module G = P.G
   module V = VarinfoV
-
-  let should_join x y = D.equal x y
 
   let rec conv_offset_inv = function
     | `NoOffset -> `NoOffset
     | `Field (f, o) -> `Field (f, conv_offset_inv o)
     (* TODO: better indices handling *)
     | `Index (_, o) -> `Index (MyCFG.unknown_exp, conv_offset_inv o)
-
-
-
-  (** We just lift start state, global and dependency functions: *)
-  let startstate v = Lockset.empty ()
-  let threadenter ctx lval f args = [Lockset.empty ()]
-  let exitstate  v = Lockset.empty ()
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let non_overlapping locks1 locks2 =
@@ -125,24 +135,8 @@ struct
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       end;
       ctx.local
-    | Events.Lock ((Addr (v, _) as a, _) as l) when not (Addr.equal a (Addr.from_var_offset (dummyFunDec.svar, `NoOffset))) && not (ctx.ask (IsMultiple v)) ->
-      let nls = D.add l ctx.local in
-      if not (D.equal ctx.local nls) then
-        ctx.emit (MustLock (fst l));
-      nls
-    | Events.Unlock l when Addr.equal l (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
-      (* unlock everything! *)
-      Mutexes.iter (fun m ->
-          ctx.emit (MustUnlock m)
-        ) (D.export_locks ctx.local);
-      (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
-      D.empty ()
-    | Events.Unlock l ->
-      ctx.emit (MustUnlock l);
-      D.remove (l, true) (D.remove (l, false) ctx.local)
     | _ ->
-      ctx.local
-
+      event ctx e octx
 end
 
 module MyParam =
