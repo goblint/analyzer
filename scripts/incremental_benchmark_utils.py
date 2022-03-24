@@ -149,3 +149,40 @@ def cummulative_distr_plot(result_csv_filename):
     plt.plot(cum_incr_rel, incr_base[:-1], c="green", label="Incremental + Reluctant")
     plt.legend()
     plt.savefig(outfile_incr_vs_incrrel)
+
+def hist_plot(data, step, xlabel, ylabel, outfile, cutoff=None):
+    min = data.min()
+    max = data.max()
+    min = min//step
+    max = max//step + 1
+    bins = np.arange(min*step,(max+1)*step,step)
+
+    if cutoff:
+        fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+        fig.subplots_adjust(hspace=0.05)  # adjust space between axes
+        # plot the same data on both axes
+        ax1.hist(data, bins)
+        ax2.hist(data, bins)
+        # zoom-in / limit the view to different portions of the data
+        ax1.set_ylim(cutoff["outliers_min"], cutoff["outliers_max"])  # outliers only
+        ax2.set_ylim(0, cutoff["bulk_max"])  # most of the data
+        # hide the spines between ax and ax2
+        ax1.spines.bottom.set_visible(False)
+        ax2.spines.top.set_visible(False)
+        ax1.xaxis.tick_top()
+        ax1.tick_params(labeltop=False)  # don't put tick labels at the top
+        ax2.xaxis.tick_bottom()
+        # slanted lines
+        d = .5  # proportion of vertical to horizontal extent of the slanted line
+        kwargs = dict(marker=[(-1, -d), (1, d)], markersize=12,
+                      linestyle="none", color='k', mec='k', mew=1, clip_on=False)
+        ax1.plot([0, 1], [0, 0], transform=ax1.transAxes, **kwargs)
+        ax2.plot([0, 1], [1, 1], transform=ax2.transAxes, **kwargs)
+    else:
+        plt.figure()
+        plt.hist(data, bins)
+
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.tight_layout()
+    plt.savefig(outfile)
