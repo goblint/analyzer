@@ -52,8 +52,10 @@ struct
       if not (is_a_blob e) then begin
         match lv with
         | None ->
-          if not may_fail then
-            ctx.emit (Events.Lock (e, rw))
+          ctx.split () [Events.Lock (e, rw)];
+          if may_fail then
+            ctx.split () [];
+          raise Analyses.Deadcode
         | Some lv ->
           let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
           ctx.split () [sb; Events.Lock (e, rw)];
