@@ -9,10 +9,6 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
-let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
-let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
-let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType))
-
 module Arg =
 struct
   module D = Lockset
@@ -102,7 +98,7 @@ struct
       ls
     | Queries.MustBeAtomic ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
-      Mutexes.mem verifier_atomic held_locks
+      Mutexes.mem MutexEventsAnalysis.verifier_atomic held_locks
     | _ -> Queries.Result.top q
 
   module A =
