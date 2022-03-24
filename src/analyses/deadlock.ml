@@ -61,6 +61,9 @@ struct
       let lockAddr = fst l in
       addLockingInfo {addr = lockAddr; loc = !Tracing.current_loc } ctx.local;
       D.add {addr = lockAddr; loc = !Tracing.current_loc } ctx.local
+    | Events.Unlock l when Addr.equal l (Addr.from_var_offset (dummyFunDec.svar, `NoOffset)) ->
+      (* unlock nothing *)
+      ctx.local
     | Events.Unlock l ->
       let inLockAddrs e = ValueDomain.Addr.equal l e.addr in
       D.filter (neg inLockAddrs) ctx.local
