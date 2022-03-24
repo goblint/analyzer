@@ -43,28 +43,21 @@ struct
     | _ -> []
 
   let lock ctx rw may_fail nonzero_return_when_aquired a lv arg =
-    let is_a_blob addr =
-      match LockDomain.Addr.to_var addr with
-      | Some a -> a.vname.[0] = '('
-      | None -> false
-    in
     let lock_one (e:LockDomain.Addr.t) =
-      if not (is_a_blob e) then begin
-        match lv with
-        | None ->
-          ctx.split () [Events.Lock (e, rw)];
-          if may_fail then
-            ctx.split () [];
-          raise Analyses.Deadcode
-        | Some lv ->
-          let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
-          ctx.split () [sb; Events.Lock (e, rw)];
-          if may_fail then (
-            let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
-            ctx.split () [Events.SplitBranch (fail_exp, not nonzero_return_when_aquired)]
-          );
-          raise Analyses.Deadcode
-      end
+      match lv with
+      | None ->
+        ctx.split () [Events.Lock (e, rw)];
+        if may_fail then
+          ctx.split () [];
+        raise Analyses.Deadcode
+      | Some lv ->
+        let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
+        ctx.split () [sb; Events.Lock (e, rw)];
+        if may_fail then (
+          let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
+          ctx.split () [Events.SplitBranch (fail_exp, not nonzero_return_when_aquired)]
+        );
+        raise Analyses.Deadcode
     in
     match eval_exp_addr a arg with
     | [e] -> lock_one e
