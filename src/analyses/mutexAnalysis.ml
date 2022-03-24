@@ -135,6 +135,7 @@ struct
       Mutexes.iter (fun m ->
           ctx.emit (MustUnlock m)
         ) (D.export_locks ctx.local);
+      (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
       D.empty ()
     | Events.Unlock l ->
       ctx.emit (MustUnlock l);

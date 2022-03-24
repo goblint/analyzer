@@ -78,14 +78,6 @@ struct
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
     let remove_rw x = x in
     let unlock remove_fn =
-      (* let remove_nonspecial x =
-        (* if Lockset.is_top x then x else
-           Lockset.filter (fun (v,_) -> match LockDomain.Addr.to_var v with
-               | Some v when v.vname.[0] = '{' -> true
-               | _ -> false
-             ) x *)
-        ()
-      in *)
       match arglist with
       | [arg] ->
         List.iter (fun e ->
