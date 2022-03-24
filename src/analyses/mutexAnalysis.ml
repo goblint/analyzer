@@ -125,7 +125,7 @@ struct
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       end;
       ctx.local
-    | Events.Lock ((Addr (v, _), _) as l) when not (ctx.ask (IsMultiple v)) ->
+    | Events.Lock ((Addr (v, _) as a, _) as l) when not (Addr.equal a (Addr.from_var_offset (dummyFunDec.svar, `NoOffset))) && not (ctx.ask (IsMultiple v)) ->
       let nls = D.add l ctx.local in
       if not (D.equal ctx.local nls) then
         ctx.emit (MustLock (fst l));

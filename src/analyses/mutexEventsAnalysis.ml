@@ -38,30 +38,30 @@ struct
   let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a.f (Queries.MayPointTo exp) with
-    | a when not (Queries.LS.is_top a) && not (Queries.LS.mem (dummyFunDec.svar,`NoOffset) a) ->
-      Queries.LS.fold gather_addr (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-    | _ -> []
+    | a when Queries.LS.is_top a ->
+      [ValueDomain.Addr.from_var_offset (dummyFunDec.svar, `NoOffset)]
+    | a ->
+      Queries.LS.fold gather_addr a []
 
   let lock ctx rw may_fail nonzero_return_when_aquired a lv arg =
-    let lock_one (e:LockDomain.Addr.t) =
-      match lv with
-      | None ->
-        ctx.split () [Events.Lock (e, rw)];
-        if may_fail then
-          ctx.split () [];
-        raise Analyses.Deadcode
-      | Some lv ->
-        let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
-        ctx.split () [sb; Events.Lock (e, rw)];
-        if may_fail then (
-          let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
-          ctx.split () [Events.SplitBranch (fail_exp, not nonzero_return_when_aquired)]
-        );
-        raise Analyses.Deadcode
-    in
-    match eval_exp_addr a arg with
-    | [e] -> lock_one e
-    | _ -> ()
+    match lv with
+    | None ->
+      List.iter (fun e ->
+          ctx.split () [Events.Lock (e, rw)]
+        ) (eval_exp_addr a arg);
+      if may_fail then
+        ctx.split () [];
+      raise Analyses.Deadcode
+    | Some lv ->
+      let sb = Events.SplitBranch (Lval lv, nonzero_return_when_aquired) in
+      List.iter (fun e ->
+          ctx.split () [sb; Events.Lock (e, rw)];
+        ) (eval_exp_addr a arg);
+      if may_fail then (
+        let fail_exp = if nonzero_return_when_aquired then Lval lv else BinOp(Gt, Lval lv, zero, intType) in
+        ctx.split () [Events.SplitBranch (fail_exp, not nonzero_return_when_aquired)]
+      );
+      raise Analyses.Deadcode
 
 
 
