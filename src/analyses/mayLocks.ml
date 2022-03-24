@@ -47,4 +47,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["mutexEvents"] (module Spec : MCPSpec)
