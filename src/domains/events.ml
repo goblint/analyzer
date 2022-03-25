@@ -1,8 +1,6 @@
 open Prelude.Ana
 
 type t =
-  | MustLock of LockDomain.Addr.t  (** This is only emitted if the mutex was not previously held *)
-  | MustUnlock of LockDomain.Addr.t
   | Lock of LockDomain.Lockset.Lock.t
   | Unlock of LockDomain.Addr.t
   | Escape of EscapeDomain.EscapedVars.t
@@ -13,8 +11,6 @@ type t =
   | Assign of {lval: CilType.Lval.t; exp: CilType.Exp.t} (** Used to simulate old [ctx.assign]. *)
 
 let pretty () = function
-  | MustLock m -> dprintf "MustLock %a" LockDomain.Addr.pretty m
-  | MustUnlock m -> dprintf "MustUnlock %a" LockDomain.Addr.pretty m
   | Lock m -> dprintf "Lock %a" LockDomain.Lockset.Lock.pretty m
   | Unlock m -> dprintf "Unlock %a" LockDomain.Addr.pretty m
   | Escape escaped -> dprintf "Escape %a" EscapeDomain.EscapedVars.pretty escaped

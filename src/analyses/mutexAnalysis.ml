@@ -14,18 +14,16 @@ struct
   module D = Lockset
 
   let add ctx l =
-    let nls = D.add l ctx.local in
-    ctx.emit (MustLock (fst l));
-    nls
+    D.add l ctx.local
 
   let remove ctx l =
-    ctx.emit (MustUnlock l);
     D.remove (l, true) (D.remove (l, false) ctx.local)
 
   let remove_all ctx =
-    Mutexes.iter (fun m ->
+    (* TODO: implement in privatizations? *)
+    (* Mutexes.iter (fun m ->
         ctx.emit (MustUnlock m)
-      ) (D.export_locks ctx.local);
+      ) (D.export_locks ctx.local); *)
     (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
     D.empty ()
 end
