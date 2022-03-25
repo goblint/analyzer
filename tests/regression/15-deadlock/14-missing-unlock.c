@@ -2,12 +2,8 @@
 // TODO: https://github.com/goblint/analyzer/issues/667
 #include <pthread.h>
 
-int x;
 pthread_mutex_t m1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t m2 = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t m3 = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t m4 = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t m5 = PTHREAD_MUTEX_INITIALIZER;
 
 void *thread() {
   pthread_mutex_lock(&m2);
