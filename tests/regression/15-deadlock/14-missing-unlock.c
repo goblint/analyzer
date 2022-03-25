@@ -1,4 +1,5 @@
-// PARAM: --set ana.activated[+] deadlock --set ana.activated[+] threadJoins
+// SKIP PARAM: --set ana.activated[+] deadlock --set ana.activated[+] threadJoins
+// TODO: https://github.com/goblint/analyzer/issues/667
 #include <pthread.h>
 
 int x;
@@ -30,7 +31,7 @@ int main() {
 
   pthread_create(&tid2, NULL, thread, NULL);
   pthread_join(tid2,NULL);
-  pthread_mutex_lock(&m2); //DEADLOCK
+  pthread_mutex_lock(&m2); // TODO DEADLOCK
 
   return 0;
 }
