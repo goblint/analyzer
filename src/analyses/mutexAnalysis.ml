@@ -15,8 +15,7 @@ struct
 
   let add ctx l =
     let nls = D.add l ctx.local in
-    if not (D.equal ctx.local nls) then
-      ctx.emit (MustLock (fst l));
+    ctx.emit (MustLock (fst l));
     nls
 
   let remove ctx l =
