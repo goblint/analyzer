@@ -197,8 +197,12 @@ struct
     Queries.ES.fold do_lockstep matching_exps
       (Queries.ES.fold do_perel matching_exps (A.empty ()))
 
-  let access ctx e vo w =
-    add_per_element_access ctx e false
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point ->
+      A.empty ()
+    | Memory {exp = e; _} ->
+      add_per_element_access ctx e false
 end
 
 let _ =
