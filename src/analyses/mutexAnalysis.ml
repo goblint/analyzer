@@ -87,7 +87,7 @@ struct
         true
       else *)
         G.leq (ctx.global global) held_locks
-    | Queries.CurrentLockset ->
+    | Queries.MustLockset ->
       let held_locks = Lockset.export_locks (Lockset.filter snd ctx.local) in
       let ls = Mutexes.fold (fun addr ls ->
           match Addr.to_var_offset addr with

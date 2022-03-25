@@ -586,7 +586,7 @@ struct
           (*             offpry_flags flagstate v *)
           (*           end *)
         in off > pry
-    | Queries.CurrentLockset -> (* delegate for MinePriv *)
+    | Queries.MustLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
       M.query ctx q
     | _ -> Queries.Result.top q
