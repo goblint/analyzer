@@ -45,6 +45,12 @@ let definitely_not_started (current, created) other =
     else
       not @@ ConcDomain.ThreadSet.exists (ident_or_may_be_created) created
 
+let exists_definitely_not_started_in_joined (current,created) other_joined =
+  if ConcDomain.ThreadSet.is_top other_joined then
+    false
+  else
+    ConcDomain.ThreadSet.exists (definitely_not_started (current,created)) other_joined
+
 (** Must the thread with thread id other be already joined  *)
 let must_be_joined other joined =
   if ConcDomain.ThreadSet.is_top joined then
@@ -63,6 +69,8 @@ let may_happen_in_parallel one two =
     else if definitely_not_started (tid,created) tid2 || definitely_not_started (tid2,created2) tid then
       false
     else if must_be_joined tid2 must_joined || must_be_joined tid must_joined2 then
+      false
+    else if exists_definitely_not_started_in_joined (tid,created) must_joined2 || exists_definitely_not_started_in_joined (tid2,created2) must_joined then
       false
     else
       true
