@@ -2369,13 +2369,13 @@ struct
     match e with
     | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
-      Priv.lock (Analyses.ask_of_ctx octx) (priv_getg octx.global) st addr
+      Priv.lock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.unlock (Analyses.ask_of_ctx octx) (priv_getg octx.global) (priv_sideg octx.sideg) st addr
+      Priv.unlock (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st addr
     | Events.Escape escaped ->
-      Priv.escape (Analyses.ask_of_ctx octx) (priv_getg octx.global) (priv_sideg octx.sideg) st escaped
+      Priv.escape (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st escaped
     | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded (Analyses.ask_of_ctx octx) (priv_getg octx.global) (priv_sideg octx.sideg) st
+      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) (priv_getg ctx.global) (priv_sideg ctx.sideg) st
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
