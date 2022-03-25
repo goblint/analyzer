@@ -25,7 +25,7 @@ jobs:
 
       # rely on cache for now
       - name: Cache opam switch # https://github.com/marketplace/actions/cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: |

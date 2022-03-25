@@ -19,4 +19,35 @@ void main(void) {
     // currently we can't detect this
     N = 42;
   }
+
+  two();
+}
+
+void two() {
+  int X ;
+  int N ;
+  int tmp ;
+
+  X = 0;
+  tmp = rand();
+  N = tmp;
+
+
+  if (N < 0) {
+    N = 0;
+  }
+
+  assert(X <= N);
+
+  while (1) {
+    while_continue: /* CIL Label */ ;
+    if (! (X < N)) {
+      goto while_break;
+    }
+    X ++;
+  }
+  while_break: /* CIL Label */ ;
+
+  assert(X - N == 0);
+  assert(X == N);
 }

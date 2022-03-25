@@ -431,7 +431,7 @@ let check_arguments () =
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
-  if get_string "ana.osek.oil" <> "" && not (get_string "ana.base.privatization" = "protection-vesal" || get_string "ana.base.privatization" = "protection-old") then (set_string "ana.base.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization");
+  if get_string "ana.osek.oil" <> "" && not (get_string "ana.base.privatization" = "protection-vesal" || get_string "ana.base.privatization" = "protection-old") then (set_string "ana.base.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization, setting ana.base.privatization to protection-vesal");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");

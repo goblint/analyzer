@@ -520,40 +520,6 @@ struct
               | Unknown  of (exp * bool)
   type accesses = access list
 
-  let struct_type_inv (v:varinfo) (o:Offs.t) : (varinfo * Offs.t) option =
-    let rec append os = function
-      | `NoOffset    -> os
-      | `Field (f,o) -> `Field (f,append o os)
-      | `Index (i,o) -> `Index (i,append o os)
-    in
-    let replace_struct t (v,o) =
-      begin match t with
-        | TComp (c,_) when c.cstruct ->
-          begin match type_inv c with
-            | [(v,_)] -> (v,`NoOffset)
-            | _   -> (v,o)
-          end
-        | _ -> (v,o)
-      end
-    in
-    let rec get_lv t (v,u) = function
-      | `NoOffset    -> (v,u)
-      | `Field (f,o) -> get_lv f.ftype (replace_struct f.ftype (v, append (`Field (f,`NoOffset)) u)) o
-      | `Index (i,o) ->
-        begin match unrollType t with
-          | TPtr (t,_)     -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
-          | TArray (t,_,_) -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
-          | _ -> raise Not_found
-        end
-    in
-    match Offs.to_offset o with
-    | [o] ->
-      begin try
-          let a,b = (get_lv (v.vtype) (replace_struct v.vtype (v,`NoOffset)) o) in
-          Some (a, Offs.from_offset b)
-        with Not_found -> None end
-    | _ -> None
-
   let add_accesses ctx (accessed: accesses) (flagstate: Flags.t) (ust:D.t) =
     let fl = get_flag ctx.presub in
     if Flag.is_multi fl then
