@@ -1,5 +1,4 @@
 // PARAM: --set ana.activated[+] deadlock --set ana.activated[+] threadJoins
-// From https://arxiv.org/abs/1607.06927
 #include <pthread.h>
 
 int x;
