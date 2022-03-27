@@ -27,14 +27,20 @@ end
 module type MayArg =
 sig
   module D: DS
-  val add: (D.t, _, D.t, _) ctx -> LockDomain.Lockset.Lock.t -> D.t
-  val remove: (D.t, _, D.t, _) ctx -> ValueDomain.Addr.t -> D.t
+  module G: Lattice.S
+  module V: Printable.S
+
+  val add: (D.t, G.t, D.t, V.t) ctx -> LockDomain.Lockset.Lock.t -> D.t
+  val remove: (D.t, G.t, D.t, V.t) ctx -> ValueDomain.Addr.t -> D.t
 end
 
 module MakeMay (Arg: MayArg) =
 struct
   include Make (Arg.D)
   let name () = "mayLockset"
+
+  module G = Arg.G
+  module V = Arg.V
 
   let event ctx e octx =
     match e with
@@ -61,6 +67,9 @@ module MakeMust (Arg: MustArg) =
 struct
   include Make (Arg.D)
   let name () = "mustLockset"
+
+  module G = Arg.G
+  module V = Arg.V
 
   let event ctx e octx =
     match e with

@@ -104,7 +104,7 @@ struct
     let should_print = Option.is_some
   end
 
-  let access ctx e vo w =
+  let access ctx _ =
     if is_unique ctx then
       let tid = fst ctx.local in
       Some tid

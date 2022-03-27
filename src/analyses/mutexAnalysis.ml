@@ -9,24 +9,6 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 
-module Arg =
-struct
-  module D = Lockset
-
-  let add ctx l =
-    D.add l ctx.local
-
-  let remove ctx l =
-    D.remove (l, true) (D.remove (l, false) ctx.local)
-
-  let remove_all ctx =
-    (* TODO: implement in privatizations? *)
-    (* Mutexes.iter (fun m ->
-        ctx.emit (MustUnlock m)
-      ) (D.export_locks ctx.local); *)
-    (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
-    D.empty ()
-end
 
 module type SpecParam =
 sig
@@ -38,6 +20,26 @@ end
 (** Mutex analyzer without base --- this is the new standard *)
 module MakeSpec (P: SpecParam) =
 struct
+  module Arg =
+  struct
+    module D = Lockset
+    module G = P.G
+    module V = VarinfoV
+
+    let add ctx l =
+      D.add l ctx.local
+
+    let remove ctx l =
+      D.remove (l, true) (D.remove (l, false) ctx.local)
+
+    let remove_all ctx =
+      (* TODO: implement in privatizations? *)
+      (* Mutexes.iter (fun m ->
+          ctx.emit (MustUnlock m)
+        ) (D.export_locks ctx.local); *)
+      (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
+      D.empty ()
+  end
   include LocksetAnalysis.MakeMust (Arg)
   let name () = "mutex"
 
@@ -107,11 +109,13 @@ struct
     let should_print ls = not (is_empty ls)
   end
 
-  let access ctx e vo w =
-    if w then
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point
+    | Memory {write = true; _} ->
       (* when writing: ignore reader locks *)
       Lockset.filter snd ctx.local
-    else
+    | Memory _ ->
       (* when reading: bump reader locks to exclusive as they protect reads *)
       Lockset.map (fun (x,_) -> (x,true)) ctx.local
 

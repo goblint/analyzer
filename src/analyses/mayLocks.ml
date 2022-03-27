@@ -6,6 +6,8 @@ open Analyses
 module Arg =
 struct
   module D = LockDomain.MayLockset
+  module G = DefaultSpec.G
+  module V = DefaultSpec.V
 
   let add ctx l =
     D.add l ctx.local

@@ -27,6 +27,7 @@ type category =
   | Behavior of behavior
   | Integer of integer
   | Race
+  | Deadlock
   | Cast of cast
   | Deadcode
   | Unknown
@@ -160,6 +161,7 @@ let should_warn e =
     | Behavior _ -> "behavior"
     | Integer _ -> "integer"
     | Race -> "race"
+    | Deadlock -> "deadlock"
     | Cast _ -> "cast"
     | Deadcode -> "deadcode"
     | Unknown -> "unknown"
@@ -174,6 +176,7 @@ let path_show e =
   | Behavior x -> "Behavior" :: Behavior.path_show x
   | Integer x -> "Integer" :: Integer.path_show x
   | Race -> ["Race"]
+  | Deadlock -> ["Deadlock"]
   | Cast x -> "Cast" :: Cast.path_show x
   | Deadcode -> ["Deadcode"]
   | Unknown -> ["Unknown"]
@@ -197,6 +200,7 @@ let categoryName = function
   | Assert -> "Assert"
 
   | Race -> "Race"
+  | Deadlock -> "Deadlock"
   | Cast x -> "Cast"
   | Deadcode -> "Deadcode"
   | Unknown -> "Unknown"
@@ -218,6 +222,7 @@ let from_string_list (s: string list) =
     | "behavior" -> Behavior.from_string_list t
     | "integer" -> Integer.from_string_list t
     | "race" -> Race
+    | "deadlock" -> Deadlock
     | "cast" -> Cast.from_string_list t
     | "deadcode" -> Deadcode
     | "analyzer" -> Analyzer

@@ -23,10 +23,10 @@ void deposit(bank_account *f, bank_account *t, int ammount) {
     return;
 
   if (f->id < t->id) {
-    pthread_mutex_lock(&f->mutex);
+    pthread_mutex_lock(&f->mutex); // NODEADLOCK
     pthread_mutex_lock(&t->mutex); // NODEADLOCK
   } else {
-    pthread_mutex_lock(&t->mutex);
+    pthread_mutex_lock(&t->mutex); // NODEADLOCK
     pthread_mutex_lock(&f->mutex); // NODEADLOCK
   }
 
