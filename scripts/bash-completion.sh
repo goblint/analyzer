@@ -4,7 +4,7 @@
 #   Run: source ./scripts/bash-completion.sh
 #
 # Permanent usage:
-#   Run: echo "source ./scripts/bash-completion.sh" >> ~/.bash_completion
+#   Run: echo "source $(readlink -f .)/scripts/bash-completion.sh" >> ~/.bash_completion
 
 _goblint ()
 {
