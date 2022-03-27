@@ -59,17 +59,24 @@ let schema_paths (schema: schema): string list =
 let paths = schema_paths schema
 
 let rec element_completions (element: element): (string * string list) list =
+  let default_completion () =
+    match element.default with
+    | Some default ->
+      [("", [Yojson.Safe.to_string (Json_repr.any_to_repr (module Json_repr.Yojson) default)])]
+    | None ->
+      [("", [])]
+  in
   match element.kind with
   | Integer _
   | Number _
   | Monomorphic_array _ ->
-    [("", [])]
+    default_completion ()
   | Boolean ->
     [("", ["false"; "true"])]
   | String string_specs ->
     begin match element.enum with
       | None ->
-        [("", [])]
+        default_completion ()
       | Some enum ->
         let cs = List.map (fun value ->
             match Json_repr.any_to_repr (module Json_repr.Yojson) value with
