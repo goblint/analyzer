@@ -20,6 +20,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.15.0"}
   "apron" {= "v0.9.13"}
+  "arg-complete" {= "~dev"}
   "astring" {= "0.8.5" & with-doc}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
@@ -122,5 +123,9 @@ pin-depends: [
   [
     "ppx_deriving.5.2.1"
     "git+https://github.com/ocaml-ppx/ppx_deriving.git#0a89b619f94cbbfc3b0fb3255ab4fe5bc77d32d6"
+  ]
+  [
+    "arg-complete.~dev"
+    "git+https://github.com/sim642/ocaml-arg-complete.git#db6734111249a31b740f3d91e0dec77ec1c5b2e7"
   ]
 ]
