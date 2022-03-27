@@ -41,10 +41,14 @@ let print_help ch =
 (** [Arg] option specification *)
 let option_spec_list: Arg_complete.speclist =
   let empty _ = [] in
-  let complete_option = Arg_complete.complete_strings Options.paths in
+  let last_complete_option = ref "" in
+  let complete_option s = last_complete_option := s; Arg_complete.complete_strings Options.paths s in
   let complete_option_value option s =
     let completions = List.assoc option Options.completions in
     Arg_complete.complete_strings completions s
+  in
+  let complete_last_option_value s =
+    complete_option_value !last_complete_option s
   in
   let add_string l = let f str = l := str :: !l in Arg_complete.String (f, empty) in
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, empty) in
@@ -85,8 +89,8 @@ let option_spec_list: Arg_complete.speclist =
   ; "-j"                   , Arg_complete.Int (set_int "jobs", empty), ""
   ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", empty), ""
   ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", empty), ""
-  ; "--set"                , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> set_auto !tmp_arg x), empty)], "" (* TODO: complete option values *)
-  ; "--sets"               , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x), empty)], "" (* TODO: complete option values *)
+  ; "--set"                , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> set_auto !tmp_arg x), complete_last_option_value)], ""
+  ; "--sets"               , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x), complete_last_option_value)], ""
   ; "--enable"             , Arg_complete.String ((fun x -> set_bool x true), complete_option), "" (* TODO: complete only bool option *)
   ; "--disable"            , Arg_complete.String ((fun x -> set_bool x false), complete_option), "" (* TODO: complete only bool option *)
   ; "--conf"               , Arg_complete.String (merge_file, empty), ""
