@@ -454,7 +454,7 @@ struct
   let finalize () =
     let file = GobConfig.get_string "exp.apron.prec-dump" in
     if file <> "" then begin
-      store_data file
+      Stats.time "apron,prec-dump" store_data file
     end;
     Priv.finalize ()
 end
