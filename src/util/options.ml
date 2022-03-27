@@ -81,7 +81,7 @@ let rec element_completions (element: element): (string * string list) list =
         let cs = List.map (fun value ->
             match Json_repr.any_to_repr (module Json_repr.Yojson) value with
             | `String value -> value
-            | _ -> failwith "encoding_of_schema_element: string_enum"
+            | _ -> failwith "element_completions: string_enum"
           ) enum
         in
         [("", cs)]
