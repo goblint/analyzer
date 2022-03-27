@@ -40,24 +40,6 @@ let print_help ch =
 
 (** [Arg] option specification *)
 let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
-  let last_complete_option = ref "" in
-  let complete_option s = last_complete_option := s; Arg_complete.strings Options.paths s in
-  let complete_bool_option s =
-    let cs = complete_option s in
-    let is_bool c =
-      match GobConfig.get c with
-      | `Bool _ -> true
-      | _ -> false
-    in
-    List.filter is_bool cs
-  in
-  let complete_option_value option s =
-    let completions = List.assoc option Options.completions in
-    Arg_complete.strings completions s
-  in
-  let complete_last_option_value s =
-    complete_option_value !last_complete_option s
-  in
   let add_string l = let f str = l := str :: !l in Arg_complete.String (f, Arg_complete.empty) in
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
@@ -85,12 +67,33 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     set_bool "dbg.print_dead_code" true;
     set_string "result" "sarif"
   in
+  let complete_option_value option s =
+    let completions = List.assoc option Options.completions in
+    Arg_complete.strings completions s
+  in
   let defaults_spec_list = List.map (fun path ->
       (* allow "--option value" as shorthand for "--set option value" *)
       ("--" ^ path, Arg_complete.String (set_auto path, complete_option_value path), "")
     ) Options.paths
   in
   let tmp_arg = ref "" in
+  let last_complete_option = ref "" in
+  let complete_option s =
+    last_complete_option := s;
+    Arg_complete.strings Options.paths s
+  in
+  let complete_bool_option s =
+    let cs = complete_option s in
+    let is_bool c =
+      match GobConfig.get c with
+      | `Bool _ -> true
+      | _ -> false
+    in
+    List.filter is_bool cs
+  in
+  let complete_last_option_value s =
+    complete_option_value !last_complete_option s
+  in
   [ "-o"                   , Arg_complete.String (set_string "outfile", Arg_complete.empty), ""
   ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
   ; "-j"                   , Arg_complete.Int (set_int "jobs", Arg_complete.empty), ""
