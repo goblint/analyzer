@@ -39,10 +39,9 @@ let print_help ch =
   exit 0
 
 (** [Arg] option specification *)
-let option_spec_list: Arg_complete.speclist =
-  let empty _ = [] in
+let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let last_complete_option = ref "" in
-  let complete_option s = last_complete_option := s; Arg_complete.complete_strings Options.paths s in
+  let complete_option s = last_complete_option := s; Arg_complete.strings Options.paths s in
   let complete_bool_option s =
     let cs = complete_option s in
     let is_bool c =
@@ -54,13 +53,13 @@ let option_spec_list: Arg_complete.speclist =
   in
   let complete_option_value option s =
     let completions = List.assoc option Options.completions in
-    Arg_complete.complete_strings completions s
+    Arg_complete.strings completions s
   in
   let complete_last_option_value s =
     complete_option_value !last_complete_option s
   in
-  let add_string l = let f str = l := str :: !l in Arg_complete.String (f, empty) in
-  let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, empty) in
+  let add_string l = let f str = l := str :: !l in Arg_complete.String (f, Arg_complete.empty) in
+  let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
     if Messages.tracing then Tracing.addsystem sys
     else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
@@ -92,51 +91,52 @@ let option_spec_list: Arg_complete.speclist =
     ) Options.paths
   in
   let tmp_arg = ref "" in
-  let rec speclist () =
-  [ "-o"                   , Arg_complete.String (set_string "outfile", empty), ""
+  [ "-o"                   , Arg_complete.String (set_string "outfile", Arg_complete.empty), ""
   ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
-  ; "-j"                   , Arg_complete.Int (set_int "jobs", empty), ""
-  ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", empty), ""
-  ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", empty), ""
+  ; "-j"                   , Arg_complete.Int (set_int "jobs", Arg_complete.empty), ""
+  ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", Arg_complete.empty), ""
+  ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", Arg_complete.empty), ""
   ; "--set"                , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> set_auto !tmp_arg x), complete_last_option_value)], ""
   ; "--sets"               , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x), complete_last_option_value)], ""
   ; "--enable"             , Arg_complete.String ((fun x -> set_bool x true), complete_bool_option), ""
   ; "--disable"            , Arg_complete.String ((fun x -> set_bool x false), complete_bool_option), ""
-  ; "--conf"               , Arg_complete.String (merge_file, empty), ""
-  ; "--writeconf"          , Arg_complete.String ((fun fn -> writeconffile := fn), empty), ""
+  ; "--conf"               , Arg_complete.String (merge_file, Arg_complete.empty), ""
+  ; "--writeconf"          , Arg_complete.String ((fun fn -> writeconffile := fn), Arg_complete.empty), ""
   ; "--version"            , Arg_complete.Unit print_version, ""
   ; "--print_options"      , Arg_complete.Unit (fun () -> Options.print_options (); exit 0), ""
   ; "--print_all_options"  , Arg_complete.Unit (fun () -> Options.print_all_options (); exit 0), ""
-  ; "--trace"              , Arg_complete.String (set_trace, empty), ""
+  ; "--trace"              , Arg_complete.String (set_trace, Arg_complete.empty), ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
   ; "--help"               , Arg_complete.Unit (fun _ -> print_help stdout),""
   ; "--html"               , Arg_complete.Unit (fun _ -> configure_html ()),""
   ; "--sarif"               , Arg_complete.Unit (fun _ -> configure_sarif ()),""
-  ; "--compare_runs"       , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, empty); Arg_complete.String ((fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x)), empty)], ""
-  ; "--oil"                , Arg_complete.String (oil, empty), ""
+  ; "--compare_runs"       , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, Arg_complete.empty); Arg_complete.String ((fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x)), Arg_complete.empty)], ""
+  ; "--oil"                , Arg_complete.String (oil, Arg_complete.empty), ""
   (*     ; "--tramp"              , Arg_complete.String (set_string "ana.osek.tramp"), ""  *)
   ; "--osekdefaults"       , Arg_complete.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
-  ; "--osektaskprefix"     , Arg_complete.String (set_string "ana.osek.taskprefix", empty), ""
-  ; "--osekisrprefix"      , Arg_complete.String (set_string "ana.osek.isrprefix", empty), ""
-  ; "--osektasksuffix"     , Arg_complete.String (set_string "ana.osek.tasksuffix", empty), ""
-  ; "--osekisrsuffix"      , Arg_complete.String (set_string "ana.osek.isrsuffix", empty), ""
+  ; "--osektaskprefix"     , Arg_complete.String (set_string "ana.osek.taskprefix", Arg_complete.empty), ""
+  ; "--osekisrprefix"      , Arg_complete.String (set_string "ana.osek.isrprefix", Arg_complete.empty), ""
+  ; "--osektasksuffix"     , Arg_complete.String (set_string "ana.osek.tasksuffix", Arg_complete.empty), ""
+  ; "--osekisrsuffix"      , Arg_complete.String (set_string "ana.osek.isrsuffix", Arg_complete.empty), ""
   ; "--osekcheck"          , Arg_complete.Unit (fun () -> set_bool "ana.osek.check" true), ""
-  ; "--oseknames"          , Arg_complete.Set_string (OilUtil.osek_renames, empty), ""
-  ; "--osekids"            , Arg_complete.Set_string (OilUtil.osek_ids, empty), ""
-  ; "--complete", Arg_complete.Rest_all (complete_all, fun _ -> failwith "complete complete"), "Complete"
+  ; "--oseknames"          , Arg_complete.Set_string (OilUtil.osek_renames, Arg_complete.empty), ""
+  ; "--osekids"            , Arg_complete.Set_string (OilUtil.osek_ids, Arg_complete.empty), ""
+  ; "--complete"           , Arg_complete.Rest_all_compat.spec (Lazy.force rest_all_complete), ""
   ] @ defaults_spec_list (* lowest priority *)
-  and complete_all argv =
-    let completions = Arg_complete.complete_argv argv (speclist ()) (fun _ -> []) in
-    List.iter print_endline completions;
-    raise Exit
-  in
-  speclist ()
+)
+and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_complete.empty_all)
+and complete args =
+  Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
+  |> List.iter print_endline;
+  raise Exit
 
 (** Parse arguments. Print help if needed. *)
 let parse_arguments () =
   let anon_arg = set_string "files[+]" in
-  Arg.parse (Arg_complete.arg_speclist option_spec_list) anon_arg "Look up options using 'goblint --help'.";
+  let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
+  Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
+  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
   if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit);
   if get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
