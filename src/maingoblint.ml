@@ -42,6 +42,10 @@ let print_help ch =
 let option_spec_list: Arg_complete.speclist =
   let empty _ = [] in
   let complete_option = Arg_complete.complete_strings Options.paths in
+  let complete_option_value option s =
+    let completions = List.assoc option Options.completions in
+    Arg_complete.complete_strings completions s
+  in
   let add_string l = let f str = l := str :: !l in Arg_complete.String (f, empty) in
   let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, empty) in
   let set_trace sys =
@@ -71,7 +75,7 @@ let option_spec_list: Arg_complete.speclist =
   in
   let defaults_spec_list = List.map (fun path ->
       (* allow "--option value" as shorthand for "--set option value" *)
-      ("--" ^ path, Arg_complete.String (set_auto path, empty), "") (* TODO: complete option values *)
+      ("--" ^ path, Arg_complete.String (set_auto path, complete_option_value path), "")
     ) Options.paths
   in
   let tmp_arg = ref "" in
