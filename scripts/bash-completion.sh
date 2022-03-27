@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+
+# Temporary usage:
+#   Run: source ./scripts/bash-completion.sh
+#
+# Permanent usage:
+#   Run: echo "source ./scripts/bash-completion.sh" >> ~/.bash_completion
+
 _goblint ()
 {
     IFS=$'\n'
