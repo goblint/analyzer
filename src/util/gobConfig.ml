@@ -35,7 +35,7 @@ module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.r
 (** The type for [gobConfig] module. *)
 module type S =
 sig
-  val get: string -> Yojson.Safe.t
+  val get_json: string -> Yojson.Safe.t
 
   (** Functions to query conf variable of type int. *)
   val get_int    : string -> int
@@ -283,7 +283,7 @@ struct
       eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?\n"
         st print;
       failwith "get_path_string"
-  let get = get_path_string Fun.id
+  let get_json = get_path_string Fun.id
 
   (** Convenience functions for reading values. *)
   (* memoize for each type with BatCache: *)
