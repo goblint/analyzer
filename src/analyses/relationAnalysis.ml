@@ -213,7 +213,7 @@ struct
           )
       ) new_apr arg_assigns
     in
-    let filtered_new_apr = RD.remove_filter new_apr (fun var ->
+    let filtered_new_apr = RD.remove_filter_pt_with new_apr (fun var ->
         match RV.find_metadata var with
         | Some Local -> true (* remove caller locals *)
         | Some Arg when not (List.mem_cmp RD.Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
@@ -234,7 +234,7 @@ struct
       ) new_apr (formals @ locals)
     in
     let local_assigns = List.map (fun x -> (RV.local x, RV.arg x)) formals in
-    let assigned_new_apr = RD.assign_var_parallel new_apr local_assigns in (* doesn't need to be parallel since arg vars aren't local vars *)
+    let assigned_new_apr = RD.assign_var_parallel_pt_with new_apr local_assigns in (* doesn't need to be parallel since arg vars aren't local vars *)
     {st with apr = assigned_new_apr}
 
   let return ctx e f =
@@ -252,14 +252,14 @@ struct
           apr' (* leaves V.return unconstrained *)
       )
       else
-        st.apr
+        RD.copy_pt st.apr
     in
     let local_vars =
       f.sformals @ f.slocals
       |> List.filter RD.varinfo_tracked
       |> List.map RV.local
     in
-    let rem_new_apr = RD.remove_vars new_apr local_vars in
+    let rem_new_apr = RD.remove_vars_pt_with new_apr local_vars in
     let st' = {st with apr = rem_new_apr} in
     begin match ThreadId.get_current ask with
       | `Lifted tid when ThreadReturn.is_current ask ->
@@ -291,7 +291,7 @@ struct
     in
     let arg_vars = List.map fst arg_substitutes in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (RD.Var.to_string v))) arg_vars;
-    let new_fun_apr = RD.remove_vars new_fun_apr arg_vars in (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
+    let new_fun_apr = RD.remove_vars_pt_with new_fun_apr arg_vars in (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = RD.keep_filter st.apr (fun var ->
         match RV.find_metadata var with
         | Some Local -> true (* keep caller locals *)
@@ -311,7 +311,7 @@ struct
         | None ->
           unify_st
       in
-      let new_unify_st_apr = RD.remove_vars unify_st'.apr [RV.return] in
+      let new_unify_st_apr = RD.remove_vars_pt_with unify_st'.apr [RV.return] in
       {RelationDomain.apr = new_unify_st_apr; RelationDomain.priv = unify_st'.priv}
     )
     else

@@ -5,6 +5,7 @@ open Pretty
 open Apron
 open RelationDomain
 
+
 module BI = IntOps.BigIntOps
 
 module M = Messages
@@ -17,10 +18,10 @@ module M = Messages
     - heterogeneous environments: https://link.springer.com/chapter/10.1007%2F978-3-030-17184-1_26 (Section 4.1) *)
 
 let widening_thresholds_apron = ResettableLazy.from_fun (fun () ->
-  let t = WideningThresholds.thresholds_incl_mul2 () in
-  let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
-  Array.of_list r
-)
+    let t = WideningThresholds.thresholds_incl_mul2 () in
+    let r = List.map (fun x -> Apron.Scalar.of_mpqf @@ Mpqf.of_mpz @@ Z_mlgmpidl.mpz_of_z x) t in
+    Array.of_list r
+  )
 
 let reset_lazy () =
   ResettableLazy.reset widening_thresholds_apron
@@ -370,6 +371,8 @@ struct
 
   let copy = A.copy Man.mgr
 
+  let copy_pt = copy
+
   let vars d = vars (A.env d)
 
   let vars_as_array d =
@@ -408,7 +411,7 @@ struct
     add_vars_with nd vs;
     nd
 
-  let remove_vars_with nd vs =
+  let remove_vars_pt_with nd vs =
     let env = A.env nd in
     let vs' =
       vs
@@ -417,21 +420,21 @@ struct
       |> Array.of_enum
     in
     let env' = Environment.remove env vs' in
-    A.change_environment_with Man.mgr nd env' false
+    A.change_environment_with Man.mgr nd env' false;
+    nd
 
   let remove_vars d vs =
     let nd = copy d in
-    remove_vars_with nd vs;
-    nd
+    remove_vars_pt_with nd vs
 
-  let remove_filter_with nd f =
+  let remove_filter_pt_with nd f =
     let env = remove_filter (A.env nd) f in
-    A.change_environment_with Man.mgr nd env false
+    A.change_environment_with Man.mgr nd env false;
+    nd
 
   let remove_filter d f =
     let nd = copy d in
-    remove_filter_with nd f;
-    nd
+    remove_filter_pt_with nd f
 
 
   let keep_vars_with nd vs =
@@ -507,14 +510,14 @@ struct
 
   let assign_var_with nd v v' =
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
-    A.assign_texpr_with Man.mgr nd v texpr1 None
+    A.assign_texpr_with Man.mgr nd v texpr1 None;
+    nd
 
   let assign_var d v v' =
     let nd = copy d in
-    assign_var_with nd v v';
-    nd
+    assign_var_with nd v v'
 
-  let assign_var_parallel_with nd vv's =
+  let assign_var_parallel_pt_with nd vv's =
     (* TODO: non-_with version? *)
     let env = A.env nd in
     let (vs, texpr1s) =
@@ -524,13 +527,13 @@ struct
       |> Enum.uncombine
       |> Tuple2.map Array.of_enum Array.of_enum
     in
-    A.assign_texpr_array_with Man.mgr nd vs texpr1s None
+    A.assign_texpr_array_with Man.mgr nd vs texpr1s None;
+    nd
 
   let assign_var_parallel d vv's =
     (* TODO: non-_with version? *)
     let nd = copy d in
-    assign_var_parallel_with nd vv's;
-    nd
+    assign_var_parallel_pt_with nd vv's
 
   let assign_var_parallel' d vs v's = (* unpaired parallel assigns *)
     (* TODO: _with version? *)

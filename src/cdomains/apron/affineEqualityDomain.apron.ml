@@ -4,7 +4,6 @@ open Cil
 module M = Messages
 open Apron
 
-
 module type RatOps =
 sig
   type t
@@ -305,6 +304,8 @@ struct
     env : Environment.t
   }
 
+  let copy_pt t = t
+
   let dim_add (ch: Apron.Dim.change) m =
     let to_add = Array.to_list ch.dim in
     List.fold_lefti (fun m' i  x -> Matrix.add_empty_column m' (x + i)) m to_add
@@ -340,9 +341,15 @@ struct
     let env' = Environment.remove t.env vs' in
     change_d t env' false
 
+  let remove_vars_pt_with t vars =
+    remove_vars t vars
+
   let remove_filter t f =
     let env' = remove_filter t.env f in
     change_d t env' false
+
+  let remove_filter_pt_with t f =
+    remove_filter t f
 
   let keep_filter t f =
     let env' = keep_filter t.env f in
@@ -640,6 +647,9 @@ struct
   let assign_var_parallel t vv's =
     let new_t's = List.map (fun (v,v') -> assign_var t v v') vv's in
     List.fold_left join t new_t's
+
+  let assign_var_parallel_pt_with t vv's =
+    assign_var_parallel t vv's
 
   let assign_var_parallel' t vs1 vs2 =
     let vv's = List.combine vs1 vs2 in
