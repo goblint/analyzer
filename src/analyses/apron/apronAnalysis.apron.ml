@@ -450,7 +450,7 @@ struct
       RH.map (fun _ v -> OctApron.marshal v) m
     in
     let results = post_process results in
-    let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
+    let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ (if GobConfig.get_bool "ana.apron.threshold_widening" then ", th" else "" ) ^ ")" in
     let results: ApronPrecCompareUtil.dump = {marshalled = results; name } in
     Serialize.marshal results file
 
