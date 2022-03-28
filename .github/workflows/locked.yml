@@ -27,7 +27,7 @@ jobs:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v2.0.2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
@@ -78,7 +78,7 @@ jobs:
           # otherwise setup-ocaml pins non-locked dependencies
           # https://github.com/ocaml/setup-ocaml/issues/166
           OPAMLOCKED: locked
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v2.0.2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 

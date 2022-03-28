@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v2.0.2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
@@ -102,7 +102,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v2.0.2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
@@ -203,7 +203,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
-        uses: ocaml/setup-ocaml@v2
+        uses: ocaml/setup-ocaml@v2.0.2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
