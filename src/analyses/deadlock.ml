@@ -31,12 +31,6 @@ struct
       in
       ctx.sideg (Tuple3.first before) d
 
-    (* let may_equal l1 l2 = match l1, l2 with
-      | (ValueDomain.Addr.UnknownPtr, _, _), _
-      | _, (ValueDomain.Addr.UnknownPtr, _, _) ->
-        true
-      | _, _ -> Lock.equal l1 l2 *)
-
     let part_access ctx: MCPAccess.A.t =
       Obj.obj (ctx.ask (PartAccess Point))
 
@@ -67,15 +61,22 @@ struct
       (* TODO: find all cycles/SCCs *)
       let global_visited_locks = LH.create 100 in
 
+      let may_equal l1 l2 = match l1, l2 with
+        | ValueDomain.Addr.UnknownPtr, _
+        | _, ValueDomain.Addr.UnknownPtr ->
+          true
+        | _, _ -> Lock.equal l1 l2
+      in
+
       (* DFS *)
       let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
-        if LS.mem lock path_visited_locks then (
+        if LS.mem lock path_visited_locks || LS.mem ValueDomain.Addr.UnknownPtr path_visited_locks || (not (LS.is_empty path_visited_locks) && lock = ValueDomain.Addr.UnknownPtr) then (
           (* cycle may not return to first lock, but an intermediate one, cut off the non-cyclic stem *)
           let path_visited_lock_event_pairs =
             (* path_visited_lock_event_pairs cannot be empty *)
             List.hd path_visited_lock_event_pairs ::
             List.take_while (fun (_, (after_lock, _, _)) ->
-                not (Lock.equal after_lock lock)
+                not (may_equal after_lock lock)
               ) (List.tl path_visited_lock_event_pairs)
           in
           let mhp =
