@@ -162,11 +162,13 @@ struct
     let should_print ls = not (is_empty ls)
   end
 
-  let access ctx e vo w =
-    if w then
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point
+    | Memory {write = true; _} ->
       (* when writing: ignore reader locks *)
       Lockset.filter snd ctx.local
-    else
+    | Memory _ ->
       (* when reading: bump reader locks to exclusive as they protect reads *)
       Lockset.map (fun (x,_) -> (x,true)) ctx.local
 

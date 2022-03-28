@@ -1602,6 +1602,12 @@
           "type": "boolean",
           "default": true
         },
+        "deadlock": {
+          "title": "warn.deadlock",
+          "description": "Deadlock warnings",
+          "type": "boolean",
+          "default": true
+        },
         "deadcode": {
           "title": "warn.deadcode",
           "description": "Dead code warnings",

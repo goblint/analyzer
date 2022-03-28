@@ -48,7 +48,7 @@ struct
     let part_access ctx (e:exp) (vo:varinfo option) (w: bool): MCPAccess.A.t =
       ctx.emit (Access {var_opt=vo; write=w});
       (*partitions & locks*)
-      Obj.obj (ctx.ask (PartAccess {exp=e; var_opt=vo; write=w}))
+      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; write=w})))
     in
     let add_access conf vo oo =
       let a = part_access ctx e vo w in

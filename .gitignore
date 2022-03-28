@@ -59,6 +59,7 @@ assert_transform/*
 
 privPrecCompare*
 apronPrecCompare
+messagesCompare
 tests/regression/*/run
 
 # csmith

@@ -4,38 +4,39 @@ type array_oob =
   | PastEnd
   | BeforeStart
   | Unknown
-[@@deriving eq, hash]
+[@@deriving eq, ord, hash]
 
 type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
   | UseAfterFree
-[@@deriving eq, hash]
+[@@deriving eq, ord, hash]
 
 type behavior =
   | Undefined of undefined_behavior
   | Implementation
   | Machine
-[@@deriving eq, hash]
+[@@deriving eq, ord, hash]
 
-type integer = Overflow | DivByZero [@@deriving eq, hash]
+type integer = Overflow | DivByZero [@@deriving eq, ord, hash]
 
-type cast = TypeMismatch [@@deriving eq, hash]
+type cast = TypeMismatch [@@deriving eq, ord, hash]
 
 type category =
   | Assert
   | Behavior of behavior
   | Integer of integer
   | Race
+  | Deadlock
   | Cast of cast
   | Deadcode
   | Unknown
   | Analyzer
   | Unsound
   | Imprecise
-[@@deriving eq, hash]
+[@@deriving eq, ord, hash]
 
-type t = category [@@deriving eq, hash]
+type t = category [@@deriving eq, ord, hash]
 
 module Behavior =
 struct
@@ -160,6 +161,7 @@ let should_warn e =
     | Behavior _ -> "behavior"
     | Integer _ -> "integer"
     | Race -> "race"
+    | Deadlock -> "deadlock"
     | Cast _ -> "cast"
     | Deadcode -> "deadcode"
     | Unknown -> "unknown"
@@ -174,6 +176,7 @@ let path_show e =
   | Behavior x -> "Behavior" :: Behavior.path_show x
   | Integer x -> "Integer" :: Integer.path_show x
   | Race -> ["Race"]
+  | Deadlock -> ["Deadlock"]
   | Cast x -> "Cast" :: Cast.path_show x
   | Deadcode -> ["Deadcode"]
   | Unknown -> ["Unknown"]
@@ -197,6 +200,7 @@ let categoryName = function
   | Assert -> "Assert"
 
   | Race -> "Race"
+  | Deadlock -> "Deadlock"
   | Cast x -> "Cast"
   | Deadcode -> "Deadcode"
   | Unknown -> "Unknown"
@@ -218,6 +222,7 @@ let from_string_list (s: string list) =
     | "behavior" -> Behavior.from_string_list t
     | "integer" -> Integer.from_string_list t
     | "race" -> Race
+    | "deadlock" -> Deadlock
     | "cast" -> Cast.from_string_list t
     | "deadcode" -> Deadcode
     | "analyzer" -> Analyzer
@@ -226,3 +231,10 @@ let from_string_list (s: string list) =
     | _ -> Unknown
 
 let to_yojson x = `List (List.map (fun x -> `String x) (path_show x))
+let of_yojson = function
+  | `List l ->
+    l
+    |> List.map Yojson.Safe.Util.to_string
+    |> from_string_list
+    |> Result.ok
+  | _ -> Result.Error "MessageCategory.of_yojson"
