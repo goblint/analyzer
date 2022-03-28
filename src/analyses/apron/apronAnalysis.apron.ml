@@ -412,12 +412,12 @@ struct
     let st = ctx.local in
     match e with
     | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.lock (Analyses.ask_of_ctx octx) octx.global st addr
+      Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.unlock (Analyses.ask_of_ctx octx) octx.global octx.sideg st addr
+      Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
     (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded (Analyses.ask_of_ctx octx) octx.global octx.sideg st
+      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | _ ->
       st
 
