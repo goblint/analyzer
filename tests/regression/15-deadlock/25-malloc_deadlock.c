@@ -6,7 +6,7 @@ int g1, g2;
 pthread_mutex_t *p, *q;
 
 void *t1(void *arg) {
-  pthread_mutex_lock(p);
+  pthread_mutex_lock(p); // DEADLOCK
   pthread_mutex_lock(q); // DEADLOCK
   g1 = g2 + 1;
   pthread_mutex_unlock(q);
@@ -15,7 +15,7 @@ void *t1(void *arg) {
 }
 
 void *t2(void *arg) {
-  pthread_mutex_lock(p);
+  pthread_mutex_lock(p); // DEADLOCK
   pthread_mutex_lock(q); // DEADLOCK
   g2 = g1 + 1;
   pthread_mutex_unlock(q);
