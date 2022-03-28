@@ -110,7 +110,7 @@ module EvalAssert = struct
             i1 :: ((instrument i1 loc) @ instrument_instructions is)
           | [i] when unique_succ ->
             (* Last statement in list *)
-            (* Successor of has only one predecessor we can not query for the value there *)
+            (* Successor of has only one predecessor, we can query for the value there *)
             let loc = get_stmtLoc (List.hd s.succs).skind in
             i :: (instrument i loc)
           | x -> x
