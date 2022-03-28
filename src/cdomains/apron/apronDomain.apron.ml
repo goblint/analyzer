@@ -262,7 +262,11 @@ struct
     let rec cil_exp_of_expr (expr:Texpr1.expr) = match expr with
       | Cst (Scalar s) ->
         let i = Option.get @@ int_of_scalar ~round:`Floor s in (*TODO: which way should one round? *)
-        Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
+        let ci,truncation = truncateCilint ILongLong i in
+        if truncation = NoTruncation then
+          Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
+        else
+          raise (Invalid_argument "cannot convert (outside range)")
       | Var v ->
         (match Var.to_cil_varinfo v with
          | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
