@@ -44,7 +44,7 @@ module EvalAssert = struct
       | BinOp(LAnd,e1,e2,_) -> ES.join (to_conjunct_set e1) (to_conjunct_set e2)
       | e -> ES.singleton e
     in
-    let combine_conjuntcs = function
+    let combine_conjuncts = function
       | e::es -> Some (List.reduce (fun acc e -> BinOp(LAnd,acc,e,Cil.intType)) es)
       | [] -> None
     in
@@ -55,7 +55,7 @@ module EvalAssert = struct
       let common = ES.inter e1s e2s in
       let e1s' = ES.elements (ES.diff e1s e2s) in
       let e2s' = ES.elements (ES.diff e2s e1s) in
-      (match combine_conjuntcs e1s', combine_conjuntcs e2s' with
+      (match combine_conjuncts e1s', combine_conjuncts e2s' with
        | Some e1e, Some e2e -> ES.add (BinOp(LOr,e1e,e2e,Cil.intType)) common
        | _ -> common (* if one of the disjuncts is empty, it is equivalent to true here *)
       )
