@@ -66,10 +66,10 @@ struct
   let of_yojson = function
     | (`Assoc l) as json when List.mem_assoc "group_text" l ->
       group_of_yojson json
-      |> Result.map (fun group -> Group group)
+      |> BatResult.map (fun group -> Group group)
     | json ->
       Piece.of_yojson json
-      |> Result.map (fun piece -> Single piece)
+      |> BatResult.map (fun piece -> Single piece)
 end
 
 module Tag =
@@ -94,7 +94,7 @@ struct
   let of_yojson = function
     | `Assoc [("Category", category)] ->
       Category.of_yojson category
-      |> Result.map (fun category ->
+      |> BatResult.map (fun category ->
           Category category
         )
     | `Assoc [("CWE", `Int n)] -> Result.Ok (CWE n)
