@@ -55,7 +55,6 @@ goblint.bc.js
 *.rej
 
 sv-comp/goblint.zip
-assert_transform/*
 
 privPrecCompare*
 apronPrecCompare
