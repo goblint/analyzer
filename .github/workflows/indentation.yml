@@ -9,7 +9,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - 4.13.1 # setup-ocaml@v1 does not support 4.13.x for ocaml-version
+          - 4.14.0 # setup-ocaml@v1 does not support 4.14.x for ocaml-version
 
     runs-on: ${{ matrix.os }}
 
