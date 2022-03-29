@@ -3,30 +3,42 @@ open Cil
 open Formatcil
 module ES = SetDomain.Make(Exp.Exp)
 
-(** Instruments a program by inserting asserts:
-      - After an assignment to a variable
-      - At join points about all local variables
+(** Instruments a program by inserting asserts either:
+    - After an assignment to a variable (unless trans.assert.full is activated) and
+    - At join points about all local variables
 
-    Limitations:
-      - Currently only works for top-level variables (not inside an array, a struct, ...)
-      - Does not work for accesses through pointers
-      - At join points asserts all locals, but ideally should only assert ones that are
+                OR
+
+    - Only after pthread_mutex_lock (trans.assert.only-at-locks), about all locals and globals
+
+    Limitations without trans.assert.only-at locks:
+    - Currently only works for top-level variables (not inside an array, a struct, ...)
+    - Does not work for accesses through pointers
+    - At join points asserts all locals, but ideally should only assert ones that are
         modified in one of the branches
-      - Removes comments, so if the original program had //UNKNOWN assertions, the unknown
+
+    Limitations in general:
+    - Removes comments, so if the original program had //UNKNOWN assertions, the annotation
         will be removed and they will fail on the next iteration
 *)
 
+(* HACK to make the current fundec available to Apron when generating invariants, cannot use !MyCFG.current_node *)
 let currentFundec = ref dummyFunDec
 
 module EvalAssert = struct
+  (* should asserts of conjuncts be one-by-one instead of one big assert?  *)
+  let distinctAsserts = true
+
+  (* should asserts be surrounded by __VERIFIER_atomic_{begin,end}? *)
+  let surroundByAtomic = true
+
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
   let ass = ref (makeVarinfo true "assert" (TVoid []))
   let atomicBegin = ref (makeVarinfo true "__VERIFIER_atomic_begin" (TVoid []))
   let atomicEnd = ref (makeVarinfo true "__VERIFIER_atomic_end" (TVoid []))
-  let distinctAsserts = true
-  let surroundByAtomic = true
 
-  (* Pulls out common conjuncts from top-level disjunction *)
+
+  (* Turns an expression into alist of conjuncts, pulling out common conjuncts from top-level disjunctions *)
   let pullOutCommonConjuncts e =
     let rec to_conjunct_set = function
       | BinOp(LAnd,e1,e2,_) -> ES.join (to_conjunct_set e1) (to_conjunct_set e2)
@@ -49,14 +61,12 @@ module EvalAssert = struct
       )
     | e -> ES.singleton e
 
-  let locals = ref []
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
     val full = GobConfig.get_bool "trans.assert.full"
     val only_at_locks = GobConfig.get_bool "trans.assert.only-at-locks"
 
     method! vfunc f =
-      locals := !locals @ f.slocals;
       currentFundec := f;
       DoChildren
 
