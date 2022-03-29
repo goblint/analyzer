@@ -1,6 +1,7 @@
 open Prelude
 open Cil
 open Formatcil
+module ES = SetDomain.Make(Exp.Exp)
 
 (** Instruments a program by inserting asserts:
       - After an assignment to a variable
@@ -22,12 +23,31 @@ module EvalAssert = struct
   let ass = ref (makeVarinfo true "assert" (TVoid []))
   let atomicBegin = ref (makeVarinfo true "__VERIFIER_atomic_begin" (TVoid []))
   let atomicEnd = ref (makeVarinfo true "__VERIFIER_atomic_end" (TVoid []))
-  let separateLands = true
+  let distinctAsserts = true
   let surroundByAtomic = true
 
-  let rec separateLand = function
-    | BinOp(LAnd,e1,e2,_) -> separateLand e1 @ separateLand e2
-    | e -> [e]
+  (* Pulls out common conjuncts from top-level disjunction *)
+  let pullOutCommonConjuncts e =
+    let rec to_conjunct_set = function
+      | BinOp(LAnd,e1,e2,_) -> ES.join (to_conjunct_set e1) (to_conjunct_set e2)
+      | e -> ES.singleton e
+    in
+    let combine_conjuntcs = function
+      | e::es -> Some (List.reduce (fun acc e -> BinOp(LAnd,acc,e,Cil.intType)) es)
+      | [] -> None
+    in
+    match e with
+    | BinOp(LOr, e1, e2,t) ->
+      let e1s = to_conjunct_set e1 in
+      let e2s = to_conjunct_set e2 in
+      let common = ES.inter e1s e2s in
+      let e1s' = ES.elements (ES.diff e1s e2s) in
+      let e2s' = ES.elements (ES.diff e2s e1s) in
+      (match combine_conjuntcs e1s', combine_conjuntcs e2s' with
+       | Some e1e, Some e2e -> ES.add (BinOp(LOr,e1e,e2e,Cil.intType)) common
+       | _ -> common (* if one of the disjuncts is empty, it is equivalent to true here *)
+      )
+    | e -> ES.singleton e
 
   let locals = ref []
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
@@ -77,7 +97,7 @@ module EvalAssert = struct
             []
           else
             let e = Queries.ES.choose res in
-            let es = if separateLands then separateLand e else [e] in
+            let es = if distinctAsserts then ES.elements (pullOutCommonConjuncts e) else [e] in
             let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]) es in
             if surroundByAtomic then
               let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv !atomicBegin)]) in
