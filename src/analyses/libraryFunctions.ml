@@ -69,7 +69,7 @@ let classify' fn exps =
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
-  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
+  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
@@ -78,8 +78,8 @@ let classify' fn exps =
     -> `Lock (get_bool "sem.lock.fail", false, true)
   | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
-  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
+  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
+  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
     -> `Unlock
   | x -> `Unknown x
