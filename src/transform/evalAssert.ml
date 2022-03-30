@@ -104,7 +104,9 @@ module EvalAssert = struct
             else
               asserts
         with
-          Not_found -> []
+          Not_found ->
+          (* No local state computed for this location in table joined that joins over all contexts =>  program point is dead*)
+          []
       in
 
       let rec instrument_instructions il s =
