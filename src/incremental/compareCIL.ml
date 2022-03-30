@@ -100,12 +100,10 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
         changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
       in
       match change_status with
-      | ChangedFunHeader f ->
-        changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
-        append_to_changed ~unchangedHeader:false
       | Changed ->
         append_to_changed ~unchangedHeader:true
       | Unchanged -> changes.unchanged <- global :: changes.unchanged
+      | ChangedFunHeader f
       | ForceReanalyze f ->
         changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
         append_to_changed ~unchangedHeader:false;
