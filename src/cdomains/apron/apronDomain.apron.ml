@@ -202,7 +202,7 @@ struct
   open Tcons1
   module Bounds = Bounds(Man)
   exception Unsupported_CilExp
-  exception Unsupported_Texpr1Expr
+  exception Unsupported_Linexpr1
 
   (* TODO: move this into some general place *)
   let is_cast_injective from_type to_type =
@@ -297,50 +297,47 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
-  let rec cil_exp_of_texpr1_expr fundec (expr:Texpr1.expr) =
-    (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
-    let convertop = function
-      | Add -> PlusA
-      | Sub -> MinusA
-      | Mul -> Mult
-      | Div -> Div
-      | Mod -> Mod
-      | Pow -> raise Unsupported_Texpr1Expr
+  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+    let longlong = TInt(ILongLong,[]) in
+    let coeeff_to_z (c:Coeff.union_5) = match c with
+      | Scalar c ->
+        (match int_of_scalar ~round:`Floor c with (*TODO: which way should one round? *)
+         | Some i ->
+           let ci,truncation = truncateCilint ILongLong i in
+           if truncation = NoTruncation then
+             Const (CInt(i,ILongLong,None))
+           else
+             raise Unsupported_Linexpr1
+         | None -> raise Unsupported_Linexpr1)
+      | _ -> raise Unsupported_Linexpr1
     in
-    match expr with
-    | Cst (Scalar s) ->
-      let i = Option.get @@ int_of_scalar ~round:`Floor s in (*TODO: which way should one round? *)
-      let ci,truncation = truncateCilint ILongLong i in
-      if truncation = NoTruncation then
-        Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
-      else
-        raise Unsupported_Texpr1Expr
-    | Var v ->
-      (match V.to_cil_varinfo fundec v with
-       | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
-       | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Texpr1Expr)
-    | Unop(Neg, exp, _,_) ->
-      let e, typ = cil_exp_of_texpr1_expr fundec exp in
-      UnOp(Neg, e, typ), typ
-    | Binop(op, e1, e2, _, _) ->
-      (let op' = convertop op in
-       let e1, typ1 = cil_exp_of_texpr1_expr fundec e1 in
-       let e2, typ2 = cil_exp_of_texpr1_expr fundec e2 in
-       (BinOp(op',e1,e2,typ1)), typ1)
-    | _ -> raise Unsupported_Texpr1Expr
+    let expr = ref (coeeff_to_z (Linexpr1.get_cst linexpr1)) in
+    let append_summand (c:Coeff.union_5) v =
+      match V.to_cil_varinfo fundec v with
+      | Some vinfo ->
+        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+        let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+        let coeff = coeeff_to_z c in
+        let prod = BinOp(Mult, coeff, var, longlong) in
+        expr := BinOp(PlusA,!expr,prod,longlong)
+      | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+    in
+    Linexpr1.iter append_summand linexpr1;
+    !expr
 
-  let cil_exp_of_tcons1 fundec (tcons1:Tcons1.t) =
+
+  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
     let zero = Cil.zero in
     try
-      let cilexp = cil_exp_of_texpr1_expr fundec (Texpr1.to_expr (Tcons1.get_texpr1 tcons1)) in
-      match Tcons1.get_typ tcons1 with
-      | EQ -> Some (Cil.constFold false @@ BinOp(Eq,fst cilexp,zero,TInt(IInt,[])))
-      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge,fst cilexp,zero,TInt(IInt,[])))
-      | SUP -> Some (Cil.constFold false @@ BinOp(Gt,fst cilexp,zero,TInt(IInt,[])))
-      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne,fst cilexp,zero,TInt(IInt,[])))
+      let cilexp = cil_exp_of_linexpr1 fundec (Lincons1.get_linexpr1 lincons1) in
+      match Lincons1.get_typ lincons1 with
+      | EQ -> Some (Cil.constFold false @@ BinOp(Eq,cilexp,zero,TInt(IInt,[])))
+      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge,cilexp,zero,TInt(IInt,[])))
+      | SUP -> Some (Cil.constFold false @@ BinOp(Gt,cilexp,zero,TInt(IInt,[])))
+      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne,cilexp,zero,TInt(IInt,[])))
       | EQMOD _ -> None
     with
-      Unsupported_Texpr1Expr -> None
+      Unsupported_Linexpr1 -> None
 end
 
 
@@ -748,10 +745,10 @@ struct
       | (None, None) -> ID.top_of ik
 
   let invariant (ctx:Invariant.context) x =
-    let r = A.to_tcons_array Man.mgr x in
-    let cons, env = r.tcons0_array, r.array_env in
+    let r = A.to_lincons_array Man.mgr x in
+    let cons, env = r.lincons0_array, r.array_env in
     let cons = Array.to_list cons in
-    let convert_one constr = Convert.cil_exp_of_tcons1 ctx.scope {tcons0=constr; env=env} in
+    let convert_one constr = Convert.cil_exp_of_lincons1 ctx.scope {lincons0=constr; env=env} in
     let cil_cons = List.filter_map convert_one cons in
     let interesting = List.filter Cilfacade.more_than_one_var cil_cons in
     List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None interesting
