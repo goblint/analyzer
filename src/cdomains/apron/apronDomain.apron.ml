@@ -78,7 +78,6 @@ struct
   let return = make_var Return
   let global g = make_var (Global g)
 
-  (* TODO: This is a mess, there should be a better way! *)
   let to_cil_varinfo fundec v =
     match find_metadata v with
     | Some (Global v) -> Some v
