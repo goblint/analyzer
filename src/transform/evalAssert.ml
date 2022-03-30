@@ -22,9 +22,6 @@ module ES = SetDomain.Make(Exp.Exp)
         will be removed and they will fail on the next iteration
 *)
 
-(* HACK to make the current fundec available to Apron when generating invariants, cannot use !MyCFG.current_node *)
-let currentFundec = ref dummyFunDec
-
 module EvalAssert = struct
   (* should asserts of conjuncts be one-by-one instead of one big assert?  *)
   let distinctAsserts = true
@@ -65,10 +62,6 @@ module EvalAssert = struct
     inherit nopCilVisitor
     val full = GobConfig.get_bool "trans.assert.full"
     val only_at_locks = GobConfig.get_bool "trans.assert.only-at-locks"
-
-    method! vfunc f =
-      currentFundec := f;
-      DoChildren
 
     method! vglob g = match g with
       | GVarDecl (v, l) ->

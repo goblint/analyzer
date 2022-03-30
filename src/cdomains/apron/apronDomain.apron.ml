@@ -31,8 +31,7 @@ struct
   let equal x y = Var.compare x y = 0
 
   (* TODO: This is a mess, there should be a better way! *)
-  let to_cil_varinfo v =
-    let fundec = Option.map_default Node.find_fundec !EvalAssert.currentFundec !MyCFG.current_node in
+  let to_cil_varinfo fundec v =
     let vname = to_string v in
     (* This works because CIL ensures that no local and global have the same name *)
     let vinfo = List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) in
@@ -249,7 +248,7 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
-  let cil_exp_of_tcons1 (tcons1:Tcons1.t) =
+  let cil_exp_of_tcons1 fundec (tcons1:Tcons1.t) =
     (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
     let convertop = function
       | Add -> PlusA
@@ -268,7 +267,7 @@ struct
         else
           raise (Invalid_argument "cannot convert (outside range)")
       | Var v ->
-        (match Var.to_cil_varinfo v with
+        (match Var.to_cil_varinfo fundec v with
          | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
          | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise (Invalid_argument "cannot convert "))
       | Unop(Neg, exp, _,_) ->
@@ -698,11 +697,11 @@ struct
       | (None, Some max) -> ID.ending ik max
       | (None, None) -> ID.top_of ik
 
-  let invariant ctx x =
+  let invariant (ctx:Invariant.context) x =
     let r = A.to_tcons_array Man.mgr x in
     let cons, env = r.tcons0_array, r.array_env in
     let cons = Array.to_list cons in
-    let convert_one constr = Convert.cil_exp_of_tcons1 {tcons0=constr; env=env} in
+    let convert_one constr = Convert.cil_exp_of_tcons1 ctx.scope {tcons0=constr; env=env} in
     let cil_cons = List.filter_map convert_one cons in
     let interesting = List.filter Cilfacade.more_than_one_var cil_cons in
     List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None interesting
