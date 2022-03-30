@@ -88,12 +88,8 @@ module EvalAssert = struct
           lval=lval;
           offset=Cil.NoOffset;
         } in
-
-        let res = (ask loc).f (Queries.Invariant context) in
-        if Queries.ES.is_bot res || Queries.ES.is_top res then
-          []
-        else
-          let e = Queries.ES.choose res in
+        match (ask loc).f (Queries.Invariant context) with
+        | `Lifted e ->
           let es = if distinctAsserts then ES.elements (pullOutCommonConjuncts e) else [e] in
           let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]) es in
           if surroundByAtomic then
@@ -102,6 +98,7 @@ module EvalAssert = struct
             abegin :: (asserts @ [aend])
           else
             asserts
+        | _ -> []
       in
 
       let rec instrument_instructions il s =

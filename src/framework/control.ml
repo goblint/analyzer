@@ -568,15 +568,16 @@ struct
               match q with
               | Queries.Invariant context ->
                 (* Directly handle the invariant query here *)
-                let context: Invariant.context = {
-                  scope=context.scope;
-                  i= -1; (* Not used here *)
-                  lval=context.lval;
-                  offset=context.offset;
-                  deref_invariant=(fun _ _ _ -> Invariant.none)
-                } in
-                let e = Spec.D.invariant context local in
-                BatOption.map_default (Queries.ES.singleton) (Queries.ES.top ()) e
+                (let context: Invariant.context = {
+                    scope=context.scope;
+                    i= -1; (* Not used here *)
+                    lval=context.lval;
+                    offset=context.offset;
+                    deref_invariant=(fun _ _ _ -> Invariant.none)
+                  } in
+                 match Spec.D.invariant context local with
+                 | Some e -> (`Lifted e)
+                 | None -> `Top)
               | _ ->
                 (* build a ctx for using the query system for all other queries *)
                 let rec ctx =

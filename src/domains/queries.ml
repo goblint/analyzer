@@ -37,6 +37,7 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
+module LiftedExp = Lattice.Flat(Exp.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -109,7 +110,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
-  | Invariant: invariant_context -> ES.t t
+  | Invariant: invariant_context -> LiftedExp.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
 
 type 'a result = 'a
@@ -162,7 +163,7 @@ struct
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
-    | Invariant _ -> (module ES)
+    | Invariant _ -> (module LiftedExp)
     | WarnGlobal _ -> (module Unit)
 
   (** Get bottom result for query. *)
@@ -214,7 +215,7 @@ struct
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
-    | Invariant _ -> ES.top ()
+    | Invariant _ -> LiftedExp.top ()
     | WarnGlobal _ -> Unit.top ()
 end
 
