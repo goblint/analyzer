@@ -30,3 +30,19 @@ let print (ch: 'a BatIO.output) json =
 
 let pretty () json =
   Pretty.text (Yojson.Safe.to_string json)
+
+(* Copied from https://github.com/ocaml-community/yojson/blob/7fbec1d96a77b63a78b9e5f92d78648cdc60f220/lib/read.mll#L1146-L1158. *)
+(* TODO: remove when Yojson 2.0.0 is released *)
+let seq_from_lexbuf v ?(fin = fun () -> ()) lexbuf =
+  let stream = Some true in
+  let rec f () =
+    try Seq.Cons (Yojson.Safe.from_lexbuf v ?stream lexbuf, f)
+    with
+        Yojson.End_of_input ->
+          fin ();
+          Seq.Nil
+      | e ->
+          (try fin () with fin_e -> raise (Yojson.Safe.Finally (e, fin_e)));
+          raise e
+  in
+  f
