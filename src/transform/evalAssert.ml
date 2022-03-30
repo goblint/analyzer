@@ -36,7 +36,7 @@ module EvalAssert = struct
 
 
   (* Turns an expression into alist of conjuncts, pulling out common conjuncts from top-level disjunctions *)
-  let pullOutCommonConjuncts e =
+  let rec pullOutCommonConjuncts e =
     let rec to_conjunct_set = function
       | BinOp(LAnd,e1,e2,_) -> ES.join (to_conjunct_set e1) (to_conjunct_set e2)
       | e -> ES.singleton e
@@ -47,8 +47,8 @@ module EvalAssert = struct
     in
     match e with
     | BinOp(LOr, e1, e2,t) ->
-      let e1s = to_conjunct_set e1 in
-      let e2s = to_conjunct_set e2 in
+      let e1s = pullOutCommonConjuncts e1 in
+      let e2s = pullOutCommonConjuncts e2 in
       let common = ES.inter e1s e2s in
       let e1s' = ES.elements (ES.diff e1s e2s) in
       let e2s' = ES.elements (ES.diff e2s e1s) in
