@@ -39,6 +39,7 @@ depends: [
   "jsonrpc"
   "sha" {>= "1.12"}
   "cpu"
+  "arg-complete"
   "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}
   "benchmark" {with-test}

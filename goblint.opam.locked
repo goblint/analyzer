@@ -20,6 +20,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.15.0"}
   "apron" {= "v0.9.13"}
+  "arg-complete" {= "0.1.0"}
   "astring" {= "0.8.5" & with-doc}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
