@@ -248,7 +248,7 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
-  let cil_exp_of_tcons1 fundec (tcons1:Tcons1.t) =
+  let rec cil_exp_of_texpr1_expr fundec (expr:Texpr1.expr) =
     (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
     let convertop = function
       | Add -> PlusA
@@ -258,31 +258,32 @@ struct
       | Mod -> Mod
       | Pow -> raise (Invalid_argument "cannot convert")
     in
-    let rec cil_exp_of_expr (expr:Texpr1.expr) = match expr with
-      | Cst (Scalar s) ->
-        let i = Option.get @@ int_of_scalar ~round:`Floor s in (*TODO: which way should one round? *)
-        let ci,truncation = truncateCilint ILongLong i in
-        if truncation = NoTruncation then
-          Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
-        else
-          raise (Invalid_argument "cannot convert (outside range)")
-      | Var v ->
-        (match Var.to_cil_varinfo fundec v with
-         | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
-         | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise (Invalid_argument "cannot convert "))
-      | Unop(Neg, exp, _,_) ->
-        let e, typ = cil_exp_of_expr exp in
-        UnOp(Neg, e, typ), typ
-      | Binop(op, e1, e2, _, _) ->
-        (let op' = convertop op in
-         let e1, typ1 = cil_exp_of_expr e1 in
-         let e2, typ2 = cil_exp_of_expr e2 in
-         (BinOp(op',e1,e2,typ1)), typ1)
-      | _ -> raise (Invalid_argument "cannot convert")
-    in
+    match expr with
+    | Cst (Scalar s) ->
+      let i = Option.get @@ int_of_scalar ~round:`Floor s in (*TODO: which way should one round? *)
+      let ci,truncation = truncateCilint ILongLong i in
+      if truncation = NoTruncation then
+        Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
+      else
+        raise (Invalid_argument "cannot convert (outside range)")
+    | Var v ->
+      (match Var.to_cil_varinfo fundec v with
+       | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
+       | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise (Invalid_argument "cannot convert "))
+    | Unop(Neg, exp, _,_) ->
+      let e, typ = cil_exp_of_texpr1_expr fundec exp in
+      UnOp(Neg, e, typ), typ
+    | Binop(op, e1, e2, _, _) ->
+      (let op' = convertop op in
+       let e1, typ1 = cil_exp_of_texpr1_expr fundec e1 in
+       let e2, typ2 = cil_exp_of_texpr1_expr fundec e2 in
+       (BinOp(op',e1,e2,typ1)), typ1)
+    | _ -> raise (Invalid_argument "cannot convert")
+
+  let cil_exp_of_tcons1 fundec (tcons1:Tcons1.t) =
     let zero = Cil.zero in
     try
-      let cilexp = cil_exp_of_expr (Texpr1.to_expr (Tcons1.get_texpr1 tcons1)) in
+      let cilexp = cil_exp_of_texpr1_expr fundec (Texpr1.to_expr (Tcons1.get_texpr1 tcons1)) in
       match Tcons1.get_typ tcons1 with
       | EQ -> Some (Cil.constFold false @@ BinOp(Eq,fst cilexp,zero,TInt(IInt,[])))
       | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge,fst cilexp,zero,TInt(IInt,[])))
