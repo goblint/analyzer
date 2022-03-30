@@ -29,14 +29,63 @@ struct
   include Var
 
   let equal x y = Var.compare x y = 0
+end
+
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
+
+module VarMetadataTbl (VM: VarMetadata) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var ?name metadata =
+    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+    let var = Var.of_string name in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata var =
+    VH.find_option vh var
+end
+
+module VM =
+struct
+  type t =
+    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
+    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Return (** Var for function return value. *)
+    | Global of varinfo
+
+  let var_name = function
+    | Local -> failwith "var_name of Local"
+    | Arg -> failwith "var_name of Arg"
+    | Return -> "#ret"
+    | Global g -> g.vname
+end
+
+module V =
+struct
+  include VarMetadataTbl (VM)
+  open VM
+
+  let local x = make_var ~name:x.vname Local
+  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let return = make_var Return
+  let global g = make_var (Global g)
 
   (* TODO: This is a mess, there should be a better way! *)
   let to_cil_varinfo fundec v =
-    let vname = to_string v in
-    (* This works because CIL ensures that no local and global have the same name *)
-    let vinfo = List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) in
-    let ginfo () = List.find_map_opt (function GVar(v,_,_) when v.vname = vname -> Some v | _ -> None) !Cilfacade.current_file.globals in
-    Option.map_default (Option.some) (ginfo ()) vinfo
+    match find_metadata v with
+    | Some (Global v) -> Some v
+    | Some (Local) ->
+      let vname = Var.to_string v in
+      List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals)
+    | _ -> None
 end
 
 module type Manager =
@@ -268,7 +317,7 @@ struct
       else
         raise Unsupported_Texpr1Expr
     | Var v ->
-      (match Var.to_cil_varinfo fundec v with
+      (match V.to_cil_varinfo fundec v with
        | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
        | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Texpr1Expr)
     | Unop(Neg, exp, _,_) ->
@@ -1017,53 +1066,4 @@ struct
   let meet = op_scheme D2.meet PrivD.meet
   let widen = op_scheme D2.widen PrivD.widen
   let narrow = op_scheme D2.narrow PrivD.narrow
-end
-
-
-module type VarMetadata =
-sig
-  type t
-  val var_name: t -> string
-end
-
-module VarMetadataTbl (VM: VarMetadata) =
-struct
-  module VH = Hashtbl.Make (Var)
-
-  let vh = VH.create 113
-
-  let make_var ?name metadata =
-    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-    let var = Var.of_string name in
-    VH.replace vh var metadata;
-    var
-
-  let find_metadata var =
-    VH.find_option vh var
-end
-
-module VM =
-struct
-  type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
-    | Return (** Var for function return value. *)
-    | Global of varinfo
-
-  let var_name = function
-    | Local -> failwith "var_name of Local"
-    | Arg -> failwith "var_name of Arg"
-    | Return -> "#ret"
-    | Global g -> g.vname
-end
-
-module V =
-struct
-  include VarMetadataTbl (VM)
-  open VM
-
-  let local x = make_var ~name:x.vname Local
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
-  let return = make_var Return
-  let global g = make_var (Global g)
 end
