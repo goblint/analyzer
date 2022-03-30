@@ -96,19 +96,19 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       let old_global = GlobalMap.find ident map in
       (* Do a (recursive) equal comparison ignoring location information *)
       let change_status, diff = eq old_global global cfgs in
-      let append_to_changed (unchangedHeader) =
+      let append_to_changed ~unchangedHeader =
         changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
       in
       match change_status with
       | ChangedFunHeader f ->
         changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
-        append_to_changed false
+        append_to_changed ~unchangedHeader:false
       | Changed ->
-        append_to_changed true
+        append_to_changed ~unchangedHeader:true
       | Unchanged -> changes.unchanged <- global :: changes.unchanged
       | ForceReanalyze f ->
         changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
-        append_to_changed false;
+        append_to_changed ~unchangedHeader:false;
     with Not_found -> () (* Global was no variable or function, it does not belong into the map *)
   in
   let checkExists map global =
