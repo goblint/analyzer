@@ -59,7 +59,7 @@ module EvalAssert = struct
        | Some e1e, Some e2e -> ES.add (BinOp(LOr,e1e,e2e,Cil.intType)) common
        | _ -> common (* if one of the disjuncts is empty, it is equivalent to true here *)
       )
-    | e -> ES.singleton e
+    | e -> to_conjunct_set e
 
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
