@@ -83,30 +83,25 @@ module EvalAssert = struct
       in
 
       let make_assert loc lval =
-        try
-          let context:Queries.invariant_context = {
-            scope=Cilfacade.find_stmt_fundec s;
-            lval=lval;
-            offset=Cil.NoOffset;
-          } in
+        let context:Queries.invariant_context = {
+          scope=Cilfacade.find_stmt_fundec s;
+          lval=lval;
+          offset=Cil.NoOffset;
+        } in
 
-          let res = (ask loc).f (Queries.Invariant context) in
-          if Queries.ES.is_bot res || Queries.ES.is_top res then
-            []
-          else
-            let e = Queries.ES.choose res in
-            let es = if distinctAsserts then ES.elements (pullOutCommonConjuncts e) else [e] in
-            let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]) es in
-            if surroundByAtomic then
-              let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv !atomicBegin)]) in
-              let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv !atomicEnd)]) in
-              abegin :: (asserts @ [aend])
-            else
-              asserts
-        with
-          Not_found ->
-          (* No local state computed for this location in table joined that joins over all contexts =>  program point is dead*)
+        let res = (ask loc).f (Queries.Invariant context) in
+        if Queries.ES.is_bot res || Queries.ES.is_top res then
           []
+        else
+          let e = Queries.ES.choose res in
+          let es = if distinctAsserts then ES.elements (pullOutCommonConjuncts e) else [e] in
+          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]) es in
+          if surroundByAtomic then
+            let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv !atomicBegin)]) in
+            let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv !atomicEnd)]) in
+            abegin :: (asserts @ [aend])
+          else
+            asserts
       in
 
       let rec instrument_instructions il s =
