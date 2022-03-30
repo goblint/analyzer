@@ -84,12 +84,10 @@ module EvalAssert = struct
 
       let make_assert loc lval =
         try
-          let context: Invariant.context = {
+          let context:Queries.invariant_context = {
             scope=Cilfacade.find_stmt_fundec s;
-            i= -1; (* Not used here *)
             lval=lval;
             offset=Cil.NoOffset;
-            deref_invariant=(fun _ _ _ -> Invariant.none)
           } in
 
           let res = (ask loc).f (Queries.Invariant context) in

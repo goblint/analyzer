@@ -432,6 +432,14 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.Invariant context ->
+      let context: Invariant.context = {
+        scope=context.scope;
+        i= -1; (* Not used here *)
+        lval=context.lval;
+        offset=context.offset;
+        deref_invariant=(fun _ _ _ -> Invariant.none)
+      } in
+
       let e = D.invariant context ctx.local in
       BatOption.map_default (Queries.ES.singleton) (Queries.ES.top ()) e
     | _ ->
