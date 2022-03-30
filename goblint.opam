@@ -72,5 +72,4 @@ pin-depends: [
   # [ "ppx_deriving_yojson.3.6.1" "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd" ]
   # TODO: add back after release, only pinned for CI stability
   [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
-  [ "arg-complete.~dev" "git+https://github.com/sim642/ocaml-arg-complete.git#db6734111249a31b740f3d91e0dec77ec1c5b2e7"]
 ]
