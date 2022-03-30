@@ -154,6 +154,7 @@ struct
   open Tcons1
   module Bounds = Bounds(Man)
   exception Unsupported_CilExp
+  exception Unsupported_Texpr1Expr
 
   (* TODO: move this into some general place *)
   let is_cast_injective from_type to_type =
@@ -256,7 +257,7 @@ struct
       | Mul -> Mult
       | Div -> Div
       | Mod -> Mod
-      | Pow -> raise (Invalid_argument "cannot convert")
+      | Pow -> raise Unsupported_Texpr1Expr
     in
     match expr with
     | Cst (Scalar s) ->
@@ -265,11 +266,11 @@ struct
       if truncation = NoTruncation then
         Const (CInt(i,ILongLong,None)), TInt(ILongLong,[])
       else
-        raise (Invalid_argument "cannot convert (outside range)")
+        raise Unsupported_Texpr1Expr
     | Var v ->
       (match Var.to_cil_varinfo fundec v with
        | Some vinfo -> Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:(TInt(ILongLong,[])), TInt(ILongLong,[])
-       | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise (Invalid_argument "cannot convert "))
+       | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Texpr1Expr)
     | Unop(Neg, exp, _,_) ->
       let e, typ = cil_exp_of_texpr1_expr fundec exp in
       UnOp(Neg, e, typ), typ
@@ -278,7 +279,7 @@ struct
        let e1, typ1 = cil_exp_of_texpr1_expr fundec e1 in
        let e2, typ2 = cil_exp_of_texpr1_expr fundec e2 in
        (BinOp(op',e1,e2,typ1)), typ1)
-    | _ -> raise (Invalid_argument "cannot convert")
+    | _ -> raise Unsupported_Texpr1Expr
 
   let cil_exp_of_tcons1 fundec (tcons1:Tcons1.t) =
     let zero = Cil.zero in
@@ -291,7 +292,7 @@ struct
       | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne,fst cilexp,zero,TInt(IInt,[])))
       | EQMOD _ -> None
     with
-      _ -> None
+      Unsupported_Texpr1Expr -> None
 end
 
 
