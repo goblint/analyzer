@@ -121,7 +121,7 @@ module EvalAssert = struct
 
       let rec instrument_instructions il s =
         (* Does this statement have a successor that has only on predecessor? *)
-        let unique_succ = List.length s.succs > 0 && (List.hd s.succs).preds |> List.length < 2 in
+        let unique_succ = s.succs <> [] && (List.hd s.succs).preds |> List.length < 2 in
         let instrument i loc =
           let instrument' lval =
             let lval_arg = if full || only_at_locks then None else lval in
@@ -143,11 +143,11 @@ module EvalAssert = struct
             (* Successor of it has only one predecessor, we can query for the value there *)
             let loc = get_stmtLoc (List.hd s.succs).skind in
             i :: (instrument i loc)
-          | [i] ->
+          | [i] when s.succs <> [] ->
             (* Successor has multiple predecessors, results may be imprecise but remain correct *)
             let loc = get_stmtLoc (List.hd s.succs).skind in
             i :: (instrument i loc)
-          | [] -> []
+          | x -> x
         in
         instrument_instructions il
       in
