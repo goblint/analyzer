@@ -30,9 +30,9 @@ module EvalAssert = struct
   let surroundByAtomic = true
 
   (* Cannot use Cilfacade.name_fundecs as assert() is external and has no fundec *)
-  let ass = ref (makeVarinfo true "assert" (TVoid []))
-  let atomicBegin = ref (makeVarinfo true "__VERIFIER_atomic_begin" (TVoid []))
-  let atomicEnd = ref (makeVarinfo true "__VERIFIER_atomic_end" (TVoid []))
+  let ass = makeVarinfo true "assert" (TVoid [])
+  let atomicBegin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
+  let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
 
   (* Turns an expression into alist of conjuncts, pulling out common conjuncts from top-level disjunctions *)
@@ -60,18 +60,6 @@ module EvalAssert = struct
     val full = GobConfig.get_bool "trans.assert.full"
     val only_at_locks = GobConfig.get_bool "trans.assert.only-at-locks"
 
-    method! vglob g = match g with
-      | GVarDecl (v, l) ->
-        if v.vname = "assert" then
-          (ass := v; SkipChildren)
-        else if v.vname = "__VERIFIER_atomic_begin" then
-          (atomicBegin := v; SkipChildren)
-        else if v.vname = "__VERIFIER_atomic_end" then
-          (atomicEnd := v; SkipChildren)
-        else
-          SkipChildren
-      | _ -> DoChildren
-
     method! vstmt s =
       let is_lock exp args =
         match exp with
@@ -91,10 +79,10 @@ module EvalAssert = struct
         match (ask loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = if distinctAsserts then ES.elements (pullOutCommonConjuncts e) else [e] in
-          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv !ass); ("exp", Fe e)]) es in
+          let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv ass); ("exp", Fe e)]) es in
           if surroundByAtomic then
-            let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv !atomicBegin)]) in
-            let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv !atomicEnd)]) in
+            let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv atomicBegin)]) in
+            let aend = (cInstr ("%v:__VERIFIER_atomic_end();") loc [("__VERIFIER_atomic_end", Fv atomicEnd)]) in
             abegin :: (asserts @ [aend])
           else
             asserts
