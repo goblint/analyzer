@@ -297,11 +297,11 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
-  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+  let cil_exp_of_linexpr1 ?round fundec (linexpr1:Linexpr1.t) =
     let longlong = TInt(ILongLong,[]) in
     let coeeff_to_z (c:Coeff.union_5) = match c with
       | Scalar c ->
-        (match int_of_scalar ~round:`Floor c with (*TODO: which way should one round? *)
+        (match int_of_scalar ?round c with
          | Some i ->
            let ci,truncation = truncateCilint ILongLong i in
            if truncation = NoTruncation then
@@ -329,12 +329,12 @@ struct
   let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
     let zero = Cil.zero in
     try
-      let cilexp = cil_exp_of_linexpr1 fundec (Lincons1.get_linexpr1 lincons1) in
+      let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       match Lincons1.get_typ lincons1 with
-      | EQ -> Some (Cil.constFold false @@ BinOp(Eq,cilexp,zero,TInt(IInt,[])))
-      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge,cilexp,zero,TInt(IInt,[])))
-      | SUP -> Some (Cil.constFold false @@ BinOp(Gt,cilexp,zero,TInt(IInt,[])))
-      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne,cilexp,zero,TInt(IInt,[])))
+      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cil_exp_of_linexpr1 fundec linexpr1, zero, TInt(IInt,[])))
+      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cil_exp_of_linexpr1 ~round:`Ceil fundec linexpr1, zero, TInt(IInt,[])))
+      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cil_exp_of_linexpr1 ~round:`Ceil fundec linexpr1, zero, TInt(IInt,[])))
+      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cil_exp_of_linexpr1 fundec linexpr1, zero, TInt(IInt,[])))
       | EQMOD _ -> None
     with
       Unsupported_Linexpr1 -> None
