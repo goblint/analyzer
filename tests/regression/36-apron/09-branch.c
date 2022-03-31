@@ -12,4 +12,21 @@ void main() {
     // doesn't imply i - 1 != 1   (i != 2)
     assert(i == 2); // UNKNOWN!
   }
+  
+  two();
+}
+
+void two() {
+  int i = __VERIFIER_nondet_int();
+  int j =  __VERIFIER_nondet_int();
+
+  if(i<j) {
+    assert(i<j);
+  }
+
+  if(!(i<j)) {
+
+  } else {
+    assert(i<j);
+  }
 }

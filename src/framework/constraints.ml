@@ -736,7 +736,7 @@ struct
         | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
           (* Limited to loops with only one entry node. Otherwise unsound as is. *)
           (* TODO: Is it possible to do soundly for multi-entry loops? *)
-          let stricts = NodeH.find_all scc.prev v in
+          let stricts = NodeH.find_default scc.prev v [] in
           let pvals_stricts = List.map get_pval stricts in (* get pvals before executing any tf to maximize abort *)
           let xs_stricts = List.map2 tf' stricts pvals_stricts in
           if List.for_all S.D.is_bot xs_stricts then

@@ -281,18 +281,23 @@ struct
     cpa' *)
 
   let lock ask getg (st: BaseComponents (D).t) m =
-    let get_m = get_m_with_mutex_inits ask getg m in
-    (* Really we want is_unprotected, but pthread_cond_wait emits unlock-lock events,
-       where our (necessary) original context still has the mutex,
-       so the query would be on the wrong lockset.
-       TODO: Fixing the event contexts is hard: https://github.com/goblint/analyzer/pull/487#discussion_r765905029.
-       Therefore, just use _without to exclude the mutex we shouldn't have.
-       In non-cond locks we don't have it anyway, so there's no difference.
-       No other privatization uses is_unprotected, so this hack is only needed here. *)
-    let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
-    let cpa' = CPA.filter is_in_V get_m in
-    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
-    {st with cpa = CPA.fold CPA.add cpa' st.cpa}
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let get_m = get_m_with_mutex_inits ask getg m in
+      (* Really we want is_unprotected, but pthread_cond_wait emits unlock-lock events,
+        where our (necessary) original context still has the mutex,
+        so the query would be on the wrong lockset.
+        TODO: Fixing the event contexts is hard: https://github.com/goblint/analyzer/pull/487#discussion_r765905029.
+        Therefore, just use _without to exclude the mutex we shouldn't have.
+        In non-cond locks we don't have it anyway, so there's no difference.
+        No other privatization uses is_unprotected, so this hack is only needed here. *)
+      let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
+      let cpa' = CPA.filter is_in_V get_m in
+      if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
+      {st with cpa = CPA.fold CPA.add cpa' st.cpa}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
+
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     let side_m_cpa = CPA.filter is_in_Gm st.cpa in
@@ -356,15 +361,20 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let get_m = get_m_with_mutex_inits ask getg m in
-    (* Additionally filter get_m in case it contains variables it no longer protects. *)
-    let is_in_Gm x _ = is_protected_by ask m x in
-    let get_m = CPA.filter is_in_Gm get_m in
-    let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
-    let meet = long_meet st.cpa get_m in
-    if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
-    {st with cpa = meet}
+  let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let get_m = get_m_with_mutex_inits ask getg m in
+      (* Additionally filter get_m in case it contains variables it no longer protects. *)
+      let is_in_Gm x _ = is_protected_by ask m x in
+      let get_m = CPA.filter is_in_Gm get_m in
+      let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
+      let meet = long_meet st.cpa get_m in
+      if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
+      {st with cpa = meet}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
+
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg (V.mutex m) (CPA.filter is_in_Gm st.cpa);

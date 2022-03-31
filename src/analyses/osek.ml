@@ -248,7 +248,26 @@ struct
     let check_fun = effect_fun
   end
 
-  module M = Mutex.MakeSpec (MyParam)
+  module M =
+  struct
+    include Mutex.MakeSpec (MyParam)
+
+    let extract_lock lock =
+      match lock with
+      | AddrOf (Var varinfo,NoOffset) -> LockDomain.Addr.from_var varinfo
+      | _ -> assert false
+
+    let special ctx lval f args =
+      (* simulate old mutex analysis special by emitting events directly, a la mutexEvents *)
+      begin match f.vname, args with
+        | ("GetResource" | "GetSpinlock"), [lock] ->
+          ctx.emit (Events.Lock (extract_lock lock, true))
+        | ("ReleaseResource" | "ReleaseSpinlock"), [lock] ->
+          ctx.emit (Events.Unlock (extract_lock lock))
+        | _, _ -> ()
+      end;
+      special ctx lval f args
+  end
   module Offs = ValueDomain.Offs
   module Lockset = LockDomain.Lockset
 
@@ -520,40 +539,6 @@ struct
               | Unknown  of (exp * bool)
   type accesses = access list
 
-  let struct_type_inv (v:varinfo) (o:Offs.t) : (varinfo * Offs.t) option =
-    let rec append os = function
-      | `NoOffset    -> os
-      | `Field (f,o) -> `Field (f,append o os)
-      | `Index (i,o) -> `Index (i,append o os)
-    in
-    let replace_struct t (v,o) =
-      begin match t with
-        | TComp (c,_) when c.cstruct ->
-          begin match type_inv c with
-            | [(v,_)] -> (v,`NoOffset)
-            | _   -> (v,o)
-          end
-        | _ -> (v,o)
-      end
-    in
-    let rec get_lv t (v,u) = function
-      | `NoOffset    -> (v,u)
-      | `Field (f,o) -> get_lv f.ftype (replace_struct f.ftype (v, append (`Field (f,`NoOffset)) u)) o
-      | `Index (i,o) ->
-        begin match unrollType t with
-          | TPtr (t,_)     -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
-          | TArray (t,_,_) -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
-          | _ -> raise Not_found
-        end
-    in
-    match Offs.to_offset o with
-    | [o] ->
-      begin try
-          let a,b = (get_lv (v.vtype) (replace_struct v.vtype (v,`NoOffset)) o) in
-          Some (a, Offs.from_offset b)
-        with Not_found -> None end
-    | _ -> None
-
   let add_accesses ctx (accessed: accesses) (flagstate: Flags.t) (ust:D.t) =
     let fl = get_flag ctx.presub in
     if Flag.is_multi fl then
@@ -601,7 +586,7 @@ struct
           (*             offpry_flags flagstate v *)
           (*           end *)
         in off > pry
-    | Queries.CurrentLockset -> (* delegate for MinePriv *)
+    | Queries.MustLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
       M.query ctx q
     | _ -> Queries.Result.top q
@@ -896,6 +881,8 @@ struct
       M.special ctx lval f arglist
     | _ -> M.special ctx lval f arglist
   (* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
+
+  let event ctx e = M.event ctx e
 
   let name () = "OSEK"
   let es_to_string f _ = f.svar.vname

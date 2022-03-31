@@ -99,14 +99,6 @@ struct
     | _ ->
       ctx.local
 
-  module ExpSet = BatSet.Make (Exp)
-  let type_inv_tbl = Hashtbl.create 13
-  let type_inv (c:compinfo) : Lval.CilLval.t list =
-    try [Hashtbl.find type_inv_tbl c,`NoOffset]
-    with Not_found ->
-      let i = Goblintutil.create_var (makeGlobalVar ("(struct "^c.cname^")") (TComp (c,[]))) in
-      Hashtbl.add type_inv_tbl c i;
-      [i, `NoOffset]
 
   let rec conv_const_offset x =
     match x with
@@ -116,34 +108,30 @@ struct
     | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
-  let one_perelem ask (e,a,l) es =
-    (* Type invariant variables. *)
-    let b_comp = Exp.base_compinfo e a in
-    let f es (v,o) =
-      match Exp.fold_offs (Exp.replace_base (v,o) e l) with
-      | Some (v,o) -> ExpSet.add (Lval (Var v,o)) es
-      | None -> es
-    in
-    match b_comp with
-    | Some ci -> List.fold_left f es (type_inv ci)
-    | None -> es
+  module A =
+  struct
+    module E = struct
+      include Printable.Either (CilType.Offset) (ValueDomain.Addr)
 
-  let one_lockstep (_,a,m) ust =
-    let rec conv_const_offset x =
-      match x with
-      | NoOffset    -> `NoOffset
-      | Index (Const  (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
-      | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
-      | Field (f,o) -> `Field (f, conv_const_offset o)
-    in
-    match m with
-    | AddrOf (Var v,o) ->
-      LockDomain.Lockset.add (ValueDomain.Addr.from_var_offset (v, conv_const_offset o),true) ust
-    | _ ->
-      ust
+      let pretty () = function
+        | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
+        | `Right addr -> Pretty.dprintf "i-lock:%a" ValueDomain.Addr.pretty addr
+
+      include Printable.SimplePretty (
+        struct
+          type nonrec t = t
+          let pretty = pretty
+        end
+        )
+    end
+    include SetDomain.Make (E)
+
+    let name () = "symblock"
+    let may_race lp lp2 = is_empty @@ inter lp lp2
+    let should_print lp = not (is_empty lp)
+  end
 
   let add_per_element_access ctx e rw =
-    let module LSSet = OldAccess.LSSet in
     (* Per-element returns a triple of exps, first are the "element" pointers,
        in the second and third positions are the respectively access and mutex.
        Access and mutex expressions have exactly the given "elements" as "prefixes".
@@ -156,9 +144,8 @@ struct
       (* ignore (printf "one_perelem (%a,%a,%a)\n" Exp.pretty e Exp.pretty a Exp.pretty l); *)
       match Exp.fold_offs (Exp.replace_base (dummyFunDec.svar,`NoOffset) e l) with
       | Some (v, o) ->
-        let l = Pretty.sprint ~width:80 (d_offset (text "*") () o) in
         (* ignore (printf "adding lock %s\n" l); *)
-        LSSet.add ("p-lock",l) xs
+        A.add (`Left o) xs
       | None -> xs
     in
     (* Array lockstep also returns a triple of exps. Second and third elements in
@@ -172,7 +159,7 @@ struct
       match m with
       | AddrOf (Var v,o) ->
         let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
-        LSSet.add ("i-lock",ValueDomain.Addr.show lock) xs
+        A.add (`Right lock) xs
       | _ ->
         Messages.warn "Internal error: found a strange lockstep pattern.";
         xs
@@ -208,18 +195,14 @@ struct
          | _ -> Queries.ES.singleton e)
     in
     Queries.ES.fold do_lockstep matching_exps
-      (Queries.ES.fold do_perel matching_exps (LSSet.empty ()))
+      (Queries.ES.fold do_perel matching_exps (A.empty ()))
 
-  module A =
-  struct
-    (* TODO: non-string symblocks *)
-    include OldAccess.LSSet
-    let name () = "symblock"
-    let may_race lp lp2 = is_empty @@ inter lp lp2
-    let should_print lp = not (is_empty lp)
-  end
-  let access ctx e vo w =
-    add_per_element_access ctx e false
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point ->
+      A.empty ()
+    | Memory {exp = e; _} ->
+      add_per_element_access ctx e false
 end
 
 let _ =

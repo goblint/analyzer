@@ -39,9 +39,9 @@ let print_help ch =
   exit 0
 
 (** [Arg] option specification *)
-let option_spec_list =
-  let add_string l = let f str = l := str :: !l in Arg.String f in
-  let add_int    l = let f str = l := str :: !l in Arg.Int f in
+let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
+  let add_string l = let f str = l := str :: !l in Arg_complete.String (f, Arg_complete.empty) in
+  let add_int    l = let f str = l := str :: !l in Arg_complete.Int (f, Arg_complete.empty) in
   let set_trace sys =
     if Messages.tracing then Tracing.addsystem sys
     else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
@@ -67,50 +67,79 @@ let option_spec_list =
     set_bool "dbg.print_dead_code" true;
     set_string "result" "sarif"
   in
+  let complete_option_value option s =
+    let completions = List.assoc option Options.completions in
+    Arg_complete.strings completions s
+  in
   let defaults_spec_list = List.map (fun path ->
       (* allow "--option value" as shorthand for "--set option value" *)
-      ("--" ^ path, Arg.String (set_auto path), "")
+      ("--" ^ path, Arg_complete.String (set_auto path, complete_option_value path), "")
     ) Options.paths
   in
   let tmp_arg = ref "" in
-  [ "-o"                   , Arg.String (set_string "outfile"), ""
-  ; "-v"                   , Arg.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
-  ; "-j"                   , Arg.Int (set_int "jobs"), ""
-  ; "-I"                   , Arg.String (set_string "pre.includes[+]"), ""
-  ; "-IK"                  , Arg.String (set_string "pre.kernel_includes[+]"), ""
-  ; "--set"                , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto !tmp_arg x)], ""
-  ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
-  ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
-  ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
-  ; "--conf"               , Arg.String merge_file, ""
-  ; "--writeconf"          , Arg.String (fun fn -> writeconffile := fn), ""
-  ; "--version"            , Arg.Unit print_version, ""
-  ; "--print_options"      , Arg.Unit (fun () -> Options.print_options (); exit 0), ""
-  ; "--print_all_options"  , Arg.Unit (fun () -> Options.print_all_options (); exit 0), ""
-  ; "--trace"              , Arg.String set_trace, ""
+  let last_complete_option = ref "" in
+  let complete_option s =
+    last_complete_option := s;
+    Arg_complete.strings Options.paths s
+  in
+  let complete_bool_option s =
+    let cs = complete_option s in
+    let is_bool c =
+      match GobConfig.get_json c with
+      | `Bool _ -> true
+      | _ -> false
+    in
+    List.filter is_bool cs
+  in
+  let complete_last_option_value s =
+    complete_option_value !last_complete_option s
+  in
+  [ "-o"                   , Arg_complete.String (set_string "outfile", Arg_complete.empty), ""
+  ; "-v"                   , Arg_complete.Unit (fun () -> set_bool "dbg.verbose" true; set_bool "printstats" true), ""
+  ; "-j"                   , Arg_complete.Int (set_int "jobs", Arg_complete.empty), ""
+  ; "-I"                   , Arg_complete.String (set_string "pre.includes[+]", Arg_complete.empty), ""
+  ; "-IK"                  , Arg_complete.String (set_string "pre.kernel_includes[+]", Arg_complete.empty), ""
+  ; "--set"                , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> set_auto !tmp_arg x), complete_last_option_value)], ""
+  ; "--sets"               , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, complete_option); Arg_complete.String ((fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x), complete_last_option_value)], ""
+  ; "--enable"             , Arg_complete.String ((fun x -> set_bool x true), complete_bool_option), ""
+  ; "--disable"            , Arg_complete.String ((fun x -> set_bool x false), complete_bool_option), ""
+  ; "--conf"               , Arg_complete.String (merge_file, Arg_complete.empty), ""
+  ; "--writeconf"          , Arg_complete.String ((fun fn -> writeconffile := fn), Arg_complete.empty), ""
+  ; "--version"            , Arg_complete.Unit print_version, ""
+  ; "--print_options"      , Arg_complete.Unit (fun () -> Options.print_options (); exit 0), ""
+  ; "--print_all_options"  , Arg_complete.Unit (fun () -> Options.print_all_options (); exit 0), ""
+  ; "--trace"              , Arg_complete.String (set_trace, Arg_complete.empty), ""
   ; "--tracevars"          , add_string Tracing.tracevars, ""
   ; "--tracelocs"          , add_int Tracing.tracelocs, ""
-  ; "--help"               , Arg.Unit (fun _ -> print_help stdout),""
-  ; "--html"               , Arg.Unit (fun _ -> configure_html ()),""
-  ; "--sarif"               , Arg.Unit (fun _ -> configure_sarif ()),""
-  ; "--compare_runs"       , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x))], ""
-  ; "--oil"                , Arg.String oil, ""
-  (*     ; "--tramp"              , Arg.String (set_string "ana.osek.tramp"), ""  *)
-  ; "--osekdefaults"       , Arg.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
-  ; "--osektaskprefix"     , Arg.String (set_string "ana.osek.taskprefix"), ""
-  ; "--osekisrprefix"      , Arg.String (set_string "ana.osek.isrprefix"), ""
-  ; "--osektasksuffix"     , Arg.String (set_string "ana.osek.tasksuffix"), ""
-  ; "--osekisrsuffix"      , Arg.String (set_string "ana.osek.isrsuffix"), ""
-  ; "--osekcheck"          , Arg.Unit (fun () -> set_bool "ana.osek.check" true), ""
-  ; "--oseknames"          , Arg.Set_string OilUtil.osek_renames, ""
-  ; "--osekids"            , Arg.Set_string OilUtil.osek_ids, ""
+  ; "--help"               , Arg_complete.Unit (fun _ -> print_help stdout),""
+  ; "--html"               , Arg_complete.Unit (fun _ -> configure_html ()),""
+  ; "--sarif"               , Arg_complete.Unit (fun _ -> configure_sarif ()),""
+  ; "--compare_runs"       , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, Arg_complete.empty); Arg_complete.String ((fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x)), Arg_complete.empty)], ""
+  ; "--oil"                , Arg_complete.String (oil, Arg_complete.empty), ""
+  (*     ; "--tramp"              , Arg_complete.String (set_string "ana.osek.tramp"), ""  *)
+  ; "--osekdefaults"       , Arg_complete.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
+  ; "--osektaskprefix"     , Arg_complete.String (set_string "ana.osek.taskprefix", Arg_complete.empty), ""
+  ; "--osekisrprefix"      , Arg_complete.String (set_string "ana.osek.isrprefix", Arg_complete.empty), ""
+  ; "--osektasksuffix"     , Arg_complete.String (set_string "ana.osek.tasksuffix", Arg_complete.empty), ""
+  ; "--osekisrsuffix"      , Arg_complete.String (set_string "ana.osek.isrsuffix", Arg_complete.empty), ""
+  ; "--osekcheck"          , Arg_complete.Unit (fun () -> set_bool "ana.osek.check" true), ""
+  ; "--oseknames"          , Arg_complete.Set_string (OilUtil.osek_renames, Arg_complete.empty), ""
+  ; "--osekids"            , Arg_complete.Set_string (OilUtil.osek_ids, Arg_complete.empty), ""
+  ; "--complete"           , Arg_complete.Rest_all_compat.spec (Lazy.force rest_all_complete), ""
   ] @ defaults_spec_list (* lowest priority *)
-
+)
+and rest_all_complete = lazy (Arg_complete.Rest_all_compat.create complete Arg_complete.empty_all)
+and complete args =
+  Arg_complete.complete_argv args (Lazy.force option_spec_list) Arg_complete.empty
+  |> List.iter print_endline;
+  raise Exit
 
 (** Parse arguments. Print help if needed. *)
 let parse_arguments () =
   let anon_arg = set_string "files[+]" in
-  Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
+  let arg_speclist = Arg_complete.arg_speclist (Lazy.force option_spec_list) in
+  Arg.parse arg_speclist anon_arg "Look up options using 'goblint --help'.";
+  Arg_complete.Rest_all_compat.finish (Lazy.force rest_all_complete);
   if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit);
   if get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
@@ -202,8 +231,8 @@ let preprocess_files () =
       (* linux-headers not installed with goblint package *)
     ]
     in
-    let kernel_root = 
-      try List.find Sys.file_exists kernel_roots 
+    let kernel_root =
+      try List.find Sys.file_exists kernel_roots
       with Not_found -> prerr_endline "Root directory for kernel include files not found!"; raise Exit
     in
 
@@ -430,7 +459,7 @@ let check_arguments () =
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
-  if get_string "ana.osek.oil" <> "" && not (get_string "ana.base.privatization" = "protection-vesal" || get_string "ana.base.privatization" = "protection-old") then (set_string "ana.base.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization");
+  if get_string "ana.osek.oil" <> "" && not (get_string "ana.base.privatization" = "protection-vesal" || get_string "ana.base.privatization" = "protection-old") then (set_string "ana.base.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization, setting ana.base.privatization to protection-vesal");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
