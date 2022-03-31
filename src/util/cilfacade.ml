@@ -642,14 +642,3 @@ let stmt_pretty_short () x =
   | Instr (y::ys) -> dn_instr () y
   | If (exp,_,_,_,_) -> dn_exp () exp
   | _ -> dn_stmt () x
-
-let more_than_one_var exp =
-  let rec count_vars (exp:exp) =
-    match exp with
-    | Lval(Var _, _) -> 1
-    | UnOp(_,e,_) -> count_vars e
-    | BinOp(_,e1,e2,_) -> count_vars e1 + count_vars e2
-    | CastE(_,e) -> count_vars e
-    | _ -> 0
-  in
-  count_vars exp > 1
