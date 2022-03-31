@@ -1,4 +1,4 @@
-(** Mutex analysis. *)
+(** Protecting mutex analysis. Must locksets locally and for globals. *)
 
 module M = Messages
 module Addr = ValueDomain.Addr
@@ -17,7 +17,6 @@ sig
   val check_fun: ?write:bool -> Lockset.t -> G.t
 end
 
-(** Mutex analyzer without base --- this is the new standard *)
 module MakeSpec (P: SpecParam) =
 struct
   module Arg =

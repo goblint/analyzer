@@ -1,4 +1,4 @@
-(** Mutex analysis. *)
+(** Mutex events analysis (Lock and Unlock). *)
 
 module M = Messages
 module Addr = ValueDomain.Addr
@@ -19,8 +19,7 @@ struct
   let name () = "mutexEvents"
 
 
-  (* NB! Currently we care only about concrete indexes. Base (seeing only a int domain
-     element) answers with the string "unknown" on all non-concrete cases. *)
+  (* Currently we care only about concrete indexes. *)
   let rec conv_offset x =
     match x with
     | `NoOffset    -> `NoOffset
