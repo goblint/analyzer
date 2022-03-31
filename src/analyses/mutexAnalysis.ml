@@ -33,7 +33,6 @@ struct
       D.remove (l, true) (D.remove (l, false) ctx.local)
 
     let remove_all ctx =
-      (* TODO: implement in privatizations? *)
       (* Mutexes.iter (fun m ->
           ctx.emit (MustUnlock m)
         ) (D.export_locks ctx.local); *)
