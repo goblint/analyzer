@@ -299,27 +299,38 @@ struct
 
   let cil_exp_of_linexpr1 ?round fundec (linexpr1:Linexpr1.t) =
     let longlong = TInt(ILongLong,[]) in
-    let coeeff_to_z (c:Coeff.union_5) = match c with
+    let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
       | Scalar c ->
         (match int_of_scalar ?round c with
          | Some i ->
            let ci,truncation = truncateCilint ILongLong i in
            if truncation = NoTruncation then
-             Const (CInt(i,ILongLong,None))
+             if not consider_flip || Z.compare i Z.zero >= 0 then
+               Const (CInt(i,ILongLong,None)), false
+             else
+               (* attempt to negate if that does not cause an overflow *)
+               let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+               if truncation = NoTruncation then
+                 Const (CInt((Z.neg i),ILongLong,None)), true
+               else
+                 Const (CInt(i,ILongLong,None)), false
            else
              raise Unsupported_Linexpr1
          | None -> raise Unsupported_Linexpr1)
       | _ -> raise Unsupported_Linexpr1
     in
-    let expr = ref (coeeff_to_z (Linexpr1.get_cst linexpr1)) in
+    let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
     let append_summand (c:Coeff.union_5) v =
       match V.to_cil_varinfo fundec v with
       | Some vinfo ->
         (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
         let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-        let coeff = coeeff_to_z c in
+        let coeff, flip = coeff_to_const true c in
         let prod = BinOp(Mult, coeff, var, longlong) in
-        expr := BinOp(PlusA,!expr,prod,longlong)
+        if flip then
+          expr := BinOp(MinusA,!expr,prod,longlong)
+        else
+          expr := BinOp(PlusA,!expr,prod,longlong)
       | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
     in
     Linexpr1.iter append_summand linexpr1;
