@@ -1575,6 +1575,12 @@
           "type": "boolean",
           "default": true
         },
+        "deadlock": {
+          "title": "warn.deadlock",
+          "description": "Deadlock warnings",
+          "type": "boolean",
+          "default": true
+        },
         "deadcode": {
           "title": "warn.deadcode",
           "description": "Dead code warnings",
@@ -1640,6 +1646,12 @@
           "description": "Quote code in message output.",
           "type": "boolean",
           "default": false
+        },
+        "race-threshold": {
+          "title": "warn.race-threshold",
+          "description": "Races with confidence at least threshold are warnings, lower are infos.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false

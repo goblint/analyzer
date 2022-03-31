@@ -5,10 +5,12 @@
 int g1, g2;
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex3 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t1(void *arg) {
-  pthread_mutex_lock(&mutex1); // DEADLOCK
-  pthread_mutex_lock(&mutex2); // DEADLOCK
+  pthread_mutex_lock(&mutex3); // NODEADLOCK
+  pthread_mutex_lock(&mutex1); // NODEADLOCK (common mutex3)
+  pthread_mutex_lock(&mutex2); // NODEADLOCK (common mutex3)
   g1 = g2 + 1;
   pthread_mutex_unlock(&mutex2);
   pthread_mutex_unlock(&mutex1);
@@ -16,21 +18,19 @@ void *t1(void *arg) {
 }
 
 void *t2(void *arg) {
-  int k = rand() % 2;
-  if (k)
-    pthread_mutex_lock(&mutex2); // DEADLOCK
-  pthread_mutex_lock(&mutex1); // DEADLOCK
+  pthread_mutex_lock(&mutex3); // NODEADLOCK
+  pthread_mutex_lock(&mutex2); // NODEADLOCK (common mutex3)
+  pthread_mutex_lock(&mutex1); // NODEADLOCK (common mutex3)
   g2 = g1 + 1;
   pthread_mutex_unlock(&mutex1);
-  if (k)
-    pthread_mutex_unlock(&mutex2);
+  pthread_mutex_unlock(&mutex2);
   return NULL;
 }
 
 int main(void) {
   pthread_t id1, id2;
   int i;
-  for (i = 0; i < 1000000; i++) {
+  for (i = 0; i < 10000; i++) {
     pthread_create(&id1, NULL, t1, NULL);
     pthread_create(&id2, NULL, t2, NULL);
     pthread_join (id1, NULL);

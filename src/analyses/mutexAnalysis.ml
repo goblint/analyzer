@@ -170,7 +170,7 @@ struct
     let should_print ls = not (is_empty ls)
   end
 
-  let access ctx e vo w =
+  let access ctx (a: Queries.access) =
     ctx.local
 
   (** Transfer functions: *)

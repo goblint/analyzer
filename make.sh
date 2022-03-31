@@ -46,6 +46,11 @@ rule() {
       dune build src/apronPrecCompare.exe &&
       rm -f apronPrecCompare &&
       cp _build/default/src/apronPrecCompare.exe apronPrecCompare
+    ;; messagesCompare)
+      eval $(opam config env)
+      dune build src/messagesCompare.exe &&
+      rm -f messagesCompare &&
+      cp _build/default/src/messagesCompare.exe messagesCompare
     ;; byte)
       eval $(opam config env)
       dune build goblint.byte &&

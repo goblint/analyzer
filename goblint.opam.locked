@@ -20,6 +20,7 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.15.0"}
   "apron" {= "v0.9.13"}
+  "arg-complete" {= "0.1.0"}
   "astring" {= "0.8.5" & with-doc}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
@@ -113,7 +114,7 @@ version: "dev"
 pin-depends: [
   [
     "goblint-cil.1.8.2"
-    "git+https://github.com/goblint/cil.git#c47bbbdb442b4d50dac5a0879404ab3b5592170a"
+    "git+https://github.com/goblint/cil.git#699843662cddf44523a4f81972e617f6dccebc0f"
   ]
   [
     "apron.v0.9.13"
