@@ -759,10 +759,15 @@ struct
     let r = A.to_lincons_array Man.mgr x in
     let cons, env = r.lincons0_array, r.array_env in
     let cons = Array.to_list cons in
-    let convert_one constr = Convert.cil_exp_of_lincons1 ctx.scope {lincons0=constr; env=env} in
+    let filter_out_one_var_constraints = false in
+    let convert_one (constr:Lincons0.t) =
+      if filter_out_one_var_constraints && Linexpr0.get_size (constr.linexpr0) < 0 then
+        None
+      else
+        Convert.cil_exp_of_lincons1 ctx.scope {lincons0=constr; env=env}
+    in
     let cil_cons = List.filter_map convert_one cons in
-    let interesting = List.filter Cilfacade.more_than_one_var cil_cons in
-    List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None interesting
+    List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None cil_cons
 end
 
 
