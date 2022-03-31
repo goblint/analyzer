@@ -248,7 +248,26 @@ struct
     let check_fun = effect_fun
   end
 
-  module M = Mutex.MakeSpec (MyParam)
+  module M =
+  struct
+    include Mutex.MakeSpec (MyParam)
+
+    let extract_lock lock =
+      match lock with
+      | AddrOf (Var varinfo,NoOffset) -> LockDomain.Addr.from_var varinfo
+      | _ -> assert false
+
+    let special ctx lval f args =
+      (* simulate old mutex analysis special by emitting events directly, a la mutexEvents *)
+      begin match f.vname, args with
+        | ("GetResource" | "GetSpinlock"), [lock] ->
+          ctx.emit (Events.Lock (extract_lock lock, true))
+        | ("ReleaseResource" | "ReleaseSpinlock"), [lock] ->
+          ctx.emit (Events.Unlock (extract_lock lock))
+        | _, _ -> ()
+      end;
+      special ctx lval f args
+  end
   module Offs = ValueDomain.Offs
   module Lockset = LockDomain.Lockset
 
@@ -567,7 +586,7 @@ struct
           (*             offpry_flags flagstate v *)
           (*           end *)
         in off > pry
-    | Queries.CurrentLockset -> (* delegate for MinePriv *)
+    | Queries.MustLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
       M.query ctx q
     | _ -> Queries.Result.top q
@@ -862,6 +881,8 @@ struct
       M.special ctx lval f arglist
     | _ -> M.special ctx lval f arglist
   (* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
+
+  let event ctx e = M.event ctx e
 
   let name () = "OSEK"
   let es_to_string f _ = f.svar.vname

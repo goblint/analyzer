@@ -408,16 +408,18 @@ struct
   let threadspawn ctx lval f args fctx =
     ctx.local
 
-  let event ctx e aprx =
+  let event ctx e octx =
     let st = ctx.local in
     match e with
-    | Events.Lock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.lock (Analyses.ask_of_ctx aprx) aprx.global st addr
+    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+      Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.unlock (Analyses.ask_of_ctx aprx) aprx.global aprx.sideg st addr
+      if addr = UnknownPtr then
+        M.info ~category:Unsound "Unknown mutex unlocked, apron privatization unsound"; (* TODO: something more sound *)
+      Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
     (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded (Analyses.ask_of_ctx aprx) aprx.global aprx.sideg st
+      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | _ ->
       st
 

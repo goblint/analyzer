@@ -4,55 +4,52 @@ open Prelude.Ana
 open Analyses
 open DeadlockDomain
 
+
 module Spec =
 struct
-  include Analyses.IdentitySpec
-
-  let name () = "deadlock"
-
-  module D = MayLockEvents
-  module C = D
-  module V = Lock
 
   module LockEventPair = Printable.Prod (LockEvent) (LockEvent)
   module MayLockEventPairs = SetDomain.Make (LockEventPair)
-  module G =
+
+  module Arg =
   struct
-    include MapDomain.MapBot (Lock) (MayLockEventPairs)
-    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
-  end
+    module D = MayLockEvents
+    module V = Lock
 
-  let side_lock_event_pair ctx before after =
-    let d =
-      if !GU.should_warn then
-        G.singleton (Tuple3.first after) (MayLockEventPairs.singleton (before, after))
-      else
-        G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
-    in
-    ctx.sideg (Tuple3.first before) d
+    module G =
+    struct
+      include MapDomain.MapBot (Lock) (MayLockEventPairs)
+      let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
+    end
 
+    let side_lock_event_pair ctx before after =
+      let d =
+        if !GU.should_warn then
+          G.singleton (Tuple3.first after) (MayLockEventPairs.singleton (before, after))
+        else
+          G.bot () (* HACK: just to pass validation with MCP DomVariantLattice *)
+      in
+      ctx.sideg (Tuple3.first before) d
 
-  (* Some required states *)
-  let startstate _ : D.t = D.empty ()
-  let threadenter ctx lval f args = [D.empty ()]
-  let exitstate  _ : D.t = D.empty ()
+    let part_access ctx: MCPAccess.A.t =
+      Obj.obj (ctx.ask (PartAccess Point))
 
-  let part_access ctx: MCPAccess.A.t =
-    Obj.obj (ctx.ask (PartAccess Point))
-
-  let event ctx (e: Events.t) octx =
-    match e with
-    | Lock addr ->
-      let after = (addr, ctx.prev_node, part_access octx) in (* use octx for access to use locksets before event *)
+    let add ctx ((l, _): LockDomain.Lockset.Lock.t) =
+      let after: LockEvent.t = (l, ctx.prev_node, part_access ctx) in (* use octx for access to use locksets before event *)
       D.iter (fun before ->
           side_lock_event_pair ctx before after
         ) ctx.local;
       D.add after ctx.local
-    | Unlock addr ->
-      let inLockAddrs (e, _, _) = Lock.equal addr e in
+
+    let remove ctx l =
+      let inLockAddrs (e, _, _) = Lock.equal l e in
       D.filter (neg inLockAddrs) ctx.local
-    | _ ->
-      ctx.local
+  end
+
+  include LocksetAnalysis.MakeMay (Arg)
+  let name () = "deadlock"
+
+  module G = Arg.G (* help type checker using explicit constraint *)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
@@ -64,15 +61,22 @@ struct
       (* TODO: find all cycles/SCCs *)
       let global_visited_locks = LH.create 100 in
 
+      let may_equal l1 l2 = match l1, l2 with
+        | ValueDomain.Addr.UnknownPtr, _
+        | _, ValueDomain.Addr.UnknownPtr ->
+          true
+        | _, _ -> Lock.equal l1 l2
+      in
+
       (* DFS *)
       let rec iter_lock (path_visited_locks: LS.t) (path_visited_lock_event_pairs: LockEventPair.t list) (lock: Lock.t) =
-        if LS.mem lock path_visited_locks then (
+        if LS.mem lock path_visited_locks || LS.mem ValueDomain.Addr.UnknownPtr path_visited_locks || (not (LS.is_empty path_visited_locks) && lock = ValueDomain.Addr.UnknownPtr) then (
           (* cycle may not return to first lock, but an intermediate one, cut off the non-cyclic stem *)
           let path_visited_lock_event_pairs =
             (* path_visited_lock_event_pairs cannot be empty *)
             List.hd path_visited_lock_event_pairs ::
             List.take_while (fun (_, (after_lock, _, _)) ->
-                not (Lock.equal after_lock lock)
+                not (may_equal after_lock lock)
               ) (List.tl path_visited_lock_event_pairs)
           in
           let mhp =
@@ -114,4 +118,4 @@ struct
 end
 
 let _ =
-  MCP.register_analysis ~dep:["mutex"] (module Spec : MCPSpec)
+  MCP.register_analysis ~dep:["mutexEvents"] (module Spec : MCPSpec)

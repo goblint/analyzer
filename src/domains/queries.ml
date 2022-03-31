@@ -77,7 +77,7 @@ type _ t =
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
-  | CurrentLockset: LS.t t
+  | MustLockset: LS.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
@@ -124,7 +124,7 @@ struct
     | MayPointTo _ -> (module LS)
     | ReachableFrom _ -> (module LS)
     | Regions _ -> (module LS)
-    | CurrentLockset -> (module LS)
+    | MustLockset -> (module LS)
     | EvalFunvar _ -> (module LS)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
@@ -175,7 +175,7 @@ struct
     | MayPointTo _ -> LS.top ()
     | ReachableFrom _ -> LS.top ()
     | Regions _ -> LS.top ()
-    | CurrentLockset -> LS.top ()
+    | MustLockset -> LS.top ()
     | EvalFunvar _ -> LS.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
@@ -228,7 +228,7 @@ struct
     | Any (MayBePublic _) -> 7
     | Any (MayBePublicWithout _) -> 8
     | Any (MustBeProtectedBy _) -> 9
-    | Any CurrentLockset -> 10
+    | Any MustLockset -> 10
     | Any MustBeAtomic -> 11
     | Any MustBeSingleThreaded -> 12
     | Any MustBeUniqueThread -> 13
