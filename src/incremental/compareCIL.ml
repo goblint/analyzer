@@ -44,9 +44,8 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) =
         | None -> eq_block (a.sbody, a) (b.sbody, b), None
         | Some (cfgOld, (cfgNew, cfgNewBack)) ->
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
-          let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
-          let module CfgNewBack : MyCFG.CfgBackward = struct let prev = cfgNewBack end in
-          let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) (module CfgNewBack) a b in
+          let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
+          let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) a b in
           if diffNodes1 = [] then (true, None)
           else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1})
   in

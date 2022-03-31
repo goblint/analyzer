@@ -42,7 +42,7 @@ type biDirectionNodeMap = {node1to2: node NH.t; node2to1: node NH.t}
  * comparison is done for its successors. The two function entry nodes make up the tuple to start the comparison from. *)
 let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 fun2 =
   let diff = NH.create 113 in
-  let same = ref {node1to2=NH.create 113; node2to1=NH.create 113} in
+  let same = {node1to2=NH.create 113; node2to1=NH.create 113} in
   let waitingList : (node * node) t = Queue.create () in
 
   let rec compareNext () =
@@ -62,11 +62,9 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
             (* TODO: don't allow pseudo return node to be equal to normal return node, could make function unchanged, but have different sallstmts *)
             if eq_node (toNode1, fun1) (toNode2, fun2) && eq_edge_list edgeList1 edgeList2 then
               begin
-                let notInSame = not (NH.mem !same.node1to2 toNode1 && Node.equal (NH.find !same.node1to2 toNode1) toNode2) in
-                let matchedAlready = NH.mem !same.node1to2 toNode1 && not (Node.equal (NH.find !same.node1to2 toNode1) toNode2) in
-                if matchedAlready then NH.replace diff toNode1 ()
-                else (NH.replace !same.node1to2 toNode1 toNode2; NH.replace !same.node2to1 toNode2 toNode1);
-                if notInSame then Queue.add (toNode1, toNode2) waitingList
+                match NH.find_opt same.node1to2 toNode1 with
+                | Some n2 -> if not (Node.equal n2 toNode2) then NH.replace diff toNode1 ()
+                | None -> NH.replace same.node1to2 toNode1 toNode2; NH.replace same.node2to1 toNode2 toNode1; Queue.add (toNode1, toNode2) waitingList
               end
             else aux remSuc' in
         aux outList2 in
@@ -89,32 +87,31 @@ let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 f
       List.iter iterOuts outList1; compareNext () in
 
   let entryNode1, entryNode2 = (FunctionEntry fun1, FunctionEntry fun2) in
+  NH.replace same.node1to2 entryNode1 entryNode2; NH.replace same.node2to1 entryNode2 entryNode1;
   Queue.push (entryNode1,entryNode2) waitingList; compareNext (); (same, diff)
 
 (* This is the second phase of the CFG comparison of functions. It removes the nodes from the matching node set 'same'
  * that have an incoming backedge in the new CFG that can be reached from a differing new node. This is important to
  * recognize new dependencies between unknowns that are not contained in the infl from the previous run. *)
-let reexamine f1 f2 (same : biDirectionNodeMap ref) (diffNodes1 : unit NH.t) (module CfgOld : CfgForward) (module CfgNew : CfgForward) (module CfgNewPred : CfgBackward) =
-  let entry1 = (FunctionEntry f1) in
-  let entry2 = (FunctionEntry f2) in
-  NH.replace !same.node1to2 entry1 entry2; NH.replace !same.node2to1 entry2 entry1;
+let reexamine f1 f2 (same : biDirectionNodeMap) (diffNodes1 : unit NH.t) (module CfgOld : CfgForward) (module CfgNew : CfgBidir) =
   let rec repeat () =
-    let ls = List.of_seq (NH.to_seq_keys !same.node2to1) in
-    let rec check_nodes_in_same ps n = match ps with
-      | [] -> true
-      | p::ps' -> if not (NH.mem !same.node2to1 p) then (
-          let n1 = NH.find !same.node2to1 n in
+    let check_all_nodes_in_same ps n =
+      match List.find_opt (fun p -> not (NH.mem same.node2to1 p)) ps with
+      | None -> true
+      | Some p ->
+        begin
+          let n1 = NH.find same.node2to1 n in
           NH.replace diffNodes1 n1 ();
-          NH.remove !same.node1to2 n1; NH.remove !same.node2to1 n;
+          NH.remove same.node1to2 n1; NH.remove same.node2to1 n;
           false
-        ) else check_nodes_in_same ps' n in
-    let rec check_predecessors ls = match ls with
-      | [] -> ()
-      | (n2::ls') -> if Node.equal n2 entry2 || check_nodes_in_same (List.map snd (CfgNewPred.prev n2)) n2 then check_predecessors ls' else repeat () in
-    check_predecessors ls
-  in repeat (); NH.to_seq !same.node1to2, NH.to_seq_keys diffNodes1
+        end in
+    let cond n2 = Node.equal n2 (FunctionEntry f2) || check_all_nodes_in_same (List.map snd (CfgNew.prev n2)) n2 in
+    let forall = NH.fold (fun n2 n1 acc -> acc && cond n2) same.node2to1 true in
+    if not forall then repeat () in
+  repeat ();
+  NH.to_seq same.node1to2, NH.to_seq_keys diffNodes1
 
-let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgForward) (module CfgNewPred : CfgBackward) fun1 fun2 =
+let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgBidir) fun1 fun2 =
   let same, diff = Stats.time "compare-phase1" (fun () -> compareCfgs (module CfgOld) (module CfgNew) fun1 fun2) () in
-  let unchanged, diffNodes1 = Stats.time "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew) (module CfgNewPred)) () in
+  let unchanged, diffNodes1 = Stats.time "compare-phase2" (fun () -> reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew)) () in
   List.of_seq unchanged, List.of_seq diffNodes1
