@@ -52,8 +52,13 @@ struct
   let rec conv_offset_inv = function
     | `NoOffset -> `NoOffset
     | `Field (f, o) -> `Field (f, conv_offset_inv o)
-    (* TODO: better indices handling *)
-    | `Index (_, o) -> `Index (MyCFG.unknown_exp, conv_offset_inv o)
+    | `Index (i, o) ->
+      let i_exp =
+        match ValueDomain.IndexDomain.to_int i with
+        | Some i -> Const (CInt (i, Cilfacade.ptrdiff_ikind (), Some (Z.to_string i)))
+        | None -> MyCFG.unknown_exp
+      in
+      `Index (i_exp, conv_offset_inv o)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let non_overlapping locks1 locks2 =

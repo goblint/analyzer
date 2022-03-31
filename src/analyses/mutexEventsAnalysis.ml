@@ -28,13 +28,6 @@ struct
     | `Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_offset o)
     | `Field (f,o) -> `Field (f, conv_offset o)
 
-  let rec conv_offset_inv = function
-    | `NoOffset -> `NoOffset
-    | `Field (f, o) -> `Field (f, conv_offset_inv o)
-    (* TODO: better indices handling *)
-    | `Index (_, o) -> `Index (MyCFG.unknown_exp, conv_offset_inv o)
-
-
   let eval_exp_addr (a: Queries.ask) exp =
     let gather_addr (v,o) b = ValueDomain.Addr.from_var_offset (v,conv_offset o) :: b in
     match a.f (Queries.MayPointTo exp) with
