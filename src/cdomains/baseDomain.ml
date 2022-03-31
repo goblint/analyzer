@@ -45,7 +45,7 @@ struct
         Invariant.(a && i)
       ) m Invariant.none
     | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
-      (try key_invariant k (find k m) with _ -> Invariant.none)
+      (try key_invariant k (find k m) with Not_found -> Invariant.none)
     | _ -> Invariant.none
 
 end
