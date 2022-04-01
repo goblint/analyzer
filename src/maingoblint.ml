@@ -290,7 +290,7 @@ let merge_preprocessed cpp_file_names =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
   let get_ast_and_record_deps f =
-    let file = Cilfacade.getAST (Fpath.to_string f) in
+    let file = Cilfacade.getAST f in
     (* Drop <built-in> and <command-line> from dependencies *)
     Hashtbl.add Preprocessor.dependencies f @@ List.map (Tuple2.map1 GobFpath.of_string_exn) @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
     file

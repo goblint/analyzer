@@ -44,7 +44,7 @@ let init () =
 let current_file = ref dummyFile
 
 let parse fileName =
-  Frontc.parse fileName ()
+  Frontc.parse (Fpath.to_string fileName) ()
 
 let print_to_file (fileName: string) (fileAST: file) =
   let oc = Stdlib.open_out fileName in
