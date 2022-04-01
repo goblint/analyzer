@@ -37,6 +37,7 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
+module LiftedExp = Lattice.Flat(Exp.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -64,6 +65,13 @@ type access =
   | Memory of memory_access (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
+type invariant_context = {
+  scope: CilType.Fundec.t;
+  lval: CilType.Lval.t option;
+  offset: CilType.Offset.t;
+}
+[@@deriving ord, hash]
+
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -102,6 +110,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | Invariant: invariant_context -> LiftedExp.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
 
 type 'a result = 'a
@@ -154,6 +163,7 @@ struct
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | Invariant _ -> (module LiftedExp)
     | WarnGlobal _ -> (module Unit)
 
   (** Get bottom result for query. *)
@@ -205,6 +215,7 @@ struct
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | Invariant _ -> LiftedExp.top ()
     | WarnGlobal _ -> Unit.top ()
 end
 
@@ -254,6 +265,7 @@ struct
     | Any CreatedThreads -> 33
     | Any MustJoinedThreads -> 34
     | Any (WarnGlobal _) -> 35
+    | Any (Invariant _) -> 36
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -290,6 +302,7 @@ struct
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
+      | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -322,6 +335,7 @@ struct
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
+    | Any (Invariant i) -> hash_invariant_context i
     (* only argumentless queries should remain *)
     | _ -> 0
 

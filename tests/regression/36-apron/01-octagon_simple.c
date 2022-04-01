@@ -15,11 +15,11 @@ void main(void) {
   if(X == N) {
     N = 8;
   } else {
-    // is dead code but if that is detected or not depends on what we do in branch
-    // currently we can't detect this
+    // dead code
     N = 42;
   }
 
+  assert(N == 8);
   two();
 }
 

@@ -1091,6 +1091,33 @@
             }
           },
           "additionalProperties": false
+        },
+        "output" : {
+          "title": "trans.output",
+          "description": "Output filename for transformations that output a transformed file.",
+          "type":"string",
+          "default": "transformed.c"
+        },
+        "assert": {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "full": {
+              "title": "trans.assert.full",
+              "description":
+                "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
+              "type": "boolean",
+              "default": true
+            },
+            "only-at-locks":{
+              "title": "trans.assert.only-at-locks",
+              "description":
+                "Only put locks after mutexes have been acquired.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

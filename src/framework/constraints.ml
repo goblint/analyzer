@@ -430,7 +430,7 @@ struct
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    lift_fun ctx identity S.query  (fun (x) -> x q)            (Queries.Result.bot q)
+    lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
   let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
