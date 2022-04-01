@@ -316,7 +316,7 @@ struct
                else
                  Const (CInt(i,ILongLong,None)), false
            else
-             raise Unsupported_Linexpr1
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
          | None -> raise Unsupported_Linexpr1)
       | _ -> raise Unsupported_Linexpr1
     in
@@ -332,7 +332,7 @@ struct
           expr := BinOp(MinusA,!expr,prod,longlong)
         else
           expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn "cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
     in
     Linexpr1.iter append_summand linexpr1;
     !expr
