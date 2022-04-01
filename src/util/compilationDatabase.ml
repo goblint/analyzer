@@ -40,7 +40,7 @@ let load_and_preprocess ~all_cppflags filename =
     else
       (Fun.id, Fun.id)
   in
-  let preprocessed_dir = Fpath.normalize @@ GobFpath.cwd_append @@ GobFpath.of_string_exn (GoblintDir.preprocessed ()) in (* absolute due to cwd changes *)
+  let preprocessed_dir = Fpath.normalize @@ GobFpath.cwd_append @@ GoblintDir.preprocessed () in (* absolute due to cwd changes *)
   let preprocess obj =
     let file = Fpath.normalize @@ GobFpath.cwd_append @@ Fpath.append obj.directory obj.file in
     let extension = Fpath.get_ext file in

@@ -1,15 +1,15 @@
 open GobConfig
 
-let root () = get_string "goblint-dir"
+let root () = GobFpath.of_string_exn (get_string "goblint-dir")
 
-let preprocessed () = Filename.concat (root ()) "preprocessed"
+let preprocessed () = Fpath.(root () / "preprocessed")
 
 let init () =
   (* TODO: generalize .goblint for everything *)
-  GobSys.mkdir_or_exists (root ());
-  GobSys.mkdir_or_exists (preprocessed ())
+  GobSys.mkdir_or_exists (Fpath.to_string (root ()));
+  GobSys.mkdir_or_exists (Fpath.to_string (preprocessed ()))
 
 let finalize () =
   if not (get_bool "pre.keep") then
-    ignore (Goblintutil.rm_rf (preprocessed ()));
-  GobSys.rmdir_if_empty (root ())
+    ignore (Goblintutil.rm_rf (Fpath.to_string (preprocessed ())));
+  GobSys.rmdir_if_empty (Fpath.to_string (root ()))

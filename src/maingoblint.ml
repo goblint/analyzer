@@ -141,7 +141,7 @@ let handle_flags () =
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname = Fpath.append (GobFpath.of_string_exn (GoblintDir.preprocessed ())) (Fpath.set_ext ".i" (Fpath.base fname)) in
+  let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.set_ext ".i" (Fpath.base fname)) in
   (* Preprocess using cpp. *)
   (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
   let arguments = "--undef" :: "__BLOCKS__" :: all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
@@ -188,7 +188,7 @@ let preprocess_files () =
 
   (* fill include flags *)
   let one_include_f f x = include_dirs := f x :: !include_dirs in
-  if get_string "ana.osek.oil" <> "" then include_files := Fpath.append (GobFpath.of_string_exn (GoblintDir.preprocessed ())) (GobFpath.of_string_exn OilUtil.header) :: !include_files;
+  if get_string "ana.osek.oil" <> "" then include_files := Fpath.(GoblintDir.preprocessed () / OilUtil.header) :: !include_files;
   (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
   get_string_list "pre.includes" |> List.map GobFpath.of_string_exn |> List.iter (one_include_f identity);
 
