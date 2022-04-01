@@ -1,10 +1,8 @@
 from pydriller import Repository, Git
 import os
-import sys
 from pathlib import Path
 import subprocess
 import itertools
-from datetime import datetime
 import shutil
 import re
 import json
@@ -22,33 +20,6 @@ matplotlib.rcParams.update(
     }
 )
 import matplotlib.pyplot as plt
-
-### Usage: python3 incremental_smallcommits.py <full_path_analyzer_dir> <repo_url> <repo_name> <name_of_build_script>
-#     <name_of_config> <begin> <from_commit_index> <to_commit_index>
-# Executing the script will overwrite the directory 'out' in the cwd.
-# The script for building the compilation database is assumed to be found in the analyzers script directory and the
-# config file is assumed to be found in the conf directory of the analyzers repository.
-maxCLOC       = 50
-analyzer_dir  = sys.argv[1]
-url           = sys.argv[2]
-repo_name     = sys.argv[3]
-build_compdb  = sys.argv[4]
-conf          = sys.argv[5]
-begin         = datetime.strptime(sys.argv[6], '%Y/%m/%d')
-from_c        = int(sys.argv[7])
-to_c          = int(sys.argv[8])
-dirs_to_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
-################################################################################
-
-cwd  = os.getcwd()
-outdir = os.path.join(cwd, 'out')
-repo_path = os.path.normpath(os.path.join(cwd, repo_name))
-paths_to_exclude = list(map(lambda x: os.path.join(repo_path, x), dirs_to_exclude))
-
-analyzed_commits = {}
-count_analyzed = 0
-count_skipped = 0
-count_failed = 0
 
 
 def reset_incremental_data():
@@ -90,7 +61,6 @@ def analyze_small_commits_in_repo():
     global count_skipped
     global count_failed
     global analyzed_commits
-
     for commit in itertools.islice(Repository(url, since=begin, only_no_merge=True, clone_repo_to=cwd).traverse_commits(), from_c, to_c):
         gr = Git(repo_path)
 
@@ -210,14 +180,46 @@ def plot(data_set):
     plt.savefig("figure.pdf")
 
 
-if os.path.exists(outdir) and os.path.isdir(outdir):
-   shutil.rmtree(outdir)
-analyze_small_commits_in_repo()
-num_commits = count_analyzed + count_skipped + count_failed
-print("\nCommits traversed in total: ", num_commits)
-print("Analyzed: ", count_analyzed)
-print("Failed: ", count_failed)
-print("Skipped: ", count_skipped)
+def main(full_path_analyzer, url_arg, repo_name_arg, build_script, conf_arg, begin_arg, start, end):
+  global analyzer_dir
+  global url
+  global repo_name
+  global build_compdb
+  global conf
+  global begin
+  global from_c, to_c
+  global analyzed_commits, count_analyzed, count_skipped, count_failed
+  global cwd, outdir, repo_path, paths_to_exclude, maxCLOC
 
-data = collect_data()
-plot(data)
+  analyzer_dir = full_path_analyzer
+  url           = url_arg
+  repo_name     = repo_name_arg
+  build_compdb  = build_script
+  conf          = conf_arg
+  begin         = begin_arg
+  from_c        = start
+  to_c          = end
+  maxCLOC       = 50
+  dirs_to_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
+
+  cwd  = os.getcwd()
+  outdir = os.path.join(cwd, 'out')
+  repo_path = os.path.normpath(os.path.join(cwd, repo_name))
+  paths_to_exclude = list(map(lambda x: os.path.join(repo_path, x), dirs_to_exclude))
+
+  analyzed_commits = {}
+  count_analyzed = 0
+  count_skipped = 0
+  count_failed = 0
+
+  if os.path.exists(outdir) and os.path.isdir(outdir):
+    shutil.rmtree(outdir)
+  analyze_small_commits_in_repo()
+  num_commits = count_analyzed + count_skipped + count_failed
+  print("\nCommits traversed in total: ", num_commits)
+  print("Analyzed: ", count_analyzed)
+  print("Failed: ", count_failed)
+  print("Skipped: ", count_skipped)
+
+  data = collect_data()
+  plot(data)
