@@ -166,7 +166,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
       let f_opt = match round with
         | Some `Floor -> Some (Float.floor f)
         | Some `Ceil -> Some (Float.ceil f)
-        | None when Float.floor f = Float.ceil f -> Some (Float.floor f)
+        | None when Stdlib.Float.is_integer f-> Some f
         | None -> None
       in
       Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
