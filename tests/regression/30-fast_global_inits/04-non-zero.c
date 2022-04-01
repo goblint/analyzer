@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled --enable exp.fast_global_inits
+// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned --enable exp.fast_global_inits
 // This checks that partitioned arrays and fast_global_inits are no longer incompatible
 int global_array[5] = {9, 0, 3, 42, 11};
 int global_array_multi[2][5] =  {{9, 0, 3, 42, 11}, {9, 0, 3, 42, 11}};

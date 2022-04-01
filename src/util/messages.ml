@@ -12,7 +12,10 @@ struct
     | Info
     | Debug
     | Success
-  [@@deriving eq, hash, show { with_path = false }]
+  [@@deriving eq, hash, show { with_path = false }, enum]
+  (* TODO: fix ord Error: https://github.com/ocaml-ppx/ppx_deriving/issues/254 *)
+
+  let compare x y = Stdlib.compare (to_enum x) (to_enum y)
 
   let should_warn e =
     let to_string = function
@@ -25,6 +28,13 @@ struct
     get_bool ("warn." ^ (to_string e))
 
   let to_yojson x = `String (show x)
+  let of_yojson = function
+    | `String "Error" -> Result.Ok Error
+    | `String "Warning" -> Result.Ok Warning
+    | `String "Info" -> Result.Ok Info
+    | `String "Debug" -> Result.Ok Debug
+    | `String "Success" -> Result.Ok Success
+    | _ -> Result.Error "Messages.Severity.of_yojson"
 end
 
 module Piece =
@@ -32,8 +42,8 @@ struct
   type t = {
     loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
     text: string;
-    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))]) option; (* TODO: this equality is terrible... *)
-  } [@@deriving eq, hash, to_yojson]
+    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@compare fun x y -> Stdlib.compare (Hashtbl.hash (Obj.obj x)) (Hashtbl.hash (Obj.obj y))] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))] [@of_yojson fun x -> Result.Ok Goblintutil.dummy_obj]) option; (* TODO: this equality is terrible... *)
+  } [@@deriving eq, ord, hash, yojson]
 
   let text_with_context {text; context; _} =
     match context with
@@ -43,15 +53,23 @@ end
 
 module MultiPiece =
 struct
-  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, hash, to_yojson]
+  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, ord, hash, yojson]
   type t =
     | Single of Piece.t
     | Group of group
-  [@@deriving eq, hash, to_yojson]
+  [@@deriving eq, ord, hash, yojson]
 
   let to_yojson = function
     | Single piece -> Piece.to_yojson piece
     | Group group -> group_to_yojson group
+
+  let of_yojson = function
+    | (`Assoc l) as json when List.mem_assoc "group_text" l ->
+      group_of_yojson json
+      |> BatResult.map (fun group -> Group group)
+    | json ->
+      Piece.of_yojson json
+      |> BatResult.map (fun piece -> Single piece)
 end
 
 module Tag =
@@ -59,7 +77,7 @@ struct
   type t =
     | Category of Category.t
     | CWE of int
-  [@@deriving eq, hash]
+  [@@deriving eq, ord, hash]
 
   let pp ppf = function
     | Category category -> Format.pp_print_string ppf (Category.show category)
@@ -72,11 +90,20 @@ struct
   let to_yojson = function
     | Category category -> `Assoc [("Category", Category.to_yojson category)]
     | CWE n -> `Assoc [("CWE", `Int n)]
+
+  let of_yojson = function
+    | `Assoc [("Category", category)] ->
+      Category.of_yojson category
+      |> BatResult.map (fun category ->
+          Category category
+        )
+    | `Assoc [("CWE", `Int n)] -> Result.Ok (CWE n)
+    | _ -> Result.Error "Messages.Tag.of_yojson"
 end
 
 module Tags =
 struct
-  type t = Tag.t list [@@deriving eq, hash, to_yojson]
+  type t = Tag.t list [@@deriving eq, ord, hash, yojson]
 
   let pp =
     let pp_tag_brackets ppf tag = Format.fprintf ppf "[%a]" Tag.pp tag in
@@ -91,7 +118,7 @@ struct
     tags: Tags.t;
     severity: Severity.t;
     multipiece: MultiPiece.t;
-  } [@@deriving eq, hash, to_yojson]
+  } [@@deriving eq, ord, hash, yojson]
 
   let should_warn {tags; severity; _} =
     Tags.should_warn tags && Severity.should_warn severity
@@ -161,11 +188,43 @@ let print ?(ppf= !formatter) (m: Message.t) =
     let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
     Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) piece.loc
   in
+  let pp_quote ppf (loc: Cil.location) =
+    let lines = BatFile.lines_of loc.file in
+    BatEnum.drop (loc.line - 1) lines;
+    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in
+    let lines = BatList.of_enum lines in
+    match lines with
+    | [] -> assert false
+    | [line] ->
+      let prefix = BatString.slice ~last:(loc.column - 1) line in
+      let middle = BatString.slice ~first:(loc.column - 1) ~last:(loc.endColumn - 1) line in
+      let suffix = BatString.slice ~first:(loc.endColumn - 1) line in
+      Format.fprintf ppf "%s@{<turquoise>%s@}%s" prefix middle suffix
+    | first :: rest ->
+      begin match BatList.split_at (List.length rest - 1) rest with
+        | (middles, [last]) ->
+          let first_prefix = BatString.slice ~last:(loc.column - 1) first in
+          let first_middle = BatString.slice ~first:(loc.column - 1) first in
+          let last_middle = BatString.slice ~last:(loc.endColumn - 1) last in
+          let last_suffix = BatString.slice ~first:(loc.endColumn - 1) last in
+          Format.fprintf ppf "%s@{<turquoise>%a@}%s" first_prefix (Format.pp_print_list Format.pp_print_string) (first_middle :: middles @ [last_middle]) last_suffix
+        | _ -> assert false
+      end
+  in
+  let pp_piece ppf piece =
+    if get_bool "warn.quote-code" then (
+      let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" (Format.pp_print_option pp_quote) in
+      Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote piece.loc
+    )
+    else
+      pp_piece ppf piece
+  in
   let pp_multipiece ppf = match m.multipiece with
     | Single piece ->
       pp_piece ppf piece
     | Group {group_text; pieces} ->
-      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece) pieces
+      let pp_piece2 ppf = Format.fprintf ppf "@[<v 2>%a@]" pp_piece in (* indented box for quote *)
+      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece2) pieces
   in
   Format.fprintf ppf "@[<v 2>%t %t@]\n%!" pp_prefix pp_multipiece
 

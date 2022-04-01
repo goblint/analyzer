@@ -127,7 +127,7 @@ struct
     if !GU.global_initialization then
       Lockset.empty ()
     else
-      let ls = ask.f Queries.CurrentLockset in
+      let ls = ask.f Queries.MustLockset in
       Q.LS.fold (fun (var, offs) acc ->
           Lockset.add (Lock.from_var_offset (var, conv_offset offs)) acc
         ) ls (Lockset.empty ())

@@ -7,8 +7,8 @@
   (name goblint_lib)
   (public_name goblint.lib)
   (wrapped false)
-  (modules :standard \ goblint mainarinc mainspec privPrecCompare apronPrecCompare)
-  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu
+  (modules :standard \ goblint mainarinc mainspec privPrecCompare apronPrecCompare messagesCompare)
+  (libraries goblint.sites goblint-cil.all-features batteries.unthreaded qcheck-core.runner sha json-data-encoding jsonrpc cpu arg-complete
     ; Conditionally compile based on whether apron optional dependency is installed or not.
     ; Alternative dependencies seem like the only way to optionally depend on optional dependencies.
     ; See: https://dune.readthedocs.io/en/stable/concepts.html#alternative-dependencies.
@@ -68,6 +68,14 @@
 (executable
   (name apronPrecCompare)
   (modules apronPrecCompare)
+  (libraries goblint.lib goblint.sites.dune)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (flags :standard -linkall)
+)
+
+(executable
+  (name messagesCompare)
+  (modules messagesCompare)
   (libraries goblint.lib goblint.sites.dune)
   (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
   (flags :standard -linkall)

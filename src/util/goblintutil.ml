@@ -7,9 +7,6 @@ open GobConfig
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
-(** Files given as arguments. *)
-let arg_files : string list ref = ref []
-
 (** If this is true we output messages and collect accesses.
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false

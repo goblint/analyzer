@@ -569,9 +569,10 @@ struct
 
   include Tracked
 
-  let exp_is_cons = function
+  let rec exp_is_cons = function
     (* constraint *)
     | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+    | UnOp (LNot,e,_) -> exp_is_cons e
     (* expression *)
     | _ -> false
 
@@ -588,6 +589,7 @@ struct
       let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) in
       let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) in
       join assert_gt assert_lt
+    | UnOp (LNot,e,_) -> assert_cons d e (not negate)
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate with
         | tcons1 ->
