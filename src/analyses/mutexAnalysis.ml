@@ -7,7 +7,6 @@ module Mutexes = LockDomain.Mutexes
 module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
-open GobConfig
 
 
 module type SpecParam =

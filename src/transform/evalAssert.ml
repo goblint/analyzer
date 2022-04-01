@@ -89,7 +89,7 @@ module EvalAssert = struct
         | _ -> []
       in
 
-      let rec instrument_instructions il s =
+      let instrument_instructions il s =
         (* Does this statement have a successor that has only on predecessor? *)
         let unique_succ = s.succs <> [] && (List.hd s.succs).preds |> List.length < 2 in
         let instrument i loc =

@@ -5,7 +5,6 @@ module Exp = Exp.Exp
 module IdxDom = ValueDomain.IndexDomain
 
 open Cil
-open Pretty
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO HoareDomain? *)
 module Simple = Lattice.Reverse (Mutexes)
