@@ -334,6 +334,7 @@ module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
   val range           : Cil.ikind -> Z.t * Z.t
+  val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
   val bits            : Cil.ikind -> int * int
 end
 

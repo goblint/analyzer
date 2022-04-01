@@ -1723,6 +1723,12 @@
       "title": "witness",
       "type": "object",
       "properties": {
+        "enabled": {
+          "title": "witness.enabled",
+          "description": "Output witness",
+          "type": "boolean",
+          "default": true
+        },
         "path": {
           "title": "witness.path",
           "description": "Witness output path",
