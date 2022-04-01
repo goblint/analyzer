@@ -1,5 +1,7 @@
 type t = Fpath.t
 
+let pretty () p = Pretty.text (Fpath.to_string p)
+
 let of_string_exn s =
   match Fpath.of_string s with
   | Ok p -> p

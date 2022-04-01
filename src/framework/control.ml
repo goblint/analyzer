@@ -462,6 +462,7 @@ struct
           if GobConfig.get_bool "incremental.save" then
             Serialize.store_data solver_data Serialize.SolverData;
           if save_run <> "" then (
+            (* TODO: Fpath *)
             let analyses = Filename.concat save_run "analyses.marshalled" in
             let config = Filename.concat save_run "config.json" in
             let meta = Filename.concat save_run "meta.json" in
@@ -473,7 +474,7 @@ struct
               print_endline ("Saving the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
             );
             GobSys.mkdir_or_exists save_run;
-            GobConfig.write_file config;
+            GobConfig.write_file (GobFpath.of_string_exn config);
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
                 let json = to_yojson { command = GU.command; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }

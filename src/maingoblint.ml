@@ -5,7 +5,7 @@ open GobConfig
 open Printf
 open Goblintutil
 
-let writeconffile = ref ""
+let writeconffile = ref None
 
 (** Print version and bail. *)
 let print_version ch =
@@ -55,7 +55,7 @@ let option_spec_list =
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
     if get_string "exp.g2html_path" = "" then
-      set_string "exp.g2html_path" exe_dir;
+      set_string "exp.g2html_path" (Fpath.to_string exe_dir);
     set_bool "dbg.print_dead_code" true;
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
@@ -82,8 +82,8 @@ let option_spec_list =
   ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
   ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
   ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
-  ; "--conf"               , Arg.String merge_file, ""
-  ; "--writeconf"          , Arg.String (fun fn -> writeconffile := fn), ""
+  ; "--conf"               , Arg.String (fun fn -> merge_file (GobFpath.of_string_exn fn)), ""
+  ; "--writeconf"          , Arg.String (fun fn -> writeconffile := Some (GobFpath.of_string_exn fn)), ""
   ; "--version"            , Arg.Unit print_version, ""
   ; "--print_options"      , Arg.Unit (fun () -> Options.print_options (); exit 0), ""
   ; "--print_all_options"  , Arg.Unit (fun () -> Options.print_all_options (); exit 0), ""
@@ -111,7 +111,12 @@ let option_spec_list =
 let parse_arguments () =
   let anon_arg = set_string "files[+]" in
   Arg.parse option_spec_list anon_arg "Look up options using 'goblint --help'.";
-  if !writeconffile <> "" then (GobConfig.write_file !writeconffile; raise Exit);
+  begin match !writeconffile with
+    | Some writeconffile ->
+      GobConfig.write_file writeconffile;
+      raise Exit
+    | None -> ()
+  end;
   if get_string_list "files" = [] then (
     prerr_endline "No files for Goblint?";
     prerr_endline "Try `goblint --help' for more information.";
@@ -159,7 +164,7 @@ let preprocess_files () =
   (* the base include directory *)
   let custom_include_dirs =
     List.map GobFpath.of_string_exn (get_string_list "pre.custom_includes") @
-    Fpath.(GobFpath.of_string_exn exe_dir / "includes") ::
+    Fpath.(exe_dir / "includes") ::
     List.map GobFpath.of_string_exn Goblint_sites.includes
   in
   if get_bool "dbg.verbose" then (
@@ -174,7 +179,7 @@ let preprocess_files () =
 
   let find_custom_include subpath =
     List.find_map (fun custom_include_dir ->
-        let path = Fpath.append custom_include_dir (Fpath.v subpath) in
+        let path = Fpath.append custom_include_dir subpath in
         if Sys.file_exists (Fpath.to_string path) then
           Some path
         else
@@ -203,7 +208,7 @@ let preprocess_files () =
         else
           []
       end @ [
-        Fpath.add_seg (GobFpath.of_string_exn exe_dir) "linux-headers";
+        Fpath.(exe_dir / "linux-headers");
         (* linux-headers not installed with goblint package *)
       ]
     in
@@ -220,7 +225,7 @@ let preprocess_files () =
 
     get_string_list "pre.kernel_includes" |> List.map GobFpath.of_string_exn |> List.iter (Fpath.append kernel_root |> one_include_f);
 
-    let preconf = find_custom_include "linux/goblint_preconf.h" in
+    let preconf = find_custom_include Fpath.(v "linux" / "goblint_preconf.h") in
     let autoconf = Fpath.(kernel_dir / "linux" / "kconfig.h") in
     cppflags := "-D__KERNEL__" :: "-U__i386__" :: "-D__x86_64__" :: !cppflags;
     include_files := preconf :: autoconf :: !include_files;
@@ -269,10 +274,10 @@ let preprocess_files () =
 
   let extra_files = ref [] in
 
-  extra_files := find_custom_include "stdlib.c" :: find_custom_include "pthread.c" :: !extra_files;
+  extra_files := find_custom_include (Fpath.v "stdlib.c") :: find_custom_include (Fpath.v "pthread.c") :: !extra_files;
 
   if get_bool "ana.sv-comp.functions" then
-    extra_files := find_custom_include "sv-comp.c" :: !extra_files;
+    extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;
 
   let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ List.map GobFpath.of_string_exn (get_string_list "files")) in
   if not (get_bool "pre.exist") then (
@@ -390,6 +395,7 @@ let do_analyze change_info merged_AST =
   )
 
 let do_html_output () =
+  (* TODO: Fpath *)
   let jar = Filename.concat (get_string "exp.g2html_path") "g2html.jar" in
   if get_bool "g2html" then (
     if Sys.file_exists jar then (
@@ -404,6 +410,7 @@ let do_html_output () =
   )
 
 let do_gobview () =
+  (* TODO: Fpath *)
   let create_symlink target link =
     if not (Sys.file_exists link) then Unix.symlink target link
   in

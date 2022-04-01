@@ -73,10 +73,10 @@ sig
   val print : 'a BatInnerIO.output -> unit
 
   (** Write the current configuration to [filename] *)
-  val write_file: string -> unit
+  val write_file: Fpath.t -> unit
 
   (** Merge configurations from a file with current. *)
-  val merge_file : string -> unit
+  val merge_file : Fpath.t -> unit
 
   (** Merge configurations from a JSON object with current. *)
   val merge : Yojson.Safe.t -> unit
@@ -172,7 +172,7 @@ struct
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
     GobYojson.print ch !json_conf
-  let write_file filename = File.with_file_out filename print
+  let write_file filename = File.with_file_out (Fpath.to_string filename) print
 
   (** Main function to receive values from the conf. *)
   let rec get_value o pth =
@@ -347,9 +347,9 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
+    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
     merge v;
-    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
+    if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
 end
 
 include Impl
