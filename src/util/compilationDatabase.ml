@@ -87,7 +87,7 @@ let load_and_preprocess ~all_cppflags filename =
       let cwd = reroot_path obj.directory in
       if GobConfig.get_bool "dbg.verbose" then
         Format.printf "Preprocessing %a\n  to %a\n  using %s\n  in %a\n" Fpath.pp file Fpath.pp preprocessed_file preprocess_command Fpath.pp cwd;
-      let preprocess_task = {ProcessPool.command = preprocess_command; cwd = Some (Fpath.to_string cwd)} in (* command/arguments might have paths relative to directory *)
+      let preprocess_task = {ProcessPool.command = preprocess_command; cwd = Some cwd} in (* command/arguments might have paths relative to directory *)
       Some (preprocessed_file, Some preprocess_task)
   in
   parse_file filename
