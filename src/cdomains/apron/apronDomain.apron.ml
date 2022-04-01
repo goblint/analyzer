@@ -763,7 +763,7 @@ struct
     let cons = Array.to_list cons in
     let filter_out_one_var_constraints = false in
     let convert_one (constr:Lincons0.t) =
-      if filter_out_one_var_constraints && Linexpr0.get_size (constr.linexpr0) < 0 then
+      if filter_out_one_var_constraints && Linexpr0.get_size (constr.linexpr0) < 2 then
         None
       else
         Convert.cil_exp_of_lincons1 ctx.scope {lincons0=constr; env=env}
