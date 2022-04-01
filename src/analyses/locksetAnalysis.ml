@@ -1,6 +1,5 @@
 (** Basic lockset analyses. *)
 
-open Prelude.Ana
 open Analyses
 
 

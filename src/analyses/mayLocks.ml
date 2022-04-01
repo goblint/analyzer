@@ -1,6 +1,5 @@
 (** May lockset analysis (unused). *)
 
-open Prelude.Ana
 open Analyses
 
 module Arg =

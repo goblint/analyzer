@@ -31,6 +31,62 @@ struct
   let equal x y = Var.compare x y = 0
 end
 
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
+
+module VarMetadataTbl (VM: VarMetadata) =
+struct
+  module VH = Hashtbl.Make (Var)
+
+  let vh = VH.create 113
+
+  let make_var ?name metadata =
+    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+    let var = Var.of_string name in
+    VH.replace vh var metadata;
+    var
+
+  let find_metadata var =
+    VH.find_option vh var
+end
+
+module VM =
+struct
+  type t =
+    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
+    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Return (** Var for function return value. *)
+    | Global of varinfo
+
+  let var_name = function
+    | Local -> failwith "var_name of Local"
+    | Arg -> failwith "var_name of Arg"
+    | Return -> "#ret"
+    | Global g -> g.vname
+end
+
+module V =
+struct
+  include VarMetadataTbl (VM)
+  open VM
+
+  let local x = make_var ~name:x.vname Local
+  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let return = make_var Return
+  let global g = make_var (Global g)
+
+  let to_cil_varinfo fundec v =
+    match find_metadata v with
+    | Some (Global v) -> Some v
+    | Some (Local) ->
+      let vname = Var.to_string v in
+      List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals)
+    | _ -> None
+end
+
 module type Manager =
 sig
   type mt
@@ -110,6 +166,7 @@ let int_of_scalar ?round (scalar: Scalar.t) =
       let f_opt = match round with
         | Some `Floor -> Some (Float.floor f)
         | Some `Ceil -> Some (Float.ceil f)
+        | None when Stdlib.Float.is_integer f-> Some f
         | None -> None
       in
       Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
@@ -146,12 +203,9 @@ struct
   open Tcons1
   module Bounds = Bounds(Man)
   exception Unsupported_CilExp
+  exception Unsupported_Linexpr1
 
-  (* TODO: move this into some general place *)
-  let is_cast_injective from_type to_type =
-    let (from_min, from_max) = IntDomain.Size.range (Cilfacade.get_ikind from_type) in
-    let (to_min, to_max) = IntDomain.Size.range (Cilfacade.get_ikind to_type) in
-    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+
 
   let texpr1_expr_of_cil_exp d env =
     (* recurse without env argument *)
@@ -182,7 +236,7 @@ struct
             Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
           | BinOp (Mod, e1, e2, _) ->
             Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+          | CastE (TInt _ as t, e) when IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
             Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
           | _ ->
             raise Unsupported_CilExp
@@ -239,6 +293,60 @@ struct
     in
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
+
+  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+    let longlong = TInt(ILongLong,[]) in
+    let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
+      | Scalar c ->
+        (match int_of_scalar c with
+         | Some i ->
+           let ci,truncation = truncateCilint ILongLong i in
+           if truncation = NoTruncation then
+             if not consider_flip || Z.compare i Z.zero >= 0 then
+               Const (CInt(i,ILongLong,None)), false
+             else
+               (* attempt to negate if that does not cause an overflow *)
+               let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+               if truncation = NoTruncation then
+                 Const (CInt((Z.neg i),ILongLong,None)), true
+               else
+                 Const (CInt(i,ILongLong,None)), false
+           else
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+         | None -> raise Unsupported_Linexpr1)
+      | _ -> raise Unsupported_Linexpr1
+    in
+    let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
+    let append_summand (c:Coeff.union_5) v =
+      match V.to_cil_varinfo fundec v with
+      | Some vinfo ->
+        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+        let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+        let coeff, flip = coeff_to_const true c in
+        let prod = BinOp(Mult, coeff, var, longlong) in
+        if flip then
+          expr := BinOp(MinusA,!expr,prod,longlong)
+        else
+          expr := BinOp(PlusA,!expr,prod,longlong)
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+    in
+    Linexpr1.iter append_summand linexpr1;
+    !expr
+
+
+  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
+    let zero = Cil.zero in
+    try
+      let linexpr1 = Lincons1.get_linexpr1 lincons1 in
+      let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
+      match Lincons1.get_typ lincons1 with
+      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
+      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
+      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
+      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
+      | EQMOD _ -> None
+    with
+      Unsupported_Linexpr1 -> None
 end
 
 
@@ -644,6 +752,20 @@ struct
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max
       | (None, None) -> ID.top_of ik
+
+  let invariant (ctx:Invariant.context) x =
+    let r = A.to_lincons_array Man.mgr x in
+    let cons, env = r.lincons0_array, r.array_env in
+    let cons = Array.to_list cons in
+    let filter_out_one_var_constraints = false in
+    let convert_one (constr:Lincons0.t) =
+      if filter_out_one_var_constraints && Linexpr0.get_size (constr.linexpr0) < 2 then
+        None
+      else
+        Convert.cil_exp_of_lincons1 ctx.scope {lincons0=constr; env=env}
+    in
+    let cil_cons = List.filter_map convert_one cons in
+    List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None cil_cons
 end
 
 
@@ -954,53 +1076,4 @@ struct
   let meet = op_scheme D2.meet PrivD.meet
   let widen = op_scheme D2.widen PrivD.widen
   let narrow = op_scheme D2.narrow PrivD.narrow
-end
-
-
-module type VarMetadata =
-sig
-  type t
-  val var_name: t -> string
-end
-
-module VarMetadataTbl (VM: VarMetadata) =
-struct
-  module VH = Hashtbl.Make (Var)
-
-  let vh = VH.create 113
-
-  let make_var ?name metadata =
-    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-    let var = Var.of_string name in
-    VH.replace vh var metadata;
-    var
-
-  let find_metadata var =
-    VH.find_option vh var
-end
-
-module VM =
-struct
-  type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
-    | Return (** Var for function return value. *)
-    | Global of varinfo
-
-  let var_name = function
-    | Local -> failwith "var_name of Local"
-    | Arg -> failwith "var_name of Arg"
-    | Return -> "#ret"
-    | Global g -> g.vname
-end
-
-module V =
-struct
-  include VarMetadataTbl (VM)
-  open VM
-
-  let local x = make_var ~name:x.vname Local
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
-  let return = make_var Return
-  let global g = make_var (Global g)
 end

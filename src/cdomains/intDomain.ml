@@ -410,6 +410,12 @@ module Size = struct (* size in bits as int, range as int64 *)
     let x = if isSigned ik then minus_big_int (shift_left_big_int unit_big_int a) (* -2^a *) else zero_big_int in
     let y = sub_big_int (shift_left_big_int unit_big_int b) unit_big_int in (* 2^b - 1 *)
     x,y
+
+  let is_cast_injective ~from_type ~to_type =
+    let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
+    let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
+    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+
   let cast t x = (* TODO: overflow is implementation-dependent! *)
     let a,b = range t in
     let c = card t in

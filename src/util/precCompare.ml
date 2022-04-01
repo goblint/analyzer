@@ -3,43 +3,42 @@ open Pretty
 
 module Comparison =
 struct
-  type t =
-    | Equal
-    | MorePrecise of int
-    | LessPrecise of int
-    | Incomparable of int * int
+  type t = {
+    equal: int;
+    more_precise: int;
+    less_precise: int;
+    incomparable: int;
+  }
 
-  let aggregate_same c1 c2 = match c1, c2 with
-    | Incomparable (m1, l1), Incomparable (m2, l2) ->
-      Incomparable (m1 + m2, l1 + l2)
-    | Incomparable (m1, l), MorePrecise m2
-    | MorePrecise m2, Incomparable (m1, l) ->
-      Incomparable (m1 + m2, l)
-    | Incomparable (m, l1), LessPrecise l2
-    | LessPrecise l2, Incomparable (m, l1) ->
-      Incomparable (m, l1 + l2)
-    | MorePrecise m, LessPrecise l
-    | LessPrecise l, MorePrecise m ->
-      Incomparable (m, l)
-    | Equal, c
-    | c, Equal ->
-      c
-    | MorePrecise m1, MorePrecise m2 ->
-      MorePrecise (m1 + m2)
-    | LessPrecise l1, LessPrecise l2 ->
-      LessPrecise (l1 + l2)
+  let empty = {equal = 0; more_precise = 0; less_precise = 0; incomparable = 0}
+  let equal = {empty with equal = 1}
+  let more_precise = {empty with more_precise = 1}
+  let less_precise = {empty with less_precise = 1}
+  let incomparable = {empty with incomparable = 1}
 
-  let to_string_infix = function
-    | Equal -> "equal to"
-    | MorePrecise _ -> "more precise than"
-    | LessPrecise _ -> "less precise than"
-    | Incomparable _ -> "incomparable to"
+  let aggregate_same c1 c2 =
+    {
+      equal = c1.equal + c2.equal;
+      more_precise = c1.more_precise + c2.more_precise;
+      less_precise = c1.less_precise + c2.less_precise;
+      incomparable = c1.incomparable + c2.incomparable;
+    }
 
-  let counts = function
-    | Equal -> (0, 0)
-    | MorePrecise m -> (m, 0)
-    | LessPrecise l -> (0, l)
-    | Incomparable (m, l) -> (m, l)
+  let to_string_infix {equal; more_precise; less_precise; incomparable} =
+    if incomparable > 0 || (more_precise > 0 && less_precise > 0) then (* not distinguishing two incomparabilities *)
+      "incomparable to"
+    else if more_precise > 0 then
+      "more precise than"
+    else if less_precise > 0 then
+      "less precise than"
+    else
+      "equal to"
+
+  let total {equal; more_precise; less_precise; incomparable} =
+    equal + more_precise + less_precise + incomparable
+
+  let to_string_counts ({equal; more_precise; less_precise; incomparable} as c) =
+    Printf.sprintf "equal: %d, more precise: %d, less precise: %d, incomparable: %d, total: %d" equal more_precise less_precise incomparable (total c)
 end
 
 module Make (D: Lattice.S) =
@@ -47,10 +46,10 @@ struct
 
   let compare ?(verbose=false) ?(name1="left") ?(name2="right") v1 v2 =
     let c = match D.leq v1 v2, D.leq v2 v1 with
-      | true, true -> Comparison.Equal
-      | true, false -> Comparison.MorePrecise 1
-      | false, true -> Comparison.LessPrecise 1
-      | false, false -> Comparison.Incomparable (1, 1)
+      | true, true -> Comparison.equal
+      | true, false -> Comparison.more_precise
+      | false, true -> Comparison.less_precise
+      | false, false -> Comparison.incomparable
     in
     let diff () =
       (if D.leq v1 v2 then nil else dprintf "diff: %a\n" D.pretty_diff (v1, v2))
@@ -77,13 +76,12 @@ struct
     in
     KH.iter (fun k (c, msg) ->
         match c with
-        | Comparison.Equal -> ()
+        | {Comparison.more_precise = 0; less_precise = 0; incomparable = 0; _} -> ()
         | _ ->
           if verbose then ignore (Pretty.printf "%a: %t\n" K.pretty k (fun () -> msg))
       ) compared;
-    let c = KH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.Equal in
-    let (m, l) = Comparison.counts c in
-    let msg = Pretty.dprintf "%s %s %s    (more precise: %d, less precise: %d, total: %d)" name1 (Comparison.to_string_infix c) name2 m l (KH.length kh) in
+    let c = KH.fold (fun _ (c, _) acc -> Comparison.aggregate_same c acc) compared Comparison.empty in
+    let msg = Pretty.dprintf "%s %s %s    (%s)" name1 (Comparison.to_string_infix c) name2 (Comparison.to_string_counts c) in
     (c, msg)
 end
 
