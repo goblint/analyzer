@@ -33,8 +33,8 @@ struct
 
     let remove_all ctx =
       (* Mutexes.iter (fun m ->
-          ctx.emit (MustUnlock m)
-        ) (D.export_locks ctx.local); *)
+           ctx.emit (MustUnlock m)
+         ) (D.export_locks ctx.local); *)
       (* TODO: used to have remove_nonspecial, which kept v.vname.[0] = '{' variables *)
       D.empty ()
   end
