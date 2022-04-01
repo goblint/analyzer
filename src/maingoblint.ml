@@ -274,7 +274,7 @@ let preprocess_files () =
     | filename when Sys.is_directory filename ->
       let dir_files = Sys.readdir filename in
       if Array.mem CompilationDatabase.basename dir_files then (* prefer compilation database to Makefile in case both exist, because compilation database is more robust *)
-        preprocess_arg_file (Filename.concat filename CompilationDatabase.basename)
+        preprocess_arg_file (Unix.realpath (Filename.concat filename CompilationDatabase.basename))
       else if Array.mem "Makefile" dir_files then
         preprocess_arg_file (Filename.concat filename "Makefile")
       else
