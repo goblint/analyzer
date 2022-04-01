@@ -108,19 +108,20 @@ struct
     include D
     let name () = "lock"
     let may_race ls1 ls2 =
-      is_empty (join ls1 ls2) (* D is reversed, so join is intersect *)
+      (* not mutually exclusive *)
+      not @@ D.exists (fun ((m1, w1) as l1) ->
+          if w1 then
+            (* write lock is exclusive with write lock or read lock *)
+            D.mem l1 ls2 || D.mem (m1, false) ls2
+          else
+            (* read lock is exclusive with just write lock *)
+            D.mem (m1, true) ls2
+        ) ls1
     let should_print ls = not (is_empty ls)
   end
 
   let access ctx (a: Queries.access) =
-    match a with
-    | Point
-    | Memory {write = true; _} ->
-      (* when writing: ignore reader locks *)
-      Lockset.filter snd ctx.local
-    | Memory _ ->
-      (* when reading: bump reader locks to exclusive as they protect reads *)
-      Lockset.map (fun (x,_) -> (x,true)) ctx.local
+    ctx.local
 
   let event ctx e octx =
     match e with
