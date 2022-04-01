@@ -423,7 +423,7 @@ module ExpressionBounds (V: AbstractVector) (Mx: AbstractMatrix): (SharedFunctio
 struct
   include VarManagement (V) (Mx)
 
-  let bound_texpr t texpr =
+  let bound_texpr t texpr = (*ToDo: Modulo Bounds!*)
     let texpr = Texpr1.to_expr texpr in
     match get_coeff_vec t texpr  with
     | Some v -> begin match get_c v with
@@ -433,7 +433,59 @@ struct
         | _ -> None, None end
     | _ -> None, None
 
-end
+    (* let rec bound_texpr t texpr1 =
+      let texpr = Texpr1.to_expr texpr1 in
+      let ik = Cil.ILongLong in
+      let module Intv = IntDomain.IntervalFunctor(IntOps.BigIntOps) in
+        if Texpr1.is_interval_linear texpr1 then
+          match get_coeff_vec t texpr  with
+              | Some v -> begin match get_c v with
+                          | Some c when Mpqf.get_den c = IntOps.BigIntOps.of_int 1 ->
+                             let vl = Mpqf.get_num c in
+                             Some vl, Some vl
+                | _ -> None, None end
+                | _ -> None, None
+          else
+            let open Apron.Texpr1 in
+            match texpr with
+            | Binop (Mod, e1, e2, _, _) -> begin match bound_texpr t (Texpr1.of_expr t.env e2) with
+                                                  | Some x1, Some x2 -> Some (IntOps.BigIntOps.neg x1), Some x2
+                                                  | _, _ -> None, None end
+            | _ -> None, None *)
+
+        (* else
+          let open Apron.Texpr1 in
+            match expr with
+              | Unop (un, e, _, _) ->
+                begin match un with
+                | Neg -> Intv.neg ik (determine_bounds e)
+                | Cast -> determine_bounds e
+                | Sqrt -> Intv.top_of ik end
+              | Binop (bin, e1, e2, _, _) ->
+                begin match bin with
+                | Add -> Intv.add ik (determine_bounds e1) (determine_bounds e2)
+                | Sub -> Intv.sub ik (determine_bounds e1) (determine_bounds e2)
+                | Mul -> Intv.mul ik (determine_bounds e1) (determine_bounds e2)
+                | Div -> Intv.div ik (determine_bounds e1) (determine_bounds e2)
+                | Mod -> determine_bounds e2
+                | _ -> Intv.top_of ik end
+              | _ -> Intv.top_of ik
+              in let bounds = determine_bounds texpr in
+              let min, max = IntDomain.Size.range ik in
+                  match Intv.minimal bounds, Intv.maximal bounds with
+                  | Some x, Some y when x <> min && y <> max -> Some x, Some y
+                  | Some x, _ when x <> min -> Some x, None
+                  | _, Some y when y <> max -> None, Some y
+                  | _, _ -> None, None *)
+
+
+
+    let bound_texpr d texpr1 =
+      let res = bound_texpr d texpr1 in
+      match res with
+      | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
+      | _ -> res
+    end
 
 module D2(V: AbstractVector) (Mx: AbstractMatrix): SharedFunctions.AssertionRelD2 with type var = SharedFunctions.Var.t =
 struct
@@ -646,7 +698,12 @@ struct
 
   let assign_var_parallel t vv's =
     let new_t's = List.map (fun (v,v') -> assign_var t v v') vv's in
-    List.fold_left join t new_t's
+    List.fold_left meet t new_t's
+
+  let assign_var_parallel t vv's =
+    let res = assign_var_parallel t vv's in
+      if M.tracing then M.tracel "assign_var" "Assigned Var parallel";
+      res
 
   let assign_var_parallel_pt_with t vv's =
     assign_var_parallel t vv's
@@ -661,6 +718,7 @@ struct
     res
 
   let substitute_exp t var exp no_ov =
+    let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     assign_exp t var exp no_ov
 
   let substitute_exp t var exp ov =

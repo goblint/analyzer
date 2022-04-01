@@ -203,6 +203,12 @@ struct
     let min = int_of_scalar ~round:`Ceil bounds.inf in
     let max = int_of_scalar ~round:`Floor bounds.sup in
     (min, max)
+
+  let bound_texpr d texpr1 =
+    let res = bound_texpr d texpr1 in
+    match res with
+    | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
+    | _ -> res
 end
 
 (** Conversion from CIL expressions to Apron. *)
@@ -598,7 +604,22 @@ struct
   let meet_with_tcons d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
-    A.meet_tcons_array Man.mgr d earray
+    let res = A.meet_tcons_array Man.mgr d earray in
+    match Man.name () with
+    | "ApronAffEq" ->
+          let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp e) then res else d in
+          begin match Convert.determine_bounds_one_var e with
+          | None -> overflow_res res
+          | Some (ev, min, max) ->
+            let module Bounds = Bounds(Man) in
+            let module BI = IntOps.BigIntOps in
+            begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
+              | Some b_min, Some b_max -> if min = BI.of_int 0 && b_min = b_max then  d
+                else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then
+                  (if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then A.bottom (A.manager d) (A.env d) else d)
+                else res
+              | _, _ -> overflow_res res end end
+    | _ -> res
 
   let to_lincons_array d =
     A.to_lincons_array Man.mgr d

@@ -120,7 +120,7 @@ struct
 
   let no_overflow ctx exp =
     let ik = Cilfacade.get_ikind_exp exp in
-    if not (Cil.isSigned ik) then false else
+    if not (Cil.isSigned ik) || GobConfig.get_string "sem.int.signed_overflow" = "assume_wraparound" then false else
     if GobConfig.get_string "sem.int.signed_overflow" = "assume_none" then true else
       let eval_int ctx exp =
         match ctx.ask (Queries.EvalInt exp) with
