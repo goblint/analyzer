@@ -24,7 +24,6 @@ module GlobalMap = Map.Make(struct
 let compare_name (a: string) (b: string) =
   let anon_struct = "__anonstruct_" in
   let anon_union = "__anonunion_" in
-  let _ = Printf.printf "Comparing names: %s = %s\n" a b in
   if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
 
 let rec eq_constant (context: context) (a: constant) (b: constant)  = 
@@ -35,7 +34,7 @@ let rec eq_constant (context: context) (a: constant) (b: constant)  =
 
 and eq_exp2 (context: context) (a: exp) (b: exp) = eq_exp a b context
 
-and eq_exp  (a: exp) (b: exp) (context: context) = 
+and eq_exp (a: exp) (b: exp) (context: context) = 
   match a, b with
   | Const c1, Const c2 -> eq_constant context c1 c2 
   | Lval lv1, Lval lv2 -> eq_lval lv1 lv2 context
@@ -139,8 +138,6 @@ and eq_attribute (context: context) (a: attribute) (b: attribute) = match a, b w
 
 and eq_varinfo2 (context: context) (a: varinfo) (b: varinfo) = eq_varinfo a b context
 
-and bla (context: context) = List.exists (fun x -> match x with (a, b) -> a == "") context
-
 and eq_varinfo (a: varinfo) (b: varinfo) (context: context) = 
   let isNamingOk = if a.vname != b.vname then 
       let existingAssumption: (string*string) option = List.find_opt (fun x -> match x with (original, now) -> original = a.vname) context in
@@ -151,7 +148,7 @@ and eq_varinfo (a: varinfo) (b: varinfo) (context: context) =
 
     else true in
 
-  let _ = Printf.printf "Comparing vars: %s = %s\n" a.vname b.vname in 
+  (*let _ = Printf.printf "Comparing vars: %s = %s\n" a.vname b.vname in *)
   (*a.vname = b.vname*) isNamingOk && eq_typ a.vtype b.vtype context && GobList.equal (eq_attribute context) a.vattr b.vattr &&
                         a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)

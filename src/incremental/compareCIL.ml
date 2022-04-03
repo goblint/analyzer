@@ -32,13 +32,10 @@ let should_reanalyze (fdec: Cil.fundec) =
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
-  let unchangedHeader = eq_varinfo a.svar b.svar [] && GobList.equal (eq_varinfo2 []) a.sformals b.sformals in
-  let identical, diffOpt =
-    if should_reanalyze a then
-      false, None
-    else
-      (* Here the local variables are checked to be equal *)
-      let rec context_aware_compare (alocals: varinfo list) (blocals: varinfo list) (context: context) = match alocals, blocals with
+
+  (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal, 
+   * and as a second a context, holding the rename assumptions *)
+  let rec context_aware_compare (alocals: varinfo list) (blocals: varinfo list) (context: context) = match alocals, blocals with
         | [], [] -> true, context
         | origLocal :: als, nowLocal :: bls -> 
           let newContext = if origLocal.vname = nowLocal.vname then context else context @ [(origLocal.vname, nowLocal.vname)] in
@@ -47,7 +44,17 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
         | _, _ -> false, context
         in
 
-      let sizeEqual, context = context_aware_compare a.slocals b.slocals [] in
+  let headerSizeEqual, headerContext = context_aware_compare a.sformals b.sformals [] in
+
+  let unchangedHeader = eq_varinfo a.svar b.svar headerContext && GobList.equal (eq_varinfo2 []) a.sformals b.sformals in
+  let identical, diffOpt =
+    if should_reanalyze a then
+      false, None
+    else
+      (* Here the local variables are checked to be equal *)
+      
+
+      let sizeEqual, context = context_aware_compare a.slocals b.slocals headerContext in
 
       let _ = Printf.printf "Context=%s\n" (CompareAST.context_to_string context) in
       let _ = Printf.printf "SizeEqual=%b; unchangedHeader=%b\n" sizeEqual unchangedHeader in
