@@ -1244,7 +1244,7 @@ struct
           ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_gr ()
       end else begin
-        if get_bool "solverdiffs" then (
+        if get_bool "dbg.compare_runs.diff" then (
           ignore (Pretty.printf "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
           ignore (Pretty.printf "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
         );
@@ -1272,7 +1272,7 @@ struct
             ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr gr
         end else begin
-          if get_bool "solverdiffs" then (
+          if get_bool "dbg.compare_runs.diff" then (
             ignore (Pretty.printf "%a @@ %a is incomparable (diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
             ignore (Pretty.printf "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
           );
@@ -1309,7 +1309,7 @@ struct
             ignore (Pretty.printf "%a is more precise using right:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
           f_gr ()
         end else begin
-          if get_bool "solverdiffs" then (
+          if get_bool "dbg.compare_runs.diff" then (
             ignore (Pretty.printf "%a is incomparable (diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
             ignore (Pretty.printf "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
           );
