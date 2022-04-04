@@ -38,11 +38,11 @@ let seq_from_lexbuf v ?(fin = fun () -> ()) lexbuf =
   let rec f () =
     try Seq.Cons (Yojson.Safe.from_lexbuf v ?stream lexbuf, f)
     with
-        Yojson.End_of_input ->
-          fin ();
-          Seq.Nil
-      | e ->
-          (try fin () with fin_e -> raise (Yojson.Safe.Finally (e, fin_e)));
-          raise e
+    | Yojson.End_of_input ->
+      fin ();
+      Seq.Nil
+    | e ->
+      (try fin () with fin_e -> raise (Yojson.Safe.Finally (e, fin_e)));
+      raise e
   in
   f
