@@ -11,5 +11,5 @@ let init () =
 
 let finalize () =
   if not (get_bool "pre.keep") then
-    ignore (Goblintutil.rm_rf (Fpath.to_string (preprocessed ())));
+    ignore (Goblintutil.rm_rf (preprocessed ()));
   GobSys.rmdir_if_empty (Fpath.to_string (root ()))

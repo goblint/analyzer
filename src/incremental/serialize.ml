@@ -1,5 +1,6 @@
 open Prelude
 
+(* TODO: Fpath and GoblintDir *)
 let base_directory = ref (Sys.getcwd ()) (* base directory where incremental results are stored *)
 let goblint_dirname = "incremental_data"
 let version_map_filename = "version.data"
@@ -75,6 +76,6 @@ let store_data (data : 'a) (data_type : incremental_data_kind) =
 let move_tmp_results_to_results () =
   if not (server ()) then (
     if Sys.file_exists (gob_results_dir ()) then begin
-      Goblintutil.rm_rf (gob_results_dir ());
+      Goblintutil.rm_rf (Fpath.v (gob_results_dir ()));
     end;
     Sys.rename (gob_results_tmp_dir ()) (gob_results_dir ()))
