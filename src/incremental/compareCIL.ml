@@ -6,7 +6,6 @@ include CompareCFG
 type nodes_diff = {
   unchangedNodes: (node * node) list;
   primObsoleteNodes: node list; (** primary obsolete nodes -> all obsolete nodes are reachable from these *)
-  primNewNodes: node list (** primary new nodes -> all differing nodes in the new CFG are reachable from these *)
 }
 
 type changed_global = {
@@ -46,7 +45,7 @@ let should_reanalyze (fdec: Cil.fundec) =
 (* If some CFGs of the two functions to be compared are provided, a fine-grained CFG comparison is done that also determines which
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
-let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * cfg) option) =
+let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) =
   if should_reanalyze current then
     ForceReanalyze current, None
   else
@@ -59,14 +58,14 @@ let eqF (old: Cil.fundec) (current: Cil.fundec) (cfgs : (cfg * cfg) option) =
       else
         match cfgs with
         | None -> unchanged_to_change_status (eq_block (old.sbody, old) (current.sbody, current)), None
-        | Some (cfgOld, cfgNew) ->
+        | Some (cfgOld, (cfgNew, cfgNewBack)) ->
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
-          let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
-          let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) old current in
-          if diffNodes1 = [] && diffNodes2 = [] then (Changed, None)
-          else (Changed, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
+          let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
+          let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) old current in
+          if diffNodes1 = [] then (Changed, None)
+          else (Changed, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1})
 
-let eq_glob (old: global) (current: global) (cfgs : (cfg * cfg) option) = match old, current with
+let eq_glob (old: global) (current: global) (cfgs : (cfg * (cfg * cfg)) option) = match old, current with
   | GFun (f,_), GFun (g,_) -> eqF f g cfgs
   | GVar (x, init_x, _), GVar (y, init_y, _) -> unchanged_to_change_status (eq_varinfo x y), None (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> unchanged_to_change_status (eq_varinfo x y), None
@@ -74,7 +73,7 @@ let eq_glob (old: global) (current: global) (cfgs : (cfg * cfg) option) = match 
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
-    then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST |> fst)
+    then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST)
     else None in
 
   let addGlobal map global  =

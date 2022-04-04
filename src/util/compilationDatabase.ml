@@ -35,7 +35,8 @@ let load_and_preprocess ~all_cppflags filename =
   in
   let preprocessed_dir = GobFilename.absolute (GoblintDir.preprocessed ()) in (* absolute due to cwd changes *)
   let preprocess obj =
-    let file = obj.file in
+    let filepath = if Filename.is_relative obj.file then Filename.concat obj.directory obj.file else obj.file in
+    let file = Unix.realpath filepath in
     let extension = Filename.extension file in
     if extension = ".s" || extension = ".S" then
       None
