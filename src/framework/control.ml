@@ -305,7 +305,7 @@ struct
     GU.earlyglobs := get_bool "exp.earlyglobs";
     let marshal =
       if get_string "load_run" <> "" then
-        Some (Serialize.unmarshal Fpath.(to_string (v (get_string "load_run") / "spec_marshal")))
+        Some (Serialize.unmarshal Fpath.(v (get_string "load_run") / "spec_marshal"))
       else if Serialize.results_exist () && get_bool "incremental.load" then
         Some (Serialize.load_data Serialize.AnalysisData)
       else
@@ -434,7 +434,7 @@ struct
             let module S2 = Splitter.S2 in
             let module VH = Splitter.VH in
             let (r1, r1'), (r2, r2') = Tuple2.mapn (fun d ->
-                let vh = Serialize.unmarshal (d ^ Filename.dir_sep ^ solver_file) in
+                let vh = Serialize.unmarshal Fpath.(v d / solver_file) in
 
                 let vh' = VH.create (VH.length vh) in
                 VH.iter (fun k v ->
@@ -486,10 +486,10 @@ struct
               if get_bool "dbg.verbose" then (
                 Format.printf "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               );
-              Serialize.marshal MCPRegistry.registered_name (Fpath.to_string analyses);
-              Serialize.marshal (file, Cabs2cil.environment) (Fpath.to_string cil);
-              Serialize.marshal !Messages.Table.messages_list (Fpath.to_string warnings);
-              Serialize.marshal (Stats.top, Gc.quick_stat ()) (Fpath.to_string stats)
+              Serialize.marshal MCPRegistry.registered_name analyses;
+              Serialize.marshal (file, Cabs2cil.environment) cil;
+              Serialize.marshal !Messages.Table.messages_list warnings;
+              Serialize.marshal (Stats.top, Gc.quick_stat ()) stats
             );
             Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal"))); (* write solver_stats after solving (otherwise no rows if faster than dbg.solver-stats-interval). TODO better way to write solver_stats without terminal output? *)
           );
@@ -646,7 +646,7 @@ struct
     let gobview = get_bool "gobview" in
     let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
     if save_run <> "" then (
-      Serialize.marshal marshal Fpath.(to_string (v save_run / "spec_marshal"))
+      Serialize.marshal marshal Fpath.(v save_run / "spec_marshal")
     );
     if get_bool "incremental.save" then (
       Serialize.store_data marshal Serialize.AnalysisData;

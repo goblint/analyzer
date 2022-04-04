@@ -15,7 +15,7 @@ module LoadRunSolver: GenericEqBoxSolver =
       let solver = Fpath.(load_run / solver_file) in
       if get_bool "dbg.verbose" then
         Format.printf "Loading the solver result of a saved run from %a" Fpath.pp solver;
-      let vh: S.d VH.t = Serialize.unmarshal (Fpath.to_string solver) in
+      let vh: S.d VH.t = Serialize.unmarshal solver in
       if get_bool "ana.opt.hashcons" then (
         let vh' = VH.create (VH.length vh) in
         VH.iter (fun x d ->

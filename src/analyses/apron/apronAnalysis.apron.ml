@@ -454,7 +454,7 @@ struct
   let finalize () =
     let file = GobConfig.get_string "exp.apron.prec-dump" in
     if file <> "" then begin
-      store_data file
+      store_data (Fpath.v file)
     end;
     Priv.finalize ()
 end

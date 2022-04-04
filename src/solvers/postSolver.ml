@@ -128,7 +128,7 @@ module SaveRun: F =
       if get_bool "dbg.verbose" then
         Format.printf "Saving the solver result to %a" Fpath.pp solver;
       GobSys.mkdir_or_exists save_run;
-      Serialize.marshal vh (Fpath.to_string solver)
+      Serialize.marshal vh solver
   end
 
 (** [EqConstrSys] together with start values to be used. *)
