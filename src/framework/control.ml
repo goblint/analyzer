@@ -305,7 +305,7 @@ struct
     GU.earlyglobs := get_bool "exp.earlyglobs";
     let marshal =
       if get_string "load_run" <> "" then
-        Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal"))
+        Some (Serialize.unmarshal Fpath.(to_string (v (get_string "load_run") / "spec_marshal")))
       else if Serialize.results_exist () && get_bool "incremental.load" then
         Some (Serialize.load_data Serialize.AnalysisData)
       else

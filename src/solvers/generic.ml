@@ -11,11 +11,11 @@ module LoadRunSolver: GenericEqBoxSolver =
     let solve box xs vs =
       (* copied from Control.solve_and_postprocess *)
       let solver_file = "solver.marshalled" in
-      let load_run = get_string "load_run" in
-      let solver = Filename.concat load_run solver_file in
+      let load_run = Fpath.v (get_string "load_run") in
+      let solver = Fpath.(load_run / solver_file) in
       if get_bool "dbg.verbose" then
-        print_endline ("Loading the solver result of a saved run from " ^ solver);
-      let vh: S.d VH.t = Serialize.unmarshal solver in
+        Format.printf "Loading the solver result of a saved run from %a" Fpath.pp solver;
+      let vh: S.d VH.t = Serialize.unmarshal (Fpath.to_string solver) in
       if get_bool "ana.opt.hashcons" then (
         let vh' = VH.create (VH.length vh) in
         VH.iter (fun x d ->
