@@ -977,7 +977,7 @@
                   "title": "incremental.restart.sided.enabled",
                   "description": "TODO",
                   "type": "boolean",
-                  "default": true
+                  "default": false
                 },
                 "only-global": {
                   "title": "incremental.restart.sided.only-global",
@@ -1805,7 +1805,7 @@
                       "title": "solvers.td3.restart.wpoint.enabled",
                       "description": "TODO",
                       "type": "boolean",
-                      "default": true
+                      "default": false
                     },
                     "once": {
                       "title": "solvers.td3.restart.wpoint.once",
