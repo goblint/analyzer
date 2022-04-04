@@ -71,8 +71,8 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
 let serve serv =
   serv.input
   |> Lexing.from_channel
-  |> Yojson.Safe.stream_from_lexbuf (Yojson.init_lexer ())
-  |> Stream.iter (fun json ->
+  |> GobYojson.seq_from_lexbuf (Yojson.init_lexer ())
+  |> Seq.iter (fun json ->
       let message = Message.either_of_yojson json in
       match message.id with
       | Some id -> handle_request serv message id
