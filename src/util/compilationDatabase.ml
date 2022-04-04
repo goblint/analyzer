@@ -48,7 +48,7 @@ let load_and_preprocess ~all_cppflags filename =
       None
     else
       let preprocessed_file = Fpath.append preprocessed_dir (Fpath.set_ext ".i" (GobFpath.rem_find_prefix database_dir file)) in
-      GobSys.mkdir_parents (Fpath.to_string preprocessed_file);
+      GobSys.mkdir_parents preprocessed_file;
       let preprocess_command = match obj.command, obj.arguments with
         | Some command, None ->
           (* TODO: extract o_file *)

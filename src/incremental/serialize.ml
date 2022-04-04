@@ -66,9 +66,10 @@ let store_data (data : 'a) (data_type : incremental_data_kind) =
     | AnalysisData -> server_analysis_data := Some (Obj.repr data)
     | _ -> ()
   else (
-    GobSys.mkdir_or_exists (gob_directory ());
+    (* TODO: Fpath *)
+    GobSys.mkdir_or_exists (Fpath.v (gob_directory ()));
     let d = gob_results_tmp_dir () in
-    GobSys.mkdir_or_exists d;
+    GobSys.mkdir_or_exists (Fpath.v d);
     let p = Filename.concat d (type_to_file_name data_type) in
     marshal data p)
 

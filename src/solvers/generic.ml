@@ -107,7 +107,8 @@ struct
   let stats_csv =
     let save_run = GobConfig.get_string "save_run" in
     if save_run <> "" then (
-      GobSys.mkdir_or_exists save_run;
+      (* TODO: Fpath *)
+      GobSys.mkdir_or_exists (Fpath.v save_run);
       save_run ^ Filename.dir_sep ^ "solver_stats.csv" |> open_out |> Option.some
     ) else None
   let write_csv xs oc = output_string oc @@ String.concat ",\t" xs ^ "\n"

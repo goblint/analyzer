@@ -62,7 +62,7 @@ let escape = XmlUtil.escape (* TODO: inline everywhere *)
 (** Creates a directory and returns the absolute path **)
 let create_dir name =
   let dirName = GobFpath.cwd_append name in
-  GobSys.mkdir_or_exists (Fpath.to_string dirName);
+  GobSys.mkdir_or_exists dirName;
   dirName
 
 (** Remove directory and its content, as "rm -rf" would do. *)
