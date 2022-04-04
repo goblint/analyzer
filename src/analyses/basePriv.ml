@@ -146,7 +146,7 @@ struct
     | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let is_private (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    not (ThreadFlag.is_multi a) && is_excluded_from_earlyglobs v (* not multi, but excluded from earlyglobs *)
     || not (a.f (Q.MayBePublic {global=v; write=false})) (* usual case where MayBePublic answers *)
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
@@ -172,7 +172,7 @@ struct
     let side_var (v: varinfo) (value) (st: BaseComponents.t) =
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
-        if is_global ask v && ((privates && not (is_precious_glob v)) || not (is_private ask v)) then begin
+        if is_global ask v && ((privates && not (is_excluded_from_earlyglobs v)) || not (is_private ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           sideg v value;
           {st with cpa = CPA.remove v st.cpa}
@@ -431,7 +431,7 @@ struct
     | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    not (ThreadFlag.is_multi a) && is_excluded_from_earlyglobs v (* not multi, but excluded from earlyglobs *)
     || not (a.f (Q.MayBePublic {global=v; write=false})) (* usual case where MayBePublic answers *)
   let is_private = is_invisible
 
@@ -451,7 +451,7 @@ struct
     )
 
   let is_protected (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    not (ThreadFlag.is_multi a) && is_excluded_from_earlyglobs v (* not multi, but excluded from earlyglobs *)
     || not (a.f (Q.MayBePublic {global=v; write=true})) (* usual case where MayBePublic answers *)
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
@@ -462,7 +462,7 @@ struct
       let res =
         if is_global ask v then
           let protected = is_protected ask v in
-          if privates && not (is_precious_glob v) || not protected then begin
+          if privates && not (is_excluded_from_earlyglobs v) || not protected then begin
             if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
             sideg v value;
             { st with cpa = CPA.remove v st.cpa; priv = MustVars.remove v st.priv}
@@ -704,7 +704,7 @@ struct
     let s = current_lockset ask in
     let t = current_thread ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s (ThreadMap.singleton t v)));
     {st with cpa = cpa'}
 
@@ -761,7 +761,7 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
     {st with cpa = cpa'}
 
@@ -831,7 +831,7 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
     {st with cpa = cpa'; priv = W.add x st.priv}
 
@@ -972,7 +972,7 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s v))
     );
@@ -1115,7 +1115,7 @@ struct
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );
@@ -1277,7 +1277,7 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );

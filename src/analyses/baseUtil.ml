@@ -9,11 +9,15 @@ let is_static (v:varinfo): bool = v.vstorage = Static
 
 let is_always_unknown variable = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
 
-let precious_globs = ref []
-let is_precious_glob v = List.mem v.vname !precious_globs
+let exclude_from_earlyglobs = ref []
+let exclude_from_invalidation = ref []
+
+let is_excluded_from_earlyglobs v = List.mem v.vname !exclude_from_earlyglobs
+let is_excluded_from_invalidation v =  List.mem v.vname !exclude_from_invalidation
 
 let after_config () =
-  precious_globs := get_string_list "exp.precious_globs"
+  exclude_from_earlyglobs := get_string_list "exp.exclude_from_earlyglobs";
+  exclude_from_invalidation := get_string_list "exp.exclude_from_invalidation"
 
 let _ =
   AfterConfig.register after_config
