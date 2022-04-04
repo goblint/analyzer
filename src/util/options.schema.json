@@ -102,12 +102,6 @@
       "type": "string",
       "default": ""
     },
-    "solverdiffs": {
-      "title": "solverdiffs",
-      "description": "Print out solver differences.",
-      "type": "boolean",
-      "default": false
-    },
     "allfuns": {
       "title": "allfuns",
       "description":
@@ -291,7 +285,7 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutex", "access", "mallocWrapper", "mhp"
+            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp"
           ]
         },
         "path_sens": {
@@ -448,7 +442,7 @@
             "refinement": {
               "title": "ana.int.refinement",
               "description":
-                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'",
+                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'. Counterintuitively, may reduce precision unless ana.int.interval_narrow_by_meet is also enabled.",
               "type": "string",
               "enum": ["never", "once", "fixpoint"],
               "default": "never"
@@ -457,6 +451,12 @@
               "title": "ana.int.def_exc_widen_by_join",
               "description":
                 "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_narrow_by_meet": {
+              "title": "ana.int.interval_narrow_by_meet",
+              "description": "Perform interval narrowing by meets. Avoids precision loss if intervals are refined by def_exc ranges, which are more precise than type range.",
               "type": "boolean",
               "default": false
             },
@@ -1085,6 +1085,33 @@
             }
           },
           "additionalProperties": false
+        },
+        "output" : {
+          "title": "trans.output",
+          "description": "Output filename for transformations that output a transformed file.",
+          "type":"string",
+          "default": "transformed.c"
+        },
+        "assert": {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "full": {
+              "title": "trans.assert.full",
+              "description":
+                "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
+              "type": "boolean",
+              "default": true
+            },
+            "only-at-locks":{
+              "title": "trans.assert.only-at-locks",
+              "description":
+                "Only put locks after mutexes have been acquired.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1502,17 +1529,35 @@
           "title": "dbg.compare_runs",
           "type": "object",
           "properties": {
-            "glob": {
-              "title": "dbg.compare_runs.glob",
+            "globsys": {
+              "title": "dbg.compare_runs.globsys",
               "description": "Compare GlobConstrSys in compare_runs",
               "type": "boolean",
-              "default": true
+              "default": false
             },
-            "eq": {
-              "title": "dbg.compare_runs.eq",
+            "eqsys": {
+              "title": "dbg.compare_runs.eqsys",
               "description": "Compare EqConstrSys in compare_runs",
               "type": "boolean",
               "default": true
+            },
+            "global": {
+              "title": "dbg.compare_runs.global",
+              "description": "Compare globals in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "node": {
+              "title": "dbg.compare_runs.node",
+              "description": "Compare nodes (with joined contexts) in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "diff": {
+              "title": "dbg.compare_runs.diff",
+              "description": "Print differences",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1566,6 +1611,12 @@
         "race": {
           "title": "warn.race",
           "description": "Race warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "deadlock": {
+          "title": "warn.deadlock",
+          "description": "Deadlock warnings",
           "type": "boolean",
           "default": true
         },
@@ -1634,6 +1685,12 @@
           "description": "Quote code in message output.",
           "type": "boolean",
           "default": false
+        },
+        "race-threshold": {
+          "title": "warn.race-threshold",
+          "description": "Races with confidence at least threshold are warnings, lower are infos.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false
@@ -1705,6 +1762,12 @@
       "title": "witness",
       "type": "object",
       "properties": {
+        "enabled": {
+          "title": "witness.enabled",
+          "description": "Output witness",
+          "type": "boolean",
+          "default": true
+        },
         "path": {
           "title": "witness.path",
           "description": "Witness output path",

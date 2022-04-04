@@ -37,6 +37,7 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
+module LiftedExp = Lattice.Flat(Exp.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -59,7 +60,18 @@ module Unit = Lattice.Unit
 type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord, hash]
 type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
-type partaccess = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: bool} [@@deriving ord, hash]
+type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: bool} [@@deriving ord, hash]
+type access =
+  | Memory of memory_access (** Memory location access (race). *)
+  | Point (** Program point and state access (MHP), independent of memory location. *)
+[@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
+type invariant_context = {
+  scope: CilType.Fundec.t;
+  lval: CilType.Lval.t option;
+  offset: CilType.Offset.t;
+}
+[@@deriving ord, hash]
+
 
 (** GADT for queries with specific result type. *)
 type _ t =
@@ -73,7 +85,7 @@ type _ t =
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
-  | CurrentLockset: LS.t t
+  | MustLockset: LS.t t
   | MustBeAtomic: MustBool.t t
   | MustBeSingleThreaded: MustBool.t t
   | MustBeUniqueThread: MustBool.t t
@@ -86,7 +98,7 @@ type _ t =
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
   | PrintFullState: Unit.t t
   | CondVars: exp -> ES.t t
-  | PartAccess: partaccess -> Obj.t t (** Only queried by access analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
+  | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | MustBeEqual: exp * exp -> MustBool.t t (* are two expression known to must-equal ? *)
@@ -98,6 +110,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
+  | Invariant: invariant_context -> LiftedExp.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
 
 type 'a result = 'a
@@ -120,7 +133,7 @@ struct
     | MayPointTo _ -> (module LS)
     | ReachableFrom _ -> (module LS)
     | Regions _ -> (module LS)
-    | CurrentLockset -> (module LS)
+    | MustLockset -> (module LS)
     | EvalFunvar _ -> (module LS)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
@@ -150,6 +163,7 @@ struct
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
+    | Invariant _ -> (module LiftedExp)
     | WarnGlobal _ -> (module Unit)
 
   (** Get bottom result for query. *)
@@ -171,7 +185,7 @@ struct
     | MayPointTo _ -> LS.top ()
     | ReachableFrom _ -> LS.top ()
     | Regions _ -> LS.top ()
-    | CurrentLockset -> LS.top ()
+    | MustLockset -> LS.top ()
     | EvalFunvar _ -> LS.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
@@ -201,6 +215,7 @@ struct
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
+    | Invariant _ -> LiftedExp.top ()
     | WarnGlobal _ -> Unit.top ()
 end
 
@@ -224,7 +239,7 @@ struct
     | Any (MayBePublic _) -> 7
     | Any (MayBePublicWithout _) -> 8
     | Any (MustBeProtectedBy _) -> 9
-    | Any CurrentLockset -> 10
+    | Any MustLockset -> 10
     | Any MustBeAtomic -> 11
     | Any MustBeSingleThreaded -> 12
     | Any MustBeUniqueThread -> 13
@@ -250,6 +265,7 @@ struct
     | Any CreatedThreads -> 33
     | Any MustJoinedThreads -> 34
     | Any (WarnGlobal _) -> 35
+    | Any (Invariant _) -> 36
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -273,7 +289,7 @@ struct
       | Any (EvalLength e1), Any (EvalLength e2) -> CilType.Exp.compare e1 e2
       | Any (BlobSize e1), Any (BlobSize e2) -> CilType.Exp.compare e1 e2
       | Any (CondVars e1), Any (CondVars e2) -> CilType.Exp.compare e1 e2
-      | Any (PartAccess p1), Any (PartAccess p2) -> compare_partaccess p1 p2
+      | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
       | Any (MustBeEqual (e1, e2)), Any (MustBeEqual (e3, e4)) ->
@@ -286,6 +302,7 @@ struct
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
+      | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
@@ -308,7 +325,7 @@ struct
     | Any (EvalLength e) -> CilType.Exp.hash e
     | Any (BlobSize e) -> CilType.Exp.hash e
     | Any (CondVars e) -> CilType.Exp.hash e
-    | Any (PartAccess p) -> hash_partaccess p
+    | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
     | Any (MustBeEqual (e1, e2)) -> [%hash: CilType.Exp.t * CilType.Exp.t] (e1, e2)
@@ -318,6 +335,7 @@ struct
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
     | Any (WarnGlobal vi) -> Hashtbl.hash vi
+    | Any (Invariant i) -> hash_invariant_context i
     (* only argumentless queries should remain *)
     | _ -> 0
 

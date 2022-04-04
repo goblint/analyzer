@@ -34,7 +34,7 @@ struct
   let name () = "threadid"
 
   let startstate v = (ThreadLifted.bot (), TD.bot ())
-  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
+  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 
   let morphstate v _ =
     let tid = Thread.threadinit v ~multiple:false in
@@ -104,7 +104,7 @@ struct
     let should_print = Option.is_some
   end
 
-  let access ctx e vo w =
+  let access ctx _ =
     if is_unique ctx then
       let tid = fst ctx.local in
       Some tid

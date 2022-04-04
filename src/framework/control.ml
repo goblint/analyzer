@@ -56,7 +56,7 @@ struct
   end
   module Slvr  = (GlobSolverFromEqSolver (Selector.Make (PostSolverArg))) (EQSys) (LHT) (GHT)
   (* The comparator *)
-  module Comp = Compare (Spec) (EQSys) (LHT) (GHT)
+  module CompareGlobSys = Constraints.CompareGlobSys (Spec) (EQSys) (LHT) (GHT)
 
   (* Triple of the function, context, and the local value. *)
   module RT = Analyses.ResultType2 (Spec)
@@ -445,12 +445,20 @@ struct
               ) (d1, d2)
             in
 
-            if get_bool "dbg.compare_runs.glob" then
-              Comp.compare (d1, d2) r1 r2;
+            if get_bool "dbg.compare_runs.globsys" then
+              CompareGlobSys.compare (d1, d2) r1 r2;
 
-            let module Compare2 = Constraints.CompareEq (S2) (VH) in
-            if get_bool "dbg.compare_runs.eq" then
-              Compare2.compare (d1, d2) r1' r2';
+            let module CompareEqSys = Constraints.CompareEqSys (S2) (VH) in
+            if get_bool "dbg.compare_runs.eqsys" then
+              CompareEqSys.compare (d1, d2) r1' r2';
+
+            let module CompareGlobal = Constraints.CompareGlobal (EQSys.GVar) (EQSys.G) (GHT) in
+            if get_bool "dbg.compare_runs.global" then
+              CompareGlobal.compare (d1, d2) (snd r1) (snd r2);
+
+            let module CompareNode = Constraints.CompareNode (Spec.C) (EQSys.D) (LHT) in
+            if get_bool "dbg.compare_runs.node" then
+              CompareNode.compare (d1, d2) (fst r1) (fst r2);
 
             r1 (* return the result of the first run for further options -- maybe better to exit early since compare_runs is its own mode. Only excluded verify below since it's on by default. *)
           | _ -> failwith "Currently only two runs can be compared!";
@@ -508,7 +516,7 @@ struct
           in
           let module S2' = (GlobSolverFromEqSolver (S2 (PostSolverArg2))) (EQSys) (LHT) (GHT) in
           let (r2, _) = S2'.solve entrystates entrystates_global startvars' in
-          Comp.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
+          CompareGlobSys.compare (get_string "solver", get_string "comparesolver") (lh,gh) (r2)
         in
         compare_with (Selector.choose_solver (get_string "comparesolver"))
       );
@@ -561,26 +569,45 @@ struct
             Hashtbl.replace h k v') e;
           h
         in
-        let ask loc =
-          (* build a ctx for using the query system *)
-          let rec ctx =
-            { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-            ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-            ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
-            ; prev_node = MyCFG.dummy_node
-            ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
-            ; context = (fun () -> ctx_failwith "No context in query context.")
-            ; edge    = MyCFG.Skip
-            ; local  = Hashtbl.find joined loc
-            ; global = GHT.find gh
-            ; presub = (fun _ -> raise Not_found)
-            ; postsub= (fun _ -> raise Not_found)
-            ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-            ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-            ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-            }
-          in
-          Spec.query ctx
+        let ask loc = (fun (type a) (q: a Queries.t) ->
+            let local = Hashtbl.find_option joined loc in
+            match local with
+            | None -> Queries.Result.bot q
+            | Some local ->
+              match q with
+              | Queries.Invariant context ->
+                (* Directly handle the invariant query here *)
+                (let context: Invariant.context = {
+                    scope=context.scope;
+                    i= -1; (* Not used here *)
+                    lval=context.lval;
+                    offset=context.offset;
+                    deref_invariant=(fun _ _ _ -> Invariant.none)
+                  } in
+                 match Spec.D.invariant context local with
+                 | Some e -> (`Lifted e)
+                 | None -> `Top)
+              | _ ->
+                (* build a ctx for using the query system for all other queries *)
+                let rec ctx =
+                  { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+                  ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+                  ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+                  ; prev_node = MyCFG.dummy_node
+                  ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+                  ; context = (fun () -> ctx_failwith "No context in query context.")
+                  ; edge    = MyCFG.Skip
+                  ; local  = local
+                  ; global = GHT.find gh
+                  ; presub = (fun _ -> raise Not_found)
+                  ; postsub= (fun _ -> raise Not_found)
+                  ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+                  ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+                  ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+                  }
+                in
+                Spec.query ctx q
+          )
         in
         let ask loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask loc q } in
         List.iter (fun name -> Transform.run name ask file) active_transformations

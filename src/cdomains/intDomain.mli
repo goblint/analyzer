@@ -192,8 +192,8 @@ sig
   (** Checks if the element is a definite boolean value. If this function
     * returns [true], the above [to_bool] should return a real value. *)
 
-  val to_excl_list: t -> int_t list option
-  (** Gives a list representation of the excluded values if possible. *)
+  val to_excl_list: t -> (int_t list * (int64 * int64)) option
+  (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
   (** Creates an exclusion set from a given list of integers. *)
@@ -271,7 +271,7 @@ sig
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
@@ -334,6 +334,7 @@ module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
   val range           : Cil.ikind -> Z.t * Z.t
+  val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
   val bits            : Cil.ikind -> int * int
 end
 

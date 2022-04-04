@@ -5,7 +5,6 @@ module Exp = Exp.Exp
 module IdxDom = ValueDomain.IndexDomain
 
 open Cil
-open Pretty
 
 module Mutexes = SetDomain.ToppedSet (Addr) (struct let topname = "All mutexes" end) (* TODO HoareDomain? *)
 module Simple = Lattice.Reverse (Mutexes)
@@ -32,17 +31,20 @@ struct
   (* pair Addr and RW; also change pretty printing*)
   module Lock =
   struct
-    module  L = Printable.Prod (Addr) (RW)
-    include L
+    include Printable.Prod (Addr) (RW)
 
-    let show (a,write) =
-      let addr_str = Addr.show a in
+    let pretty () (a, write) =
       if write then
-        addr_str
+        Addr.pretty () a
       else
-        "read lock " ^ addr_str
+        Pretty.dprintf "read lock %a" Addr.pretty a
 
-    let pretty () x = text (show x)
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
   end
 
   (* TODO: use SetDomain.Reverse *)
@@ -86,6 +88,8 @@ struct
   let filter = ReverseAddrSet.filter
   let fold = ReverseAddrSet.fold
   let singleton = ReverseAddrSet.singleton
+  let mem = ReverseAddrSet.mem
+  let exists = ReverseAddrSet.exists
 
   let export_locks ls =
     let f (x,_) set = Mutexes.add x set in
