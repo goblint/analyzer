@@ -136,7 +136,7 @@ let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
 let arinc_period        = if scrambled then "M165" else "PERIOD"
 let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
-let exe_dir = Fpath.(parent (GobFpath.of_string_exn Sys.executable_name))
+let exe_dir = Fpath.(parent (v Sys.executable_name))
 let command = String.concat " " (Array.to_list Sys.argv)
 
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)

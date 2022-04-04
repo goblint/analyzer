@@ -82,8 +82,8 @@ let option_spec_list =
   ; "--sets"               , Arg.Tuple [Arg.Set_string tmp_arg; Arg.String (fun x -> prerr_endline "--sets is deprecated, use --set instead."; set_string !tmp_arg x)], ""
   ; "--enable"             , Arg.String (fun x -> set_bool x true), ""
   ; "--disable"            , Arg.String (fun x -> set_bool x false), ""
-  ; "--conf"               , Arg.String (fun fn -> merge_file (GobFpath.of_string_exn fn)), ""
-  ; "--writeconf"          , Arg.String (fun fn -> writeconffile := Some (GobFpath.of_string_exn fn)), ""
+  ; "--conf"               , Arg.String (fun fn -> merge_file (Fpath.v fn)), ""
+  ; "--writeconf"          , Arg.String (fun fn -> writeconffile := Some (Fpath.v fn)), ""
   ; "--version"            , Arg.Unit print_version, ""
   ; "--print_options"      , Arg.Unit (fun () -> Options.print_options (); exit 0), ""
   ; "--print_all_options"  , Arg.Unit (fun () -> Options.print_all_options (); exit 0), ""
@@ -163,9 +163,9 @@ let preprocess_files () =
 
   (* the base include directory *)
   let custom_include_dirs =
-    List.map GobFpath.of_string_exn (get_string_list "pre.custom_includes") @
+    List.map Fpath.v (get_string_list "pre.custom_includes") @
     Fpath.(exe_dir / "includes") ::
-    List.map GobFpath.of_string_exn Goblint_sites.includes
+    List.map Fpath.v Goblint_sites.includes
   in
   if get_bool "dbg.verbose" then (
     print_endline "Custom include dirs:";
@@ -195,7 +195,7 @@ let preprocess_files () =
   let one_include_f f x = include_dirs := f x :: !include_dirs in
   if get_string "ana.osek.oil" <> "" then include_files := Fpath.(GoblintDir.preprocessed () / OilUtil.header) :: !include_files;
   (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
-  get_string_list "pre.includes" |> List.map GobFpath.of_string_exn |> List.iter (one_include_f identity);
+  get_string_list "pre.includes" |> List.map Fpath.v |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
 
@@ -204,7 +204,7 @@ let preprocess_files () =
     let kernel_root = get_string "pre.kernel-root" in
     let kernel_roots =
       begin if kernel_root <> "" then (* cannot parse empty *)
-          [GobFpath.of_string_exn (get_string "pre.kernel-root")]
+          [Fpath.v (get_string "pre.kernel-root")]
         else
           []
       end @ [
@@ -223,7 +223,7 @@ let preprocess_files () =
     let kernel_dir = Fpath.(kernel_root / "include") in
     let arch_dir = Fpath.(kernel_root / "arch" / "x86" / "include") in (* TODO add arm64: https://github.com/goblint/analyzer/issues/312 *)
 
-    get_string_list "pre.kernel_includes" |> List.map GobFpath.of_string_exn |> List.iter (Fpath.append kernel_root |> one_include_f);
+    get_string_list "pre.kernel_includes" |> List.map Fpath.v |> List.iter (Fpath.append kernel_root |> one_include_f);
 
     let preconf = find_custom_include Fpath.(v "linux" / "goblint_preconf.h") in
     let autoconf = Fpath.(kernel_dir / "linux" / "kconfig.h") in
@@ -279,7 +279,7 @@ let preprocess_files () =
   if get_bool "ana.sv-comp.functions" then
     extra_files := find_custom_include (Fpath.v "sv-comp.c") :: !extra_files;
 
-  let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ List.map GobFpath.of_string_exn (get_string_list "files")) in
+  let preprocessed = List.concat_map preprocess_arg_file (!extra_files @ List.map Fpath.v (get_string_list "files")) in
   if not (get_bool "pre.exist") then (
     let preprocess_tasks = List.filter_map snd preprocessed in
     let terminated task = function
@@ -297,7 +297,7 @@ let merge_preprocessed cpp_file_names =
   let get_ast_and_record_deps f =
     let file = Cilfacade.getAST f in
     (* Drop <built-in> and <command-line> from dependencies *)
-    Hashtbl.add Preprocessor.dependencies f @@ List.map (Tuple2.map1 GobFpath.of_string_exn) @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
+    Hashtbl.add Preprocessor.dependencies f @@ List.map (Tuple2.map1 Fpath.v) @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
     file
   in
   let files_AST = List.map (get_ast_and_record_deps) cpp_file_names in

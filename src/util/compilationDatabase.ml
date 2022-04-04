@@ -23,7 +23,7 @@ let load_and_preprocess ~all_cppflags filename =
   let (reroot_string, reroot_path) =
     let original_path = GobConfig.get_string "exp.compdb.original-path" in
     if original_path <> "" then (
-      let original_path = Fpath.normalize @@ GobFpath.cwd_append @@ GobFpath.of_string_exn original_path in
+      let original_path = Fpath.normalize @@ GobFpath.cwd_append @@ Fpath.v original_path in
       let original_database_dir = Fpath.parent original_path in
       let old_root = GobFpath.rem_find_prefix database_dir original_database_dir in
       let new_root = GobFpath.rem_find_prefix original_database_dir database_dir in

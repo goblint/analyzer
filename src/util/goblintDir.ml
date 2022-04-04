@@ -1,6 +1,6 @@
 open GobConfig
 
-let root () = GobFpath.of_string_exn (get_string "goblint-dir")
+let root () = Fpath.v (get_string "goblint-dir")
 
 let preprocessed () = Fpath.(root () / "preprocessed")
 
