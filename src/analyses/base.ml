@@ -491,7 +491,7 @@ struct
   let context (fd: fundec) (st: store): store =
     let f keep drop_fn (st: store) = if keep then st else { st with cpa = drop_fn st.cpa} in
     st |>
-    f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (Basetype.Variables.is_global k) || is_precious_glob k))
+    f (not !GU.earlyglobs) (CPA.filter (fun k v -> not (Basetype.Variables.is_global k) || is_excluded_from_earlyglobs k))
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.non-ptr" ~removeAttr:"base.no-non-ptr" ~keepAttr:"base.non-ptr" fd) drop_non_ptrs
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.int" ~removeAttr:"base.no-int" ~keepAttr:"base.int" fd) drop_ints
     %> f (ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.base.context.interval" ~removeAttr:"base.no-interval" ~keepAttr:"base.interval" fd) drop_interval
@@ -1911,7 +1911,7 @@ struct
     in
     let invalids = invalidate_exp exps in
     let is_fav_addr x =
-      List.exists BaseUtil.is_precious_glob (AD.to_var_may x)
+      List.exists BaseUtil.is_excluded_from_invalidation (AD.to_var_may x)
     in
     let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
     if M.tracing && exps <> [] then (

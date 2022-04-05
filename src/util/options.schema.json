@@ -1301,10 +1301,18 @@
           "type": "boolean",
           "default": false
         },
-        "precious_globs": {
-          "title": "exp.precious_globs",
+        "exclude_from_earlyglobs": {
+          "title": "exp.exclude_from_earlyglobs",
           "description":
             "Global variables that should be handled flow-sensitively when using earlyglobs.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "exclude_from_invalidation" : {
+          "title": "exp.exclude_from_invalidation",
+          "description":
+            "Global variables that should not be invalidated. This assures the analysis that such globals are only modified through known code",
           "type": "array",
           "items": { "type": "string" },
           "default": []
@@ -1828,6 +1836,12 @@
             "abort-verify": {
               "title": "solvers.td3.abort-verify",
               "description": "TODO",
+              "type": "boolean",
+              "default": false
+            },
+            "verify": {
+              "title": "solvers.td3.verify",
+              "description": "Check TD3 data structure invariants",
               "type": "boolean",
               "default": false
             }
