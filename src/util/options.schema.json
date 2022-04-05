@@ -1745,6 +1745,12 @@
                 "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
               "type": "boolean",
               "default": true
+            },
+            "verify": {
+              "title": "solvers.td3.verify",
+              "description": "Check TD3 data structure invariants",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
