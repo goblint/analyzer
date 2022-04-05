@@ -45,6 +45,10 @@ let init (f:file) =
   in
   List.iter visit_glob f.globals
 
+let reset () =
+  Hashtbl.clear typeVar;
+  Hashtbl.clear typeIncl
+
 
 type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
 
