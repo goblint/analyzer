@@ -31,11 +31,11 @@ let should_reanalyze (fdec: Cil.fundec) =
 (* If some CFGs of the two functions to be compared are provided, a fine-grained CFG comparison is done that also determines which
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
-let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
+let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_context: method_context list) =
 
   (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal, 
    * and as a second a context, holding the rename assumptions *)
-  let rec context_aware_compare (alocals: varinfo list) (blocals: varinfo list) (context: context) = match alocals, blocals with
+  let rec context_aware_compare (alocals: varinfo list) (blocals: varinfo list) (context: local_rename list) = match alocals, blocals with
         | [], [] -> true, context
         | origLocal :: als, nowLocal :: bls -> 
           let newContext = if origLocal.vname = nowLocal.vname then context else context @ [(origLocal.vname, nowLocal.vname)] in
@@ -45,8 +45,12 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
         in
 
   let headerSizeEqual, headerContext = context_aware_compare a.sformals b.sformals [] in
+  let actHeaderContext = (headerContext, global_context) in
+  Printf.printf "Header context=%s\n" (context_to_string actHeaderContext);
 
-  let unchangedHeader = eq_varinfo a.svar b.svar headerContext && GobList.equal (eq_varinfo2 []) a.sformals b.sformals in
+  let unchangedHeader = eq_varinfo a.svar b.svar actHeaderContext && GobList.equal (eq_varinfo2 actHeaderContext) a.sformals b.sformals in
+  let _ = Printf.printf "unchangedHeader=%b\n" unchangedHeader in
+  let _ = Printf.printf "part1=%b; part2=%b \n" (eq_varinfo a.svar b.svar actHeaderContext) (GobList.equal (eq_varinfo2 actHeaderContext) a.sformals b.sformals) in
   let identical, diffOpt =
     if should_reanalyze a then
       false, None
@@ -54,19 +58,21 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
       (* Here the local variables are checked to be equal *)
       
 
-      let sizeEqual, context = context_aware_compare a.slocals b.slocals headerContext in
+      let sizeEqual, local_rename = context_aware_compare a.slocals b.slocals headerContext in
+      let context: context = (local_rename, global_context) in
 
       let _ = Printf.printf "Context=%s\n" (CompareAST.context_to_string context) in
-      let _ = Printf.printf "SizeEqual=%b; unchangedHeader=%b\n" sizeEqual unchangedHeader in
 
       let sameDef = unchangedHeader && sizeEqual in
       if not sameDef then
         (false, None)
       else
         match cfgs with
-        | None -> eq_block (a.sbody, a) (b.sbody, b) context, None
+        | None -> 
+          Printf.printf "Comparing blocks\n"; 
+          eq_block (a.sbody, a) (b.sbody, b) context, None
         | Some (cfgOld, cfgNew) ->
-          let _ = Printf.printf "compareCIL.eqF: Compaing 2 cfgs now\n" in
+          Printf.printf "compareCIL.eqF: Compaing 2 cfgs now\n";
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
           let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
@@ -75,12 +81,16 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) =
   in
   identical, unchangedHeader, diffOpt
 
-let eq_glob (a: global) (b: global) (cfgs : (cfg * cfg) option) = match a, b with
+let eq_glob (a: global) (b: global) (cfgs : (cfg * cfg) option) (global_context: method_context list) = match a, b with
   | GFun (f,_), GFun (g,_) -> 
     let _ = Printf.printf "Comparing funs %s with %s\n" f.svar.vname g.svar.vname in
-    eqF f g cfgs
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y [], false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y [], false, None
+    let identical, unchangedHeader, diffOpt = eqF f g cfgs global_context in
+
+    let _ = Printf.printf "identical=%b; unchangedHeader=%b\n" identical unchangedHeader in
+
+    identical, unchangedHeader, diffOpt
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y ([], []), false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y ([], []), false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
@@ -89,6 +99,26 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
     then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST |> fst)
     else None in
+
+  let generate_global_context map global = 
+    try
+      let ident = identifier_of_global global in
+      let old_global = GlobalMap.find ident map in
+      
+      match old_global, global with
+        | GFun(f, _), GFun (g, _) -> 
+          let renamed_params: (string * string) list = if (List.length f.sformals) = (List.length g.sformals) then 
+            List.combine f.sformals g.sformals |>
+            List.filter (fun (original, now) -> not (original.vname = now.vname)) |>
+            List.map (fun (original, now) -> (original.vname, now.vname)) 
+          else [] in
+
+          if not (f.svar.vname = g.svar.vname) || (List.length renamed_params) > 0 then 
+            Option.some {original_method_name=f.svar.vname; new_method_name=g.svar.vname; parameter_renames=renamed_params}
+          else Option.none
+        | _, _ -> Option.none
+    with Not_found -> Option.none
+  in
 
   let addGlobal map global  =
     try
@@ -101,14 +131,15 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     with
       Not_found -> map
   in
+
   let changes = empty_change_info () in
   global_typ_acc := [];
-  let checkUnchanged map global =
+  let checkUnchanged map global global_context =
     try
       let ident = identifier_of_global global in
       let old_global = GlobalMap.find ident map in
       (* Do a (recursive) equal comparison ignoring location information *)
-      let identical, unchangedHeader, diff = eq old_global global cfgs in
+      let identical, unchangedHeader, diff = eq old_global global cfgs global_context in
       if identical
       then changes.unchanged <- global :: changes.unchanged
       else changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
@@ -122,10 +153,17 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
   let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
+
+  let global_context: method_context list = Cil.foldGlobals newAST (fun (current_global_context: method_context list) global -> 
+    match generate_global_context oldMap global with
+      | Some context -> current_global_context @ [context]
+      | None -> current_global_context
+  ) [] in
+
   (*  For each function in the new file, check whether a function with the same name
       already existed in the old version, and whether it is the same function. *)
   Cil.iterGlobals newAST
-    (fun glob -> checkUnchanged oldMap glob);
+    (fun glob -> checkUnchanged oldMap glob global_context);
 
   (* We check whether functions have been added or removed *)
   Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then changes.added <- (glob::changes.added));

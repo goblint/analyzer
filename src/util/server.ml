@@ -116,7 +116,7 @@ let reparse (s: t) =
 
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
-  let eq (glob: Cil.global) _ _ = match glob with
+  let eq (glob: Cil.global) _ _ _ = match glob with
     | GFun (fdec, _) -> CompareCIL.should_reanalyze fdec, false, None
     | _ -> false, false, None
   in
