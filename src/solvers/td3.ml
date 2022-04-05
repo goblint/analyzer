@@ -1033,7 +1033,13 @@ module WP =
             match !current_var with
             | Some x -> HM.add var_messages x m
             | None -> ()
-          );
+          )
+
+        let finalize ~vh ~reachable =
+          finalize ~vh ~reachable; (* disable warning like standard Warn *)
+
+          (* unhook to avoid accidental var_messages modifications *)
+          Messages.Table.add_hook := (fun _ -> ())
       end
       in
 
