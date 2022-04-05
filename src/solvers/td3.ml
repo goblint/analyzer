@@ -183,7 +183,7 @@ module WP =
         | Some f -> f get set
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
-        if S.system y = None then (init y; HM.find rho y) else
+        if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
         if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
         (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
