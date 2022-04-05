@@ -64,15 +64,15 @@ def analyze_small_commits_in_repo():
     for commit in itertools.islice(Repository(url, since=begin, only_no_merge=True, clone_repo_to=cwd).traverse_commits(), from_c, to_c):
         gr = Git(repo_path)
 
-        print("\n" + commit.hash)
-        print('changed LOC: ', commit.lines)
-        print('merge commit: ', commit.merge)
+        #print("\n" + commit.hash)
+        #print('changed LOC: ', commit.lines)
+        #print('merge commit: ', commit.merge)
 
         # skip merge commits and commits that have less than maxCLOC of relevant code changes
         relCLOC = calculateRelCLOC(commit) # use this to filter commits by actually relevant changes
-        print("relCLOC: ", relCLOC)
+        #print("relCLOC: ", relCLOC)
         if maxCLOC is not None and relCLOC > maxCLOC:
-            print('Skip this commit: merge commit or too many relevant changed LOC')
+            #print('Skip this commit: merge commit or too many relevant changed LOC')
             count_skipped+=1
             continue
 
@@ -80,24 +80,24 @@ def analyze_small_commits_in_repo():
         try_num = from_c + count_analyzed + count_failed + 1
         outtry = os.path.join(outdir, str(try_num))
         parent = gr.get_commit(commit.parents[0])
-        print('Analyze this commit incrementally. #', try_num)
+        #print('Analyze this commit incrementally. #', try_num)
 
         reset_incremental_data()
         failed = True
         try:
-            print('Starting from parent', str(parent.hash), ".")
+            #print('Starting from parent', str(parent.hash), ".")
             outparent = os.path.join(outtry, 'parent')
             os.makedirs(outparent)
             add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save']
             analyze_commit(gr, parent.hash, outparent, add_options)
 
-            print('And now analyze', str(commit.hash), 'incrementally.')
+            #print('And now analyze', str(commit.hash), 'incrementally.')
             outchild = os.path.join(outtry, 'child')
             os.makedirs(outchild)
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save']
             analyze_commit(gr, commit.hash, outchild, add_options)
 
-            print('And again incremental, this time reluctantly')
+            #print('And again incremental, this time reluctantly')
             outchildrel = os.path.join(outtry, 'child-rel')
             os.makedirs(outchildrel)
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.on']
