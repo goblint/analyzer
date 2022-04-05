@@ -168,6 +168,7 @@ let analyze ?(reset=false) (s: t) =
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
+  Access.reset ();
   s.file <- Some file;
   GobConfig.set_bool "incremental.load" (not fresh);
   Fun.protect ~finally:(fun () ->

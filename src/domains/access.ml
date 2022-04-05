@@ -45,6 +45,10 @@ let init (f:file) =
   in
   List.iter visit_glob f.globals
 
+let reset () =
+  Hashtbl.clear typeVar;
+  Hashtbl.clear typeIncl
+
 
 type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
 
@@ -191,7 +195,10 @@ let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * off
     match unrollType ty with
     | TComp (ci,_)   ->
       let one_field fld =
-        List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
+        if is_ignorable_type fld.ftype then
+          []
+        else
+          List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
       in
       List.concat_map one_field ci.cfields
     | TArray (t,_,_) ->
