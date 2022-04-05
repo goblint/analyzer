@@ -891,6 +891,12 @@
           "type": "boolean",
           "default": false
         },
+        "load-dir": {
+          "title": "incremental.load-dir",
+          "description": "Location where to load incremental analysis results from.",
+          "type": "string",
+          "default": "incremental_data"
+        },
         "only-rename": {
           "title": "incremental.only-rename",
           "description":
@@ -903,6 +909,12 @@
           "description": "Store incremental analysis results.",
           "type": "boolean",
           "default": false
+        },
+        "save-dir": {
+          "title": "incremental.save-dir",
+          "description": "Location where to save incremental analysis results to.",
+          "type": "string",
+          "default": "incremental_data"
         },
         "stable": {
           "title": "incremental.stable",
