@@ -33,6 +33,11 @@ count_analyzed = 0
 count_skipped = 0
 count_failed = 0
 
+dummy_c_file = "file.c"
+with open(dummy_c_file, 'w') as file:
+  file.write("int main() { return 0; }")
+  file.close()
+
 
 def analyze_series_in_repo():
     global count_analyzed
@@ -41,7 +46,6 @@ def analyze_series_in_repo():
     global analyzed_commits
 
     prev_commit = ""
-    prev_privprec_data_filepath = ""
 
     for index, commit in enumerate(itertools.islice(Repository(url, since=begin, only_no_merge=True, only_in_branch='dev', clone_repo_to=cwd).traverse_commits(), from_c, to_c)):
         gr = Git(repo_path)
@@ -64,17 +68,15 @@ def analyze_series_in_repo():
         os.makedirs(outtry)
         with open(os.path.join(outtry,'commit_properties.log'), "w+") as file:
             json.dump({"hash": commit.hash, "parent_hash": prev_commit, "CLOC": commit.lines, "relCLOC": relCLOC}, file)
-        privprec_data_filepath = os.path.join(outtry, "priv_data.save")
 
         if index == 0:
             # analyze initial commit non-incrementally
             try:
                 print('Analyze ', str(commit.hash), ' as initial commit.')
-                add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save', '--set', 'exp.priv-prec-dump', privprec_data_filepath]
+                add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save']
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outtry, conf, add_options)
                 count_analyzed += 1
                 prev_commit = commit.hash
-                prev_privprec_data_filepath = privprec_data_filepath
             except utils.subprocess.CalledProcessError as e:
                 print('Aborted initial because command ', e.cmd, 'failed.')
                 print('Fix the problem or choose a different commit to start the accumulative analysis from')
@@ -86,13 +88,24 @@ def analyze_series_in_repo():
                 if os.path.isdir("backup_incremental_data"):
                     shutil.rmtree("backup_incremental_data")
                 shutil.copytree("incremental_data", "backup_incremental_data")
-                add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--set', 'exp.priv-prec-dump', privprec_data_filepath]
-                utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outtry, conf, add_options)
-                #run privprec compare on stored data
-                utils.runPrivPrecCompare(prev_privprec_data_filepath, privprec_data_filepath, analyzer_dir, outtry)
+                # analyze commit non-incrementally and save run for comparison
+                out_nonincr = os.path.join(outtry, 'non-incr')
+                os.makedirs(out_nonincr)
+                file_original_run = os.path.join(out_nonincr, "compare-data-nonincr")
+                add_options = ['--enable', 'incremental.only-rename', '--set', 'save_run', file_original_run]
+                utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_nonincr, conf, add_options)
+                # analyze commit incrementally based on the previous commit and save run for comparison
+                out_incr = os.path.join(outtry, 'incr')
+                os.makedirs(out_incr)
+                file_incremental_run = os.path.join(out_incr, "compare-data-incr")
+                add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--set', 'save_run', file_incremental_run]
+                utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_incr, conf, add_options)
+                # compare stored data of original and incremental run
+                out_compare = os.path.join(outtry, 'compare')
+                os.makedirs(out_compare)
+                utils.compare_runs(analyzer_dir, dummy_c_file, out_compare, conf, file_incremental_run, file_original_run)
                 count_analyzed += 1
                 prev_commit = commit.hash
-                prev_privprec_data_filepath = privprec_data_filepath
             except utils.subprocess.CalledProcessError as e:
                 print('Aborted because command ', e.cmd, 'failed.')
                 shutil.rmtree("incremental_data")
