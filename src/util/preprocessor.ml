@@ -37,4 +37,4 @@ let cpp =
 let get_cpp () = Lazy.force cpp
 
 
-let dependencies: (string, (string*bool) list) Hashtbl.t = Hashtbl.create 3
+let dependencies: (Fpath.t, (Fpath.t * bool) list) Hashtbl.t = Hashtbl.create 3

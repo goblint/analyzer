@@ -305,7 +305,7 @@ struct
     GU.earlyglobs := get_bool "exp.earlyglobs";
     let marshal =
       if get_string "load_run" <> "" then
-        Some (Serialize.unmarshal (Filename.concat (get_string "load_run") "spec_marshal"))
+        Some (Serialize.unmarshal Fpath.(v (get_string "load_run") / "spec_marshal"))
       else if Serialize.results_exist () && get_bool "incremental.load" then
         Some (Serialize.load_data Serialize.AnalysisData)
       else
@@ -419,7 +419,7 @@ struct
       let load_run = get_string "load_run" in
       let compare_runs = get_string_list "compare_runs" in
       let gobview = get_bool "gobview" in
-      let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+      let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
       let lh, gh = if load_run <> "" then (
           let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
@@ -434,7 +434,7 @@ struct
             let module S2 = Splitter.S2 in
             let module VH = Splitter.VH in
             let (r1, r1'), (r2, r2') = Tuple2.mapn (fun d ->
-                let vh = Serialize.unmarshal (d ^ Filename.dir_sep ^ solver_file) in
+                let vh = Serialize.unmarshal Fpath.(v d / solver_file) in
 
                 let vh' = VH.create (VH.length vh) in
                 VH.iter (fun k v ->
@@ -469,16 +469,17 @@ struct
           let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if GobConfig.get_bool "incremental.save" then
             Serialize.store_data solver_data Serialize.SolverData;
-          if save_run <> "" then (
-            let analyses = Filename.concat save_run "analyses.marshalled" in
-            let config = Filename.concat save_run "config.json" in
-            let meta = Filename.concat save_run "meta.json" in
-            let solver_stats = Filename.concat save_run "solver_stats.csv" in (* see Generic.SolverStats... *)
-            let cil = Filename.concat save_run "cil.marshalled" in
-            let warnings = Filename.concat save_run "warnings.marshalled" in
-            let stats = Filename.concat save_run "stats.marshalled" in
+          if save_run_str <> "" then (
+            let save_run = Fpath.v save_run_str in
+            let analyses = Fpath.(save_run / "analyses.marshalled") in
+            let config = Fpath.(save_run / "config.json") in
+            let meta = Fpath.(save_run / "meta.json") in
+            let solver_stats = Fpath.(save_run / "solver_stats.csv") in (* see Generic.SolverStats... *)
+            let cil = Fpath.(save_run / "cil.marshalled") in
+            let warnings = Fpath.(save_run / "warnings.marshalled") in
+            let stats = Fpath.(save_run / "stats.marshalled") in
             if get_bool "dbg.verbose" then (
-              print_endline ("Saving the current configuration to " ^ config ^ ", meta-data about this run to " ^ meta ^ ", and solver statistics to " ^ solver_stats);
+              Format.printf "Saving the current configuration to %a, meta-data about this run to %a, and solver statistics to %a" Fpath.pp config Fpath.pp meta Fpath.pp solver_stats;
             );
             GobSys.mkdir_or_exists save_run;
             GobConfig.write_file config;
@@ -488,10 +489,10 @@ struct
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
-            Yojson.Safe.pretty_to_channel (Stdlib.open_out meta) Meta.json; (* the above is compact, this is pretty-printed *)
+            Yojson.Safe.pretty_to_channel (Stdlib.open_out (Fpath.to_string meta)) Meta.json; (* the above is compact, this is pretty-printed *)
             if gobview then (
               if get_bool "dbg.verbose" then (
-                print_endline ("Saving the analysis table to " ^ analyses ^ ", the CIL state to " ^ cil ^ ", the warning table to " ^ warnings ^ ", and the runtime stats to " ^ stats);
+                Format.printf "Saving the analysis table to %a, the CIL state to %a, the warning table to %a, and the runtime stats to %a" Fpath.pp analyses Fpath.pp cil Fpath.pp warnings Fpath.pp stats;
               );
               Serialize.marshal MCPRegistry.registered_name analyses;
               Serialize.marshal (file, Cabs2cil.environment) cil;
@@ -672,7 +673,7 @@ struct
     let gobview = get_bool "gobview" in
     let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
     if save_run <> "" then (
-      Serialize.marshal marshal (Filename.concat save_run "spec_marshal")
+      Serialize.marshal marshal Fpath.(v save_run / "spec_marshal")
     );
     if get_bool "incremental.save" then (
       Serialize.store_data marshal Serialize.AnalysisData;

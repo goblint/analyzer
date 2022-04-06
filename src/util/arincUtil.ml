@@ -265,10 +265,10 @@ let print_actions () =
 
 (* helper for exporting results *)
 let save_result desc ext content = (* output helper *)
-  let dir = Goblintutil.create_dir "result" in (* returns abs. path *)
-  let path = dir ^ "/arinc." ^ ext in
-  output_file ~filename:path ~text:content;
-  print_endline @@ "saved " ^ desc ^ " as " ^ path
+  let dir = Goblintutil.create_dir (Fpath.v "result") in (* returns abs. path *)
+  let path = Fpath.(add_ext ext (dir / "arinc")) in
+  output_file ~filename:(Fpath.to_string path) ~text:content;
+  print_endline @@ "saved " ^ desc ^ " as " ^ (Fpath.to_string path)
 
 let save_dot_graph () =
   let dot_process pid =
