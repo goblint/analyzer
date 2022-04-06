@@ -105,9 +105,9 @@ struct
     |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k
 
   let stats_csv =
-    let save_run = GobConfig.get_string "save_run" in
-    if save_run <> "" then (
-      let save_run = Fpath.v save_run in
+    let save_run_str = GobConfig.get_string "save_run" in
+    if save_run_str <> "" then (
+      let save_run = Fpath.v save_run_str in
       GobSys.mkdir_or_exists save_run;
       Fpath.(to_string (save_run / "solver_stats.csv")) |> open_out |> Option.some
     ) else None

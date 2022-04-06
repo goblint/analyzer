@@ -419,7 +419,7 @@ struct
       let load_run = get_string "load_run" in
       let compare_runs = get_string_list "compare_runs" in
       let gobview = get_bool "gobview" in
-      let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+      let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
 
       let lh, gh = if load_run <> "" then (
           let module S2' = (GlobSolverFromEqSolver (Generic.LoadRunIncrSolver (PostSolverArg))) (EQSys) (LHT) (GHT) in
@@ -469,8 +469,8 @@ struct
           let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if GobConfig.get_bool "incremental.save" then
             Serialize.store_data solver_data Serialize.SolverData;
-          if save_run <> "" then (
-            let save_run = Fpath.v save_run in
+          if save_run_str <> "" then (
+            let save_run = Fpath.v save_run_str in
             let analyses = Fpath.(save_run / "analyses.marshalled") in
             let config = Fpath.(save_run / "config.json") in
             let meta = Fpath.(save_run / "meta.json") in
