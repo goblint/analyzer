@@ -467,7 +467,7 @@ struct
     let file = GobConfig.get_string "exp.apron.prec-dump" in
     if file <> "" then begin
       Printf.printf "exp.apron.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
-      Stats.time "apron.prec-dump" store_data file
+      Stats.time "apron.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()
 end

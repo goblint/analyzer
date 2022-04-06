@@ -122,10 +122,11 @@ module SaveRun: F =
       (* copied from Control.solve_and_postprocess *)
       let solver_file = "solver.marshalled" in
       let gobview = get_bool "gobview" in
-      let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
-      let solver = Filename.concat save_run solver_file in
+      let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+      let save_run = Fpath.v save_run_str in
+      let solver = Fpath.(save_run / solver_file) in
       if get_bool "dbg.verbose" then
-        print_endline ("Saving the solver result to " ^ solver);
+        Format.printf "Saving the solver result to %a" Fpath.pp solver;
       GobSys.mkdir_or_exists save_run;
       Serialize.marshal vh solver
   end

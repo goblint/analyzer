@@ -38,6 +38,7 @@
     (ounit2 :with-test)
     (qcheck-ounit :with-test)
     (odoc :with-doc)
+    fpath
     dune-site
     json-data-encoding
     jsonrpc

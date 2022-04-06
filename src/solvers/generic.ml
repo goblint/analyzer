@@ -11,10 +11,10 @@ module LoadRunSolver: GenericEqBoxSolver =
     let solve box xs vs =
       (* copied from Control.solve_and_postprocess *)
       let solver_file = "solver.marshalled" in
-      let load_run = get_string "load_run" in
-      let solver = Filename.concat load_run solver_file in
+      let load_run = Fpath.v (get_string "load_run") in
+      let solver = Fpath.(load_run / solver_file) in
       if get_bool "dbg.verbose" then
-        print_endline ("Loading the solver result of a saved run from " ^ solver);
+        Format.printf "Loading the solver result of a saved run from %a" Fpath.pp solver;
       let vh: S.d VH.t = Serialize.unmarshal solver in
       if get_bool "ana.opt.hashcons" then (
         let vh' = VH.create (VH.length vh) in
@@ -108,10 +108,11 @@ struct
     |> List.iter @@ fun (k,n) -> ignore @@ Pretty.printf "%d\tcontexts for %s\n" n k
 
   let stats_csv =
-    let save_run = GobConfig.get_string "save_run" in
-    if save_run <> "" then (
+    let save_run_str = GobConfig.get_string "save_run" in
+    if save_run_str <> "" then (
+      let save_run = Fpath.v save_run_str in
       GobSys.mkdir_or_exists save_run;
-      save_run ^ Filename.dir_sep ^ "solver_stats.csv" |> open_out |> Option.some
+      Fpath.(to_string (save_run / "solver_stats.csv")) |> open_out |> Option.some
     ) else None
   let write_csv xs oc = output_string oc @@ String.concat ",\t" xs ^ "\n"
 
