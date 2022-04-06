@@ -22,12 +22,9 @@ let update_vids vid_max (glob: global) = match glob with
 let update_max_ids vid_max sid_max (glob: global) =
   update_vids vid_max glob; update_sids sid_max glob
 
-let updateMap (oldFile: Cil.file) (newFile: Cil.file) (ht: (global_identifier, Cil.global) Hashtbl.t) =
-  let changes = Stats.time "compareCilFiles" (fun () -> compareCilFiles oldFile newFile) () in
+let updateMap (oldFile: Cil.file) (newFile: Cil.file) =
+  Stats.time "compareCilFiles" (fun () -> compareCilFiles oldFile newFile) ()
   (* TODO: For updateCIL, we have to show whether the new data is from an changed or added functiong  *)
-  List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) glob) (List.map (fun a -> a.current) changes.changed);
-  List.iter (fun (glob: global) ->  Hashtbl.replace ht (identifier_of_global glob) glob) changes.added;
-  (ht, changes)
 
 let create_map (new_file: Cil.file) =
   let max_sid = ref 0 in
@@ -47,7 +44,7 @@ let load_and_update_map (oldFile: Cil.file) (newFile: Cil.file) =
   if not (Serialize.results_exist ()) then
     failwith "Cannot restore map when no results exist."
   else begin
-    let oldMap, max_ids = Serialize.load_data Serialize.VersionData in
-    let updated, changes = updateMap oldFile newFile oldMap in
-    updated, changes, max_ids
+    let max_ids = Serialize.load_data Serialize.VersionData in
+    let changes, map = updateMap oldFile newFile in
+    changes, map, max_ids
   end

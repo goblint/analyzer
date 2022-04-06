@@ -17,7 +17,7 @@ let getLoc (node: Node.t) =
 let store_node_location (n: Node.t) (l: location): unit =
   NodeMap.add !location_map n l
 
-let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global) Hashtbl.t) (changes: change_info) =
+let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: global GlobalMap.t) (changes: change_info) =
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 
@@ -62,7 +62,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   in
   let reset_globals (glob: global) =
     try
-      let old_glob = Hashtbl.find map (CompareCFG.identifier_of_global glob) in
+      let old_glob = GlobalMap.find (CompareCFG.identifier_of_global glob) map in
       match glob, old_glob with
       | GFun (nw, _), GFun (old, _) -> reset_fun nw old
       | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
@@ -115,7 +115,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   in
   let update_globals (glob: global) =
     try
-      let old_glob = Hashtbl.find map (CompareCFG.identifier_of_global glob) in
+      let old_glob = GlobalMap.find (CompareCFG.identifier_of_global glob) map in
       match glob, old_glob with
       | GFun (nw, _), GFun (old, _) -> update_fun nw
       | GVar (nw, _, _), GVar (old, _, _) -> update_var nw

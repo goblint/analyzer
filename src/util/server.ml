@@ -5,7 +5,6 @@ exception Failure of Response.Error.Code.t * string
 
 type t = {
   mutable file: Cil.file;
-  mutable version_map: (CompareCIL.global_identifier, Cil.global) Hashtbl.t;
   mutable max_ids: VersionLookup.max_ids;
   input: IO.input;
   output: unit IO.output;
@@ -83,7 +82,6 @@ let make ?(input=stdin) ?(output=stdout) file : t =
   let version_map, max_ids = VersionLookup.create_map file in
   {
     file;
-    version_map;
     max_ids;
     input;
     output
@@ -124,12 +122,12 @@ let virtual_changes file =
 
 let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
   | Some solver_data when reparsed ->
-    let _, changes = VersionLookup.updateMap s.file file s.version_map in
+    let changes, map = VersionLookup.updateMap s.file file in
     let old_data = Some { Analyses.cil_file = s.file; solver_data } in
-    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file s.version_map changes;
+    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file map changes;
     { Analyses.changes; old_data; new_file = file }, false
   | Some solver_data ->
-    let changes = virtual_changes file in
+    let changes, _ = virtual_changes file in
     let old_data = Some { Analyses.cil_file = file; solver_data } in
     { Analyses.changes; old_data; new_file = file }, false
   | _ -> Analyses.empty_increment_data file, true
@@ -140,7 +138,6 @@ let analyze ?(reset=false) (s: t) =
   let file, reparsed = reparse s in
   if reset then (
     let version_map, max_ids = VersionLookup.create_map file in
-    s.version_map <- version_map;
     s.max_ids <- max_ids;
     Serialize.server_solver_data := None;
     Serialize.server_analysis_data := None);

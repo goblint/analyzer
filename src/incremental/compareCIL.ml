@@ -102,4 +102,4 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   (* We check whether functions have been added or removed *)
   Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then changes.added <- (glob::changes.added));
   Cil.iterGlobals oldAST (fun glob -> if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed));
-  changes
+  changes, newMap
