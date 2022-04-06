@@ -233,7 +233,7 @@ let preprocess_files () =
     let kernel_root = get_string "pre.kernel-root" in
     let kernel_roots =
       begin if kernel_root <> "" then (* cannot parse empty *)
-          [Fpath.v (get_string "pre.kernel-root")]
+          [Fpath.v kernel_root]
         else
           []
       end @ [
