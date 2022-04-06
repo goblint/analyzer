@@ -891,6 +891,12 @@
           "type": "boolean",
           "default": false
         },
+        "load-dir": {
+          "title": "incremental.load-dir",
+          "description": "Location where to load incremental analysis results from.",
+          "type": "string",
+          "default": "incremental_data"
+        },
         "only-rename": {
           "title": "incremental.only-rename",
           "description":
@@ -903,6 +909,12 @@
           "description": "Store incremental analysis results.",
           "type": "boolean",
           "default": false
+        },
+        "save-dir": {
+          "title": "incremental.save-dir",
+          "description": "Location where to save incremental analysis results to.",
+          "type": "string",
+          "default": "incremental_data"
         },
         "stable": {
           "title": "incremental.stable",
@@ -1258,10 +1270,18 @@
           "type": "boolean",
           "default": false
         },
-        "precious_globs": {
-          "title": "exp.precious_globs",
+        "exclude_from_earlyglobs": {
+          "title": "exp.exclude_from_earlyglobs",
           "description":
             "Global variables that should be handled flow-sensitively when using earlyglobs.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "exclude_from_invalidation" : {
+          "title": "exp.exclude_from_invalidation",
+          "description":
+            "Global variables that should not be invalidated. This assures the analysis that such globals are only modified through known code",
           "type": "array",
           "items": { "type": "string" },
           "default": []
@@ -1737,6 +1757,12 @@
                 "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
               "type": "boolean",
               "default": true
+            },
+            "verify": {
+              "title": "solvers.td3.verify",
+              "description": "Check TD3 data structure invariants",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
