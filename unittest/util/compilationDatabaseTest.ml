@@ -23,31 +23,31 @@ let test_split_arguments _ =
   in
   let actual_split = CompilationDatabase.split obj in
   let expected_split = List.map command_object_from_string [
-    {json|
-    {
-      "directory": "/home/simmo/Desktop/goblint-action-test/makefile-project",
-      "arguments": [
-        "gcc",
-        "-DANSWER=42",
-        "-Ilib/",
-        "main.c"
-      ],
-      "file": "main.c"
-    }
-    |json};
-    {json|
-    {
-      "directory": "/home/simmo/Desktop/goblint-action-test/makefile-project",
-      "arguments": [
-        "gcc",
-        "-DANSWER=42",
-        "-Ilib/",
-        "lib/lib.c"
-      ],
-      "file": "lib/lib.c"
-    }
-    |json};
-  ]
+      {json|
+      {
+        "directory": "/home/simmo/Desktop/goblint-action-test/makefile-project",
+        "arguments": [
+          "gcc",
+          "-DANSWER=42",
+          "-Ilib/",
+          "main.c"
+        ],
+        "file": "main.c"
+      }
+      |json};
+      {json|
+      {
+        "directory": "/home/simmo/Desktop/goblint-action-test/makefile-project",
+        "arguments": [
+          "gcc",
+          "-DANSWER=42",
+          "-Ilib/",
+          "lib/lib.c"
+        ],
+        "file": "lib/lib.c"
+      }
+      |json};
+    ]
   in
   assert_equal ~printer:CompilationDatabase.show expected_split actual_split
 
@@ -62,21 +62,21 @@ let test_split_command _ =
   in
   let actual_split = CompilationDatabase.split obj in
   let expected_split = List.map command_object_from_string [
-    {json|
-    {
-      "directory": "/home/simmo/Desktop/goblint-action-test/makefile-project",
-      "command": "gcc -DANSWER=42 -Ilib/ main.c",
-      "file": "main.c"
-    }
-    |json};
-    {json|
-    {
-      "directory": "/home/simmo/Desktop/goblint-action-test/makefile-project",
-      "command": "gcc -DANSWER=42 -Ilib/ lib/lib.c",
-      "file": "lib/lib.c"
-    }
-    |json};
-  ]
+      {json|
+      {
+        "directory": "/home/simmo/Desktop/goblint-action-test/makefile-project",
+        "command": "gcc -DANSWER=42 -Ilib/ main.c",
+        "file": "main.c"
+      }
+      |json};
+      {json|
+      {
+        "directory": "/home/simmo/Desktop/goblint-action-test/makefile-project",
+        "command": "gcc -DANSWER=42 -Ilib/ lib/lib.c",
+        "file": "lib/lib.c"
+      }
+      |json};
+    ]
   in
   assert_equal ~printer:CompilationDatabase.show expected_split actual_split
 
