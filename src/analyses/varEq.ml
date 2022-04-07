@@ -497,9 +497,9 @@ struct
         in
         D.B.fold remove_reachable2 es st
       in
-      D.fold remove_reachable1 ctx.local ctx.local
       (* TODO: do something like this instead to be sound? *)
       (* List.fold_left (fun st e -> remove_exp (Analyses.ask_of_ctx ctx) e st) ctx.local (Queries.LS.fold (fun lval acc -> mkAddrOf (Lval.CilLval.to_lval lval) :: acc) rs []) *)
+      D.fold remove_reachable1 ctx.local ctx.local
 
   let unknown_fn ctx lval f args =
     let args =
