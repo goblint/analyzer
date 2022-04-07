@@ -69,6 +69,94 @@ struct
   let update_length _ x = x
 end
 
+module Unroll (Val: Lattice.S) (Idx:IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+struct
+  module Factor = struct let x () = (get_int "ana.base.arrays.unrolling-factor") end
+  module Base = Lattice.ProdList (Val) (Factor)
+  include Lattice.ProdSimple(Base) (Val)
+
+  let name () = "unrolled arrays"
+  type idx = Idx.t
+  type value = Val.t
+  let factor () =
+    match get_int "ana.base.arrays.unrolling-factor" with
+    | 0 -> failwith "ArrayDomain: ana.base.arrays.unrolling-factor needs to be set when using the unroll domain"
+    | x -> x
+  let join_of_all_parts (xl, xr) = List.fold_left Val.join xr xl
+  let show (xl, xr) =
+    let rec show_list xlist = match xlist with
+      | [] -> " --- "
+      | hd::tl -> (Val.show hd ^ " - " ^ (show_list tl)) in
+    "Array (unrolled to " ^ (Stdlib.string_of_int (factor ())) ^ "): " ^
+    (show_list xl) ^ Val.show xr ^ ")"
+  let pretty () x = text "Array: " ++ text (show x)
+  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  let extract x = match x with
+    | Some c -> c
+    | None -> failwith "arrayDomain: that should not happen"
+  let get (ask: Q.ask) (xl, xr) (_,i) =
+    let search_unrolled_values min_i max_i =
+      let mi = Z.to_int min_i in
+      let ma = Z.to_int max_i in
+      let rec subjoin l i = match l with
+        | [] -> Val.bot ()
+        | hd::tl ->
+          begin
+            match i>ma,i<mi with
+            | false,true -> subjoin tl (i+1)
+            | false,false -> Val.join hd (subjoin tl (i+1))
+            | _,_ -> Val.bot ()
+          end in
+      subjoin xl 0 in
+    let f = Z.of_int (factor ()) in
+    let min_i = extract (Idx.minimal i) in
+    let max_i = extract (Idx.maximal i) in
+    if Z.geq min_i f then xr
+    else if Z.lt max_i f then search_unrolled_values min_i max_i
+    else Val.join xr (search_unrolled_values min_i (Z.of_int ((factor ())-1)))
+  let set (ask: Q.ask) (xl,xr) (_,i) v =
+    let update_unrolled_values min_i max_i =
+      let mi = Z.to_int min_i in
+      let ma = Z.to_int max_i in
+      let rec weak_update l i = match l with
+        | [] -> []
+        | hd::tl ->
+          if i<mi then hd::(weak_update tl (i+1))
+          else if i>ma then (hd::tl)
+          else (Val.join hd v)::(weak_update tl (i+1)) in
+      let rec full_update l i = match l with
+        | [] -> []
+        | hd::tl ->
+          if i<mi then hd::(full_update tl (i+1))
+          else v::tl in
+      if mi=ma then full_update xl 0
+      else weak_update xl 0 in
+    let f = Z.of_int (factor ()) in
+    let min_i = extract(Idx.minimal i) in
+    let max_i = extract(Idx.maximal i) in
+    if Z.geq min_i f then (xl, (Val.join xr v))
+    else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
+    else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
+  let make _ v =
+    let xl = BatList.make (factor ()) v in
+    (xl,Val.bot ())
+  let length _ = None
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
+  let get_vars_in_e _ = []
+  let map f (xl, xr) = ((List.map f xl), f xr)
+  let fold_left f a x = f a (join_of_all_parts x)
+  let fold_left2 f a x y = f a (join_of_all_parts x) (join_of_all_parts y)
+  let printXml f (xl,xr) = BatPrintf.fprintf f "<value>\n<map>\n
+  <key>unrolled array</key>\n
+  <key>xl</key>\n%a\n\n
+  <key>xm</key>\n%a\n\n
+  </map></value>\n" Base.printXml xl Val.printXml xr
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
+  let update_length _ x = x
+end
+
 (** Special signature so that we can use the _with_length functions from PartitionedWithLength but still match the interface *
   * defined for array domains *)
 module type SPartitioned =
@@ -689,59 +777,120 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
+module UnrollWithLength (Val: Lattice.S) (Idx: IntDomain.Z): S with type value = Val.t and type idx = Idx.t =
+struct
+  module Base = Unroll (Val) (Idx)
+  include Lattice.Prod (Base) (Idx)
+  type idx = Idx.t
+  type value = Val.t
+
+  let get (ask : Q.ask) (x, (l : idx)) ((e: ExpDomain.t), v) =
+    (array_oob_check (module Idx) (x, l) (e, v));
+    Base.get ask x (e, v)
+  let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
+  let make l x = Base.make l x, l
+  let length (_,l) = Some l
+
+  let move_if_affected ?(replace_with_const=false) _ x _ _ = x
+  let map f (x, l):t = (Base.map f x, l)
+  let fold_left f a (x, l) = Base.fold_left f a x
+  let fold_left2 f a (x, l) (y, l) = Base.fold_left2 f a x y
+  let get_vars_in_e _ = []
+
+  let smart_join _ _ = join
+  let smart_widen _ _ = widen
+  let smart_leq _ _ = leq
+
+  (* It is not necessary to do a least-upper bound between the old and the new length here.   *)
+  (* Any array can only be declared in one location. The value for newl that we get there is  *)
+  (* the one obtained by abstractly evaluating the size expression at this location for the   *)
+  (* current state. If newl leq l this means that we somehow know more about the expression   *)
+  (* determining the size now (e.g. because of narrowing), but this holds for all the times   *)
+  (* the declaration is visited. *)
+  let update_length newl (x, l) = (x, newl)
+
+  let printXml f (x,y) =
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Base.name ())) Base.printXml x "length" Idx.printXml y
+
+  let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
+end
+
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
 struct
   module P = PartitionedWithLength(Val)(Idx)
   module T = TrivialWithLength(Val)(Idx)
+  module U = UnrollWithLength(Val)(Idx)
 
   type idx = Idx.t
   type value = Val.t
 
-  include LatticeFlagHelper(P)(T)(struct
-      let msg = "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-      let name = "FlagConfiguredArrayDomain"
-    end)
+  module K = struct
+    let msg = "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+    let name = "FlagConfiguredArrayDomain"
+  end
+
+  let to_t = function
+    | (Some p, None, None) -> (Some p, None)
+    | (None, Some t, None) -> (None, Some (Some t, None))
+    | (None, None, Some u) -> (None, Some (None, Some u))
+    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+
+  module I = struct include LatticeFlagHelper (T) (U) (K) let name () = "" end
+  include LatticeFlagHelper (P) (I) (K)
+
+  let binop' opp opt opu = binop opp (I.binop opt opu)
+  let unop' opp opt opu = unop opp (I.unop opt opu)
+  let binop_to_t' opp opt opu = binop_to_t opp (I.binop_to_t opt opu)
+  let unop_to_t' opp opt opu = unop_to_t opp (I.unop_to_t opt opu)
 
   (* Simply call appropriate function for component that is not None *)
-  let get a x (e,i) = unop (fun x ->
-        if e = `Top then
-          let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x)) (`Top) (Idx.to_int i) in
-          P.get a x (e', i)
-        else
-          P.get a x (e, i)
-      ) (fun x -> T.get a x (e,i)) x
-  let set (ask:Q.ask) x i a = unop_to_t (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) x
-  let length = unop P.length T.length
-  let get_vars_in_e = unop P.get_vars_in_e T.get_vars_in_e
-  let map f = unop_to_t (P.map f) (T.map f)
-  let fold_left f s = unop (P.fold_left f s) (T.fold_left f s)
-  let fold_left2 f s = binop (P.fold_left2 f s) (T.fold_left2 f s)
-  let move_if_affected ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
-  let smart_join f g = binop_to_t (P.smart_join f g) (T.smart_join f g)
-  let smart_widen f g = binop_to_t (P.smart_widen f g) (T.smart_widen f g)
-  let smart_leq f g = binop (P.smart_leq f g) (T.smart_leq f g)
-  let update_length newl x = unop_to_t (P.update_length newl) (T.update_length newl) x
+  let get a x (e,i) = unop' (fun x ->
+      if e = `Top then
+        let e' = BatOption.map_default (fun x -> `Lifted (Cil.kintegerCilint (Cilfacade.ptrdiff_ikind ()) x)) (`Top) (Idx.to_int i) in
+        P.get a x (e', i)
+      else
+        P.get a x (e, i)
+    ) (fun x -> T.get a x (e,i)) (fun x -> U.get a x (e,i)) x
+  let set (ask:Q.ask) x i a = unop_to_t' (fun x -> P.set ask x i a) (fun x -> T.set ask x i a) (fun x -> U.set ask x i a) x
+  let length = unop' P.length T.length U.length
+  let map f = unop_to_t' (P.map f) (T.map f) (U.map f)
+  let fold_left f s = unop' (P.fold_left f s) (T.fold_left f s) (U.fold_left f s)
+  let fold_left2 f s = binop' (P.fold_left2 f s) (T.fold_left2 f s) (U.fold_left2 f s)
+
+  let move_if_affected ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t' (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> U.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
+  let get_vars_in_e = unop' P.get_vars_in_e T.get_vars_in_e U.get_vars_in_e
+  let smart_join f g = binop_to_t' (P.smart_join f g) (T.smart_join f g) (U.smart_join f g)
+  let smart_widen f g = binop_to_t' (P.smart_widen f g) (T.smart_widen f g) (U.smart_widen f g)
+  let smart_leq f g = binop' (P.smart_leq f g) (T.smart_leq f g) (U.smart_leq f g)
+  let update_length newl x = unop_to_t' (P.update_length newl) (T.update_length newl) (U.update_length newl) x
 
   (* Functions that make use of the configuration flag *)
-  let name () = "FlagConfiguredArrayDomain: " ^ if get_bool "ana.base.partition-arrays.enabled" then P.name () else T.name ()
+  let chosen_domain () = get_string "ana.base.arrays.domain"
 
-  let partition_enabled () = get_bool "ana.base.partition-arrays.enabled"
+  let name () = "FlagConfiguredArrayDomain: " ^ match chosen_domain () with
+    | "trivial" -> T.name ()
+    | "partitioned" -> P.name ()
+    | "unroll" -> U.name ()
+    | _ -> failwith "FlagConfiguredArrayDomain cannot name an array from set option"
 
   let bot () =
-    if partition_enabled () then
-      (Some (P.bot ()), None)
-    else
-      (None, Some (T.bot ()))
+    to_t @@ match chosen_domain () with
+    | "partitioned" -> (Some (P.bot ()), None, None)
+    | "trivial" -> (None, Some (T.bot ()), None)
+    | "unroll" -> (None, None, Some (U.bot ()))
+    | _ -> failwith "FlagConfiguredArrayDomain cannot construct a bot array from set option"
 
   let top () =
-    if partition_enabled () then
-      (Some (P.top ()), None)
-    else
-      (None, Some (T.top ()))
+    to_t @@ match chosen_domain () with
+    | "partitioned" -> (Some (P.top ()), None, None)
+    | "trivial" -> (None, Some (T.top ()), None)
+    | "unroll" -> (None, None, Some (U.top ()))
+    | _ -> failwith "FlagConfiguredArrayDomain cannot construct a top array from set option"
 
   let make i v =
-    if partition_enabled () then
-      (Some (P.make i v), None)
-    else
-      (None, Some (T.make i v))
+    to_t @@ match chosen_domain () with
+    | "partitioned" -> (Some (P.make i v), None, None)
+    | "trivial" -> (None, Some (T.make i v), None)
+    | "unroll" -> (None, None, Some (U.make i v))
+    | _ -> failwith "FlagConfiguredArrayDomain cannot construct an array from set option"
 end

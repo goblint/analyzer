@@ -10,7 +10,7 @@ module M = Messages
 
 let is_ignorable_type (t: typ): bool =
   match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "spinlock_t"; _ }, _) -> true
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "spinlock_t"; _ }, _) -> true
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
   | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
@@ -44,6 +44,10 @@ let init (f:file) =
     | _ -> ()
   in
   List.iter visit_glob f.globals
+
+let reset () =
+  Hashtbl.clear typeVar;
+  Hashtbl.clear typeIncl
 
 
 type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
@@ -82,7 +86,7 @@ let d_loc () loc =
 
 let d_memo () (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%s%a@@%a" v.vname d_offs o d_loc v.vdecl
+  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o d_loc v.vdecl
   | None       -> dprintf "%a" d_acct t
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
@@ -191,7 +195,10 @@ let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * off
     match unrollType ty with
     | TComp (ci,_)   ->
       let one_field fld =
-        List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
+        if is_ignorable_type fld.ftype then
+          []
+        else
+          List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
       in
       List.concat_map one_field ci.cfields
     | TArray (t,_,_) ->
@@ -447,6 +454,7 @@ let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
 let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
+  let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let h (conf,w,loc,e,a) =
       let atyp = if w then "write" else "read" in
@@ -468,7 +476,13 @@ let print_accesses (lv, ty) grouped_accs =
       | None ->
         AS.union safe_accs accs (* group all safe accs together for allglobs *)
       | Some conf ->
-        M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
+        let severity: Messages.Severity.t =
+          if conf >= race_threshold then
+            Warning
+          else
+            Info
+        in
+        M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
         safe_accs
     ) (AS.empty ())
   |> (fun safe_accs ->

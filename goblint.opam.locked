@@ -20,73 +20,76 @@ bug-reports: "https://github.com/goblint/analyzer/issues"
 depends: [
   "angstrom" {= "0.15.0"}
   "apron" {= "v0.9.13"}
-  "astring" {= "0.8.5" & with-doc}
+  "arg-complete" {= "0.1.0"}
+  "astring" {= "0.8.5"}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
   "base-threads" {= "base"}
   "base-unix" {= "base"}
-  "batteries" {= "3.4.0"}
+  "batteries" {= "3.5.1"}
   "benchmark" {= "1.6" & with-test}
-  "bigarray-compat" {= "1.0.0"}
-  "bigstringaf" {= "0.7.0"}
+  "bigarray-compat" {= "1.1.0"}
+  "bigstringaf" {= "0.8.0"}
   "biniou" {= "1.2.1"}
   "camlidl" {= "1.09"}
-  "cmdliner" {= "1.0.4" & with-doc}
+  "cmdliner" {= "1.1.1" & with-doc}
   "conf-autoconf" {= "0.1"}
-  "conf-gmp" {= "3"}
-  "conf-mpfr" {= "2"}
-  "conf-perl" {= "1"}
+  "conf-gmp" {= "4"}
+  "conf-mpfr" {= "3"}
+  "conf-perl" {= "2"}
   "conf-pkg-config" {= "2"}
   "conf-ruby" {= "1.0.0" & with-test}
   "conf-which" {= "1"}
-  "cppo" {= "1.6.7"}
+  "cppo" {= "1.6.8"}
   "cpu" {= "2.0.0"}
-  "dune" {= "2.9.1"}
-  "dune-private-libs" {= "2.9.1"}
-  "dune-site" {= "2.9.1"}
+  "csexp" {= "1.5.1"}
+  "dune" {= "3.0.3"}
+  "dune-private-libs" {= "3.0.3"}
+  "dune-site" {= "3.0.3"}
+  "dyn" {= "3.0.3"}
   "easy-format" {= "1.3.2"}
   "fmt" {= "0.9.0" & with-doc}
-  "fpath" {= "0.7.3" & with-doc}
+  "fpath" {= "0.7.3"}
   "goblint-cil" {= "1.8.2"}
-  "json-data-encoding" {= "0.10"}
-  "jsonrpc" {= "1.9.1"}
-  "logs" {= "0.7.0" & with-doc}
-  "mlgmpidl" {= "1.2.13"}
+  "json-data-encoding" {= "0.11"}
+  "jsonrpc" {= "1.10.3"}
+  "mlgmpidl" {= "1.2.14"}
   "num" {= "1.4"}
-  "ocaml" {= "4.13.1"}
-  "ocaml-base-compiler" {= "4.13.1"}
+  "ocaml" {= "4.14.0"}
+  "ocaml-base-compiler" {= "4.14.0"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
-  "ocaml-migrate-parsetree" {= "2.2.0" & with-doc}
   "ocaml-monadic" {= "0.5"}
   "ocaml-options-vanilla" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
-  "ocamlbuild" {= "0.14.0"}
-  "ocamlfind" {= "1.9.1"}
-  "odoc" {= "2.0.2" & with-doc}
-  "odoc-parser" {= "0.9.0" & with-doc}
-  "ounit2" {= "2.2.4" & with-test}
+  "ocamlbuild" {= "0.14.1"}
+  "ocamlfind" {= "1.9.3"}
+  "odoc" {= "2.1.0" & with-doc}
+  "odoc-parser" {= "1.0.0" & with-doc}
+  "ordering" {= "3.0.3"}
+  "ounit2" {= "2.2.6" & with-test}
+  "pp" {= "1.1.2"}
   "ppx_blob" {= "0.7.2"}
   "ppx_derivers" {= "1.2.1"}
   "ppx_deriving" {= "5.2.1"}
   "ppx_deriving_hash" {= "0.1.1"}
   "ppx_deriving_yojson" {= "3.6.1"}
   "ppx_distr_guards" {= "0.3"}
-  "ppxlib" {= "0.23.0"}
-  "qcheck-core" {= "0.17"}
-  "qcheck-ounit" {= "0.17" & with-test}
-  "re" {= "1.9.0" & with-doc}
+  "ppxlib" {= "0.25.0"}
+  "qcheck-core" {= "0.18.1"}
+  "qcheck-ounit" {= "0.18.1" & with-test}
+  "re" {= "1.10.3" & with-doc}
   "result" {= "1.5"}
-  "seq" {= "base" & with-doc}
+  "seq" {= "base" & with-test}
   "sexplib0" {= "v0.14.0"}
-  "sha" {= "1.15.1"}
+  "sha" {= "1.15.2"}
   "stdlib-shims" {= "0.3.0"}
+  "stdune" {= "3.0.3"}
   "stringext" {= "1.6.0"}
-  "topkg" {= "1.0.3" & with-doc}
-  "tyxml" {= "4.4.0" & with-doc}
-  "uchar" {= "0.0.2" & with-doc}
+  "topkg" {= "1.0.5"}
+  "tyxml" {= "4.5.0" & with-doc}
   "uri" {= "4.2.0"}
-  "uutf" {= "1.0.2" & with-doc}
+  "uutf" {= "1.0.3" & with-doc}
   "yojson" {= "1.7.0"}
   "zarith" {= "1.12"}
 ]
@@ -113,7 +116,7 @@ version: "dev"
 pin-depends: [
   [
     "goblint-cil.1.8.2"
-    "git+https://github.com/goblint/cil.git#c47bbbdb442b4d50dac5a0879404ab3b5592170a"
+    "git+https://github.com/goblint/cil.git#da5e1941db81643ef0d2133960cd28a7de311131"
   ]
   [
     "apron.v0.9.13"

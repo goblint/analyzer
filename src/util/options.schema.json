@@ -2,6 +2,15 @@
   "$schema": "http://json-schema.org/draft-04/schema#",
   "type": "object",
   "properties": {
+    "files": {
+      "title": "files",
+      "description": "Files to analyze.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
     "outfile": {
       "title": "outfile",
       "description": "File to print output to.",
@@ -92,12 +101,6 @@
       "description": "Picks another solver for comparison.",
       "type": "string",
       "default": ""
-    },
-    "solverdiffs": {
-      "title": "solverdiffs",
-      "description": "Print out solver differences.",
-      "type": "boolean",
-      "default": false
     },
     "allfuns": {
       "title": "allfuns",
@@ -282,7 +285,7 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutex", "access", "mallocWrapper", "mhp"
+            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp"
           ]
         },
         "path_sens": {
@@ -439,7 +442,7 @@
             "refinement": {
               "title": "ana.int.refinement",
               "description":
-                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'",
+                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'. Counterintuitively, may reduce precision unless ana.int.interval_narrow_by_meet is also enabled.",
               "type": "string",
               "enum": ["never", "once", "fixpoint"],
               "default": "never"
@@ -448,6 +451,12 @@
               "title": "ana.int.def_exc_widen_by_join",
               "description":
                 "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_narrow_by_meet": {
+              "title": "ana.int.interval_narrow_by_meet",
+              "description": "Perform interval narrowing by meets. Avoids precision loss if intervals are refined by def_exc ranges, which are more precise than type range.",
               "type": "boolean",
               "default": false
             },
@@ -650,13 +659,6 @@
               "title": "ana.base.partition-arrays",
               "type": "object",
               "properties": {
-                "enabled": {
-                  "title": "ana.base.partition-arrays.enabled",
-                  "description":
-                    "Employ the partitioning array domain. When this is on, make sure to enable the expRelation analysis as well.",
-                  "type": "boolean",
-                  "default": false
-                },
                 "keep-expr": {
                   "title": "ana.base.partition-arrays.keep-expr",
                   "description":
@@ -678,6 +680,27 @@
                     "When using the partitioning should the join of two arrays partitioned according to different expressions be partitioned as well if possible? If keep-expr is 'last' this behavior is enabled regardless of the flag value. Caution: Not always advantageous.",
                   "type": "boolean",
                   "default": false
+                }
+              },
+              "additionalProperties": false
+            },
+            "arrays":{
+              "title": "ana.base.arrays",
+              "type": "object",
+              "properties": {
+                "domain": {
+                  "title": "ana.base.arrays.domain",
+                  "description":
+                    "The domain that should be used for arrays. When employing the partition array domain, make sure to enable the expRelation analysis as well. When employing the unrolling array domain, make sure to set the ana.base.arrays.unrolling-factor >0.",
+                  "type": "string",
+                  "enum": ["trivial", "partitioned", "unroll"],
+                  "default": "trivial"
+                },
+                "unrolling-factor": {
+                  "title": "ana.base.arrays.unrolling-factor",
+                  "description": "Indicates how many values will the unrolled part of the unrolled array domain contain.",
+                  "type": "integer",
+                  "default": 0
                 }
               },
               "additionalProperties": false
@@ -868,6 +891,12 @@
           "type": "boolean",
           "default": false
         },
+        "load-dir": {
+          "title": "incremental.load-dir",
+          "description": "Location where to load incremental analysis results from.",
+          "type": "string",
+          "default": "incremental_data"
+        },
         "only-rename": {
           "title": "incremental.only-rename",
           "description":
@@ -880,6 +909,12 @@
           "description": "Store incremental analysis results.",
           "type": "boolean",
           "default": false
+        },
+        "save-dir": {
+          "title": "incremental.save-dir",
+          "description": "Location where to save incremental analysis results to.",
+          "type": "string",
+          "default": "incremental_data"
         },
         "stable": {
           "title": "incremental.stable",
@@ -1062,6 +1097,33 @@
             }
           },
           "additionalProperties": false
+        },
+        "output" : {
+          "title": "trans.output",
+          "description": "Output filename for transformations that output a transformed file.",
+          "type":"string",
+          "default": "transformed.c"
+        },
+        "assert": {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "full": {
+              "title": "trans.assert.full",
+              "description":
+                "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
+              "type": "boolean",
+              "default": true
+            },
+            "only-at-locks":{
+              "title": "trans.assert.only-at-locks",
+              "description":
+                "Only put locks after mutexes have been acquired.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1208,10 +1270,18 @@
           "type": "boolean",
           "default": false
         },
-        "precious_globs": {
-          "title": "exp.precious_globs",
+        "exclude_from_earlyglobs": {
+          "title": "exp.exclude_from_earlyglobs",
           "description":
             "Global variables that should be handled flow-sensitively when using earlyglobs.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "exclude_from_invalidation" : {
+          "title": "exp.exclude_from_invalidation",
+          "description":
+            "Global variables that should not be invalidated. This assures the analysis that such globals are only modified through known code",
           "type": "array",
           "items": { "type": "string" },
           "default": []
@@ -1295,6 +1365,13 @@
             "Path to C preprocessor (cpp) to use. If empty, then automatically searched.",
           "type": "string",
           "default": ""
+        },
+        "unrolling-factor": {
+          "title": "exp.unrolling-factor",
+          "description":
+            "Sets the unrolling factor for the loopUnrollingVisitor.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false
@@ -1478,17 +1555,35 @@
           "title": "dbg.compare_runs",
           "type": "object",
           "properties": {
-            "glob": {
-              "title": "dbg.compare_runs.glob",
+            "globsys": {
+              "title": "dbg.compare_runs.globsys",
               "description": "Compare GlobConstrSys in compare_runs",
               "type": "boolean",
-              "default": true
+              "default": false
             },
-            "eq": {
-              "title": "dbg.compare_runs.eq",
+            "eqsys": {
+              "title": "dbg.compare_runs.eqsys",
               "description": "Compare EqConstrSys in compare_runs",
               "type": "boolean",
               "default": true
+            },
+            "global": {
+              "title": "dbg.compare_runs.global",
+              "description": "Compare globals in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "node": {
+              "title": "dbg.compare_runs.node",
+              "description": "Compare nodes (with joined contexts) in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "diff": {
+              "title": "dbg.compare_runs.diff",
+              "description": "Print differences",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1542,6 +1637,12 @@
         "race": {
           "title": "warn.race",
           "description": "Race warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "deadlock": {
+          "title": "warn.deadlock",
+          "description": "Deadlock warnings",
           "type": "boolean",
           "default": true
         },
@@ -1604,6 +1705,18 @@
           "description": "Success severity messages",
           "type": "boolean",
           "default": true
+        },
+        "quote-code": {
+          "title": "warn.quote-code",
+          "description": "Quote code in message output.",
+          "type": "boolean",
+          "default": false
+        },
+        "race-threshold": {
+          "title": "warn.race-threshold",
+          "description": "Races with confidence at least threshold are warnings, lower are infos.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false
@@ -1650,6 +1763,12 @@
                 "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
               "type": "boolean",
               "default": true
+            },
+            "verify": {
+              "title": "solvers.td3.verify",
+              "description": "Check TD3 data structure invariants",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1675,6 +1794,12 @@
       "title": "witness",
       "type": "object",
       "properties": {
+        "enabled": {
+          "title": "witness.enabled",
+          "description": "Output witness",
+          "type": "boolean",
+          "default": true
+        },
         "path": {
           "title": "witness.path",
           "description": "Witness output path",

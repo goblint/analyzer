@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled --enable exp.fast_global_inits
+// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned --enable exp.fast_global_inits
 int global_array[10000] = {9, 0, 3, 42, 11 }; // All non-specified ones will be zero
 int global_array_multi[2][10000] =  {{9, 0, 3, 42, 11}, {9, 0, 3, 42, 11}};  // All non-specified ones will be zero
 

@@ -1,6 +1,6 @@
 // Made after 02 22
 
-// PARAM: --set ana.int.interval true --enable ana.base.partition-arrays.enabled
+// PARAM: --set ana.int.interval true --set ana.base.arrays.domain partitioned
 
 #include <stdlib.h>
 #include <assert.h>

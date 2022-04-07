@@ -1,10 +1,5 @@
 {
   "ana": {
-    "base": {
-      "partition-arrays": {
-        "enabled": true
-      }
-    },
     "sv-comp": {
       "enabled": true,
       "functions": true
@@ -46,6 +41,11 @@
         "kmalloc_array",
         "kcalloc"
       ]
+    },
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
     }
   },
   "exp": {
