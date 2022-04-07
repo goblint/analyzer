@@ -481,11 +481,12 @@ let diff_and_rename current_file =
     let (changes, old_file, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         let old_file = Serialize.load_data Serialize.CilFile in
-        let (changes, map, max_ids) = VersionLookup.load_and_update_map old_file current_file in
+        let changes, map = CompareCIL.compareCilFiles old_file current_file in
+        let max_ids = VersionLookup.load_max_ids () in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file map changes in
         (changes, Some old_file, max_ids)
       end else begin
-        let (version_map, max_ids) = VersionLookup.create_map current_file in
+        let max_ids = VersionLookup.get_file_max_ids current_file in
         (CompareCIL.empty_change_info (), None, max_ids)
       end
     in

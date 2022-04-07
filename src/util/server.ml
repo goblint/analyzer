@@ -79,7 +79,7 @@ let serve serv =
     )
 
 let make ?(input=stdin) ?(output=stdout) file : t =
-  let version_map, max_ids = VersionLookup.create_map file in
+  let max_ids = VersionLookup.get_file_max_ids file in
   {
     file;
     max_ids;
@@ -122,7 +122,7 @@ let virtual_changes file =
 
 let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
   | Some solver_data when reparsed ->
-    let changes, map = VersionLookup.updateMap s.file file in
+    let changes, map = CompareCIL.compareCilFiles s.file file in
     let old_data = Some { Analyses.cil_file = s.file; solver_data } in
     s.max_ids <- UpdateCil.update_ids s.file s.max_ids file map changes;
     { Analyses.changes; old_data; new_file = file }, false
@@ -137,7 +137,7 @@ let analyze ?(reset=false) (s: t) =
   Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (
-    let version_map, max_ids = VersionLookup.create_map file in
+    let max_ids = VersionLookup.get_file_max_ids file in
     s.max_ids <- max_ids;
     Serialize.server_solver_data := None;
     Serialize.server_analysis_data := None);
