@@ -5,7 +5,7 @@ exception Failure of Response.Error.Code.t * string
 
 type t = {
   mutable file: Cil.file;
-  mutable max_ids: VersionLookup.max_ids;
+  mutable max_ids: MaxIdUtil.max_ids;
   input: IO.input;
   output: unit IO.output;
 }
@@ -79,7 +79,7 @@ let serve serv =
     )
 
 let make ?(input=stdin) ?(output=stdout) file : t =
-  let max_ids = VersionLookup.get_file_max_ids file in
+  let max_ids = MaxIdUtil.get_file_max_ids file in
   {
     file;
     max_ids;
@@ -137,7 +137,7 @@ let analyze ?(reset=false) (s: t) =
   Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (
-    let max_ids = VersionLookup.get_file_max_ids file in
+    let max_ids = MaxIdUtil.get_file_max_ids file in
     s.max_ids <- max_ids;
     Serialize.server_solver_data := None;
     Serialize.server_analysis_data := None);

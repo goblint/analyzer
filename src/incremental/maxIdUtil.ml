@@ -29,6 +29,6 @@ let get_file_max_ids (new_file: Cil.file) =
   Cil.iterGlobals new_file (fun g -> update_max_ids max_vid max_sid g);
   {max_sid = !max_sid; max_vid = !max_vid}
 
-(* Loads the max sid and vid from a previous run *)
+(** Loads the max sid and vid from a previous run *)
 let load_max_ids () =
   Serialize.load_data Serialize.VersionData

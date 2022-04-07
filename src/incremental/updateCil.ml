@@ -1,6 +1,6 @@
 open Cil
 open CompareCIL
-open VersionLookup
+open MaxIdUtil
 open MyCFG
 
 module NodeMap = Hashtbl.Make(Node)
