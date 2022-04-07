@@ -260,6 +260,27 @@
       },
       "additionalProperties": false
     },
+    "cil": {
+      "title": "cil",
+      "description": "CIL configuration",
+      "type": "object",
+      "properties": {
+        "merge": {
+          "title": "cil.merge",
+          "type": "object",
+          "properties": {
+            "inlines": {
+              "title": "cil.merge.inlines",
+              "description": "Merge inline functions (by their body printout).",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "server": {
       "title": "Server",
       "description": "Server mode",

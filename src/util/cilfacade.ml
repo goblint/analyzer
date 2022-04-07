@@ -36,7 +36,7 @@ let init () =
   initCIL ();
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
-  Mergecil.merge_inlines := true; (* work around https://github.com/goblint/analyzer/pull/603#issuecomment-1054204635 *)
+  Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
