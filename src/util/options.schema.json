@@ -236,6 +236,26 @@
           "type": "array",
           "items": { "type": "string" },
           "default": []
+        },
+        "compdb": {
+          "title": "pre.compdb",
+          "type": "object",
+          "properties": {
+            "original-path": {
+              "title": "pre.compdb.original-path",
+              "description":
+                "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
+              "type": "string",
+              "default": ""
+            },
+            "split": {
+              "title": "pre.compdb.split",
+              "description": "Split Compilation Database entries containing multiple .c files.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1338,20 +1358,6 @@
             "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise).",
           "type": "string",
           "default": "/usr/bin/gcc"
-        },
-        "compdb": {
-          "title": "exp.compdb",
-          "type": "object",
-          "properties": {
-            "original-path": {
-              "title": "exp.compdb.original-path",
-              "description":
-                "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
-              "type": "string",
-              "default": ""
-            }
-          },
-          "additionalProperties": false
         },
         "cpp-path": {
           "title": "exp.cpp-path",

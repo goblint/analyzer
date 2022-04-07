@@ -1,4 +1,4 @@
-type t = Fpath.t
+type t = Fpath.t [@@deriving show]
 
 let pretty () p = Pretty.text (Fpath.to_string p)
 
