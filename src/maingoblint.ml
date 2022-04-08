@@ -496,7 +496,7 @@ let diff_and_rename current_file =
     in
     if GobConfig.get_bool "incremental.save" then begin
       Serialize.store_data current_file Serialize.CilFile;
-      Serialize.store_data (max_ids) Serialize.VersionData
+      Serialize.store_data max_ids Serialize.VersionData
     end;
     let old_data = match old_file, solver_data with
       | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
