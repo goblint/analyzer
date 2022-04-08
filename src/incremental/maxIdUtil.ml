@@ -19,15 +19,16 @@ let update_vids vid_max (glob: global) = match glob with
   | GVarDecl (v,_) -> update_id_max vid_max v.vid
   | _ -> ()
 
-let update_max_ids vid_max sid_max (glob: global) =
-  update_vids vid_max glob; update_sids sid_max glob
+let update_max_ids ~sid_max ~vid_max (glob: global) =
+  update_sids sid_max glob;
+  update_vids vid_max glob
 
 (** Obtains the maximum sid and vid from a Cil.file *)
 let get_file_max_ids (new_file: Cil.file) =
-  let max_sid = ref 0 in
-  let max_vid = ref 0 in
-  Cil.iterGlobals new_file (fun g -> update_max_ids max_vid max_sid g);
-  {max_sid = !max_sid; max_vid = !max_vid}
+  let sid_max = ref 0 in
+  let vid_max = ref 0 in
+  Cil.iterGlobals new_file (fun g -> update_max_ids ~sid_max ~vid_max g);
+  {max_sid = !sid_max; max_vid = !vid_max}
 
 (** Loads the max sid and vid from a previous run *)
 let load_max_ids () =

@@ -128,7 +128,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: global Glo
   List.iter update_globals changes.added;
 
   (* Update the sid_max and vid_max *)
-  Cil.iterGlobals new_file (update_max_ids vid_max sid_max);
+  Cil.iterGlobals new_file (update_max_ids ~sid_max ~vid_max);
   (* increment the sid so that the *unreachable* nodes that are introduced afterwards get unique sids *)
   while !sid_max > Cil.new_sid () do
     ()
