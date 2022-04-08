@@ -165,6 +165,8 @@ sig
 
   val get_row: t -> int -> vec
 
+  val del_col: t -> int -> t
+
   val remove_row: t -> int -> t
 
   val get_col: t -> int -> vec
@@ -194,6 +196,8 @@ sig
   val of_list: vec list -> t
 
   val to_list: t -> vec list
+
+  val set_col: t -> vec -> int -> t
 
 end
 
@@ -234,6 +238,9 @@ module ListMatrix : AbstractMatrix =
     let get_col m n =
       V.of_list (List.map (fun x -> V.nth x n) m)
 
+    let set_col m new_col n =
+      List.mapi (fun i r -> V.set_val r n (V.nth new_col i)) m
+
     let append_matrices m1 m2  =
       List.append m1 m2
 
@@ -253,12 +260,13 @@ module ListMatrix : AbstractMatrix =
       let c = V.nth red_row col_n in
       List.map (fun x -> subtract_rows_c x red_row ((V.nth x col_n) /: c)) m
 
+    let del_col m col_n = List.map (fun x -> V.remove_val x col_n) m
+
     let remove_col m col_n =
-      let del_col = List.map (fun x -> V.remove_val x col_n) in
       match List.findi (fun i x -> V.nth x col_n <> of_int 0)  (List.rev m) with
-      | exception Not_found -> del_col m
+      | exception Not_found -> del_col m col_n
       | (i, _) -> let len_i = List.length m - (i + 1)
-        in del_col (remove_row (reduce_row_to_zero m len_i col_n) len_i)
+        in del_col (remove_row (reduce_row_to_zero m len_i col_n) len_i) col_n
 
     (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution*)
 
@@ -310,16 +318,16 @@ struct
     let to_add = Array.to_list ch.dim in
     List.fold_lefti (fun m' i  x -> Matrix.add_empty_column m' (x + i)) m to_add
 
-  let dim_remove (ch: Apron.Dim.change) m =
+  let dim_remove (ch: Apron.Dim.change) m del =
     let to_remove = Array.to_list ch.dim in
-    List.fold_left (fun y x -> Matrix.remove_col y x) m to_remove
+    List.fold_left (fun y x -> if del then Matrix.del_col y x else Matrix.remove_col y x) m to_remove
 
-  let change_d t new_env add =
+  let change_d t new_env add del =
     let dim_change = if add then Environment.dimchange t.env new_env
       else Environment.dimchange new_env t.env
     in let d' = match t.d with
         | None -> Some (Matrix.empty ())
-        | Some m -> Some (if add then dim_add dim_change m else dim_remove dim_change m)
+        | Some m -> Some (if add then dim_add dim_change m else dim_remove dim_change m del)
     in {d = d'; env = new_env}
 
   let add_vars t vars =
@@ -329,9 +337,9 @@ struct
       |> Enum.filter (fun v -> not (Environment.mem_var t.env v))
       |> Array.of_enum in
     let env' = Environment.add t.env vs' [||] in
-    change_d t env' true
+    change_d t env' true false
 
-  let remove_vars t vars =
+  let drop_vars t vars del =
     let vs' =
       vars
       |> List.enum
@@ -339,25 +347,27 @@ struct
       |> Array.of_enum
     in
     let env' = Environment.remove t.env vs' in
-    change_d t env' false
+    change_d t env' false del
+
+  let remove_vars t vars = drop_vars t vars false
 
   let remove_vars_pt_with t vars =
     remove_vars t vars
 
   let remove_filter t f =
     let env' = remove_filter t.env f in
-    change_d t env' false
+    change_d t env' false false
 
   let remove_filter_pt_with t f =
     remove_filter t f
 
   let keep_filter t f =
     let env' = keep_filter t.env f in
-    change_d t env' false
+    change_d t env' false false
 
   let keep_vars t vs =
     let env' = keep_vars t.env vs in
-    change_d t env' false
+    change_d t env' false false
 
   let vars t = vars t.env
 
@@ -423,7 +433,7 @@ module ExpressionBounds (V: AbstractVector) (Mx: AbstractMatrix): (SharedFunctio
 struct
   include VarManagement (V) (Mx)
 
-  let bound_texpr t texpr = (*ToDo: Modulo Bounds!*)
+  let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
     match get_coeff_vec t texpr  with
     | Some v -> begin match get_c v with
@@ -433,59 +443,13 @@ struct
         | _ -> None, None end
     | _ -> None, None
 
-    (* let rec bound_texpr t texpr1 =
-      let texpr = Texpr1.to_expr texpr1 in
-      let ik = Cil.ILongLong in
-      let module Intv = IntDomain.IntervalFunctor(IntOps.BigIntOps) in
-        if Texpr1.is_interval_linear texpr1 then
-          match get_coeff_vec t texpr  with
-              | Some v -> begin match get_c v with
-                          | Some c when Mpqf.get_den c = IntOps.BigIntOps.of_int 1 ->
-                             let vl = Mpqf.get_num c in
-                             Some vl, Some vl
-                | _ -> None, None end
-                | _ -> None, None
-          else
-            let open Apron.Texpr1 in
-            match texpr with
-            | Binop (Mod, e1, e2, _, _) -> begin match bound_texpr t (Texpr1.of_expr t.env e2) with
-                                                  | Some x1, Some x2 -> Some (IntOps.BigIntOps.neg x1), Some x2
-                                                  | _, _ -> None, None end
-            | _ -> None, None *)
 
-        (* else
-          let open Apron.Texpr1 in
-            match expr with
-              | Unop (un, e, _, _) ->
-                begin match un with
-                | Neg -> Intv.neg ik (determine_bounds e)
-                | Cast -> determine_bounds e
-                | Sqrt -> Intv.top_of ik end
-              | Binop (bin, e1, e2, _, _) ->
-                begin match bin with
-                | Add -> Intv.add ik (determine_bounds e1) (determine_bounds e2)
-                | Sub -> Intv.sub ik (determine_bounds e1) (determine_bounds e2)
-                | Mul -> Intv.mul ik (determine_bounds e1) (determine_bounds e2)
-                | Div -> Intv.div ik (determine_bounds e1) (determine_bounds e2)
-                | Mod -> determine_bounds e2
-                | _ -> Intv.top_of ik end
-              | _ -> Intv.top_of ik
-              in let bounds = determine_bounds texpr in
-              let min, max = IntDomain.Size.range ik in
-                  match Intv.minimal bounds, Intv.maximal bounds with
-                  | Some x, Some y when x <> min && y <> max -> Some x, Some y
-                  | Some x, _ when x <> min -> Some x, None
-                  | _, Some y when y <> max -> None, Some y
-                  | _, _ -> None, None *)
-
-
-
-    let bound_texpr d texpr1 =
-      let res = bound_texpr d texpr1 in
-      match res with
-      | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
-      | _ -> res
-    end
+  let bound_texpr d texpr1 =
+    let res = bound_texpr d texpr1 in
+    match res with
+    | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
+    | _ -> res
+end
 
 module D2(V: AbstractVector) (Mx: AbstractMatrix): SharedFunctions.AssertionRelD2 with type var = SharedFunctions.Var.t =
 struct
@@ -697,13 +661,18 @@ struct
     res
 
   let assign_var_parallel t vv's =
-    let new_t's = List.map (fun (v,v') -> assign_var t v v') vv's in
-    List.fold_left meet t new_t's
-
-  let assign_var_parallel t vv's =
-    let res = assign_var_parallel t vv's in
-      if M.tracing then M.tracel "assign_var" "Assigned Var parallel";
-      res
+    let assigned_vars = List.map (function (v, _) -> v) vv's in
+    let primed_vars = List.init (List.length assigned_vars) (fun i -> Var.of_string (Int.to_string i  ^"'")) in
+    let t_primed = add_vars t primed_vars in
+    let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
+    match multi_t.d with
+    | Some m when m <> Matrix.empty () -> let replace_col m x y = let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
+                                            let col_x = Matrix.get_col m dim_x in
+                                            Matrix.set_col m col_x dim_y in
+      let switched_m = List.fold_left2 (fun m' x y -> replace_col m' x y) m primed_vars assigned_vars in
+      let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars true in
+      {d = Matrix.normalize (Option.get res.d); env = res.env}
+    | _ -> t
 
   let assign_var_parallel_pt_with t vv's =
     assign_var_parallel t vv's
