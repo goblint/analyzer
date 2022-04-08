@@ -17,7 +17,7 @@ let getLoc (node: Node.t) =
 let store_node_location (n: Node.t) (l: location): unit =
   NodeMap.add !location_map n l
 
-let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: global GlobalMap.t) (changes: change_info) =
+let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change_info) =
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 
@@ -60,10 +60,9 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: global Glo
     v.vid <- old_v.vid;
     update_vid_max v.vid;
   in
-  let reset_globals (glob: global) =
+  let reset_globals (glob: unchanged_global) =
     try
-      let old_glob = GlobalMap.find (CompareCFG.identifier_of_global glob) map in
-      match glob, old_glob with
+      match glob.current, glob.old with
       | GFun (nw, _), GFun (old, _) -> reset_fun nw old
       | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
       | GVarDecl (nw, _), GVarDecl (old, _) -> reset_var nw old

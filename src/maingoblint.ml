@@ -481,9 +481,9 @@ let diff_and_rename current_file =
     let (changes, old_file, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         let old_file = Serialize.load_data Serialize.CilFile in
-        let changes, map = CompareCIL.compareCilFiles old_file current_file in
+        let changes = CompareCIL.compareCilFiles old_file current_file in
         let max_ids = MaxIdUtil.load_max_ids () in
-        let max_ids = UpdateCil.update_ids old_file max_ids current_file map changes in
+        let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
         (changes, Some old_file, max_ids)
       end else begin
         let max_ids = MaxIdUtil.get_file_max_ids current_file in
