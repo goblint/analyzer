@@ -110,6 +110,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   Cil.iterGlobals oldAST (fun glob -> if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed));
   changes
 
-(** Computes a  *)
+(** Given an (optional) equality function between [Cil.global]s, an old and a new [Cil.file], this function computes a [change_info],
+  which describes which [global]s are changed, unchanged, removed and added.  *)
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   Stats.time "compareCilFiles" (compareCilFiles ~eq oldAST) newAST
