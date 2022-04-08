@@ -115,11 +115,10 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: global Glo
   in
   let update_globals (glob: global) =
     try
-      let old_glob = GlobalMap.find (CompareCFG.identifier_of_global glob) map in
-      match glob, old_glob with
-      | GFun (nw, _), GFun (old, _) -> update_fun nw
-      | GVar (nw, _, _), GVar (old, _, _) -> update_var nw
-      | GVarDecl (nw, _), GVarDecl (old, _) -> update_var nw
+      match glob with
+      | GFun (nw, _) -> update_fun nw
+      | GVar (nw, _, _) -> update_var nw
+      | GVarDecl (nw, _) -> update_var nw
       | _ -> ()
     with Failure m -> ()
   in
