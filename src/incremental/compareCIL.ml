@@ -8,6 +8,12 @@ type nodes_diff = {
   primObsoleteNodes: node list; (** primary obsolete nodes -> all obsolete nodes are reachable from these *)
 }
 
+type unchanged_global = {
+  old: global;
+  current: global
+}
+(** For semantically unchanged globals, still keep old and current version of global for resetting current to old. *)
+
 type changed_global = {
   old: global;
   current: global;
@@ -19,7 +25,7 @@ module VarinfoSet = Set.Make(CilType.Varinfo)
 
 type change_info = {
   mutable changed: changed_global list;
-  mutable unchanged: global list;
+  mutable unchanged: unchanged_global list;
   mutable removed: global list;
   mutable added: global list;
   mutable exclude_from_rel_destab: VarinfoSet.t;
@@ -101,7 +107,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       match change_status with
       | Changed ->
         append_to_changed ~unchangedHeader:true
-      | Unchanged -> changes.unchanged <- global :: changes.unchanged
+      | Unchanged -> changes.unchanged <- {current = global; old = old_global} :: changes.unchanged
       | ChangedFunHeader f
       | ForceReanalyze f ->
         changes.exclude_from_rel_destab <- VarinfoSet.add f.svar changes.exclude_from_rel_destab;
@@ -125,3 +131,8 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then changes.added <- (glob::changes.added));
   Cil.iterGlobals oldAST (fun glob -> if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed));
   changes
+
+(** Given an (optional) equality function between [Cil.global]s, an old and a new [Cil.file], this function computes a [change_info],
+    which describes which [global]s are changed, unchanged, removed and added.  *)
+let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
+  Stats.time "compareCilFiles" (compareCilFiles ~eq oldAST) newAST

@@ -74,19 +74,9 @@ let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
   | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname d_offs o
 
-let file_re = Str.regexp "\\(.*/\\|\\)\\([^/]*\\)"
-let d_loc () loc =
-  let loc =
-    if Str.string_match file_re loc.file 0 then
-      {loc with file = Str.matched_group 2 loc.file}
-    else
-      loc
-  in
-  CilType.Location.pretty () loc
-
 let d_memo () (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o d_loc v.vdecl
+  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o CilType.Location.pretty v.vdecl
   | None       -> dprintf "%a" d_acct t
 
 let rec get_type (fb: typ) : exp -> acc_typ = function

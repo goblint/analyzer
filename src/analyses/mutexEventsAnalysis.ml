@@ -75,8 +75,9 @@ struct
   let special (ctx: (unit, _, _, _) ctx) lv f arglist : D.t =
     let remove_rw x = x in
     let unlock remove_fn =
-      match arglist with
-      | [arg] ->
+      match f.vname, arglist with
+      | _, [arg]
+      | ("spin_unlock_irqrestore" | "_raw_spin_unlock_irqrestore"), [arg; _] ->
         List.iter (fun e ->
             ctx.split () [Events.Unlock (remove_fn e)]
           ) (eval_exp_addr (Analyses.ask_of_ctx ctx) arg);
@@ -89,8 +90,9 @@ struct
     | _, "_unlock_kernel" ->
       ctx.emit (Events.Unlock big_kernel_lock)
     | `Lock (failing, rw, nonzero_return_when_aquired), _ ->
-      begin match arglist with
-        | [arg] ->
+      begin match f.vname, arglist with
+        | _, [arg]
+        | "spin_lock_irqsave", [arg; _] ->
           (*print_endline @@ "Mutex `Lock "^f.vname;*)
           lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arg
         | _ -> failwith "lock has multiple arguments"

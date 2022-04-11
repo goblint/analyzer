@@ -321,10 +321,8 @@ struct
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
       Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
-      let files = Hashtbl.to_list Preprocessor.dependencies in
-      let filter_system = List.filter_map (fun (f,system) -> if system then None else Some f) in
       let json = `Assoc [
-          ("files", `Assoc (List.map (Tuple2.map Fpath.to_string (fun deps -> [%to_yojson: GobFpath.t list] @@ filter_system deps)) files));
+          ("files", Preprocessor.dependencies_to_yojson ());
           ("messages", Messages.Table.to_yojson ());
         ]
       in

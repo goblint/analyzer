@@ -5,8 +5,7 @@ exception Failure of Response.Error.Code.t * string
 
 type t = {
   mutable file: Cil.file option;
-  mutable version_map: (CompareCIL.global_identifier, Cil.global) Hashtbl.t;
-  mutable max_ids: VersionLookup.max_ids;
+  mutable max_ids: MaxIdUtil.max_ids;
   input: IO.input;
   output: unit IO.output;
 }
@@ -80,14 +79,13 @@ let serve serv =
     )
 
 let make ?(input=stdin) ?(output=stdout) file : t =
-  let version_map, max_ids =
+  let max_ids =
     match file with
-    | Some file -> VersionLookup.create_map file
-    | None -> VersionLookup.create_map Cil.dummyFile (* TODO: avoid this altogether *)
+    | Some file -> MaxIdUtil.get_file_max_ids file
+    | None -> MaxIdUtil.get_file_max_ids Cil.dummyFile (* TODO: avoid this altogether *)
   in
   {
     file;
-    version_map;
     max_ids;
     input;
     output
@@ -118,8 +116,7 @@ let reparse (s: t) =
     let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge in
     begin match s.file with
       | None ->
-        let version_map, max_ids = VersionLookup.create_map file in
-        s.version_map <- version_map;
+        let max_ids = MaxIdUtil.get_file_max_ids file in
         s.max_ids <- max_ids
       | Some _ ->
         ()
@@ -140,10 +137,9 @@ let virtual_changes file =
 let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
   | Some solver_data when reparsed ->
     let s_file = Option.get s.file in
-    let version_map, changes = VersionLookup.updateMap s_file file s.version_map in
+    let changes = CompareCIL.compareCilFiles s_file file in
     let old_data = Some { Analyses.cil_file = s_file; solver_data } in
-    s.max_ids <- UpdateCil.update_ids s_file s.max_ids file s.version_map changes;
-    s.version_map <- version_map;
+    s.max_ids <- UpdateCil.update_ids s_file s.max_ids file changes;
     (* TODO: get globals for restarting from config *)
     { Analyses.changes; old_data; new_file = file; restarting = [] }, false
   | Some solver_data ->
@@ -158,8 +154,7 @@ let analyze ?(reset=false) (s: t) =
   Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (
-    let version_map, max_ids = VersionLookup.create_map file in
-    s.version_map <- version_map;
+    let max_ids = MaxIdUtil.get_file_max_ids file in
     s.max_ids <- max_ids;
     Serialize.server_solver_data := None;
     Serialize.server_analysis_data := None);
@@ -222,7 +217,14 @@ let () =
     let name = "messages"
     type params = unit [@@deriving of_yojson]
     type response = Messages.Message.t list [@@deriving to_yojson]
-    let process () _ = !Messages.Table.messages_list
+    let process () _ = Messages.Table.to_list ()
+  end);
+
+  register (module struct
+    let name = "files"
+    type params = unit [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process () _ = Preprocessor.dependencies_to_yojson ()
   end);
 
   register (module struct
