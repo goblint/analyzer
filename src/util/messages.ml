@@ -137,8 +137,11 @@ struct
     MH.replace messages_table m ();
     messages_list := m :: !messages_list
 
+  let to_list () =
+    List.rev !messages_list (* reverse to get in addition order *)
+
   let to_yojson () =
-    [%to_yojson: Message.t list] (List.rev !messages_list) (* reverse to get in addition order *)
+    [%to_yojson: Message.t list] (to_list ())
 end
 
 

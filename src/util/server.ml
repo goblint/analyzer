@@ -200,7 +200,7 @@ let () =
     let name = "messages"
     type params = unit [@@deriving of_yojson]
     type response = Messages.Message.t list [@@deriving to_yojson]
-    let process () _ = !Messages.Table.messages_list
+    let process () _ = Messages.Table.to_list ()
   end);
 
   register (module struct
