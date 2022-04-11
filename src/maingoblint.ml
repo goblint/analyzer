@@ -185,7 +185,7 @@ let basic_preprocess ~all_cppflags fname =
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
-  Hashtbl.clear Preprocessor.dependencies; (* clear for server mode *)
+  Preprocessor.FpathH.clear Preprocessor.dependencies; (* clear for server mode *)
 
   (* Preprocessor flags *)
   let cppflags = ref (get_string_list "pre.cppflags") in
@@ -317,19 +317,35 @@ let preprocess_files () =
     in
     ProcessPool.run ~jobs:(Goblintutil.jobs ()) ~terminated preprocess_tasks
   );
-  List.map fst preprocessed
+  preprocessed
 
 (** Possibly merge all postprocessed files *)
-let merge_preprocessed cpp_file_names =
+let merge_preprocessed preprocessed =
   (* get the AST *)
   if get_bool "dbg.verbose" then print_endline "Parsing files.";
-  let get_ast_and_record_deps f =
-    let file = Cilfacade.getAST f in
-    (* Drop <built-in> and <command-line> from dependencies *)
-    Hashtbl.add Preprocessor.dependencies f @@ List.map (Tuple2.map1 Fpath.v) @@ List.filter (fun (n,_) -> n <> "<built-in>" && n <> "<command-line>") file.files;
-    file
+
+  let goblint_cwd = GobFpath.cwd () in
+  let get_ast_and_record_deps (preprocessed_file, task_opt) =
+    let transform_file (path_str, system_header) = match path_str with
+      | "<built-in>" | "<command-line>" ->
+        (path_str, system_header) (* ignore special "paths" *)
+      | _ ->
+        let path = Fpath.v path_str in
+        let dir = (Option.get task_opt).ProcessPool.cwd |? goblint_cwd in (* relative to compilation database directory or goblint's cwd *)
+        let path' = Fpath.normalize @@ Fpath.append dir path in
+        let path' = Fpath.rem_prefix goblint_cwd path' |? path' in (* remove goblint cwd prefix (if has one) for readability *)
+        Preprocessor.FpathH.modify_def Fpath.Map.empty preprocessed_file (Fpath.Map.add path' system_header) Preprocessor.dependencies; (* record dependency *)
+        (Fpath.to_string path', system_header)
+    in
+    let transformLocation ~file ~line =
+      let file' = Option.map transform_file file in
+      Some (file', line)
+    in
+    Errormsg.transformLocation := transformLocation;
+
+    Cilfacade.getAST preprocessed_file
   in
-  let files_AST = List.map (get_ast_and_record_deps) cpp_file_names in
+  let files_AST = List.map (get_ast_and_record_deps) preprocessed in
 
   let cilout =
     if get_string "dbg.cilout" = "" then Legacy.stderr else Legacy.open_out (get_string "dbg.cilout")
