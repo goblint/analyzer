@@ -204,6 +204,13 @@ let () =
   end);
 
   register (module struct
+    let name = "files"
+    type params = unit [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process () _ = Preprocessor.dependencies_to_yojson ()
+  end);
+
+  register (module struct
     let name = "exp_eval"
     type params = ExpressionEvaluation.query [@@deriving of_yojson]
     type response =
