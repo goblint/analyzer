@@ -22,6 +22,7 @@
       "threadflag",
       "threadreturn",
       "mallocWrapper",
+      "mutexEvents",
       "mutex",
       "access",
       "escape",
