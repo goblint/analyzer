@@ -103,6 +103,12 @@ def analyze_small_commits_in_repo():
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.on']
             analyze_commit(gr, commit.hash, outchildrel, add_options)
 
+            #print('And again incremental, this time with exhaustive restarting')
+            outchildrel = os.path.join(outtry, 'child-ex-rest')
+            os.makedirs(outchildrel)
+            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.restart.sided.enabled']
+            analyze_commit(gr, commit.hash, outchildrel, add_options)
+
             count_analyzed+=1
             failed = False
         except subprocess.CalledProcessError as e:
