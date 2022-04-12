@@ -720,6 +720,7 @@ struct
                   else
                     false
               end
+            | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
             | _ -> false
           in
           if AD.for_all cast_ok p then
