@@ -11,6 +11,7 @@ open GobConfig
 
 let big_kernel_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[big kernel lock]" intType))
 let console_sem = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[console semaphore]" intType))
+let rtnl_lock = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[rtnl_lock]" intType))
 let verifier_atomic = LockDomain.Addr.from_var (Goblintutil.create_var (makeGlobalVar "[__VERIFIER_atomic]" intType))
 
 module Spec: MCPSpec =
@@ -118,10 +119,14 @@ struct
       (*print_endline @@ "Mutex `Unlock "^f.vname;*)
       unlock remove_rw
     | _, "spinlock_check" -> ()
-    | _, "acquire_console_sem" when get_bool "kernel" ->
+    | _, "acquire_console_sem"-> (* TODO: removed for Klever: when get_bool "kernel" *)
       ctx.emit (Events.Lock (console_sem, true))
-    | _, "release_console_sem" when get_bool "kernel" ->
+    | _, "release_console_sem" -> (* TODO: removed for Klever: when get_bool "kernel" *)
       ctx.emit (Events.Unlock console_sem)
+    | _, "rtnl_lock"->
+      ctx.emit (Events.Lock (rtnl_lock, true))
+    | _, ("rtnl_unlock" | "__rtnl_unlock") ->
+      ctx.emit (Events.Unlock rtnl_lock)
     | _, "__builtin_prefetch" | _, "misc_deregister" ->
       ()
     | _, "__VERIFIER_atomic_begin" when get_bool "ana.sv-comp.functions" ->
