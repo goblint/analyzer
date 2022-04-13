@@ -135,6 +135,7 @@ struct
             warn_range b e :: acc
           ) xs []
       in
+      let msgs = List.rev msgs in (* lines in ascending order *)
       M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
     in
     let warn_file f = StringMap.iter (warn_func f) in
