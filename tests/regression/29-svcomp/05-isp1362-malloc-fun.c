@@ -1,4 +1,4 @@
-// PARAM: --set exp.malloc.wrappers "['ldv_malloc']"
+// PARAM: --set ana.malloc.wrappers "['ldv_malloc']"
 
 #include <stdlib.h>
 

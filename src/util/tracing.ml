@@ -7,6 +7,9 @@ open Cil
 
 module Strs = Set.Make (String)
 
+
+let tracing = ConfigProfile.profile = "trace"
+
 let current_loc = ref locUnknown
 let next_loc    = ref locUnknown
 let trace_sys = ref Strs.empty
@@ -83,7 +86,7 @@ let traceTag (sys : string) : Pretty.doc =
   (text ((ind !indent_level) ^ "%%% " ^ sys ^ ": "))
 
 let printtrace sys d: unit =
-  fprint stderr 80 ((traceTag sys) ++ d);
+  fprint stderr ~width:80 ((traceTag sys) ++ d);
   flush stderr
 
 let gtrace always f sys var ?loc do_subsys fmt =

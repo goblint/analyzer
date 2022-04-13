@@ -29,4 +29,4 @@ For a list of all options and their possible configurations, run:
 In some cases, when using the default configuration, Goblint might not terminate in reasonable time on recursive programs, or
 crash in a stack overflow (indicated by the error message `exception Stack overflow`). If the stack overflow occurs within a C function called by Goblint, it will result in the following error message: `Command terminated by signal 11`.
 
-Adding the option `--enable exp.widen-context` will enable widening on the contexts in which functions are analyzed. This avoids stack overflows possibly caused by the analysis of recursive functions.
+Adding the option `--enable ana.context.widen` will enable widening on the contexts in which functions are analyzed. This avoids stack overflows possibly caused by the analysis of recursive functions.

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']" --sets exp.privatization none
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']" --set ana.base.privatization none
 #include <stdlib.h>
 
 void *smalloc(size_t x){

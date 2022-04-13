@@ -18,13 +18,17 @@ nav:
   - Home: index.md
   - 'User guide':
     - user-guide/running.md
+    - user-guide/configuring.md
     - user-guide/inspecting.md
+    - user-guide/annotating.md
   - 'Developer guide':
     - developer-guide/developing.md
+    - developer-guide/firstanalysis.md
+    - developer-guide/messaging.md
     - developer-guide/testing.md
     - developer-guide/debugging.md
-    - developer-guide/warning.md
     - developer-guide/profiling.md
     - developer-guide/documenting.md
+    - developer-guide/releasing.md
   - 'Artifact descriptions':
     - "SAS '21": artifact-descriptions/sas21.md

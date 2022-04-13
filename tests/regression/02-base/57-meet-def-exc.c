@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3
+// PARAM: --set solver td3
 void main(void) {
     int x;
     int i = 41;

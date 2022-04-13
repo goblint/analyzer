@@ -11,15 +11,15 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
   let is_invariant_node cfgnode =
-    match get_string "exp.witness.invariant.nodes" with
+    match get_string "witness.invariant.nodes" with
     | "all" -> true
     | "loop_heads" -> WitnessUtil.NH.mem loop_heads cfgnode
     | "none" -> false
-    | _ -> failwith "exp.witness.invariant.nodes: invalid value"
+    | _ -> failwith "witness.invariant.nodes: invalid value"
   in
 
   let module TaskResult =
-    (val if get_bool "exp.witness.stack" then
+    (val if get_bool "witness.stack" then
         (module StackTaskResult (Cfg) (TaskResult) : WitnessTaskResult)
       else
         (module TaskResult)
@@ -30,7 +30,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   struct
     (* type node = N.t
     type edge = TaskResult.Arg.Edge.t *)
-    let minwitness = get_bool "exp.witness.minimize"
+    let minwitness = get_bool "witness.minimize"
     let is_interesting_real from_node edge to_node =
       (* TODO: don't duplicate this logic with write_node, write_edge *)
       (* startlines aren't currently interesting because broken, see below *)
@@ -64,12 +64,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module N = Arg.Node in
   let module GML = XmlGraphMlWriter in
   let module GML =
-    (val match get_string "exp.witness.id" with
+    (val match get_string "witness.id" with
       | "node" ->
         (module ArgNodeGraphMlWriter (N) (GML) : GraphMlWriter with type node = N.t)
       | "enumerate" ->
         (module EnumerateNodeGraphMlWriter (N) (GML))
-      | _ -> failwith "exp.witness.id: illegal value"
+      | _ -> failwith "witness.id: illegal value"
     )
   in
   let module GML = DeDupGraphMlWriter (N) (GML) in
@@ -111,7 +111,6 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   (* GML.write_key g "node" "sourcecode" "string" None; *)
   GML.write_key g "edge" "goblintEdge" "string" None;
   GML.write_key g "edge" "goblintLine" "string" None;
-  GML.write_key g "edge" "goblintControl" "string" None;
   (* TODO: remove *)
   (* GML.write_key g "edge" "enterFunction2" "string" None;
   GML.write_key g "edge" "returnFromFunction2" "string" None; *)
@@ -129,13 +128,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   GML.write_metadata g "specification" (Svcomp.Specification.to_string Task.specification);
   let programfile = (Node.location (N.cfgnode main_entry)).file in
   GML.write_metadata g "programfile" programfile;
-  let programhash =
-    (* TODO: calculate SHA-256 hash without external process *)
-    let in_channel = Unix.open_process_in (Printf.sprintf "sha256sum '%s'" programfile) in (* TODO: pass filename as proper argument instead of through shell, open_process_args_in requires OCaml 4.08.0 *)
-    let line = really_input_string in_channel 64 in
-    close_in in_channel;
-    line
-  in
+  let programhash = Sha256.(to_hex (file programfile)) in
   GML.write_metadata g "programhash" programhash;
   GML.write_metadata g "architecture" (get_string "exp.architecture");
   GML.write_metadata g "creationtime" (TimeUtil.iso8601_now ());
@@ -153,7 +146,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             match cfgnode, TaskResult.invariant node with
             | Statement _, Some i ->
               let i = InvariantCil.exp_replace_original_name i in
-              [("invariant", Pretty.sprint 800 (Cil.dn_exp () i));
+              [("invariant", CilType.Exp.show i);
               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
             | _ ->
               (* ignore entry and return invariants, variables of wrong scopes *)
@@ -222,13 +215,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         begin match edge with
           (* control actually only allowed in violation witness *)
           | MyARG.CFGEdge (Test (_, b)) ->
-            begin match TaskResult.result with
-              | Result.True ->
-                [("goblintControl", "condition-" ^ string_of_bool b)]
-              | Result.False _
-              | Result.Unknown ->
-                [("control", "condition-" ^ string_of_bool b)]
-            end
+            [("control", "condition-" ^ string_of_bool b)]
           (* enter and return on other side of nodes,
              more correct loc (startline) but had some scope problem? *)
           (* | MyARG.CFGEdge (Entry f) ->
@@ -282,7 +269,7 @@ open Analyses
 module Result (Cfg : CfgBidir)
               (Spec : Spec)
               (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                                  and module GVar = Basetype.Variables
+                                  and module GVar = GVarF (Spec.V)
                                   and module D = Spec.D
                                   and module G = Spec.G)
               (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
@@ -317,12 +304,11 @@ struct
         ; edge    = MyCFG.Skip
         ; local  = local
         ; global = GHT.find gh
-        ; presub = []
-        ; postsub= []
+        ; presub = (fun _ -> raise Not_found)
+        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }
       in
       Spec.query ctx
@@ -397,7 +383,7 @@ struct
       let lvar = WitnessUtil.find_main_entry entrystates in
       let main_indices = ask_indices lvar in
       (* TODO: get rid of this hack for getting index of entry state *)
-      assert (List.length main_indices = 1);
+      assert (List.compare_length_with main_indices 1 = 0);
       let main_index = List.hd main_indices in
       (fst lvar, snd lvar, main_index)
     in
@@ -495,10 +481,8 @@ struct
           in
           (module TaskResult:WitnessTaskResult)
         in
-        (* TODO: fix ana.wp if Z3 not compiled *)
         if get_bool "ana.wp" then (
-          (* match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with *)
-          match Violation.find_path (module ViolationArg) (module Violation.UnknownFeasibility (ViolationArg.Node)) with
+          match Violation.find_path (module ViolationArg) (module ViolationZ3.WP (ViolationArg.Node)) with
           | Feasible (module PathArg) ->
             (* TODO: add assumptions *)
             let module TaskResult =
@@ -528,8 +512,8 @@ struct
             (* GobConfig.set_list "ana.activated" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.activated");
             GobConfig.set_list "ana.path_sens" (Json.Build.string (Spec.name ()) :: GobConfig.get_list "ana.path_sens"); *)
             (* TODO: don't append to end; currently done to get observer order to be nice *)
-            GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [Json.Build.string (Spec.name ())]);
-            GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [Json.Build.string (Spec.name ())]);
+            GobConfig.set_list "ana.activated" (GobConfig.get_list "ana.activated" @ [`String (Spec.name ())]);
+            GobConfig.set_list "ana.path_sens" (GobConfig.get_list "ana.path_sens" @ [`String (Spec.name ())]);
 
             raise Refinement.RestartAnalysis
           | Unknown ->
@@ -546,7 +530,7 @@ struct
         let next _ = []
       end
       in
-      if Access.is_all_safe () then (
+      if !Access.is_all_safe then (
         let module TaskResult =
         struct
           module Arg = TrivialArg
@@ -576,7 +560,7 @@ struct
         let next _ = []
       end
       in
-      if not !Goblintutil.did_overflow then
+      if not !Goblintutil.svcomp_may_overflow then
         let module TaskResult =
         struct
           module Arg = Arg
@@ -606,8 +590,12 @@ struct
     let module TaskResult = (val (Stats.time "determine" (determine_result lh gh entrystates) (module Task))) in
 
     print_task_result (module TaskResult);
-    let witness_path = get_string "exp.witness.path" in
-    Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+
+    (* TODO: use witness.enabled elsewhere as well *)
+    if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
+      let witness_path = get_string "witness.path" in
+      Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
+    )
 
   let write lh gh entrystates =
     match !Goblintutil.verified with

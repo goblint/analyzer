@@ -99,7 +99,7 @@ let is_starting f = (List.mem f !concurrent_tasks) || (List.mem f !starting_task
 
 (*print id header *)
 let generate_header () =
-  let f = open_out (Filename.concat !Goblintutil.tempDirName header) in
+  let f = open_out (Fpath.(to_string (GoblintDir.preprocessed () / header))) in
   let print_resources id value = if not(is_task_res id) then output_string f ("int " ^ id ^ ";\n") else () in
   let print_events id value 	 = output_string f ("int " ^ id           ^ ";\n") in
   let print_tasks id value     = output_string f ("int " ^ trim_task id ^ ";\n") in

@@ -11,7 +11,6 @@ struct
   let name () = P.name
   module D = D
   module C = D
-  module G = Lattice.Unit
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -48,7 +47,6 @@ struct
   let name () = "stack_loc"
   module D = StackDomain.Dom3
   module C = StackDomain.Dom3
-  module G = Lattice.Unit
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

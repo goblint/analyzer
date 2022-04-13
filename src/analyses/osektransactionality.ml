@@ -15,15 +15,14 @@ struct
   let name () = "OSEK2"
   module D = Lattice.Prod (Osektupel) (Osektupel) (* Summary x Result *)
   module C = D
-  module G = Lattice.Unit
   let offpry = Osek.Spec.offensivepriorities
   let funs = Hashtbl.create 16 (* ({vars},tuple) *)
   let _ = Hashtbl.add funs MyCFG.dummy_func.svar.vname ((Set.String.empty  )  , Osektupel.bot())
 
   let should_join x y = D.equal x y
 
-  let get_lockset ctx = Obj.obj (List.assoc "OSEK" ctx.postsub)
-  let get_stack   ctx = Obj.obj (List.assoc "stack_trace_set" ctx.postsub)
+  let get_lockset ctx = Obj.obj (ctx.postsub "OSEK")
+  let get_stack   ctx = Obj.obj (ctx.postsub "stack_trace_set")
 
   let pry_d dom_elem =
     if Mutex.Lockset.is_top dom_elem then -1 else
@@ -168,8 +167,6 @@ struct
     let _ = Hashtbl.iter report_trans funs in
     if !transactional then
       print_endline "Goblint did not find any non-transactional behavior in this program!"
-
-  let init () = ()
 
 end
 

@@ -1,0 +1,77 @@
+rules:
+  - id: list-length-compare-0
+    pattern-either:
+      - pattern: List.length $L = 0
+      - pattern: List.length $L <> 0
+      - pattern: List.length $L > 0
+      - pattern: List.length $L >= 1
+      # doesn't find in ValueDomain: List.length ci.cfields > 0
+      # doesn't find in MyLiveness: List.length s.labels = 0
+    message: computing list length is inefficient for emptiness checking, compare with [] instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: list-length-compare-n
+    patterns:
+      - pattern-either:
+        - pattern: List.length $L = $N
+        - pattern: List.length $L <> $N
+        - pattern: List.length $L > $N
+        - pattern: List.length $L >= $N
+        - pattern: List.length $L < $N
+        - pattern: List.length $L <= $N
+      - metavariable-pattern:
+          metavariable: $N
+          patterns:
+            - pattern-not: "0" # covered by list-length-compare-0
+            - pattern-not: List.length ... # covered by list-length-compare-list-length
+    message: computing list length is inefficient for length comparison, use compare_length_with instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: list-length-compare-list-length
+    pattern-either:
+      - pattern: List.length $L1 = List.length $L2
+      - pattern: List.length $L1 <> List.length $L2
+      - pattern: List.length $L1 > List.length $L2
+      - pattern: List.length $L1 >= List.length $L2
+      - pattern: List.length $L1 < List.length $L2
+      - pattern: List.length $L1 <= List.length $L2
+    message: computing list length is inefficient for length comparison, use compare_lengths instead
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: list-function-temporary-combine
+    patterns:
+      - pattern: $LF ... (List.combine ... ...)
+      - metavariable-pattern:
+          metavariable: $LF
+          pattern-either:
+            - pattern: List.iter
+            - pattern: List.iteri
+            - pattern: List.map
+            - pattern: List.mapi
+            - pattern: List.rev_map
+            - pattern: List.fold_left
+            - pattern: List.fold_right
+            - pattern: List.for_all
+            - pattern: List.exists
+    message: unnecessary temporary combined list, use 2-suffixed operation directly
+    languages: [ocaml]
+    severity: WARNING
+
+  - id: list-map-flatten
+    patterns:
+      - pattern-either:
+        - pattern: $LF (List.map ... ...)
+        - pattern: $LF @@ List.map ... ...
+        - pattern: List.map ... ... |> $LF
+        - pattern: (... |> List.map ... ...) |> $LF
+      - metavariable-pattern:
+          metavariable: $LF
+          pattern-either:
+            - pattern: List.flatten
+            - pattern: List.concat
+    message: use List.concat_map instead
+    languages: [ocaml]
+    severity: WARNING

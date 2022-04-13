@@ -109,9 +109,9 @@ struct
 
   let eq_const c1 c2 =
     match c1, c2 with
-    | CInt64 (i1,_,_), CInt64 (i2,_,_) -> i1=i2
-    |	CStr s1        , CStr s2         -> s1=s2
-    |	CWStr s1       , CWStr s2        -> s1=s2
+    | CInt (i1,_,_), CInt (i2,_,_)     -> Cilint.compare_cilint i1 i2 = 0
+    |	CStr (s1,_)        , CStr (s2,_)         -> s1=s2
+    |	CWStr (s1,_)       , CWStr (s2,_)        -> s1=s2
     |	CChr c1        , CChr c2         -> c1=c2
     |	CReal (f1,_,_) , CReal (f2,_,_)  -> f1=f2
     |	CEnum (_,n1,_) , CEnum (_,n2,_)  -> n1=n2
@@ -192,7 +192,7 @@ struct
     let rec separate_fields_index o =
       match o with
       | NoOffset -> None
-      | Index (ie,o) -> Some ((fun x -> x),ie,o)
+      | Index (ie,o) -> Some (Fun.id,ie,o)
       | Field (f,o) ->
         match separate_fields_index o with
         | Some (osf, ie,o) -> Some ((fun o -> Field (f,o)), ie, o)
@@ -237,8 +237,7 @@ end
 module LockingPattern =
 struct
   include Printable.Std
-  type t = Exp.t * Exp.t * Exp.t [@@deriving eq, ord, to_yojson]
-  let hash = Hashtbl.hash
+  type t = Exp.t * Exp.t * Exp.t [@@deriving eq, ord, hash, to_yojson]
   let name () = "Per-Element locking triple"
 
   let pretty () (x,y,z) = text "(" ++ d_exp () x ++ text ", "++ d_exp () y ++ text ", "++ d_exp () z ++ text ")"
@@ -265,7 +264,7 @@ struct
     | EAddr -> "&"
     | EDeref -> "*"
     | EField f -> f.fname
-    | EIndex e -> Pretty.sprint 80 (d_exp () e)
+    | EIndex e -> CilType.Exp.show e
 
   let ees_to_str xs = List.fold_right (fun x xs -> " " ^ (ee_to_str x) ^ xs ) xs ""
 
@@ -278,7 +277,7 @@ struct
     *)	| EAddr :: EDeref :: x -> ees_to_offs x
     | EDeref :: EAddr :: x -> ees_to_offs x
     | EField f :: x -> `Field (f,ees_to_offs x)
-    | EIndex (Const (CInt64 (i, ik, str))) :: x -> `Index (IntDomain.of_const (i, ik, str),ees_to_offs x)
+    | EIndex (Const (CInt (i, ik, str))) :: x -> `Index (IntDomain.of_const (i, ik, str),ees_to_offs x)
     | EIndex i :: x -> `NoOffset              (* Ideally this would be ValueDomain.IntDomain but that leads to issues *)
     | x  -> raise NotSimpleEnough             (* with a cyclic build *)
 

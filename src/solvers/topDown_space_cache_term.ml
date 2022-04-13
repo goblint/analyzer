@@ -8,7 +8,7 @@ open Messages
 
 module WP =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)
@@ -16,8 +16,7 @@ module WP =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     type phase = Widen | Narrow
@@ -172,7 +171,7 @@ module WP =
         )
       in
       (* restore values for non-widening-points *)
-      if GobConfig.get_bool "exp.solver.wp.restore" then (
+      if GobConfig.get_bool "solvers.wp.restore" then (
         if (GobConfig.get_bool "dbg.verbose") then
           print_endline ("Restoring missing values.");
         let restore () =
@@ -188,22 +187,6 @@ module WP =
       let avg xs = float_of_int (BatList.sum xs) /. float_of_int (List.length xs) in
       if tracing then trace "cache" "#caches: %d, max: %d, avg: %.2f\n" (List.length !cache_sizes) (List.max !cache_sizes) (avg !cache_sizes);
 
-      let reachability xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then (
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constaint x
-          )
-        and one_constaint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
-      in
-      reachability vs;
       stop_event ();
 
       HM.clear stable;
@@ -214,5 +197,4 @@ module WP =
   end
 
 let _ =
-  let module WP = GlobSolverFromIneqSolver (SLR.JoinContr (WP)) in
-  Selector.add_solver ("topdown_space_cache_term", (module WP : GenericGlobSolver));
+  Selector.add_solver ("topdown_space_cache_term", (module EqIncrSolverFromEqSolver (WP)));

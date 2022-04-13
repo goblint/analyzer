@@ -201,7 +201,7 @@ struct
   let assign (lval: lval) (rval: exp) (st: t): t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     let t = Cilfacade.typeOf rval in
-    if isPointerType t then begin
+    if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
       match eval_exp (Lval lval), eval_exp rval with
       (* TODO: should offs_x matter? *)
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
@@ -252,11 +252,11 @@ struct
         else
           RegMap.find vfd m
       in
-      (*           Messages.warn_each ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
+      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []
-    | None -> Messages.warn ~msg:"Access to unknown address could be global" (); []
+    | None -> Messages.warn "Access to unknown address could be global"; []
 end
 
 (* TODO: remove Lift *)

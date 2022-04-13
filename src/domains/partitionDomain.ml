@@ -1,7 +1,5 @@
 (** Partitioning domains. *)
 
-module GU = Goblintutil
-
 module type Collapse = sig
   include Printable.S
   val collapse: t -> t -> bool
@@ -157,6 +155,14 @@ struct
 
   let widen = join
   let narrow = meet
+
+  let printXml f (xs:t) =
+    match xs with
+    | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
+    | `Lifted n ->
+      BatPrintf.fprintf f "<value>\n<map>\n";
+      iter (BatPrintf.fprintf f  "<key>\nCluster\n</key>\n%a" B.printXml) xs;
+      BatPrintf.fprintf f "</map>\n</value>\n"
 end
 
 module ExpPartitions = SetSet (Exp.Exp)

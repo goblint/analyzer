@@ -11,7 +11,6 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 // They are given in the paper. Should it be as large as possible?
 
 void *t_fun(void *arg) {
-  int t;
   pthread_mutex_lock(&mutex1);
   pthread_mutex_lock(&mutex2);
   glob1 = 5;

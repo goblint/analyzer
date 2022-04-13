@@ -1,4 +1,6 @@
-// SKIP PARAM: --sets ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
+extern int __VERIFIER_nondet_int();
+
 #include <assert.h>
 #include <stdlib.h>
 
@@ -7,7 +9,9 @@ extern int magic();
 int g;
 
 void main() {
-  int r, x, y;
+  int r = __VERIFIER_nondet_int();
+  int x = __VERIFIER_nondet_int();
+  int y = __VERIFIER_nondet_int();
 
   x = r;
   y = r;

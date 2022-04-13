@@ -21,6 +21,7 @@ void unsignedCase() {
     assert(i == 0);
 
     if(top % 3 == 17) {
+        // This is unreachable in the concrete!
         assert(top%17 == 3); //UNKNOWN!
     }
 }
@@ -47,6 +48,7 @@ int main() {
     assert(i == 0);
 
     if(top % 3 == 17) {
+        // This is unreachable in the concrete!
         assert(top%17 == 3); //UNKNOWN!
     }
 

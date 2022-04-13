@@ -49,7 +49,8 @@ EOF
 fi
 
 # If there are whitespace errors, print the offending file names and fail.
-git diff-index --check --cached $against -- || exit 1
+# Exclude *.patch from the check, as they may contain meaningful whitespace.
+git diff-index --check --cached $against -- '!*.patch' || exit 1
 
 # Check indentation for OCaml files
 # Before we checked diff <(git show :%) <(git show :% | ocp-indent)
@@ -57,7 +58,7 @@ git diff-index --check --cached $against -- || exit 1
 # Now we only check the diff between the changes and the changes run through ocp-indent.
 # See https://github.com/goblint/analyzer/issues/236
 fail="false"
-for f in $(git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$"); do
+for f in $(git diff --cached --name-only | grep -E ".*\.mli?$"); do
   # echo "Checking $f"
   # diff <(diff <(git show HEAD:$f) <(git show :$f)) <(diff <(git show HEAD:$f | ocp-indent) <(git show :$f | ocp-indent)) | sed "/^</d" | sed "s/^> //" || (echo "Problems in $f"; false)
   for l in $(git diff --cached -U0 -- $f | sed -n "s/^@@ -[^ ]* +\([^ ]*\) @@.*/\1/p"); do # macOS's sed does not support \S (`brew install gnu-sed` does), changed from: sed -n "s/^@@ -\S* +\(\S*\) @@.*/\1/p")
@@ -70,7 +71,7 @@ for f in $(git diff --cached --name-only | grep -E ".*\.ml(i|l|y)?$"); do
       lines="$a-$b"
     fi
     echo "ocp-indent file: $f, lines: $lines"
-    diff $f <(ocp-indent --lines=$lines $f) || fail="true"
+    [[ $lines -eq "0" ]] || diff $f <(ocp-indent --lines=$lines $f) || fail="true"
   done
 done
 if [ "$fail" == "true" ]; then

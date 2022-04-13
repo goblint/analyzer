@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 #include <assert.h>
 
 int f(int x) {

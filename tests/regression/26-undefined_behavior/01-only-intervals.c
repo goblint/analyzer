@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable ana.int.def_exc --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --sets exp.privatization none
+// PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
 #include <assert.h>
 
 int main() {

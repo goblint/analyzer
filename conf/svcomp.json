@@ -1,5 +1,10 @@
 {
   "ana": {
+    "base": {
+      "arrays": {
+        "domain": "partitioned"
+      }
+    },
     "sv-comp": {
       "enabled": true,
       "functions": true
@@ -13,25 +18,22 @@
       "base",
       "threadid",
       "threadflag",
+      "threadreturn",
       "mallocWrapper",
+      "mutexEvents",
       "mutex",
+      "access",
       "escape",
       "expRelation",
+      "mhp",
       "var_eq",
       "symb_locks",
       "region",
       "thread"
-    ]
-  },
-  "exp": {
-    "witness": {
-      "id": "enumerate"
+    ],
+    "context": {
+      "widen": false
     },
-    "widen-context": false,
-    "partition-arrays": {
-      "enabled": true
-    },
-    "region-offsets": true,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -45,9 +47,20 @@
         "kzalloc_node",
         "ldv_zalloc",
         "kmalloc_array",
-        "kcalloc"
+        "kcalloc",
+
+        "ldv_xmalloc",
+        "ldv_xzalloc",
+        "ldv_calloc"
       ]
     }
+  },
+  "exp": {
+    "region-offsets": true
+  },
+  "witness": {
+    "id": "enumerate",
+    "unknown": false
   },
   "solver": "td3",
   "sem": {

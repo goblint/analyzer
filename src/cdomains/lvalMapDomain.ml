@@ -60,28 +60,17 @@ sig
 end
 
 module Value (Impl: sig
-    type s (* state *)
+    type s (* state *) [@@deriving eq, ord, hash]
     val name: string
     val var_state: s
     val string_of_state: s -> string
-    val compare: s -> s -> int
   end) : S with type s = Impl.s =
 struct
-  type k = Lval.CilLval.t
-  type s = Impl.s
+  type k = Lval.CilLval.t [@@deriving eq, ord, hash]
+  type s = Impl.s [@@deriving eq, ord, hash]
   module R = struct
     include Printable.Blank
-    type t = { key: k; loc: location list; state: s }
-    let hash = Hashtbl.hash
-    let equal a b = Lval.CilLval.equal a.key b.key && a.loc = b.loc (* FIXME: polymorphic list equal! *) && a.state = b.state
-
-    let compare a b =
-      let r = Lval.CilLval.compare a.key b.key in
-      if r <> 0 then r else
-        let r = compare a.loc b.loc in (* FIXME: polymorphic list compare! *)
-        if r <> 0 then r else
-          Impl.compare a.state b.state
-
+    type t = { key: k; loc: CilType.Location.t list; state: s } [@@deriving eq, ord, hash]
     let to_yojson _ = failwith "TODO to_yojson"
     let name () = "LValMapDomainValue"
   end
@@ -92,6 +81,7 @@ struct
   module Must = Lattice.Reverse (Must')
   module May  = SetDomain.ToppedSet (R) (struct let topname = "top" end)
   include Lattice.Prod (Must) (May)
+  let name () = Impl.name
 
   (* converts to polymorphic sets *)
   let split (x,y) = try Must'.elements x |> Set.of_list, May.elements y |> Set.of_list with SetDomain.Unsupported _ -> Set.empty, Set.empty
@@ -115,7 +105,7 @@ struct
       "{ "^String.concat ", " (List.map string_of_record (Set.elements x))^" }, "^
       "{ "^String.concat ", " (List.map string_of_record (Set.elements z))^" }"
   let show x = string_of x
-  include Printable.PrintSimple (struct
+  include Printable.SimpleShow (struct
       type nonrec t = t
       let show = show
     end)
@@ -133,8 +123,6 @@ struct
   let length = split %> Tuple2.mapn Set.cardinal
   let map' f = split %> Tuple2.mapn (Set.map f)
   let filter' f = split %> Tuple2.mapn (Set.filter f)
-
-  let locs ?p:(p=const true) v = filter p v |> map' (fun x -> x.loc) |> snd |> Set.elements
 
   (* predicates *)
   let must   p (x,y) = Must'.exists p x || May.for_all p y
@@ -252,13 +240,13 @@ struct
 
   let warn ?may:(may=false) ?loc:(loc=[!Tracing.current_loc]) msg =
     match msg |> Str.split (Str.regexp "[ \n\r\x0c\t]+") with
-    | [] -> Messages.warn_each ~must:(not may) ~loc:(List.last loc) ~msg:msg ()
+    | [] -> (if may then Messages.warn else Messages.error) ~loc:(List.last loc) "%s" msg
     | h :: t ->
-      let warn_type = Messages.Warning.from_string_list (h |> Str.split (Str.regexp "[.]"))
-      in Messages.warn_each ~must:(not may) ~loc:(List.last loc) ~msg:(String.concat " " t) ~warning:warn_type ()
+      let warn_type = Messages.Category.from_string_list (h |> Str.split (Str.regexp "[.]"))
+      in (if may then Messages.warn else Messages.error) ~loc:(List.last loc) ~category:warn_type "%a" (Pretty.docList ~sep:(Pretty.text " ") Pretty.text) t
 
   (* getting keys from Cil Lvals *)
-  let sprint f x = Pretty.sprint 80 (f () x)
+  let sprint f x = Pretty.sprint ~width:80 (f () x)
 
   let key_from_lval lval = match lval with (* TODO try to get a Lval.CilLval from Cil.Lval *)
     | Var v1, o1 -> v1, Lval.CilLval.of_ciloffs o1
@@ -274,7 +262,7 @@ struct
     in
     let exp = AddrOf lval in
     let xs = query_lv ask exp in (* MayPointTo -> LValSet *)
-    Messages.debug @@ "MayPointTo "^sprint d_exp exp^" = ["
-                      ^String.concat ", " (List.map string_of_key xs)^"]";
+    let pretty_key k = Pretty.text (string_of_key k) in
+    Messages.debug "MayPointTo %a = [%a]" d_exp exp (Pretty.docList ~sep:(Pretty.text ", ") pretty_key) xs;
     xs
 end

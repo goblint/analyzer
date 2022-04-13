@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] threadreturn
+// PARAM: --set ana.activated[+] threadreturn
 #include<pthread.h>
 #include<assert.h>
 #include<stdio.h>

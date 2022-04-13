@@ -1,4 +1,6 @@
-// SKIP PARAM: --sets ana.activated[+] apron --enable ana.int.interval
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.int.interval
+extern int __VERIFIER_nondet_int();
+
 #include <assert.h>
 
 void foo(int *pb) {
@@ -9,7 +11,11 @@ void foo(int *pb) {
 }
 
 void main() {
-  int x, y, z, a, b;
+  int x = __VERIFIER_nondet_int(); //rand
+  int y = __VERIFIER_nondet_int(); //rand
+  int z = __VERIFIER_nondet_int(); //rand
+  int a = __VERIFIER_nondet_int(); //rand
+  int b = __VERIFIER_nondet_int(); //rand
   if (x < y && y < z) {
     // base doesn't know anything, apron knows x < y < z
     assert(x < y);

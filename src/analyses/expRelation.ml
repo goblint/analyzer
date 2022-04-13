@@ -4,12 +4,12 @@
 
 open Prelude.Ana
 open Analyses
+open Cilint
 
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
   module D = Lattice.Unit
-  module G = Lattice.Unit
   module C = Lattice.Unit
 
   let name () = "expRelation"
@@ -58,14 +58,15 @@ struct
       Basetype.CilExp.equal (canonize e1) (canonize e2)
     | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
       begin
+        (* Compare the cilint first in the hope that it is cheaper than the LVal comparison *)
         match e1, e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
             false  (* c > 0 => (! x+c < x) *)
-        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
+        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
             false  (* c < 0 => (! x < x+c )*)
-        | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
             false  (* c < 0 => (! x-c < x) *)
-        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
+        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
             false  (* c < 0 => (! x < x-c) *)
         | _ ->
             true
@@ -73,10 +74,10 @@ struct
     | Queries.MayBeEqual (e1,e2) when not (isFloat e1) ->
       begin
         match e1,e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _)
-        | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2) && Int64.compare i Int64.zero <> 0  ->
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
+        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _)
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
+        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _) when compare_cilint i zero_cilint <> 0 && (lvalsEq l1 l2) ->
             false
         | _ -> true
       end

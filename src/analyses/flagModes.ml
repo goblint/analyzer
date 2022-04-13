@@ -11,11 +11,10 @@ struct
   let name () = "fmode"
   module D = FlagModeDomain.Dom
   module C = FlagModeDomain.Dom
-  module G = Lattice.Unit
 
   let flag_list = ref []
 
-  let init () = flag_list := List.map Json.string @@ get_list "ana.osek.flags"
+  let init marshal = flag_list := get_string_list "ana.osek.flags"
 
   let eval_int (ask: Queries.ask) exp =
     match ask.f (Queries.EvalInt exp) with

@@ -1,4 +1,4 @@
-// PARAM: --set exp.earlyglobs true --set exp.precious_globs[+] "'g'"
+// PARAM: --set exp.earlyglobs true --set exp.exclude_from_earlyglobs[+] "'g'"
 
 int g = 10;
 int main(void){

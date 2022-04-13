@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] symb_locks --sets ana.activated[+] region --sets ana.activated[+] var_eq --enable exp.region-offsets
+// SKIP PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] region --set ana.activated[+] var_eq --enable exp.region-offsets
 #include <pthread.h>
 
 int data[10];

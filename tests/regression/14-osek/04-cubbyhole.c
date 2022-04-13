@@ -1,4 +1,5 @@
-// SKIP PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --sets ana.osek.oil 04-cubbyhole.oil --sets ana.osek.tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h -I 04-defaultAppWorkstation/ -I 04-defaultAppWorkstation/os-minimalheaders/os_machine/posix-libpcl/ -I 04-defaultAppWorkstation/os-minimalheaders/ --sets ana.osek.taskprefix function_of_ --sets ana.osek.isrprefix function_of_
+// SKIP PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --set ana.osek.oil 04-cubbyhole.oil  -I 04-defaultAppWorkstation/ -I 04-defaultAppWorkstation/os-minimalheaders/os_machine/posix-libpcl/ -I 04-defaultAppWorkstation/os-minimalheaders/ --set ana.osek.taskprefix function_of_ --set ana.osek.isrprefix function_of_
+// Option 'tramp' has been removed, we used to set --set ana.osek.tramp 04-defaultAppWorkstation/tpl_os_generated_configuration.h
 
 #include <stdio.h>
 #include <string.h>

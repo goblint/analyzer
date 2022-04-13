@@ -22,17 +22,43 @@ Unlike [tracing](./debugging.md#tracing), timings cannot be toggled easily, so b
 
 
 ## perf
-`perf` is a Linux profiling tool. It can be used to profile Goblint as follows:
+`perf` is a Linux profiling tool.
+First, record profiling data from a Goblint run:
+```console
+perf record --call-graph=dwarf ./goblint GOBLINT_ARGUMENTS
+```
 
-1. Record profiling data from a Goblint run: `perf record ./goblint GOBLINT_ARGUMENTS`.
-2. View recorded data: `perf report`.
+Then the resulting `perf.data` file can be inspected in various ways.
 
-    Following keys can be used for navigation:
+### perf report
+`perf report` is its built-in terminal based viewing tool:
 
-    * Arrows for moving around.
-    * `+` for expanding/collapsing one callstack level.
-    * `e` for expanding/collapsing all callstack levels.
-    * `q` for quitting.
+1. For top-down hierarchy run: `perf report --children`.
+2. For bottom-up hierarchy run: `perf report --no-children`.
 
-    Function names are mangled: they contain the top-level OCaml module name and function name (or just `fun` for lambdas).
-    Due to inlining some callstack levels might be skipped, making it difficult to follow.
+Following keys can be used for navigation:
+
+* Arrows for moving around.
+* `+` for expanding/collapsing one callstack level.
+* `e` for expanding/collapsing all callstack levels.
+* `q` for quitting.
+
+Function names are mangled: they contain the top-level OCaml module name and function name (or just `fun` for lambdas).
+Due to inlining some callstack levels might be skipped, making it difficult to follow.
+
+### Firefox Profiler
+[Firefox Profiler](https://profiler.firefox.com/) is a web-based tool, which also supports a form of perf output.
+It's easier to browse around with and supports additional features like built-in flame graphs.
+
+It can be used as follows:
+
+1. Convert `perf.data` by running: `perf script -F +pid > OUTPUT_FILE`.
+2. Go to <https://profiler.firefox.com/>.
+3. Click "Load a profile from file" and upload `OUTPUT_FILE`.
+
+For more information, see [Firefox Profiler's documentation](https://profiler.firefox.com/docs/#/./guide-perf-profiling).
+
+
+## Memtrace
+`memtrace` is a library and tool for profiling OCaml memory usage.
+For a tutorial, see [Jane Street Tech Blog](https://blog.janestreet.com/finding-memory-leaks-with-memtrace/).

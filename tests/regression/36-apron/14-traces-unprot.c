@@ -1,4 +1,6 @@
-// SKIP PARAM: --sets ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
+extern int __VERIFIER_nondet_int();
+
 #include <pthread.h>
 #include <assert.h>
 
@@ -10,7 +12,8 @@ void *t_fun(void *arg) {
 }
 
 int main(void) {
-  int x, y;
+  int x = __VERIFIER_nondet_int(); // rand
+  int y = __VERIFIER_nondet_int(); //rand
 
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);

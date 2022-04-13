@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.congruence --sets sem.int.signed_overflow assume_none
+// PARAM: --enable ana.int.congruence --set sem.int.signed_overflow assume_none
 // from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/implicitunsignedconversion-1.c
 int main() {
   unsigned int plus_one = 1;

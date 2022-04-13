@@ -13,14 +13,14 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.12.0 # matches opam lock file
+          - 4.14.0 # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up OCaml ${{ matrix.ocaml-compiler }}
         env:
@@ -32,7 +32,7 @@ jobs:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
 
       - name: Install dependencies
-        run: opam install . --deps-only --locked
+        run: opam install . --deps-only --locked --with-test
 
       - name: Build
         run: ./make.sh nat
@@ -41,10 +41,60 @@ jobs:
         run: ./make.sh headers testci
 
       - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run: ruby scripts/update_suite.rb group apron -s
+        run:  ruby scripts/update_suite.rb group apron -s;
 
-      - name: Build domaintest
-        run: ./make.sh domaintest
+      - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run:  ruby scripts/update_suite.rb group octagon -s
 
-      - name: Test domains
-        run: ./goblint.domaintest
+      - name: Test apron regression (Mukherjee et. al  SAS '17 paper') # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
+        run: ruby scripts/update_suite.rb group apron-mukherjee -s
+
+      - name: Test unit
+        run: opam exec -- dune runtest unittest
+
+      - name: Test incremental regression
+        run: ruby scripts/update_suite.rb -i
+
+  gobview:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.14.0 # matches opam lock file
+          # don't add any other because they won't be used
+        node-version:
+          - 14
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        env:
+          # otherwise setup-ocaml pins non-locked dependencies
+          # https://github.com/ocaml/setup-ocaml/issues/166
+          OPAMLOCKED: locked
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: opam install . --deps-only --locked
+
+      - name: Setup Gobview
+        run: ./make.sh setup_gobview
+
+      - name: Build
+        run: ./make.sh nat
+
+      - name: Build Gobview
+        run: opam exec -- dune build gobview

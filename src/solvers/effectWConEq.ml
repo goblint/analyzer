@@ -1,8 +1,10 @@
+open Prelude
 open Analyses
+open Constraints
 
 module Make =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Generic.SolverStats (S) (HM)
     module VS = BatSet.Make (S.Var)
@@ -74,23 +76,6 @@ module Make =
       start_event ();
       List.iter set_start st;
       List.iter solve vs;
-
-      let reachability xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then begin
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constaint x
-          end
-        and one_constaint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
-      in
-      reachability vs;
       stop_event ();
 
       HM.clear stable;
@@ -101,5 +86,4 @@ module Make =
   end
 
 let _ =
-  let module S3 = Constraints.GlobSolverFromIneqSolver (SLR.JoinContr (Make)) in
-  Selector.add_solver ("effectWConEq", (module S3 : GenericGlobSolver));
+  Selector.add_solver ("effectWConEq", (module EqIncrSolverFromEqSolver (Make)));

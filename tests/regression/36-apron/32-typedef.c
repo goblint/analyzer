@@ -1,4 +1,4 @@
-// SKIP PARAM: --sets ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
 // extracted from sv-benchmarks float-newlib/double_req_bl_0210.c
 #include <assert.h>
 

@@ -219,7 +219,7 @@ class doFeatureClass = object(self)
         if !debug then ignore(E.log "Liveness: stmt: %d not found\n" s.sid);
         DoChildren
     else
-      (if List.length s.labels = 0 then
+      (if s.labels = [] then
          if !debug then ignore(E.log "Liveness: no label at sid=%d\n" s.sid);
        DoChildren)
 

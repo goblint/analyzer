@@ -4,6 +4,8 @@
 val should_wrap: Cil.ikind -> bool
 val should_ignore_overflow: Cil.ikind -> bool
 
+val reset_lazy: unit -> unit
+
 module type Arith =
 sig
   type t
@@ -190,8 +192,8 @@ sig
   (** Checks if the element is a definite boolean value. If this function
     * returns [true], the above [to_bool] should return a real value. *)
 
-  val to_excl_list: t -> int_t list option
-  (** Gives a list representation of the excluded values if possible. *)
+  val to_excl_list: t -> (int_t list * (int64 * int64)) option
+  (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
   (** Creates an exclusion set from a given list of integers. *)
@@ -231,6 +233,7 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
+  val arbitrary: unit -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -268,8 +271,11 @@ sig
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
+
+  val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
+  val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
 
@@ -296,6 +302,8 @@ sig
   val ending     : Cil.ikind -> int_t -> t
 
   val is_top_of: Cil.ikind -> t -> bool
+
+  val project: PrecisionUtil.precision -> t -> t
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
@@ -319,14 +327,14 @@ module IntDomTuple : sig
   val no_interval: t -> t
 end
 
-val of_const: int64 * Cil.ikind * string option -> IntDomTuple.t
+val of_const: Cilint.cilint * Cil.ikind * string option -> IntDomTuple.t
 
 
 module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
-  val range           : Cil.ikind -> int64 * int64
-  val range_big_int   : Cil.ikind -> Z.t * Z.t
+  val range           : Cil.ikind -> Z.t * Z.t
+  val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
   val bits            : Cil.ikind -> int * int
 end
 
@@ -367,7 +375,11 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
-module BigInt : Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+module BigInt:
+  sig
+    include Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+    val cast_to: Cil.ikind -> Z.t -> Z.t
+  end
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
 

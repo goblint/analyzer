@@ -1,246 +1,159 @@
-open Cil
-open Pretty
 open GobConfig
 module GU = Goblintutil
 
-type array_oob =
-  | PastEnd
-  | BeforeStart
-  | Unknown
+module Category = MessageCategory
 
-type undefined_behavior =
-  | ArrayOutOfBounds of array_oob
-  | NullPointerDereference
-  | UseAfterFree
 
-type behavior =
-  | Undefined of undefined_behavior
-  | Implementation
-  | Machine
-
-type integer = Overflow | DivByZero
-
-type cast = TypeMismatch
-
-type warning =
-  | Behavior of behavior
-  | Integer of integer
-  | Race
-  | Cast of cast
-  | Unknown
-  | Debug
-  | Analyzer
-
-module Warning =
+module Severity =
 struct
-  type t = warning
+  type t =
+    | Error
+    | Warning
+    | Info
+    | Debug
+    | Success
+  [@@deriving eq, hash, show { with_path = false }, enum]
+  (* TODO: fix ord Error: https://github.com/ocaml-ppx/ppx_deriving/issues/254 *)
 
-  module Behavior =
-  struct
-    type t = behavior
-
-    let create (e: t): warning = Behavior e
-    let undefined e: warning = create @@ Undefined e
-    let implementation (): warning = create @@ Implementation
-    let machine (): warning = create @@ Machine
-
-    module Undefined =
-    struct
-      type t = undefined_behavior
-
-      let create (e: t): warning = undefined e
-      let array_out_of_bounds e: warning = create @@ ArrayOutOfBounds e
-      let nullpointer_dereference (): warning = create @@ NullPointerDereference
-      let use_after_free (): warning = create @@ UseAfterFree
-
-      module ArrayOutOfBounds =
-      struct
-        type t = array_oob
-
-        let create (e: t): warning = array_out_of_bounds e
-        let past_end (): warning = create PastEnd
-        let before_start (): warning = create BeforeStart
-        let unknown (): warning = create Unknown
-
-        let from_string_list (s: string list): warning =
-          match s with
-          | [] -> Unknown
-          | h :: t -> match h with
-            | "past_end" -> past_end ()
-            | "before_start" -> before_start ()
-            | "unknown" -> unknown ()
-            | _ -> Unknown
-
-        let show (e: t): string =
-          match e with
-          | PastEnd -> "PastEnd]" ^ " Index is past the end of the array."
-          | BeforeStart -> "BeforeStart]" ^ " Index is before start of the array."
-          | Unknown -> "Unknown]" ^ " Not enough information about index."
-      end
-
-      let from_string_list (s: string list): warning =
-        match s with
-        | [] -> Unknown
-        | h :: t -> match h with
-          | "array_out_of_bounds" -> ArrayOutOfBounds.from_string_list t
-          | "nullpointer_dereference" -> nullpointer_dereference ()
-          | "use_after_free" -> use_after_free ()
-          | _ -> Unknown
-
-      let show (e: t): string =
-        match e with
-        | ArrayOutOfBounds e -> "ArrayOutOfBounds > "^(ArrayOutOfBounds.show e)
-        | NullPointerDereference -> "NullPointerDereference]"
-        | UseAfterFree -> "UseAfterFree]"
-    end
-
-    let from_string_list (s: string list): warning =
-      match s with
-      | [] -> Unknown
-      | h :: t -> ();match h with
-        | "undefined" -> Undefined.from_string_list t
-        | "implementation" -> implementation ()
-        | "machine" -> machine ()
-        | _ -> Unknown
-
-    let show (e: t): string =
-      match e with
-      | Undefined u -> "Undefined > "^(Undefined.show u)
-      | Implementation -> "Implementation > "
-      | Machine -> "Machine > "
-  end
-
-  module Integer =
-  struct
-    type t = integer
-
-    let create (e: t): warning = Integer e
-    let overflow (): warning = create Overflow
-    let div_by_zero (): warning = create DivByZero
-
-    let from_string_list (s: string list): warning =
-      match s with
-      | [] -> Unknown
-      | h :: t -> ();match h with
-        | "overflow" -> overflow ()
-        | "div_by_zero" -> div_by_zero ()
-        | _ -> Unknown
-
-    let show (e: t): string =
-      match e with
-      | Overflow -> "Overflow]"
-      | DivByZero -> "DivByZero]"
-  end
-
-  module Cast =
-  struct
-    type t = cast
-
-    let create (e: t): warning = Cast e
-    let type_mismatch (): warning = create TypeMismatch
-
-    let from_string_list (s: string list): warning =
-      match s with
-      | [] -> Unknown
-      | h :: t -> ();match h with
-        | "type_mismatch" -> type_mismatch ()
-        | _ -> Unknown
-
-    let show (e: t): string =
-      match e with
-      | TypeMismatch -> "TypeMismatch]"
-  end
+  let compare x y = Stdlib.compare (to_enum x) (to_enum y)
 
   let should_warn e =
-    let to_string e =
-      match e with
-      | Behavior _ -> "behavior"
-      | Integer _ -> "integer"
-      | Race -> "race"
-      | Cast _ -> "cast"
-      | Unknown -> "unknown"
+    let to_string = function
+      | Error -> "error"
+      | Warning -> "warning"
+      | Info -> "info"
       | Debug -> "debug"
-      | Analyzer -> "analyzer"
-    in get_bool ("warn." ^ (to_string e))
+      | Success -> "success"
+    in
+    get_bool ("warn." ^ (to_string e))
 
-  let show e =
-    match e with
-    | Behavior x -> "[Behavior > " ^ (Behavior.show x)
-    | Integer x -> "[Integer > " ^ (Integer.show x)
-    | Race -> "[Race]"
-    | Cast x -> "[Cast > " ^ (Cast.show x)
-    | Unknown -> "[Unknown]"
-    | Debug -> "[Debug]"
-    | Analyzer -> "[Analyzer]"
-
-  let from_string_list (s: string list) =
-    match s with
-    | [] -> Unknown
-    | h :: t -> match h with
-      | "behavior" -> Behavior.from_string_list t
-      | "integer" -> Integer.from_string_list t
-      | "race" -> Race
-      | "cast" -> Cast.from_string_list t
-      | "debug" -> Debug
-      | "analyzer" -> Analyzer
-      | _ -> Unknown
+  let to_yojson x = `String (show x)
+  let of_yojson = function
+    | `String "Error" -> Result.Ok Error
+    | `String "Warning" -> Result.Ok Warning
+    | `String "Info" -> Result.Ok Info
+    | `String "Debug" -> Result.Ok Debug
+    | `String "Success" -> Result.Ok Success
+    | _ -> Result.Error "Messages.Severity.of_yojson"
 end
 
-module Certainty = struct
-  type t = May | Must
-
-  let should_warn e =
-    let to_string e =
-      match e with
-      | May -> "may"
-      | Must -> "must"
-    in get_bool ("warn." ^ (to_string e))
-
-  let show c =
-    match c with
-    | May -> "[May]"
-    | Must -> "[Must]"
-end
-
-module WarningWithCertainty =
+module Piece =
 struct
   type t = {
-    warn_type : Warning.t;
-    certainty: Certainty.t option
-  }
+    loc: CilType.Location.t option; (* only *_each warnings have this, used for deduplication *)
+    text: string;
+    context: (Obj.t [@equal fun x y -> Hashtbl.hash (Obj.obj x) = Hashtbl.hash (Obj.obj y)] [@compare fun x y -> Stdlib.compare (Hashtbl.hash (Obj.obj x)) (Hashtbl.hash (Obj.obj y))] [@hash fun x -> Hashtbl.hash (Obj.obj x)] [@to_yojson fun x -> `Int (Hashtbl.hash (Obj.obj x))] [@of_yojson fun x -> Result.Ok Goblintutil.dummy_obj]) option; (* TODO: this equality is terrible... *)
+  } [@@deriving eq, ord, hash, yojson]
 
-  let should_warn (e:t) = Warning.should_warn e.warn_type && (match e.certainty with Some c -> Certainty.should_warn c | _ -> true)
-
-  let debug () = {warn_type = Debug; certainty = None}
-
-  let create ?must:(must=false) w = {warn_type = w; certainty = Some (if must then Certainty.Must else Certainty.May)}
-  let show {warn_type; certainty} =
-    let certainty_str = match certainty with
-      | Some c -> (Certainty.show c)
-      | None -> ""
-    and warning_tag = match warn_type with
-      | Debug -> ""
-      | _ -> "[Warning]"
-    in warning_tag^certainty_str^(Warning.show warn_type)
+  let text_with_context {text; context; _} =
+    match context with
+    | Some context when GobConfig.get_bool "dbg.warn_with_context" -> text ^ " in context " ^ string_of_int (Hashtbl.hash context) (* TODO: this is kind of useless *)
+    | _ -> text
 end
 
-exception Bailure of string
-let bailwith s = raise (Bailure s)
+module MultiPiece =
+struct
+  type group = {group_text: string; pieces: Piece.t list} [@@deriving eq, ord, hash, yojson]
+  type t =
+    | Single of Piece.t
+    | Group of group
+  [@@deriving eq, ord, hash, yojson]
 
-let warning_table : [`text of string * location | `group of string * ((string * location) list)] list ref = ref []
-let warnings = ref false
-let soundness = ref true
-let warn_out = ref stdout
-let tracing = Config.tracing
+  let to_yojson = function
+    | Single piece -> Piece.to_yojson piece
+    | Group group -> group_to_yojson group
+
+  let of_yojson = function
+    | (`Assoc l) as json when List.mem_assoc "group_text" l ->
+      group_of_yojson json
+      |> BatResult.map (fun group -> Group group)
+    | json ->
+      Piece.of_yojson json
+      |> BatResult.map (fun piece -> Single piece)
+end
+
+module Tag =
+struct
+  type t =
+    | Category of Category.t
+    | CWE of int
+  [@@deriving eq, ord, hash]
+
+  let pp ppf = function
+    | Category category -> Format.pp_print_string ppf (Category.show category)
+    | CWE n -> Format.fprintf ppf "CWE-%d" n
+
+  let should_warn = function
+    | Category category -> Category.should_warn category
+    | CWE _ -> false (* TODO: options for CWEs? *)
+
+  let to_yojson = function
+    | Category category -> `Assoc [("Category", Category.to_yojson category)]
+    | CWE n -> `Assoc [("CWE", `Int n)]
+
+  let of_yojson = function
+    | `Assoc [("Category", category)] ->
+      Category.of_yojson category
+      |> BatResult.map (fun category ->
+          Category category
+        )
+    | `Assoc [("CWE", `Int n)] -> Result.Ok (CWE n)
+    | _ -> Result.Error "Messages.Tag.of_yojson"
+end
+
+module Tags =
+struct
+  type t = Tag.t list [@@deriving eq, ord, hash, yojson]
+
+  let pp =
+    let pp_tag_brackets ppf tag = Format.fprintf ppf "[%a]" Tag.pp tag in
+    Format.pp_print_list ~pp_sep:GobFormat.pp_print_nothing pp_tag_brackets
+
+  let should_warn tags = List.exists Tag.should_warn tags
+end
+
+module Message =
+struct
+  type t = {
+    tags: Tags.t;
+    severity: Severity.t;
+    multipiece: MultiPiece.t;
+  } [@@deriving eq, ord, hash, yojson]
+
+  let should_warn {tags; severity; _} =
+    Tags.should_warn tags && Severity.should_warn severity
+end
+
+module Table =
+struct
+  module MH = Hashtbl.Make (Message)
+
+  let messages_table = MH.create 113 (* messages without order for quick mem lookup *)
+  let messages_list = ref [] (* messages with reverse order (for cons efficiency) *)
+
+  let mem = MH.mem messages_table
+
+  let add m =
+    MH.replace messages_table m ();
+    messages_list := m :: !messages_list
+
+  let to_list () =
+    List.rev !messages_list (* reverse to get in addition order *)
+
+  let to_yojson () =
+    [%to_yojson: Message.t list] (to_list ())
+end
+
+
+let formatter = ref Format.std_formatter
+let () = AfterConfig.register (fun () ->
+    if !formatter == Format.std_formatter && MessageUtil.colors_on Unix.stdout then
+      GobFormat.pp_set_ansi_color_tags !formatter
+  )
+
 let xml_file_name = ref ""
 
-let push_warning w =
-  if get_string "result" = "fast_xml" || get_bool "gobview" then
-    warning_table := w :: !warning_table
 
-let track m =
-  let loc = !Tracing.current_loc in
-  Printf.fprintf !warn_out "Track (%s); %s\n" (CilType.Location.show loc) m
 
 (*Warning files*)
 let warn_race = ref stdout
@@ -262,120 +175,131 @@ let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
 
-let colors_on () = (* use colors? *)
-  let c = get_string "colors" in
-  c = "always" || c = "auto" && Unix.(isatty stdout)
 
-let colorize ?on:(on=colors_on ()) msg =
-  let colors = [("gray", "30"); ("red", "31"); ("green", "32"); ("yellow", "33"); ("blue", "34");
-                ("violet", "35"); ("turquoise", "36"); ("white", "37"); ("reset", "0;00")] in
-  let replace (color,code) =
-    let modes = [(fun x -> x), "0" (* normal *); String.uppercase_ascii, "1" (* bold *)] in
-    List.fold_right (fun (f,m) -> Str.global_replace (Str.regexp ("{"^f color^"}")) (if on then "\027["^m^";"^code^"m" else "")) modes
+
+
+let print ?(ppf= !formatter) (m: Message.t) =
+  let severity_stag = match m.severity with
+    | Error -> "red"
+    | Warning -> "yellow"
+    | Info -> "blue"
+    | Debug -> "white" (* non-bright white is actually some gray *)
+    | Success -> "green"
   in
-  let msg = List.fold_right replace colors msg in
-  msg^(if on then "\027[0;0;00m" else "") (* reset at end *)
+  let pp_prefix = Format.dprintf "@{<%s>[%a]%a@}" severity_stag Severity.pp m.severity Tags.pp m.tags in
+  let pp_piece ppf piece =
+    let pp_loc ppf = Format.fprintf ppf " @{<violet>(%a)@}" CilType.Location.pp in
+    Format.fprintf ppf "@{<%s>%s@}%a" severity_stag (Piece.text_with_context piece) (Format.pp_print_option pp_loc) piece.loc
+  in
+  let pp_quote ppf (loc: Cil.location) =
+    let lines = BatFile.lines_of loc.file in
+    BatEnum.drop (loc.line - 1) lines;
+    let lines = BatEnum.take (loc.endLine - loc.line + 1) lines in
+    let lines = BatList.of_enum lines in
+    match lines with
+    | [] -> assert false
+    | [line] ->
+      let prefix = BatString.slice ~last:(loc.column - 1) line in
+      let middle = BatString.slice ~first:(loc.column - 1) ~last:(loc.endColumn - 1) line in
+      let suffix = BatString.slice ~first:(loc.endColumn - 1) line in
+      Format.fprintf ppf "%s@{<turquoise>%s@}%s" prefix middle suffix
+    | first :: rest ->
+      begin match BatList.split_at (List.length rest - 1) rest with
+        | (middles, [last]) ->
+          let first_prefix = BatString.slice ~last:(loc.column - 1) first in
+          let first_middle = BatString.slice ~first:(loc.column - 1) first in
+          let last_middle = BatString.slice ~last:(loc.endColumn - 1) last in
+          let last_suffix = BatString.slice ~first:(loc.endColumn - 1) last in
+          Format.fprintf ppf "%s@{<turquoise>%a@}%s" first_prefix (Format.pp_print_list Format.pp_print_string) (first_middle :: middles @ [last_middle]) last_suffix
+        | _ -> assert false
+      end
+  in
+  let pp_piece ppf piece =
+    if get_bool "warn.quote-code" then (
+      let pp_cut_quote ppf = Format.fprintf ppf "@,@[<v 0>%a@,@]" (Format.pp_print_option pp_quote) in
+      Format.fprintf ppf "%a%a" pp_piece piece pp_cut_quote piece.loc
+    )
+    else
+      pp_piece ppf piece
+  in
+  let pp_multipiece ppf = match m.multipiece with
+    | Single piece ->
+      pp_piece ppf piece
+    | Group {group_text; pieces} ->
+      let pp_piece2 ppf = Format.fprintf ppf "@[<v 2>%a@]" pp_piece in (* indented box for quote *)
+      Format.fprintf ppf "@{<%s>%s:@}@,@[<v>%a@]" severity_stag group_text (Format.pp_print_list pp_piece2) pieces
+  in
+  Format.fprintf ppf "@[<v 2>%t %t@]\n%!" pp_prefix pp_multipiece
 
-let print_msg msg loc =
-  let msgc = colorize msg in
-  let msg  = colorize ~on:false msg in
-  push_warning (`text (msg, loc));
-  if get_bool "gccwarn" then
-    Printf.printf "%s: warning: %s\n" (CilType.Location.show loc) msg
-  else
-    let color = if colors_on () then "{violet}" else "" in
-    let s = Printf.sprintf "%s %s(%s)" msgc color (CilType.Location.show loc) in
-    Printf.fprintf !warn_out "%s\n%!" (colorize s)
 
-let print_err msg loc =
-  push_warning (`text (msg, loc));
-  if get_bool "gccwarn" then
-    Printf.printf "%s: error: %s\n" (CilType.Location.show loc) msg
-  else
-    Printf.fprintf !warn_out "%s (%s)\n%!" msg (CilType.Location.show loc)
+let add m =
+  if !GU.should_warn then (
+    if Message.should_warn m && not (Table.mem m) then (
+      print m;
+      Table.add m
+    )
+  )
 
+(** Adapts old [print_group] to new message structure.
+    Don't use for new (group) warnings. *)
+let msg_group_race_old severity group_name errors =
+  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None}) errors}} in
+  add m;
 
-let print_group group_name errors =
-  (* Add warnings to global warning list *)
-  push_warning (`group (group_name, errors));
-  let f (msg,loc): doc = Pretty.dprintf "%s (%a)" msg CilType.Location.pretty loc in
-  if (get_bool "ana.osek.warnfiles") then begin
+  if (get_bool "ana.osek.warnfiles") then
+    let print ~out = print ~ppf:(Format.formatter_of_out_channel out) in
     match (String.sub group_name 0 6) with
-    | "Safely" -> ignore (Pretty.fprintf !warn_safe "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Datara" -> ignore (Pretty.fprintf !warn_race "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "High r" -> ignore (Pretty.fprintf !warn_higr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "High w" -> ignore (Pretty.fprintf !warn_higw "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Low re" -> ignore (Pretty.fprintf !warn_lowr "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
-    | "Low wr" -> ignore (Pretty.fprintf !warn_loww "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
+    | "Safely" -> print ~out:!warn_safe m
+    | "Datara" -> print ~out:!warn_race m
+    | "High r" -> print ~out:!warn_higr m
+    | "High w" -> print ~out:!warn_higw m
+    | "Low re" -> print ~out:!warn_lowr m
+    | "Low wr" -> print ~out:!warn_loww m
     | _ -> ()
-  end;
-  ignore (Pretty.fprintf !warn_out "%s:\n  @[%a@]\n" group_name (docList ~sep:line f) errors)
 
-let warn_urgent msg =
-  if !GU.should_warn then begin
-    soundness := false;
-    print_msg msg (!Tracing.current_loc)
-  end
+let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
-let warn_all ?loc:(loc= !Tracing.current_loc) msg =
-  if !GU.should_warn then begin
-    if !warnings then
-      print_msg msg loc;
-    soundness := false
-  end
+let msg_context () =
+  if GobConfig.get_bool "dbg.warn_with_context" then
+    !current_context
+  else
+    None (* avoid identical messages from multiple contexts without any mention of context *)
 
-exception StopTheWorld
-let waitWhat s =
-  print_msg s (!Tracing.current_loc);
-  raise StopTheWorld
+let msg severity ?loc:(loc= !Tracing.current_loc) ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc =
+    let text = Pretty.sprint ~width:max_int doc in
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = Some loc; text; context = msg_context ()}}
+  in
+  Pretty.gprintf finish fmt
 
-let report_error msg =
-  if !GU.should_warn then begin
-    let loc = !Tracing.current_loc in
-    print_err msg loc
-  end
+let msg_noloc severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc =
+    let text = Pretty.sprint ~width:max_int doc in
+    add {tags = Category category :: tags; severity; multipiece = Single {loc = None; text; context = msg_context ()}}
+  in
+  Pretty.gprintf finish fmt
 
-let with_context msg = function
-  | Some ctx when GobConfig.get_bool "dbg.warn_with_context" -> msg ^ " in context " ^ string_of_int (Hashtbl.hash ctx)
-  | _ -> msg
+let msg_group severity ?(tags=[]) ?(category=Category.Unknown) fmt =
+  let finish doc msgs =
+    let group_text = Pretty.sprint ~width:max_int doc in
+    let piece_of_msg (doc, loc) =
+      let text = Pretty.sprint ~width:max_int doc in
+      Piece.{loc; text; context = None}
+    in
+    add {tags = Category category :: tags; severity; multipiece = Group {group_text; pieces = List.map piece_of_msg msgs}}
+  in
+  Pretty.gprintf finish fmt
 
-let warn_str_hashtbl = Hashtbl.create 10
-let warn_lin_hashtbl = Hashtbl.create 10
-
-let warn_internal ?ctx ?msg:(msg="") (warning: WarningWithCertainty.t) =
-  if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let msg = (WarningWithCertainty.show warning)^(if msg != "" then " "^msg else "") in
-    let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_str_hashtbl msg == false) then
-      begin
-        warn_all msg;
-        Hashtbl.add warn_str_hashtbl msg true
-      end
-  end
-
-let warn_internal_with_loc ?ctx ?loc:(loc= !Tracing.current_loc) ?msg:(msg="") (warning: WarningWithCertainty.t) =
-  if !GU.should_warn && (WarningWithCertainty.should_warn warning) then begin
-    let msg = (WarningWithCertainty.show warning)^(if msg != "" then " "^msg else "") in
-    let msg = with_context msg ctx in
-    if (Hashtbl.mem warn_lin_hashtbl (msg,loc) == false) then
-      begin
-        warn_all ~loc:loc msg;
-        Hashtbl.add warn_lin_hashtbl (msg,loc) true
-      end
-  end
-
-let warn ?must:(must=false) ?ctx ?msg:(msg="") ?warning:(warning=Unknown) () =
-  warn_internal ~ctx:ctx ~msg:msg (WarningWithCertainty.create ~must:must warning)
-
-let warn_each ?must:(must=false) ?ctx ?loc ?msg:(msg="") ?warning:(warning=Unknown) () =
-  match loc with
-  | Some loc -> warn_internal_with_loc ~ctx:ctx ~loc:loc ~msg:msg (WarningWithCertainty.create ~must:must warning)
-  | None -> warn_internal_with_loc ~ctx:ctx ~msg:msg (WarningWithCertainty.create ~must:must warning)
-
-let debug msg =
-  if (get_bool "dbg.debug") then warn_internal ~msg:("{BLUE}"^msg) @@ WarningWithCertainty.debug ()
-
-let debug_each msg =
-  if (get_bool "dbg.debug") then warn_internal_with_loc ~msg:("{blue}"^msg) @@ WarningWithCertainty.debug ()
+(* must eta-expand to get proper (non-weak) polymorphism for format *)
+let warn ?loc = msg Warning ?loc
+let warn_noloc ?tags = msg_noloc Warning ?tags
+let error ?loc = msg Error ?loc
+let error_noloc ?tags = msg_noloc Error ?tags
+let info ?loc = msg Info ?loc
+let info_noloc ?tags = msg_noloc Info ?tags
+let debug ?loc = msg Debug ?loc
+let debug_noloc ?tags = msg_noloc Debug ?tags
+let success ?loc = msg Success ?loc
+let success_noloc ?tags = msg_noloc Success ?tags
 
 include Tracing

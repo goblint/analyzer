@@ -3,6 +3,10 @@ This is the artifact description for our SAS '21 paper "Improving Thread-Modular
 The artifact is available from Zenodo [here](https://doi.org/10.5281/zenodo.5148607).
 
 The artifact is a VirtualBox Image based on Ubuntu 20.04.1. The login is `goblint:goblint`.
+
+These instructions might have been updated to match the current version of Goblint.
+When using the artifact, follow the similar instructions it includes.
+
 ## Validation
 
 ### Step by Step Instructions
@@ -91,7 +95,7 @@ presented in the paper quickly.
         or
 
     * Run some of the regression tests in `tests/regression/13-privatized` by calling `./regtest.sh 13 xx` where `xx` is the number of the test. Especially `xx > 16` are interesting, these were added with the paper and highlight
-      differences between different approaches. Use the `--sets exp.privatization chosenname` option to choose which thread-modular analysis to use.
+      differences between different approaches. Use the `--set ana.base.privatization chosenname` option to choose which thread-modular analysis to use.
 
 ### Outline of how the code is structured
 Lastly, we give a general outline of how code in the Goblint framework is organized:

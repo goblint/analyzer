@@ -1,4 +1,4 @@
-//PARAM: --sets ana.int.refinement once --enable ana.int.interval --enable ana.int.congruence --disable ana.int.def_exc
+//PARAM: --set ana.int.refinement once --enable ana.int.interval --enable ana.int.congruence --disable ana.int.def_exc
 
 int main(void)
 {

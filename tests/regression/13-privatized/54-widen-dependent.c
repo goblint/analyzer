@@ -16,7 +16,7 @@ void *worker(void *arg )
   while (g <= 0) {
 
   }
-  assert(g > 0); // TODO
+  assert(g > 0); // precise privatization fails
   g--;
   pthread_mutex_unlock(&A);
   return NULL;
@@ -31,7 +31,7 @@ int main(int argc , char **argv )
   while (g >= 10) {
 
   }
-  assert(g >= 0); // TODO
+  assert(g >= 0); // precise privatization fails
   g++;
   pthread_mutex_unlock(&A);
   return 0;

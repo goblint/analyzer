@@ -1,4 +1,4 @@
-//PARAM: --enable ana.int.congruence  --sets sem.int.signed_overflow assume_none --disable ana.int.def_exc --disable ana.int.enums
+//PARAM: --enable ana.int.congruence  --set sem.int.signed_overflow assume_none --disable ana.int.def_exc --disable ana.int.enums
 // Examples taken from P. Granger "Static analysis of arithmetical congruences" (1989, International Journal of Computer Mathematics)
 // https://doi.org/10.1080/00207168908803778
 

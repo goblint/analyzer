@@ -1,4 +1,6 @@
-// SKIP PARAM: --sets ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
+extern int __VERIFIER_nondet_int();
+
 #include <assert.h>
 
 int g;
@@ -9,7 +11,7 @@ int f(int x) {
 }
 
 int main(void) {
-  int r;
+  int r = __VERIFIER_nondet_int(); //rand
   if (r > -1000) { // avoid underflow
     g = f(r);
     h = r;

@@ -1,4 +1,6 @@
-// SKIP PARAM: --sets ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
+extern int __VERIFIER_nondet_int();
+
 #include <pthread.h>
 #include <assert.h>
 
@@ -7,7 +9,7 @@ int h = 1;
 pthread_mutex_t A = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  int x; // rand
+  int x = __VERIFIER_nondet_int(); // rand
   pthread_mutex_lock(&A);
   g = x;
   h = x;

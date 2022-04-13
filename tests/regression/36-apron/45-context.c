@@ -1,4 +1,6 @@
-// SKIP PARAM: --sets ana.activated[+] apron --enable ana.int.interval --disable ana.apron.no-context
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --enable ana.int.interval --enable ana.apron.context
+extern int __VERIFIER_nondet_int();
+
 #include <assert.h>
 
 int oct(int x, int y) {
@@ -11,7 +13,9 @@ int oct(int x, int y) {
 }
 
 void main() {
-  int x, y, res;
+  int x = __VERIFIER_nondet_int(); //rand
+  int y = __VERIFIER_nondet_int(); //rand
+  int res;
   if (x <= y) {
     res = oct(x, y);
     assert(res == 1);

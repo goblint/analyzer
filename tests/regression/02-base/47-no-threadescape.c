@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[-] escape
+// PARAM: --set ana.activated[-] escape
 #include <pthread.h>
 int g = 10;
 

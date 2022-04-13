@@ -1,78 +1,89 @@
 open Prelude
 
-let goblint_dirname = ".gob"
-
+(* TODO: GoblintDir *)
 let version_map_filename = "version.data"
+let cil_file_name = "ast.data"
+let solver_data_file_name = "solver.data"
+let analysis_data_file_name = "analysis.data"
+let results_dir = "results"
+let results_tmp_dir = "results_tmp"
 
-let cilFileName = "ast.data"
+type operation = Save | Load
 
-let src_direcotry = ref ""
+(** Returns the name of the directory used for loading/saving incremental data *)
+let incremental_dirname op = match op with
+  | Load -> GobConfig.get_string "incremental.load-dir"
+  | Save -> GobConfig.get_string "incremental.save-dir"
 
-let gob_directory () = let src_dir = !src_direcotry in
-  Filename.concat src_dir goblint_dirname
+let gob_directory op =
+  GobFpath.cwd_append (Fpath.v (incremental_dirname op))
 
-let current_commit () =
-  Git.current_commit (!src_direcotry)
+let gob_results_dir op =
+  Fpath.(gob_directory op / results_dir)
 
-let commit_dir src_files commit =
-  let gob_dir = gob_directory src_files in
-  Filename.concat gob_dir commit
+let gob_results_tmp_dir op =
+  Fpath.(gob_directory op / results_tmp_dir)
 
-let current_commit_dir () = match current_commit () with
-  | Some commit -> (
-      try
-        let gob_dir = gob_directory () in
-        let _path  = Goblintutil.create_dir gob_dir in
-        let dir = Filename.concat gob_dir commit in
-        Some (Goblintutil.create_dir dir)
-      with e -> let error_message = (Printexc.to_string e) in
-        print_newline ();
-        print_string "The following error occurred while creating a directory: ";
-        print_endline error_message;
-        None)
-  | None -> None (* git-directory not clean *)
-
-(** A list of commits previously analyzed for the given src directory *)
-let get_analyzed_commits src_files =
-  let src_dir = gob_directory src_files in
-  Sys.readdir src_dir
-
-let last_analyzed_commit () =
-  try
-    let src_dir = !src_direcotry in
-    let commits = Git.git_log src_dir in
-    let commitList = String.split_on_char '\n' commits in
-    let analyzed = get_analyzed_commits () in
-    let analyzed_set = Set.of_array analyzed in
-    Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
-  with e -> None
+let server () = GobConfig.get_bool "server.enabled"
 
 let marshal obj fileName  =
-  let chan = open_out_bin fileName in
+  let chan = open_out_bin (Fpath.to_string fileName) in
   Marshal.output chan obj;
   close_out chan
 
 let unmarshal fileName =
-  if GobConfig.get_bool "dbg.verbose" then print_endline ("Unmarshalling " ^ fileName ^ "... If type of content changed, this will result in a segmentation fault!");
-  Marshal.input (open_in_bin fileName)
+  if GobConfig.get_bool "dbg.verbose" then Format.printf "Unmarshalling %a... If type of content changed, this will result in a segmentation fault!" Fpath.pp fileName;
+  Marshal.input (open_in_bin (Fpath.to_string fileName))
 
 let results_exist () =
-  last_analyzed_commit () <> None
+  (* If Goblint did not crash irregularly, the existence of the result directory indicates that there are results *)
+  let r = gob_results_dir Load in
+  let r_str = Fpath.to_string r in
+  Sys.file_exists r_str && Sys.is_directory r_str
 
-let last_analyzed_commit_dir (src_files: string list) =
-  match last_analyzed_commit () with
-  | Some commit -> commit_dir () commit
-  | None -> failwith "No previous analysis results"
+(* Convenience enumeration of the different data types we store for incremental analysis, so file-name logic is concentrated in one place *)
+type incremental_data_kind = SolverData | CilFile | VersionData | AnalysisData
 
-let load_latest_cil (src_files: string list) =
-  try
-    let dir = last_analyzed_commit_dir src_files in
-    let cil = Filename.concat dir cilFileName in
-    Some (unmarshal cil)
-  with e -> None
+let type_to_file_name = function
+  | SolverData -> solver_data_file_name
+  | CilFile -> cil_file_name
+  | VersionData -> version_map_filename
+  | AnalysisData -> analysis_data_file_name
 
-let save_cil (file: Cil.file) = match current_commit_dir () with
-  | Some dir ->
-    let cilFile = Filename.concat dir cilFileName in
-    marshal file cilFile
-  | None -> print_endline "Failed saving cil: working directory is dirty"
+(** Used by the server mode to avoid serializing the solver state to the filesystem *)
+let server_solver_data : Obj.t option ref = ref None
+let server_analysis_data : Obj.t option ref = ref None
+
+(** Loads data for incremental runs from the appropriate file *)
+let load_data (data_type: incremental_data_kind) =
+  if server () then
+    match data_type with
+    | SolverData -> !server_solver_data |> Option.get |> Obj.obj
+    | AnalysisData -> !server_analysis_data |> Option.get |> Obj.obj
+    | _ -> failwith "Can only load solver and analysis data"
+  else
+    let p = Fpath.(gob_results_dir Load / type_to_file_name data_type) in
+    unmarshal p
+
+(** Stores data for future incremental runs at the appropriate file, given the data and what kind of data it is. *)
+let store_data (data : 'a) (data_type : incremental_data_kind) =
+  if server () then
+    match data_type with
+    | SolverData -> server_solver_data := Some (Obj.repr data)
+    | AnalysisData -> server_analysis_data := Some (Obj.repr data)
+    | _ -> ()
+  else (
+    GobSys.mkdir_or_exists (gob_directory Save);
+    let d = gob_results_tmp_dir Save in
+    GobSys.mkdir_or_exists d;
+    let p = Fpath.(d / type_to_file_name data_type) in
+    marshal data p)
+
+(** Deletes previous analysis results and moves the freshly created results there.*)
+let move_tmp_results_to_results () =
+  let op = Save in
+  if not (server ()) then (
+    if Sys.file_exists (Fpath.to_string (gob_results_dir op)) then begin
+      Goblintutil.rm_rf (gob_results_dir op);
+    end;
+    Sys.rename (Fpath.to_string (gob_results_tmp_dir op)) (Fpath.to_string (gob_results_dir op)))

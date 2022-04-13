@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']" --sets exp.privatization none
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','mallocWrapper']" --set ana.base.privatization none
 extern void f_everything_up();
 
 struct s {

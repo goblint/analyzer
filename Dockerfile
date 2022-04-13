@@ -1,29 +1,38 @@
-# default tag 'latest' is Debian Stable with opam switches for OCaml 4.02-4.08 (currently, 1 GB)
-# the <DISTRO>-opam images just have opam (ubuntu-19.04-opam is 223 MB)
-# use the image with switches since downloading ~780MB is faster than compiling OCaml
-FROM ocaml/opam2
-# To best make use of the build cache, layers should be ordered by frequency of change.
-# Here: apt packages, make.sh, linux-headers, opam packages, source code
-# {ruby, gem, locale} needed for `make test`
-RUN sudo apt-get update && sudo apt-get install -yq m4 libgmp-dev ruby libmpfr-dev
-RUN sudo gem install parallel
-RUN opam switch 4.10
-# First we only copy files needed for setup. If we added all here, it would invalidate the cache on every change and the following steps would have to be rerun.
-COPY --chown=opam make.sh /home/opam/analyzer/
-# Change workdir after first copy, otherwise wrong permissions.
-WORKDIR /home/opam/analyzer
-# Download linux-headers before installing dependencies, so that this can be cached separately.
-RUN ./make.sh headers
-# dependencies and their locked versions; upgraded versions will only be installed after a change to opam.locked
-COPY --chown=opam goblint.opam goblint.opam.locked /home/opam/analyzer/
-# The base image uses a local opam repository which can (did) lag behind the online one. If we upgraded locally, we also want it to work in the container and not wait until the change made it into the base image. Thus, add the online version as default before we update.
-RUN opam repository set-url default https://opam.ocaml.org/
-# install locked dependencies
-RUN ./make.sh deps
-# add the rest to the image (~11s), .dockerignore is symlinked to .gitignore
+# dev stage: development environment with opam, ocaml and dependencies
+
+# just -opam tag because make setup will install ocaml compiler
+FROM ocaml/opam:ubuntu-21.04-opam AS dev
+
+# copy only files for make setup to cache docker layers without code changes
+COPY --chown=opam Makefile make.sh goblint.opam goblint.opam.locked /home/opam/analyzer/
+WORKDIR /home/opam/analyzer/
+# TODO: use opam depext
+RUN sudo apt-get update \
+    && sudo apt-get install -y libgmp-dev libmpfr-dev pkg-config autoconf
+# update local opam repository because base image may be outdated
+RUN cd /home/opam/opam-repository \
+    && git pull origin master \
+    && opam update
+RUN make setup
+# copy the rest
 COPY --chown=opam . /home/opam/analyzer
-RUN eval $(opam config env) && make
-# need UTF-8 for test script, image's default is US-ASCII
-ENV LC_ALL=C.UTF-8
-# RUN make test
-CMD ./goblint
+RUN make
+
+
+# relocatable stage: relocatable installation with only runtime dependencies
+FROM dev AS relocatable
+
+RUN sudo apt-get install -y chrpath
+RUN make relocatable
+
+
+# final stage: minimal run environment for small docker image
+FROM ubuntu:21.04
+
+# cannot use opam depext because no opam here, also additional preprocessing/header dependencies
+# libgmp for zarith, libmpfr for apron, cpp for preprocessing, libc6 for pthread.h, libgcc for stddef.h
+RUN apt-get update \
+    && apt-get install -y libgmp-dev libmpfr-dev cpp libc6-dev libgcc-10-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=relocatable /home/opam/analyzer/relocatable /opt/goblint/analyzer
+ENTRYPOINT ["/opt/goblint/analyzer/bin/goblint"]

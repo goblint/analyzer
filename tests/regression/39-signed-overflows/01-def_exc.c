@@ -1,4 +1,4 @@
-// PARAM: --sets sem.int.signed_overflow assume_none
+// PARAM: --set sem.int.signed_overflow assume_none
 int main(void) {
     int a;
 

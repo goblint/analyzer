@@ -1,11 +1,13 @@
-// SKIP PARAM: --sets ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag
+extern int __VERIFIER_nondet_int();
+
 #include <assert.h>
 
 int g;
 int h;
 
 void foo() {
-  int r;
+  int r = __VERIFIER_nondet_int(); //rand
 
   if (r) {
     g = 5;
@@ -22,7 +24,7 @@ void foo() {
 }
 
 int main(void) {
-  int r;
+  int r = __VERIFIER_nondet_int(); //rand
 
   if (r) {
     g = 3;

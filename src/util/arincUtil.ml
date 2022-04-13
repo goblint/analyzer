@@ -1,7 +1,7 @@
 open Prelude
 open Cil
-(* we don't want to use M.debug_each because everything here should be done after the analysis, so the location would be some old value for all invocations *)
-let debug_each msg = print_endline @@ Messages.colorize @@ "{blue}"^msg
+(* we don't want to use M.debug because everything here should be done after the analysis, so the location would be some old value for all invocations *)
+let debug_each msg = print_endline @@ MessageUtil.colorize ~fd:Unix.stdout @@ "{blue}"^msg
 
 (* ARINC types and Hashtables for collecting CFG *)
 type resource = Process | Function | Semaphore | Event | Logbook | SamplingPort | QueuingPort | Buffer | Blackboard [@@deriving show { with_path = false }]
@@ -65,7 +65,7 @@ let add_edge (pid:id) edge =
   Hashtbl.modify_def Set.empty pid (Set.add edge) !edges
 
 let filter_map_actions p =
-  let all_edges = Hashtbl.values !edges |> List.of_enum |> List.map Set.elements |> List.concat in
+  let all_edges = Hashtbl.values !edges |> List.of_enum |> List.concat_map Set.elements in
   List.filter_map (p%action_of_edge) all_edges
 
 let filter_actions p =
@@ -114,7 +114,7 @@ let str_resource id =
   let str_funs fs = "["^(List.map CilType.Varinfo.show fs |> String.concat ", ")^"]" in
   match id with
   | Process, "mainfun" ->
-    "mainfun/["^String.concat ", " (List.map Json.string (GobConfig.get_list "mainfun"))^"]"
+    "mainfun/["^String.concat ", " (GobConfig.get_string_list "mainfun")^"]"
   | Process, name ->
     name^"/"^str_funs @@ funs_for_process id
   | resource_type, name ->
@@ -265,10 +265,10 @@ let print_actions () =
 
 (* helper for exporting results *)
 let save_result desc ext content = (* output helper *)
-  let dir = Goblintutil.create_dir "result" in (* returns abs. path *)
-  let path = dir ^ "/arinc." ^ ext in
-  output_file path content;
-  print_endline @@ "saved " ^ desc ^ " as " ^ path
+  let dir = Goblintutil.create_dir (Fpath.v "result") in (* returns abs. path *)
+  let path = Fpath.(add_ext ext (dir / "arinc")) in
+  output_file ~filename:(Fpath.to_string path) ~text:content;
+  print_endline @@ "saved " ^ desc ^ " as " ^ (Fpath.to_string path)
 
 let save_dot_graph () =
   let dot_process pid =
@@ -278,7 +278,7 @@ let save_dot_graph () =
     let xs = Set.map str_edge (get_edges pid) |> Set.elements in
     ("subgraph \"cluster_"^str_resource pid^"\" {") :: xs @ ("label = \""^str_resource pid^"\";") :: ["}\n"]
   in
-  let lines = Hashtbl.keys !edges |> List.of_enum |> List.map dot_process |> List.concat in
+  let lines = Hashtbl.keys !edges |> List.of_enum |> List.concat_map dot_process in
   let dot_graph = String.concat "\n  " ("digraph file {"::lines) ^ "\n}" in
   save_result "graph" "dot" dot_graph
 
@@ -321,7 +321,7 @@ let save_promela_model () =
       let nodes = HashtblN.keys a2bs |> List.of_enum in
       (* let out_edges node = HashtblN.find_default a2bs node Set.empty |> Set.elements in (* Set.empty leads to Out_of_memory!? *) *)
       let out_edges node = try HashtblN.find a2bs node |> Set.elements with Not_found -> [] in
-      let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> flat_map Set.elements in
+      let in_edges node = HashtblN.filter (Set.mem node % Set.map get_b) a2bs |> HashtblN.values |> List.of_enum |> List.concat_map Set.elements in
       let is_end_node = List.is_empty % out_edges in
       let is_start_node = List.is_empty % in_edges in
       let start_node = List.find is_start_node nodes in (* node with no incoming edges is the start node *)
@@ -345,13 +345,13 @@ let save_promela_model () =
       let walk_edges (a, out_edges) =
         let edges = Set.elements out_edges |> List.map str_edge in
         (label a ^ ":") ::
-        if List.length edges > 1 then
+        if List.compare_length_with edges 1 > 0 then
           "if" :: (choice edges) @ ["fi"]
         else
           edges
       in
       let locals = if not @@ GobConfig.get_bool "ana.arinc.assume_success" && fst id = Process then get_locals id else [] in
-      let body = locals @ goto start_node :: (flat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else " ret_"^snd id^"()"] in
+      let body = locals @ goto start_node :: (List.concat_map walk_edges (HashtblN.enum a2bs |> List.of_enum)) @ [end_label ^ ":" ^ if fst id = Process then " status[id] = DONE" else " ret_"^snd id^"()"] in
       let head = match id with
         | Process, name ->
           let proc = find_option (fun x -> x.pid=id) procs in (* None for mainfun *)
@@ -362,7 +362,7 @@ let save_promela_model () =
         | _ -> failwith "Only Process and Function are allowed as keys for collecting ARINC actions"
       in
       let called_fun_ids = List.map (fun fname -> Function, fname) !called_funs in
-      let funs = flat_map process_def called_fun_ids in
+      let funs = List.concat_map process_def called_fun_ids in
       "" :: head :: List.map indent body @ funs @ [if fst id = Process then "}" else ""]
   in
   (* used for macros oneIs, allAre, noneAre... *)
@@ -381,7 +381,7 @@ let save_promela_model () =
     List.filter_map def procs
   in
   (* sort definitions so that inline functions come before the processes *)
-  let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.filter (fun id -> fst id = Process) |> List.sort (compareBy str_pid_pml) |> flat_map process_def in
+  let process_defs = Hashtbl.keys !edges |> List.of_enum |> List.filter (fun id -> fst id = Process) |> List.sort (compareBy str_pid_pml) |> List.concat_map process_def in
   let fun_mappings =
     let fun_map xs =
       if List.is_empty xs then [] else
@@ -390,7 +390,7 @@ let save_promela_model () =
         let debug_str = if GobConfig.get_bool "ana.pml.debug" then "\t:: else -> printf(\"wrong pc on stack!\"); assert(false) " else "" in
         ("#define ret_"^name^"() if \\") :: entries @ [debug_str ^ "fi"]
     in
-    FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> flat_map fun_map
+    FunTbl.to_list () |> List.group (compareBy (fst%fst)) |> List.concat_map fun_map
   in
   let promela = String.concat "\n" @@
     ("#define nproc "^string_of_int nproc) ::

@@ -2,14 +2,50 @@ open Cil
 
 val single: name:string -> (unit -> varinfo)
 
-module type S =
+module type VarinfoMap =
 sig
   type t
-  val map: name:(t -> string) -> ?size:int -> (t -> varinfo)
+  type marshal
+  val to_varinfo : t -> varinfo
+  val unmarshal: marshal option -> unit
+  val marshal: unit -> marshal
+end
+
+module type G =
+sig
+  include Hashtbl.HashedType
+  val name_varinfo: t -> string
+end
+
+module type H =
+sig
+  include G
+  val describe_varinfo: varinfo -> t -> string
 end
 
 module Make:
-  functor (X: Hashtbl.HashedType) ->
-    S with type t = X.t
+  functor (X: G) ->
+    VarinfoMap with type t = X.t
 
-module Variables: S with type t = varinfo
+module BiVarinfoMap:
+sig
+  module type S =
+  sig
+    include VarinfoMap
+    val from_varinfo: varinfo -> t option
+    val mem_varinfo: varinfo -> bool
+    val describe_varinfo: varinfo -> t -> string
+  end
+
+  module Collection:
+  sig
+    val mappings : (module S) list ref
+    val mem_varinfo : varinfo -> bool
+    val describe_varinfo : varinfo -> string
+    val register_mapping : (module S) -> unit
+  end
+
+  module Make:
+    functor (X: H) ->
+      S with type t = X.t
+end

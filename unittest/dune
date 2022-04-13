@@ -1,0 +1,13 @@
+(include_subdirs unqualified)
+
+(test
+  (name mainTest)
+  (libraries ounit2 qcheck-ounit goblint.lib goblint.sites.dune)
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
+  (flags :standard -linkall))
+
+(env
+  (dev
+    (flags (:standard -warn-error -A -w -unused-var-strict)) ; https://dune.readthedocs.io/en/stable/faq.html#how-to-make-warnings-non-fatal
+  )
+)

@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','term','mallocWrapper']" --enable dbg.debug --enable ana.int.interval --sets solver slr3 --sets exp.privatization none
+// PARAM: --set ana.activated "['base','threadid','threadflag','term','mallocWrapper']" --enable dbg.debug --enable ana.int.interval --set solver slr3 --set ana.base.privatization none
 
 int main(){
     int i = 0;

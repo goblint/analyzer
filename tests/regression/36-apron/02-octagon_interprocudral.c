@@ -1,13 +1,15 @@
-// SKIP PARAM: --sets solver td3 --enable ana.int.interval --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper']" --sets exp.privatization none --sets exp.apron.privatization dummy
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','expRelation','apron','mallocWrapper']" --set ana.base.privatization none --set ana.apron.privatization dummy
+extern int __VERIFIER_nondet_int();
+
 int main(void) {
     f1();
 }
 
 int f1() {
-    int one;
-    int two;
+    int one = __VERIFIER_nondet_int();
+    int two = __VERIFIER_nondet_int();
 
-    int x;
+    int x = __VERIFIER_nondet_int();
 
     one = two;
 

@@ -37,7 +37,7 @@ let parse ?repl:(repl=false) ?print:(print=false) ?dot:(dot=false) cin =
         (List.length !defs) (List.length nodes) (List.length edges);
     if save_dot && not dot then (
       let dotgraph = SpecCore.to_dot_graph !defs in
-      output_file "result/graph.dot" dotgraph;
+      output_file ~filename:"result/graph.dot" ~text:dotgraph;
       print_endline ("saved graph as "^Sys.getcwd ()^"/result/graph.dot");
     );
     if dot then (
