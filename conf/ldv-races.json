@@ -27,7 +27,9 @@
       "access",
       "escape",
       "expRelation",
-      "mhp"
+      "mhp",
+      "var_eq",
+      "symb_locks"
     ],
     "malloc": {
       "wrappers": [
