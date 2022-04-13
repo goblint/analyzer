@@ -24,7 +24,8 @@ let classify' fn exps =
     `Unknown fn
   in
   match fn with
-  | "pthread_create" ->
+  | "pthread_create"
+  | "pthread_create_N" -> (* Klever *)
     begin match exps with
       | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
       | _ -> strange_arguments ()
@@ -72,6 +73,7 @@ let classify' fn exps =
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
   | "spin_lock_irqsave" | "spin_lock"
+  | "ldv_mutex_model_lock" | "ldv_spin_model_lock" (* Klever *)
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
@@ -84,6 +86,7 @@ let classify' fn exps =
   | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
   | "up"
+  | "ldv_mutex_model_unlock" | "ldv_spin_model_unlock" (* Klever *)
     -> `Unlock
   | x -> `Unknown x
 
