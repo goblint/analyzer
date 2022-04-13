@@ -437,7 +437,7 @@ struct
     if GobConfig.get_bool "dbg.verbose" then
       ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
 
-  let leq x y =
+  let rec leq x y =
     match (x,y) with
     | (_, `Top) -> true
     | (`Top, _) -> false
@@ -453,6 +453,8 @@ struct
     | (`Array x, `Array y) -> CArrays.leq x y
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
+    | `Blob (x,s,o), y
+    | y, `Blob (x,s,o) -> leq (x:t) y
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
     | (`Address x, `Thread y) -> true
