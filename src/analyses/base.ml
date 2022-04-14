@@ -1673,9 +1673,15 @@ struct
 
   let set_savetop ?ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
-    match v with
-    | `Top -> set ~ctx ask gs st adr lval_t (VD.top_value (AD.get_type adr)) ?lval_raw ?rval_raw
-    | v -> set ~ctx ask gs st adr lval_t v ?lval_raw ?rval_raw
+    let v' = match v with
+      | `Top -> VD.top_value (AD.get_type adr)
+      | v -> v
+    in
+    begin match v' with
+      | `Address addrs -> (Option.get ctx).emit (AssignAddrs {lval = Option.get lval_raw; addrs})
+      | _ -> ()
+    end;
+    set ~ctx ask gs st adr lval_t v' ?lval_raw ?rval_raw
 
 
   (**************************************************************************
@@ -2321,7 +2327,7 @@ struct
       let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
       match lval with
       | None      -> st
-      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
+      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val ~lval_raw:lval
     in
     combine_one ctx.local after
 

@@ -62,21 +62,7 @@ struct
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
-    let ask = Analyses.ask_of_ctx ctx in
-    let lvs = mpt ask (AddrOf lval) in
-    ignore (Pretty.printf "assign lvs %a: %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs);
-    if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
-      let escaped = reachable ask rval in
-      ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
-      if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
-        ctx.emit (Events.Escape escaped);
-      D.iter (fun lv ->
-          ctx.sideg lv escaped
-        ) lvs;
-      D.join ctx.local escaped
-    )
-    else
-      ctx.local
+    ctx.local
 
   let branch ctx (exp:exp) (tv:bool) : D.t =
     ctx.local
@@ -122,6 +108,29 @@ struct
 
   let event ctx e octx =
     match e with
+    | Events.AssignAddrs {lval; addrs} ->
+      let ask = Analyses.ask_of_ctx ctx in
+      let lvs = mpt ask (AddrOf lval) in
+      ignore (Pretty.printf "assign lvs %a: %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs);
+      if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
+        let escaped = ValueDomain.AD.fold (fun addr acc ->
+            match ValueDomain.Addr.to_var_offset addr with
+            | Some (v, o) ->
+              D.join acc (reachable ask (AddrOf (Var v, ValueDomain.Offs.to_cil_offset o)))
+            | None ->
+              acc
+          ) addrs (D.empty ())
+        in
+        ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
+        if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
+          ctx.emit (Events.Escape escaped);
+        D.iter (fun lv ->
+            ctx.sideg lv escaped
+          ) lvs;
+        D.join ctx.local escaped
+      )
+      else
+        ctx.local
     | Events.EnterMultiThreaded ->
       let escaped = ctx.local in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
