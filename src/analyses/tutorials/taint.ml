@@ -4,6 +4,7 @@
 (* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
 (* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
 
+
 open Prelude.Ana
 open Analyses
 
@@ -17,12 +18,14 @@ let is_source varinfo = Cil.hasAttribute "taint_source" varinfo.vattr
 (** "Fake" variable to handle returning from a function *)
 let return_varinfo = dummyFunDec.svar
 
+
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "taint"
-  module D = Lattice.Unit (* TODO: Change such that you have a fitting local domain *)
+
+  module D = SetDomain.Make(CilType.Varinfo) (* TODO: Change such that you have a fitting local domain *)
   module C = Lattice.Unit
 
   (* We are context insensitive in this analysis *)
@@ -46,7 +49,7 @@ struct
   and is_lval_tainted state = function
     | (Var v, _) ->
       (* TODO: Check whether variable v is tainted *)
-      false
+      D.mem v state
     | _ ->
       (* We assume using a tainted offset does not taint the expression, and that our language has no pointers *)
       false
@@ -59,7 +62,10 @@ struct
     match lval with
     | Var v,_ ->
       (* TODO: Check whether rval is tainted, handle assignment to v accordingly *)
-      state
+      if is_exp_tainted state rval then
+        D.add v state
+      else
+        D.remove v state
     | _ -> state
 
   (** Handles conditional branching yielding truth value [tv]. *)
@@ -77,11 +83,11 @@ struct
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let state = ctx.local in
     match exp with
-    | Some e ->
+    | Some e when is_exp_tainted state e ->
       (* TODO: Record whether a tainted value was returned. *)
       (* Hint: You may use return_varinfo in place of a variable. *)
-      state
-    | None -> state
+      D.add return_varinfo state
+    | _ -> state
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the initial state of the callee.
@@ -94,7 +100,7 @@ struct
     (* TODO: For the initial callee_state, collect formal parameters where the actual is tainted. *)
     let callee_state = List.fold_left (fun ts (f,a) ->
         if is_exp_tainted caller_state a
-        then ts (* TODO: Change accumulator ts here? *)
+        then D.add f ts (* TODO: Change accumulator ts here? *)
         else ts)
         (D.bot ())
         zipped in
@@ -107,7 +113,9 @@ struct
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
     let caller_state = ctx.local in
     (* TODO: Record whether lval was tainted. *)
-    caller_state
+    match lval with
+    | Some (Var v,_) when D.mem return_varinfo callee_local -> D.add v caller_state
+    | _ -> caller_state
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
       computes the caller state after the function call.
@@ -116,7 +124,25 @@ struct
     let caller_state = ctx.local in
     (* TODO: Check if f is a sink / source and handle it appropriately *)
     (* To warn about a potential issue in the code, use M.warn. *)
-    caller_state
+    if is_source f then
+      (* taint return value *)
+      match lval with
+      | Some (Var v,_) -> D.add v caller_state
+      | _ -> caller_state
+    else if is_sink f then
+      if List.exists (is_exp_tainted caller_state) arglist then
+        (M.warn "Tainted variable reaches sink!"; caller_state)
+      else
+        caller_state
+    else
+      (* neither source nor sink *)
+      match lval with
+      | Some (Var v,_) ->
+        if List.exists (is_exp_tainted caller_state) arglist then
+          D.add v caller_state
+        else
+          D.remove v caller_state
+      | _ -> caller_state
 
   (* You may leave these alone *)
   let startstate v = D.bot ()
