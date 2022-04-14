@@ -24,6 +24,4 @@ let get_stmtLoc stmt =
   | Instr []
   | Block {bstmts = []; _} ->
     get_labelsLoc stmt.labels
-  | If(_, _, _, _, eloc) -> eloc
-  | Loop (_, _, eloc, _, _) -> eloc
   | _ -> get_stmtkindLoc stmt.skind
