@@ -61,14 +61,18 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
-    let lvs = mpt ask (AddrOf lval) in
-    ignore (Pretty.printf "assign lvs %a: %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs);
-    if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
-      let escaped = reachable ask rval in
-      ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
-      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
-        ctx.emit (Events.Escape escaped);
-      D.join ctx.local escaped
+    if ThreadFlag.is_multi ask then (
+      let lvs = mpt ask (AddrOf lval) in
+      ignore (Pretty.printf "assign lvs %a: %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs);
+      if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
+        let escaped = reachable ask rval in
+        ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
+        if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+          ctx.emit (Events.Escape escaped);
+        D.join ctx.local escaped
+      )
+      else
+        ctx.local
     )
     else
       ctx.local
