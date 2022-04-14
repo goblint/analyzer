@@ -128,6 +128,20 @@ struct
         ctx.emit (Events.Escape escaped);
       ctx.local
     | _ -> ctx.local
+
+  module A =
+  struct
+    include BoolDomain.Bool
+    let name () = "escape"
+    let may_race m1 m2 = m1 && m2 (* kill access when not escaped threaded *)
+    let should_print m = not m
+  end
+  let access ctx (a: Queries.access) =
+    match a with
+    | Memory {var_opt = Some v; _} ->
+      (v.vglob && not (ctx.ask (IsHeapVar v))) || ctx.ask (MayEscape v)
+    | _ ->
+      true
 end
 
 let _ =
