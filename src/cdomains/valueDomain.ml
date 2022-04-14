@@ -453,8 +453,8 @@ struct
     | (`Array x, `Array y) -> CArrays.leq x y
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
-    | `Blob (x,s,o), y
-    | y, `Blob (x,s,o) -> leq (x:t) y
+    | `Blob (x,s,o), y -> leq (x:t) y
+    | x, `Blob (y,s,o) -> leq x (y:t)
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
     | (`Address x, `Thread y) -> true
