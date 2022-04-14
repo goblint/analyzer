@@ -61,18 +61,14 @@ struct
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
-    if ThreadFlag.is_multi ask then (
-      let lvs = mpt ask (AddrOf lval) in
-      ignore (Pretty.printf "assign lvs %a: %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs);
-      if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
-        let escaped = reachable ask rval in
-        ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
-        if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
-          ctx.emit (Events.Escape escaped);
-        D.join ctx.local escaped
-      )
-      else
-        ctx.local
+    let lvs = mpt ask (AddrOf lval) in
+    ignore (Pretty.printf "assign lvs %a: %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs);
+    if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
+      let escaped = reachable ask rval in
+      ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
+      if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
+        ctx.emit (Events.Escape escaped);
+      D.join ctx.local escaped
     )
     else
       ctx.local
@@ -104,8 +100,8 @@ struct
       let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
-      [escaped]
-    | _ -> [D.bot ()]
+      [D.join ctx.local escaped]
+    | _ -> [ctx.local]
 
   let threadspawn ctx lval f args fctx =
     D.join ctx.local @@
@@ -117,6 +113,15 @@ struct
           ctx.emit (Events.Escape escaped);
         escaped
       | _ -> D.bot ()
+
+  let event ctx e octx =
+    match e with
+    | Events.EnterMultiThreaded ->
+      let escaped = ctx.local in
+      if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
+        ctx.emit (Events.Escape escaped);
+      ctx.local
+    | _ -> ctx.local
 end
 
 let _ =
