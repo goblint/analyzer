@@ -23,6 +23,8 @@ struct
   let name () = "escape"
   module D = EscapeDomain.EscapedVars
   module C = EscapeDomain.EscapedVars
+  module V = VarinfoV
+  module G = EscapeDomain.EscapedVars
 
   let rec cut_offset x =
     match x with
@@ -68,6 +70,9 @@ struct
       ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
       if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
+      D.iter (fun lv ->
+          ctx.sideg lv escaped
+        ) lvs;
       D.join ctx.local escaped
     )
     else
@@ -100,7 +105,8 @@ struct
       let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
-      [D.join ctx.local escaped]
+      let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in
+      [D.join ctx.local (D.join escaped extra)]
     | _ -> [ctx.local]
 
   let threadspawn ctx lval f args fctx =
