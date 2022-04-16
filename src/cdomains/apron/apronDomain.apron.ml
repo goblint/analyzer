@@ -674,7 +674,7 @@ struct
 
     let varinfo_tracked vi =
       (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-      type_tracked vi.vtype && not vi.vaddrof
+      type_tracked vi.vtype
   end
 
   include AOps (Tracked) (Man)

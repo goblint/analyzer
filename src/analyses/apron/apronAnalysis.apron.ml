@@ -104,7 +104,7 @@ struct
       {st with apr = apr'}
     )
 
-  let assign_to_global_wrapper ask getg sideg st lv f =
+  let rec assign_to_global_wrapper ask getg sideg st lv f =
     match lv with
     (* Lvals which are numbers, have no offset and their address wasn't taken *)
     (* This means that variables of which multiple copies may be reachable via pointers are also also excluded (they have their address taken) *)
@@ -120,6 +120,15 @@ struct
         let st' = write_global ask getg sideg st' v v_out in (* g = g#out; *)
         let apr'' = AD.remove_vars st'.apr [V.local v_out] in (* remove temporary g#out *)
         {st' with apr = apr''}
+      )
+    | (Mem v, NoOffset) ->
+      (let r = ask.f (Queries.MayPointTo (Lval (Mem v, NoOffset))) in
+       match r with
+       | `Top -> st
+       | `Lifted s ->
+         let lvals = Queries.LS.elements r in
+         let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Lval.CilLval.to_lval lv) f) lvals in
+         List.fold_right (fun {apr=apr1; priv=priv1} {apr=apr2; priv=priv2} -> {apr = AD.join apr1 apr2; priv = Priv.D.join priv1 priv2}) ass' {apr = AD.bot (); priv = Priv.D.bot ()}
       )
     (* Ignoring all other assigns *)
     | _ ->
