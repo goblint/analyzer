@@ -14,6 +14,7 @@ int main() {
     int a = 5;
     int *p = &a; // after this apron should put a to top because pointers are not tracked
     change(p);
+    assert(a == 5); //FAIL
     assert(a - 6 == 0);
     return 0;
 }
