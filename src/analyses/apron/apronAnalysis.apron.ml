@@ -122,9 +122,10 @@ struct
         {st' with apr = apr''}
       )
     | (Mem v, NoOffset) ->
-      (let r = ask.f (Queries.MayPointTo (Lval (Mem v, NoOffset))) in
+      (let r = ask.f (Queries.MayPointTo v) in
        match r with
-       | `Top -> st
+       | `Top ->
+         st
        | `Lifted s ->
          let lvals = Queries.LS.elements r in
          let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Lval.CilLval.to_lval lv) f) lvals in
@@ -148,6 +149,23 @@ struct
       apr
 
 
+  let replace_deref_exps ask e =
+    let rec inner e = match e with
+      | Const x -> e
+      | UnOp (unop, e, typ) -> UnOp(unop, inner e, typ)
+      | BinOp (binop, e1, e2, typ) -> BinOp (binop, inner e1, inner e2, typ)
+      | CastE (t,e) -> CastE (t, inner e)
+      | Lval (Var v, off) -> Lval (Var v, off)
+      | Lval (Mem e, NoOffset) ->
+        (match ask (Queries.MayPointTo e) with
+         | (`Lifted _) as r when (Queries.LS.cardinal r) = 1 ->
+           let lval = Lval.CilLval.to_lval (Queries.LS.choose r) in
+           Lval lval
+         | _ -> Lval (Mem e, NoOffset))
+      | e -> e
+    in
+    inner e
+
   (* Basic transfer functions. *)
 
   let assign ctx (lv:lval) e =
@@ -155,10 +173,11 @@ struct
     if !GU.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so the apron env is empty... *)
     else (
-      if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
+      let simplified_e = replace_deref_exps ctx.ask e in
+      if M.tracing then M.traceli "apron" "assign %a = %a (simplified to %a)\n" d_lval lv  d_exp e d_exp simplified_e;
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-          assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
+          assign_from_globals_wrapper ask ctx.global st simplified_e (fun apr' e' ->
               AD.assign_exp apr' (V.local v) e'
             )
         )
