@@ -11,6 +11,7 @@ void *foo(void* p){
 int main(){
     int x = 0;
     gptr = &x;
+    assert(x==0);
     pthread_t thread;
     pthread_create(&thread, NULL, foo, NULL);
     sleep(3);
