@@ -190,6 +190,7 @@ struct
       |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
       |> List.map (Tuple2.map1 V.arg)
     in
+    let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
     let arg_vars = List.map fst arg_assigns in
     let new_apr = AD.add_vars st.apr arg_vars in
     (* AD.assign_exp_parallel_with new_oct arg_assigns; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
@@ -201,9 +202,16 @@ struct
           )
       ) new_apr arg_assigns
     in
+    let is_reachable var =
+      let fundec = Node.find_fundec ctx.node in
+      let vname = Var.to_string var in
+      match List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) with
+      | None -> true
+      | Some v -> Queries.LS.exists (fun (v',_) -> v'.vid = v.vid) reachable_from_args
+    in
     AD.remove_filter_with new_apr (fun var ->
         match V.find_metadata var with
-        | Some Local -> true (* remove caller locals *)
+        | Some Local when not (is_reachable var) -> true (* remove caller locals provided they are unreachable *)
         | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
