@@ -54,13 +54,14 @@ def analyze_series_in_repo():
         print('changed LOC: ', commit.lines)
         print('merge commit: ', commit.merge)
 
+        # for accumulative setup this filtering does not make sense!
         # skip merge commits and commits that have less than maxCLOC of relevant code changes
-        relCLOC = utils.calculateRelCLOC(repo_path, commit, diff_exclude) # use this to filter commits by actually relevant changes
-        print("relCLOC: ", relCLOC)
-        if maxCLOC is not None and relCLOC > maxCLOC:
-            print('Skip this commit: merge commit or too many relevant changed LOC')
-            count_skipped+=1
-            continue
+        # relCLOC = utils.calculateRelCLOC(repo_path, commit, diff_exclude) # use this to filter commits by actually relevant changes
+        # print("relCLOC: ", relCLOC)
+        # if maxCLOC is not None and relCLOC > maxCLOC:
+        #     print('Skip this commit: merge commit or too many relevant changed LOC')
+        #     count_skipped+=1
+        #     continue
 
         # analyze
         try_num = from_c + count_analyzed + count_failed + 1

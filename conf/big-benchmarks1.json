@@ -2,11 +2,16 @@
   "ana": {
     "base": {
       "privatization": "none"
+    },
+    "thread": {
+      "domain": "plain",
+      "include-node": false
     }
   },
   "sem": {
     "unknown_function": {
-      "spawn": false
+      "spawn": false,
+      "invalidate": false
     }
   },
   "incremental": {
