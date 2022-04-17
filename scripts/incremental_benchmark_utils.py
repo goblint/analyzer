@@ -99,58 +99,52 @@ def barplot(data_set):
     plt.tight_layout()
     plt.savefig("figure.pdf")
 
-def cummulative_distr_plot(result_csv_filename):
+def get_cleaned_filtered_data(result_csv_filename, filterRelCLOC=False, filterDetectedChanges=False):
     df=pandas.read_csv(result_csv_filename, index_col=0)
     # clean dataset (remove all rows for which any of the runtime entries is 0 which means that the respective analysis
     # run failed)
     df = df[(df[header_runtime_parent] != 0) & (df[header_runtime_incr_child] != 0) & (df[header_runtime_incr_rel_child] != 0)]
+    if filterRelCLOC:
+        df = df[df["Relevant changed LOC"] > 0]
+    if filterDetectedChanges:
+        df = df[df["Changed/Added/Removed functions"] > 0]
+    return df
 
-    #df = df[df["Relevant changed LOC"] > 0]
-    #df = df[df["Changed/Added/Removed functions"] > 0]
-    num_bins = 2000
-    outfile_nonincr_vs_incr = "figure_cum_distr_incr.pdf"
-    outfile_incr_vs_incrrel = "figure_cum_distr_rel.pdf"
-    #outfile_nonincr_vs_incr = "figure_cum_distr_incr_cfungr0.pdf"
-    #outfile_incr_vs_incrrel = "figure_cum_distr_rel_cfungr0.pdf"
-
-    min = df[[header_runtime_parent, header_runtime_incr_child]].min().min()
-    max = df[[header_runtime_parent, header_runtime_incr_child]].max().max()
+def create_cum_data(dataFrame, num_bins, relColumns):
+    min = dataFrame[relColumns].min().min()
+    max = dataFrame[relColumns].max().max()
     bins = np.linspace(min,max,num=num_bins+1)
-    non_incr_values, non_incr_base = np.histogram(df.loc[:,header_runtime_parent], bins=bins)
-    incr_values, incr_base = np.histogram(df.loc[:,header_runtime_incr_child], bins=bins)
-    cum_non_incr = np.cumsum(non_incr_values, dtype=np.float)
-    cum_incr = np.cumsum(incr_values, dtype=np.float)
-    cum_non_incr[cum_non_incr==0] = np.nan
-    cum_incr[cum_incr==0] = np.nan
+    data = []
+    base = []
+    for c in relColumns:
+        valuesc, basec = np.histogram(dataFrame.loc[:,c], bins=bins)
+        base = basec
+        cum = np.cumsum(valuesc, dtype=np.float)
+        cum[cum==0] = np.nan
+        data = data + [cum]
+    return data, base[:-1]
 
-    plt.figure()
-    plt.xlabel('Number of Commits with runtime $\leq$ y')
-    plt.ylabel('Runtime in s')
+def cummulative_distr_plot(data_sets, base, outfile, figsize=None, title=None, logscale=False):
+    if figsize:
+        plt.figure(figsize=figsize)
+    else:
+        plt.figure()
+    for d in data_sets:
+        plt.plot(d["values"], base, label=d["label"])
+    plt.xlabel('Number of Commits')
+    if logscale:
+        plt.ylabel('Runtime in s ($log_{2}$ scale)')
+        plt.yscale('log', base=2)
+        plt.gca().yaxis.set_major_formatter(ScalarFormatter())
+        plt.xlim(left=0)
+        plt.ylim(bottom=95)
+        #plt.yticks(np.arange(100,1500,100))
+    else:
+        plt.ylabel('Runtime in s')
     plt.tight_layout()
-    plt.plot(cum_non_incr, non_incr_base[:-1], c="blue", label="Non-incremental analysis of parent commit")
-    plt.plot(cum_incr, non_incr_base[:-1], c="red", label="Incremental analysis of commit")
     plt.legend()
-    plt.savefig(outfile_nonincr_vs_incr)
-
-    min = df[[header_runtime_incr_child, header_runtime_incr_rel_child]].min().min()
-    max = df[[header_runtime_incr_child, header_runtime_incr_rel_child]].max().max()
-    bins2 = np.linspace(min,max,num=num_bins+1)
-    incr_values, incr_base = np.histogram(df.loc[:,header_runtime_incr_child], bins=bins2)
-    incr_rel_values, incr_rel_base = np.histogram(df.loc[:,header_runtime_incr_rel_child], bins=bins2)
-    cum_incr = np.cumsum(incr_values, dtype=np.float)
-    cum_incr_rel = np.cumsum(incr_rel_values, dtype=np.float)
-    cum_incr[cum_incr==0] = np.nan
-    cum_incr_rel[cum_incr_rel==0] = np.nan
-    plt.figure()
-    plt.xlabel('Number of Commits with runtime $\leq$ y')
-    plt.ylabel('Runtime in s ($log_2$ scale)')
-    plt.yscale('log', base=2)
-    plt.gca().yaxis.set_major_formatter(ScalarFormatter())
-    plt.tight_layout()
-    plt.plot(cum_incr, incr_base[:-1], c="red", label="Incremental")
-    plt.plot(cum_incr_rel, incr_base[:-1], c="green", label="Incremental + Reluctant")
-    plt.legend()
-    plt.savefig(outfile_incr_vs_incrrel)
+    plt.title(title)
+    plt.savefig(outfile)
 
 def hist_plot(data, step, title, xlabel, ylabel, outfile, cutoffs=None):
     min = data.min()

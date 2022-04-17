@@ -1,13 +1,35 @@
 import incremental_benchmark_utils as utils
 import os
-import pandas
+
+def cummulative_distr_compare2(result_csv_filename):
+    num_bins = 2000
+    outfile_nonincr_vs_incr = "figure_cum_distr_incr.pdf"
+    outfile_incr_vs_incrrel = "figure_cum_distr_rel.pdf"
+    df = utils.get_cleaned_filtered_data(result_csv_filename, filterDetectedChanges=True)
+
+    data, base = utils.create_cum_data(df, num_bins, [utils.header_runtime_parent, utils.header_runtime_incr_child])
+    datanonincr = {"values": data[0], "label": "Non-incremental analysis of parent commit"}
+    dataincr = {"values": data[1], "label": "Incremental analysis of commit"}
+    utils.cummulative_distr_plot([datanonincr, dataincr], base, outfile_nonincr_vs_incr)
+
+    data, base = utils.create_cum_data(df, num_bins, [utils.header_runtime_incr_child, utils.header_runtime_incr_rel_child])
+    dataincr = {"values": data[0], "label": "Incremental analysis of commit"}
+    datarelincr = {"values": data[1], "label": "Reluctant incremental analysis of commit"}
+    utils.cummulative_distr_plot([dataincr, datarelincr], base, outfile_incr_vs_incrrel, logscale=True)
+
+def cummulative_distr_all3(result_csv_filename):
+    num_bins = 2000
+    outfile_nonincr_vs_incr = "figure_cum_distr_all3.pdf"
+    df = utils.get_cleaned_filtered_data(result_csv_filename, filterDetectedChanges=True)
+
+    data, base = utils.create_cum_data(df, num_bins, [utils.header_runtime_parent, utils.header_runtime_incr_child, utils.header_runtime_incr_rel_child])
+    datanonincr = {"values": data[0], "label": "Non-incremental analysis of parent commit"}
+    dataincr = {"values": data[1], "label": "Incremental analysis of commit"}
+    datarelincr = {"values": data[2], "label": "Reluctant incremental analysis of commit"}
+    utils.cummulative_distr_plot([datanonincr, dataincr, datarelincr], base, outfile_nonincr_vs_incr, figsize=(6,4), logscale=True)
 
 def distribution_absdiff_plot(title, result_csv_filename, outdir, cutoffs_incr=None, cutoffs_rel=None):
-    df=pandas.read_csv(result_csv_filename, index_col=0)
-    # clean dataset (remove all rows for which any of the runtime entries is 0 which means that the respective analysis
-    # run failed)
-    df = df[df["Changed/Added/Removed functions"] > 0]
-    df = df[(df[utils.header_runtime_parent] != 0) & (df[utils.header_runtime_incr_child] != 0) & (df[utils.header_runtime_incr_rel_child] != 0)]
+    df = utils.get_cleaned_filtered_data(result_csv_filename, filterDetectedChanges=True)
 
     # plot incremental vs non-incremental
     diff = df.loc[:,utils.header_runtime_parent] - df.loc[:,utils.header_runtime_incr_child]
@@ -18,11 +40,7 @@ def distribution_absdiff_plot(title, result_csv_filename, outdir, cutoffs_incr=N
     utils.hist_plot(diff, 2, title, 'Improvement in s (reluctant compared to incremental)', 'Number of Commits', os.path.join(outdir, "figure_absdiff_distr_rel.pdf"), cutoffs_rel)
 
 def distribution_reldiff_plot(title, result_csv_filename, outdir, cutoffs_incr=None, cutoffs_rel=None):
-    df=pandas.read_csv(result_csv_filename, index_col=0)
-    # clean dataset (remove all rows for which any of the runtime entries is 0 which means that the respective analysis
-    # run failed)
-    df = df[df["Changed/Added/Removed functions"] > 0]
-    df = df[(df[utils.header_runtime_parent] != 0) & (df[utils.header_runtime_incr_child] != 0) & (df[utils.header_runtime_incr_rel_child] != 0)]
+    df = utils.get_cleaned_filtered_data(result_csv_filename, filterDetectedChanges=True)
 
     # plot incremental vs non-incremental
     diff = 1 - df.loc[:,utils.header_runtime_incr_child] / df.loc[:,utils.header_runtime_parent]
@@ -49,3 +67,5 @@ filepath_without = os.path.join(dir_without,filename_without)
 title = "Without the incremental postsolver"
 distribution_absdiff_plot(title, filepath_without, dir_without)
 distribution_reldiff_plot(title, filepath_without, dir_without) # cutoffs_rel=((0,60),(195,205),(235,245)))
+cummulative_distr_all3(filepath_without)
+
