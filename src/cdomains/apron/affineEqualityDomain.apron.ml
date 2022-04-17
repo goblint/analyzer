@@ -1,305 +1,8 @@
 open Prelude
 open Pretty
-open Cil
 module M = Messages
 open Apron
-
-module type RatOps =
-sig
-  type t
-  val add : t -> t -> t
-  val sub : t -> t -> t
-  val mul : t -> t -> t
-  val div : t -> t -> t
-  val neg : t -> t
-  val abs : t -> t
-  val cmp : t -> t -> int
-  val to_string:  t -> string
-  val of_int: int -> t
-  val get_den: t -> IntOps.BigIntOps.t
-  val get_num: t -> IntOps.BigIntOps.t
-end
-
-module Mpqf = struct
-  include Mpqf
-
-  let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
-
-  let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
-end
-
-module ConvenienceOps (A: RatOps) =
-struct
-  let ( *: ) = A.mul
-  let (+:) = A.add
-  let (-:) = A.sub
-  let (/:) = A.div
-  let (=:) x y = A.cmp x y = 0
-  let (<:) x y = A.cmp x y < 0
-  let (>:) x y = A.cmp x y > 0
-  let (<=:) x y = A.cmp x y <= 0
-  let (>=:) x y = A.cmp x y >= 0
-  let of_int x = A.of_int x
-end
-
-module type Vector =
-sig
-  type num
-  type t
-
-  val show: t -> string
-
-  val equal:  t ->  t -> bool
-
-  val keep_vals: t -> int ->  t
-
-  val remove_val: t -> int ->  t
-
-  val set_val: t -> int -> num ->  t
-
-  val insert_val: int -> num ->  t ->  t
-
-  val apply_with_c: (num -> num -> num) -> num ->  t ->  t
-
-  val zero_vec: int -> t
-
-  val nth: t -> int -> num
-
-  val length: t -> int
-
-  val map2: (num -> num -> num) -> t -> t -> t
-
-  val findi: (int -> num -> bool) ->  t -> int * num
-
-  val map: (num -> num) -> t -> t
-
-  val compare_length_with: t -> int -> int
-
-  val of_list: num list -> t
-
-  val to_list: t -> num list
-
-  val filteri: (int -> num -> bool) -> t -> t
-
-  val append: t -> t -> t
-
-  val rev: t -> t
-
-  val map2i: (int -> num -> num -> num) -> t -> t -> t
-
-  val mapi: (int -> num -> num) -> t -> t
-
-  val find2i: (int -> num -> num -> bool) -> t -> t -> int * (num * num)
-end
-
-module type AbstractVector =
-  functor (A: RatOps) ->
-  sig
-    include Vector with type num:= A.t
-  end
-
-module ListVector: AbstractVector =
-  functor (A: RatOps) ->
-  struct
-    include List
-    include ConvenienceOps (A)
-    type t = A.t List.t
-
-    let show t =
-      let rec list_str l =
-        match l with
-        | [] -> "]"
-        | x :: xs -> (A.to_string x) ^" "^(list_str xs)
-      in
-      "["^list_str t^"\n"
-
-    let equal v1 v2 =
-      List.equal (=:) v1 v2
-
-    let keep_vals v n =
-      List.filteri (fun i x -> i < n) v
-
-    let remove_val v n =
-      if n < 0 || n >= List.length v then failwith "Entry does not exist"
-      else List.filteri (fun i x -> i <> n) v
-
-    let set_val (v: A.t List.t) n (new_val: A.t) =
-      if n < 0 || n >= List.length v then failwith "Entry does not exist"
-      else List.mapi (fun i x -> if i = n then new_val else x) v
-
-    let rec insert_val n vl v =
-      match v with
-      | [] -> if n = 0 then [vl] else failwith "Entry does not exist"
-      | x :: xs -> if n > 0 then x :: insert_val (n-1) vl xs else vl :: x :: xs
-
-    let apply_with_c op c v =
-      List.map (fun x -> op x c) v
-
-    let zero_vec size = List.init size (fun i -> of_int 0)
-
-    let of_list l = l
-
-    let to_list v = v
-
-    let find2i f r s =
-      let rec inditer r' s' i =
-        match r', s' with
-        | x1 :: xs1, x2 :: xs2 -> if f i x1 x2 then i, (x1, x2) else inditer xs1 xs2 (i + 1)
-        | _, _ -> failwith "Lists have unequal sizes"
-      in inditer r s 0
-  end
-
-module type Matrix =
-sig
-  type num
-  type vec
-  type t
-
-  val empty: unit -> t
-
-  val show: t -> string
-
-  val add_empty_column: t -> int -> t
-
-  val append_row: t -> vec -> t
-
-  val get_row: t -> int -> vec
-
-  val del_col: t -> int -> t
-
-  val remove_row: t -> int -> t
-
-  val get_col: t -> int -> vec
-
-  val append_matrices: t -> t -> t
-
-  val num_rows: t -> int
-
-  val num_cols: t -> int
-
-  val equal: t -> t -> bool
-
-  val subtract_rows_c: vec -> vec -> num -> vec
-
-  val reduce_row_to_zero: t -> int -> int -> t
-
-  val remove_col: t -> int -> t
-
-  val normalize: t -> t Option.t
-
-  val find_opt: (vec -> bool) -> t -> vec option
-
-  val map2: (vec -> num -> vec) -> t -> vec -> t
-
-  val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
-
-  val of_list: vec list -> t
-
-  val to_list: t -> vec list
-
-  val set_col: t -> vec -> int -> t
-
-end
-
-module type AbstractMatrix =
-  functor (A: RatOps) (V: AbstractVector) ->
-  sig
-    include Matrix with type vec := V(A).t and type num := A.t
-  end
-
-module ListMatrix : AbstractMatrix =
-  functor (A: RatOps) (V: AbstractVector) ->
-  struct
-    include ConvenienceOps(A)
-    module V = V(A)
-    type t = V.t list
-
-    let empty () = []
-
-    let show x =
-      List.fold_left (^) "" (List.map (V.show) x)
-
-    let add_empty_column m pos =
-      List.map (fun y -> V.insert_val pos (of_int 0) y) m
-
-    let append_row m row  =
-      List.append m [row]
-
-    let get_row m n =
-      List.nth m n
-
-    let num_rows m =
-      List.length m
-
-    let remove_row m n =
-      if n < 0 || n >= num_rows m then failwith "Entry does not exist"
-      else List.filteri (fun i x -> n <> i) m
-
-    let get_col m n =
-      V.of_list (List.map (fun x -> V.nth x n) m)
-
-    let set_col m new_col n =
-      List.mapi (fun i r -> V.set_val r n (V.nth new_col i)) m
-
-    let append_matrices m1 m2  =
-      List.append m1 m2
-
-    let num_cols m =
-      match m with
-      | [] -> 0
-      | x :: xs -> V.length x
-
-    let equal m1 m2 =
-      List.equal V.equal m1 m2
-
-    let subtract_rows_c row1 row2 c =
-      V.map2 (fun x y -> x -: (y *: c)) row1 row2
-
-    let reduce_row_to_zero m row_n col_n =
-      let red_row = get_row m row_n in
-      let c = V.nth red_row col_n in
-      List.map (fun x -> subtract_rows_c x red_row ((V.nth x col_n) /: c)) m
-
-    let del_col m col_n = List.map (fun x -> V.remove_val x col_n) m
-
-    let remove_col m col_n =
-      match List.findi (fun i x -> V.nth x col_n <> of_int 0)  (List.rev m) with
-      | exception Not_found -> del_col m col_n
-      | (i, _) -> let len_i = List.length m - (i + 1)
-        in del_col (remove_row (reduce_row_to_zero m len_i col_n) len_i) col_n
-
-    (*Gauss-Jordan Elimination to get matrix in reduced row echelon form (rref) + deletion of zero rows. None matrix has no solution*)
-
-    let map2i f m v = List.map2i f m (V.to_list v)
-
-    let normalize t =
-      let exception NoSolution in
-      let rec create_rref new_t curr_row =
-        if curr_row >= num_rows new_t then new_t else
-          let row = List.nth new_t curr_row in
-          match V.findi (fun i -> fun x -> x <> of_int 0) row with
-          | exception Not_found -> create_rref (remove_row new_t curr_row) curr_row
-          | (i, p) -> if V.compare_length_with row (i + 1) <= 0 then raise NoSolution
-            else let p = V.map (fun x -> x /: p) row in
-              let col = get_col new_t i in
-              let res = map2i (fun row_i y z -> if row_i <> curr_row then subtract_rows_c y p z else p) new_t col
-              in create_rref res (curr_row + 1)
-      in
-      match create_rref t 0 with
-      | c -> let sort v1 v2 =
-               let f = V.findi (fun i x -> x =: of_int 1) in
-               let (i1, _), (i2, _) = (f v1), (f v2) in Int.compare i1 i2
-        in Some (List.sort sort c)
-      | exception NoSolution -> None
-
-    let find_opt = List.find_opt
-
-    let map2 f m v = List.map2 f m (V.to_list v)
-
-    let of_list l = l
-
-    let to_list m = m
-  end
+open VectorMatrix
 
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
@@ -320,7 +23,7 @@ struct
 
   let dim_remove (ch: Apron.Dim.change) m del =
     let to_remove = Array.to_list ch.dim in
-    List.fold_left (fun y x -> if del then Matrix.del_col y x else Matrix.remove_col y x) m to_remove
+    Matrix.remove_zero_rows @@ List.fold_left (fun y x -> if del then Matrix.del_col y x else Matrix.del_col (Matrix.reduce_col y x) x) m to_remove
 
   let change_d t new_env add del =
     let dim_change = if add then Environment.dimchange t.env new_env
@@ -373,9 +76,9 @@ struct
 
   include ConvenienceOps(Mpqf)
 
-  let rec get_c v = match Vector.findi (fun i x -> x <> (of_int 0)) v with
+  let get_c v = match Vector.findi (fun x -> x <> (of_int 0)) v with
     | exception Not_found -> Some (of_int 0)
-    | (i, p) when Vector.compare_length_with v (i + 1) = 0 -> Some (p)
+    | i when Vector.compare_length_with v (i + 1) = 0 -> Some (Vector.nth v i)
     | _ -> None
 
   (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
@@ -384,9 +87,13 @@ struct
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
-    let neg = Vector.map (fun x -> (of_int (-1)) *: x) in
-    let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x ->
-        Vector.compare_length_with v (i + 1) > 0 && x <> of_int 0) v) 1 = 0 in
+    let neg = Vector.map_pt_with (fun x -> (of_int (-1)) *: x) in
+    let is_const_vec v = Vector.compare_length_with (Vector.filteri (fun i x -> (*Inefficient*)
+        Vector.compare_length_with v (i + 1) > 0 && x <> of_int 0) v) 1 = 0
+    (* let is_const_vec v = match Vector.findi (fun x -> x <> of_int 0) v with
+                         | exception Not_found -> false
+                         | i -> Vector.compare_length_with v (i + 1) = 0 *)
+    in
     let rec convert_texpr texp =
       begin match texp with
         | Cst x -> let of_union union =
@@ -399,14 +106,15 @@ struct
                          | Mpfrf x -> Mpfr.to_mpq x) in Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (of_union x)
         | Var x ->
           (*If x is a constant, replace it with its const. val. immediately*)
-          let entry_only = Vector.set_val zero_vec (Environment.dim_of_var t.env x) (of_int 1) in
+          let zero_vec_cp = Vector.copy_pt_with zero_vec in
+          let entry_only v = Vector.set_val_pt_with v(Environment.dim_of_var t.env x) (of_int 1) in
           begin match t.d with
             | Some m -> let row = Matrix.find_opt (fun r -> Vector.nth r (Environment.dim_of_var t.env x) = of_int 1) m in
               begin match row with
                 | Some v when is_const_vec v ->
-                  Vector.set_val zero_vec ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
-                | _ -> entry_only end
-            | None -> entry_only end
+                  Vector.set_val_pt_with zero_vec_cp ((Vector.length zero_vec) - 1) (Vector.nth v (Vector.length v - 1))
+                | _ -> entry_only zero_vec_cp end
+            | None -> entry_only zero_vec_cp end
         | Unop (u, e, _, _) ->
           begin match u with
             | Neg -> neg @@ convert_texpr e
@@ -414,13 +122,13 @@ struct
             | Sqrt -> raise NotLinear end
         | Binop (b, e1, e2, _, _) ->
           begin match b with
-            | Add ->  Vector.map2 (+:)(convert_texpr e1) (convert_texpr e2)
-            | Sub -> Vector.map2 (+:) (convert_texpr  e1) (neg @@ convert_texpr e2)
+            | Add ->  Vector.map2_pt_with (+:)(convert_texpr e1) (convert_texpr e2)
+            | Sub -> Vector.map2_pt_with (+:) (convert_texpr  e1) (neg @@ convert_texpr e2)
             | Mul ->
               let x1, x2 = convert_texpr e1, convert_texpr e2 in
               begin match get_c x1, get_c x2 with
-                | _, Some c -> Vector.apply_with_c ( *:) c x1
-                | Some c, _ -> Vector.apply_with_c ( *:) c x2
+                | _, Some c -> Vector.apply_with_c_pt_with ( *:) c x1
+                | Some c, _ -> Vector.apply_with_c_pt_with ( *:) c x2
                 | _, _ -> raise NotLinear end
             | _ -> raise NotLinear end
       end
@@ -465,7 +173,7 @@ struct
   let show t =
     match t.d with
     | None -> Format.asprintf "⟂ (env: %a)" (Environment.print:Format.formatter -> Environment.t -> unit) t.env
-    | Some m when m = Matrix.empty () -> Format.asprintf "⊤ (env: %a)" (Environment.print:Format.formatter -> Environment.t -> unit) t.env
+    | Some m when Matrix.is_empty m -> Format.asprintf "⊤ (env: %a)" (Environment.print:Format.formatter -> Environment.t -> unit) t.env
     | Some m -> Format.asprintf "%s env %a" (Matrix.show m) (Environment.print:Format.formatter -> Environment.t -> unit) t.env
 
   let pretty () (x:t) = text (show x)
@@ -503,8 +211,8 @@ struct
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
     match (t1.d, t2.d) with
-    | Some x, Some y when x = Matrix.empty () -> {d = Some (dim_add (Environment.dimchange t2.env sup_env) y); env = sup_env}
-    | Some x, Some y when y = Matrix.empty () -> {d = Some (dim_add (Environment.dimchange t1.env sup_env) x); env = sup_env}
+    | Some x, Some y when Matrix.is_empty x -> {d = Some (dim_add (Environment.dimchange t2.env sup_env) y); env = sup_env}
+    | Some x, Some y when Matrix.is_empty y -> {d = Some (dim_add (Environment.dimchange t1.env sup_env) x); env = sup_env}
     | Some x, Some y -> let mod_x = dim_add (Environment.dimchange t1.env sup_env) x in
       let mod_y = dim_add (Environment.dimchange t2.env sup_env) y in
       let rref_matr = Matrix.normalize (Matrix.append_matrices mod_x mod_y) in
@@ -548,13 +256,15 @@ struct
           in Matrix.remove_row mapping r
         in
         let case_three a b col_a col_b max =
+          let col_a, col_b = Vector.copy_pt_with col_a, Vector.copy_pt_with col_b in
           let col_a, col_b = Vector.keep_vals col_a max, Vector.keep_vals col_b max in
           if Vector.equal col_a col_b then (a, b, max) else
-            let a_rev, b_rev = Vector.rev col_a,  Vector.rev col_b in
-            let i, (x, y) = Vector.find2i (fun i x y -> x <> y) a_rev b_rev in
+            let a_rev, b_rev = Vector.rev_pt_with col_a,  Vector.rev_pt_with col_b in
+            let i = Vector.find2i (fun x y -> x <> y) a_rev b_rev in
+            let (x, y) = Vector.nth a_rev i, Vector.nth b_rev i in
             let r, diff = Vector.length a_rev - (i + 1), x -: y  in
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
-            let sub_col = Vector.map2 (fun x y -> x -: y) col_a col_b in
+            let sub_col = Vector.rev_pt_with @@ Vector.map2_pt_with (fun x y -> x -: y) a_rev b_rev in
             let multiply_by_t m t =
               let zero_vec = Vector.of_list @@ List.init (Matrix.num_rows m - Vector.length sub_col) (fun x -> of_int 0) in
               let cs = Vector.append sub_col zero_vec in
@@ -581,7 +291,7 @@ struct
     match a.d, b.d with
     | None, m -> b
     | m, None -> a
-    | Some x, Some y when x = Matrix.empty () || y = Matrix.empty () -> {d = Some (Matrix.empty ()); env = Environment.lce a.env b.env}
+    | Some x, Some y when Matrix.is_empty x || Matrix.is_empty y -> {d = Some (Matrix.empty ()); env = Environment.lce a.env b.env}
     | Some x, Some y when (Environment.compare a.env b.env <> 0) ->
       let sup_env = Environment.lce a.env b.env in
       let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
@@ -602,30 +312,31 @@ struct
     let j0 = Environment.dim_of_var env var in
     let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
     let b0 = Vector.nth b j0 in
-    let reduced_a = Vector.apply_with_c (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
+    let reduced_a = Vector.apply_with_c_pt_with (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
     let recalc_entries m rd_a = Matrix.map2 (fun x y -> Vector.map2i (fun j z d ->
         if j = j0 then y
         else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
         else z +: y *: d) x b) m rd_a
-    in {d = Matrix.normalize @@ recalc_entries x reduced_a; env = env}
+    in {d = Some (recalc_entries x reduced_a); env = env}
 
   let assign_uninvertible_rel x var b env =
-    let neg_vec = Vector.mapi (fun i z -> if Vector.compare_length_with b (i + 1) > 0 then of_int (-1) *: z else z) b
-    in let var_vec = Vector.set_val neg_vec (Environment.dim_of_var env var) (of_int 1)
-    in {d = Matrix.normalize @@ Matrix.append_row x var_vec; env = env}
+    let neg_vec = Vector.mapi_pt_with (fun i z -> if Vector.compare_length_with b (i + 1) > 0 then of_int (-1) *: z else z) b
+    in let var_vec = Vector.set_val_pt_with neg_vec (Environment.dim_of_var env var) (of_int 1)
+    in {d = Matrix.normalize_pt_with @@ Matrix.append_row x var_vec; env = env}
 
   let remove_rels_with_var x var env =
-    let j0 = Environment.dim_of_var env var
-    in match Vector.findi (fun i x -> x <> of_int 0) (Vector.rev @@ Matrix.get_col x j0) with
-    | exception Not_found -> x
-    | r, _ -> Matrix.reduce_row_to_zero x (Matrix.num_rows x - r - 1) j0
+    let j0 = Environment.dim_of_var env var in
+    Matrix.remove_zero_rows @@ Matrix.reduce_col x j0
 
-  let rec forget_vars t vars =
+  let forget_vars t vars =
     match t.d with
     | None -> t
-    | Some m -> begin match vars with
-        | [] -> t
-        | x :: xs -> forget_vars {d = Some (Option.get @@ Matrix.normalize @@ remove_rels_with_var m x t.env); env = t.env} xs end
+    | Some m ->
+      let rec rem_vars m vars' =
+        begin match vars' with
+          |            [] -> m
+          | x :: xs -> rem_vars (remove_rels_with_var m x t.env) xs end
+      in {d = Some (Matrix.remove_zero_rows @@ rem_vars m vars); env = t.env}
 
 
   let assign_texpr (t: VarManagement(V)(Mx).t) var texp =
@@ -633,11 +344,11 @@ struct
     in let affineEq_vec = get_coeff_vec t texp
     in match t.d, affineEq_vec with
     | None, _ -> failwith "Can not assign to bottom state!"
-    | Some m, Some v when m = Matrix.empty ()-> if is_invertible v then t else assign_uninvertible_rel (Matrix.empty ()) var v t.env
+    | Some m, Some v when Matrix.is_empty m-> if is_invertible v then t else assign_uninvertible_rel (Matrix.empty ()) var v t.env
     | Some x, Some v -> if is_invertible v then assign_invertible_rels x var v t.env
       else let new_x = remove_rels_with_var x var t.env
         in assign_uninvertible_rel new_x var v t.env
-    | Some x, None -> {d = Matrix.normalize @@ remove_rels_with_var x var t.env; env = t.env}
+    | Some x, None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env); env = t.env}
 
   let assign_exp (t: VarManagement(V)(Mx).t) var exp (no_ov: bool Lazy.t) =
     match Convert.texpr1_expr_of_cil_exp t t.env (Lazy.force no_ov) exp with
@@ -666,12 +377,13 @@ struct
     let t_primed = add_vars t primed_vars in
     let multi_t = List.fold_left2 (fun t' v_prime (_,v') -> assign_var t' v_prime v') t_primed primed_vars vv's in
     match multi_t.d with
-    | Some m when m <> Matrix.empty () -> let replace_col m x y = let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
-                                            let col_x = Matrix.get_col m dim_x in
-                                            Matrix.set_col m col_x dim_y in
-      let switched_m = List.fold_left2 (fun m' x y -> replace_col m' x y) m primed_vars assigned_vars in
+    | Some m when not @@ Matrix.is_empty m -> let replace_col m x y = let dim_x, dim_y = Environment.dim_of_var multi_t.env x, Environment.dim_of_var multi_t.env y in
+                                                let col_x = Matrix.get_col m dim_x in
+                                                Matrix.set_col_with m col_x dim_y in
+      let m_cp = Matrix.copy_pt m in
+      let switched_m = List.fold_left2 (fun m' x y -> replace_col m' x y) m_cp primed_vars assigned_vars in
       let res = drop_vars {d = Some switched_m; env = multi_t.env} primed_vars true in
-      {d = Matrix.normalize (Option.get res.d); env = res.env}
+      {d = Matrix.normalize_pt_with (Option.get res.d); env = res.env}
     | _ -> t
 
   let assign_var_parallel_pt_with t vv's =
@@ -688,7 +400,8 @@ struct
 
   let substitute_exp t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
-    assign_exp t var exp no_ov
+    let res = assign_exp t var exp no_ov in
+    remove_vars res [var]
 
   let substitute_exp t var exp ov =
     let res = substitute_exp t var exp ov
@@ -696,14 +409,13 @@ struct
 
   (** Assert a constraint expression. *)
   let meet_with_tcons t tcons expr =
-    if M.tracing then M.tracel "assert_cons" "Meeting with tcons";
     let check_const cmp c = if cmp c (of_int 0) then {d = None; env = t.env} else t
     in
     let exception NotRefinable in
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
-      let flip_e = Vector.mapi (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e in
-      let res = meet t {d = Matrix.normalize @@ Matrix.of_list [flip_e]; env = t.env} in
+      let flip_e = Vector.mapi_pt_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e in
+      let res = meet t {d = Matrix.normalize @@ Matrix.init_with_vec flip_e; env = t.env} in
       let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
       match Convert.determine_bounds_one_var expr with
       | None -> overflow_res res
@@ -772,6 +484,6 @@ struct
 
 end
 
-module ListD2 = D2(ListVector) (ListMatrix)
+module ListD2 = D2(ArrayVector) (ArrayMatrix)
 
 module AD2 = SharedFunctions.AssertionModule (ListD2)

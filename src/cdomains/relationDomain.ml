@@ -1,5 +1,4 @@
 open Prelude
-open Pretty
 open Cil
 
 module type RelVar =
