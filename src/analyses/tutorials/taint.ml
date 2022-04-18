@@ -57,7 +57,7 @@ struct
     let state = ctx.local in
     match lval with
     | Var v,_ ->
-      (* TODO: Handle assignment to v *)
+      (* TODO: Check whether lval is tainted, handle assignment to v accordingly *)
       state
     | _ -> state
 
@@ -75,9 +75,12 @@ struct
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let state = ctx.local in
-    (* TODO: If a tainted value is returned, this has to be recorded. *)
-    (* Hint: Use [return_varinfo] in place of a variable. *)
-    state
+    match exp with
+    | Some e ->
+      (* TODO: Record whether a tainted value was returned. *)
+      (* Hint: You may use return_varinfo in place of a variable. *)
+      state
+    | None -> state
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the inital state of the callee.
@@ -102,7 +105,7 @@ struct
       Argument [callee_local] is the state of [f] at its return node. *)
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
     let caller_state = ctx.local in
-    (* TODO: Record whether [lval] was tainted. *)
+    (* TODO: Record whether lval was tainted. *)
     caller_state
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
