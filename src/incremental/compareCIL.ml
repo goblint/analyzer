@@ -3,6 +3,8 @@ open MyCFG
 include CompareAST
 include CompareCFG
 
+let rename_map: (string, (string, string) Hashtbl.t) Hashtbl.t ref = ref (Hashtbl.create 100)
+
 type nodes_diff = {
   unchangedNodes: (node * node) list;
   primObsoleteNodes: node list; (** primary obsolete nodes -> all obsolete nodes are reachable from these *)
@@ -23,6 +25,14 @@ type change_info = {
   mutable added: global list
 }
 
+let store_local_rename (function_name: string) (rename_table: (string, string) Hashtbl.t) = 
+  Hashtbl.add !rename_map function_name rename_table
+
+(*Returnes the rename if one exists, or param_name when no entry exists.*)
+let get_local_rename (function_name: string) (param_name: string) = match (Hashtbl.find_opt !rename_map function_name) with
+  | Some (local_map) -> Option.value (Hashtbl.find_opt local_map param_name) ~default:param_name
+  | None -> param_name
+
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
 let should_reanalyze (fdec: Cil.fundec) =
@@ -32,6 +42,12 @@ let should_reanalyze (fdec: Cil.fundec) =
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_context: method_context list) =
+  let local_rename_map: (string, string) Hashtbl.t = Hashtbl.create (List.length a.slocals) in
+
+  List.combine a.slocals b.slocals |>
+    List.map (fun x -> match x with (a, b) -> (a.vname, b.vname)) |>
+    List.iter (fun pair -> match pair with (a, b) -> Hashtbl.add local_rename_map a b);
+    
 
   (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal, 
    * and as a second a context, holding the rename assumptions *)
@@ -46,11 +62,8 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_cont
 
   let headerSizeEqual, headerContext = context_aware_compare a.sformals b.sformals [] in
   let actHeaderContext = (headerContext, global_context) in
-  Printf.printf "Header context=%s\n" (context_to_string actHeaderContext);
 
   let unchangedHeader = eq_varinfo a.svar b.svar actHeaderContext && GobList.equal (eq_varinfo2 actHeaderContext) a.sformals b.sformals in
-  let _ = Printf.printf "unchangedHeader=%b\n" unchangedHeader in
-  let _ = Printf.printf "part1=%b; part2=%b \n" (eq_varinfo a.svar b.svar actHeaderContext) (GobList.equal (eq_varinfo2 actHeaderContext) a.sformals b.sformals) in
   let identical, diffOpt =
     if should_reanalyze a then
       false, None
@@ -69,7 +82,6 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_cont
       else
         match cfgs with
         | None -> 
-          Printf.printf "Comparing blocks\n"; 
           eq_block (a.sbody, a) (b.sbody, b) context, None
         | Some (cfgOld, cfgNew) ->
           Printf.printf "compareCIL.eqF: Compaing 2 cfgs now\n";
@@ -79,14 +91,14 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_cont
           if diffNodes1 = [] && diffNodes2 = [] then (true, None)
           else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
   in
+
+  if (identical) then store_local_rename a.svar.vname local_rename_map;
+
   identical, unchangedHeader, diffOpt
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * cfg) option) (global_context: method_context list) = match a, b with
   | GFun (f,_), GFun (g,_) -> 
-    let _ = Printf.printf "Comparing funs %s with %s\n" f.svar.vname g.svar.vname in
     let identical, unchangedHeader, diffOpt = eqF f g cfgs global_context in
-
-    let _ = Printf.printf "identical=%b; unchangedHeader=%b\n" identical unchangedHeader in
 
     identical, unchangedHeader, diffOpt
   | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y ([], []), false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
@@ -114,10 +126,10 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
           else [] in
 
           if not (f.svar.vname = g.svar.vname) || (List.length renamed_params) > 0 then 
-            Option.some {original_method_name=f.svar.vname; new_method_name=g.svar.vname; parameter_renames=renamed_params}
-          else Option.none
-        | _, _ -> Option.none
-    with Not_found -> Option.none
+            Some {original_method_name=f.svar.vname; new_method_name=g.svar.vname; parameter_renames=renamed_params}
+          else None
+        | _, _ -> None
+    with Not_found -> None
   in
 
   let addGlobal map global  =

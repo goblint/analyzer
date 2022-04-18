@@ -2015,6 +2015,36 @@ struct
     | _ ->  []
 
   let assert_fn ctx e should_warn change =
+    let parent_function: fundec = Node.find_fundec ctx.node in
+
+    (*Performs the actual rename on lvals for renamed local variables.*)
+    let rename_lval lhost offset =  
+      let new_lhost = match lhost with
+        | Var varinfo -> 
+          varinfo.vname <- CompareCIL.get_local_rename parent_function.svar.vname varinfo.vname;
+          Var varinfo
+        | _ -> lhost
+      in
+      (new_lhost, offset)
+    in
+
+    (*Recusivly go through the expression and rename all occurences of local variables. TODO: What happens with global vars*)
+    let rec rename_exp (exp: exp) = match exp with
+      | Lval (lhost, offset) -> Lval (rename_lval lhost offset)
+      | Real e -> Real (rename_exp e)
+      | Imag e -> Imag (rename_exp e)
+      | SizeOfE e -> SizeOfE (rename_exp e)
+      | AlignOfE e -> AlignOfE (rename_exp e)
+      | UnOp (unop, e, typ) -> UnOp (unop, rename_exp e, typ)
+      | BinOp (binop, e1, e2, typ) -> BinOp (binop, rename_exp e1, rename_exp e2, typ)
+      | Question (e1, e2, e3, typ) -> Question (rename_exp e1, rename_exp e2, rename_exp e3, typ)
+      | CastE (typ, e) -> CastE (typ, rename_exp e)
+      | AddrOf (lhost, offset) -> AddrOf (rename_lval lhost offset)
+      | StartOf (lhost, offset) -> StartOf (rename_lval lhost offset)
+      (*TODO: AddrOfLabel?*)
+      | _ -> exp
+    in
+    
 
     let check_assert e st =
       match eval_rv (Analyses.ask_of_ctx ctx) ctx.global st e with
@@ -2027,7 +2057,7 @@ struct
       | `Bot -> `Bot
       | _ -> `Top
     in
-    let expr = sprint d_exp e in
+    let expr = sprint d_exp (rename_exp e) in
     let warn warn_fn ?annot msg = if should_warn then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
@@ -2087,6 +2117,9 @@ struct
     invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
+    Printf.printf "special: varinfo=%s\n" f.vname;
+    List.iter (fun x -> ignore @@ Pretty.printf "%a\n" Cil.d_exp x;) args;
+
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;

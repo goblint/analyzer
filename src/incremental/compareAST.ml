@@ -101,9 +101,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (context: context) =
     | TArray (typ1, (Some lenExp1), attr1), TArray (typ2, (Some lenExp2), attr2) -> eq_typ_acc typ1 typ2 acc context && eq_exp lenExp1 lenExp2 context &&  GobList.equal (eq_attribute context) attr1 attr2
     | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc context && GobList.equal (eq_attribute context) attr1 attr2
     | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2)
-      ->  
-        Printf.printf "eq_typ_acc=1:%b;2:%b;3:%b;4:%b;\n" ( eq_typ_acc typ1 typ2 acc context) (GobList.equal (eq_args context acc) list1 list2) (varArg1 = varArg2) (GobList.equal (eq_attribute context) attr1 attr2);
-        eq_typ_acc typ1 typ2 acc context && GobList.equal (eq_args context acc) list1 list2 && varArg1 = varArg2 &&
+      -> eq_typ_acc typ1 typ2 acc context && GobList.equal (eq_args context acc) list1 list2 && varArg1 = varArg2 &&
           GobList.equal (eq_attribute context) attr1 attr2
     | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2)
       ->  eq_typ_acc typ1 typ2 acc context && varArg1 = varArg2 &&
@@ -150,12 +148,7 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) (context: context) =
 
 and eq_args (context: context) (acc: (typ * typ) list) (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
     (name1, typ1, attr1), (name2, typ2, attr2) -> 
-      Printf.printf "Comparing args: %s <-> %s\n" name1 name2;
-      Printf.printf "Current context: %s\n" (context_to_string context);
-      let result = context_aware_name_comparison name1 name2 context && eq_typ_acc typ1 typ2 acc context && GobList.equal (eq_attribute context) attr1 attr2 in
-
-      Printf.printf "Back\n";
-      result
+      context_aware_name_comparison name1 name2 context && eq_typ_acc typ1 typ2 acc context && GobList.equal (eq_attribute context) attr1 attr2
 
 and eq_attrparam (context: context) (a: attrparam) (b: attrparam) = match a, b with
   | ACons (str1, attrparams1), ACons (str2, attrparams2) -> str1 = str2 && GobList.equal (eq_attrparam context) attrparams1 attrparams2
@@ -180,11 +173,24 @@ and eq_attribute (context: context) (a: attribute) (b: attribute) = match a, b w
 and eq_varinfo2 (context: context) (a: varinfo) (b: varinfo) = eq_varinfo a b context
 
 and eq_varinfo (a: varinfo) (b: varinfo) (context: context) = 
-  Printf.printf "Comp %s with %s\n" a.vname b.vname;
-  let isNamingOk = context_aware_name_comparison a.vname b.vname context in
+  (*Printf.printf "Comp %s with %s\n" a.vname b.vname;*)
+
+  let (_, method_contexts) = context in
+
+  (*When we compare function names, we can directly compare the naming from the context if it exists.*)
+  let isNamingOk = match b.vtype with
+    | TFun(_, _, _, _) -> (
+        let specific_method_context = List.find_opt (fun x -> match x with
+          | {original_method_name; new_method_name; parameter_renames} -> original_method_name = a.vname && new_method_name = b.vname
+        ) method_contexts in  
+        match specific_method_context with
+          | Some method_context -> method_context.original_method_name = a.vname && method_context.new_method_name = b.vname
+          | None -> a.vname = b.vname
+      )
+    | _ -> context_aware_name_comparison a.vname b.vname context
+    in 
 
   (*If the following is a method call, we need to check if we have a mapping for that method call. *)
-  let (_, method_contexts) = context in
   let typ_context, did_context_switch = match b.vtype with
       | TFun(_, _, _, _) -> (
         let new_locals = List.find_opt (fun x -> match x with
@@ -193,7 +199,7 @@ and eq_varinfo (a: varinfo) (b: varinfo) (context: context) =
 
         match new_locals with
           | Some locals -> 
-            Printf.printf "Performing context switch. New context=%s\n" (context_to_string (locals.parameter_renames, method_contexts));
+            (*Printf.printf "Performing context switch. New context=%s\n" (context_to_string (locals.parameter_renames, method_contexts));*)
             (locals.parameter_renames, method_contexts), true
           | None -> ([], method_contexts), false
         )
@@ -202,9 +208,6 @@ and eq_varinfo (a: varinfo) (b: varinfo) (context: context) =
 
   let typeCheck = eq_typ a.vtype b.vtype typ_context in
   let attrCheck = GobList.equal (eq_attribute context) a.vattr b.vattr in
-
-  let _ = Printf.printf "eq_varinfo: 0=%b;1=%b;2=%b;3=%b;4=%b;5=%b\n" isNamingOk typeCheck attrCheck (a.vstorage = b.vstorage) (a.vglob = b.vglob) (a.vaddrof = b.vaddrof) in
-
 
     (*let _ = if isNamingOk then a.vname <- b.vname in*)
 

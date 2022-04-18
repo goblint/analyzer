@@ -124,6 +124,7 @@ let virtual_changes file =
 
 let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
   | Some solver_data when reparsed ->
+    Printf.printf "Increment_data\n";
     let _, changes = VersionLookup.updateMap s.file file s.version_map in
     let old_data = Some { Analyses.cil_file = s.file; solver_data } in
     s.max_ids <- UpdateCil.update_ids s.file s.max_ids file s.version_map changes;
