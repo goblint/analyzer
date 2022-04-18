@@ -45,7 +45,7 @@ struct
   and is_lval_tainted state = function
     | (Var v, _) ->
       (* TODO: Check whether variable v is tainted *)
-      failwith "TODO"
+      false
     | _ ->
       (* We assume using a tainted offset does not taint the expression, and that our language has no pointers *)
       false
@@ -54,11 +54,12 @@ struct
 
   (** Handles assignment of [rval] to [lval]. *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
+    let state = ctx.local in
     match lval with
     | Var v,_ ->
       (* TODO: Handle assignment to v *)
-      failwith "TODO"
-    | _ -> ctx.local
+      state
+    | _ -> state
 
   (** Handles conditional branching yielding truth value [tv]. *)
   let branch ctx (exp:exp) (tv:bool) : D.t =
@@ -73,43 +74,45 @@ struct
 
   (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
+    let state = ctx.local in
     (* TODO: If a tainted value is returned, this has to be recorded. *)
     (* Hint: Use [return_varinfo] in place of a variable. *)
-    failwith "TODO"
+    state
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the inital state of the callee.
       In [enter], the caller state can ususally be return unchanged, as [combine] (below)
       will compute the caller state after the function call, given the return state of the callee. *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    let caller_local = ctx.local in
+    let caller_state = ctx.local in
     (* Create list of (formal, actual_exp)*)
     let zipped = List.combine f.sformals args in
-    (* TODO: Collect formal parameters where the actual is tainted. *)
+    (* TODO: For the initial callee_state, collect formal parameters where the actual is tainted. *)
     let callee_state = List.fold_left (fun ts (f,a) ->
-                                        if is_exp_tainted caller_local a
-                                          then failwith "TODO"
-                                          else ts)
-                                      (D.bot ())
-                                      zipped in
+        if is_exp_tainted caller_state a
+        then ts (* TODO: Change accumulater ts here? *)
+        else ts)
+        (D.bot ())
+        zipped in
     (* first component is state of caller, second component is state of callee *)
-    [caller_local, callee_state]
+    [caller_state, callee_state]
 
   (** For a function call "lval = f(args)" or "f(args)",
       computes the state of the caller after the call.
       Argument [callee_local] is the state at the return node of [f]. *)
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
-    let caller_local = ctx.local in
+    let caller_state = ctx.local in
     (* TODO: Record whether [lval] was tainted. *)
-    failwith "TODO"
+    caller_state
 
   (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
       computes the caller state after the function call.
       For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
+    let caller_state = ctx.local in
     (* TODO: Check if f is a sink / source and handle it appropriately *)
     (* To warn about a potential issue in the code, use M.warn. *)
-    failwith "TODO"
+    caller_state
 
   (* You may leave these alone *)
   let startstate v = D.bot ()
