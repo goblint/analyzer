@@ -81,7 +81,7 @@ struct
 
   (** For a function call "lval = f(args)" or "f(args)",
       [enter] returns a caller state, and the inital state of the callee.
-      In [enter], the caller state can ususally be return unchanged, as [combine] (below)
+      In [enter], the caller state can usually be returned unchanged, as [combine] (below)
       will compute the caller state after the function call, given the return state of the callee. *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_state = ctx.local in
@@ -99,7 +99,7 @@ struct
 
   (** For a function call "lval = f(args)" or "f(args)",
       computes the state of the caller after the call.
-      Argument [callee_local] is the state at the return node of [f]. *)
+      Argument [callee_local] is the state of [f] at its return node. *)
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
     let caller_state = ctx.local in
     (* TODO: Record whether [lval] was tainted. *)
