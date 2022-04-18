@@ -1813,6 +1813,11 @@ struct
         if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
         raise Deadcode
       end
+    (* for some reason refine () can refine these, but not raise Deadcode in struct *)
+    | `Address ad when tv && AD.is_null ad ->
+      raise Deadcode
+    | `Address ad when not tv && AD.is_not_null ad ->
+      raise Deadcode
     | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
       if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
