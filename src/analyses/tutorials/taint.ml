@@ -11,7 +11,7 @@ let is_sink varinfo = Cil.hasAttribute "taint_sink" varinfo.vattr
 let is_source varinfo = Cil.hasAttribute "taint_source" varinfo.vattr
 
 
-(* Fake variable to handle returning from a function *)
+(** "Fake" variable to handle returning from a function *)
 let return_varinfo = dummyFunDec.svar
 
 module Spec : Analyses.MCPSpec with module D = SetDomain.Make(CilType.Varinfo) and module C = Lattice.Unit =
@@ -25,6 +25,7 @@ struct
   (* We are context insensitive in this analysis *)
   let context _ _ = ()
 
+  (** Determines whether an expression [e] is tainted, given a [state]. *)
   let rec is_exp_tainted (state:D.t) (e:Cil.exp) = match e with
     (* Recurse over the structure in the expression, retruning true if any varinfo appearing in the expression is tainted *)
     | AddrOf v
@@ -46,6 +47,8 @@ struct
       false
 
   (* transfer functions *)
+
+  (** Handles assignment of [rval] to [lval]. *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
     match lval with
     | Var v,_ ->
@@ -55,19 +58,28 @@ struct
         D.remove v ctx.local
     | _ -> ctx.local
 
+  (** Handles conditional branching yielding truth value [tv]. *)
   let branch ctx (exp:exp) (tv:bool) : D.t =
+    (* Nothing needs to be done *)
     ctx.local
 
+  (** Handles going from start node of function [f] into the function body of [f].
+      Meant to handle e.g. initializiation of local variables. *)
   let body ctx (f:fundec) : D.t =
     (* Nothing needs to be done here, as the (non-formals) locals are initally untainted *)
     ctx.local
 
+  (** Handles the [return] statement, i.e. "return exp" or "return", in function [f]. *)
   let return ctx (exp:exp option) (f:fundec) : D.t =
     (* We add a fake variable to indicate the return value is tainted *)
     match exp with
     | Some e when is_exp_tainted ctx.local e  -> D.add return_varinfo ctx.local
     | _ -> ctx.local
 
+  (** For a function call "lval = f(args)" or "f(args)",
+      [enter] returns a caller state, and the inital state of the callee.
+      In [enter], the caller state can ususally be return unchanged, as [combine] (below)
+      will compute the caller state after the function call, given the return state of the callee. *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let caller_local = ctx.local in
     (* Create list of (formal, actual_exp)*)
@@ -76,12 +88,18 @@ struct
     (* first component is state of caller, second component is state of callee *)
     [caller_local, callee_state]
 
+  (** For a function call "lval = f(args)" or "f(args)",
+      computes the state of the caller after the call.
+      Argument [callee_local] is the state at the return node of [f]. *)
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (callee_local:D.t) : D.t =
     let caller_local = ctx.local in
     match lval with
     | Some (Var v,_) when D.mem return_varinfo callee_local -> D.add v caller_local
     | _ -> caller_local
 
+  (** For a call to a _special_ function f "lval = f(args)" or "f(args)",
+      computes the caller state after the function call.
+      For this analysis, source and sink functions will be considered _special_ and have to be treated here. *)
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     (* here you should check if f is a sink / source and handle it appropriately *)
     if is_source f then
