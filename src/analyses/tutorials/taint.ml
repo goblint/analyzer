@@ -29,7 +29,7 @@ struct
 
   (** Determines whether an expression [e] is tainted, given a [state]. *)
   let rec is_exp_tainted (state:D.t) (e:Cil.exp) = match e with
-    (* Recurse over the structure in the expression, retruning true if any varinfo appearing in the expression is tainted *)
+    (* Recurse over the structure in the expression, returning true if any varinfo appearing in the expression is tainted *)
     | AddrOf v
     | StartOf v
     | Lval v -> is_lval_tainted state v
@@ -57,7 +57,7 @@ struct
     let state = ctx.local in
     match lval with
     | Var v,_ ->
-      (* TODO: Check whether lval is tainted, handle assignment to v accordingly *)
+      (* TODO: Check whether rval is tainted, handle assignment to v accordingly *)
       state
     | _ -> state
 

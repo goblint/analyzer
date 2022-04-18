@@ -44,7 +44,7 @@ Goblint could verify that this assertion does hold using interval analysis (`--e
 ## Starting point
 
 We begin with the flawed implementation in **`src/analyses/tutorials/signs.ml`**.
-If you immediately try to run Goblint with the new analysis enabled: `--set "ana.activated[+]" signs`. The result will still be that nothing is verified, so you need to fix all the problems in the code.
+If you immediately try to run Goblint with the new analysis enabled: `--set ana.activated[+] signs`. The result will still be that nothing is verified, so you need to fix all the problems in the code.
 
 It may still be useful to use Goblint's HTML output to [see the result](../user-guide/inspecting.md) of the analysis. This will also include Goblint's base analysis, which is needed to deal with function calls.
 
@@ -55,7 +55,7 @@ We first need to design the abstract domain. It may help if you have read some t
 1. `of_int i` should abstract integers to their best representation in our abstract domain. Our sign domain can distinguish positive, negative and zero values, so do it right!
 2. `gt x y` should answer true if the value represented by `x` is definitely greater than the value represented by `y`. There seems to be a crucial case missing here in the otherwise excellent implementation...
 
-We will represent tha abstract state of the program as a map from variables to the newly created sign domain.
+We will represent the abstract state of the program as a map from variables to the newly created sign domain.
 
 ```ocaml
 module D = MapDomain.MapBot (Basetype.Variables) (SL)
