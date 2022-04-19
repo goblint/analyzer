@@ -2015,6 +2015,14 @@ struct
     | _ ->  []
 
   let assert_fn ctx e should_warn change =
+    let _ = Hashtbl.iter (fun fun_name map -> 
+      begin
+        Printf.printf "%s: [" fun_name;
+        Hashtbl.iter (fun from tox -> Printf.printf "%s -> %s; " from tox) map;
+        Printf.printf "]\n";
+      end
+      ) !CompareCIL.rename_map in
+
     let parent_function: fundec = Node.find_fundec ctx.node in
 
     (*Performs the actual rename on lvals for renamed local variables.*)

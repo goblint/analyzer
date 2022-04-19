@@ -3,7 +3,11 @@ open MyCFG
 include CompareAST
 include CompareCFG
 
+(*Maps the function name to a table of it's local variable and parameter renames. The rename table has key of original name and value of renamed name.*)
 let rename_map: (string, (string, string) Hashtbl.t) Hashtbl.t ref = ref (Hashtbl.create 100)
+
+(*Same as rename_map, but maps renamed name to original name instead.*)
+let reverse_rename_map: (string, (string, string) Hashtbl.t) Hashtbl.t ref = ref (Hashtbl.create 100)
 
 type nodes_diff = {
   unchangedNodes: (node * node) list;
@@ -26,12 +30,35 @@ type change_info = {
 }
 
 let store_local_rename (function_name: string) (rename_table: (string, string) Hashtbl.t) = 
-  Hashtbl.add !rename_map function_name rename_table
+  begin
+    Hashtbl.add !rename_map function_name rename_table;
+    let reverse_rename_table = Hashtbl.create (Hashtbl.length !rename_map) in
+    Hashtbl.iter (fun original_name new_name -> Hashtbl.add reverse_rename_table new_name original_name) rename_table;
+    Hashtbl.add !reverse_rename_map function_name reverse_rename_table;
+  end
 
 (*Returnes the rename if one exists, or param_name when no entry exists.*)
 let get_local_rename (function_name: string) (param_name: string) = match (Hashtbl.find_opt !rename_map function_name) with
   | Some (local_map) -> Option.value (Hashtbl.find_opt local_map param_name) ~default:param_name
   | None -> param_name
+
+let get_orignal_name (function_name: string) (new_var_name: string) = match (Hashtbl.find_opt !reverse_rename_map function_name) with
+  | Some (reverse_map) -> Option.value (Hashtbl.find_opt reverse_map new_var_name) ~default:new_var_name
+  |None -> new_var_name
+
+let show_rename_map =
+  let show_local_rename_map (local_rename_map: (string, string) Hashtbl.t) = 
+    let rename_string = Seq.map (fun (orig, new_name) -> orig ^ " -> " ^ new_name) (Hashtbl.to_seq local_rename_map) |> 
+      List.of_seq in
+    String.concat ", " rename_string
+  in
+  
+  Hashtbl.to_seq !rename_map |>
+    Seq.iter (fun (fun_name, map) -> Printf.printf "%s=%d" fun_name (Hashtbl.length map));
+
+  let function_strings = Seq.map (fun (fun_name, map) -> fun_name ^ ": [" ^ (show_local_rename_map map) ^ "]") (Hashtbl.to_seq !rename_map) |> List.of_seq in
+
+  String.concat ", " function_strings
 
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
@@ -44,9 +71,10 @@ let should_reanalyze (fdec: Cil.fundec) =
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_context: method_context list) =
   let local_rename_map: (string, string) Hashtbl.t = Hashtbl.create (List.length a.slocals) in
 
-  List.combine a.slocals b.slocals |>
-    List.map (fun x -> match x with (a, b) -> (a.vname, b.vname)) |>
-    List.iter (fun pair -> match pair with (a, b) -> Hashtbl.add local_rename_map a b);
+  if (List.length a.slocals) = (List.length b.slocals) then
+    List.combine a.slocals b.slocals |>
+      List.map (fun x -> match x with (a, b) -> (a.vname, b.vname)) |>
+      List.iter (fun pair -> match pair with (a, b) -> Hashtbl.add local_rename_map a b);
     
 
   (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal, 
@@ -146,14 +174,20 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 
   let changes = empty_change_info () in
   global_typ_acc := [];
-  let checkUnchanged map global global_context =
+  let findChanges map global global_context =
     try
       let ident = identifier_of_global global in
       let old_global = GlobalMap.find ident map in
       (* Do a (recursive) equal comparison ignoring location information *)
       let identical, unchangedHeader, diff = eq old_global global cfgs global_context in
-      if identical
-      then changes.unchanged <- global :: changes.unchanged
+      if identical then 
+        (*Rename*)
+        (*match global with
+          | GFun (fundec, _) -> fundec.slocals |>
+            List.iter (fun local -> local.vname <- get_orignal_name fundec.svar.vname local.vname);
+          | _ -> ();*)
+
+        changes.unchanged <- global :: changes.unchanged
       else changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
     with Not_found -> () (* Global was no variable or function, it does not belong into the map *)
   in
@@ -175,7 +209,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   (*  For each function in the new file, check whether a function with the same name
       already existed in the old version, and whether it is the same function. *)
   Cil.iterGlobals newAST
-    (fun glob -> checkUnchanged oldMap glob global_context);
+    (fun glob -> findChanges oldMap glob global_context);
 
   (* We check whether functions have been added or removed *)
   Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then changes.added <- (glob::changes.added));

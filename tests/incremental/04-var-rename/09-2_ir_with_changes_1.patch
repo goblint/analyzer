@@ -1,0 +1,22 @@
+--- tests/incremental/04-var-rename/09-2_ir_with_changes_1.c
++++ tests/incremental/04-var-rename/09-2_ir_with_changes_1.c
+@@ -1,13 +1,13 @@
+ void foo() {
+-    int fooOne = 1;
+-    fooOne++;
+-    assert(fooOne == 2);
++    int fooTwo = 1;
++    fooTwo++;
++    assert(fooTwo == 2);
+ }
+ 
+ void bar() {
+-    int barOne = 10;
+-    if (barOne < 11) barOne = 20;
+-    assert(barOne == 20);
++    int barTwo = 10;
++    if (barTwo < 11) barTwo = 20;
++    assert(barTwo == 20);
+ }
+ 
+ int main() {
