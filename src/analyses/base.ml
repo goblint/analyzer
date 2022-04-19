@@ -131,6 +131,13 @@ struct
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ = function
     | `Int v1 -> `Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
+    | `Address a when op = LNot ->
+      if AD.is_null a then
+        `Int (ID.of_bool (Cilfacade.get_ikind typ) true)
+      else if AD.is_not_null a then
+        `Int (ID.of_bool (Cilfacade.get_ikind typ) false)
+      else
+        `Int (ID.top_of (Cilfacade.get_ikind typ))
     | `Bot -> `Bot
     | _ -> VD.top ()
 
