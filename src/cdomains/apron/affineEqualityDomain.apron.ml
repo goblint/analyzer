@@ -206,7 +206,8 @@ struct
     | _ -> false
   let top () =
     {d = Some (Matrix.empty ()); env = Environment.make [||] [||] }
-  let is_top t = t.d = Some (Matrix.empty ())
+
+  let is_top t = Option.is_some t.d && Matrix.is_empty @@ Option.get t.d
 
   let meet t1 t2 =
     let sup_env = Environment.lce t1.env t2.env in
@@ -251,8 +252,8 @@ struct
             | _ -> col_b
           in
           let a_r = Matrix.get_row a r in
-          let mapping = Matrix.map2i (fun i x y -> if i < r then
-                                         Vector.map2 (+:) x (Vector.apply_with_c ( *:) y a_r) else x ) a col_b
+          let mapping = Matrix.map2i_pt_with (fun i x y -> if i < r then
+                                                 Vector.map2_pt_with (+:) x (Vector.apply_with_c_pt_with ( *:) y a_r) else x ) a col_b
           in Matrix.remove_row mapping r
         in
         let case_three a b col_a col_b max =
@@ -266,10 +267,10 @@ struct
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
             let sub_col = Vector.rev_pt_with @@ Vector.map2_pt_with (fun x y -> x -: y) a_rev b_rev in
             let multiply_by_t m t =
-              let zero_vec = Vector.of_list @@ List.init (Matrix.num_rows m - Vector.length sub_col) (fun x -> of_int 0) in
+              let zero_vec = Vector.zero_vec (Matrix.num_rows m - Vector.length sub_col) in
               let cs = Vector.append sub_col zero_vec in
-              Matrix.map2i (fun i' x c -> if i' <= max then let beta = c /: diff in
-                               let mul_t = Vector.apply_with_c ( *:) beta t in Vector.map2 (-:) x mul_t else x) m cs
+              Matrix.map2i_pt_with (fun i' x c -> if i' <= max then let beta = c /: diff in
+                                       let mul_t = Vector.apply_with_c_pt_with ( *:) beta t in Vector.map2_pt_with (-:) x mul_t else x) m cs
             in
             Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
         in
@@ -296,8 +297,9 @@ struct
       let sup_env = Environment.lce a.env b.env in
       let mod_x = dim_add (Environment.dimchange a.env sup_env) x in
       let mod_y = dim_add (Environment.dimchange b.env sup_env) y in
-      {d = Some (lin_disjunc 0 0 mod_x mod_y); env = sup_env}
-    | Some x, Some y  -> {d = Some(lin_disjunc 0 0 x y); env = a.env}
+      {d = Some (lin_disjunc 0 0 (Matrix.copy_pt mod_x) (Matrix.copy_pt mod_y)); env = sup_env}
+    | Some x, Some y when Matrix.equal x y -> {d = Some x; env = a.env}
+    | Some x, Some y  -> {d = Some(lin_disjunc 0 0 (Matrix.copy_pt x) (Matrix.copy_pt y)); env = a.env}
 
   let join a b =
     let res = join a b in
@@ -313,7 +315,7 @@ struct
     let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
     let b0 = Vector.nth b j0 in
     let reduced_a = Vector.apply_with_c_pt_with (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
-    let recalc_entries m rd_a = Matrix.map2 (fun x y -> Vector.map2i (fun j z d ->
+    let recalc_entries m rd_a = Matrix.map2_pt_with (fun x y -> Vector.map2i_pt_with (fun j z d ->
         if j = j0 then y
         else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
         else z +: y *: d) x b) m rd_a
@@ -326,7 +328,7 @@ struct
 
   let remove_rels_with_var x var env =
     let j0 = Environment.dim_of_var env var in
-    Matrix.remove_zero_rows @@ Matrix.reduce_col x j0
+    Matrix.reduce_col x j0
 
   let forget_vars t vars =
     match t.d with
@@ -345,8 +347,8 @@ struct
     in match t.d, affineEq_vec with
     | None, _ -> failwith "Can not assign to bottom state!"
     | Some m, Some v when Matrix.is_empty m-> if is_invertible v then t else assign_uninvertible_rel (Matrix.empty ()) var v t.env
-    | Some x, Some v -> if is_invertible v then assign_invertible_rels x var v t.env
-      else let new_x = remove_rels_with_var x var t.env
+    | Some x, Some v -> if is_invertible v then assign_invertible_rels (Matrix.copy_pt x) var v t.env
+      else let new_x = Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env
         in assign_uninvertible_rel new_x var v t.env
     | Some x, None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env); env = t.env}
 
@@ -415,7 +417,7 @@ struct
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
       let flip_e = Vector.mapi_pt_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e in
-      let res = meet t {d = Matrix.normalize @@ Matrix.init_with_vec flip_e; env = t.env} in
+      let res = meet t {d = Matrix.normalize_pt_with @@ Matrix.init_with_vec flip_e; env = t.env} in
       let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
       match Convert.determine_bounds_one_var expr with
       | None -> overflow_res res
@@ -483,7 +485,3 @@ struct
   let unmarshal t = t
 
 end
-
-module ListD2 = D2(ArrayVector) (ArrayMatrix)
-
-module AD2 = SharedFunctions.AssertionModule (ListD2)

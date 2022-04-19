@@ -221,8 +221,6 @@ sig
 
   val equal: t -> t -> bool
 
-  val subtract_rows_c: vec -> vec -> num -> vec
-
   val reduce_col: t -> int -> t
 
   val reduce_col_pt_with: t -> int -> t
@@ -235,7 +233,11 @@ sig
 
   val map2: (vec -> num -> vec) -> t -> vec -> t
 
+  val map2_pt_with: (vec -> num -> vec) -> t -> vec -> t
+
   val map2i: (int -> vec-> num -> vec) -> t -> vec -> t
+
+  val map2i_pt_with: (int -> vec -> num -> vec) -> t -> vec -> t
 
   val set_col: t -> vec -> int -> t
 
@@ -267,7 +269,8 @@ module ListMatrix : AbstractMatrix =
 
     let empty () = []
 
-    let is_empty m = m = empty ()
+    let is_empty m =
+      m = empty ()
 
     let add_empty_column m pos =
       List.map (fun y -> V.insert_val pos (of_int 0) y) m
@@ -366,6 +369,10 @@ module ListMatrix : AbstractMatrix =
     let copy_pt t = t
 
     let set_col_with = set_col
+
+    let map2_pt_with = map2
+
+    let map2i_pt_with = map2i
   end
 
 
@@ -464,7 +471,8 @@ module ArrayMatrix: AbstractMatrix =
     let num_rows m =
       Array.length m
 
-    let is_empty m = (num_rows m = 0)
+    let is_empty m =
+      (num_rows m = 0)
 
     let num_cols m =
       if is_empty m then 0 else Array.length m.(0)
@@ -508,10 +516,9 @@ module ArrayMatrix: AbstractMatrix =
       V.of_array @@ Array.init (Array.length m) (fun i -> m.(i).(n))
 
     let set_col_with m new_col n =
-      if not @@ is_empty m then
-        for i = 0 to num_rows m - 1 do
-          m.(i).(n) <- V.nth new_col i
-        done; m
+      for i = 0 to num_rows m - 1 do
+        m.(i).(n) <- V.nth new_col i
+      done; m
 
     let set_col m new_col n =
       let copy = copy m in
@@ -522,9 +529,6 @@ module ArrayMatrix: AbstractMatrix =
 
     let equal m1 m2 =
       Array.equal (=) m1 m2
-
-    let subtract_rows_c row1 row2 c =
-      V.map2 (fun x y -> x -: (y *: c)) row1 row2
 
     let reduce_col_pt_with m j =
       if not @@ is_empty m then
@@ -557,7 +561,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let map2i f m v =
       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in
-      let range_array = Array.init (V.length v) (fun i -> i) in
+      let range_array = Array.init (V.length v) Fun.id in
       Array.map2 f' m (Array.combine range_array (V.to_array v))
 
     let remove_zero_rows m =
@@ -619,9 +623,44 @@ module ArrayMatrix: AbstractMatrix =
     let map2 f m v =
       let f' x y = V.to_array @@ f (V.of_array x) y in Array.map2 f' m (V.to_array v)
 
+    let map2_pt_with f m v =
+      Array.iter2i (fun i x y -> m.(i) <- V.to_array @@ f (V.of_array x) y) m (V.to_array v); m
+
+    let map2i_pt_with f m v =
+      Array.iter2i (fun i x y -> m.(i) <- V.to_array @@ f i (V.of_array x) y) m (V.to_array v); m
+
     let init_with_vec v =
       let new_matrix = Array.make_matrix 1 (V.length v) (of_int 0) in
       new_matrix.(0) <- (V.to_array v); new_matrix
 
     let copy_pt = copy
   end
+
+
+let vector =
+  lazy (
+    let options =
+      ["list", (module ListVector: AbstractVector);
+       "array", (module ArrayVector: AbstractVector);]
+    in
+    let matrix = (GobConfig.get_string "ana.matrix") in
+    match List.assoc_opt matrix options with
+    | Some man -> man
+    | None -> failwith @@ "Matrix " ^ matrix ^ " is not supported. Please check the ana.matrix setting."
+  )
+
+let get_vector () = Lazy.force vector
+
+let matrix =
+  lazy (
+    let options =
+      ["list", (module ListMatrix: AbstractMatrix);
+       "array", (module ArrayMatrix: AbstractMatrix);]
+    in
+    let matrix = (GobConfig.get_string "ana.matrix") in
+    match List.assoc_opt matrix options with
+    | Some man -> man
+    | None -> failwith @@ "Matrix " ^ matrix ^ " is not supported. Please check the ana.matrix setting."
+  )
+
+let get_matrix () = Lazy.force matrix
