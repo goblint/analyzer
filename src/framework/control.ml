@@ -133,6 +133,7 @@ struct
             warn_range b e :: acc
           ) xs []
       in
+      let msgs = List.rev msgs in (* lines in ascending order *)
       M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
     in
     let warn_file f = StringMap.iter (warn_func f) in
@@ -534,7 +535,7 @@ struct
       (* check for dead code at the last state: *)
       let main_sol = try LHT.find lh (List.hd startvars') with Not_found -> Spec.D.bot () in
       if get_bool "dbg.debug" && Spec.D.is_bot main_sol then
-        Printf.printf "NB! Execution does not reach the end of Main.\n";
+        print_endline "NB! Execution does not reach the end of Main.\n";
 
       if get_bool "dump_globs" then
         print_globals gh;

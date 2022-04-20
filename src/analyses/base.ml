@@ -136,6 +136,13 @@ struct
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ = function
     | `Int v1 -> `Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
+    | `Address a when op = LNot ->
+      if AD.is_null a then
+        `Int (ID.of_bool (Cilfacade.get_ikind typ) true)
+      else if AD.is_not_null a then
+        `Int (ID.of_bool (Cilfacade.get_ikind typ) false)
+      else
+        `Int (ID.top_of (Cilfacade.get_ikind typ))
     | `Bot -> `Bot
     | _ -> VD.top ()
 
@@ -1821,6 +1828,11 @@ struct
         if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
         raise Deadcode
       end
+    (* for some reason refine () can refine these, but not raise Deadcode in struct *)
+    | `Address ad when tv && AD.is_null ad ->
+      raise Deadcode
+    | `Address ad when not tv && AD.is_not_null ad ->
+      raise Deadcode
     | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
       if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;

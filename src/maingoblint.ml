@@ -172,10 +172,22 @@ let handle_flags () =
     Messages.formatter := Format.formatter_of_out_channel (Legacy.open_out (Legacy.Filename.concat path "warnings.out"));
     set_string "outfile" ""
 
+let basic_preprocess_counts = Preprocessor.FpathH.create 3
+
 (** Use gcc to preprocess a file. Returns the path to the preprocessed file. *)
 let basic_preprocess ~all_cppflags fname =
   (* The actual filename of the preprocessed sourcefile *)
-  let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.set_ext ".i" (Fpath.base fname)) in
+  let basename = Fpath.rem_ext (Fpath.base fname) in
+  (* generate unique preprocessed filename in case multiple basic files have same basename (from different directories), happens in ddverify *)
+  let count = Preprocessor.FpathH.find_default basic_preprocess_counts basename 0 in
+  let unique_name =
+    if count = 0 then
+      basename
+    else
+      Fpath.add_ext (string_of_int count) basename
+  in
+  Preprocessor.FpathH.replace basic_preprocess_counts basename (count + 1);
+  let nname = Fpath.append (GoblintDir.preprocessed ()) (Fpath.add_ext ".i" unique_name) in
   (* Preprocess using cpp. *)
   (* ?? what is __BLOCKS__? is it ok to just undef? this? http://en.wikipedia.org/wiki/Blocks_(C_language_extension) *)
   let arguments = "--undef" :: "__BLOCKS__" :: all_cppflags @ Fpath.to_string fname :: "-o" :: Fpath.to_string nname :: [] in
@@ -185,6 +197,7 @@ let basic_preprocess ~all_cppflags fname =
 
 (** Preprocess all files. Return list of preprocessed files and the temp directory name. *)
 let preprocess_files () =
+  Preprocessor.FpathH.clear basic_preprocess_counts;
   Preprocessor.FpathH.clear Preprocessor.dependencies; (* clear for server mode *)
 
   (* Preprocessor flags *)

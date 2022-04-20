@@ -39,6 +39,11 @@ let classify' fn exps =
       | size::_ -> `Malloc size
       | _ -> strange_arguments ()
     end
+  | "ZSTD_customMalloc" -> (* only used with extraspecials *)
+    begin match exps with
+      | size::_ -> `Malloc size
+      | _ -> strange_arguments ()
+    end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
@@ -47,6 +52,11 @@ let classify' fn exps =
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
+      | _ -> strange_arguments ()
+    end
+  | "ZSTD_customCalloc" -> (* only used with extraspecials *)
+    begin match exps with
+      | size::_ -> `Calloc (Cil.one, size)
       | _ -> strange_arguments ()
     end
   | "realloc" ->
@@ -60,6 +70,7 @@ let classify' fn exps =
       | _ -> M.warn "Assert argument mismatch!"; `Unknown fn
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
+  | "down_trylock"
     -> `Lock(true, true, true)
   | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
     -> `Lock (true, true, false)
@@ -70,6 +81,7 @@ let classify' fn exps =
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
   | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
+  | "spin_lock_irqsave" | "spin_lock"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
@@ -81,6 +93,7 @@ let classify' fn exps =
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
   | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
+  | "up"
     -> `Unlock
   | x -> `Unknown x
 
@@ -475,6 +488,15 @@ let invalidate_actions = [
     "isatty", readsAll;
     "setpriority", readsAll;
     "getpriority", readsAll;
+    (* ddverify *)
+    "spin_lock_init", readsAll;
+    "spin_lock", readsAll;
+    "spin_unlock", readsAll;
+    "spin_unlock_irqrestore", readsAll;
+    "spin_lock_irqsave", readsAll;
+    "sema_init", readsAll;
+    "down_trylock", readsAll;
+    "up", readsAll;
   ]
 
 (* used by get_invalidate_action to make sure
