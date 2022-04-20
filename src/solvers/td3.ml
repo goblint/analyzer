@@ -477,7 +477,14 @@ module WP =
          * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
-        if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
+        if loaded && S.increment.server then (
+          data.rho <- HM.copy data.rho;
+          data.stable <- HM.copy data.stable;
+          data.wpoint <- HM.copy data.wpoint;
+          data.infl <- HM.copy data.infl;
+          (* data.st <- data.st; *)
+        )
+        else if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           let rho' = HM.create (HM.length data.rho) in
           HM.iter (fun k v ->
             (* call hashcons on contexts and abstract values; results in new tags *)

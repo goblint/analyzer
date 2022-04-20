@@ -125,12 +125,12 @@ let increment_data (s: t) file reparsed = match !Serialize.server_solver_data wi
     let changes = CompareCIL.compareCilFiles s.file file in
     let old_data = Some { Analyses.cil_file = s.file; solver_data } in
     s.max_ids <- UpdateCil.update_ids s.file s.max_ids file changes;
-    { Analyses.changes; old_data; new_file = file }, false
+    { server = true; Analyses.changes; old_data; new_file = file }, false
   | Some solver_data ->
     let changes = virtual_changes file in
     let old_data = Some { Analyses.cil_file = file; solver_data } in
-    { Analyses.changes; old_data; new_file = file }, false
-  | _ -> Analyses.empty_increment_data file, true
+    { server = true; Analyses.changes; old_data; new_file = file }, false
+  | _ -> Analyses.empty_increment_data ~server:true file, true
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);

@@ -25,7 +25,7 @@ let main () =
     );
     let file = Fun.protect ~finally:GoblintDir.finalize preprocess_and_merge in
     if get_bool "server.enabled" then Server.start file else (
-      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data file in
+      let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename ~server:false file else Analyses.empty_increment_data ~server:false file in
       file|> do_analyze changeInfo;
       do_stats ();
       do_html_output ();
