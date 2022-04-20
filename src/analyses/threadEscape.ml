@@ -105,7 +105,7 @@ struct
       let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
-      let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in
+      let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
       [D.join ctx.local (D.join escaped extra)]
     | _ -> [ctx.local]
 
