@@ -104,10 +104,16 @@ def analyze_small_commits_in_repo():
             analyze_commit(gr, commit.hash, outchildrel, add_options)
 
             #print('And again incremental, this time with exhaustive restarting')
-            outchildrel = os.path.join(outtry, 'child-ex-rest')
-            os.makedirs(outchildrel)
+            outchildexrest = os.path.join(outtry, 'child-ex-rest')
+            os.makedirs(outchildexrest)
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.restart.sided.enabled']
-            analyze_commit(gr, commit.hash, outchildrel, add_options)
+            analyze_commit(gr, commit.hash, outchildexrest, add_options)
+
+            #print('And again incremental, this time with cfg comparison')
+            outchildcfg = os.path.join(outtry, 'child-cfg-comp')
+            os.makedirs(outchildcfg)
+            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--set', 'incremental.compare', 'cfg']
+            analyze_commit(gr, commit.hash, outchildcfg, add_options)
 
             count_analyzed+=1
             failed = False
@@ -144,11 +150,14 @@ def collect_data():
     index = []
     data = {"Failed?": [], "Changed LOC": [], "Relevant changed LOC": [], "Changed/Added/Removed functions": [],
       "Runtime for parent commit (non-incremental)": [], "Runtime for commit (incremental)": [],
-      "Runtime for commit (incremental, reluctant)": [], "Change in number of race warnings": []}
+      "Runtime for commit (incremental, reluctant)": [], "Runtime for commit (incremental, extensive restarting)": [],
+      "Runtime for commit (incremental, cfg comparison)": [], "Change in number of race warnings": []}
     for t in os.listdir(outdir):
         parentlog = os.path.join(outdir, t, 'parent', 'analyzer.log')
         childlog = os.path.join(outdir, t, 'child', 'analyzer.log')
         childrellog = os.path.join(outdir, t, 'child-rel', 'analyzer.log')
+        childexreslog = os.path.join(outdir, t, 'child-ex-rest', 'analyzer.log')
+        childcfglog = os.path.join(outdir, t, 'child-cfg-comp', 'analyzer.log')
         commit_prop_log = os.path.join(outdir, t, 'commit_properties.log')
         t = int(t)
         commit_prop = json.load(open(commit_prop_log, "r"))
@@ -160,16 +169,22 @@ def collect_data():
             data["Runtime for parent commit (non-incremental)"].append(0)
             data["Runtime for commit (incremental)"].append(0)
             data["Runtime for commit (incremental, reluctant)"].append(0)
+            data["Runtime for commit (incremental, extensive restarting)"].append(0)
+            data["Runtime for commit (incremental, cfg comparison)"].append(0)
             data["Changed/Added/Removed functions"].append(0)
             data["Change in number of race warnings"].append(0)
             continue
         parent_info = extract_from_analyzer_log(parentlog)
         child_info = extract_from_analyzer_log(childlog)
         child_rel_info = extract_from_analyzer_log(childrellog)
+        child_exres_info = extract_from_analyzer_log(childexreslog)
+        child_cfg_info = extract_from_analyzer_log(childcfglog)
         data["Changed/Added/Removed functions"].append(int(child_info["changed"]) + int(child_info["added"]) + int(child_info["removed"]))
         data["Runtime for parent commit (non-incremental)"].append(float(parent_info["runtime"]))
         data["Runtime for commit (incremental)"].append(float(child_info["runtime"]))
         data["Runtime for commit (incremental, reluctant)"].append(float(child_rel_info["runtime"]))
+        data["Runtime for commit (incremental, extensive restarting)"].append(float(child_exres_info["runtime"]))
+        data["Runtime for commit (incremental, cfg comparison)"].append(float(child_cfg_info["runtime"]))
         data["Change in number of race warnings"].append(int(parent_info["race_warnings"]) - int(child_info["race_warnings"]))
     return {"index": index, "data": data}
 

@@ -3,44 +3,53 @@
     "base": {
       "privatization": "none"
     },
+    "activated": [
+      "expRelation", "base", "threadid", "threadflag", "threadreturn",
+      "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
+      "symb_locks"
+    ],
     "thread": {
       "domain": "plain",
       "include-node": false
+    },
+    "malloc": {
+      "wrappers": [
+        "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
+        "kzalloc", "ZSTD_customMalloc", "ZSTD_customCalloc"
+      ]
     }
   },
   "sem": {
     "unknown_function": {
       "spawn": false,
-      "invalidate": false
+      "invalidate": {
+        "globals": false
+      }
     }
   },
   "incremental": {
     "reluctant": {
       "compare": "leq"
+    }
     },
-    "restart": {
-      "sided": {
-        "enabled": false
-      }
-    }
-  },
-  "solvers": {
-    "td3": {
-      "restart": {
-        "wpoint": {
-          "enabled": false
-        }
-      }
-    }
-  },
   "exp": {
-    "earlyglobs": true
+    "earlyglobs": true,
+    "extraspecials": [
+      "ZSTD_customMalloc",
+      "ZSTD_customCalloc",
+      "ZSTD_customFree"
+    ]
   },
   "dbg": {
     "print_dead_code": true
   },
   "pre": {
     "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH", "-D__LINE__=0"]
+  },
+  "cil": {
+    "merge": {
+      "inlines": false
+    }
   },
   "printstats": true,
   "warn": {
@@ -49,14 +58,15 @@
     "integer": false,
     "cast": false,
     "race": true,
+    "deadlock": true,
     "deadcode": false,
     "analyzer": false,
-    "unsound": false,
+    "unsound": true,
     "imprecise": false,
     "unknown": false,
     "error": false,
     "warning": true,
-    "info": false,
+    "info": true,
     "debug": false,
     "success": false
   }
