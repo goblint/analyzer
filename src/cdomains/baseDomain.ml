@@ -108,9 +108,11 @@ struct
     ++ text ")"
 
   let printXml f r =
+    CPA.iter (fun key value -> key.vname <- (CompareCIL.get_local_rename (!Analyses.currentFunctionName) key.vname)) r.cpa;
+
     let e = XmlUtil.escape in
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a\n<key>\n%s\n</key>\n%a</map>\n</value>\n"
-      (e @@ CPA.name ()) CPA.printXml r.cpa
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key uselessType=\"\">\n%s\n</key>\n%a<key>\n%s\n</key>\n%a\n<key>\n%s\n</key>\n%a</map>\n</value>\n"
+      (e @@ (CPA.name () ^ "ASSSSSSS")) CPA.printXml r.cpa
       (e @@ PartDeps.name ()) PartDeps.printXml r.deps
       (e @@ WeakUpdates.name ()) WeakUpdates.printXml r.weak
       (e @@ PrivD.name ()) PrivD.printXml r.priv

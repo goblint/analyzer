@@ -6,8 +6,9 @@ void foo() {
 
 void bar() {
     int barTwo = 10;
-    if (barTwo < 11) barTwo = 20;
-    assert(barTwo == 20);
+    int x = 3;
+    if (x < 11) barTwo = 13;
+    assert(x > 1);
 }
 
 int main() {

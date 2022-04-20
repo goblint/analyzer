@@ -8,6 +8,8 @@ open GobConfig
 module GU = Goblintutil
 module M  = Messages
 
+let currentFunctionName: string ref = ref ""
+
 (** Analysis starts from lists of functions: start functions, exit functions, and
   * other functions. *)
 type fundecs = fundec list * fundec list * fundec list
@@ -150,6 +152,10 @@ struct
       (* Not using Node.location here to have updated locations in incremental analysis.
          See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
       let loc = UpdateCil.getLoc n in
+
+      let parentNode = Node.find_fundec n in
+      currentFunctionName.contents <- parentNode.svar.vname;
+
       BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
@@ -185,6 +191,8 @@ struct
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "fast_xml" ->
+      Printf.printf "%s" (Printexc.get_callstack 15 |> Printexc.raw_backtrace_to_string);
+
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
