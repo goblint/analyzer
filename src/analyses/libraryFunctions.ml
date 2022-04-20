@@ -39,6 +39,11 @@ let classify' fn exps =
       | size::_ -> `Malloc size
       | _ -> strange_arguments ()
     end
+  | "ZSTD_customMalloc" -> (* only used with extraspecials *)
+    begin match exps with
+      | size::_ -> `Malloc size
+      | _ -> strange_arguments ()
+    end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
@@ -47,6 +52,11 @@ let classify' fn exps =
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
+      | _ -> strange_arguments ()
+    end
+  | "ZSTD_customCalloc" -> (* only used with extraspecials *)
+    begin match exps with
+      | size::_ -> `Calloc (Cil.one, size)
       | _ -> strange_arguments ()
     end
   | "realloc" ->

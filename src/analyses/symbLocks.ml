@@ -80,6 +80,8 @@ struct
       D.add (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
     | `Unlock ->
       D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
+    | `Unknown "ZSTD_customFree" -> (* only used with extraspecials *)
+      ctx.local
     | `Unknown fn when VarEq.safe_fn fn ->
       Messages.warn "Assume that %s does not change lockset." fn;
       ctx.local
