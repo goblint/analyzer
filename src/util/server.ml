@@ -171,7 +171,6 @@ let () =
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
       with Sys.Break ->
-        assert (GobConfig.get_bool "ana.opt.hashcons"); (* TODO: TD3 doesn't copy input solver data, so will modify it in place and screw up Serialize.server_solver_data accidentally *)
         {status = Aborted}
   end);
 
