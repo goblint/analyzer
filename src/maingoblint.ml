@@ -515,7 +515,7 @@ let handle_extraspecials () =
   LibraryFunctions.add_lib_funs funs
 
 (* Detects changes and renames vids and sids. *)
-let diff_and_rename ~server current_file =
+let diff_and_rename current_file =
   (* Create change info, either from old results, or from scratch if there are no previous results. *)
   let change_info: Analyses.increment_data =
     if GobConfig.get_bool "incremental.load" && not (Serialize.results_exist ()) then begin
@@ -546,7 +546,7 @@ let diff_and_rename ~server current_file =
       | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
-    {server; Analyses.changes = changes; old_data; new_file = current_file}
+    {server = false; Analyses.changes = changes; old_data; new_file = current_file}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)

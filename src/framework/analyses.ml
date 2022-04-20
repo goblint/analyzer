@@ -405,7 +405,7 @@ type increment_data = {
   changes: CompareCIL.change_info
 }
 
-let empty_increment_data ~server file = {
+let empty_increment_data ?(server=false) file = {
   server;
   old_data = None;
   new_file = file;
