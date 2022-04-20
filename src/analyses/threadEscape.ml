@@ -64,10 +64,10 @@ struct
   let assign ctx (lval:lval) (rval:exp) : D.t =
     let ask = Analyses.ask_of_ctx ctx in
     let lvs = mpt ask (AddrOf lval) in
-    ignore (Pretty.printf "assign lvs %a: %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs);
+    if M.tracing then M.tracel "escape" "assign lvs: %a\n" D.pretty lvs;
     if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
       let escaped = reachable ask rval in
-      ignore (Pretty.printf "assign lvs %a: %a | %a\n" CilType.Location.pretty !Tracing.current_loc D.pretty lvs D.pretty escaped);
+      if M.tracing then M.tracel "escape" "assign lvs: %a | %a\n" D.pretty lvs D.pretty escaped;
       if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
       D.iter (fun lv ->
