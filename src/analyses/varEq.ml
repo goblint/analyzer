@@ -193,6 +193,7 @@ struct
     let bt =
       match unrollTypeDeep (Cilfacade.typeOf b) with
       | TPtr (t,_) -> t
+      | exception Cilfacade.TypeOfError _
       | _ -> voidType
     in (* type of thing that changed: typeof( *b ) *)
     let rec type_may_change_apt a =
