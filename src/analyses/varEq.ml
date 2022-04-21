@@ -491,15 +491,8 @@ struct
     match reachables (Analyses.ask_of_ctx ctx) es with
     | None -> D.top ()
     | Some rs ->
-      let remove_reachable1 es st =
-        let remove_reachable2 e st =
-          if reachable_from rs e && not (isConstant e) then remove_exp (Analyses.ask_of_ctx ctx) e st else st
-        in
-        D.B.fold remove_reachable2 es st
-      in
-      (* TODO: do something like this instead to be sound? *)
-      (* List.fold_left (fun st e -> remove_exp (Analyses.ask_of_ctx ctx) e st) ctx.local (Queries.LS.fold (fun lval acc -> mkAddrOf (Lval.CilLval.to_lval lval) :: acc) rs []) *)
-      D.fold remove_reachable1 ctx.local ctx.local
+      (* TODO: avoid intermediate list *)
+      List.fold_left (fun st e -> remove_exp (Analyses.ask_of_ctx ctx) e st) ctx.local (Queries.LS.fold (fun lval acc -> mkAddrOf (Lval.CilLval.to_lval lval) :: acc) rs [])
 
   let unknown_fn ctx lval f args =
     let args =

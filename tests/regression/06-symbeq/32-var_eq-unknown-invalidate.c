@@ -19,7 +19,7 @@ int main() {
   if (res == (struct resource *)0)
     assert(1); // reachable
   else
-    assert(1); // TODO reachable
+    assert(1); // reachable
 
   return 0;
 }
