@@ -809,6 +809,8 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
+    | Index (CastE (TInt(IInt,[]), Const (CStr ("unknown",No_encoding))), ofs) -> (* special offset added by convertToQueryLval *)
+      `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
       let exp_rv = eval_rv a gs st exp in
       match exp_rv with
