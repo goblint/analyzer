@@ -489,11 +489,13 @@ struct
       | None -> st2
 
   let remove_reachable ctx es =
-    match reachables (Analyses.ask_of_ctx ctx) es with
+    let ask = Analyses.ask_of_ctx ctx in
+    match reachables ask es with
     | None -> D.top ()
     | Some rs ->
-      (* TODO: avoid intermediate list *)
-      List.fold_left (fun st e -> remove_exp (Analyses.ask_of_ctx ctx) e st) ctx.local (Queries.LS.fold (fun lval acc -> mkAddrOf (Lval.CilLval.to_lval lval) :: acc) rs [])
+      Queries.LS.fold (fun lval st ->
+          remove ask (Lval.CilLval.to_lval lval) st
+        ) rs ctx.local
 
   let unknown_fn ctx lval f args =
     let args =
