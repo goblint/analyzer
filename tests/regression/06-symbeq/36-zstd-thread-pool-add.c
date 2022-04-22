@@ -158,7 +158,7 @@ static void* POOL_thread(void* opaque) {
             ZSTD_pthread_cond_wait(&ctx->queuePopCond, &ctx->queueMutex);
         }
         /* Pop a job off the queue */
-        {   POOL_job const job = ctx->queue[ctx->queueHead]; //NORACE
+        {   POOL_job const job = ctx->queue[ctx->queueHead]; // TODO NORACE
             ctx->queueHead = (ctx->queueHead + 1) % ctx->queueSize; //NORACE
             ctx->numThreadsBusy++; //NORACE
             ctx->queueEmpty = (ctx->queueHead == ctx->queueTail); //NORACE
@@ -294,19 +294,21 @@ void POOL_add(POOL_ctx* ctx, POOL_function function, void* opaque)
 }
 
 void foo(void *arg) {
-    assert(1); // TODO reachable
+    assert(1); // reachable
 }
 
 int g;
 
 void bar(void *arg) {
-    g++; // TODO RACE!
+    g++; // RACE!
 }
 
 int main() {
     POOL_ctx* const ctx = POOL_create(20, 10);
-    POOL_add(ctx, foo, NULL);
-    POOL_add(ctx, bar, NULL);
-    POOL_add(ctx, bar, NULL);
+    if (ctx) {
+        POOL_add(ctx, foo, NULL);
+        POOL_add(ctx, bar, NULL);
+        POOL_add(ctx, bar, NULL);
+    }
     return 0;
 }
