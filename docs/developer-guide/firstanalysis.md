@@ -79,4 +79,4 @@ For example, have a look at the following program: `tests/regression/99-tutorial
 _Hint:_
 The easiest way to do this is to use the powerset lattice of `{-, 0, +}`.
 For example, "non-negative" is represented by `{0, +}`, while negative is represented by `{-}`.
-To do this, modify `SL` by using `SetDomain.Make` instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.
+To do this, modify `SL` by using `SetDomain.FiniteSet` (takes a `struct` with a list of finite elements as second parameter) instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.
