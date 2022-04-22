@@ -44,7 +44,7 @@ Goblint could verify that this assertion does hold using interval analysis (`--e
 ## Starting point
 
 We begin with the flawed implementation in **`src/analyses/tutorials/signs.ml`**.
-If you immediately try to run Goblint with the new analysis enabled: `--set ana.activated[+] signs`. The result will still be that nothing is verified, so you need to fix all the problems in the code.
+If you immediately try to run Goblint with the new analysis enabled: `--set "ana.activated[+]" signs`. The result will still be that nothing is verified, so you need to fix all the problems in the code.
 
 It may still be useful to use Goblint's HTML output to [see the result](../user-guide/inspecting.md) of the analysis. This will also include Goblint's base analysis, which is needed to deal with function calls.
 
