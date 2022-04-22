@@ -115,7 +115,9 @@ struct
     D.join ctx.local @@
       match args with
       | [ptc_arg] ->
-        let escaped = fctx.local in (* reuse reachable computation from threadenter *)
+        (* not reusing fctx.local to avoid unnecessarily early join of extra *)
+        let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
+        let escaped = D.filter (fun v -> not v.vglob) escaped in
         if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
         if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
           ctx.emit (Events.Escape escaped);
