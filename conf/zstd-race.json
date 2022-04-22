@@ -74,7 +74,7 @@
     "integer": false,
     "cast": false,
     "race": true,
-    "deadcode": false,
+    "deadcode": true,
     "analyzer": false,
     "unsound": false,
     "imprecise": false,
@@ -83,6 +83,6 @@
     "warning": true,
     "info": false,
     "debug": false,
-    "success": false
+    "success": true
   }
 }
