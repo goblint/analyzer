@@ -4,7 +4,7 @@ int readInt() __attribute__((__taint_source__));
 void printInt(int x,int y ,int z) __attribute__((__taint_sink__));
 
 int id(int x) {
-    return id;
+    return x;
 }
 
 int benign(int x) {
