@@ -14,9 +14,9 @@ import random
 
 # Usage: python3 parallel_benchmarking.py <number of processes>]
 
-def runperprocess(core, full_path_analyzer, url, repo_name, build_script, conf, begin, start, end):
+def runperprocess(core, full_path_analyzer, url, repo_name, build_script, conf, begin, to, start, end):
     psutil.Process().cpu_affinity([core])
-    exc.main(full_path_analyzer, url, repo_name, build_script, conf, begin, start, end)
+    exc.main(full_path_analyzer, url, repo_name, build_script, conf, begin, to, start, end)
 
 if __name__ == '__main__':
   if len(sys.argv) != 3:
@@ -50,9 +50,10 @@ if __name__ == '__main__':
   conf = "big-benchmarks1"
   build_script = 'build_compdb_zstd.sh'
   begin = datetime(2021,2,1)
+  to = datetime(2022,2,1)
 
   # calculate number of interesting commits
-  num_commits = sum(1 for _ in Repository(url, since=begin, only_no_merge=True).traverse_commits())
+  num_commits = sum(1 for _ in Repository(url, since=begin, to=to, only_no_merge=True).traverse_commits())
   print("Number of potentially interesting commits:", num_commits)
   perprocess = num_commits // numcores
 
@@ -63,7 +64,7 @@ if __name__ == '__main__':
       # run script
       start = perprocess * i
       end = perprocess * (i + 1) if i < numcores - 1 else num_commits
-      p = mp.Process(target=runperprocess, args=[coremapping[i], full_path_analyzer, url, repo_name, build_script, conf, begin, start, end])
+      p = mp.Process(target=runperprocess, args=[coremapping[i], full_path_analyzer, url, repo_name, build_script, conf, begin, to, start, end])
       p.start()
       processes.append(p)
       # time.sleep(random.randint(5,60)) # add random delay between process creation to try to reduce interference

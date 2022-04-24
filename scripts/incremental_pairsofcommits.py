@@ -61,7 +61,7 @@ def analyze_small_commits_in_repo():
     global count_skipped
     global count_failed
     global analyzed_commits
-    for commit in itertools.islice(Repository(url, since=begin, only_no_merge=True, clone_repo_to=cwd).traverse_commits(), from_c, to_c):
+    for commit in itertools.islice(Repository(url, since=begin, to=to, only_no_merge=True, clone_repo_to=cwd).traverse_commits(), from_c, to_c):
         gr = Git(repo_path)
 
         #print("\n" + commit.hash)
@@ -109,12 +109,13 @@ def analyze_small_commits_in_repo():
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.restart.sided.enabled']
             analyze_commit(gr, commit.hash, outchildexrest, add_options)
 
+            '''
             #print('And again incremental, this time with cfg comparison')
             outchildcfg = os.path.join(outtry, 'child-cfg-comp')
             os.makedirs(outchildcfg)
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--set', 'incremental.compare', 'cfg']
             analyze_commit(gr, commit.hash, outchildcfg, add_options)
-
+            '''
             count_analyzed+=1
             failed = False
         except subprocess.CalledProcessError as e:
@@ -157,7 +158,7 @@ def collect_data():
         childlog = os.path.join(outdir, t, 'child', 'analyzer.log')
         childrellog = os.path.join(outdir, t, 'child-rel', 'analyzer.log')
         childexreslog = os.path.join(outdir, t, 'child-ex-rest', 'analyzer.log')
-        childcfglog = os.path.join(outdir, t, 'child-cfg-comp', 'analyzer.log')
+        #childcfglog = os.path.join(outdir, t, 'child-cfg-comp', 'analyzer.log')
         commit_prop_log = os.path.join(outdir, t, 'commit_properties.log')
         t = int(t)
         commit_prop = json.load(open(commit_prop_log, "r"))
@@ -178,18 +179,18 @@ def collect_data():
         child_info = extract_from_analyzer_log(childlog)
         child_rel_info = extract_from_analyzer_log(childrellog)
         child_exres_info = extract_from_analyzer_log(childexreslog)
-        child_cfg_info = extract_from_analyzer_log(childcfglog)
+        #child_cfg_info = extract_from_analyzer_log(childcfglog)
         data["Changed/Added/Removed functions"].append(int(child_info["changed"]) + int(child_info["added"]) + int(child_info["removed"]))
         data["Runtime for parent commit (non-incremental)"].append(float(parent_info["runtime"]))
         data["Runtime for commit (incremental)"].append(float(child_info["runtime"]))
         data["Runtime for commit (incremental, reluctant)"].append(float(child_rel_info["runtime"]))
         data["Runtime for commit (incremental, extensive restarting)"].append(float(child_exres_info["runtime"]))
-        data["Runtime for commit (incremental, cfg comparison)"].append(float(child_cfg_info["runtime"]))
+        data["Runtime for commit (incremental, cfg comparison)"].append(0) #float(child_cfg_info["runtime"]))
         data["Change in number of race warnings"].append(int(parent_info["race_warnings"]) - int(child_info["race_warnings"]))
     return {"index": index, "data": data}
 
 def plot(data_set):
-    df = pd.DataFrame(data_set["data"], index=data_set["index"]) # TODO: index=analyzed_commits
+    df = pd.DataFrame(data_set["data"], index=data_set["index"])
     df.sort_index(inplace=True, key=lambda idx: idx.map(lambda x: int(x.split(":")[0])))
     print(df)
     df.to_csv('results.csv')
@@ -201,13 +202,14 @@ def plot(data_set):
     plt.savefig("figure.pdf")
 
 
-def main(full_path_analyzer, url_arg, repo_name_arg, build_script, conf_arg, begin_arg, start, end):
+def main(full_path_analyzer, url_arg, repo_name_arg, build_script, conf_arg, begin_date, to_date, start, end):
   global analyzer_dir
   global url
   global repo_name
   global build_compdb
   global conf
   global begin
+  global to
   global from_c, to_c
   global analyzed_commits, count_analyzed, count_skipped, count_failed
   global cwd, outdir, repo_path, paths_to_exclude, maxCLOC
@@ -217,7 +219,8 @@ def main(full_path_analyzer, url_arg, repo_name_arg, build_script, conf_arg, beg
   repo_name     = repo_name_arg
   build_compdb  = build_script
   conf          = conf_arg
-  begin         = begin_arg
+  begin         = begin_date
+  to            = to_date
   from_c        = start
   to_c          = end
   maxCLOC       = 50
