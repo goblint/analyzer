@@ -916,6 +916,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "race": {
+          "title": "ana.race",
+          "type": "object",
+          "properties": {
+            "free": {
+              "title": "ana.race.free",
+              "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
