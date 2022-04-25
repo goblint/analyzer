@@ -21,6 +21,7 @@ int main(){
     int x2 = 35;
     pthread_t thread;
     pthread_create(&thread, NULL, foo, ptr);
+    assert(x2 == 35);
     *ptr = &x2;
     sleep(4); // to make sure that we actually fail the assert when running.
     assert(x2 == 35); // UNKNOWN!

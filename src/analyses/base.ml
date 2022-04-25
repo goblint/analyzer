@@ -356,7 +356,7 @@ struct
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
-  let rec get ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
+  let rec get ?(top=VD.top ()) ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.get_type addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
@@ -374,7 +374,7 @@ struct
       let f = function
         | Addr.Addr (x, o) -> f_addr (x, o)
         | Addr.NullPtr -> VD.bot () (* TODO: why bot? *)
-        | Addr.UnknownPtr -> VD.top ()
+        | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
         | Addr.StrPtr _ -> `Int (ID.top_of IChar)
       in
       (* We form the collecting function by joining *)
@@ -732,10 +732,11 @@ struct
                   else
                     false
               end
+            | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
             | _ -> false
           in
           if AD.for_all cast_ok p then
-            get a gs st p (Some exp)  (* downcasts are safe *)
+            get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
           else
             VD.top () (* upcasts not! *)
         in

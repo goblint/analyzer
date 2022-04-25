@@ -67,6 +67,7 @@ struct
     if M.tracing then M.tracel "escape" "assign lvs: %a\n" D.pretty lvs;
     if D.exists (fun v -> v.vglob || has_escaped ask v) lvs then (
       let escaped = reachable ask rval in
+      let escaped = D.filter (fun v -> not v.vglob) escaped in
       if M.tracing then M.tracel "escape" "assign lvs: %a | %a\n" D.pretty lvs D.pretty escaped;
       if not (D.is_empty escaped) && ThreadFlag.is_multi ask then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
@@ -103,6 +104,7 @@ struct
     match args with
     | [ptc_arg] ->
       let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
+      let escaped = D.filter (fun v -> not v.vglob) escaped in
       if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
         ctx.emit (Events.Escape escaped);
       let extra = D.fold (fun v acc -> D.join acc (ctx.global v)) escaped (D.empty ()) in (* TODO: must transitively join escapes of every ctx.global v as well? *)
@@ -113,7 +115,9 @@ struct
     D.join ctx.local @@
       match args with
       | [ptc_arg] ->
-        let escaped = fctx.local in (* reuse reachable computation from threadenter *)
+        (* not reusing fctx.local to avoid unnecessarily early join of extra *)
+        let escaped = reachable (Analyses.ask_of_ctx ctx) ptc_arg in
+        let escaped = D.filter (fun v -> not v.vglob) escaped in
         if M.tracing then M.tracel "escape" "%a: %a\n" d_exp ptc_arg D.pretty escaped;
         if not (D.is_empty escaped) then (* avoid emitting unnecessary event *)
           ctx.emit (Events.Escape escaped);
