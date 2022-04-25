@@ -181,7 +181,7 @@ struct
       (* TODO: per-argument reach *)
       let reach =
         match f.vname with
-        | "memset" -> false
+        | "memset" | "__builtin_memset" -> false
         | _ -> true
       in
       List.iter (access_one_top ctx false reach) (arg_acc `Read);

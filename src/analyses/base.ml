@@ -2112,7 +2112,7 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
-    | `Unknown "memset" ->
+    | `Unknown ("memset" | "__builtin_memset") ->
       begin match args with
         | [dest; ch; count] ->
           (* TODO: check count *)
