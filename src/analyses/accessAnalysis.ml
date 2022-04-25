@@ -35,6 +35,12 @@ struct
     unsafe := 0
 
   let side_access ctx ty lv_opt (conf, w, loc, e, a) =
+    let ty =
+      if Option.is_some lv_opt then
+        `Type Cil.voidType (* avoid unsound type split for alloc variables *)
+      else
+        ty
+    in
     let d =
       if !GU.should_warn then
         Access.AS.singleton (conf, w, loc, e, a)
