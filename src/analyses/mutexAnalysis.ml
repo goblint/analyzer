@@ -130,7 +130,7 @@ struct
         | Some v ->
           if not (Lockset.is_bot ctx.local) then
             let ls = Lockset.filter snd ctx.local in
-            let el = P.effect_fun ~write ls in
+            let el = P.effect_fun ~write:(write <> `Read) ls in
             ctx.sideg v el
         | None -> M.info ~category:Unsound "Write to unknown address: privatization is unsound."
       end;

@@ -21,7 +21,8 @@ val classify : string -> exp list -> categories
 
 type action = [ `Write  (** argument may be read or written to *)
               | `Read   (** argument may be read *)
-              ]
+              | `Free   (** argument may be freed *)
+              ] [@@deriving eq, ord, hash, show]
 (** Specifies what is known about an argument. *)
 
 val get_invalidate_action : string -> (action -> exp list -> exp list) option

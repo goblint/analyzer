@@ -60,7 +60,7 @@ module Unit = Lattice.Unit
 type maybepublic = {global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
 type maybepublicwithout = {global: CilType.Varinfo.t; write: bool; without_mutex: PreValueDomain.Addr.t} [@@deriving ord, hash]
 type mustbeprotectedby = {mutex: PreValueDomain.Addr.t; global: CilType.Varinfo.t; write: bool} [@@deriving ord, hash]
-type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: bool} [@@deriving ord, hash]
+type memory_access = {exp: CilType.Exp.t; var_opt: CilType.Varinfo.t option; write: [ `Write | `Read | `Free ]} [@@deriving ord, hash]
 type access =
   | Memory of memory_access (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)

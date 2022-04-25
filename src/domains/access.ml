@@ -157,7 +157,7 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
     end
   | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
-let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
+let add_one side (e:exp) (w:LibraryFunctions.action) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin
     let loc = !Tracing.current_loc in
     side ty lv (conf, w, loc, e, a)
@@ -180,7 +180,7 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
+let add_struct side (e:exp) (w:LibraryFunctions.action) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
@@ -261,14 +261,14 @@ and distribute_access_lval_addr f w r c lv =
     distribute_access_offset f c os
   | (Mem e, os) ->
     distribute_access_offset f c os;
-    distribute_access_exp f false false c e
+    distribute_access_exp f `Read false c e
 
 and distribute_access_offset f c = function
   | NoOffset -> ()
   | Field (_,os) ->
     distribute_access_offset f c os
   | Index (e,os) ->
-    distribute_access_exp f false false c e;
+    distribute_access_exp f `Read false c e;
     distribute_access_offset f c os
 
 and distribute_access_exp f w r c = function
@@ -289,13 +289,13 @@ and distribute_access_exp f w r c = function
     if r then
       distribute_access_lval f w r c lval
     else
-      distribute_access_lval_addr f false r c lval
+      distribute_access_lval_addr f `Read r c lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
   | CastE  (t, exp) ->
     distribute_access_exp f w r c exp
   | Question (b,t,e,_) ->
-    distribute_access_exp f false r c b;
+    distribute_access_exp f `Read r c b;
     distribute_access_exp f w     r c t;
     distribute_access_exp f w     r c e
   | _ -> ()
@@ -318,10 +318,10 @@ let add side e w conf vo oo a =
 module A =
 struct
   include Printable.Std
-  type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
+  type t = int * LibraryFunctions.action * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
   let pretty () (conf, w, loc, e, lp) =
-    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
+    Pretty.dprintf "%d, %s, %a, %a, %a" conf (LibraryFunctions.show_action w) CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
 
   include Printable.SimplePretty (
     struct
@@ -371,8 +371,10 @@ module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
 (* Check if two accesses may race and if yes with which confidence *)
 let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
-  if not w && not w2 then
+  if w = `Read && w2 = `Read then
     false (* two read/read accesses do not race *)
+  else if not (get_bool "ana.race.free") && (w = `Free || w2 = `Free) then
+    false
   else if not (MCPAccess.A.may_race a a2) then
     false (* analysis-specific information excludes race *)
   else
@@ -447,7 +449,7 @@ let print_accesses (lv, ty) grouped_accs =
   let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
     let h (conf,w,loc,e,a) =
-      let atyp = if w then "write" else "read" in
+      let atyp = LibraryFunctions.show_action w in
       let d_msg () = dprintf "%s with %a (conf. %d)" atyp MCPAccess.A.pretty a conf in
       let doc =
         if debug then
