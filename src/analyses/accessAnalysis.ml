@@ -172,8 +172,14 @@ struct
         | Some fnc -> (fnc act arglist)
         | _ -> arglist
       in
-      List.iter (access_one_top ctx false true) (arg_acc `Read);
-      List.iter (access_one_top ctx true  true ) (arg_acc `Write);
+      (* TODO: per-argument reach *)
+      let reach =
+        match f.vname with
+        | "memset" -> false
+        | _ -> true
+      in
+      List.iter (access_one_top ctx false reach) (arg_acc `Read);
+      List.iter (access_one_top ctx true  reach) (arg_acc `Write);
       (match lv with
        | Some x -> access_one_top ctx true false (AddrOf x)
        | None -> ());
