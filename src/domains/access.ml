@@ -10,7 +10,7 @@ module M = Messages
 
 let is_ignorable_type (t: typ): bool =
   match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "spinlock_t"; _ }, _) -> true
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
   | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
