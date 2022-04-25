@@ -49,20 +49,20 @@ struct
     in
     ctx.sideg (lv_opt, ty) d
 
-  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:LibraryFunctions.action) (reach:bool) (conf:int) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (w: LibraryFunctions.action): MCPAccess.A.t =
-      ctx.emit (Access {var_opt=vo; write=w});
+    let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t): MCPAccess.A.t =
+      ctx.emit (Access {var_opt=vo; kind});
       (*partitions & locks*)
-      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; write=w})))
+      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
     in
     let add_access conf vo oo =
-      let a = part_access ctx e vo w in
-      Access.add (side_access ctx) e w conf vo oo a;
+      let a = part_access ctx e vo kind in
+      Access.add (side_access ctx) e kind conf vo oo a;
     in
     let add_access_struct conf ci =
-      let a = part_access ctx e None w in
-      Access.add_struct (side_access ctx) e w conf (`Struct (ci,`NoOffset)) None a
+      let a = part_access ctx e None kind in
+      Access.add_struct (side_access ctx) e kind conf (`Struct (ci,`NoOffset)) None a
     in
     let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls
@@ -106,11 +106,15 @@ struct
     | _ ->
       add_access (conf - 60) None None
 
-  let access_one_top ?(force=false) ctx write reach exp =
+  let access_one_top ?(force=false) ctx kind reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
-      if reach || (write <> `Read) then do_access ctx write reach conf exp;
+      let write = match kind with
+        | `Write | `Free -> true
+        | `Read -> false
+      in
+      if reach || write then do_access ctx kind reach conf exp;
       Access.distribute_access_exp (do_access ctx) `Read false conf exp;
     )
 
@@ -125,7 +129,7 @@ struct
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin
-      access_one_top ctx `Write  false (AddrOf lval);
+      access_one_top ctx `Write false (AddrOf lval);
       access_one_top ctx `Read false rval;
       ctx.local
     end

@@ -100,7 +100,6 @@ let classify' fn exps =
 let classify fn exps =
   if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
-type action = [ `Write | `Read | `Free ] [@@deriving eq, ord, hash, show {with_path = false}]
 
 module Invalidate =
 struct
