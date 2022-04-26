@@ -304,7 +304,7 @@ struct
         M.tracel "casta" "same size\n";
         if not (typ_eq t ta) then err "Cast to different type of same size."
         else (M.tracel "casta" "SUCCESS!\n"; o)
-      | 1 -> (* cast to bigger/outer type *)
+      | c when c > 0 -> (* cast to bigger/outer type *)
         M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
