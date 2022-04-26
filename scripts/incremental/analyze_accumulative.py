@@ -1,4 +1,4 @@
-import incremental_benchmark_utils as utils
+import utils
 from pydriller import Repository, Git
 import itertools
 import os

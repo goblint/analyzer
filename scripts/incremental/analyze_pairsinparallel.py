@@ -5,11 +5,11 @@ from datetime import datetime
 import shutil
 import psutil
 import multiprocessing as mp
-import incremental_pairsofcommits as exc
+import analyze_pairsofcommits as exc
 import time
 import random
 
-# runs the incremental_smallcommits.py script in an parallel mode (for faster benchmarking on the test server)
+# runs the analyze_pairsofcommits.py script in an parallel mode (for faster benchmarking on the test server)
 # the directory 'result' in the cwd will be overwritten!
 
 # Usage: python3 parallel_benchmarking.py <number of processes>]

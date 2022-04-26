@@ -1,4 +1,4 @@
-import incremental_benchmark_utils as utils
+import utils
 import os
 
 def cummulative_distr_compare2(result_csv_filename):
@@ -68,4 +68,3 @@ title = "Without the incremental postsolver"
 distribution_absdiff_plot(title, filepath_without, dir_without)
 distribution_reldiff_plot(title, filepath_without, dir_without) # cutoffs_rel=((0,60),(195,205),(235,245)))
 cummulative_distr_all3(filepath_without)
-
