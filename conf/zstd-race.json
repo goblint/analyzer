@@ -15,7 +15,8 @@
       }
     },
     "thread": {
-      "domain": "plain"
+      "domain": "plain",
+      "include-node": false
     },
     "malloc": {
       "wrappers": [
