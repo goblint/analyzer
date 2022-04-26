@@ -18,9 +18,9 @@ url           = "https://github.com/facebook/zstd" #sys.argv[2]
 repo_name     = "zstd" #sys.argv[3]
 build_compdb  = "build_compdb_zstd.sh" #sys.argv[4]
 conf          = "big-benchmarks1" #sys.argv[5]
-begin         = datetime(2021,2,1) #datetime.strptime(sys.argv[6], '%Y/%m/%d')
+begin         = datetime(2021,8,1) #datetime.strptime(sys.argv[6], '%Y/%m/%d')
 from_c        = 0 #int(sys.argv[7])
-to_c          = None #int(sys.argv[8])
+to_c          = 50 #int(sys.argv[8])
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
 ################################################################################
 
@@ -56,7 +56,7 @@ def analyze_series_in_repo():
 
         # for accumulative setup this filtering does not make sense!
         # skip merge commits and commits that have less than maxCLOC of relevant code changes
-        # relCLOC = utils.calculateRelCLOC(repo_path, commit, diff_exclude) # use this to filter commits by actually relevant changes
+        relCLOC = utils.calculateRelCLOC(repo_path, commit, diff_exclude) # use this to filter commits by actually relevant changes
         # print("relCLOC: ", relCLOC)
         # if maxCLOC is not None and relCLOC > maxCLOC:
         #     print('Skip this commit: merge commit or too many relevant changed LOC')
@@ -93,13 +93,13 @@ def analyze_series_in_repo():
                 out_nonincr = os.path.join(outtry, 'non-incr')
                 os.makedirs(out_nonincr)
                 file_original_run = os.path.join(out_nonincr, "compare-data-nonincr")
-                add_options = ['--enable', 'incremental.only-rename', '--set', 'save_run', file_original_run]
+                add_options = ['--enable', 'incremental.only-rename', '--enable', 'incremental.verify', '--set', 'save_run', file_original_run]
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_nonincr, conf, add_options)
                 # analyze commit incrementally based on the previous commit and save run for comparison
                 out_incr = os.path.join(outtry, 'incr')
                 os.makedirs(out_incr)
                 file_incremental_run = os.path.join(out_incr, "compare-data-incr")
-                add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--set', 'save_run', file_incremental_run]
+                add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.reluctant.on', '--enable', 'incremental.verify', '--set', 'save_run', file_incremental_run]
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_incr, conf, add_options)
                 # compare stored data of original and incremental run
                 out_compare = os.path.join(outtry, 'compare')
