@@ -6,7 +6,10 @@
     "activated": [
       "expRelation", "base", "threadid", "threadflag", "threadreturn",
       "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
-      "symb_locks"
+      "symb_locks", "var_eq", "mallocFresh"
+    ],
+    "ctx_insens": [
+      "var_eq"
     ],
     "thread": {
       "domain": "plain",
@@ -31,7 +34,7 @@
     "reluctant": {
       "compare": "leq"
     }
-    },
+  },
   "exp": {
     "earlyglobs": true,
     "extraspecials": [
