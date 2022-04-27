@@ -2114,9 +2114,10 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
-    | `Unknown ("memset" | "__builtin_memset") ->
-      begin match args with
-        | [dest; ch; count] ->
+    | `Unknown (("memset" | "__builtin_memset" | "__builtin___memset_chk") as name) ->
+      begin match name, args with
+        | "__builtin___memset_chk", [dest; ch; count; _ (* dest_size *)]
+        | ("memset" | "__builtin_memset"), [dest; ch; count] ->
           (* TODO: check count *)
           let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
           let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
@@ -2131,7 +2132,7 @@ struct
               VD.top_value dest_typ
           in
           set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | _ -> failwith "strange memset arguments"
+        | _, _ -> failwith "strange memset arguments"
       end
     | `Unknown "F59" (* strcpy *)
     | `Unknown "F60" (* strncpy *)
