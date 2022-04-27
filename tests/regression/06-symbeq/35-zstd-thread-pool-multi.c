@@ -158,7 +158,7 @@ static void* POOL_thread(void* opaque) {
             ZSTD_pthread_cond_wait(&ctx->queuePopCond, &ctx->queueMutex);
         }
         /* Pop a job off the queue */
-        {   POOL_job const job = ctx->queue[ctx->queueHead]; //NORACE
+        {   POOL_job const job = ctx->queue[ctx->queueHead]; // TODO NORACE
             ctx->queueHead = (ctx->queueHead + 1) % ctx->queueSize; //NORACE
             ctx->numThreadsBusy++; //NORACE
             ctx->queueEmpty = (ctx->queueHead == ctx->queueTail); //NORACE
