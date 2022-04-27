@@ -33,6 +33,17 @@ def reset_incremental_data(analyzer_dir):
 
 def analyze_commit(analyzer_dir, gr : Git, repo_path, build_compdb, commit_hash, outdir, conf, extra_options):
     gr.checkout(commit_hash)
+    conf_path = os.path.join(analyzer_dir, 'conf', conf + '.json')
+
+    # print configuration
+    with open(outdir+'/config.out', "a+") as file:
+        with open(conf_path, "r") as c:
+            file.write("config: " + c.read())
+            file.write("\n")
+            file.write("added options:\n")
+            for o in extra_options:
+                file.write(o + " ")
+            file.close()
 
     prepare_command = ['sh', os.path.join(analyzer_dir, 'scripts', build_compdb)]
     with open(outdir+'/prepare.log', "w+") as outfile:
