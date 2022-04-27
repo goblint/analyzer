@@ -85,7 +85,7 @@ struct
     | `Unknown fn when VarEq.safe_fn fn ->
       Messages.warn "Assume that %s does not change lockset." fn;
       ctx.local
-    | `Unknown x -> begin
+    | `Unknown x -> begin (* TODO: _ ? *)
         let st =
           match lval with
           | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
@@ -94,7 +94,11 @@ struct
         let write_args =
           match LF.get_invalidate_action f.vname with
           | Some fnc -> fnc `Write arglist
-          | _ -> arglist
+          | None ->
+            if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
+              arglist
+            else
+              []
         in
         List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
       end

@@ -190,6 +190,7 @@ struct
         | "__builtin_object_size" -> false
         | _ -> true
       in
+      (* TODO: consider sem.unknown_function.invalidate.args or separate option for just accessing? *)
       List.iter (access_one_top ctx `Read reach) (arg_acc `Read);
       List.iter (access_one_top ctx `Write reach) (arg_acc `Write);
       List.iter (access_one_top ctx `Free reach) (arg_acc `Free);
