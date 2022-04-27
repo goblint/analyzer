@@ -47,7 +47,7 @@ def analyze_series_in_repo():
 
     prev_commit = ""
 
-    for index, commit in enumerate(itertools.islice(Repository(url, since=begin, only_no_merge=True, only_in_branch='dev', clone_repo_to=cwd).traverse_commits(), from_c, to_c)):
+    for index, commit in enumerate(itertools.islice(Repository(url, since=begin, only_in_branch='dev', clone_repo_to=cwd).traverse_commits(), from_c, to_c)):
         gr = Git(repo_path)
 
         print("\n" + commit.hash)
@@ -74,7 +74,7 @@ def analyze_series_in_repo():
             # analyze initial commit non-incrementally
             try:
                 print('Analyze ', str(commit.hash), ' as initial commit.')
-                add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save']
+                add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.verify']
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outtry, conf, add_options)
                 count_analyzed += 1
                 prev_commit = commit.hash

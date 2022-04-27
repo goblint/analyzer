@@ -106,7 +106,7 @@ def analyze_small_commits_in_repo():
             #print('And again incremental, this time with exhaustive restarting')
             outchildexrest = os.path.join(outtry, 'child-ex-rest')
             os.makedirs(outchildexrest)
-            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.restart.sided.enabled']
+            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.on', '--enable', 'incremental.restart.sided.enabled']
             analyze_commit(gr, commit.hash, outchildexrest, add_options)
 
             '''
