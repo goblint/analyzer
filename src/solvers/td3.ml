@@ -737,7 +737,7 @@ module WP =
         print_endline "Removing data for changed and removed functions...";
         let delete_marked s = HM.iter (fun k _ -> HM.remove s k) marked_for_deletion in
         delete_marked rho;
-        delete_marked infl;
+        delete_marked infl; (* TODO: delete from inner sets? *)
         delete_marked wpoint;
 
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
@@ -826,8 +826,15 @@ module WP =
         );
 
         delete_marked stable;
-        delete_marked side_dep;
-        delete_marked side_infl;
+        delete_marked side_dep; (* TODO: delete from inner sets? *)
+        delete_marked side_infl; (* TODO: delete from inner sets? *)
+
+        (* delete from incremental postsolving/warning structures to remove spurious warnings *)
+        delete_marked superstable;
+        delete_marked var_messages;
+        delete_marked rho_write;
+        HM.iter (fun x w -> delete_marked w) rho_write;
+
         print_data data "Data after clean-up";
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
