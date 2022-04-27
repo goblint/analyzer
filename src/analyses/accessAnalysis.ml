@@ -178,9 +178,14 @@ struct
       ctx.local
     | _, x ->
       let arg_acc act =
-        match LF.get_threadsafe_inv_ac x with
-        | Some fnc -> (fnc act arglist)
-        | _ -> arglist
+        match act, LF.get_threadsafe_inv_ac x with
+        | _, Some fnc -> (fnc act arglist)
+        | `Read, None -> arglist
+        | (`Write | `Free), None ->
+          if get_bool "sem.unknown_function.invalidate.args" then
+            arglist
+          else
+            []
       in
       (* TODO: per-argument reach *)
       let reach =
@@ -190,7 +195,6 @@ struct
         | "__builtin_object_size" -> false
         | _ -> true
       in
-      (* TODO: consider sem.unknown_function.invalidate.args or separate option for just accessing? *)
       List.iter (access_one_top ctx `Read reach) (arg_acc `Read);
       List.iter (access_one_top ctx `Write reach) (arg_acc `Write);
       List.iter (access_one_top ctx `Free reach) (arg_acc `Free);
