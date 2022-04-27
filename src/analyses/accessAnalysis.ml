@@ -182,9 +182,17 @@ struct
         | Some fnc -> (fnc act arglist)
         | _ -> arglist
       in
-      List.iter (access_one_top ctx `Read true) (arg_acc `Read);
-      List.iter (access_one_top ctx `Write true) (arg_acc `Write);
-      List.iter (access_one_top ctx `Free true) (arg_acc `Free);
+      (* TODO: per-argument reach *)
+      let reach =
+        match f.vname with
+        | "memset" | "__builtin_memset" | "__builtin___memset_chk" -> false
+        | "bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk" -> false
+        | "__builtin_object_size" -> false
+        | _ -> true
+      in
+      List.iter (access_one_top ctx `Read reach) (arg_acc `Read);
+      List.iter (access_one_top ctx `Write reach) (arg_acc `Write);
+      List.iter (access_one_top ctx `Free reach) (arg_acc `Free);
       (match lv with
        | Some x -> access_one_top ctx `Write false (AddrOf x)
        | None -> ());

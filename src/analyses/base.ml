@@ -810,6 +810,8 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
+    | Index (CastE (TInt(IInt,[]), Const (CStr ("unknown",No_encoding))), ofs) -> (* special offset added by convertToQueryLval *)
+      `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
       let exp_rv = eval_rv a gs st exp in
       match exp_rv with
@@ -2112,6 +2114,40 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
+    | `Unknown (("memset" | "__builtin_memset" | "__builtin___memset_chk") as name) ->
+      begin match name, args with
+        | "__builtin___memset_chk", [dest; ch; count; _ (* dest_size *)]
+        | ("memset" | "__builtin_memset"), [dest; ch; count] ->
+          (* TODO: check count *)
+          let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
+          let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
+          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
+          let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+          let value =
+            match eval_ch with
+            | `Int i when ID.to_int i = Some Z.zero ->
+              VD.zero_init_value dest_typ
+            | _ ->
+              VD.top_value dest_typ
+          in
+          set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | _, _ -> failwith "strange memset arguments"
+      end
+    | `Unknown (("bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk") as name) ->
+      (* TODO: share something with memset special case? *)
+      begin match name, args with
+        | "__explicit_bzero_chk", [dest; count; _ (* dest_size *)]
+        | ("bzero" | "__builtin_bzero" | "explicit_bzero"), [dest; count] ->
+          (* TODO: check count *)
+          let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
+          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
+          let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+          let value = VD.zero_init_value dest_typ in
+          set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | _, _ -> failwith "strange bzero arguments"
+      end
     | `Unknown "F59" (* strcpy *)
     | `Unknown "F60" (* strncpy *)
     | `Unknown "F63" (* memcpy *)
