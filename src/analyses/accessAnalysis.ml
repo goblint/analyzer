@@ -182,6 +182,7 @@ struct
       let reach =
         match f.vname with
         | "memset" | "__builtin_memset" | "__builtin___memset_chk" -> false
+        | "bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk" -> false
         | "__builtin_object_size" -> false
         | _ -> true
       in

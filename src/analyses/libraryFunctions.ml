@@ -185,6 +185,9 @@ let invalidate_actions = [
     "__builtin_ctzll", readsAll;
     "__builtin_clz", readsAll;
     "bzero", writes [1]; (*keep 1*)
+    "__builtin_bzero", writes [1]; (*keep [1]*)
+    "explicit_bzero", writes [1];
+    "__explicit_bzero_chk", writes [1];
     "connect", readsAll;          (*safe*)
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
@@ -398,7 +401,6 @@ let invalidate_actions = [
     "__maskrune", writesAll; (*unsafe*)
     "inet_addr", readsAll; (*safe*)
     "gethostbyname", readsAll; (*safe*)
-    "__builtin_bzero", writes [1]; (*keep [1]*)
     "setsockopt", readsAll; (*safe*)
     "listen", readsAll; (*safe*)
     "getsockname", writes [1;3]; (*keep [1;3]*)
