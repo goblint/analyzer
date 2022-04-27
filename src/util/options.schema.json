@@ -1058,6 +1058,13 @@
                     "Unknown function call invalidates all globals",
                   "type": "boolean",
                   "default": true
+                },
+                "args": {
+                  "title": "sem.unknown_function.invalidate.args",
+                  "description":
+                    "Unknown function call invalidates arguments passed to it",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
