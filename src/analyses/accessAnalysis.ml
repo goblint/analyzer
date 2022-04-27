@@ -182,6 +182,7 @@ struct
       let reach =
         match f.vname with
         | "memset" | "__builtin_memset" | "__builtin___memset_chk" -> false
+        | "__builtin_object_size" -> false
         | _ -> true
       in
       List.iter (access_one_top ctx false reach) (arg_acc `Read);
