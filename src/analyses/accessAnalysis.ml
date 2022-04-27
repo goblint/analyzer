@@ -66,6 +66,12 @@ struct
       ()
 
   let side_access ctx ty lv_opt (conf, w, loc, e, a) =
+    let ty =
+      if Option.is_some lv_opt then
+        `Type Cil.voidType (* avoid unsound type split for alloc variables *)
+      else
+        ty
+    in
     if !GU.should_warn then
       ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
     side_vars ctx lv_opt ty
@@ -199,8 +205,16 @@ struct
         | Some fnc -> (fnc act arglist)
         | _ -> arglist
       in
-      List.iter (access_one_top ctx false true) (arg_acc `Read);
-      List.iter (access_one_top ctx true  true ) (arg_acc `Write);
+      (* TODO: per-argument reach *)
+      let reach =
+        match f.vname with
+        | "memset" | "__builtin_memset" | "__builtin___memset_chk" -> false
+        | "bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk" -> false
+        | "__builtin_object_size" -> false
+        | _ -> true
+      in
+      List.iter (access_one_top ctx false reach) (arg_acc `Read);
+      List.iter (access_one_top ctx true  reach) (arg_acc `Write);
       (match lv with
        | Some x -> access_one_top ctx true false (AddrOf x)
        | None -> ());
