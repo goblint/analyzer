@@ -2,6 +2,7 @@
 (* Helpful link on CIL: https://goblint.in.tum.de/assets/goblint-cil/ *)
 (* Goblint documentation: https://goblint.readthedocs.io/en/latest/ *)
 (* You may test your analysis on our toy examples by running `ruby scripts/update_suite.rb group tutorials` *)
+(* after removing the `SKIP` from the beginning of the tests in tests/regression/99-tutorials/{03-taint_simple.c,04-taint_inter.c} *)
 
 open Prelude.Ana
 open Analyses
@@ -83,7 +84,7 @@ struct
     | None -> state
 
   (** For a function call "lval = f(args)" or "f(args)",
-      [enter] returns a caller state, and the inital state of the callee.
+      [enter] returns a caller state, and the initial state of the callee.
       In [enter], the caller state can usually be returned unchanged, as [combine] (below)
       will compute the caller state after the function call, given the return state of the callee. *)
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
@@ -93,7 +94,7 @@ struct
     (* TODO: For the initial callee_state, collect formal parameters where the actual is tainted. *)
     let callee_state = List.fold_left (fun ts (f,a) ->
         if is_exp_tainted caller_state a
-        then ts (* TODO: Change accumulater ts here? *)
+        then ts (* TODO: Change accumulator ts here? *)
         else ts)
         (D.bot ())
         zipped in
