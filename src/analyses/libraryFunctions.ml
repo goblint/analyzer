@@ -207,8 +207,8 @@ let invalidate_actions = [
     "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
     "__builtin___mempcpy_chk", writes [1];
-    "memset", writesAll;(*unsafe*)
-    "__builtin_memset", writesAll;(*unsafe*)
+    "memset", writes [1];(*unsafe*)
+    "__builtin_memset", writes [1];(*unsafe*)
     "__builtin___memset_chk", writesAll;
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
