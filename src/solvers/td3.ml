@@ -540,6 +540,9 @@ module WP =
 
       start_event ();
 
+      (* reluctantly unchanged return nodes to additionally query for postsolving to get warnings, etc. *)
+      let reluctant_vs: S.Var.t list ref = ref [] in
+
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
@@ -854,6 +857,7 @@ module WP =
               )
               else (
                 print_endline "Destabilization not required...";
+                reluctant_vs := x :: !reluctant_vs
               )
             ) old_ret;
 
@@ -1111,7 +1115,7 @@ module WP =
 
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
 
-      Post.post st vs rho;
+      Post.post st (!reluctant_vs @ vs) rho;
 
       print_data data "Data after postsolve";
 
