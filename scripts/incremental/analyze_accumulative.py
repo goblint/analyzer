@@ -6,6 +6,9 @@ import sys
 from datetime import datetime
 import json
 import shutil
+import pytz
+
+utc = pytz.UTC
 
 ### Usage: python3 incremental_smallcommits.py <full_path_analyzer_dir> <repo_url> <repo_name> <name_of_build_script>
 #     <name_of_config> <begin> <from_commit_index> <to_commit_index>
@@ -18,7 +21,8 @@ url           = "https://github.com/facebook/zstd" #sys.argv[2]
 repo_name     = "zstd" #sys.argv[3]
 build_compdb  = "build_compdb_zstd.sh" #sys.argv[4]
 conf          = "big-benchmarks1" #sys.argv[5]
-begin         = datetime(2021,8,1) #datetime.strptime(sys.argv[6], '%Y/%m/%d')
+begin         = datetime(2021,2,1) #datetime.strptime(sys.argv[6], '%Y/%m/%d')
+to            = datetime(2022,2,1)
 from_c        = 0 #int(sys.argv[7])
 to_c          = 51 #int(sys.argv[8])
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
@@ -38,8 +42,55 @@ with open(dummy_c_file, 'w') as file:
   file.write("int main() { return 0; }")
   file.close()
 
+def start_commit_for_sequence_search():
+    current_commit = ""
+    for commit in Repository(url, to=to, only_in_branch='dev', order='reverse', clone_repo_to=cwd).traverse_commits():
+        current_commit = commit
+        break
+    return current_commit
 
-def analyze_series_in_repo():
+seq_list = []
+gr = Git(repo_path)
+starting_points=[]
+
+def find_sequences_rec(commit, seq, vis):
+    for p in commit.parents:
+        if p in vis:
+            continue
+        parent_commit = gr.get_commit(p)
+        parent_date = parent_commit.committer_date.replace(tzinfo=None)
+        if parent_date < begin:
+            if len(seq) > 5:
+                print("found seq of length: " + str(len(seq)))
+                seq_list.insert(0,seq)
+        elif parent_commit.merge:
+            if len(seq) > 5:
+                print("found seq of length: " + str(len(seq)))
+                seq_list.insert(0,seq)
+            find_sequences_rec(parent_commit, [], [])
+        else:
+            seq.insert(0,parent_commit.hash)
+            if parent_commit.hash not in starting_points:
+                starting_points.insert(0,parent_commit.hash)
+                find_sequences_rec(parent_commit, seq, vis)
+
+
+def find_sequences():
+    start_commit = start_commit_for_sequence_search()
+    starting_points.insert(0,start_commit.hash)
+    find_sequences_rec(start_commit, [], [])
+    print("summary")
+    total = 0
+    for i in range(0,60):
+        c = sum(map(lambda x : len(x) == i, seq_list))
+        total += c
+        print("length " + str(i) + ": " + str(c))
+    print("total: " + str(len(seq_list)))
+    assert(total == len(seq_list))
+    with open('sequences2.json', 'w') as outfile:
+        json.dump(seq_list, outfile, indent=4)
+
+def analyze_series_in_repo(series):
     global count_analyzed
     global count_skipped
     global count_failed
@@ -47,7 +98,7 @@ def analyze_series_in_repo():
 
     prev_commit = ""
 
-    for commit in itertools.islice(Repository(url, since=begin, only_in_branch='dev', order='topo-order', clone_repo_to=cwd).traverse_commits(), from_c, to_c):
+    for commit in Repository(url, since=begin, only_commits=series, clone_repo_to=cwd).traverse_commits():
         gr = Git(repo_path)
 
         print("\n" + commit.hash)
@@ -121,6 +172,7 @@ def analyze_series_in_repo():
                 count_failed+=1
         #analyzed_commits[try_num]=(str(commit.hash)[:6], relCLOC)
 
-if os.path.exists(outdir) and os.path.isdir(outdir):
-   shutil.rmtree(outdir)
-analyze_series_in_repo()
+#if os.path.exists(outdir) and os.path.isdir(outdir):
+#   shutil.rmtree(outdir)
+#analyze_series_in_repo()
+find_sequences()
