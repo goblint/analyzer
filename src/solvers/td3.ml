@@ -852,6 +852,9 @@ module WP =
                 destabilize x;
                 HM.replace stable x ()
               )
+              else (
+                print_endline "Destabilization not required...";
+              )
             ) old_ret;
 
           print_endline "Final solve..."
