@@ -717,17 +717,20 @@ struct
               begin
                 let at = get_type_addr (x, o) in
                 if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
-                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
-                | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
-                | _ ->
-                  if contains_vla t || contains_vla (get_type_addr (x, o)) then
-                    begin
-                      (* TODO: Is this ok? *)
-                      M.warn "Casting involving a VLA is assumed to work";
-                      true
-                    end
-                  else
-                    false
+                if at = TVoid [] then
+                  true
+                else
+                  match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
+                  | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+                  | _ ->
+                    if contains_vla t || contains_vla (get_type_addr (x, o)) then
+                      begin
+                        (* TODO: Is this ok? *)
+                        M.warn "Casting involving a VLA is assumed to work";
+                        true
+                      end
+                    else
+                      false
               end
             | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
             | _ -> false
