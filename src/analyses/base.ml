@@ -239,6 +239,22 @@ struct
         | Mod -> `Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
         | _ -> `Address AD.top_ptr
       end
+    | `Address p, `Top  -> begin
+        (* copy of above with Unknown instead of int *)
+        (* TODO: why does this even happen in zstd-thread-pool-add? *)
+        let n = ID.top_of (Cilfacade.ptrdiff_ikind ()) in (* pretend to have unknown ptrdiff int instead *)
+        match op with
+        (* For array indexing e[i] and pointer addition e + i we have: *)
+        | IndexPI | PlusPI ->
+          `Address (AD.map (addToAddr n) p)
+        (* Pointer subtracted by a value (e-i) is very similar *)
+        (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
+        | MinusPI ->
+          let n = ID.neg (ID.cast_to (Cilfacade.ptrdiff_ikind ()) n) in
+          `Address (AD.map (addToAddr n) p)
+        | Mod -> `Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
+        | _ -> `Address AD.top_ptr
+      end
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result in most cases, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
