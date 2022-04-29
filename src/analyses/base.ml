@@ -2304,23 +2304,38 @@ struct
         | _ -> st
       end
     | `Realloc (p, size) ->
-      let new_heap_var = AD.from_var (heap_var ctx) in
-      let p_addr =
-        match eval_rv (Analyses.ask_of_ctx ctx) gs st p with
-        | `Address a -> a
-        (* TODO: don't we already have logic for this? *)
-        | `Int i when ID.to_int i = Some BI.zero -> AD.null_ptr
-        | `Int i -> AD.top_ptr
-        | _ -> failwith "realloc p_addr"
-      in
-      let old_blob_val = get (Analyses.ask_of_ctx ctx) gs st (AD.remove Addr.NullPtr @@ p_addr) None in
-      let size_int = eval_int (Analyses.ask_of_ctx ctx) gs st size in
-      let new_blob = `Blob (old_blob_val, size_int, true) in
-      let lv = Option.get lv in (* TODO: match *)
-      set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
-        (new_heap_var, TVoid [], new_blob);
-        (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, Cilfacade.typeOfLval lv, `Address new_heap_var);
-      ]
+      begin match lv with
+        | Some lv ->
+          let ask = Analyses.ask_of_ctx ctx in
+          let p_rv = eval_rv ask gs st p in
+          let p_addr =
+            match p_rv with
+            | `Address a -> a
+            (* TODO: don't we already have logic for this? *)
+            | `Int i when ID.to_int i = Some BI.zero -> AD.null_ptr
+            | `Int i -> AD.top_ptr
+            | _ -> failwith "realloc p_addr"
+          in
+          let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
+          let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
+          let size_int = eval_int ask gs st size in
+          let heap_val = `Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
+          let heap_addr = AD.from_var (heap_var ctx) in
+          let heap_addr' =
+            if get_bool "sem.malloc.fail" then
+              AD.join heap_addr AD.null_ptr
+            else
+              heap_addr
+          in
+          let lv_addr = eval_lv ask gs st lv in
+          set_many ~ctx ask gs st [
+            (heap_addr, TVoid [], heap_val);
+            (lv_addr, Cilfacade.typeOfLval lv, `Address heap_addr');
+          ]
+          (* TODO: free (i.e. invalidate) old blob if successful? *)
+        | None ->
+          st
+      end
     | `Unknown "__goblint_unknown" ->
       begin match args with
         | [Lval lv] | [CastE (_,AddrOf lv)] ->
