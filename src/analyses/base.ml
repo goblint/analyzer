@@ -2298,6 +2298,16 @@ struct
                                   (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
         | _ -> st
       end
+    | `Realloc (p, size) ->
+      let new_heap_var = AD.from_var (heap_var ctx) in
+      let old_blob_val = get (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:p ~off:NoOffset)) None in
+      let size_int = eval_int (Analyses.ask_of_ctx ctx) gs st size in
+      let new_blob = `Blob (old_blob_val, size_int, true) in
+      let lv = Option.get lv in (* TODO: match *)
+      set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [
+        (new_heap_var, TVoid [], new_blob);
+        (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, Cilfacade.typeOfLval lv, `Address new_heap_var);
+      ]
     | `Unknown "__goblint_unknown" ->
       begin match args with
         | [Lval lv] | [CastE (_,AddrOf lv)] ->
