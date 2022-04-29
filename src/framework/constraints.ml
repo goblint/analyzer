@@ -1409,10 +1409,10 @@ struct
     nh
 
   let compare (name1, name2) vh1 vh2 =
-    Printf.printf "\nComparing nodes precision of %s (left) with %s (right):\n" name1 name2;
+    let verbose = get_bool "dbg.verbose" in
+    if verbose then Printf.printf "\nComparing nodes precision of %s (left) with %s (right):\n" name1 name2;
     let vh1' = join_contexts vh1 in
     let vh2' = join_contexts vh2 in
-    let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
     ignore (Pretty.printf "Nodes comparison summary: %t\n" (fun () -> msg));
     print_newline ();
