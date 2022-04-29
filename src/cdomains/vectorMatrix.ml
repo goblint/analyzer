@@ -203,11 +203,15 @@ sig
 
   val add_empty_column: t -> int -> t
 
+  val add_empty_columns: t -> int array -> t
+
   val append_row: t -> vec -> t
 
   val get_row: t -> int -> vec
 
   val del_col: t -> int -> t
+
+  val del_cols: t -> int array -> t
 
   val remove_row: t -> int -> t
 
@@ -275,6 +279,9 @@ module ListMatrix : AbstractMatrix =
     let add_empty_column m pos =
       List.map (fun y -> V.insert_val pos (of_int 0) y) m
 
+    let add_empty_columns m cols =
+      Array.fold_left (fun m'  x -> add_empty_column m' x) m cols
+
     let append_row m row  =
       List.append m [row]
 
@@ -316,6 +323,9 @@ module ListMatrix : AbstractMatrix =
 
     let del_col m col_n =
       List.map (fun x -> V.remove_val x col_n) m
+
+    let del_cols m cols =
+      Array.fold_lefti (fun y i x -> del_col y (x - i)) m cols
 
     let reduce_col m col_n =
       match List.findi (fun i x -> V.nth x col_n <> of_int 0)  (List.rev m) with
@@ -490,6 +500,20 @@ module ArrayMatrix: AbstractMatrix =
                           Array.blit r 0 new_matrix.(i) 0 n; if n <> nc then Array.blit r n new_matrix.(i) (n + 1) (nc - n)) m;
           new_matrix
 
+    let add_empty_columns m cols =
+      let nnc = Array.length cols in
+      if is_empty m || nnc = 0 then m else
+        let nr, nc = num_rows m, num_cols m in
+        let m' = create_matrix nr (nc + nnc) (of_int 0) in
+        for i = 0 to nr - 1 do
+          let offset = ref 0 in
+          for j = 0 to nc - 1 do
+            while  !offset < nnc &&  !offset + j = cols.(!offset) do incr offset done;
+            m'.(i).(j + !offset) <- m.(i).(j);
+          done
+        done;
+        m'
+
     let append_row m row  =
       let size = num_rows m in
       let new_matrix = create_matrix (size + 1) (num_cols m) (of_int 0) in
@@ -558,6 +582,21 @@ module ArrayMatrix: AbstractMatrix =
           new_matrix.(i) <- Array.remove_at j m.(i)
         done; new_matrix
 
+    let del_cols m cols =
+      let n_c = Array.length cols in
+      if n_c = 0 || is_empty m then m
+      else
+        let m_r, m_c = num_rows m, num_cols m in
+        if m_c - n_c = 0 then empty () else
+          let m' = Array.create_matrix m_r (m_c - n_c) (of_int 0) in
+          for i = 0 to m_r - 1 do
+            let offset = ref 0 in
+            for j = 0 to (m_c - n_c) - 1 do
+              while  !offset < n_c &&  !offset + j = cols.(!offset) do incr offset done;
+              m'.(i).(j) <- m.(i).(j + !offset);
+            done
+          done;
+          m'
 
     let map2i f m v =
       let f' x (i,y) = V.to_array @@ f i (V.of_array x) y in

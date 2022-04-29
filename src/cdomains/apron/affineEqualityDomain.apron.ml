@@ -18,12 +18,14 @@ struct
   let copy_pt t = t
 
   let dim_add (ch: Apron.Dim.change) m =
-    let to_add = Array.to_list ch.dim in
-    List.fold_lefti (fun m' i  x -> Matrix.add_empty_column m' (x + i)) m to_add
+    Array.iteri (fun i x -> ch.dim.(i) <- x + i) ch.dim;
+    Matrix.add_empty_columns m ch.dim
 
   let dim_remove (ch: Apron.Dim.change) m del =
-    let to_remove = Array.to_list ch.dim in
-    Matrix.remove_zero_rows @@ List.fold_left (fun y x -> if del then Matrix.del_col y x else Matrix.del_col (Matrix.reduce_col y x) x) m to_remove
+    if Array.length ch.dim = 0 || Matrix.is_empty m then m else (
+      Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
+      let m' = if not del then let m = Matrix.copy_pt m in Array.fold_left (fun y x -> Matrix.reduce_col_pt_with y x) m ch.dim else m in
+      Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
 
   let change_d t new_env add del =
     let dim_change = if add then Environment.dimchange t.env new_env
@@ -310,47 +312,47 @@ struct
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 
-  let assign_invertible_rels x var b env =
+  let remove_rels_with_var x var env imp =
     let j0 = Environment.dim_of_var env var in
-    let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
-    let b0 = Vector.nth b j0 in
-    let reduced_a = Vector.apply_with_c_pt_with (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
-    let recalc_entries m rd_a = Matrix.map2_pt_with (fun x y -> Vector.map2i_pt_with (fun j z d ->
-        if j = j0 then y
-        else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
-        else z +: y *: d) x b) m rd_a
-    in {d = Some (recalc_entries x reduced_a); env = env}
-
-  let assign_uninvertible_rel x var b env =
-    let neg_vec = Vector.mapi_pt_with (fun i z -> if Vector.compare_length_with b (i + 1) > 0 then of_int (-1) *: z else z) b
-    in let var_vec = Vector.set_val_pt_with neg_vec (Environment.dim_of_var env var) (of_int 1)
-    in {d = Matrix.normalize_pt_with @@ Matrix.append_row x var_vec; env = env}
-
-  let remove_rels_with_var x var env =
-    let j0 = Environment.dim_of_var env var in
-    Matrix.reduce_col x j0
+    if imp then Matrix.reduce_col_pt_with x j0 else Matrix.reduce_col x j0
 
   let forget_vars t vars =
     match t.d with
     | None -> t
     | Some m ->
-      let rec rem_vars m vars' =
-        begin match vars' with
-          |            [] -> m
-          | x :: xs -> rem_vars (remove_rels_with_var m x t.env) xs end
-      in {d = Some (Matrix.remove_zero_rows @@ rem_vars m vars); env = t.env}
-
+      if List.is_empty vars then t else
+        let rec rem_vars m vars' =
+          begin match vars' with
+            |            [] -> m
+            | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end
+        in {d = Some (Matrix.remove_zero_rows @@ rem_vars (Matrix.copy_pt m) vars); env = t.env}
 
   let assign_texpr (t: VarManagement(V)(Mx).t) var texp =
+    let assign_invertible_rels x var b env =
+      let j0 = Environment.dim_of_var env var in
+      let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
+      let b0 = Vector.nth b j0 in
+      let reduced_a = Vector.apply_with_c_pt_with (/:) b0 a_j0 in  (*Corresponds to Axj0/Bj0*)
+      let recalc_entries m rd_a = Matrix.map2_pt_with (fun x y -> Vector.map2i_pt_with (fun j z d ->
+          if j = j0 then y
+          else if Vector.compare_length_with b (j + 1) > 0 then z -: y *: d
+          else z +: y *: d) x b) m rd_a
+      in {d = Some (recalc_entries x reduced_a); env = env}
+    in
+    let assign_uninvertible_rel x var b env =
+      let neg_vec = Vector.mapi_pt_with (fun i z -> if Vector.compare_length_with b (i + 1) > 0 then of_int (-1) *: z else z) b
+      in let var_vec = Vector.set_val_pt_with neg_vec (Environment.dim_of_var env var) (of_int 1)
+      in {d = Matrix.normalize_pt_with @@ Matrix.append_row x var_vec; env = env}
+    in
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <> of_int 0
     in let affineEq_vec = get_coeff_vec t texp
     in match t.d, affineEq_vec with
     | None, _ -> failwith "Can not assign to bottom state!"
     | Some m, Some v when Matrix.is_empty m-> if is_invertible v then t else assign_uninvertible_rel (Matrix.empty ()) var v t.env
-    | Some x, Some v -> if is_invertible v then assign_invertible_rels (Matrix.copy_pt x) var v t.env
-      else let new_x = Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env
+    | Some x, Some v -> if is_invertible v then let t' = assign_invertible_rels (Matrix.copy_pt x) var v t.env in {d = Matrix.normalize_pt_with @@ Option.get @@ t'.d; env = t'.env}
+      else let new_x = Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env false
         in assign_uninvertible_rel new_x var v t.env
-    | Some x, None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env); env = t.env}
+    | Some x, None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env false); env = t.env}
 
   let assign_exp (t: VarManagement(V)(Mx).t) var exp (no_ov: bool Lazy.t) =
     match Convert.texpr1_expr_of_cil_exp t t.env (Lazy.force no_ov) exp with
