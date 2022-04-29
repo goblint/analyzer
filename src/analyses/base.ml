@@ -715,7 +715,9 @@ struct
           let cast_ok = function
             | Addr (x, o) ->
               begin
-                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf (get_type_addr (x, o))) with
+                let at = get_type_addr (x, o) in
+                if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
+                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
                 | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
                 | _ ->
                   if contains_vla t || contains_vla (get_type_addr (x, o)) then

@@ -329,7 +329,7 @@ struct
           end
     in
     let one_addr = let open Addr in function
-        | Addr ({ vtype = TVoid _; _} as v, offs) -> (* we had no information about the type (e.g. malloc), so we add it *)
+        | Addr ({ vtype = TVoid _; _} as v, offs) when false -> (* we had no information about the type (e.g. malloc), so we add it *)
           Addr ({ v with vtype = t }, offs)
         | Addr (v, o) as a ->
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
