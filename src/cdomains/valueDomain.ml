@@ -690,6 +690,7 @@ struct
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
     |                 _ , `Thread _     -> state (* TODO: no top thread ID set! *)
+    | _, `Bot -> `Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 
 
