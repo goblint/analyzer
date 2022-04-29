@@ -125,7 +125,7 @@ def analyze_series_in_repo(series):
                 prev_commit = commit.hash
             except utils.subprocess.CalledProcessError as e:
                 print('Aborted initial because command ', e.cmd, 'failed.')
-                print('Fix the problem or choose a different commit to start the accumulative analysis from')
+                print('Fix the problem or choose a different commit to start the accumulative analysis from.')
                 exit()
         else:
             # analyze every following commit based on the latest previous commit for which the analysis succeeded
@@ -185,18 +185,21 @@ def analyze_seq_in_parallel(series):
     coremapping = [val for pair in zip(coremapping1, coremapping2) for val in pair]
     processes = []
 
-    for i in range(len(series)):
-        dir = "process" + str(i)
-        os.mkdir(dir)
-        os.chdir(dir)
-        # start process for analysing serie i
-        p = mp.Process(target=runperprocess, args=[coremapping[i % numcores], series[i]])
-        p.start()
-        processes.append(p)
-        os.chdir(res_dir)
-
-    for p in processes:
-        p.join()
+    i = 0
+    while i < len(series):
+        for j in range(numcores):
+            dir = "series" + str(i)
+            os.mkdir(dir)
+            os.chdir(dir)
+            # start process for analysing serie i
+            p = mp.Process(target=runperprocess, args=[coremapping[j], series[i]])
+            p.start()
+            processes.append(p)
+            os.chdir(res_dir)
+            i += 1
+        for p in processes:
+            p.join()
+        processes = []
 
 if os.path.exists(res_dir):
     shutil.rmtree(res_dir)

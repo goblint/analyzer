@@ -47,7 +47,7 @@
     "print_dead_code": true
   },
   "pre": {
-    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH", "-D__LINE__=0"]
+    "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
   },
   "cil": {
     "merge": {
@@ -64,7 +64,7 @@
     "deadlock": true,
     "deadcode": false,
     "analyzer": false,
-    "unsound": true,
+    "unsound": false,
     "imprecise": false,
     "unknown": false,
     "error": false,
