@@ -2300,7 +2300,15 @@ struct
       end
     | `Realloc (p, size) ->
       let new_heap_var = AD.from_var (heap_var ctx) in
-      let old_blob_val = get (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) gs st (mkMem ~addr:p ~off:NoOffset)) None in
+      let p_addr =
+        match eval_rv (Analyses.ask_of_ctx ctx) gs st p with
+        | `Address a -> a
+        (* TODO: don't we already have logic for this? *)
+        | `Int i when ID.to_int i = Some BI.zero -> AD.null_ptr
+        | `Int i -> AD.top_ptr
+        | _ -> failwith "realloc p_addr"
+      in
+      let old_blob_val = get (Analyses.ask_of_ctx ctx) gs st (AD.remove Addr.NullPtr @@ p_addr) None in
       let size_int = eval_int (Analyses.ask_of_ctx ctx) gs st size in
       let new_blob = `Blob (old_blob_val, size_int, true) in
       let lv = Option.get lv in (* TODO: match *)
