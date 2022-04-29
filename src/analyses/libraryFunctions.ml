@@ -437,7 +437,7 @@ let invalidate_actions = [
     "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
-    "realloc", writesAll;(*unsafe*)
+    "realloc", writes [1];(*unsafe*) (* TODO: replace write with free+read *)
     "setrlimit", readsAll; (*safe*)
     "getrlimit", writes [2]; (*keep [2]*)
     "sem_init", readsAll; (*safe*)

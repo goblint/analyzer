@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <assert.h>
+#include <pthread.h>
 
 void test1_f() {
   assert(1); // reachable
@@ -16,7 +17,21 @@ void test1() {
   fp(); // should call test1_f
 }
 
+void* test2_f(void *arg) {
+  int *p = arg;
+  *p = 1; // RACE!
+  return NULL;
+}
+
+void test2() {
+  int *p = malloc(sizeof(int));
+  pthread_t id;
+  pthread_create(&id, NULL, test2_f, p);
+  realloc(p, sizeof(int)); // RACE!
+}
+
 int main() {
   test1();
+  test2();
   return 0;
 }
