@@ -164,7 +164,7 @@ def analyze_series_in_repo(series):
                 print('Aborted because command ', e.cmd, 'failed.')
                 shutil.rmtree("incremental_data")
                 shutil.copytree("backup_incremental_data", "incremental_data")
-            commit_num += 1
+        commit_num += 1
 
 def runperprocess(core, serie):
     psutil.Process().cpu_affinity([core])
@@ -192,7 +192,9 @@ def analyze_seq_in_parallel(series):
             os.mkdir(dir)
             os.chdir(dir)
             # start process for analysing serie i
-            p = mp.Process(target=runperprocess, args=[coremapping[j], series[i]])
+            s = series[i]
+            c = coremapping[j]
+            p = mp.Process(target=runperprocess, args=[c, s])
             p.start()
             processes.append(p)
             os.chdir(res_dir)
