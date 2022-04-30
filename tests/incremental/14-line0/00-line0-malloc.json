@@ -1,0 +1,11 @@
+{
+  "incremental": {
+    "reluctant": {
+      "on": true,
+      "compare": "leq"
+    }
+  },
+  "exp": {
+    "earlyglobs": false
+  }
+}

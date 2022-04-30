@@ -1,0 +1,12 @@
+diff --git tests/incremental/14-line0/00-line0-malloc.c tests/incremental/14-line0/00-line0-malloc.c
+index c3ed1f92d..d9bc2055f 100644
+--- tests/incremental/14-line0/00-line0-malloc.c
++++ tests/incremental/14-line0/00-line0-malloc.c
+@@ -10,6 +10,7 @@
+ 
+ int boo() {
+     int x = 0;
++    x++;
+     return 0;
+ }
+ 
