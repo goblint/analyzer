@@ -7,6 +7,7 @@ module type S =
 sig
   module S: EqConstrSys
   module VH: Hashtbl.S with type key = S.v
+  module VS: BatSet.S with type elt = S.v
 
   val init: unit -> unit
   val one_side: vh:S.Dom.t VH.t -> x:S.v -> y:S.v -> d:S.Dom.t -> unit
@@ -16,15 +17,16 @@ end
 
 (** Functorial postsolver for any system. *)
 module type F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  S with module S = S and module VH = VH
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (VS:  BatSet.S with type elt = S.v) ->
+    S with module S = S and module VH = VH and module VS = VS
 
 (** Base implementation for postsolver. *)
 module Unit: F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (VS: BatSet.S with type elt = S.v) ->
   struct
     module S = S
     module VH = VH
+    module VS = VS
     let init () = ()
     let one_side ~vh ~x ~y ~d = ()
     let one_constraint ~vh ~x ~rhs = ()
@@ -32,10 +34,11 @@ module Unit: F =
   end
 
 (** Sequential composition of two postsolvers. *)
-module Compose (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH): S with module S = PS1.S and module VH = PS1.VH =
+module Compose (PS1: S) (PS2: S with module S = PS1.S and module VH = PS1.VH and module VS = PS1.VS): S with module S = PS1.S and module VH = PS1.VH and module VS = PS1.VS =
 struct
   module S = PS1.S
   module VH = PS1.VH
+  module VS = PS1.VS
 
   let init () =
     PS1.init ();
@@ -53,9 +56,9 @@ end
 
 (** Postsolver for pruning solution using reachability. *)
 module Prune: F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (VS: BatSet.S with type elt = S.v) ->
   struct
-    include Unit (S) (VH)
+    include Unit (S) (VH) (VS)
 
     let finalize ~vh ~reachable =
       if get_bool "dbg.debug" then
@@ -68,9 +71,9 @@ module Prune: F =
 
 (** Postsolver for verifying solution in demand-driven fashion. *)
 module Verify: F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (VS: BatSet.S with type elt = S.v)  ->
   struct
-    include Unit (S) (VH)
+    include Unit (S) (VH) (VS)
 
     let init () =
       Goblintutil.verified := Some true
@@ -98,9 +101,9 @@ module Verify: F =
 
 (** Postsolver for enabling messages (warnings) output. *)
 module Warn: F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (VS: BatSet.S with type elt = S.v)  ->
   struct
-    include Unit (S) (VH)
+    include Unit (S) (VH) (VS)
 
     let old_should_warn = ref None
 
@@ -114,9 +117,9 @@ module Warn: F =
 
 (** Postsolver for save_run option. *)
 module SaveRun: F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (VS: BatSet.S with type elt = S.v)  ->
   struct
-    include Unit (S) (VH)
+    include Unit (S) (VH) (VS)
 
     let finalize ~vh ~reachable =
       (* copied from Control.solve_and_postprocess *)
@@ -172,9 +175,10 @@ end
 module MakeIncr (PS: IncrS) =
 struct
   module S = PS.S
+  module VS = PS.VS
   module VH = PS.VH
 
-  let post xs vs vh =
+  let post xs vs vh dep =
     if get_bool "dbg.verbose" then
       print_endline "Postsolving\n";
 
@@ -211,13 +215,30 @@ struct
       if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
-    List.iter one_var vs;
+    (Stats.time "potentially_incremental_reach" (List.iter one_var)) vs;
 
-    PS.finalize ~vh ~reachable;
+    match dep with
+    | None -> PS.finalize ~vh ~reachable:reachable;
+    | Some dep -> (
+        (* Perform reachability on whole constraint system, but cheaply by using logged dependencies *)
+        (* This only works if the other reachability has been performed before, so dependencies created only during postsolve are recorded *)
+        let reachable' = VH.create (VH.length vh) in
+        let rec one_var' x =
+          if not (VH.mem reachable' x) then (
+            VH.replace reachable' x ();
+            match VH.find_option dep x with
+            | Some vs -> VS.iter one_var' vs
+            | None -> ()
+          )
+        in
+        (Stats.time "cheap_full_reach" (List.iter one_var')) vs;
+        PS.finalize ~vh ~reachable:reachable';
+      )
+      ;
     Goblintutil.postsolving := false
 
-  let post xs vs vh =
-    Stats.time "postsolver" (post xs vs) vh
+  let post xs vs vh dep =
+    Stats.time "postsolver" (post xs vs vh) dep
 end
 
 (** List of postsolvers. *)
@@ -226,8 +247,9 @@ sig
   (* Specify S and VH here to constrain all postsolvers to use the same. *)
   module S: EqConstrSys
   module VH: Hashtbl.S with type key = S.v
+  module VS: BatSet.S with type elt = S.v
   (* Auxiliary module type because first-class module types cannot contain module constraints. *)
-  module type M = S with module S = S and module VH = VH
+  module type M = S with module S = S and module VH = VH and module VS = VS
 
   val postsolvers: (module M) list
 end
@@ -246,6 +268,7 @@ module MakeIncrList (Arg: MakeIncrListArg) =
 struct
   module S = Arg.S
   module VH = Arg.VH
+  module VS = Arg.VS
 
   let postsolver_opt: (module Arg.M) option =
     match Arg.postsolvers with
@@ -256,7 +279,7 @@ struct
       in
       Some (List.reduce compose postsolvers)
 
-  let post xs vs vh =
+  let post xs vs vh dep =
     match postsolver_opt with
     | None -> ()
     | Some (module PS) ->
@@ -267,7 +290,7 @@ struct
       end
       in
       let module M = MakeIncr (IncrPS) in
-      M.post xs vs vh
+      M.post xs vs vh dep
 end
 
 (** Make complete (non-incremental) postsolving function from list of postsolvers.
@@ -292,13 +315,14 @@ sig
 end
 
 (** List of standard postsolvers. *)
-module ListArgFromStdArg (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (Arg: MakeStdArg): MakeListArg with module S = S and module VH = VH =
+module ListArgFromStdArg (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) (VS: BatSet.S with type elt = S.v)  (Arg: MakeStdArg): MakeListArg with module S = S and module VH = VH and module VS = VS =
 struct
   open Arg
 
   module S = S
   module VH = VH
-  module type M = S with module S = S and module VH = VH
+  module VS = VS
+  module type M = S with module S = S and module VH = VH and module VS = VS
 
   let postsolvers: (bool * (module F)) list = [
     (should_prune, (module Prune));
@@ -311,5 +335,5 @@ struct
     postsolvers
     |> List.filter fst
     |> List.map snd
-    |> List.map (fun (module F: F) -> (module F (S) (VH): M))
+    |> List.map (fun (module F: F) -> (module F (S) (VH) (VS): M))
 end

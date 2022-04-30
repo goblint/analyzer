@@ -797,13 +797,14 @@ module EqIncrSolverFromEqSolver (Sol: GenericEqBoxSolver): GenericEqBoxIncrSolve
   functor (Arg: IncrSolverArg) (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     module Sol = Sol (S) (VH)
-    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (Arg))
+    module VS = BatSet.Make(S.Var)
+    module Post = PostSolver.MakeList (PostSolver.ListArgFromStdArg (S) (VH) (VS) (Arg))
 
     type marshal = unit
 
     let solve box xs vs =
       let vh = Sol.solve box xs vs in
-      Post.post xs vs vh;
+      Post.post xs vs vh None;
       (vh, ())
   end
 
