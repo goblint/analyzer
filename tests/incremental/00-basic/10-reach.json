@@ -1,0 +1,8 @@
+{
+    "dbg": {
+        "debug": true
+    },
+    "incremental" : {
+        "verify": true
+    }
+}
