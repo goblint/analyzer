@@ -56,7 +56,7 @@ module WP =
 
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d|dep|=%d\n"
+        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|dep|=%d\n"
           str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.dep)
 
     let verify_data data =
