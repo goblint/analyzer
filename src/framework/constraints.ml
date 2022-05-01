@@ -675,7 +675,7 @@ struct
       | Entry f        -> tf_entry var edge prev_node f
       | Ret (r,fd)     -> tf_ret var edge prev_node r fd
       | Test (p,b)     -> tf_test var edge prev_node p b
-      | ASM (_, _, _)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
+      | ASM _          -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
       | Skip           -> tf_skip var edge prev_node
       | SelfLoop       -> tf_loop var edge prev_node
     end getl sidel getg sideg d

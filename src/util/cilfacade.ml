@@ -478,7 +478,7 @@ class countFnVisitor = object
     method! vinst = function
       | Set (_,_,loc,_)
       | Call (_,_,_,loc,_)
-      | Asm (_,_,_,_,_,loc)
+      | Asm (_,_,_,loc)
         -> Hashtbl.replace locs loc.line (); SkipChildren
       | _ -> SkipChildren
 
