@@ -2401,6 +2401,24 @@ struct
     (* D.join ctx.local @@ *)
     ctx.local
 
+  let asm ctx _ an =
+    let inv_globs, inv_exps = match an with
+      | None ->
+        (* asm basic instruction *)
+        (not (get_bool "sem.asm.basic-preserve-globals"), [])
+      | Some (outs, ins, clobbers) ->
+        (* advanced asm instructions *)
+        (
+          List.mem "memory" clobbers && not (get_bool "sem.asm.memory-preserve-globals"),
+          List.append (if get_bool "sem.asm.readonly-inputs" then [] else List.map (fun (_, _, exp) -> exp, InvalidateTransitive) ins)
+            (List.map (fun (_, c, lval) -> Lval lval, match String.find c "+" with 
+               | _ -> InvalidateSelfAndTransitive
+               | exception Not_found -> InvalidateSelf) outs)
+        )
+    in
+    (if get_bool "sem.asm.enabled" then invalidate_core ~ctx inv_globs inv_exps);
+    ctx.local
+
   let event ctx e octx =
     let st: store = ctx.local in
     let ask = ask_of_ctx ctx in

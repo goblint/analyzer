@@ -1108,6 +1108,38 @@
             }
           },
           "additionalProperties": false
+        },
+        "asm": {
+          "title": "sem.asm",
+          "description": "Inline Assembly Analysis options",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "sem.asm.enabled",
+              "description": "",
+              "type": "boolean",
+              "default": true
+            },
+            "basic-preserve-globals": {
+              "title": "sem.asm.basic-preserve-globals",
+              "description": "If enabled, do preserve globals across basic asm statements",
+              "type": "boolean",
+              "default": false
+            },
+            "memory-preserve-globals": {
+              "title": "sem.asm.memory-preserve-globals",
+              "description": "If enabled, do preserve globals across advanced asm statements with memory clobber annotation",
+              "type": "boolean",
+              "default": false
+            },
+            "readonly-inputs": {
+              "title": "sem.asm.readonly-inputs",
+              "description": "If enabled, do not consider changes through pointers given as inputs",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
