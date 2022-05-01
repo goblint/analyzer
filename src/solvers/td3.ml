@@ -1201,7 +1201,7 @@ module WP =
           data.rho_write <- rho_write';
           let dep' = HM.create (HM.length data.dep) in
           HM.iter (fun k v ->
-              HM.replace dep' (S.Var.relift k) v
+              HM.replace dep' (S.Var.relift k) (VS.map S.Var.relift v)
             ) data.dep;
           data.dep <- dep';
         );
