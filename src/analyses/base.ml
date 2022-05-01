@@ -1899,34 +1899,34 @@ struct
     in
     List.concat_map do_exp exps
 
-  let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
+  type invalidate_mode = InvalidateSelf | InvalidateTransitive | InvalidateSelfAndTransitive [@@deriving show]
+
+  let invalidate_core ~ctx inv_globs inv_exps =
+    let exps_transitive = List.filter_map (function (_, InvalidateSelf) -> None | (exp, _) -> Some exp) inv_exps in
+    let lvals_self = List.filter_map (function (_, InvalidateTransitive) -> None | (Lval lval, _) -> Some lval | _ -> None) inv_exps in
+    let exps_self = List.filter_map (function (_, InvalidateTransitive) | (Lval _, _) -> None | (exp, _) -> Some exp) inv_exps in
+    let exps_global = if inv_globs then foldGlobals !Cilfacade.current_file (fun acc global ->
+        match global with
+        | GVar (vi, _, _) when not (is_static vi) && not (BaseUtil.is_excluded_from_invalidation vi) ->
+          mkAddrOf (Var vi, NoOffset) :: acc
+        (* TODO: what about GVarDecl? *)
+        | _ -> acc
+      ) [] else [] in
+    let addr_list = collect_funargs (ask_of_ctx ctx) ctx.global ctx.local (exps_transitive @ exps_global) @ (List.map (eval_lv (ask_of_ctx ctx) ctx.global ctx.local) lvals_self) in
+    if M.tracing then (
+      M.trace "invalidate" "invalidate_core transitive: [%a]\n" (d_list "," CilType.Exp.pretty) exps_transitive;
+      M.trace "invalidate" "invalidate_core self (exp): [%a]\n" (d_list "," CilType.Exp.pretty) exps_self;
+      M.trace "invalidate" "invalidate_core self (lval): [%a]\n" (d_list "," CilType.Lval.pretty) lvals_self;
+      M.trace "invalidate" "invalidate_core global: [%a]\n" (d_list "," CilType.Exp.pretty) exps_global;
+    );
+    ctx.emit (Events.Invalidate {addr_list})
+
+
+  let invalidate ~ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
-    (* To invalidate a single address, we create a pair with its corresponding
-     * top value. *)
-    let invalidate_address st a =
-      let t = AD.get_type a in
-      let v = get ask gs st a None in (* None here is ok, just causes us to be a bit less precise *)
-      let nv =  VD.invalidate_value ask t v in
-      (a, t, nv)
-    in
-    (* We define the function that invalidates all the values that an address
-     * expression e may point to *)
-    let invalidate_exp exps =
-      let args = collect_funargs ~warn:true ask gs st exps in
-      List.map (invalidate_address st) args
-    in
-    let invalids = invalidate_exp exps in
-    let is_fav_addr x =
-      List.exists BaseUtil.is_excluded_from_invalidation (AD.to_var_may x)
-    in
-    let invalids' = List.filter (fun (x,_,_) -> not (is_fav_addr x)) invalids in
-    if M.tracing && exps <> [] then (
-      let addrs = List.map (Tuple3.first) invalids' in
-      let vs = List.map (Tuple3.third) invalids' in
-      M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
-    );
-    set_many ?ctx ask gs st invalids'
+    invalidate_core ~ctx false (List.map (fun exp -> (exp, InvalidateTransitive)) exps);
+    ctx.local
 
 
   let make_entry ?(thread=false) (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) fundec args: D.t =
@@ -2083,23 +2083,11 @@ struct
   let special_unknown_invalidate ctx ask gs st f args =
     (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname);
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
-    let addrs =
-      if get_bool "sem.unknown_function.invalidate.globals" then (
-        M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
-        foldGlobals !Cilfacade.current_file (fun acc global ->
-            match global with
-            | GVar (vi, _, _) when not (is_static vi) ->
-              mkAddrOf (Var vi, NoOffset) :: acc
-            (* TODO: what about GVarDecl? *)
-            | _ -> acc
-          ) args
-      )
-      else
-        args
-    in
+    if get_bool "sem.unknown_function.invalidate.globals" then M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
+    invalidate_core ~ctx (get_bool "sem.unknown_function.invalidate.globals") (List.map (fun arg -> (arg, InvalidateTransitive)) args);
+    ctx.local
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
@@ -2415,6 +2403,7 @@ struct
 
   let event ctx e octx =
     let st: store = ctx.local in
+    let ask = ask_of_ctx ctx in
     match e with
     | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       if M.tracing then M.tracel "priv" "LOCK EVENT %a\n" LockDomain.Addr.pretty addr;
@@ -2430,6 +2419,20 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
+    | Events.Invalidate {addr_list} ->
+      let invalidate_address a =
+        let t = AD.get_type a in
+        let v = get ask ctx.global st a None in (* None here is ok, just causes us to be a bit less precise *)
+        let nv =  VD.invalidate_value ask t v in
+        (a, t, nv)
+      in
+      let invalids = List.map invalidate_address addr_list in
+      if M.tracing && addr_list <> [] then (
+        let addrs = List.map (Tuple3.first) invalids in
+        let vs = List.map (Tuple3.third) invalids in
+        M.tracel "invalidate" "Setting addresses [%a] to values [%a]\n" (d_list ", " AD.pretty) addrs (d_list ", " VD.pretty) vs
+      );
+      set_many ~ctx ask ctx.global ctx.local invalids
     | _ ->
       ctx.local
 end
