@@ -45,34 +45,35 @@ def start_commit_for_sequence_search():
     gr = Git(os.path.join(res_dir, repo_name))
     return current_commit, gr
 
-def find_sequences_rec(gr, commit, seq, seq_list, starting_points, vis):
-    for p in commit.parents:
-        if p in vis:
-            continue
-        parent_commit = gr.get_commit(p)
-        parent_date = parent_commit.committer_date.replace(tzinfo=None)
-        if parent_date < begin:
-            if len(seq) > 5:
-                print("found seq of length: " + str(len(seq)))
-                seq_list.insert(0,seq)
-        elif parent_commit.merge:
-            if len(seq) > 5:
-                print("found seq of length: " + str(len(seq)))
-                seq_list.insert(0,seq)
-            find_sequences_rec(gr, parent_commit, [], seq_list, starting_points, [])
-        else:
-            seq.insert(0,parent_commit.hash)
-            if parent_commit.hash not in starting_points:
-                starting_points.insert(0,parent_commit.hash)
-                find_sequences_rec(gr, parent_commit, seq, seq_list, starting_points, vis)
-
+def find_sequences_rec(gr, commit, seq, seq_list, starting_points):
+    commit_date = commit.committer_date.replace(tzinfo=None)
+    if commit_date < begin:
+        if len(seq) > 5:
+            print("found seq of length: " + str(len(seq)))
+            seq_list.insert(0,seq)
+    elif commit.merge:
+        seq.insert(0,commit.hash)
+        if len(seq) > 5:
+            print("found seq of length: " + str(len(seq)))
+            seq_list.insert(0,seq)
+        for ph in commit.parents:
+            parent_commit = gr.get_commit(ph)
+            if ph not in starting_points:
+                starting_points.insert(0,ph)
+                find_sequences_rec(gr, parent_commit, [], seq_list, starting_points)
+    else:
+        seq.insert(0,commit.hash)
+        for p in commit.parents:
+            parent_commit = gr.get_commit(p)
+            find_sequences_rec(gr, parent_commit, seq, seq_list, starting_points)
 
 def find_sequences():
     seq_list = []
     starting_points=[]
     start_commit, gr = start_commit_for_sequence_search()
     starting_points.insert(0,start_commit.hash)
-    find_sequences_rec(gr, start_commit, [], seq_list, starting_points, [])
+    find_sequences_rec(gr, start_commit, [], seq_list, starting_points)
+    seq_list.sort(key=len, reverse=True)
     print("summary")
     total = 0
     maxlen = max(map(lambda x : len(x), seq_list))
@@ -182,12 +183,14 @@ def analyze_seq_in_parallel(series):
     # For our test server:
     coremapping1 = [i for i in range(numcores - numcores//2)]
     coremapping2 = [i for i in range(avail_phys_cores//2, avail_phys_cores//2 + numcores//2)]
-    coremapping = [val for pair in zip(coremapping1, coremapping2) for val in pair]
+    coremapping = [coremapping1[i] if i%2==0 else coremapping2[i] for i in range(len(coremapping1) + len(coremapping2))]
     processes = []
 
     i = 0
     while i < len(series):
         for j in range(numcores):
+            if i >= len(series):
+                break
             dir = "series" + str(i)
             os.mkdir(dir)
             os.chdir(dir)
