@@ -34,6 +34,12 @@ end
 class Array
   def itemize(n=2); self.map {|x| "- #{x}".indent(n)}.join() end
 end
+class FalseClass
+  def to_i; 0 end
+end
+class TrueClass
+  def to_i; 1 end
+end
 # clear the current line
 def clearline
   print "\r\e[K"
@@ -49,6 +55,7 @@ elsif not File.exist?($goblint) then
   fail "Goblint not present in working directory. Please run script from goblint dir!"
 end
 $vrsn = `#{$goblint} --version`
+$gccvrsn = `gcc --version`
 
 if not File.exists? "linux-headers" then
   puts "Missing linux-headers, will download now!"
@@ -63,13 +70,16 @@ $dump = ARGV.last == "-d" && ARGV.pop
 sequential = ARGV.last == "-s" && ARGV.pop
 marshal = ARGV.last == "-m" && ARGV.pop
 incremental = ARGV.last == "-i" && ARGV.pop
+$execute = ARGV.last == "-e" && ARGV.pop
+$executeQuiet = ARGV.last == "-eq" && ARGV.pop
 report = ARGV.last == "-r" && ARGV.pop
 only = ARGV[0] unless ARGV[0].nil?
+$execute = true if $executeQuiet
 if marshal || incremental then
   sequential = true
 end
-if marshal && incremental then
-  fail "Marshal (-m) and Incremental (-i) tests can not be activated at the same time!"
+if marshal.to_i + incremental.to_i + $execute.to_i > 1 then
+  fail "At most one of Marshal (-m), Incremental (-i) and Execute (-e) tests can be activated at the same time!"
 end
 if only == "future" then
   future = true
@@ -175,8 +185,10 @@ class Tests
 
   def compare_warnings
     tests.each_pair do |idx, type|
-      check = lambda {|cond|
-        if cond then
+      check = lambda {|cond, ignore|
+        if ignore then
+          @ignored += 1
+        elsif cond then
           @correct += 1
           # full p.path is too long and p.name does not allow click to open in terminal
           if todo.include? idx then puts "Excellent: ignored check on #{relpath(p.path).to_s.cyan}:#{idx.to_s.blue} is now passing!" end
@@ -189,16 +201,20 @@ class Tests
         end
       }
       case type
-      when "deadlock", "race", "fail", "noterm", "unknown", "term", "warn"
-        check.call warnings[idx] == type
+      when "deadlock", "race", "warn"
+        check.call warnings[idx] == type, $execute
+      when "unknown"
+        check.call warnings[idx] == type, $executeQuiet
+      when "fail", "term", "noterm"
+        check.call warnings[idx] == type, $executeQuiet && warnings[idx].nil?
       when "nowarn"
-        check.call warnings[idx].nil?
+        check.call warnings[idx].nil?, $execute
       when "assert"
-        check.call warnings[idx] == "success"
+        check.call warnings[idx] == "success", $executeQuiet && warnings[idx].nil?
       when "norace"
-        check.call warnings[idx] != "race"
+        check.call warnings[idx] != "race", $execute
       when "nodeadlock"
-        check.call warnings[idx] != "deadlock"
+        check.call warnings[idx] != "deadlock", $execute
       end
     end
   end
@@ -472,6 +488,82 @@ class ProjectMarshal < Project
     end
 end
 
+class ProjectExecute < Project
+  def create_test_set(lines)
+    super(lines)
+    @testset.p = self
+    @noterm = false
+  end
+  def run ()
+    filename = File.basename(@path)
+    cmd = "(gcc -I#{__dir__}/include -o /tmp/goblint-test-exec-#{group}-#{name} #{filename} 1>&2 && /tmp/goblint-test-exec-#{group}-#{name}) 1>#{@testset.warnfile} 2>#{@testset.statsfile}"
+    starttime = Time.now
+    run_testset(@testset, cmd, starttime)
+  end
+  
+  def collect_warnings
+    testset.warnings[-1] = "term"
+    testset.warnings[-1] = "noterm" if @noterm
+    count = 0
+    File.open(testset.warnfile) { |f|
+      loop do
+        l = f.gets()
+        count = count + 1
+        break if l.nil?
+        break if count > 10000 # if more than 10000 asserts were hit we are almost certainly in a inifinite loop and there is no point in checking the whole possibly GB big file
+        next unless l =~ /.*?\:(\d+):(.*)/
+        obj,i = $2,$1.to_i
+
+        known = ["success", "fail", "unknown"]
+        thiswarn =  case obj
+                      when /Assertion .* failed/ then "fail"
+                      when /Assertion .* passed/ then "success"
+                      else "other"
+                    end
+        oldwarn = testset.warnings[i]
+        if oldwarn.nil? or known.index(oldwarn).nil? then
+          testset.warnings[i] = thiswarn
+        elsif oldwarn != thiswarn then
+          testset.warnings[i] = "unknown"
+        end
+      end
+    } 
+  end
+  
+  def run_testset (testset, cmd, starttime)
+    strid = "#{id} #{group}/#{name}"
+    pid = Process.spawn(cmd, :pgroup=>true)
+    begin
+      Timeout::timeout($timeout) {Process.wait pid}
+    rescue Timeout::Error
+      pgid = Process.getpgid(pid)
+      @noterm = true
+      Process.kill('KILL', -1*pgid)
+      return self
+    end
+    endtime   = Time.now
+    status = $?.exitstatus
+    if status != 0 then
+      reason = if status == 1 then "error" elsif status > 128 then `bash -c 'kill -l #{status}'`.strip else "unknown" end
+      clearline
+      puts "Testing #{strid}" + "\t Status: #{status} (#{reason})".red
+      stats = File.readlines testset.statsfile
+      if status == 1 then
+        puts stats.last(5).itemize
+      end
+    end
+    File.open(testset.statsfile, "a") do |f|
+      f.puts "\n=== APPENDED BY BENCHMARKING SCRIPT ==="
+      f.puts "Analysis began: #{starttime}"
+      f.puts "Analysis ended: #{endtime}"
+      f.puts "Duration: #{format("%.02f", endtime-starttime)} s"
+      f.puts "Command line: #{cmd}"
+      f.puts $gccvrsn
+    end
+    testset.ok = status == 0
+  end
+end
+
 #processing the file information
 projects = []
 project_ids = Set.new
@@ -519,6 +611,8 @@ regs.sort.each do |d|
           ProjectIncr.new(id, testname, groupname, path, params, patch_path, conf_path)
         elsif marshal then
           ProjectMarshal.new(id, testname, groupname, path, params)
+        elsif $execute then
+          ProjectExecute.new(id, testname, groupname, path, params)
         else
           Project.new(id, testname, groupname, path, params)
         end
