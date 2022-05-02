@@ -156,7 +156,7 @@ module WP =
       let abort_verify = GobConfig.get_bool "solvers.td3.abort-verify" in
       let prev_dep_vals = HM.create 10 in
 
-      (* Tracks dependencies between an unknown and the things it depends on AND has side-effects to *)
+      (* Tracks dependencies between an unknown and the things it depends on *)
       let dep = data.dep in
 
       let () = print_solver_stats := fun () ->
@@ -189,11 +189,7 @@ module WP =
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
         HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
       in
-      let add_sides y x =
-        (* dep records also the things an unknown has side-effects on *)
-        HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
-        HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
-
+      let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
       let destabilize_ref: (?front:bool -> S.v -> unit) ref = ref (fun ?front _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
@@ -862,10 +858,6 @@ module WP =
 
           print_endline "Final solve..."
         );
-
-        (* reachability will populate these tables for incremental global restarting *)
-        HM.clear side_dep;
-        HM.clear side_infl;
       ) else (
         List.iter set_start st;
       );
@@ -1001,7 +993,6 @@ module WP =
 
         let one_side ~vh ~x ~y ~d =
           (* Also record side-effects caused by post-solver *)
-          HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
           HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
           HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
       end
@@ -1017,7 +1008,8 @@ module WP =
             if (not (HM.mem reachable' x)) then (
               if HM.mem superstable x then HM.replace rechable_and_superstable x ();
               HM.replace reachable' x ();
-              Option.may (VS.iter one_var') (HM.find_option dep x)
+              Option.may (VS.iter one_var') (HM.find_option dep x);
+              Option.may (VS.iter one_var') (HM.find_option side_infl x)
             )
           in
           (Stats.time "cheap_full_reach" (List.iter one_var')) vs;
