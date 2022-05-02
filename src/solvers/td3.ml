@@ -977,6 +977,7 @@ module WP =
           filter_vs_hm infl;
           filter_vs_hm side_infl;
           filter_vs_hm side_dep;
+          filter_vs_hm dep;
 
           VH.filteri_inplace (fun x w ->
               if VH.mem reachable x then (
@@ -993,7 +994,7 @@ module WP =
       end
       in
 
-      (* postsolver also populates side_dep and side_infl *)
+      (* postsolver also populates side_dep, side_infl, and dep *)
       let module SideInfl: PostSolver.S with module S = S and module VH = HM  and module VS = VS=
       struct
         include PostSolver.Unit (S) (HM) (VS)
@@ -1006,6 +1007,28 @@ module WP =
       end
       in
 
+      let reachable_and_superstable =
+        if incr_verify then
+          (* Perform reachability on whole constraint system, but cheaply by using logged dependencies *)
+          (* This only works if the other reachability has been performed before, so dependencies created only during postsolve are recorded *)
+          let reachable' = HM.create (HM.length rho) in
+          let rechable_and_superstable = HM.create (HM.length rho) in
+          let rec one_var' x =
+            if (not (HM.mem reachable' x)) then (
+              if HM.mem superstable x then HM.replace rechable_and_superstable x ();
+              HM.replace reachable' x ();
+              match HM.find_option dep x with
+              | Some vs -> VS.iter one_var' vs
+              | None -> ()
+            )
+          in
+          (Stats.time "cheap_full_reach" (List.iter one_var')) vs;
+
+          rechable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
+        else
+          HM.create 0 (* doesn't matter, not used *)
+      in
+
       (* restart write-only *)
       HM.iter (fun x w ->
           HM.iter (fun y d ->
@@ -1014,20 +1037,15 @@ module WP =
         ) rho_write;
 
       if incr_verify then (
-        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages;
-        HM.filteri_inplace (fun x _ -> HM.mem superstable x) rho_write
+        HM.filteri_inplace (fun x _ -> HM.mem reachable_and_superstable x) var_messages;
+        HM.filteri_inplace (fun x _ -> HM.mem reachable_and_superstable x) rho_write
       )
       else (
         HM.clear var_messages;
         HM.clear rho_write
       );
 
-      let init_reachable =
-        if incr_verify then
-          HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
-        else
-          HM.create 0 (* doesn't matter, not used *)
-      in
+      let init_reachable = reachable_and_superstable in
 
       let module IncrWarn: PostSolver.S with module S = S and module VH = HM and module VS = VS =
       struct
@@ -1047,7 +1065,7 @@ module WP =
           (* replay superstable messages from unknowns that are still reachable *)
           if incr_verify then (
             HM.iter (fun (l:S.v) m ->
-                if HM.mem reachable l then Messages.add m
+                Messages.add m
               ) var_messages;
           );
 
@@ -1085,14 +1103,13 @@ module WP =
           (* retrigger superstable side writes from unknowns that are still reachable *)
           if incr_verify then (
             HM.iter (fun x w ->
-                if HM.mem reachable x then
-                  HM.iter (fun y d ->
-                      let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
-                      (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d); *)
-                      HM.replace rho y (S.Dom.join old_d d);
-                      HM.replace init_reachable y ();
-                      HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
-                    ) w
+                HM.iter (fun y d ->
+                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
+                    (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d); *)
+                    HM.replace rho y (S.Dom.join old_d d);
+                    HM.replace init_reachable y ();
+                    HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
+                  ) w
               ) rho_write
           )
 

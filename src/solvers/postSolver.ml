@@ -217,24 +217,7 @@ struct
     in
     (Stats.time "potentially_incremental_reach" (List.iter one_var)) vs;
 
-    match dep with
-    | None -> PS.finalize ~vh ~reachable:reachable;
-    | Some dep -> (
-        (* Perform reachability on whole constraint system, but cheaply by using logged dependencies *)
-        (* This only works if the other reachability has been performed before, so dependencies created only during postsolve are recorded *)
-        let reachable' = VH.create (VH.length vh) in
-        let rec one_var' x =
-          if not (VH.mem reachable' x) then (
-            VH.replace reachable' x ();
-            match VH.find_option dep x with
-            | Some vs -> VS.iter one_var' vs
-            | None -> ()
-          )
-        in
-        (Stats.time "cheap_full_reach" (List.iter one_var')) vs;
-        PS.finalize ~vh ~reachable:reachable';
-      )
-      ;
+    PS.finalize ~vh ~reachable:reachable;
     Goblintutil.postsolving := false
 
   let post xs vs vh dep =
