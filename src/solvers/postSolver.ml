@@ -98,7 +98,7 @@ module Verify: F =
 
 (** Postsolver for enabling messages (warnings) output. *)
 module Warn: F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v)  ->
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     include Unit (S) (VH)
 
@@ -114,7 +114,7 @@ module Warn: F =
 
 (** Postsolver for save_run option. *)
 module SaveRun: F =
-  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v)  ->
+  functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
   struct
     include Unit (S) (VH)
 
@@ -213,7 +213,7 @@ struct
     in
     (Stats.time "potentially_incremental_reach" (List.iter one_var)) vs;
 
-    PS.finalize ~vh ~reachable:reachable;
+    PS.finalize ~vh ~reachable;
     Goblintutil.postsolving := false
 
   let post xs vs vh =
