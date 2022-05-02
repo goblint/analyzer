@@ -1056,7 +1056,7 @@ module WP =
 
           (* replay superstable messages from unknowns that are still reachable *)
           if incr_verify then (
-            HM.iter (fun (l:S.v) m ->
+            HM.iter (fun _ m ->
                 Messages.add m
               ) var_messages;
           );
