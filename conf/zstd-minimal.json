@@ -1,5 +1,8 @@
 {
   "ana": {
+    "activated": [
+      "base", "mallocWrapper"
+    ],
     "base": {
       "privatization": "none",
       "context": {
@@ -7,41 +10,46 @@
       }
     },
     "thread": {
-      "domain": "plain"
+      "domain": "plain",
+      "include-node": false
+    },
+    "malloc": {
+      "wrappers": [
+        "ZSTD_customMalloc", "ZSTD_customCalloc"
+      ]
     }
   },
   "sem": {
     "unknown_function": {
-      "spawn": false
+      "spawn": false,
+      "invalidate": {
+        "globals": false
+      }
     }
   },
   "incremental": {
     "reluctant": {
       "compare": "leq"
-    },
-    "restart": {
-      "sided": {
-        "enabled": false
-      }
-    }
-  },
-  "solvers": {
-    "td3": {
-      "restart": {
-        "wpoint": {
-          "enabled": false
-        }
-      }
     }
   },
   "exp": {
-    "earlyglobs": true
+    "earlyglobs": true,
+    "extraspecials": [
+      "ZSTD_customMalloc",
+      "ZSTD_customCalloc",
+      "ZSTD_customFree"
+    ]
   },
   "dbg": {
     "print_dead_code": true
   },
   "pre": {
     "cppflags": ["-DZSTD_NO_INTRINSICS", "-D_FORTIFY_SOURCE=0", "-DGOBLINT_NO_ASSERT", "-DGOBLINT_NO_BSEARCH"]
+  },
+  "cil": {
+    "merge": {
+      "inlines": false
+    }
   },
   "printstats": true,
   "warn": {

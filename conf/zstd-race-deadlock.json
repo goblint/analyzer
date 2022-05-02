@@ -6,10 +6,10 @@
     "activated": [
       "expRelation", "base", "threadid", "threadflag", "threadreturn",
       "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
-      "symb_locks", "var_eq", "mallocFresh"
+      "deadlock", "symb_locks", "var_eq", "mallocFresh"
     ],
     "ctx_insens": [
-      "var_eq"
+      "var_eq", "deadlock"
     ],
     "thread": {
       "domain": "plain",
@@ -17,8 +17,7 @@
     },
     "malloc": {
       "wrappers": [
-        "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
-        "kzalloc", "ZSTD_customMalloc", "ZSTD_customCalloc"
+        "ZSTD_customMalloc", "ZSTD_customCalloc"
       ]
     }
   },
