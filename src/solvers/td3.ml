@@ -1054,6 +1054,13 @@ module WP =
         let init () =
           init (); (* enable warning like standard Warn *)
 
+          (* replay superstable messages from unknowns that are still reachable *)
+          if incr_verify then (
+            HM.iter (fun (l:S.v) m ->
+                Messages.add m
+              ) var_messages;
+          );
+
           (* hook to collect new messages *)
           Messages.Table.add_hook := (fun m ->
             match !current_var with
@@ -1062,13 +1069,6 @@ module WP =
           )
 
         let finalize ~vh ~reachable =
-          (* replay superstable messages from unknowns that are still reachable *)
-          if incr_verify then (
-            HM.iter (fun (l:S.v) m ->
-                Messages.add m
-              ) var_messages;
-          );
-
           finalize ~vh ~reachable; (* disable warning like standard Warn *)
 
           (* unhook to avoid accidental var_messages modifications *)
@@ -1082,7 +1082,19 @@ module WP =
       struct
         include PostSolver.Unit (S) (HM)
 
-        let init () = ()
+        let init () =
+          (* retrigger superstable side writes from unknowns that are still reachable *)
+          if incr_verify then (
+            HM.iter (fun x w ->
+                HM.iter (fun y d ->
+                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
+                    (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d); *)
+                    HM.replace rho y (S.Dom.join old_d d);
+                    HM.replace init_reachable y ();
+                    HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
+                  ) w
+              ) rho_write
+          )
 
         let one_side ~vh ~x ~y ~d =
           if S.Var.is_write_only y then (
@@ -1098,21 +1110,6 @@ module WP =
             in
             VH.add w y d (* intentional add *)
           )
-
-        let finalize ~vh ~reachable =
-          (* retrigger superstable side writes from unknowns that are still reachable *)
-          if incr_verify then (
-            HM.iter (fun x w ->
-                HM.iter (fun y d ->
-                    let old_d = try HM.find rho y with Not_found -> S.Dom.bot () in
-                    (* ignore (Pretty.printf "rho_write retrigger %a %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty old_d S.Dom.pretty d); *)
-                    HM.replace rho y (S.Dom.join old_d d);
-                    HM.replace init_reachable y ();
-                    HM.replace stable y (); (* make stable just in case, so following incremental load would have in superstable *)
-                  ) w
-              ) rho_write
-          )
-
       end
       in
 
