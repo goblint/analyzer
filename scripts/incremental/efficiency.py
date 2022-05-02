@@ -197,18 +197,6 @@ def collect_data(outdir):
         data["Change in number of race warnings"].append(int(parent_info["race_warnings"]) - int(child_info["race_warnings"]))
     return {"index": index, "data": data}
 
-def plot(data_set):
-    df = pd.DataFrame(data_set["data"], index=data_set["index"])
-    df.sort_index(inplace=True, key=lambda idx: idx.map(lambda x: int(x.split(":")[0])))
-    print(df)
-    df.to_csv('results.csv')
-
-    df.plot.bar(rot=0, width=0.7, figsize=(25,10))
-    plt.xticks(rotation=45, ha='right', rotation_mode='anchor')
-    plt.xlabel('Commit')
-    plt.tight_layout()
-    plt.savefig("figure.pdf")
-
 def runperprocess(core, from_c, to_c):
     psutil.Process().cpu_affinity([core])
     cwd  = os.getcwd()
@@ -216,8 +204,11 @@ def runperprocess(core, from_c, to_c):
     if os.path.exists(outdir) and os.path.isdir(outdir):
       shutil.rmtree(outdir)
     analyze_small_commits_in_repo(cwd, outdir, from_c, to_c)
-    data = collect_data(outdir)
-    plot(data)
+    data_set = collect_data(outdir)
+    df = pd.DataFrame(data_set["data"], index=data_set["index"])
+    df.sort_index(inplace=True, key=lambda idx: idx.map(lambda x: int(x.split(":")[0])))
+    print(df)
+    df.to_csv('results.csv')
 
 def analyze_chunks_of_commits_in_parallel():
     avail_phys_cores = psutil.cpu_count(logical=False)
