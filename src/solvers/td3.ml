@@ -540,6 +540,9 @@ module WP =
 
       start_event ();
 
+      (* reluctantly unchanged return nodes to additionally query for postsolving to get warnings, etc. *)
+      let reluctant_vs: S.Var.t list ref = ref [] in
+
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
@@ -737,7 +740,7 @@ module WP =
         print_endline "Removing data for changed and removed functions...";
         let delete_marked s = HM.iter (fun k _ -> HM.remove s k) marked_for_deletion in
         delete_marked rho;
-        delete_marked infl;
+        delete_marked infl; (* TODO: delete from inner sets? *)
         delete_marked wpoint;
 
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
@@ -826,8 +829,15 @@ module WP =
         );
 
         delete_marked stable;
-        delete_marked side_dep;
-        delete_marked side_infl;
+        delete_marked side_dep; (* TODO: delete from inner sets? *)
+        delete_marked side_infl; (* TODO: delete from inner sets? *)
+
+        (* delete from incremental postsolving/warning structures to remove spurious warnings *)
+        delete_marked superstable;
+        delete_marked var_messages;
+        delete_marked rho_write;
+        HM.iter (fun x w -> delete_marked w) rho_write;
+
         print_data data "Data after clean-up";
 
         (* TODO: reluctant doesn't call destabilize on removed functions or old copies of modified functions (e.g. after removing write), so those globals don't get restarted *)
@@ -844,6 +854,10 @@ module WP =
                 HM.replace infl x old_infl;
                 destabilize x;
                 HM.replace stable x ()
+              )
+              else (
+                print_endline "Destabilization not required...";
+                reluctant_vs := x :: !reluctant_vs
               )
             ) old_ret;
 
@@ -1101,7 +1115,7 @@ module WP =
 
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
 
-      Post.post st vs rho;
+      Post.post st (!reluctant_vs @ vs) rho;
 
       print_data data "Data after postsolve";
 
