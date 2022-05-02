@@ -956,9 +956,9 @@ module WP =
 
       (* Prune other data structures than rho with reachable.
          These matter for the incremental data. *)
-      let module IncrPrune: PostSolver.S with module S = S and module VH = HM and module VS = VS =
+      let module IncrPrune: PostSolver.S with module S = S and module VH = HM =
       struct
-        include PostSolver.Unit (S) (HM) (VS)
+        include PostSolver.Unit (S) (HM)
 
         let finalize ~vh ~reachable =
           VH.filteri_inplace (fun x _ ->
@@ -995,9 +995,9 @@ module WP =
       in
 
       (* postsolver also populates side_dep, side_infl, and dep *)
-      let module SideInfl: PostSolver.S with module S = S and module VH = HM  and module VS = VS=
+      let module SideInfl: PostSolver.S with module S = S and module VH = HM =
       struct
-        include PostSolver.Unit (S) (HM) (VS)
+        include PostSolver.Unit (S) (HM)
 
         let one_side ~vh ~x ~y ~d =
           (* Also record side-effects caused by post-solver *)
@@ -1047,9 +1047,9 @@ module WP =
 
       let init_reachable = reachable_and_superstable in
 
-      let module IncrWarn: PostSolver.S with module S = S and module VH = HM and module VS = VS =
+      let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
       struct
-        include PostSolver.Warn (S) (HM) (VS)
+        include PostSolver.Warn (S) (HM)
 
         let init () =
           init (); (* enable warning like standard Warn *)
@@ -1078,9 +1078,9 @@ module WP =
 
       (** Incremental write-only side effect restart handling:
           retriggers superstable ones (after restarting above) and collects new (non-superstable) ones. *)
-      let module IncrWrite: PostSolver.S with module S = S and module VH = HM and module VS = VS =
+      let module IncrWrite: PostSolver.S with module S = S and module VH = HM =
       struct
-        include PostSolver.Unit (S) (HM) (VS)
+        include PostSolver.Unit (S) (HM)
 
         let init () = ()
 
@@ -1123,7 +1123,7 @@ module WP =
           include Arg
           let should_warn = false (* disable standard Warn in favor of IncrWarn *)
         end
-        include PostSolver.ListArgFromStdArg (S) (HM) (VS) (Arg)
+        include PostSolver.ListArgFromStdArg (S) (HM) (Arg)
 
         let postsolvers = (module IncrPrune: M) :: (module SideInfl: M) :: (module IncrWrite: M) :: (module IncrWarn: M) :: postsolvers
 
@@ -1137,7 +1137,7 @@ module WP =
 
       let module Post = PostSolver.MakeIncrList (MakeIncrListArg) in
 
-      Post.post st vs rho (Some dep);
+      Post.post st vs rho;
 
       print_data data "Data after postsolve";
 
