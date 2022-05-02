@@ -1003,10 +1003,10 @@ module WP =
           (* Perform reachability on whole constraint system, but cheaply by using logged dependencies *)
           (* This only works if the other reachability has been performed before, so dependencies created only during postsolve are recorded *)
           let reachable' = HM.create (HM.length rho) in
-          let rechable_and_superstable = HM.create (HM.length rho) in
+          let reachable_and_superstable = HM.create (HM.length rho) in
           let rec one_var' x =
             if (not (HM.mem reachable' x)) then (
-              if HM.mem superstable x then HM.replace rechable_and_superstable x ();
+              if HM.mem superstable x then HM.replace reachable_and_superstable x ();
               HM.replace reachable' x ();
               Option.may (VS.iter one_var') (HM.find_option dep x);
               Option.may (VS.iter one_var') (HM.find_option side_infl x)
@@ -1014,7 +1014,7 @@ module WP =
           in
           (Stats.time "cheap_full_reach" (List.iter one_var')) vs;
 
-          rechable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
+          reachable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
         else
           HM.create 0 (* doesn't matter, not used *)
       in
