@@ -1017,9 +1017,7 @@ module WP =
             if (not (HM.mem reachable' x)) then (
               if HM.mem superstable x then HM.replace rechable_and_superstable x ();
               HM.replace reachable' x ();
-              match HM.find_option dep x with
-              | Some vs -> VS.iter one_var' vs
-              | None -> ()
+              Option.may (VS.iter one_var') (HM.find_option dep x)
             )
           in
           (Stats.time "cheap_full_reach" (List.iter one_var')) vs;

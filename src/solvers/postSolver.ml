@@ -211,7 +211,7 @@ struct
       if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
-    (Stats.time "potentially_incremental_reach" (List.iter one_var)) vs;
+    (Stats.time "postsolver_iter" (List.iter one_var)) vs;
 
     PS.finalize ~vh ~reachable;
     Goblintutil.postsolving := false
