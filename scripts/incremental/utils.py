@@ -26,8 +26,7 @@ header_runtime_parent = "Runtime for parent commit (non-incremental)"
 header_runtime_incr_child = "Runtime for commit (incremental)"
 header_runtime_incr_rel_child = "Runtime for commit (incremental, reluctant)"
 
-def reset_incremental_data(analyzer_dir):
-    incr_data_dir = os.path.join(analyzer_dir, 'incremental_data')
+def reset_incremental_data(incr_data_dir):
     if os.path.exists(incr_data_dir) and os.path.isdir(incr_data_dir):
         shutil.rmtree(incr_data_dir)
 

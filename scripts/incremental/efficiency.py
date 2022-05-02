@@ -6,7 +6,6 @@ import os
 import subprocess
 import itertools
 import shutil
-import re
 import json
 from datetime import datetime
 import sys
@@ -52,10 +51,6 @@ except ValueError:
 ################################################################################
 
 
-def reset_incremental_data(incr_data_dir):
-    if os.path.exists(incr_data_dir) and os.path.isdir(incr_data_dir):
-        shutil.rmtree(incr_data_dir)
-
 def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
     count_analyzed = 0
     count_skipped = 0
@@ -84,7 +79,7 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
         parent = gr.get_commit(commit.parents[0])
         #print('Analyze this commit incrementally. #', try_num)
 
-        reset_incremental_data(os.path.join(cwd, 'incremental_data'))
+        utils.reset_incremental_data(os.path.join(cwd, 'incremental_data'))
         failed = True
         try:
             #print('Starting from parent', str(parent.hash), ".")
@@ -134,27 +129,6 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
     print("Failed: ", count_failed)
     print("Skipped: ", count_skipped)
 
-
-def extract_from_analyzer_log(log):
-    def find_line(pattern):
-        file = open(log, "r")
-        for line in file.readlines():
-            m = re.search(pattern, line)
-            if m:
-                file.close()
-                return m.groupdict()
-    runtime_pattern = 'TOTAL[ ]+(?P<runtime>[0-9\.]+) s'
-    change_info_pattern = 'change_info = { unchanged = (?P<unchanged>[0-9]*); changed = (?P<changed>[0-9]*); added = (?P<added>[0-9]*); removed = (?P<removed>[0-9]*) }'
-    r = find_line(runtime_pattern)
-    ch = find_line(change_info_pattern) or {"unchanged": 0, "changed": 0, "added": 0, "removed": 0}
-    d = dict(list(r.items()) + list(ch.items()))
-    file = open(log, "r")
-    num_racewarnings = file.read().count('[Warning][Race]')
-    d["race_warnings"] = num_racewarnings
-    file.close()
-    return d
-
-
 def collect_data(outdir):
     index = []
     data = {"Failed?": [], "Changed LOC": [], "Relevant changed LOC": [], "Changed/Added/Removed functions": [],
@@ -183,10 +157,10 @@ def collect_data(outdir):
             data["Changed/Added/Removed functions"].append(0)
             data["Change in number of race warnings"].append(0)
             continue
-        parent_info = extract_from_analyzer_log(parentlog)
-        child_info = extract_from_analyzer_log(childlog)
-        child_rel_info = extract_from_analyzer_log(childrellog)
-        child_exres_info = extract_from_analyzer_log(childexreslog)
+        parent_info = utils.extract_from_analyzer_log(parentlog)
+        child_info = utils.extract_from_analyzer_log(childlog)
+        child_rel_info = utils.extract_from_analyzer_log(childrellog)
+        child_exres_info = utils.extract_from_analyzer_log(childexreslog)
         #child_cfg_info = extract_from_analyzer_log(childcfglog)
         data["Changed/Added/Removed functions"].append(int(child_info["changed"]) + int(child_info["added"]) + int(child_info["removed"]))
         data["Runtime for parent commit (non-incremental)"].append(float(parent_info["runtime"]))
