@@ -2321,7 +2321,7 @@ struct
             (* TODO: don't we already have logic for this? *)
             | `Int i when ID.to_int i = Some BI.zero -> AD.null_ptr
             | `Int i -> AD.top_ptr
-            | _ -> failwith "realloc p_addr"
+            | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
           in
           let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
           let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
