@@ -1,14 +1,8 @@
-from glob import glob
 import utils
-from pydriller import Repository, Git
+from pydriller import Repository
 from datetime import datetime
 import os
 import sys
-from pathlib import Path
-import subprocess
-import itertools
-import shutil
-import json
 
 if __name__ == '__main__':
   if len(sys.argv) != 2:
@@ -59,10 +53,6 @@ def iter_repo():
 
         count_small += 1
 
-        #analyzed_commits[0]={"hash": str(commit.hash)[:6], "relCLOC": relCLOC, "branches": commit.branches}
-
-if os.path.exists(outdir) and os.path.isdir(outdir):
-    shutil.rmtree(outdir)
 iter_repo()
 print("\nCommits traversed in total: ", total_commits)
 print("Merge commits: ", count_merge)

@@ -83,6 +83,7 @@ def find_sequences():
         print("length " + str(i) + ": " + str(c))
     print("total: " + str(len(seq_list)))
     assert(total == len(seq_list))
+    print("avg len: " + str(sum(map(lambda x : len(x), seq_list))/len(list(map(lambda x : len(x), seq_list)))))
     with open('sequences.json', 'w') as outfile:
         json.dump(seq_list, outfile, indent=4)
     return seq_list
@@ -107,7 +108,8 @@ def analyze_series_in_repo(series):
         print('merge commit: ', commit.merge)
 
         # check that given series is a path of sequential commits in the repository
-        assert(prev_commit == "" or prev_commit in commit.parents)
+        msg = "Commit " + prev_commit[:6] + "is not a parent commit of " + commit.hash[:6] + " (parents: " + ','.join(commit.parents) + ")"
+        assert (prev_commit == "" or prev_commit in commit.parents), msg
 
         relCLOC = utils.calculateRelCLOC(repo_path, commit, diff_exclude)
 
@@ -160,11 +162,12 @@ def analyze_series_in_repo(series):
                     os.makedirs(out_compare)
                     utils.compare_runs(analyzer_dir, dummy_c_file, out_compare, conf, file_incremental_run, file_original_run)
 
-                prev_commit = commit.hash
             except utils.subprocess.CalledProcessError as e:
                 print('Aborted because command ', e.cmd, 'failed.')
                 shutil.rmtree("incremental_data")
                 shutil.copytree("backup_incremental_data", "incremental_data")
+
+        prev_commit = commit.hash
         commit_num += 1
 
 def runperprocess(core, serie):
@@ -183,7 +186,7 @@ def analyze_seq_in_parallel(series):
     # For our test server:
     coremapping1 = [i for i in range(numcores - numcores//2)]
     coremapping2 = [i for i in range(avail_phys_cores//2, avail_phys_cores//2 + numcores//2)]
-    coremapping = [coremapping1[i] if i%2==0 else coremapping2[i] for i in range(len(coremapping1) + len(coremapping2))]
+    coremapping = [coremapping1[i//2] if i%2==0 else coremapping2[i//2] for i in range(len(coremapping1) + len(coremapping2))]
     processes = []
 
     i = 0
