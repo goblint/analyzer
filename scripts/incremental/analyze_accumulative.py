@@ -1,3 +1,4 @@
+import re
 import utils
 from pydriller import Repository, Git
 import psutil
@@ -10,9 +11,10 @@ import pytz
 import multiprocessing as mp
 
 
-### Usage: python3 incremental_smallcommits.py <full_path_analyzer_dir> <repo_url> <repo_name> <name_of_build_script>
+################################################################################
+# Usage: python3 incremental_smallcommits.py <full_path_analyzer_dir> <repo_url> <repo_name> <name_of_build_script>
 #     <name_of_config> <begin> <from_commit_index> <to_commit_index>
-# Executing the script will overwrite the directory 'result' in the cwd.
+# Executing the script will overwrite the directory 'result_precision' in the cwd.
 # The script for building the compilation database is assumed to be found in the analyzers script directory and the
 # config file is assumed to be found in the conf directory of the analyzers repository.
 if len(sys.argv) != 3:
@@ -22,8 +24,8 @@ maxCLOC       = None
 url           = "https://github.com/facebook/zstd"
 repo_name     = "zstd"
 build_compdb  = "build_compdb_zstd.sh"
-conf          = "big-benchmarks1"
-begin         = datetime(2021,2,1)
+conf          = "zstd-race-deadlock"
+begin         = datetime(2021,8,1)
 to            = datetime(2022,2,1)
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
 analyzer_dir  = sys.argv[1]
@@ -34,7 +36,7 @@ except ValueError:
     exit()
 ################################################################################
 
-res_dir = os.path.abspath('result')
+res_dir = os.path.abspath('result_precision')
 utc = pytz.UTC
 
 def start_commit_for_sequence_search():
@@ -108,7 +110,7 @@ def analyze_series_in_repo(series):
         print('merge commit: ', commit.merge)
 
         # check that given series is a path of sequential commits in the repository
-        msg = "Commit " + prev_commit[:6] + "is not a parent commit of " + commit.hash[:6] + " (parents: " + ','.join(commit.parents) + ")"
+        msg = "Commit " + prev_commit[:7] + "is not a parent commit of " + commit.hash[:7] + " (parents: " + ','.join(commit.parents) + ")"
         assert (prev_commit == "" or prev_commit in commit.parents), msg
 
         relCLOC = utils.calculateRelCLOC(repo_path, commit, diff_exclude)
@@ -155,7 +157,7 @@ def analyze_series_in_repo(series):
                 add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.reluctant.on', '--enable', 'incremental.verify', '--set', 'save_run', file_incremental_run]
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_incr, conf, add_options)
 
-                if commit_num == 10 or commit_num == len(series):
+                if commit_num == 10 or commit_num == len(series) - 1:
                     # compare stored data of original and incremental run
                     print('Compare both runs.')
                     out_compare = os.path.join(out_commit, 'compare')
@@ -209,6 +211,47 @@ def analyze_seq_in_parallel(series):
             p.join()
         processes = []
 
+
+def merge_results(results_dir):
+    seq_summaries = []
+    tenth_sum = {"equal": 0, "moreprec": 0, "lessprec": 0, "incomp": 0, "total": 0}
+    num_seq = 0
+    for s in map(lambda x: os.path.join(results_dir, x), os.listdir(results_dir)): # TODO remove parameter
+        if not os.path.isdir(s) or os.path.basename(s)[:6] != "series":
+            continue
+        print(os.path.basename(s))
+        num_seq += 1
+        os.chdir(s)
+        with open('sequence.json', 'r') as file:
+            seq = json.load(file)
+        # lookup comparison result for 10th commit
+        tenth = os.path.join(s, "out", "10")
+        if os.path.isdir(tenth):
+            print("in tenth")
+            precision10 = utils.extract_precision_from_compare_log(os.path.join(tenth, "compare", "compare.log"))
+            print(precision10)
+            tenth_sum = {k: tenth_sum.get(k, 0) + precision10.get(k, 0) for k in set(tenth_sum)}
+        # lookup final comparison result
+        commits = os.listdir(os.path.join(s, "out"))
+        commits.sort(key = lambda x: int(x))
+        for i in commits:
+            if int(i) != 0 and int(i) == len(commits) - 1:
+                last = os.path.join(s, "out", i)
+                # out_compare = os.path.join(last, 'compare') # TODO remove execution of compare_runs
+                # if os.path.basename(s) != "series19" and os.path.basename(s) != "series8":
+                #     if not os.path.isdir(out_compare):
+                #         os.makedirs(out_compare)
+                #         utils.compare_runs(analyzer_dir, os.path.join(s, "file.c"), out_compare, conf, os.path.join(last, "incr", "compare-data-incr"), os.path.join(last, "non-incr", "compare-data-nonincr"))
+                final_prec = utils.extract_precision_from_compare_log(os.path.join(last, "compare", "compare.log"))
+        summary = {"name": os.path.basename(s), "sequence": seq, "final precision": final_prec}
+        seq_summaries.append(summary)
+        os.chdir(results_dir)
+    res = {"seq_summary":  seq_summaries, "tenth_avg": tenth_sum if num_seq == 0 else {k: v / num_seq for k, v in tenth_sum.items()}}
+    with open("results.json", "w") as f:
+        json.dump(res, f, indent=4)
+    res
+
+
 if os.path.exists(res_dir):
     shutil.rmtree(res_dir)
 os.mkdir(res_dir)
@@ -219,3 +262,6 @@ seq_list = find_sequences()
 
 print("\nanalyze sequences in parallel")
 analyze_seq_in_parallel(seq_list)
+
+print("\nmerge results")
+merge_results(res_dir)
