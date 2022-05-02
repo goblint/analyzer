@@ -160,9 +160,9 @@ module WP =
       let dep = data.dep in
 
       let () = print_solver_stats := fun () ->
-        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
-          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl);
-        print_context_stats rho
+          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|dep|=%d\n"
+            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length dep);
+          print_context_stats rho
       in
 
       if GobConfig.get_bool "incremental.load" then (
