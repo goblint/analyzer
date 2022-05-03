@@ -20,12 +20,12 @@ import pandas as pd
 if len(sys.argv) != 3:
       print("Wrong number of parameters.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
       exit()
-result_dir = os.path.join(os.getcwd(), 'result_efficiency')
+result_dir    = os.path.join(os.getcwd(), 'result_efficiency')
 maxCLOC       = 50
 url           = "https://github.com/facebook/zstd"
 repo_name     = "zstd"
 build_compdb  = "build_compdb_zstd.sh"
-conf          = "zstd-race-deadlock" # very minimal: "zstd-minimal"
+conf          = "zstd-race-incrpostsolver" # for comparison: "zstd-race-noincrpostsolver", very minimal: "zstd-minimal"
 begin         = datetime(2021,8,1)
 to            = datetime(2022,1,1) # minimal subset: datetime(2021,8,4)
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
@@ -86,12 +86,6 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
             os.makedirs(outchildrel)
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.on']
             utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchildrel, conf, add_options)
-
-            #print('And again incremental, this time with exhaustive restarting')
-            outchildexrest = os.path.join(outtry, 'child-ex-rest')
-            os.makedirs(outchildexrest)
-            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.on', '--enable', 'incremental.restart.sided.enabled']
-            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, parent.hash, outchildexrest, conf, add_options)
 
             count_analyzed+=1
             failed = False

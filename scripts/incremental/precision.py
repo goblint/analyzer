@@ -24,7 +24,7 @@ maxCLOC       = None
 url           = "https://github.com/facebook/zstd"
 repo_name     = "zstd"
 build_compdb  = "build_compdb_zstd.sh"
-conf          = "zstd-race-deadlock"
+conf          = "zstd-race-incrpostsolver"
 begin         = datetime(2021,8,1)
 to            = datetime(2022,2,1)
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
@@ -105,9 +105,9 @@ def analyze_series_in_repo(series):
     for commit in Repository(url, since=begin, only_commits=series, clone_repo_to=os.getcwd()).traverse_commits():
         gr = Git(repo_path)
 
-        print("\n" + commit.hash)
-        print('changed LOC: ', commit.lines)
-        print('merge commit: ', commit.merge)
+        # print("\n" + commit.hash)
+        # print('changed LOC: ', commit.lines)
+        # print('merge commit: ', commit.merge)
 
         # check that given series is a path of sequential commits in the repository
         msg = "Commit " + prev_commit[:7] + "is not a parent commit of " + commit.hash[:7] + " (parents: " + ','.join(commit.parents) + ")"
@@ -124,8 +124,8 @@ def analyze_series_in_repo(series):
         if commit_num == 0:
             # analyze initial commit non-incrementally
             try:
-                print('Analyze ', str(commit.hash), ' as initial commit.')
-                add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.verify']
+                # print('Analyze ', str(commit.hash), ' as initial commit.')
+                add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save']
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_commit, conf, add_options)
                 prev_commit = commit.hash
             except utils.subprocess.CalledProcessError as e:
@@ -142,24 +142,24 @@ def analyze_series_in_repo(series):
                 # compare only for 10th and last run
                 if commit_num == 10 or commit_num == len(series) - 1:
                     # analyze commit non-incrementally and save run for comparison
-                    print('Analyze', str(commit.hash), 'non-incrementally (#', commit_num, ').')
+                    # print('Analyze', str(commit.hash), 'non-incrementally (#', commit_num, ').')
                     out_nonincr = os.path.join(out_commit, 'non-incr')
                     os.makedirs(out_nonincr)
                     file_original_run = os.path.join(out_nonincr, "compare-data-nonincr")
-                    add_options = ['--enable', 'incremental.only-rename', '--enable', 'incremental.verify', '--set', 'save_run', file_original_run]
+                    add_options = ['--enable', 'incremental.only-rename', '--set', 'save_run', file_original_run]
                     utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_nonincr, conf, add_options)
 
                 # analyze commit incrementally based on the previous commit and save run for comparison
-                print('Analyze', str(commit.hash), 'incrementally (#', commit_num, ').')
+                # print('Analyze', str(commit.hash), 'incrementally (#', commit_num, ').')
                 out_incr = os.path.join(out_commit, 'incr')
                 os.makedirs(out_incr)
                 file_incremental_run = os.path.join(out_incr, "compare-data-incr")
-                add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.reluctant.on', '--enable', 'incremental.verify', '--set', 'save_run', file_incremental_run]
+                add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.reluctant.on', '--set', 'save_run', file_incremental_run]
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_incr, conf, add_options)
 
                 if commit_num == 10 or commit_num == len(series) - 1:
                     # compare stored data of original and incremental run
-                    print('Compare both runs.')
+                    # print('Compare both runs.')
                     out_compare = os.path.join(out_commit, 'compare')
                     os.makedirs(out_compare)
                     utils.compare_runs(analyzer_dir, dummy_c_file, out_compare, conf, file_incremental_run, file_original_run)

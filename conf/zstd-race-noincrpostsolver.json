@@ -1,23 +1,24 @@
 {
   "ana": {
-    "base": {
-      "privatization": "none"
-    },
     "activated": [
       "expRelation", "base", "threadid", "threadflag", "threadreturn",
       "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
-      "deadlock", "symb_locks", "var_eq", "mallocFresh"
+      "symb_locks", "var_eq", "mallocFresh"
     ],
     "ctx_insens": [
-      "var_eq", "deadlock"
+      "var_eq"
     ],
+    "base": {
+      "privatization": "none"
+    },
     "thread": {
       "domain": "plain",
       "include-node": false
     },
     "malloc": {
       "wrappers": [
-        "ZSTD_customMalloc", "ZSTD_customCalloc"
+        "ZSTD_customMalloc",
+        "ZSTD_customCalloc"
       ]
     },
     "race": {
@@ -39,7 +40,10 @@
     },
     "ignore-const-args": [
       "fprintf"
-    ]
+    ],
+    "postsolver": {
+      "enabled": false
+    }
   },
   "exp": {
     "earlyglobs": true,
@@ -67,16 +71,15 @@
     "integer": false,
     "cast": false,
     "race": true,
-    "deadlock": true,
-    "deadcode": false,
+    "deadcode": true,
     "analyzer": false,
     "unsound": false,
     "imprecise": false,
     "unknown": false,
     "error": false,
     "warning": true,
-    "info": true,
+    "info": false,
     "debug": false,
-    "success": false
+    "success": true
   }
 }
