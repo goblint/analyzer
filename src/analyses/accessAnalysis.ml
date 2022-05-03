@@ -178,9 +178,14 @@ struct
       ctx.local
     | _, x ->
       let arg_acc act =
-        match LF.get_threadsafe_inv_ac x with
-        | Some fnc -> (fnc act arglist)
-        | _ -> arglist
+        match act, LF.get_threadsafe_inv_ac x with
+        | _, Some fnc -> (fnc act arglist)
+        | `Read, None -> arglist
+        | (`Write | `Free), None ->
+          if get_bool "sem.unknown_function.invalidate.args" then
+            arglist
+          else
+            []
       in
       (* TODO: per-argument reach *)
       let reach =
