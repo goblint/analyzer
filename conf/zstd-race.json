@@ -23,13 +23,17 @@
         "ZSTD_customMalloc",
         "ZSTD_customCalloc"
       ]
+    },
+    "race": {
+      "free": false
     }
   },
   "sem": {
     "unknown_function": {
       "spawn": false,
       "invalidate": {
-        "globals": false
+        "globals": false,
+        "args": false
       }
     }
   },
