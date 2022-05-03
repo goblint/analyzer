@@ -140,7 +140,7 @@ module WP =
       let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
       let restarted_wpoint = HM.create 10 in
 
-      let incr_verify = GobConfig.get_bool "incremental.verify" in
+      let incr_verify = GobConfig.get_bool "incremental.postsolver.enabled" in
       (* In incremental load, initially stable nodes, which are never destabilized.
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in

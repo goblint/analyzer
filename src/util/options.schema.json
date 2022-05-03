@@ -1053,11 +1053,24 @@
           },
           "additionalProperties": false
         },
-        "verify": {
-          "title": "incremental.verify",
-          "description": "TODO",
-          "type": "boolean",
-          "default": true
+        "postsolver": {
+          "title": "incremental.postsolver",
+          "type" : "object",
+          "properties": {
+            "enabled": {
+              "title": "incremental.postsolver.enabled",
+              "description": "Use incremental postsolver",
+              "type": "boolean",
+              "default": true
+            },
+            "superstable-reached" : {
+              "title":  "incremental.postsolver.superstable-reached",
+              "description": "Consider superstable set reached",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

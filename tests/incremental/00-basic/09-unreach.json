@@ -3,6 +3,8 @@
         "debug": true
     },
     "incremental" : {
-        "verify": true
+        "postsolver": {
+            "enabled":  true
+        }
     }
 }
