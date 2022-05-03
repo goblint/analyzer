@@ -17,7 +17,7 @@ end
 (** Functorial postsolver for any system. *)
 module type F =
   functor (S: EqConstrSys) (VH: Hashtbl.S with type key = S.v) ->
-  S with module S = S and module VH = VH
+    S with module S = S and module VH = VH
 
 (** Base implementation for postsolver. *)
 module Unit: F =
@@ -211,7 +211,7 @@ struct
       if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
-    List.iter one_var vs;
+    (Stats.time "postsolver_iter" (List.iter one_var)) vs;
 
     PS.finalize ~vh ~reachable;
     Goblintutil.postsolving := false

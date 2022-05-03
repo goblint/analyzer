@@ -1,0 +1,14 @@
+{
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": false
+            }
+        }
+    },
+    "ana": {
+        "thread": {
+            "include-node": false
+        }
+    }
+}

@@ -35,6 +35,7 @@ module WP =
       mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
       mutable var_messages: Message.t HM.t;
       mutable rho_write: S.Dom.t HM.t HM.t;
+      mutable dep: VS.t HM.t
     }
 
     type marshal = solver_data
@@ -50,12 +51,13 @@ module WP =
       side_infl = HM.create 10;
       var_messages = HM.create 10;
       rho_write = HM.create 10;
+      dep = HM.create 10;
     }
 
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl)
+        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|dep|=%d\n"
+          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.dep)
 
     let verify_data data =
       if GobConfig.get_bool "solvers.td3.verify" then (
@@ -138,7 +140,8 @@ module WP =
       let restart_once = GobConfig.get_bool "solvers.td3.restart.wpoint.once" in
       let restarted_wpoint = HM.create 10 in
 
-      let incr_verify = GobConfig.get_bool "incremental.verify" in
+      let incr_verify = GobConfig.get_bool "incremental.postsolver.enabled" in
+      let consider_superstable_reached = GobConfig.get_bool "incremental.postsolver.superstable-reached" in
       (* In incremental load, initially stable nodes, which are never destabilized.
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
@@ -154,10 +157,13 @@ module WP =
       let abort_verify = GobConfig.get_bool "solvers.td3.abort-verify" in
       let prev_dep_vals = HM.create 10 in
 
+      (* Tracks dependencies between an unknown and the things it depends on *)
+      let dep = data.dep in
+
       let () = print_solver_stats := fun () ->
-        Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n"
-          (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl);
-        print_context_stats rho
+          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|dep|=%d\n"
+            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length dep);
+          print_context_stats rho
       in
 
       if GobConfig.get_bool "incremental.load" then (
@@ -182,9 +188,9 @@ module WP =
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
+        HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
-
       let destabilize_ref: (?front:bool -> S.v -> unit) ref = ref (fun ?front _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
@@ -260,10 +266,13 @@ module WP =
           let (tmp, aborted) =
             match reuse_eq with
             | Some d when narrow_reuse && not narrow_reuse_verify ->
+              (* Do not reset deps for reuse of eq *)
               if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
               incr Goblintutil.narrow_reuses;
               (d, false)
             | _ ->
+              (* The RHS is re-evaluated, all deps are re-trigerred *)
+              HM.replace dep x VS.empty;
               try
                 if abort && abort_verify then (
                   (* collect dep vals for x *)
@@ -742,6 +751,7 @@ module WP =
         delete_marked rho;
         delete_marked infl; (* TODO: delete from inner sets? *)
         delete_marked wpoint;
+        delete_marked dep;
 
         (* destabilize_with_side doesn't have all infl to follow anymore, so should somewhat work with reluctant *)
         if restart_sided then (
@@ -863,10 +873,6 @@ module WP =
 
           print_endline "Final solve..."
         );
-
-        (* reachability will populate these tables for incremental global restarting *)
-        HM.clear side_dep;
-        HM.clear side_infl;
       ) else (
         List.iter set_start st;
       );
@@ -978,6 +984,7 @@ module WP =
           filter_vs_hm infl;
           filter_vs_hm side_infl;
           filter_vs_hm side_dep;
+          filter_vs_hm dep;
 
           VH.filteri_inplace (fun x w ->
               if VH.mem reachable x then (
@@ -994,15 +1001,41 @@ module WP =
       end
       in
 
-      (* postsolver also populates side_dep and side_infl *)
+      (* postsolver also populates side_dep, side_infl, and dep *)
       let module SideInfl: PostSolver.S with module S = S and module VH = HM =
       struct
         include PostSolver.Unit (S) (HM)
 
+        (* TODO: We should be able to reset side_infl before executing the RHS, as all relevant side-effects should happen here again *)
+        (* However, this currently breaks some tests https://github.com/goblint/analyzer/pull/713#issuecomment-1114764937 *)
         let one_side ~vh ~x ~y ~d =
+          (* Also record side-effects caused by post-solver *)
           HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
           HM.replace side_infl x (VS.add y (try HM.find side_infl x with Not_found -> VS.empty));
       end
+      in
+
+      let reachable_and_superstable =
+        if incr_verify && not consider_superstable_reached then
+          (* Perform reachability on whole constraint system, but cheaply by using logged dependencies *)
+          (* This only works if the other reachability has been performed before, so dependencies created only during postsolve are recorded *)
+          let reachable' = HM.create (HM.length rho) in
+          let reachable_and_superstable = HM.create (HM.length rho) in
+          let rec one_var' x =
+            if (not (HM.mem reachable' x)) then (
+              if HM.mem superstable x then HM.replace reachable_and_superstable x ();
+              HM.replace reachable' x ();
+              Option.may (VS.iter one_var') (HM.find_option dep x);
+              Option.may (VS.iter one_var') (HM.find_option side_infl x)
+            )
+          in
+          (Stats.time "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
+
+          reachable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
+        else if incr_verify then
+          superstable
+        else
+          HM.create 0 (* doesn't matter, not used *)
       in
 
       (* restart write-only *)
@@ -1013,20 +1046,15 @@ module WP =
         ) rho_write;
 
       if incr_verify then (
-        HM.filteri_inplace (fun x _ -> HM.mem superstable x) var_messages;
-        HM.filteri_inplace (fun x _ -> HM.mem superstable x) rho_write
+        HM.filteri_inplace (fun x _ -> HM.mem reachable_and_superstable x) var_messages;
+        HM.filteri_inplace (fun x _ -> HM.mem reachable_and_superstable x) rho_write
       )
       else (
         HM.clear var_messages;
         HM.clear rho_write
       );
 
-      let init_reachable =
-        if incr_verify then
-          HM.copy superstable (* consider superstable reached: stop recursion (evaluation) and keep from being pruned *)
-        else
-          HM.create 0 (* doesn't matter, not used *)
-      in
+      let init_reachable = reachable_and_superstable in
 
       let module IncrWarn: PostSolver.S with module S = S and module VH = HM =
       struct
@@ -1035,7 +1063,7 @@ module WP =
         let init () =
           init (); (* enable warning like standard Warn *)
 
-          (* replay superstable messages *)
+          (* replay superstable messages from unknowns that are still reachable *)
           if incr_verify then (
             HM.iter (fun _ m ->
                 Messages.add m
@@ -1064,7 +1092,7 @@ module WP =
         include PostSolver.Unit (S) (HM)
 
         let init () =
-          (* retrigger superstable side writes *)
+          (* retrigger superstable side writes from unknowns that are still reachable *)
           if incr_verify then (
             HM.iter (fun x w ->
                 HM.iter (fun y d ->
@@ -1120,7 +1148,7 @@ module WP =
       print_data data "Data after postsolve";
 
       verify_data data;
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write}
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
 
     let solve box st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
@@ -1194,6 +1222,11 @@ module WP =
               HM.replace rho_write' (S.Var.relift x) w';
             ) data.rho_write;
           data.rho_write <- rho_write';
+          let dep' = HM.create (HM.length data.dep) in
+          HM.iter (fun k v ->
+              HM.replace dep' (S.Var.relift k) (VS.map S.Var.relift v)
+            ) data.dep;
+          data.dep <- dep';
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";

@@ -17,6 +17,8 @@
         "reluctant" : {
             "on": true
         },
-        "verify": false
+        "postsolver": {
+            "enabled": false
+        }
     }
 }
