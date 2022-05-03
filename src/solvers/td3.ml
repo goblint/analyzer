@@ -141,6 +141,7 @@ module WP =
       let restarted_wpoint = HM.create 10 in
 
       let incr_verify = GobConfig.get_bool "incremental.postsolver.enabled" in
+      let consider_superstable_reached = GobConfig.get_bool "incremental.postsolver.superstable-reached" in
       (* In incremental load, initially stable nodes, which are never destabilized.
          These don't have to be re-verified and warnings can be reused. *)
       let superstable = HM.copy stable in
@@ -1015,7 +1016,7 @@ module WP =
       in
 
       let reachable_and_superstable =
-        if incr_verify then
+        if incr_verify && not consider_superstable_reached then
           (* Perform reachability on whole constraint system, but cheaply by using logged dependencies *)
           (* This only works if the other reachability has been performed before, so dependencies created only during postsolve are recorded *)
           let reachable' = HM.create (HM.length rho) in
@@ -1031,6 +1032,8 @@ module WP =
           (Stats.time "cheap_full_reach" (List.iter one_var')) (vs @ !reluctant_vs);
 
           reachable_and_superstable (* consider superstable reached if it is still reachable: stop recursion (evaluation) and keep from being pruned *)
+        else if incr_verify then
+          superstable
         else
           HM.create 0 (* doesn't matter, not used *)
       in

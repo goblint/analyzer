@@ -1065,7 +1065,7 @@
             },
             "superstable-reached" : {
               "title":  "incremental.postsolver.superstable-reached",
-              "description": "Consider superstable set reached",
+              "description": "Consider superstable set reached, may be faster but can lead to spurious warnings",
               "type": "boolean",
               "default": false
             }
