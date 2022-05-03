@@ -28,8 +28,8 @@ let rec eq_constant (a: constant) (b: constant) = match a, b with
   | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 (* Ignore name and enuminfo  *)
   | a, b -> a = b
 
-and eq_exp (a: exp) (b: exp) = match a,b with
-  | Const c1, Const c2 -> eq_constant c1 c2
+and eq_exp ?(no_const_vals = false) (a: exp) (b: exp) = match a,b with
+  | Const c1, Const c2 -> if no_const_vals then true else eq_constant c1 c2
   | Lval lv1, Lval lv2 -> eq_lval lv1 lv2
   | SizeOf typ1, SizeOf typ2 -> eq_typ typ1 typ2
   | SizeOfE exp1, SizeOfE exp2 -> eq_exp exp1 exp2
@@ -156,10 +156,17 @@ and eq_offset (a: offset) (b: offset) = match a, b with
 and eq_lval (a: lval) (b: lval) = match a, b with
     (host1, off1), (host2, off2) -> eq_lhost host1 host2 && eq_offset off1 off2
 
-let eq_instr (a: instr) (b: instr) = match a, b with
+let eq_instr (a: instr) (b: instr) =
+  let skip_int_args_funs = GobConfig.get_string_list("incremental.ignore-const-args") in
+  let comp_args f1 args1 args2 = match f1 with
+    | Lval (Var v1,_) when List.mem v1.vname skip_int_args_funs ->
+      GobList.equal (eq_exp ~no_const_vals:true) args1 args2
+    | _ -> GobList.equal eq_exp args1 args2
+  in
+  match a, b with
   | Set (lv1, exp1, _l1, _el1), Set (lv2, exp2, _l2, _el2) -> eq_lval lv1 lv2 && eq_exp exp1 exp2
-  | Call (Some lv1, f1, args1, _l1, _el1), Call (Some lv2, f2, args2, _l2, _el2) -> eq_lval lv1 lv2 && eq_exp f1 f2 && GobList.equal eq_exp args1 args2
-  | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) -> eq_exp f1 f2 && GobList.equal eq_exp args1 args2
+  | Call (Some lv1, f1, args1, _l1, _el1), Call (Some lv2, f2, args2, _l2, _el2) -> eq_lval lv1 lv2 && eq_exp f1 f2 && comp_args f1 args1 args2
+  | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) -> eq_exp f1 f2 && comp_args f1 args1 args2
   | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) -> GobList.equal String.equal tmp1 tmp2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval z1 z2) ci1 ci2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp z1 z2) dj1 dj2 && GobList.equal String.equal rk1 rk2(* ignore attributes and locations *)
   | VarDecl (v1, _l1), VarDecl (v2, _l2) -> eq_varinfo v1 v2
   | _, _ -> false

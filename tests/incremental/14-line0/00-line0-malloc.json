@@ -3,7 +3,10 @@
     "reluctant": {
       "on": true,
       "compare": "leq"
-    }
+    },
+    "ignore-const-args": [
+      "printf"
+    ]
   },
   "exp": {
     "earlyglobs": false

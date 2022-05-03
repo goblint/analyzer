@@ -1014,6 +1014,15 @@
           "enum": ["ast", "cfg"],
           "default": "ast"
         },
+        "ignore-const-args": {
+          "title": "incremental.ignore-const-args",
+          "description": "List of functions for which constant parameters are not compared",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
         "force-reanalyze": {
           "title": "incremental.force-reanalyze",
           "type": "object",
