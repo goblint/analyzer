@@ -106,16 +106,16 @@ module EvalAssert = struct
         let rec instrument_instructions = function
           | i1 :: ((i2 :: _) as is) ->
             (* List contains successor statement, use location of successor for values *)
-            let loc = get_instrLoc i2 in
+            let loc = get_instrLoc i2 in (* TODO: why not using Cilfacade.get_instrLoc? *)
             i1 :: ((instrument i1 loc) @ instrument_instructions is)
           | [i] when unique_succ ->
             (* Last statement in list *)
             (* Successor of it has only one predecessor, we can query for the value there *)
-            let loc = get_stmtLoc (List.hd s.succs).skind in
+            let loc = get_stmtLoc (List.hd s.succs).skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
             i :: (instrument i loc)
           | [i] when s.succs <> [] ->
             (* Successor has multiple predecessors, results may be imprecise but remain correct *)
-            let loc = get_stmtLoc (List.hd s.succs).skind in
+            let loc = get_stmtLoc (List.hd s.succs).skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
             i :: (instrument i loc)
           | x -> x
         in
@@ -134,7 +134,7 @@ module EvalAssert = struct
         match s.preds with
         | [p1; p2] when not only_at_locks ->
           (* exactly two predecessors -> join point, assert locals if they changed *)
-          let join_loc = get_stmtLoc s.skind in
+          let join_loc = get_stmtLoc s.skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
           (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if trans.assert.full is false *)
           let asserts = make_assert join_loc None in
           self#queueInstr asserts; ()
@@ -153,7 +153,7 @@ module EvalAssert = struct
           let add_asserts block =
             if block.bstmts <> [] then
               let with_asserts =
-                let b_loc = get_stmtLoc (List.hd block.bstmts).skind in
+                let b_loc = get_stmtLoc (List.hd block.bstmts).skind in (* TODO: why not using Cilfacade.get_stmtLoc? *)
                 let b_assert_instr = asserts b_loc vars in
                 [cStmt "{ %I:asserts %S:b }" (fun n t -> makeVarinfo true "unknown" (TVoid [])) b_loc [("asserts", FI b_assert_instr); ("b", FS block.bstmts)]]
               in
