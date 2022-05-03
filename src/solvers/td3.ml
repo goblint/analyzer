@@ -1005,6 +1005,8 @@ module WP =
       struct
         include PostSolver.Unit (S) (HM)
 
+        (* TODO: We should be able to reset side_infl before executing the RHS, as all relevant side-effects should happen here again *)
+        (* However, this currently breaks some tests https://github.com/goblint/analyzer/pull/713#issuecomment-1114764937 *)
         let one_side ~vh ~x ~y ~d =
           (* Also record side-effects caused by post-solver *)
           HM.replace side_dep y (VS.add x (try HM.find side_dep y with Not_found -> VS.empty));
