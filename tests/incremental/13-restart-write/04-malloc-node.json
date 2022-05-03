@@ -4,6 +4,10 @@
             "sided": {
                 "enabled": false
             }
+        },
+        "postsolver": {
+            "enabled": true,
+            "superstable-reached": false
         }
     },
     "ana": {
