@@ -334,6 +334,7 @@ struct
       let st' = match LibraryFunctions.get_invalidate_action f.vname with
         | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
         | None ->
+          (* nothing to do for args because only AddrOf arguments may be invalidated *)
           if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
             let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
                 match global with

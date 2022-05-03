@@ -76,20 +76,20 @@ struct
       ctx.sideg (V.access (lv_opt, ty)) (G.create_access (Access.AS.singleton (conf, w, loc, e, a)));
     side_vars ctx lv_opt ty
 
-  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (w:bool) (reach:bool) (conf:int) (e:exp) =
+  let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
     let open Queries in
-    let part_access ctx (e:exp) (vo:varinfo option) (w: bool): MCPAccess.A.t =
-      ctx.emit (Access {var_opt=vo; write=w});
+    let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t): MCPAccess.A.t =
+      ctx.emit (Access {var_opt=vo; kind});
       (*partitions & locks*)
-      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; write=w})))
+      Obj.obj (ctx.ask (PartAccess (Memory {exp=e; var_opt=vo; kind})))
     in
     let add_access conf vo oo =
-      let a = part_access ctx e vo w in
-      Access.add (side_access ctx) e w conf vo oo a;
+      let a = part_access ctx e vo kind in
+      Access.add (side_access ctx) e kind conf vo oo a;
     in
     let add_access_struct conf ci =
-      let a = part_access ctx e None w in
-      Access.add_struct (side_access ctx) e w conf (`Struct (ci,`NoOffset)) None a
+      let a = part_access ctx e None kind in
+      Access.add_struct (side_access ctx) e kind conf (`Struct (ci,`NoOffset)) None a
     in
     let has_escaped g = ctx.ask (Queries.MayEscape g) in
     (* The following function adds accesses to the lval-set ls
@@ -133,12 +133,16 @@ struct
     | _ ->
       add_access (conf - 60) None None
 
-  let access_one_top ?(force=false) ctx write reach exp =
+  let access_one_top ?(force=false) ctx kind reach exp =
     (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
-      if reach || write then do_access ctx write reach conf exp;
-      Access.distribute_access_exp (do_access ctx) false false conf exp;
+      let write = match kind with
+        | `Write | `Free -> true
+        | `Read -> false
+      in
+      if reach || write then do_access ctx kind reach conf exp;
+      Access.distribute_access_exp (do_access ctx) `Read false conf exp;
     )
 
   (** We just lift start state, global and dependency functions: *)
@@ -152,18 +156,18 @@ struct
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin
-      access_one_top ctx true  false (AddrOf lval);
-      access_one_top ctx false false rval;
+      access_one_top ctx `Write false (AddrOf lval);
+      access_one_top ctx `Read false rval;
       ctx.local
     end
 
   let branch ctx exp tv : D.t =
-    access_one_top ctx false false exp;
+    access_one_top ctx `Read false exp;
     ctx.local
 
   let return ctx exp fundec : D.t =
     begin match exp with
-      | Some exp -> access_one_top ctx false false exp
+      | Some exp -> access_one_top ctx `Read false exp
       | None -> ()
     end;
     ctx.local
@@ -201,9 +205,14 @@ struct
       ctx.local
     | _, x ->
       let arg_acc act =
-        match LF.get_threadsafe_inv_ac x with
-        | Some fnc -> (fnc act arglist)
-        | _ -> arglist
+        match act, LF.get_threadsafe_inv_ac x with
+        | _, Some fnc -> (fnc act arglist)
+        | `Read, None -> arglist
+        | (`Write | `Free), None ->
+          if get_bool "sem.unknown_function.invalidate.args" then
+            arglist
+          else
+            []
       in
       (* TODO: per-argument reach *)
       let reach =
@@ -213,10 +222,11 @@ struct
         | "__builtin_object_size" -> false
         | _ -> true
       in
-      List.iter (access_one_top ctx false reach) (arg_acc `Read);
-      List.iter (access_one_top ctx true  reach) (arg_acc `Write);
+      List.iter (access_one_top ctx `Read reach) (arg_acc `Read);
+      List.iter (access_one_top ctx `Write reach) (arg_acc `Write);
+      List.iter (access_one_top ctx `Free reach) (arg_acc `Free);
       (match lv with
-       | Some x -> access_one_top ctx true false (AddrOf x)
+       | Some x -> access_one_top ctx `Write false (AddrOf x)
        | None -> ());
       ctx.local
 
@@ -224,12 +234,12 @@ struct
     [(ctx.local,ctx.local)]
 
   let combine ctx lv fexp f args fc al =
-    access_one_top ctx false false fexp;
+    access_one_top ctx `Read false fexp;
     begin match lv with
       | None      -> ()
-      | Some lval -> access_one_top ctx true false (AddrOf lval)
+      | Some lval -> access_one_top ctx `Write false (AddrOf lval)
     end;
-    List.iter (access_one_top ctx false false) args;
+    List.iter (access_one_top ctx `Read false) args;
     al
 
 
@@ -237,7 +247,7 @@ struct
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
       | None -> ()
-      | Some lval -> access_one_top ~force:true ctx true false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+      | Some lval -> access_one_top ~force:true ctx `Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
     end;
     ctx.local
 

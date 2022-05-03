@@ -470,7 +470,11 @@ struct
     let args =
       match LF.get_invalidate_action f.vname with
       | Some fnc -> fnc `Write args
-      | _ -> args
+      | None ->
+        if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
+          args
+        else
+          []
     in
     let es =
       match lval with
