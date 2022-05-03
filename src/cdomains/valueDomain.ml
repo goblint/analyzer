@@ -446,8 +446,8 @@ struct
     | (`Int x, `Int y) -> ID.leq x y
     | (`Int x, `Address y) when ID.to_int x = Some BI.zero -> AD.may_be_null y
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
     | (`Address x, `Int y) when ID.to_int y = Some BI.zero -> AD.is_null x
+    | (`Address _, `Int y) -> ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) -> Structs.leq x y
     | (`Union x, `Union y) -> Unions.leq x y
@@ -572,8 +572,8 @@ struct
     | (`Int x, `Int y) -> ID.leq x y
     | (`Int x, `Address y) when ID.to_int x = Some BI.zero -> AD.may_be_null y
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
-    | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
     | (`Address x, `Int y) when ID.to_int y = Some BI.zero -> AD.is_null x
+    | (`Address _, `Int y) -> ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y
     | (`Address x, `Address y) -> AD.leq x y
     | (`Struct x, `Struct y) ->
           Structs.leq_with_fct leq_elem x y
