@@ -260,7 +260,7 @@ struct
 
   let ee_to_str x =
     match x with
-    | EVar v -> v.vname
+    | EVar v -> RenameMapping.show_varinfo v
     | EAddr -> "&"
     | EDeref -> "*"
     | EField f -> f.fname

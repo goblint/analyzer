@@ -371,7 +371,7 @@ struct
       if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.context.widen" ~keepAttr:"widen" ~removeAttr:"no-widen" f then (
         let v_old = M.find f.svar m in (* S.D.bot () if not found *)
         let v_new = S.D.widen v_old (S.D.join v_old v_cur) in
-        Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" f.svar.vname);
+        Messages.(if tracing && not (S.D.equal v_old v_new) then tracel "widen-context" "enter results in new context for function %s\n" (RenameMapping.show_varinfo f.svar));
         v_new, M.add f.svar v_new m
       )
       else
@@ -512,7 +512,7 @@ struct
             ignore (getl (Function fd, c))
           | exception Not_found ->
             (* unknown function *)
-            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" f.vname
+            M.error ~category:Imprecise ~tags:[Category Unsound] "Created a thread from unknown function %s" (RenameMapping.show_varinfo f)
             (* actual implementation (e.g. invalidation) is done by threadenter *)
         ) ds
     in
@@ -646,7 +646,7 @@ struct
     let one_function f =
       match Cilfacade.find_varinfo_fundec f with
       | fd when LibraryFunctions.use_special f.vname ->
-        M.warn "Using special for defined function %s" f.vname;
+        M.warn "Using special for defined function %s" (RenameMapping.show_varinfo f);
         tf_special_call ctx lv f args
       | fd ->
         tf_normal_call ctx lv e fd args getl sidel getg sideg

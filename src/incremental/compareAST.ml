@@ -217,6 +217,10 @@ and eq_varinfo (a: varinfo) (b: varinfo) (context: context) =
                         a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof in
   if did_context_switch then Printf.printf "Undo context switch \n";
 
+  (*Save rename mapping for future usage. If this function later turns out to actually being changed, the new varinfo id will be used anyway
+     and this mapping has no effect*)
+  if a.vname <> b.vname && result then RenameMapping.store_update_varinfo_name a b.vname;
+
   result
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
 

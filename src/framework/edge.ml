@@ -33,6 +33,7 @@ type t =
   (** This for interrupt edges.! *)
 [@@deriving eq, to_yojson]
 
+let dn_exp = RenameMapping.dn_exp
 
 let pretty () = function
   | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
@@ -47,15 +48,17 @@ let pretty () = function
   | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
   | SelfLoop -> Pretty.text "SelfLoop"
 
+let d_exp = RenameMapping.d_exp
+
 let pretty_plain () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
   | Proc (None  ,f,ars) -> dprintf "Proc '%a(%a)'" d_exp f (d_list ", " d_exp) ars
   | Proc (Some r,f,ars) -> dprintf "Proc '%a = %a(%a)'" d_lval r d_exp f (d_list ", " d_exp) ars
-  | Entry f -> dprintf "Entry %s" f.svar.vname
-  | Ret (None,fd) -> dprintf "Ret (None, %s)" fd.svar.vname
-  | Ret (Some r,fd) -> dprintf "Ret (Some %a, %s)" d_exp r fd.svar.vname
+  | Entry f -> dprintf "Entry %s" (RenameMapping.show_varinfo f.svar)
+  | Ret (None,fd) -> dprintf "Ret (None, %s)" (RenameMapping.show_varinfo fd.svar)
+  | Ret (Some r,fd) -> dprintf "Ret (Some %a, %s)" d_exp r (RenameMapping.show_varinfo fd.svar)
   | Test (p,b) -> dprintf "Test (%a,%b)" d_exp p b
   | ASM _ -> text "ASM ..."
   | Skip -> text "Skip"
-  | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
+  | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype (RenameMapping.show_varinfo v)
   | SelfLoop -> text "SelfLoop"

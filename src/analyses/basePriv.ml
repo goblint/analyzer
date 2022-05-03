@@ -94,7 +94,7 @@ struct
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     if invariant && not (is_private ask x) then (
-      if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
+      if M.tracing then M.tracel "setosek" ~var:(RenameMapping.show_varinfo x) "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
       st
     )
     else (
@@ -110,7 +110,7 @@ struct
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
     (* For each global variable, we create the side effect *)
     let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
+      if M.tracing then M.traceli "globalize" ~var:(RenameMapping.show_varinfo v) "Tracing for %s\n" (RenameMapping.show_varinfo v);
       let res =
         if is_global ask v then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
@@ -151,7 +151,7 @@ struct
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     if invariant && not (is_private ask x) then (
-      if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
+      if M.tracing then M.tracel "setosek" ~var:(RenameMapping.show_varinfo x) "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
       st
     )
     else (
@@ -170,7 +170,7 @@ struct
     if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
     (* For each global variable, we create the side effect *)
     let side_var (v: varinfo) (value) (st: BaseComponents.t) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
+      if M.tracing then M.traceli "globalize" ~var:(RenameMapping.show_varinfo v) "Tracing for %s\n" (RenameMapping.show_varinfo v);
       let res =
         if is_global ask v && ((privates && not (is_precious_glob v)) || not (is_private ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
@@ -427,7 +427,7 @@ struct
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     if invariant && not (is_private ask x) then (
-      if M.tracing then M.tracel "setosek" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
+      if M.tracing then M.tracel "setosek" ~var:(RenameMapping.show_varinfo x) "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
       st
     )
     else (
@@ -448,7 +448,7 @@ struct
     let privates = sync_privates reason ask in
     (* For each global variable, we create the side effect *)
     let side_var (v: varinfo) (value) (st: BaseComponents (D).t) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
+      if M.tracing then M.traceli "globalize" ~var:(RenameMapping.show_varinfo v) "Tracing for %s\n" (RenameMapping.show_varinfo v);
       let res =
         if is_global ask v then
           let protected = is_protected ask v in

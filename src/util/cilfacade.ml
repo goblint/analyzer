@@ -320,8 +320,8 @@ let getFirstStmt fd = List.hd fd.sbody.bstmts
 
 let pstmt stmt = dumpStmt defaultCilPrinter stdout 0 stmt; print_newline ()
 
-let p_expr exp = Pretty.printf "%a\n" (printExp defaultCilPrinter) exp
-let d_expr exp = Pretty.printf "%a\n" (printExp plainCilPrinter) exp
+let p_expr exp = Pretty.printf "%a\n" (printExp RenameMapping.incremental_aware_printer) exp
+let d_expr exp = Pretty.printf "%a\n" (printExp RenameMapping.plain_incremental_aware_printer) exp
 
 (* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. Warns if a a different type is put in and return IInt *)
 let rec get_ikind t =

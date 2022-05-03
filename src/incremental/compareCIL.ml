@@ -3,12 +3,6 @@ open MyCFG
 include CompareAST
 include CompareCFG
 
-(*Maps the function name to a table of it's local variable and parameter renames. The rename table has key of original name and value of renamed name.*)
-let rename_map: (string, (string, string) Hashtbl.t) Hashtbl.t ref = ref (Hashtbl.create 100)
-
-(*Same as rename_map, but maps renamed name to original name instead.*)
-let reverse_rename_map: (string, (string, string) Hashtbl.t) Hashtbl.t ref = ref (Hashtbl.create 100)
-
 type nodes_diff = {
   unchangedNodes: (node * node) list;
   primObsoleteNodes: node list; (** primary obsolete nodes -> all obsolete nodes are reachable from these *)
@@ -28,37 +22,6 @@ type change_info = {
   mutable removed: global list;
   mutable added: global list
 }
-
-let store_local_rename (function_name: string) (rename_table: (string, string) Hashtbl.t) = 
-  begin
-    Hashtbl.add !rename_map function_name rename_table;
-    let reverse_rename_table = Hashtbl.create (Hashtbl.length !rename_map) in
-    Hashtbl.iter (fun original_name new_name -> Hashtbl.add reverse_rename_table new_name original_name) rename_table;
-    Hashtbl.add !reverse_rename_map function_name reverse_rename_table;
-  end
-
-(*Returnes the rename if one exists, or param_name when no entry exists.*)
-let get_local_rename (function_name: string) (param_name: string) = match (Hashtbl.find_opt !rename_map function_name) with
-  | Some (local_map) -> Option.value (Hashtbl.find_opt local_map param_name) ~default:param_name
-  | None -> param_name
-
-let get_orignal_name (function_name: string) (new_var_name: string) = match (Hashtbl.find_opt !reverse_rename_map function_name) with
-  | Some (reverse_map) -> Option.value (Hashtbl.find_opt reverse_map new_var_name) ~default:new_var_name
-  |None -> new_var_name
-
-let show_rename_map =
-  let show_local_rename_map (local_rename_map: (string, string) Hashtbl.t) = 
-    let rename_string = Seq.map (fun (orig, new_name) -> orig ^ " -> " ^ new_name) (Hashtbl.to_seq local_rename_map) |> 
-      List.of_seq in
-    String.concat ", " rename_string
-  in
-  
-  Hashtbl.to_seq !rename_map |>
-    Seq.iter (fun (fun_name, map) -> Printf.printf "%s=%d" fun_name (Hashtbl.length map));
-
-  let function_strings = Seq.map (fun (fun_name, map) -> fun_name ^ ": [" ^ (show_local_rename_map map) ^ "]") (Hashtbl.to_seq !rename_map) |> List.of_seq in
-
-  String.concat ", " function_strings
 
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
@@ -120,7 +83,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_cont
           else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1; primNewNodes = diffNodes2})
   in
 
-  if (identical) then store_local_rename a.svar.vname local_rename_map;
+  (*if (identical) then store_local_rename a.svar.vname local_rename_map;*)
 
   identical, unchangedHeader, diffOpt
 
