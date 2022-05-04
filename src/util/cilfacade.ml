@@ -31,6 +31,11 @@ let get_stmtLoc stmt =
     get_labelsLoc stmt.labels
   | _ -> get_stmtkindLoc stmt.skind
 
+(** Is character type (N1570 6.2.5.15)? *)
+let isCharType = function
+  | TInt ((IChar | ISChar | IUChar), _) -> true
+  | _ -> false
+
 
 let init () =
   initCIL ();
