@@ -55,9 +55,14 @@ def analyze_commit(analyzer_dir, gr : Git, repo_path, build_compdb, commit_hash,
         outfile.close()
 
 def compare_runs(analyzer_dir, dummy_c_file, outdir, conf, compare_data_1, compare_data_2):
-    options = ['--conf', os.path.join(analyzer_dir, 'conf', conf + '.json'), '--disable', 'printstats', '--disable', 'warn.warning', '--disable', 'warn.race', '--enable', 'dbg.compare_runs.diff', '--disable', 'dbg.compare_runs.eqsys', '--enable', 'dbg.compare_runs.node', '--compare_runs', compare_data_1, compare_data_2]
+    options = ['--conf', os.path.join(analyzer_dir, 'conf', conf + '.json'), '--disable', 'printstats', '--disable', 'warn.warning', '--disable', 'warn.race', '--enable', 'dbg.compare_runs.hhh', 'dbg.compare_runs.diff', '--disable', 'dbg.compare_runs.eqsys', '--enable', 'dbg.compare_runs.node', '--compare_runs', compare_data_1, compare_data_2]
     analyze_command = [os.path.join(analyzer_dir, 'goblint'), *options, dummy_c_file]
     with open(outdir+'/compare.log', "w+") as outfile:
+        subprocess.run(analyze_command, check=True, stdout=outfile, stderr=subprocess.STDOUT)
+        outfile.close()
+    options = ['--conf', os.path.join(analyzer_dir, 'conf', conf + '.json'), '--disable', 'printstats', '--disable', 'warn.warning', '--disable', 'warn.race', '--enable', 'dbg.compare_runs.diff', '--disable', 'dbg.compare_runs.eqsys', '--enable', 'dbg.compare_runs.node', '--compare_runs', compare_data_1, compare_data_2]
+    analyze_command = [os.path.join(analyzer_dir, 'goblint'), *options, dummy_c_file]
+    with open(outdir+'/compare_prec.log', "w+") as outfile:
         subprocess.run(analyze_command, check=True, stdout=outfile, stderr=subprocess.STDOUT)
         outfile.close()
 

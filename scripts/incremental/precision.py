@@ -1,4 +1,3 @@
-import re
 import utils
 from pydriller import Repository, Git
 import psutil
@@ -38,6 +37,8 @@ except ValueError:
 
 res_dir = os.path.abspath('result_precision')
 utc = pytz.UTC
+compare_commits = [1,2,3,7,10,15]
+skipShorterSeq = 3
 
 def start_commit_for_sequence_search():
     current_commit = ""
@@ -50,12 +51,12 @@ def start_commit_for_sequence_search():
 def find_sequences_rec(gr, commit, seq, seq_list, starting_points):
     commit_date = commit.committer_date.replace(tzinfo=None)
     if commit_date < begin:
-        if len(seq) > 5:
+        if len(seq) > skipShorterSeq:
             print("found seq of length: " + str(len(seq)))
             seq_list.insert(0,seq)
     elif commit.merge:
         seq.insert(0,commit.hash)
-        if len(seq) > 5:
+        if len(seq) > skipShorterSeq:
             print("found seq of length: " + str(len(seq)))
             seq_list.insert(0,seq)
         for ph in commit.parents:
@@ -140,7 +141,7 @@ def analyze_series_in_repo(series):
                 shutil.copytree("incremental_data", "backup_incremental_data")
 
                 # compare only for 10th and last run
-                if commit_num == 10 or commit_num == len(series) - 1:
+                if commit_num in compare_commits or commit_num == len(series) - 1:
                     # analyze commit non-incrementally and save run for comparison
                     # print('Analyze', str(commit.hash), 'non-incrementally (#', commit_num, ').')
                     out_nonincr = os.path.join(out_commit, 'non-incr')
@@ -157,7 +158,7 @@ def analyze_series_in_repo(series):
                 add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.reluctant.on', '--set', 'save_run', file_incremental_run]
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_incr, conf, add_options)
 
-                if commit_num == 10 or commit_num == len(series) - 1:
+                if commit_num in compare_commits or commit_num == len(series) - 1:
                     # compare stored data of original and incremental run
                     # print('Compare both runs.')
                     out_compare = os.path.join(out_commit, 'compare')
@@ -214,9 +215,8 @@ def analyze_seq_in_parallel(seq_list):
 def merge_results():
     wd = os.getcwd()
     seq_summaries = []
-    tenth_sum = {"equal": 0, "moreprec": 0, "lessprec": 0, "incomp": 0, "total": 0}
+    prec_sums = {str(i): {"precision_sum": {"equal": 0, "moreprec": 0, "lessprec": 0, "incomp": 0, "total": 0}, "number_of_commits": 0, "relCLOC": 0} for i in compare_commits}
     num_seq = 0
-    num_atleastten = 0
     for s in map(lambda x: os.path.abspath(x), os.listdir(wd)):
         if not os.path.isdir(s) or os.path.basename(s)[:6] != "series":
             continue
@@ -224,31 +224,38 @@ def merge_results():
         os.chdir(s)
         with open('sequence.json', 'r') as file:
             seq = json.load(file)
-        # lookup comparison result for 10th commit
-        tenth = os.path.join(s, "out", "10")
-        precision10 = None
-        if os.path.isdir(tenth):
-            precision10 = utils.extract_precision_from_compare_log(os.path.join(tenth, "compare", "compare.log"))
-            if precision10:
-                tenth_sum = {k: tenth_sum.get(k, 0) + precision10.get(k, 0) for k in set(tenth_sum)}
-                num_atleastten += 1
-        # lookup final comparison result
-        commits = os.listdir(os.path.join(s, "out"))
+        # lookup comparison results
+        outdir = os.path.join(s, "out")
+        commits = os.listdir(outdir)
         commits.sort(key = lambda x: int(x))
+        int_prec = {str(i): {"precision": None, "relCLOC": None} for i in compare_commits}
         final_prec = None
-        sumRelCLOC = 0
-        for i in commits:
-            with open(os.path.join(s, "out", i, "commit_properties.log"), "r") as f:
-                sumRelCLOC += json.load(f)["relCLOC"]
+        relCLOC = 0
+        for i in filter(lambda x: x != "0", commits):
+            ith_dir = os.path.join(outdir, i)
+            comparelog = os.path.join(ith_dir, "compare", "compare.log")
+            with open(os.path.join(outdir, i, "commit_properties.log"), "r") as f:
+                relCLOC += json.load(f)["relCLOC"]
+            if int(i) in compare_commits:
+                if os.path.isdir(ith_dir) and os.path.exists(comparelog):
+                    int_prec[i]["precision"] = utils.extract_precision_from_compare_log(os.path.join(ith_dir, "compare", "compare.log"))
+                    int_prec[i]["relCLOC"] = relCLOC
+                    if int_prec[i]["precision"]:
+                        prec_sums[i]["precision_sum"] = {k: prec_sums[i]["precision_sum"].get(k, 0) + int_prec[i]["precision"].get(k, 0) for k in set(prec_sums[i]["precision_sum"])}
+                        prec_sums[i]["number_of_commits"] += 1
+                        prec_sums[i]["relCLOC"] += relCLOC
             if int(i) != 0 and int(i) == len(commits) - 1:
-                last = os.path.join(s, "out", i)
-                comparelog = os.path.join(last, "compare", "compare.log")
                 if os.path.exists(comparelog):
                     final_prec = utils.extract_precision_from_compare_log(comparelog)
-        summary = {"name": os.path.basename(s), "sequence": seq, "sumRelCLOC": sumRelCLOC, "precision after ten": precision10, "final precision": final_prec, "length": len(seq)}
+        summary = {"name": os.path.basename(s), "sequence": seq, "length": len(seq), "intermediate precision": int_prec, "final precision": final_prec, "finalRelCLOC": relCLOC}
         seq_summaries.append(summary)
         os.chdir(wd)
-    res = {"seq_summary":  seq_summaries, "tenth_avg": tenth_sum if num_atleastten == 0 else {k: v / num_atleastten for k, v in tenth_sum.items()}}
+    prec_avgs = {i: None for i in prec_sums.keys()}
+    for i, ps in prec_sums.items():
+        if ps["number_of_commits"] != 0:
+            avg_prec = {k: ps["precision_sum"].get(k,0) / ps["number_of_commits"] for k in set(ps["precision_sum"])}
+            prec_avgs[i] = {"precision_avg": avg_prec, "relCLOC_avg": ps["relCLOC"] / ps["number_of_commits"]}
+    res = {"seq_summary":  seq_summaries, "prec_avgs": prec_avgs}
     with open("results.json", "w") as f:
         json.dump(res, f, indent=4)
     res
