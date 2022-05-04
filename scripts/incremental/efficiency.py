@@ -25,7 +25,7 @@ maxCLOC       = 50
 url           = "https://github.com/facebook/zstd"
 repo_name     = "zstd"
 build_compdb  = "build_compdb_zstd.sh"
-conf          = "zstd-race-incrpostsolver" # for comparison: "zstd-race-noincrpostsolver", very minimal: "zstd-minimal"
+conf          = "zstd-race-incrpostsolver" # for comparison: "zstd-race-baseline", very minimal: "zstd-minimal"
 begin         = datetime(2021,8,1)
 to            = datetime(2022,1,1) # minimal subset: datetime(2021,8,4)
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
@@ -172,7 +172,7 @@ def analyze_chunks_of_commits_in_parallel():
     # calculate number of interesting commits
     num_commits = sum(1 for _ in Repository(url, since=begin, to=to, only_no_merge=True).traverse_commits())
     print("Number of potentially interesting commits:", num_commits)
-    perprocess = num_commits // numcores
+    perprocess = num_commits // numcores if num_commits % numcores == 0 else num_commits // numcores + 1
 
     for i in range(numcores):
         dir = "process" + str(i)

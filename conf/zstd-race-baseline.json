@@ -41,8 +41,15 @@
     "ignore-const-args": [
       "fprintf"
     ],
+    "restart": {
+      "sided": {
+        "enabled": true,
+        "only-access": true,
+        "destab-with-sides": false
+      }
+    },
     "postsolver": {
-      "enabled": false
+      "enabled": true
     }
   },
   "exp": {
