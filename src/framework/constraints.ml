@@ -64,8 +64,8 @@ struct
   let intrpt ctx =
     D.lift @@ S.intrpt (conv ctx)
 
-  let asm ctx =
-    D.lift @@ S.asm (conv ctx)
+  let asm ctx t an =
+    D.lift @@ S.asm (conv ctx) t an
 
   let skip ctx =
     D.lift @@ S.skip (conv ctx)
@@ -231,7 +231,7 @@ struct
   let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
   let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity
-  let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
+  let asm ctx t an    = lift_fun ctx (lift ctx) S.asm    ((|>) an % (|>) t)
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
   let combine' ctx r fe f args fc es = lift_fun ctx (lift ctx) S.combine (fun p -> p r fe f args fc (fst es))
@@ -358,7 +358,7 @@ struct
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
   let intrpt ctx      = lift_fun ctx S.intrpt identity
-  let asm ctx         = lift_fun ctx S.asm    identity
+  let asm ctx t an    = lift_fun ctx S.asm    ((|>) an % (|>) t)
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
 
@@ -432,12 +432,12 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
-  let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
+  let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)           `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
-  let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
+  let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)           `Bot
   let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
-  let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity            `Bot
-  let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
+  let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity           `Bot
+  let asm ctx t an    = lift_fun ctx D.lift   S.asm    ((|>) an % (|>) t) `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
   let combine ctx r fe f args fc es = lift_fun ctx D.lift S.combine (fun p -> p r fe f args fc (D.unlift es)) `Bot
@@ -659,9 +659,9 @@ struct
       let funs = List.map one_function functions in
       common_joins ctx funs !r !spawns
 
-  let tf_asm var edge prev_node getl sidel getg sideg d =
+  let tf_asm var edge prev_node t an getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.asm ctx) !r !spawns
+    common_join ctx (S.asm ctx t an) !r !spawns
 
   let tf_skip var edge prev_node getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
@@ -675,7 +675,7 @@ struct
       | Entry f        -> tf_entry var edge prev_node f
       | Ret (r,fd)     -> tf_ret var edge prev_node r fd
       | Test (p,b)     -> tf_test var edge prev_node p b
-      | ASM _          -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
+      | ASM (t,an)     -> tf_asm var edge prev_node t an
       | Skip           -> tf_skip var edge prev_node
       | SelfLoop       -> tf_loop var edge prev_node
     end getl sidel getg sideg d
@@ -989,7 +989,7 @@ struct
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
   let intrpt ctx        = map ctx Spec.intrpt  identity
-  let asm ctx           = map ctx Spec.asm     identity
+  let asm ctx t an      = map ctx Spec.asm     (fun h -> h t an)
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 

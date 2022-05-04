@@ -423,7 +423,7 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
+  let asm (ctx:(D.t, G.t, C.t, V.t) ctx) t an =
     let spawns = ref [] in
     let splits = ref [] in
     let sides  = ref [] in
@@ -431,7 +431,7 @@ struct
     let ctx'' = outer_ctx "asm" ~spawns ~sides ~emits ctx in
     let f post_all (n,(module S:MCPSpec),d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "asm" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.asm ctx'
+      n, repr @@ S.asm ctx' t an
     in
     let d, q = map_deadcode f @@ spec_list ctx.local in
     do_sideg ctx !sides;

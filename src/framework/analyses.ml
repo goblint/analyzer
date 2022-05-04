@@ -361,7 +361,7 @@ sig
   val body  : (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t
   val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
   val intrpt: (D.t, G.t, C.t, V.t) ctx -> D.t
-  val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
+  val asm   : (D.t, G.t, C.t, V.t) ctx -> string list -> (Edge.asm_out * Edge.asm_in * string list) option -> D.t
   val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
 
 
@@ -546,7 +546,7 @@ struct
 
   let vdecl ctx _ = ctx.local
 
-  let asm x =
+  let asm x t an =
     ignore (M.info ~category:Unsound "ASM statement ignored.");
     x.local (* Just ignore. *)
 

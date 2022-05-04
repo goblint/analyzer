@@ -230,7 +230,7 @@ struct
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
   let intrpt ctx        = map ctx Spec.intrpt  identity
-  let asm ctx           = map ctx Spec.asm     identity
+  let asm ctx t an      = map ctx Spec.asm     (fun h -> h t an)
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
 
