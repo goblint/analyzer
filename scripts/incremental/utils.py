@@ -79,20 +79,22 @@ def calculateRelCLOC(repo_path, commit, diff_exclude):
     return relcloc
 
 def find_line(pattern, file):
-    for line in file.readlines():
+    file.seek(0)
+    for line in file:
         m = re.search(pattern, line)
         if m:
             file.close()
             return m.groupdict()
+    return None
 
 def extract_from_analyzer_log(log):
     file = open(log, "r")
     runtime_pattern = 'TOTAL[ ]+(?P<runtime>[0-9\.]+) s'
     change_info_pattern = 'change_info = { unchanged = (?P<unchanged>[0-9]*); changed = (?P<changed>[0-9]*); added = (?P<added>[0-9]*); removed = (?P<removed>[0-9]*) }'
-    r = find_line(runtime_pattern)
-    ch = find_line(change_info_pattern) or {"unchanged": 0, "changed": 0, "added": 0, "removed": 0}
+    r = find_line(runtime_pattern, file)
+    ch = find_line(change_info_pattern, file) or {"unchanged": 0, "changed": 0, "added": 0, "removed": 0}
     d = dict(list(r.items()) + list(ch.items()))
-    file = open(log, "r")
+    file.seek(0)
     num_racewarnings = file.read().count('[Warning][Race]')
     d["race_warnings"] = num_racewarnings
     file.close()
@@ -103,7 +105,7 @@ def extract_precision_from_compare_log(log):
     pattern = "equal: (?P<equal>[0-9]+), more precise: (?P<moreprec>[0-9]+), less precise: (?P<lessprec>[0-9]+), incomparable: (?P<incomp>[0-9]+), total: (?P<total>[0-9]+)"
     precision = find_line(pattern, file)
     file.close()
-    return {k: int(v) for k,v in precision.items()}
+    return {k: int(v) for k,v in precision.items()} if precision else None
 
 def barplot(data_set):
     df = pandas.DataFrame(data_set["data"], index=data_set["index"]) # TODO: index=analyzed_commits

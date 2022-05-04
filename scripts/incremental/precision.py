@@ -212,41 +212,44 @@ def analyze_seq_in_parallel(series):
         processes = []
 
 
-def merge_results(results_dir):
+def merge_results():
+    wd = os.getcwd()
     seq_summaries = []
     tenth_sum = {"equal": 0, "moreprec": 0, "lessprec": 0, "incomp": 0, "total": 0}
     num_seq = 0
-    for s in map(lambda x: os.path.join(results_dir, x), os.listdir(results_dir)): # TODO remove parameter
+    num_atleastten = 0
+    for s in map(lambda x: os.path.abspath(x), os.listdir(wd)):
         if not os.path.isdir(s) or os.path.basename(s)[:6] != "series":
             continue
-        print(os.path.basename(s))
         num_seq += 1
         os.chdir(s)
         with open('sequence.json', 'r') as file:
             seq = json.load(file)
         # lookup comparison result for 10th commit
         tenth = os.path.join(s, "out", "10")
+        precision10 = None
         if os.path.isdir(tenth):
-            print("in tenth")
             precision10 = utils.extract_precision_from_compare_log(os.path.join(tenth, "compare", "compare.log"))
-            print(precision10)
-            tenth_sum = {k: tenth_sum.get(k, 0) + precision10.get(k, 0) for k in set(tenth_sum)}
+            if precision10:
+                tenth_sum = {k: tenth_sum.get(k, 0) + precision10.get(k, 0) for k in set(tenth_sum)}
+                num_atleastten += 1
         # lookup final comparison result
         commits = os.listdir(os.path.join(s, "out"))
         commits.sort(key = lambda x: int(x))
+        final_prec = None
+        sumRelCLOC = 0
         for i in commits:
+            with open(os.path.join(s, "out", i, "commit_properties.log"), "r") as f:
+                sumRelCLOC += json.load(f)["relCLOC"]
             if int(i) != 0 and int(i) == len(commits) - 1:
                 last = os.path.join(s, "out", i)
-                # out_compare = os.path.join(last, 'compare') # TODO remove execution of compare_runs
-                # if os.path.basename(s) != "series19" and os.path.basename(s) != "series8":
-                #     if not os.path.isdir(out_compare):
-                #         os.makedirs(out_compare)
-                #         utils.compare_runs(analyzer_dir, os.path.join(s, "file.c"), out_compare, conf, os.path.join(last, "incr", "compare-data-incr"), os.path.join(last, "non-incr", "compare-data-nonincr"))
-                final_prec = utils.extract_precision_from_compare_log(os.path.join(last, "compare", "compare.log"))
-        summary = {"name": os.path.basename(s), "sequence": seq, "final precision": final_prec}
+                comparelog = os.path.join(last, "compare", "compare.log")
+                if os.path.exists(comparelog):
+                    final_prec = utils.extract_precision_from_compare_log(comparelog)
+        summary = {"name": os.path.basename(s), "sequence": seq, "sumRelCLOC": sumRelCLOC, "precision after ten": precision10, "final precision": final_prec, "length": len(seq)}
         seq_summaries.append(summary)
-        os.chdir(results_dir)
-    res = {"seq_summary":  seq_summaries, "tenth_avg": tenth_sum if num_seq == 0 else {k: v / num_seq for k, v in tenth_sum.items()}}
+        os.chdir(wd)
+    res = {"seq_summary":  seq_summaries, "tenth_avg": tenth_sum if num_atleastten == 0 else {k: v / num_atleastten for k, v in tenth_sum.items()}}
     with open("results.json", "w") as f:
         json.dump(res, f, indent=4)
     res
@@ -264,4 +267,4 @@ print("\nanalyze sequences in parallel")
 analyze_seq_in_parallel(seq_list)
 
 print("\nmerge results")
-merge_results(res_dir)
+merge_results()

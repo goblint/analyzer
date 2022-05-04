@@ -12,8 +12,6 @@ if __name__ == '__main__':
 analyzer_dir  = sys.argv[1]
 url = 'https://github.com/facebook/zstd'
 repo_name = 'zstd'
-conf = "zstd-race-deadlock"
-build_script = 'build_compdb_zstd.sh'
 begin = datetime(2021,8,1)
 to = datetime(2022,2,1)
 maxCLOC       = 50
