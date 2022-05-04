@@ -6,6 +6,7 @@ rules:
       - pattern: Cil.typeOfInit
       - pattern: Cil.typeOffset
       - pattern: Cil.get_stmtLoc
+      - pattern: Cil.get_instrLoc
     paths:
       exclude:
         - cilfacade0.ml
