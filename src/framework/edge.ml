@@ -34,6 +34,7 @@ type t =
 [@@deriving eq, to_yojson]
 
 let dn_exp = RenameMapping.dn_exp
+let dn_lval = RenameMapping.dn_lval
 
 let pretty () = function
   | Test (exp, b) -> if b then Pretty.dprintf "Pos(%a)" dn_exp exp else Pretty.dprintf "Neg(%a)" dn_exp exp
@@ -45,10 +46,11 @@ let pretty () = function
   | Ret (None,f) -> Pretty.dprintf "return"
   | ASM (_,_,_) -> Pretty.text "ASM ..."
   | Skip -> Pretty.text "skip"
-  | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
+  | VDecl v -> RenameMapping.incremental_aware_printer#pVDecl () v
   | SelfLoop -> Pretty.text "SelfLoop"
 
 let d_exp = RenameMapping.d_exp
+let d_lval = RenameMapping.d_lval
 
 let pretty_plain () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv

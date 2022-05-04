@@ -26,8 +26,8 @@ struct
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      "(" ^ x.vname ^ ", " ^ description ^ ")"
-    else x.vname
+      "(" ^ RenameMapping.show_varinfo x ^ ", " ^ description ^ ")"
+    else RenameMapping.show_varinfo x
   let pretty () x = Pretty.text (show x)
   let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
   let get_location x = x.vdecl

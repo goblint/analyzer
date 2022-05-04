@@ -146,7 +146,7 @@ struct
     if !GU.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so the apron env is empty... *)
     else (
-      if M.tracing then M.traceli "apron" "assign %a = %a\n" d_lval lv d_exp e;
+      if M.tracing then M.traceli "apron" "assign %a = %a\n" RenameMapping.d_lval lv d_exp e;
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
