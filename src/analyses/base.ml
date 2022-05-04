@@ -218,6 +218,19 @@ struct
       | Some (x, o) -> Addr.from_var_offset (x, addToOffset n (Some x.vtype) o)
       | None -> default addr
     in
+    let addToAddrOp p n =
+      match op with
+      (* For array indexing e[i] and pointer addition e + i we have: *)
+      | IndexPI | PlusPI ->
+        `Address (AD.map (addToAddr n) p)
+      (* Pointer subtracted by a value (e-i) is very similar *)
+      (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
+      | MinusPI ->
+        let n = ID.neg (ID.cast_to (Cilfacade.ptrdiff_ikind ()) n) in
+        `Address (AD.map (addToAddr n) p)
+      | Mod -> `Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
+      | _ -> `Address AD.top_ptr
+    in
     (* The main function! *)
     match a1,a2 with
     (* For the integer values, we apply the domain operator *)
@@ -231,19 +244,13 @@ struct
       `Int (match ID.to_bool n, AD.to_bool p with
           | Some a, Some b -> ID.of_bool ik (op=Eq && a=b || op=Ne && a<>b)
           | _ -> bool_top ik)
-    | `Address p, `Int n  -> begin
-        match op with
-        (* For array indexing e[i] and pointer addition e + i we have: *)
-        | IndexPI | PlusPI ->
-          `Address (AD.map (addToAddr n) p)
-        (* Pointer subtracted by a value (e-i) is very similar *)
-        (* Cast n to the (signed) ptrdiff_ikind, then add the its negated value. *)
-        | MinusPI ->
-          let n = ID.neg (ID.cast_to (Cilfacade.ptrdiff_ikind ()) n) in
-          `Address (AD.map (addToAddr n) p)
-        | Mod -> `Int (ID.top_of (Cilfacade.ptrdiff_ikind ())) (* we assume that address is actually casted to int first*)
-        | _ -> `Address AD.top_ptr
-      end
+    | `Address p, `Int n  ->
+      addToAddrOp p n
+    | `Address p, `Top ->
+      (* same as previous, but with Unknown instead of int *)
+      (* TODO: why does this even happen in zstd-thread-pool-add? *)
+      let n = ID.top_of (Cilfacade.ptrdiff_ikind ()) in (* pretend to have unknown ptrdiff int instead *)
+      addToAddrOp p n
     (* If both are pointer values, we can subtract them and well, we don't
      * bother to find the result in most cases, but it's an integer. *)
     | `Address p1, `Address p2 -> begin
@@ -720,17 +727,22 @@ struct
           let cast_ok = function
             | Addr (x, o) ->
               begin
-                match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf (get_type_addr (x, o))) with
-                | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
-                | _ ->
-                  if contains_vla t || contains_vla (get_type_addr (x, o)) then
-                    begin
-                      (* TODO: Is this ok? *)
-                      M.warn "Casting involving a VLA is assumed to work";
-                      true
-                    end
-                  else
-                    false
+                let at = get_type_addr (x, o) in
+                if M.tracing then M.tracel "evalint" "cast_ok %a %a %a\n" Addr.pretty (Addr (x, o)) CilType.Typ.pretty (Cil.unrollType x.vtype) CilType.Typ.pretty at;
+                if at = TVoid [] then (* HACK: cast from alloc variable is always fine *)
+                  true
+                else
+                  match Cil.getInteger (sizeOf t), Cil.getInteger (sizeOf at) with
+                  | Some i1, Some i2 -> Cilint.compare_cilint i1 i2 <= 0
+                  | _ ->
+                    if contains_vla t || contains_vla (get_type_addr (x, o)) then
+                      begin
+                        (* TODO: Is this ok? *)
+                        M.warn "Casting involving a VLA is assumed to work";
+                        true
+                      end
+                    else
+                      false
               end
             | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
             | _ -> false
@@ -2311,6 +2323,39 @@ struct
           set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, false))));
                                   (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
         | _ -> st
+      end
+    | `Realloc (p, size) ->
+      begin match lv with
+        | Some lv ->
+          let ask = Analyses.ask_of_ctx ctx in
+          let p_rv = eval_rv ask gs st p in
+          let p_addr =
+            match p_rv with
+            | `Address a -> a
+            (* TODO: don't we already have logic for this? *)
+            | `Int i when ID.to_int i = Some BI.zero -> AD.null_ptr
+            | `Int i -> AD.top_ptr
+            | _ -> AD.top_ptr (* TODO: why does this ever happen? *)
+          in
+          let p_addr' = AD.remove NullPtr p_addr in (* realloc with NULL is same as malloc, remove to avoid unknown value from NullPtr access *)
+          let p_addr_get = get ask gs st p_addr' None in (* implicitly includes join of malloc value (VD.bot) *)
+          let size_int = eval_int ask gs st size in
+          let heap_val = `Blob (p_addr_get, size_int, true) in (* copy old contents with new size *)
+          let heap_addr = AD.from_var (heap_var ctx) in
+          let heap_addr' =
+            if get_bool "sem.malloc.fail" then
+              AD.join heap_addr AD.null_ptr
+            else
+              heap_addr
+          in
+          let lv_addr = eval_lv ask gs st lv in
+          set_many ~ctx ask gs st [
+            (heap_addr, TVoid [], heap_val);
+            (lv_addr, Cilfacade.typeOfLval lv, `Address heap_addr');
+          ]
+          (* TODO: free (i.e. invalidate) old blob if successful? *)
+        | None ->
+          st
       end
     | `Unknown "__goblint_unknown" ->
       begin match args with
