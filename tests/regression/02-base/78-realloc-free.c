@@ -1,4 +1,5 @@
-// PARAM: --enable ana.race.free
+// PARAM: --disable ana.race.free
+// copy of 02-base/76-realloc with different PARAM
 #include <stdlib.h>
 #include <assert.h>
 #include <pthread.h>
@@ -33,7 +34,7 @@ void test2() {
 
 void* test3_f(void *arg) {
   int *p = arg;
-  int x = *p; // RACE!
+  int x = *p; // NORACE
   return NULL;
 }
 
@@ -41,7 +42,7 @@ void test3() {
   int *p = malloc(sizeof(int));
   pthread_t id;
   pthread_create(&id, NULL, test3_f, p);
-  realloc(p, sizeof(int)); // RACE!
+  realloc(p, sizeof(int)); // NORACE
 }
 
 int main() {

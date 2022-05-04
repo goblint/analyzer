@@ -153,6 +153,12 @@ struct
     | `Read  -> o
     | `Free  -> i
 
+  let readsFrees rs fs a x =
+    match a with
+    | `Write -> []
+    | `Read  -> keep rs x
+    | `Free  -> keep fs x
+
   let onlyReads ns a x =
     match a with
     | `Write -> []
@@ -452,7 +458,7 @@ let invalidate_actions = [
     "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
-    "realloc", writes [1];(*unsafe*) (* TODO: replace write with free+read *)
+    "realloc", readsFrees [0; 1] [0]; (* read+free first argument, read second argument *)
     "setrlimit", readsAll; (*safe*)
     "getrlimit", writes [2]; (*keep [2]*)
     "sem_init", readsAll; (*safe*)
