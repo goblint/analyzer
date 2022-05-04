@@ -4,6 +4,21 @@ module JS = Json_schema.Make (Json_repr.Yojson)
 module JE = Json_encoding.Make (Json_repr.Yojson)
 module JQ = Json_query.Make (Json_repr.Yojson)
 
+(* copied & modified from json_encoding.ml *)
+let unexpected kind expected =
+  let kind =
+    match Json_repr.from_yojson kind with
+    | `O [] -> "empty object"
+    | `A [] -> "empty array"
+    | `O _ -> "object"
+    | `A _ -> "array"
+    | `Null -> "null"
+    | `String _ -> "string"
+    | `Float _ -> "number"
+    | `Bool _ -> "boolean"
+  in
+  Json_encoding.Cannot_destruct ([], Json_encoding.Unexpected (kind, expected))
+
 let schema_to_yojson schema = JS.to_json schema
 let schema_of_yojson json = JS.of_json json
 
@@ -33,7 +48,7 @@ let rec encoding_of_schema_element (top: unit Json_encoding.encoding) (schema_el
   | Id_ref "" ->
     top
   | Object object_specs ->
-    List.fold_left (fun acc (name, element, required, _) ->
+    let properties_encoding = List.fold_left (fun acc (name, element, required, _) ->
         let field =
           if required then
             req name (encoding_of_schema_element top element)
@@ -41,7 +56,28 @@ let rec encoding_of_schema_element (top: unit Json_encoding.encoding) (schema_el
             dft name (encoding_of_schema_element top element) ()
         in
         erase @@ merge_objs acc (obj1 field)
-      ) (Option.map_default (encoding_of_schema_element top) empty object_specs.additional_properties) object_specs.properties
+      ) empty object_specs.properties
+    in
+    begin match object_specs.additional_properties with
+      | Some additional_properties ->
+        let additional_encoding = encoding_of_schema_element top additional_properties in
+        JE.custom (fun _ -> failwith "erase construct") (function
+            | `Assoc fields ->
+              let is_properties_field (name, _) = List.exists (fun (name', _, _, _) -> name = name') object_specs.properties in
+              let (properties_fields, additional_fields) = List.partition is_properties_field fields in
+              JE.destruct properties_encoding (`Assoc properties_fields);
+              List.iter (fun (name, value) ->
+                  try
+                    JE.destruct additional_encoding value
+                  with Cannot_destruct (path, err) ->
+                    raise (Cannot_destruct (`Field name :: path, err))
+                ) additional_fields
+            | j ->
+              raise (unexpected j "object")
+          ) ~schema:(Json_schema.create schema_element)
+      | None ->
+        properties_encoding
+    end
   | _ -> failwith (Format.asprintf "encoding_of_schema_element: %a" Json_schema.pp (Json_schema.create schema_element))
 
 let encoding_of_schema (schema: Json_schema.schema): unit Json_encoding.encoding =
@@ -50,23 +86,30 @@ let encoding_of_schema (schema: Json_schema.schema): unit Json_encoding.encoding
 
 open Json_schema
 
-let rec element_defaults (element: element): Yojson.Safe.t =
+let rec element_defaults ?additional_field (element: element): Yojson.Safe.t =
   match element.default with
   | Some default ->
     Json_repr.any_to_repr (module Json_repr.Yojson) default
   | None ->
     begin match element.kind with
       | Object object_specs ->
-        `Assoc (List.map (fun (name, field_element, _, _) ->
-            (name, element_defaults field_element)
+        let additional = match additional_field, object_specs.additional_properties with
+          | Some additional_field, Some additional_properties ->
+            (* create additional field with the additionalProperties default value for lookup in GobConfig *)
+            [(additional_field, element_defaults ~additional_field additional_properties)]
+          | _, _ ->
+            []
+        in
+        `Assoc (additional @ List.map (fun (name, field_element, _, _) ->
+            (name, element_defaults ?additional_field field_element)
           ) object_specs.properties)
       | _ ->
         Format.printf "%a\n" Json_schema.pp (create element);
         failwith "element_defaults"
     end
 
-let schema_defaults (schema: schema): Yojson.Safe.t =
-  element_defaults (root schema)
+let schema_defaults ?additional_field (schema: schema): Yojson.Safe.t =
+  element_defaults ?additional_field (root schema)
 
 let create_schema element =
   create @@ { element with id = Some "" } (* add id to make create defs check happy for phases Id_ref, doesn't get outputted apparently *)
@@ -110,6 +153,7 @@ module Validator (Schema: Schema) =
 struct
   let schema_encoding = encoding_of_schema Schema.schema
 
+  (** Raises [Json_encoding.Cannot_destruct] if invalid. *)
   let validate_exn json = JE.destruct schema_encoding json
 
   (* TODO: bool-returning validate? *)

@@ -88,7 +88,15 @@ struct
     let bot () = failwith "VIE bot"
     let is_bot _ = failwith "VIE is_bot"
 
-    let pretty_diff () _ = failwith "VIE pretty_diff"
+    let pretty_diff () (((v, c, x'), e), ((w, d, y'), f)) =
+      if not (Node.equal v w) then
+        Pretty.dprintf "%a not equal %a" Node.pretty v Node.pretty w
+      else if not (Spec.C.equal c d) then
+        Pretty.dprintf "%a not equal %a" Spec.C.pretty c Spec.C.pretty d
+      else if not (Edge.equal e f) then
+        Pretty.dprintf "%a not equal %a" Edge.pretty e Edge.pretty f
+      else
+        I.pretty_diff () (x', y')
   end
   (* Bot is needed for Hoare widen *)
   (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)

@@ -39,6 +39,11 @@ let classify' fn exps =
       | size::_ -> `Malloc size
       | _ -> strange_arguments ()
     end
+  | "ZSTD_customMalloc" -> (* only used with extraspecials *)
+    begin match exps with
+      | size::_ -> `Malloc size
+      | _ -> strange_arguments ()
+    end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
@@ -47,6 +52,11 @@ let classify' fn exps =
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
+      | _ -> strange_arguments ()
+    end
+  | "ZSTD_customCalloc" -> (* only used with extraspecials *)
+    begin match exps with
+      | size::_ -> `Calloc (Cil.one, size)
       | _ -> strange_arguments ()
     end
   | "realloc" ->
@@ -60,6 +70,7 @@ let classify' fn exps =
       | _ -> M.warn "Assert argument mismatch!"; `Unknown fn
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
+  | "down_trylock"
     -> `Lock(true, true, true)
   | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
     -> `Lock (true, true, false)
@@ -69,7 +80,8 @@ let classify' fn exps =
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
-  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
+  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
+  | "spin_lock_irqsave" | "spin_lock"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
@@ -78,16 +90,16 @@ let classify' fn exps =
     -> `Lock (get_bool "sem.lock.fail", false, true)
   | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
-  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
+  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
+  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
+  | "up"
     -> `Unlock
   | x -> `Unknown x
 
 let classify fn exps =
   if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
-type action = [ `Write | `Read ]
 
 module Invalidate =
 struct
@@ -112,48 +124,64 @@ struct
     match a with
     | `Write -> f a x @ drop n x
     | `Read  -> f a x
+    | `Free  -> []
 
   let readsAllButFirst n f a x =
     match a with
     | `Write -> f a x
     | `Read  -> f a x @ drop n x
+    | `Free  -> []
 
   let reads ns a x =
     let i, o = partition ns x in
     match a with
     | `Write -> o
     | `Read  -> i
+    | `Free  -> []
 
   let writes ns a x =
     let i, o = partition ns x in
     match a with
     | `Write -> i
     | `Read  -> o
+    | `Free  -> []
+
+  let frees ns a x =
+    let i, o = partition ns x in
+    match a with
+    | `Write -> []
+    | `Read  -> o
+    | `Free  -> i
 
   let onlyReads ns a x =
     match a with
     | `Write -> []
     | `Read  -> keep ns x
+    | `Free  -> []
 
   let onlyWrites ns a x =
     match a with
     | `Write -> keep ns x
     | `Read  -> []
+    | `Free  -> []
 
   let readsWrites rs ws a x =
     match a with
     | `Write -> keep ws x
     | `Read  -> keep rs x
+    | `Free  -> []
 
   let readsAll a x =
     match a with
     | `Write -> []
     | `Read  -> x
+    | `Free  -> []
 
   let writesAll a x =
     match a with
     | `Write -> x
     | `Read  -> []
+    | `Free  -> []
 end
 
 open Invalidate
@@ -167,24 +195,39 @@ let invalidate_actions = [
     "GetSpinlock", readsAll;
     "ReleaseSpinlock", readsAll;
     "atoi", readsAll;             (*safe*)
+    "__builtin_ctz", readsAll;
+    "__builtin_ctzl", readsAll;
+    "__builtin_ctzll", readsAll;
+    "__builtin_clz", readsAll;
     "bzero", writes [1]; (*keep 1*)
+    "__builtin_bzero", writes [1]; (*keep [1]*)
+    "explicit_bzero", writes [1];
+    "__explicit_bzero_chk", writes [1];
     "connect", readsAll;          (*safe*)
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
     "fopen", readsAll;            (*safe*)
+    "fdopen", readsAll;           (*safe*)
+    "setvbuf", writes[1;2];       (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
+                                  (* as any future write (or flush) of the stream could result in a write to the buffer *)
     "fprintf", writes [1];          (*keep [1]*)
     "__fprintf_chk", writes [1];    (*keep [1]*)
-    "fread", writes [1];            (*keep [1]*)
-    "free", writesAll; (*unsafe*)
+    "fread", writes [1;4];
+    "__fread_alias", writes [1;4];
+    "__fread_chk", writes [1;4];
+    "utimensat", readsAll;
+    "free", frees [1]; (*unsafe*)
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
     "memcpy", writes [1];(*keep [1]*)
+    "__builtin_memcpy", writes [1];(*keep [1]*)
     "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
     "__builtin___mempcpy_chk", writes [1];
-    "memset", writesAll;(*unsafe*)
-    "__builtin___memset_chk", writesAll;
+    "memset", writes [1];(*unsafe*)
+    "__builtin_memset", writes [1];(*unsafe*)
+    "__builtin___memset_chk", writes [1];
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
@@ -214,6 +257,7 @@ let invalidate_actions = [
     "scanf",  writesAllButFirst 1 readsAll;(*drop 1*)
     "send", readsAll;(*safe*)
     "snprintf", writes [1];(*keep [1]*)
+    "__builtin___snprintf_chk", writes [1];(*keep [1]*)
     "sprintf", writes [1];(*keep [1]*)
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
     "strcmp", readsAll;(*safe*)
@@ -244,12 +288,15 @@ let invalidate_actions = [
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
+    "strtol", writes [2];
     "geteuid", readsAll;(*safe*)
     "opendir", readsAll;  (*safe*)
     "readdir_r", writesAll;(*unsafe*)
     "atoi__extinline", readsAll;(*safe*)
     "getpid", readsAll;(*safe*)
     "fgetc", writesAll;(*unsafe*)
+    "getc", writesAll;(*unsafe*)
+    "_IO_getc", writesAll;(*unsafe*)
     "closedir", writesAll;(*unsafe*)
     "setrlimit", readsAll;(*safe*)
     "chdir", readsAll;(*safe*)
@@ -265,10 +312,12 @@ let invalidate_actions = [
     "pthread_cond_wait", readsAll; (*safe*)
     "pthread_cond_signal", readsAll;(*safe*)
     "pthread_cond_broadcast", readsAll;(*safe*)
+    "pthread_cond_destroy", readsAll;(*safe*)
     "__pthread_cond_init", readsAll; (*safe*)
     "__pthread_cond_wait", readsAll; (*safe*)
     "__pthread_cond_signal", readsAll;(*safe*)
     "__pthread_cond_broadcast", readsAll;(*safe*)
+    "__pthread_cond_destroy", readsAll;(*safe*)
     "pthread_key_create", writesAll;(*unsafe*)
     "sigemptyset", writesAll;(*unsafe*)
     "sigaddset", writesAll;(*unsafe*)
@@ -291,11 +340,15 @@ let invalidate_actions = [
     "umount2", readsAll;(*safe*)
     "memchr", readsAll;(*safe*)
     "memmove", writes [2;3];(*keep [2;3]*)
+    "__builtin_memmove", writes [2;3];(*keep [2;3]*)
+    "__builtin___memmove_chk", writes [2;3];(*keep [2;3]*)
     "waitpid", readsAll;(*safe*)
     "statfs", writes [1;3;4];(*keep [1;3;4]*)
     "mkdir", readsAll;(*safe*)
     "mount", readsAll;(*safe*)
     "open", readsAll;(*safe*)
+    "__open_alias", readsAll;(*safe*)
+    "__open_2", readsAll;(*safe*)
     "fcntl", readsAll;(*safe*)
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
@@ -313,8 +366,13 @@ let invalidate_actions = [
     "textdomain", readsAll;(*safe*)
     "dcgettext", readsAll;(*safe*)
     "syscall", writesAllButFirst 1 readsAll;(*drop 1*)
+    "sysconf", readsAll;
     "fputs", readsAll;(*safe*)
     "fputc", readsAll;(*safe*)
+    "fseek", writes[1];
+    "fileno", readsAll;
+    "ferror", readsAll;
+    "ftell", readsAll;
     "putc", readsAll;(*safe*)
     "putw", readsAll;(*safe*)
     "putchar", readsAll;(*safe*)
@@ -358,7 +416,6 @@ let invalidate_actions = [
     "__maskrune", writesAll; (*unsafe*)
     "inet_addr", readsAll; (*safe*)
     "gethostbyname", readsAll; (*safe*)
-    "__builtin_bzero", writes [1]; (*keep [1]*)
     "setsockopt", readsAll; (*safe*)
     "listen", readsAll; (*safe*)
     "getsockname", writes [1;3]; (*keep [1;3]*)
@@ -368,7 +425,10 @@ let invalidate_actions = [
     "accept", writesAll; (*keep [1]*)
     "getpeername", writes [1]; (*keep [1]*)
     "times", writesAll; (*unsafe*)
+    "timespec_get", writes [1];
     "fgets", writes [1;3]; (*keep [3]*)
+    "__fgets_alias", writes [1;3]; (*keep [3]*)
+    "__fgets_chk", writes [1;3]; (*keep [3]*)
     "strtoul", readsAll; (*safe*)
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
@@ -377,7 +437,10 @@ let invalidate_actions = [
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
     "uncompress", writes [3;4]; (*keep [3;4]*)
-    "stat", writes [1]; (*keep [1]*)
+    "stat", writes [2]; (*keep [1]*)
+    "__xstat", writes [3]; (*keep [1]*)
+    "__lxstat", writes [3]; (*keep [1]*)
+    "remove", readsAll;
     "BZ2_bzBuffToBuffCompress", writes [3;4]; (*keep [3;4]*)
     "compress2", writes [3]; (*keep [3]*)
     "__toupper", readsAll; (*safe*)
@@ -405,6 +468,7 @@ let invalidate_actions = [
     "htons", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
     "mmap", readsAll;(*safe*)
+    "clock", readsAll;
     "pthread_rwlock_wrlock", readsAll;
     "pthread_rwlock_trywrlock", readsAll;
     "pthread_rwlock_rdlock", readsAll;
@@ -419,6 +483,8 @@ let invalidate_actions = [
     "__builtin_bswap32", readsAll;
     "__builtin_bswap64", readsAll;
     "__builtin_bswap128", readsAll;
+    "__builtin_va_arg_pack_len", readsAll;
+    "__open_too_many_args", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
     "dev_driver_string", readsAll;
     "dev_driver_string", readsAll;
@@ -435,7 +501,20 @@ let invalidate_actions = [
     (* prevent base from spawning ARINC processes early, handled by arinc/extract_arinc *)
     (* "LAP_Se_SetPartitionMode", writes [2]; *)
     "LAP_Se_CreateProcess", writes [2; 3];
-    "LAP_Se_CreateErrorHandler", writes [2; 3]
+    "LAP_Se_CreateErrorHandler", writes [2; 3];
+    "isatty", readsAll;
+    "setpriority", readsAll;
+    "getpriority", readsAll;
+    (* ddverify *)
+    "spin_lock_init", readsAll;
+    "spin_lock", readsAll;
+    "spin_unlock", readsAll;
+    "spin_unlock_irqrestore", readsAll;
+    "spin_lock_irqsave", readsAll;
+    "sema_init", readsAll;
+    "down_trylock", readsAll;
+    "up", readsAll;
+    "ZSTD_customFree", frees [1]; (* only used with extraspecials *)
   ]
 
 (* used by get_invalidate_action to make sure

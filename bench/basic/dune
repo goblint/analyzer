@@ -1,0 +1,4 @@
+(executable
+ (name benchTuple4)
+ (optional) ; TODO: for some reason this doesn't work: `dune build` still tries to compile if benchmark missing (https://github.com/ocaml/dune/issues/4065)
+ (libraries benchmark batteries.unthreaded))

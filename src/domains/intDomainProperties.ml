@@ -13,7 +13,7 @@ sig
   val to_bool: t -> bool option
   val of_excl_list: Cil.ikind -> BI.t list -> t
   val is_excl_list: t -> bool
-  val to_excl_list: t -> BI.t list option
+  val to_excl_list: t -> (BI.t list * (int64 * int64)) option
 end
 
 module type OldSWithIkind =
@@ -67,9 +67,14 @@ struct
   let arbitrary () = arbitrary (Ik.ikind ())
 end
 
-module IntegerSet =
+(* TODO: add ikinds to operators, arbitrary instead? *)
+module IntegerSet (Ikind: IntDomain.Ikind) =
 struct
-  module Base = IntDomain.Integers(IntOps.BigIntOps)
+  module Base =
+  struct
+    include IntDomain.Integers(IntOps.BigIntOps)
+    let arbitrary () = QCheck.map_same_type (IntDomain.BigInt.cast_to (Ikind.ikind ())) (arbitrary ())
+  end
 
   include SetDomain.Make(Base)
 
@@ -104,16 +109,10 @@ struct
   let logor  = lift2 Base.logor
 end
 
-module CD = IntegerSet
-module AF (AD: OldS) =
-struct
-  let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
-  let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int c) x) s
-end
 
-module Valid (AD: OldSWithIkind): DomainProperties.S =
+module Valid (CD: (module type of IntegerSet (IntDomain.PtrDiffIkind))) (AD: OldSWithIkind) (AF: AbstractionDomainProperties.AbstractFunction with type c := CD.t and type a := AD.t): DomainProperties.S =
 struct
-  include AbstractionDomainProperties.ValidTest (CD) (AD) (AF (AD))
+  include AbstractionDomainProperties.ValidTest (CD) (AD) (AF)
 
   let not_bot a = not (CD.is_empty a)
   let none_bot (a,b) = not_bot a && not_bot b
@@ -181,8 +180,18 @@ end
 module All (D: OldSWithIkind): DomainProperties.S =
 struct
   module A = DomainProperties.All (D)
-  module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))
-  module V = Valid (D)
+
+  (* TODO: deduplicate *)
+  module AD = D
+  module CD = IntegerSet (AD.Ikind)
+  module AF =
+  struct
+    let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
+    let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int c) x) s
+  end
+
+  module M = AbstractionDomainProperties.Monotone (CD) (D) (AF)
+  module V = Valid (CD) (D) (AF)
 
   let tests = A.tests @ M.tests @ V.tests
 end
@@ -190,8 +199,17 @@ end
 module AllNonAssoc (D: OldSWithIkind): DomainProperties.S =
 struct
   module A = DomainProperties.AllNonAssoc (D)
-  module M = AbstractionDomainProperties.Monotone (CD) (D) (AF (D))
-  module V = Valid (D)
+
+  module AD = D
+  module CD = IntegerSet (AD.Ikind)
+  module AF =
+  struct
+    let abstract s = CD.fold (fun c a -> AD.join (AD.of_int c) a) s (AD.bot ())
+    let check_leq s x  = CD.for_all (fun c -> AD.leq (AD.of_int c) x) s
+  end
+
+  module M = AbstractionDomainProperties.Monotone (CD) (D) (AF)
+  module V = Valid (CD) (D) (AF)
 
   let tests = A.tests @ M.tests @ V.tests
 end

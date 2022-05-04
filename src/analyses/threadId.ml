@@ -34,7 +34,7 @@ struct
   let name () = "threadid"
 
   let startstate v = (ThreadLifted.bot (), TD.bot ())
-  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
+  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 
   let morphstate v _ =
     let tid = Thread.threadinit v ~multiple:false in
@@ -96,25 +96,20 @@ struct
 
   module A =
   struct
-    (* Also contains MHP in addition to unique thread. *)
-    include Printable.Prod (Printable.Option (ThreadLifted) (struct let name = "nonunique" end)) (MHP)
-    let name () = "thread * mhp"
+    include Printable.Option (ThreadLifted) (struct let name = "nonunique" end)
+    let name () = "thread"
     let may_race (t1: t) (t2: t) = match t1, t2 with
-      | (Some t1, _), (Some t2, _) when ThreadLifted.equal t1 t2 -> false
-      | (_, mhp1), (_, mhp2) when not (MHP.may_happen_in_parallel mhp1 mhp2) -> false
-      | (_, _), (_, _) -> true
-    let should_print _ = true
+      | Some t1, Some t2 when ThreadLifted.equal t1 t2 -> false (* only unique threads *)
+      | _, _ -> true
+    let should_print = Option.is_some
   end
-  let access ctx e vo w =
-    let unique =
-      if is_unique ctx then
-        let tid = fst ctx.local in
-        Some tid
-      else
-        None
-    in
-    let mhp: MHP.t = {tid = fst ctx.local; created = created ctx.local; must_joined = ctx.ask MustJoinedThreads} in
-    (unique, mhp)
+
+  let access ctx _ =
+    if is_unique ctx then
+      let tid = fst ctx.local in
+      Some tid
+    else
+      None
 
   let threadenter ctx lval f args =
     let+ tid = create_tid ctx.local ctx.prev_node f in

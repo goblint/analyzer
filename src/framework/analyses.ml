@@ -266,25 +266,14 @@ struct
     | "sarif" ->
       let open BatPrintf in
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
-      Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
+      Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
-      let files =
-        let module SH = BatHashtbl.Make (Basetype.RawStrings) in
-        let files = SH.create 100 in
-        iterGlobals file (function
-            | GFun (_, loc)
-            | GVar (_, _, loc) ->
-              SH.replace files loc.file (Hashtbl.find_option Preprocessor.dependencies loc.file)
-            | _ -> () (* TODO: add locs from everything else? would also include system headers *)
-          );
-        files |> SH.to_list
-      in
       let json = `Assoc [
-          ("files", `Assoc (List.map (Tuple2.map2 [%to_yojson: string list option]) files));
+          ("files", Preprocessor.dependencies_to_yojson ());
           ("messages", Messages.Table.to_yojson ());
         ]
       in
-      Yojson.Safe.pretty_to_channel ~std:true out json
+      Yojson.Safe.to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -310,12 +299,11 @@ type ('d,'g,'c,'v) ctx =
   ; edge     : MyCFG.edge
   ; local    : 'd
   ; global   : 'v -> 'g
-  ; presub   : (string * Obj.t) list
-  ; postsub  : (string * Obj.t) list
+  ; presub   : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
+  ; postsub  : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
-  ; assign   : ?name:string -> lval -> exp -> unit
   }
 
 exception Ctx_failure of string
@@ -401,7 +389,7 @@ sig
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   module A: MCPA
-  val access: (D.t, G.t, C.t, V.t) ctx -> exp -> varinfo option -> bool -> A.t
+  val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
 end
 
 type analyzed_data = {
@@ -579,7 +567,7 @@ struct
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
   module A = UnitA
-  let access _ _ _ _ = ()
+  let access _ _ = ()
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

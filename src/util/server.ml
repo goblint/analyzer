@@ -4,8 +4,8 @@ open Jsonrpc
 exception Failure of Response.Error.Code.t * string
 
 type t = {
-  file: Cil.file;
-  do_analyze: Analyses.increment_data -> Cil.file -> unit;
+  mutable file: Cil.file;
+  mutable max_ids: MaxIdUtil.max_ids;
   input: IO.input;
   output: unit IO.output;
 }
@@ -69,20 +69,23 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
 
 let serve serv =
   serv.input
-  |> IO.to_input_channel
-  |> Yojson.Safe.linestream_from_channel
-  |> Stream.iter (fun line ->
-      match line with
-      | `Json json -> (
-          try
-            let message = Message.either_of_yojson json in
-            match message.id with
-            | Some id -> handle_request serv message id
-            | _ -> () (* We just ignore notifications for now. *)
-          with Json.Of_json (s, _) -> prerr_endline s)
-      | `Exn exn -> prerr_endline (Printexc.to_string exn))
+  |> Lexing.from_channel
+  |> GobYojson.seq_from_lexbuf (Yojson.init_lexer ())
+  |> Seq.iter (fun json ->
+      let message = Message.either_of_yojson json in
+      match message.id with
+      | Some id -> handle_request serv message id
+      | _ -> () (* We just ignore notifications for now. *)
+    )
 
-let make ?(input=stdin) ?(output=stdout) file do_analyze : t = { file; do_analyze; input; output }
+let make ?(input=stdin) ?(output=stdout) file : t =
+  let max_ids = MaxIdUtil.get_file_max_ids file in
+  {
+    file;
+    max_ids;
+    input;
+    output
+  }
 
 let bind () =
   let mode = GobConfig.get_string "server.mode" in
@@ -98,29 +101,60 @@ let bind () =
     Sys.remove path;
     Some (Unix.input_of_descr conn), Some (Unix.output_of_descr conn))
 
-let start file do_analyze =
+let start file =
   let input, output = bind () in
   GobConfig.set_bool "incremental.save" true;
-  serve (make file do_analyze ?input ?output)
+  serve (make file ?input ?output)
 
-let analyze ?(reset=false) ({ file; do_analyze; _ }: t)=
-  if reset then (
-    Serialize.server_solver_data := None;
-    Serialize.server_analysis_data := None;
-    Messages.Table.(MH.clear messages_table);
-    Messages.Table.messages_list := []);
-  let increment_data, fresh = match !Serialize.server_solver_data with
-    | Some solver_data ->
-      let changes = CompareCIL.compareCilFiles file file in
-      let old_data = Some { Analyses.cil_file = file; solver_data } in
-      { Analyses.changes; old_data; new_file = file }, false
-    | _ -> Analyses.empty_increment_data file, true
+let reparse (s: t) =
+  if GobConfig.get_bool "server.reparse" then (
+    GoblintDir.init ();
+    Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge, true)
+  else s.file, false
+
+(* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
+let virtual_changes file =
+  let eq (glob: Cil.global) _ _ = match glob with
+    | GFun (fdec, _) -> not (CompareCIL.should_reanalyze fdec), false, None
+    | _ -> true, false, None
   in
-  GobConfig.set_bool "incremental.load" (not fresh);
-  do_analyze increment_data file;
-  GobConfig.set_bool "incremental.load" true
+  CompareCIL.compareCilFiles ~eq file file
 
-(* TODO: Add command to abort the analysis in progress. *)
+let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
+  | Some solver_data when reparsed ->
+    let changes = CompareCIL.compareCilFiles s.file file in
+    let old_data = Some { Analyses.cil_file = s.file; solver_data } in
+    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file changes;
+    { Analyses.changes; old_data; new_file = file }, false
+  | Some solver_data ->
+    let changes = virtual_changes file in
+    let old_data = Some { Analyses.cil_file = file; solver_data } in
+    { Analyses.changes; old_data; new_file = file }, false
+  | _ -> Analyses.empty_increment_data file, true
+
+let analyze ?(reset=false) (s: t) =
+  Messages.Table.(MH.clear messages_table);
+  Messages.Table.messages_list := [];
+  let file, reparsed = reparse s in
+  if reset then (
+    let max_ids = MaxIdUtil.get_file_max_ids file in
+    s.max_ids <- max_ids;
+    Serialize.server_solver_data := None;
+    Serialize.server_analysis_data := None);
+  let increment_data, fresh = increment_data s file reparsed in
+  Cilfacade.reset_lazy ();
+  WideningThresholds.reset_lazy ();
+  IntDomain.reset_lazy ();
+  ApronDomain.reset_lazy ();
+  Access.reset ();
+  s.file <- file;
+  GobConfig.set_bool "incremental.load" (not fresh);
+  Fun.protect ~finally:(fun () ->
+      GobConfig.set_bool "incremental.load" true
+    ) (fun () ->
+      Maingoblint.do_analyze increment_data s.file
+    )
+
 let () =
   let register = Registry.register registry in
 
@@ -128,11 +162,17 @@ let () =
     let name = "analyze"
     type params = { reset: bool [@default false] } [@@deriving of_yojson]
     (* TODO: Return analysis results as JSON. Useful for GobPie. *)
-    type response = unit [@@deriving to_yojson]
-    (* TODO: Add option to re-parse the input files. *)
+    type status = Success | VerifyError | Aborted [@@deriving to_yojson]
+    type response = { status: status } [@@deriving to_yojson]
     (* TODO: Add options to control the analysis precision/context for specific functions. *)
     (* TODO: Add option to mark functions as modified. *)
-    let process { reset } serve = analyze serve ~reset
+    let process { reset } serve =
+      try
+        analyze serve ~reset;
+        {status = if !Goblintutil.verified = Some false then VerifyError else Success}
+      with Sys.Break ->
+        assert (GobConfig.get_bool "ana.opt.hashcons"); (* TODO: TD3 doesn't copy input solver data, so will modify it in place and screw up Serialize.server_solver_data accidentally *)
+        {status = Aborted}
   end);
 
   register (module struct
@@ -160,7 +200,14 @@ let () =
     let name = "messages"
     type params = unit [@@deriving of_yojson]
     type response = Messages.Message.t list [@@deriving to_yojson]
-    let process () _ = !Messages.Table.messages_list
+    let process () _ = Messages.Table.to_list ()
+  end);
+
+  register (module struct
+    let name = "files"
+    type params = unit [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process () _ = Preprocessor.dependencies_to_yojson ()
   end);
 
   register (module struct

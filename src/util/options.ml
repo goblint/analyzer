@@ -28,7 +28,8 @@ let schema =
 
 let require_all = JsonSchema.schema_require_all schema
 
-let defaults = JsonSchema.schema_defaults schema
+let defaults_additional_field = "__additional__" (* this shouldn't conflict with any actual field *)
+let defaults = JsonSchema.schema_defaults ~additional_field:defaults_additional_field schema
 
 let () =
   (* Yojson.Safe.pretty_to_channel (Stdlib.open_out "options.require-all.schema.json") (JsonSchema.schema_to_yojson require_all); *)
@@ -56,6 +57,48 @@ let schema_paths (schema: schema): string list =
   |> List.map BatString.rchop (* remove trailing '.' *)
 
 let paths = schema_paths schema
+
+let rec element_completions (element: element): (string * string list) list =
+  let default_completion () =
+    match element.default with
+    | Some default ->
+      [("", [Yojson.Safe.to_string (Json_repr.any_to_repr (module Json_repr.Yojson) default)])]
+    | None ->
+      [("", [])]
+  in
+  match element.kind with
+  | Integer _
+  | Number _
+  | Monomorphic_array _ ->
+    default_completion ()
+  | Boolean ->
+    [("", ["false"; "true"])]
+  | String string_specs ->
+    begin match element.enum with
+      | None ->
+        default_completion ()
+      | Some enum ->
+        let cs = List.map (fun value ->
+            match Json_repr.any_to_repr (module Json_repr.Yojson) value with
+            | `String value -> value
+            | _ -> failwith "element_completions: string_enum"
+          ) enum
+        in
+        [("", cs)]
+    end
+  | Object object_specs ->
+    List.concat_map (fun (name, field_element, _, _) ->
+        List.map (fun (path, cs) -> (name ^ "." ^ path, cs)) (element_completions field_element)
+      ) object_specs.properties
+  | _ ->
+    Format.printf "%a\n" Json_schema.pp (create element);
+    failwith "element_completions"
+
+let schema_completions (schema: schema): (string * string list) list =
+  element_completions (root schema)
+  |> List.map (BatTuple.Tuple2.map1 BatString.rchop) (* remove trailing '.' *)
+
+let completions = schema_completions schema
 
 let rec pp_options ~levels ppf (element: element) =
   match element.kind with

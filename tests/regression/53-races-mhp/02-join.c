@@ -1,4 +1,4 @@
-//PARAM: --set ana.activated[+] threadJoins
+//PARAM: --set ana.activated[+] mhp --set ana.activated[+] threadJoins
 #include <pthread.h>
 #include <assert.h>
 

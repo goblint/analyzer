@@ -212,14 +212,14 @@ struct
     ctx.local
 
   let body ctx (f:fundec) : D.t =
-    match List.assoc "base" ctx.presub with
-    | Some base ->
+    match ctx.presub "base" with
+    | base ->
       let pid, ctxh, pred = ctx.local in
       let module BaseMain = (val Base.get_main ()) in
       let base_context = BaseMain.context_cpa f @@ Obj.obj base in
       let context_hash = Hashtbl.hash (base_context, pid) in
       pid, Ctx.of_int (Int64.of_int context_hash), pred
-    | None -> ctx.local (* TODO when can this happen? *)
+    | exception Not_found -> ctx.local (* TODO when can this happen? *)
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     ctx.local
@@ -272,13 +272,13 @@ struct
         let assign_id exp id =
           if M.tracing then M.trace "extract_arinc" "assign_id %a %s\n" d_exp exp id.vname;
           match exp with
-          | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+          | AddrOf lval -> ctx.emit (Assign {lval; exp = mkAddrOf @@ var id})
           | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
         in
         (* evaluates an argument and returns a list of possible values for that argument. *)
         let eval = function
           | Pml.EvalSkip -> const None
-          | Pml.EvalInt -> fun e -> Some (try eval_int e with _ -> eval_id e)
+          | Pml.EvalInt -> fun e -> Some (try eval_int e with Failure _ -> eval_id e)
           | Pml.EvalString -> fun e -> Some (List.map (fun x -> "\""^x^"\"") (eval_str e))
           | Pml.EvalEnum f -> fun e -> Some (List.map (fun x -> Option.get (f (int_of_string x))) (eval_int e))
           | Pml.AssignIdOfString (res, pos) -> fun e ->
@@ -382,14 +382,14 @@ struct
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
-    if GobConfig.get_bool "ana.arinc.export" then output_file ~filename:(Goblintutil.create_dir "result/" ^ "arinc.os.pml") ~text:(snd (Pml_arinc.init ()))
+    if GobConfig.get_bool "ana.arinc.export" then output_file ~filename:Fpath.(to_string @@ Goblintutil.create_dir (v "result") / "arinc.os.pml") ~text:(snd (Pml_arinc.init ()))
 
   let finalize () = (* writes out collected cfg *)
     (* TODO call Pml_arinc.init again with the right number of resources to find out of bounds accesses? *)
     if GobConfig.get_bool "ana.arinc.export" then (
-      let path = Goblintutil.create_dir "result" ^ "/arinc.pml" in (* returns abs. path *)
-      output_file ~filename:path ~text:(codegen ());
-      print_endline @@ "Model saved as " ^ path;
+      let path = Fpath.(Goblintutil.create_dir (v "result") / "arinc.pml") in (* returns abs. path *)
+      output_file ~filename:(Fpath.to_string path) ~text:(codegen ());
+      print_endline @@ "Model saved as " ^ (Fpath.to_string path);
       print_endline "Run ./spin/check.sh to verify."
     )
 

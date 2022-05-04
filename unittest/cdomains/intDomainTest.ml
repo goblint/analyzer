@@ -191,14 +191,97 @@ let test_meet _ =
   assert_equal ~printer:T.show tone (T.meet tex0  tone )
 
 let test_ex_set _ =
-  assert_equal (Some [zero; one]) (T.to_excl_list tex10);
-  assert_equal (Some [zero; one]) (T.to_excl_list tex01);
+  assert_equal (Some [zero; one]) (T.to_excl_list tex10 |> Option.map fst);
+  assert_equal (Some [zero; one]) (T.to_excl_list tex01 |> Option.map fst);
   assert_bool  "Not [1;0] is not excl set" (T.is_excl_list tex10);
   assert_bool  "bot is excl set" (not (T.is_excl_list tbot));
   assert_bool  "42  is excl set" (not (T.is_excl_list t42));
   assert_equal (Some true) (T.to_bool tex0);
   assert_equal (Some true) (T.to_bool tex10);
   assert_equal None (T.to_bool tex1)
+
+module Interval =
+struct
+  module I = IntDomain.Interval
+
+  let assert_equal x y =
+    assert_equal ~cmp:I.equal ~printer:I.show x y
+
+  let test_interval_rem _ =
+    let ik = Cil.IInt in
+    assert_equal (I.of_int ik Z.zero) (I.rem ik (I.of_int ik Z.minus_one) (I.of_int ik Z.one))
+
+  let test () = [
+    "test_interval_rem" >:: test_interval_rem;
+  ]
+end
+
+module Congruence =
+struct
+  module C = IntDomain.Congruence
+
+  let assert_equal x y =
+    assert_equal ~cmp:C.equal ~printer:C.show x y
+
+  let test_shift_left _ =
+    let ik = Cil.IBool in
+    assert_equal (C.top_of ik) (C.join ik (C.of_int ik Z.zero) (C.of_int ik Z.one));
+    assert_equal (C.top_of ik) (C.shift_left ik (C.of_int ik Z.one) (C.top_of ik))
+
+  let test () = [
+    "test_shift_left" >:: test_shift_left;
+  ]
+end
+
+module IntDomTuple =
+struct
+  let exists0 =
+    let open Batteries in
+    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let f g = g identity % to_list in
+    List.(f exists)
+
+  let exists1 = function
+    | (Some true, _, _, _)
+    | (_, Some true, _, _)
+    | (_, _, Some true, _)
+    | (_, _, _, Some true) ->
+      true
+    | _ ->
+      false
+
+  let bool_option = QCheck.option QCheck.bool
+  let arb = QCheck.quad bool_option bool_option bool_option bool_option
+
+  let test_exists = QCheck.Test.make ~name:"exists" arb (fun args ->
+      exists0 args = exists1 args
+    )
+
+  let for_all0 =
+    let open Batteries in
+    let to_list x = Tuple4.enum x |> List.of_enum |> List.filter_map identity in
+    let f g = g identity % to_list in
+    List.(f for_all)
+
+  let for_all1 = function
+    | (Some false, _, _, _)
+    | (_, Some false, _, _)
+    | (_, _, Some false, _)
+    | (_, _, _, Some false) ->
+      false
+    | _ ->
+      true
+
+  let test_for_all = QCheck.Test.make ~name:"for_all" arb (fun args ->
+      for_all0 args = for_all1 args
+    )
+
+
+  let test () = QCheck_ounit.to_ounit2_test_list [
+      test_exists;
+      test_for_all;
+    ]
+end
 
 let test () = "intDomainTest" >:::
               [ "int_Integers"  >::: A.test ();
@@ -208,4 +291,7 @@ let test () = "intDomainTest" >:::
                 "test_join"     >::  test_join;
                 "test_meet"     >::  test_meet;
                 "test_excl_list">::  test_ex_set;
+                "interval" >::: Interval.test ();
+                "congruence" >::: Congruence.test ();
+                "intDomTuple" >::: IntDomTuple.test ();
               ]

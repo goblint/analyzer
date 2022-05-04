@@ -202,7 +202,7 @@ module Make =
           HM.find keys x
         with Not_found ->
           incr Goblintutil.vars;
-          last_key := !last_key - 1;
+          decr last_key;
           HM.add keys x !last_key;
           !last_key
 
@@ -210,7 +210,7 @@ module Make =
         try (HM.find keys c, true)
         with Not_found ->
           incr Goblintutil.vars;
-          last_key := !last_key - 1;
+          decr last_key;
           HM.add keys c !last_key;
           (!last_key, false)
 

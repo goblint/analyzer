@@ -4,6 +4,8 @@
 val should_wrap: Cil.ikind -> bool
 val should_ignore_overflow: Cil.ikind -> bool
 
+val reset_lazy: unit -> unit
+
 module type Arith =
 sig
   type t
@@ -190,8 +192,8 @@ sig
   (** Checks if the element is a definite boolean value. If this function
     * returns [true], the above [to_bool] should return a real value. *)
 
-  val to_excl_list: t -> int_t list option
-  (** Gives a list representation of the excluded values if possible. *)
+  val to_excl_list: t -> (int_t list * (int64 * int64)) option
+  (** Gives a list representation of the excluded values from included range of bits if possible. *)
 
   val of_excl_list: Cil.ikind -> int_t list -> t
   (** Creates an exclusion set from a given list of integers. *)
@@ -269,7 +271,7 @@ sig
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
-  val refine_with_excl_list: Cil.ikind -> t -> int_t list option -> t
+  val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
   val project: Cil.ikind -> PrecisionUtil.precision -> t -> t
@@ -332,6 +334,7 @@ module Size : sig
   (** The biggest type we support for integers. *)
   val top_typ         : Cil.typ
   val range           : Cil.ikind -> Z.t * Z.t
+  val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
   val bits            : Cil.ikind -> int * int
 end
 
@@ -372,7 +375,11 @@ module IntervalFunctor(Ints_t : IntOps.IntOps): S with type int_t = Ints_t.t and
 
 module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) option and *) type int_t = IntOps.Int64Ops.t
 
-module BigInt : Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+module BigInt:
+  sig
+    include Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+    val cast_to: Cil.ikind -> Z.t -> Z.t
+  end
 
 module Interval : S with type int_t = IntOps.BigIntOps.t
 

@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled  --enable exp.fast_global_inits  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --enable exp.fast_global_inits  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
 // Without fast_global_inits this takes >150s, when it is enabled < 0.1s
 int global_array[50][500][20];
 

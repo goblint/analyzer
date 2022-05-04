@@ -122,11 +122,12 @@ module SaveRun: F =
       (* copied from Control.solve_and_postprocess *)
       let solver_file = "solver.marshalled" in
       let gobview = get_bool "gobview" in
-      let save_run = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
-      let solver = Filename.concat save_run solver_file in
+      let save_run_str = let o = get_string "save_run" in if o = "" then (if gobview then "run" else "") else o in
+      let save_run = Fpath.v save_run_str in
+      let solver = Fpath.(save_run / solver_file) in
       if get_bool "dbg.verbose" then
-        print_endline ("Saving the solver result to " ^ solver);
-      ignore @@ GU.create_dir save_run; (* ensure the directory exists *)
+        Format.printf "Saving the solver result to %a" Fpath.pp solver;
+      GobSys.mkdir_or_exists save_run;
       Serialize.marshal vh solver
   end
 
@@ -184,6 +185,7 @@ struct
 
     let reachable = VH.create (VH.length vh) in
     let rec one_var x =
+      if M.tracing then M.trace "postsolver" "one_var %a reachable=%B system=%B\n" S.Var.pretty_trace x (VH.mem reachable x) (Option.is_some (S.system x));
       if not (VH.mem reachable x) then (
         VH.replace reachable x ();
         Option.may (one_constraint x) (S.system x)
@@ -194,11 +196,13 @@ struct
         try VH.find vh y with Not_found -> S.Dom.bot ()
       in
       let set y d =
+        if M.tracing then M.trace "postsolver" "one_side %a %a %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty d;
         PS.one_side ~vh ~x ~y ~d;
         (* check before recursing *)
         one_var y
       in
       let rhs = f get set in
+      if M.tracing then M.trace "postsolver" "one_constraint %a %a\n" S.Var.pretty_trace x S.Dom.pretty rhs;
       PS.one_constraint ~vh ~x ~rhs
     in
     List.iter one_var vs;

@@ -6,10 +6,10 @@ int main() {
   if (r == NULL)
     assert(r == NULL);
   else
-    assert(r != NULL); // TODO
+    assert(r != NULL);
 
   if (r != NULL)
-    assert(r != NULL); // TODO
+    assert(r != NULL);
   else
     assert(r == NULL);
 

@@ -57,8 +57,8 @@ struct
   let pretty () x = Pretty.text (show x)
 end
 
-let get_flag (state: (string * Obj.t) list) : Flag.t =
-  (Obj.obj (List.assoc "threadflag" state), fst (Obj.obj (List.assoc "threadid" state)))
+let get_flag (state: string -> Obj.t) : Flag.t =
+  (Obj.obj (state "threadflag"), fst (Obj.obj (state "threadid")))
 
 
 module Spec =
@@ -248,7 +248,26 @@ struct
     let check_fun = effect_fun
   end
 
-  module M = Mutex.MakeSpec (MyParam)
+  module M =
+  struct
+    include Mutex.MakeSpec (MyParam)
+
+    let extract_lock lock =
+      match lock with
+      | AddrOf (Var varinfo,NoOffset) -> LockDomain.Addr.from_var varinfo
+      | _ -> assert false
+
+    let special ctx lval f args =
+      (* simulate old mutex analysis special by emitting events directly, a la mutexEvents *)
+      begin match f.vname, args with
+        | ("GetResource" | "GetSpinlock"), [lock] ->
+          ctx.emit (Events.Lock (extract_lock lock, true))
+        | ("ReleaseResource" | "ReleaseSpinlock"), [lock] ->
+          ctx.emit (Events.Unlock (extract_lock lock))
+        | _, _ -> ()
+      end;
+      special ctx lval f args
+  end
   module Offs = ValueDomain.Offs
   module Lockset = LockDomain.Lockset
 
@@ -355,7 +374,7 @@ struct
   let strip_flags acc_list = List.map proj2_1 acc_list
 
   let get_flags state: Flags.t =
-    Obj.obj (List.assoc "fmode" state)
+    Obj.obj (state "fmode")
 
   (*/flagstuff*)
   (*prioritystuff*)
@@ -441,11 +460,11 @@ struct
       if not (is_task v.vname) || flagstate = Flags.top() then begin
         if !GU.should_warn then begin
           let new_acc = ((loc,fl,rv),ust,o) in
-          let curr : AccValSet.t = try Acc.find acc v with _ -> AccValSet.empty in
+          let curr : AccValSet.t = Acc.find_default acc v AccValSet.empty in
           let neww : AccValSet.t = AccValSet.add (new_acc,flagstate) (remove_acc new_acc curr) in
           Acc.replace acc v neww;
           accKeys := AccKeySet.add v !accKeys;
-          let curr = try Hashtbl.find off_pry_with_flag v.vname with _ -> [] in
+          let curr = Hashtbl.find_default off_pry_with_flag v.vname [] in
           let pry = offpry [new_acc] in
           Hashtbl.replace off_pry_with_flag v.vname ((flagstate,pry)::curr)
         end ;
@@ -520,40 +539,6 @@ struct
               | Unknown  of (exp * bool)
   type accesses = access list
 
-  let struct_type_inv (v:varinfo) (o:Offs.t) : (varinfo * Offs.t) option =
-    let rec append os = function
-      | `NoOffset    -> os
-      | `Field (f,o) -> `Field (f,append o os)
-      | `Index (i,o) -> `Index (i,append o os)
-    in
-    let replace_struct t (v,o) =
-      begin match t with
-        | TComp (c,_) when c.cstruct ->
-          begin match type_inv c with
-            | [(v,_)] -> (v,`NoOffset)
-            | _   -> (v,o)
-          end
-        | _ -> (v,o)
-      end
-    in
-    let rec get_lv t (v,u) = function
-      | `NoOffset    -> (v,u)
-      | `Field (f,o) -> get_lv f.ftype (replace_struct f.ftype (v, append (`Field (f,`NoOffset)) u)) o
-      | `Index (i,o) ->
-        begin match unrollType t with
-          | TPtr (t,_)     -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
-          | TArray (t,_,_) -> get_lv t (replace_struct t (v, append (`Index (i,`NoOffset)) u)) o
-          | _ -> raise Not_found
-        end
-    in
-    match Offs.to_offset o with
-    | [o] ->
-      begin try
-          let a,b = (get_lv (v.vtype) (replace_struct v.vtype (v,`NoOffset)) o) in
-          Some (a, Offs.from_offset b)
-        with Not_found -> None end
-    | _ -> None
-
   let add_accesses ctx (accessed: accesses) (flagstate: Flags.t) (ust:D.t) =
     let fl = get_flag ctx.presub in
     if Flag.is_multi fl then
@@ -584,7 +569,7 @@ struct
     | Queries.Priority "" ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int pry (* TODO: what ikind to use for priorities? *)
-    | Queries.Priority vname -> begin try Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int (Hashtbl.find offensivepriorities vname) with _ -> Queries.Result.top q end (* TODO: what ikind to use for priorities? *)
+    | Queries.Priority vname -> begin try Queries.ID.of_int IInt @@ IntOps.BigIntOps.of_int (Hashtbl.find offensivepriorities vname) with Not_found -> Queries.Result.top q end (* TODO: what ikind to use for priorities? *)
     | Queries.MayBePublic {global=v; _} ->
       let pry = resourceset_to_priority (List.map names (Mutex.Lockset.ReverseAddrSet.elements ctx.local)) in
       if pry = min_int then
@@ -601,7 +586,7 @@ struct
           (*             offpry_flags flagstate v *)
           (*           end *)
         in off > pry
-    | Queries.CurrentLockset -> (* delegate for MinePriv *)
+    | Queries.MustLockset -> (* delegate for MinePriv *)
       (* TODO: delegate other queries? *)
       M.query ctx q
     | _ -> Queries.Result.top q
@@ -897,6 +882,8 @@ struct
     | _ -> M.special ctx lval f arglist
   (* with | _ -> M.special ctx lval f arglist (* suppress all fails  *) *)
 
+  let event ctx e = M.event ctx e
+
   let name () = "OSEK"
   let es_to_string f _ = f.svar.vname
 
@@ -1142,7 +1129,7 @@ struct
         let safe_str reason = "Safely accessed " ^ var_str ^ " (" ^ reason ^ ")" in
         let handle_race def_warn = begin
           if (List.mem gl.vname  (get_string_list "ana.osek.safe_vars")) then begin
-            suppressed := !suppressed+1;
+            incr suppressed;
             if (get_bool "allglobs") then
               msg_group_race_old Success (safe_str "safe variable") warnings
             else
@@ -1157,7 +1144,7 @@ struct
               let warn = def_warn ^ " at " ^ var_str in
               msg_group_race_old Warning warn warnings
             end else begin
-              filtered := !filtered +1;
+              incr filtered;
               (*((_, dom_elem,_),_) -> let lock_names_list = names (Lockset.ReverseAddrSet.elements dom_elem) in
                 any in there also in safe_tasks ... %TODO *)
               let filter_fun ((_, dom_elem,_),_) =

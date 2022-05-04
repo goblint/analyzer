@@ -224,7 +224,7 @@ struct
           fold (fun other acc ->
               (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
             ) s2 nil
-      with _ ->
+      with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)
@@ -336,7 +336,7 @@ struct
           fold' (fun other otherr acc ->
               (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pretty other SpecD.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
             ) s2 nil
-      with _ ->
+      with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)

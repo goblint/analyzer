@@ -304,12 +304,11 @@ struct
         ; edge    = MyCFG.Skip
         ; local  = local
         ; global = GHT.find gh
-        ; presub = []
-        ; postsub= []
+        ; presub = (fun _ -> raise Not_found)
+        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        ; assign = (fun ?name _ -> failwith "Cannot \"assign\" in witness context.")
         }
       in
       Spec.query ctx
@@ -592,7 +591,8 @@ struct
 
     print_task_result (module TaskResult);
 
-    if TaskResult.result <> Result.Unknown || get_bool "witness.unknown" then (
+    (* TODO: use witness.enabled elsewhere as well *)
+    if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
       let witness_path = get_string "witness.path" in
       Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
     )

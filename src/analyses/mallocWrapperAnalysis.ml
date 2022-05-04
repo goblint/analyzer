@@ -52,8 +52,7 @@ struct
 
   end
 
-  module ThreadNode =
-  struct
+  module ThreadNode = struct
     include Printable.Prod3 (ThreadIdDomain.ThreadLifted) (Node) (Chain)
 
     (* Description that gets appended to the varinfo-name in user ouptut. *)
@@ -68,8 +67,9 @@ struct
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
   let name () = "mallocWrapper"
+  
   module D = Domain
-  module C = Domain
+  module C = D
 
   module Q = Queries
 

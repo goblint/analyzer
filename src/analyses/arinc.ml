@@ -258,7 +258,7 @@ struct
     (* if not (is_single ctx || !Goblintutil.global_initialization || fst (ctx.global part_mode_var)) then raise Analyses.Deadcode; *)
     (* checkPredBot ctx.local "body" f.svar [] *)
     let module BaseMain = (val Base.get_main ()) in
-    let base_context = BaseMain.context_cpa f @@ Obj.obj @@ List.assoc "base" ctx.presub in
+    let base_context = BaseMain.context_cpa f @@ Obj.obj @@ ctx.presub "base" in
     let context_hash = Hashtbl.hash (base_context, ctx.local.pid) in
     { ctx.local with ctx = Ctx.of_int (Int64.of_int context_hash) }
 
@@ -337,7 +337,7 @@ struct
       let assign_id exp id =
         match exp with
         (* call assign for all analyses (we only need base)! *)
-        | AddrOf lval -> ctx.assign ~name:"base" lval (mkAddrOf @@ var id)
+        | AddrOf lval -> ctx.emit (Assign {lval; exp = mkAddrOf @@ var id})
         (* TODO not needed for the given code, but we could use Queries.MayPointTo exp in this case *)
         | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
       in

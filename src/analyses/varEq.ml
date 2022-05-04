@@ -49,8 +49,8 @@ struct
 
   let const_equal c1 c2 =
     match c1, c2 with
-    |	CStr s1  , CStr s2	 -> s1 = s2
-    |	CWStr is1, CWStr is2 -> is1 = is2
+    |	CStr (s1,_)  , CStr (s2,_)	 -> s1 = s2
+    |	CWStr (is1,_), CWStr (is2,_) -> is1 = is2
     |	CChr c1  , CChr c2   -> c1 = c2
     |	CInt (v1,k1,_), CInt (v2,k2,_) -> Cilint.compare_cilint v1 v2 = 0 && k1 = k2
     |	CReal (f1,k1,_) , CReal (f2,k2,_)  -> f1 = f2 && k1 = k2
@@ -66,17 +66,16 @@ struct
   let rec typ_equal t1 t2 =
     let args_eq (s1,t1,_) (s2,t2,_) = s1 = s2 && typ_equal t1 t2 in
     let eitem_eq (s1,e1,l1) (s2,e2,l2) = s1 = s2 && l1 = l2 && exp_equal e1 e2 in
-    let for_all2 p xs ys = try List.for_all2 p xs ys with Invalid_argument _ -> false in
     match t1, t2 with
     | TVoid _, TVoid _ -> true
     | TInt (k1,_), TInt (k2,_) -> k1 = k2
     | TFloat (k1,_), TFloat (k2,_) -> k1 = k2
     | TPtr (t1,_), TPtr (t2,_) -> typ_equal t1 t2
     | TArray (t1,d1,_), TArray (t2,d2,_) -> option_eq exp_equal d1 d2 && typ_equal t1 t2
-    | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (for_all2 args_eq) arg1 arg2
+    | TFun (rt1, arg1, _,  b1), TFun (rt2, arg2, _, b2) -> b1 = b2 && typ_equal rt1 rt2 && option_eq (GobList.equal args_eq) arg1 arg2
     | TNamed (ti1, _), TNamed (ti2, _) -> ti1.tname = ti2.tname && typ_equal ti1.ttype ti2.ttype
     | TComp (c1,_), TComp (c2,_) -> CilType.Compinfo.equal c1 c2
-    | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename && for_all2 eitem_eq e1.eitems e2.eitems
+    | TEnum (e1,_), TEnum (e2,_) -> e1.ename = e2.ename && GobList.equal eitem_eq e1.eitems e2.eitems
     | TBuiltin_va_list _, TBuiltin_va_list _ -> true
     | _ -> false
 
@@ -194,6 +193,7 @@ struct
     let bt =
       match unrollTypeDeep (Cilfacade.typeOf b) with
       | TPtr (t,_) -> t
+      | exception Cilfacade.TypeOfError _
       | _ -> voidType
     in (* type of thing that changed: typeof( *b ) *)
     let rec type_may_change_apt a =
@@ -402,44 +402,13 @@ struct
       | None -> None
       | Some st ->
         let vs = ask.f (Queries.ReachableFrom e) in
-        Some (Queries.LS.join vs st)
+        if Queries.LS.is_top vs then
+          None
+        else
+          Some (Queries.LS.join vs st)
     in
     List.fold_right reachable es (Some (Queries.LS.empty ()))
 
-  let rec reachable_from (r:Queries.LS.t) e =
-    if Queries.LS.is_top r then true else
-      let rec is_prefix x1 x2 =
-        match x1, x2 with
-        | _, `NoOffset -> true
-        | Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> is_prefix o1 o2
-        | Index (_,o1), `Index (_,o2) -> is_prefix o1 o2
-        | _ -> false
-      in
-      let has_reachable_prefix v1 ofs =
-        let suitable_prefix (v2,ofs2) =
-          CilType.Varinfo.equal v1 v2
-          && is_prefix ofs ofs2
-        in
-        Queries.LS.exists suitable_prefix r
-      in
-      match e with
-      | SizeOf _
-      | SizeOfE _
-      | SizeOfStr _
-      | AlignOf _
-      | Const _
-      | AlignOfE _
-      | UnOp  _
-      | BinOp _ -> true
-      | AddrOf  (Var v2,ofs)
-      | StartOf (Var v2,ofs)
-      | Lval    (Var v2,ofs) -> has_reachable_prefix v2 ofs
-      | AddrOf  (Mem e,_)
-      | StartOf (Mem e,_)
-      | Lval    (Mem e,_)
-      | CastE (_,e)           -> reachable_from r e
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
 
   (* Probably ok as is. *)
   let body ctx f = ctx.local
@@ -486,22 +455,26 @@ struct
       | None -> st2
 
   let remove_reachable ctx es =
-    match reachables (Analyses.ask_of_ctx ctx) es with
+    let ask = Analyses.ask_of_ctx ctx in
+    match reachables ask es with
     | None -> D.top ()
     | Some rs ->
-      let remove_reachable1 es st =
-        let remove_reachable2 e st =
-          if reachable_from rs e && not (isConstant e) then remove_exp (Analyses.ask_of_ctx ctx) e st else st
-        in
-        D.B.fold remove_reachable2 es st
-      in
-      D.fold remove_reachable1 ctx.local ctx.local
+      (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
+         each expression in ctx.local was checked for reachability from es/rs using very conservative but also unsound reachable_from.
+         It is unknown, why that was necessary. *)
+      Queries.LS.fold (fun lval st ->
+          remove ask (Lval.CilLval.to_lval lval) st
+        ) rs ctx.local
 
   let unknown_fn ctx lval f args =
     let args =
       match LF.get_invalidate_action f.vname with
       | Some fnc -> fnc `Write args
-      | _ -> args
+      | None ->
+        if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
+          args
+        else
+          []
     in
     let es =
       match lval with

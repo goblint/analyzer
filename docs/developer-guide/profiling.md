@@ -57,3 +57,8 @@ It can be used as follows:
 3. Click "Load a profile from file" and upload `OUTPUT_FILE`.
 
 For more information, see [Firefox Profiler's documentation](https://profiler.firefox.com/docs/#/./guide-perf-profiling).
+
+
+## Memtrace
+`memtrace` is a library and tool for profiling OCaml memory usage.
+For a tutorial, see [Jane Street Tech Blog](https://blog.janestreet.com/finding-memory-leaks-with-memtrace/).

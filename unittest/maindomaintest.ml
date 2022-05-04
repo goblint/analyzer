@@ -80,19 +80,18 @@ let nonAssocIntDomains: (module IntDomainProperties.S) list = [
 
 (* TODO: make arbitrary ikind part of domain test for better efficiency *)
 let ikinds: Cil.ikind list = [
-  (* TODO: enable more, some seem to break things *)
   IChar;
   ISChar;
-  (* IUChar; *)
-  (* IBool; *)
+  IUChar;
+  IBool;
   IInt;
-  (* IUInt; *)
+  IUInt;
   IShort;
-  (* IUShort; *)
-  (* ILong; *)
-  (* IULong; *)
-  (* ILongLong; *)
-  (* IULongLong; *)
+  IUShort;
+  ILong;
+  IULong;
+  ILongLong;
+  IULongLong;
 ]
 
 let testsuite =
