@@ -172,13 +172,20 @@ def analyze_series_in_repo(series):
         prev_commit = commit.hash
         commit_num += 1
 
-def runperprocess(core, serie):
+def runperprocess(core, seq_list, q):
     psutil.Process().cpu_affinity([core])
-    analyze_series_in_repo(serie)
+    while not q.empty():
+        i = q.get()
+        serie = seq_list[i]
+        dir = "series" + str(i)
+        os.mkdir(dir)
+        os.chdir(dir)
+        analyze_series_in_repo(serie)
+        os.chdir(res_dir)
 
-def analyze_seq_in_parallel(series):
+def analyze_seq_in_parallel(seq_list):
     avail_phys_cores = psutil.cpu_count(logical=False)
-    allowedcores = avail_phys_cores - 2
+    allowedcores = avail_phys_cores - 1
     if numcores > allowedcores:
         print("Not enough physical cores on this maching (exist: ", avail_phys_cores, " allowed: ", allowedcores, ")")
         exit()
@@ -186,30 +193,22 @@ def analyze_seq_in_parallel(series):
     # use only physical cores and have an equal number of processes per cache.
     # The layout of physical/logical cores and sharing of caches is machine dependent. To find out use: 'lscpu --all --extended'.
     # For our test server:
-    coremapping1 = [i for i in range(numcores - numcores//2)]
-    coremapping2 = [i for i in range(avail_phys_cores//2, avail_phys_cores//2 + numcores//2)]
-    coremapping = [coremapping1[i//2] if i%2==0 else coremapping2[i//2] for i in range(len(coremapping1) + len(coremapping2))]
+    coremapping = [i for i in range(numcores - numcores//2)] + [i for i in range(avail_phys_cores//2, avail_phys_cores//2 + numcores//2)]
     processes = []
 
-    i = 0
-    while i < len(series):
-        for j in range(numcores):
-            if i >= len(series):
-                break
-            dir = "series" + str(i)
-            os.mkdir(dir)
-            os.chdir(dir)
-            # start process for analysing serie i
-            s = series[i]
-            c = coremapping[j]
-            p = mp.Process(target=runperprocess, args=[c, s])
-            p.start()
-            processes.append(p)
-            os.chdir(res_dir)
-            i += 1
-        for p in processes:
-            p.join()
-        processes = []
+    # set up Queue with each serie as task
+    q = mp.Queue()
+    for i in range(len(seq_list)):
+        q.put(i)
+
+    for j in range(numcores):
+        # start process for analysing series on core j
+        c = coremapping[j]
+        p = mp.Process(target=runperprocess, args=[c, seq_list.copy(), q])
+        p.start()
+        processes.append(p)
+    for p in processes:
+        p.join()
 
 
 def merge_results():
