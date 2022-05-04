@@ -100,7 +100,6 @@ let classify' fn exps =
 let classify fn exps =
   if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
-type action = [ `Write | `Read ]
 
 module Invalidate =
 struct
@@ -125,48 +124,64 @@ struct
     match a with
     | `Write -> f a x @ drop n x
     | `Read  -> f a x
+    | `Free  -> []
 
   let readsAllButFirst n f a x =
     match a with
     | `Write -> f a x
     | `Read  -> f a x @ drop n x
+    | `Free  -> []
 
   let reads ns a x =
     let i, o = partition ns x in
     match a with
     | `Write -> o
     | `Read  -> i
+    | `Free  -> []
 
   let writes ns a x =
     let i, o = partition ns x in
     match a with
     | `Write -> i
     | `Read  -> o
+    | `Free  -> []
+
+  let frees ns a x =
+    let i, o = partition ns x in
+    match a with
+    | `Write -> []
+    | `Read  -> o
+    | `Free  -> i
 
   let onlyReads ns a x =
     match a with
     | `Write -> []
     | `Read  -> keep ns x
+    | `Free  -> []
 
   let onlyWrites ns a x =
     match a with
     | `Write -> keep ns x
     | `Read  -> []
+    | `Free  -> []
 
   let readsWrites rs ws a x =
     match a with
     | `Write -> keep ws x
     | `Read  -> keep rs x
+    | `Free  -> []
 
   let readsAll a x =
     match a with
     | `Write -> []
     | `Read  -> x
+    | `Free  -> []
 
   let writesAll a x =
     match a with
     | `Write -> x
     | `Read  -> []
+    | `Free  -> []
 end
 
 open Invalidate
@@ -201,7 +216,7 @@ let invalidate_actions = [
     "__fread_alias", writes [1;4];
     "__fread_chk", writes [1;4];
     "utimensat", readsAll;
-    "free", writesAll; (*unsafe*)
+    "free", frees [1]; (*unsafe*)
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
@@ -499,6 +514,7 @@ let invalidate_actions = [
     "sema_init", readsAll;
     "down_trylock", readsAll;
     "up", readsAll;
+    "ZSTD_customFree", frees [1]; (* only used with extraspecials *)
   ]
 
 (* used by get_invalidate_action to make sure
