@@ -1,5 +1,5 @@
---- tests/incremental/13-restart-write/09-mutex-simple-access.c
-+++ tests/incremental/13-restart-write/09-mutex-simple-access.c
+--- tests/incremental/11-restart/12-mutex-simple-access.c
++++ tests/incremental/11-restart/12-mutex-simple-access.c
 @@ -7,7 +7,7 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
  void *t_fun(void *arg) {
