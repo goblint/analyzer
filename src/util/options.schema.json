@@ -1685,6 +1685,12 @@
               "type": "boolean",
               "default": false
             },
+            "hhh": {
+              "title": "dbg.compare_runs.hhh",
+              "description": "Simple comparison of address sets",
+              "type": "boolean",
+              "default": false
+            },
             "diff": {
               "title": "dbg.compare_runs.diff",
               "description": "Print differences",

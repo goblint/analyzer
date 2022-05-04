@@ -101,6 +101,12 @@ struct
       Printable.get_short_list "{" "}" all_elems
     with SetDomain.Unsupported _ -> show x
 
+  let leq x y = if GobConfig.get_bool "dbg.compare_runs.hhh" then
+      (not (mem Addr.UnknownPtr x) || (mem Addr.UnknownPtr y)) &&
+      (not (mem Addr.NullPtr x) || (mem Addr.NullPtr y)) &&
+      cardinal x <= cardinal y
+    else leq x y
+
   (*
   let leq = if not fast_addr_sets then leq else fun x y ->
       match mem Addr.UnknownPtr x, mem Addr.UnknownPtr y with
