@@ -301,12 +301,13 @@ struct
       | AlignOfE _
       | UnOp _
       | BinOp _
-      | StartOf _
       | Const _ -> raise NotSimpleEnough
       | Lval (Var v, os) -> EVar v :: conv_o os
       | Lval (Mem e, os) -> helper e @ [EDeref] @ conv_o os
       | AddrOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
       | AddrOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
+      | StartOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
+      | StartOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
       | CastE (_,e) -> helper e
       | Question _ -> failwith "Logical operations should be compiled away by CIL."
       | _ -> failwith "Unmatched pattern."
