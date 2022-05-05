@@ -1,6 +1,8 @@
 open Pretty
 open Cil
 
+module M = Messages
+
 module Exp =
 struct
   include CilType.Exp
@@ -331,6 +333,7 @@ struct
     List.rev el, fs
 
   let from_exps a l : t option =
+    if M.tracing then M.tracel "symb_locks" "from_exps %a (%s) %a (%s)\n" d_plainexp a (ees_to_str (toEl a)) d_plainexp l (ees_to_str (toEl l));
     let a, l = toEl a, toEl l in
     (* ignore (printf "from_exps:\n %s\n %s\n" (ees_to_str a) (ees_to_str l)); *)
     (*let rec fold_left2 f a xs ys =
