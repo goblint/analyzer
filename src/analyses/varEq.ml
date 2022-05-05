@@ -315,7 +315,8 @@ struct
            | _ -> failwith "Unmatched pattern."
     in
     let r =
-      if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
+      if Cil.isConstant b then false
+      else if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
       then ((*Messages.warn "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
@@ -323,7 +324,9 @@ struct
           then (Messages.warn ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           else (Messages.warn ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           Messages.warn ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
-    *)    r
+    *)
+    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pretty b CilType.Exp.pretty a r;
+    r
 
   (* Remove elements, that would change if the given lval would change.*)
   let remove_exp ask (e:exp) (st:D.t) : D.t =
