@@ -207,7 +207,11 @@ struct
       let arg_acc act =
         match act, LF.get_threadsafe_inv_ac x with
         | _, Some fnc -> (fnc act arglist)
-        | `Read, None -> arglist
+        | `Read, None ->
+          if get_bool "sem.unknown_function.read.args" then
+            arglist
+          else
+            []
         | (`Write | `Free), None ->
           if get_bool "sem.unknown_function.invalidate.args" then
             arglist

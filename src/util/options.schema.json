@@ -1136,6 +1136,20 @@
                 }
               },
               "additionalProperties": false
+            },
+            "read": {
+              "title": "sem.unknown_function.read",
+              "type": "object",
+              "properties": {
+                "args": {
+                  "title": "sem.unknown_function.read.args",
+                  "description":
+                    "Unknown function call reads arguments passed to it",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
