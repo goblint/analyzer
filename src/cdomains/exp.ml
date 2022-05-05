@@ -292,6 +292,8 @@ struct
     in
     let rec helper exp =
       match exp with
+      | BinOp ((PlusPI | IndexPI), e1, e2, _) ->
+        helper e1 (* TODO: what about e2? add to some Index offset to all? *)
       | SizeOf _
       | SizeOfE _
       | SizeOfStr _
