@@ -131,6 +131,8 @@ module WP =
       (* If true, incremental side-effected var restart will only restart destabilized globals (using hack).
          If false, it will restart all destabilized side-effected vars. *)
       let restart_only_globals = GobConfig.get_bool "incremental.restart.sided.only-global" in
+      let restart_only_access = GobConfig.get_bool "incremental.restart.sided.only-access" in
+      let restart_destab_with_sides = GobConfig.get_bool "incremental.restart.sided.destab-with-sides" in
 
       (* If true, wpoint will be restarted to bot when added.
          This allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted). *)
@@ -580,7 +582,14 @@ module WP =
           let w = HM.find_default side_dep x VS.empty in
           HM.remove side_dep x;
 
-          if not (VS.is_empty w) && (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) && not (S.Var.is_write_only x) then (
+          let should_restart =
+            if restart_only_access then
+              S.Var.is_write_only x
+            else
+              (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) && (not (S.Var.is_write_only x))
+          in
+
+          if not (VS.is_empty w) && should_restart then (
             (* restart side-effected var *)
             restart_leaf x;
 
@@ -593,7 +602,10 @@ module WP =
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
-                destabilize_with_side ~front:false y
+                if restart_destab_with_sides then
+                  destabilize_with_side ~front:false y
+                else
+                  destabilize_normal ~front:false y
               ) w
           );
 
@@ -811,7 +823,7 @@ module WP =
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
         List.iter (fun (v,d) ->
-            if restart_sided then (
+            if restart_sided && not restart_only_access then (
               match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
                 ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
@@ -825,7 +837,7 @@ module WP =
             side v d
           ) st;
 
-        if restart_sided then (
+        if restart_sided && not restart_only_access then (
           List.iter (fun (v, _) ->
               match GobList.assoc_eq_opt S.Var.equal v st with
               | None ->

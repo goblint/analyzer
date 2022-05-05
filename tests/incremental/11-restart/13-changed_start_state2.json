@@ -1,0 +1,18 @@
+{
+  "ana": {
+    "base": {
+      "context": {
+        "int": false
+      }
+    }
+  },
+  "incremental": {
+    "restart": {
+      "sided": {
+        "enabled": true,
+        "only-access": true,
+        "destab-with-sides": true
+      }
+    }
+  }
+}

@@ -1059,6 +1059,18 @@
                   "description": "TODO",
                   "type": "boolean",
                   "default": false
+                },
+                "only-access" : {
+                  "title" : "incremental.restart.sided.only-access",
+                  "description" : "TODO",
+                  "type" : "boolean",
+                  "default" : false
+                },
+                "destab-with-sides": {
+                  "title" : "incremental.restart.sided.destab-with-sides",
+                  "description" : "TODO",
+                  "type" : "boolean",
+                  "default" : true
                 }
               },
               "additionalProperties": false
