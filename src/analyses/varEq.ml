@@ -519,7 +519,8 @@ struct
       D.B.fold add es (Queries.ES.empty ())
 
   let rec eq_set_clos e s =
-    match e with
+    if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
+    let r = match e with
     | SizeOf _
     | SizeOfE _
     | SizeOfStr _
@@ -541,6 +542,9 @@ struct
       Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
     | Question _ -> failwith "Logical operations should be compiled away by CIL."
     | _ -> failwith "Unmatched pattern."
+    in
+    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pretty r;
+    r
 
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
@@ -550,6 +554,7 @@ struct
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
       (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
+      if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
       r
     | _ -> Queries.Result.top x
 
