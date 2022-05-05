@@ -6,25 +6,29 @@ from pydriller import Git
 import re
 import pandas
 import numpy as np
-import matplotlib
 import brokenaxes
+import matplotlib
 matplotlib.use("pgf")
-matplotlib.rcParams.update(
-    {
-        "pgf.texsystem": "pdflatex",
-        "font.family": "serif",
-        "font.size": 8,
-        "text.usetex": True,
-        "pgf.rcfonts": False,
-        "axes.unicode_minus": False,
-    }
-)
+matplotlib.rcParams.update({
+    "pgf.texsystem": "pdflatex",
+    'pgf.rcfonts': False,
+    'text.usetex': True,
+    'font.family': 'serif',
+    'font.size': 9,
+    'axes.titlesize': 9,
+    'legend.fontsize': 9,
+    'figure.titlesize': 9,
+    'figure.dpi': 300,
+    'xtick.labelsize': 9,
+    'ytick.labelsize': 9
+})
 import matplotlib.pyplot as plt
+print(matplotlib.rcParams.keys())
 from matplotlib.ticker import ScalarFormatter
 
 header_runtime_parent = "Runtime for parent commit (non-incremental)"
 header_runtime_incr_child = "Runtime for commit (incremental)"
-header_runtime_incr_rel_child = "Runtime for commit (incremental, reluctant)"
+header_runtime_incr_rel_child = "Runtime for commit (incremental + reluctant)"
 
 def reset_incremental_data(incr_data_dir):
     if os.path.exists(incr_data_dir) and os.path.isdir(incr_data_dir):
@@ -83,33 +87,30 @@ def calculateRelCLOC(repo_path, commit, diff_exclude):
         relcloc = relcloc + f.added_lines + f.deleted_lines
     return relcloc
 
-def find_line(pattern, file):
-    file.seek(0)
-    for line in file:
-        m = re.search(pattern, line)
-        if m:
-            file.close()
-            return m.groupdict()
-    return None
+def find_line(pattern, log):
+    with open (log, 'r') as file:
+        for line in file:
+            m = re.search(pattern, line)
+            if m:
+                file.close()
+                return m.groupdict()
+        return None
 
 def extract_from_analyzer_log(log):
-    file = open(log, "r")
     runtime_pattern = 'TOTAL[ ]+(?P<runtime>[0-9\.]+) s'
     change_info_pattern = 'change_info = { unchanged = (?P<unchanged>[0-9]*); changed = (?P<changed>[0-9]*); added = (?P<added>[0-9]*); removed = (?P<removed>[0-9]*) }'
-    r = find_line(runtime_pattern, file)
-    ch = find_line(change_info_pattern, file) or {"unchanged": 0, "changed": 0, "added": 0, "removed": 0}
+    r = find_line(runtime_pattern, log)
+    ch = find_line(change_info_pattern, log) or {"unchanged": 0, "changed": 0, "added": 0, "removed": 0}
     d = dict(list(r.items()) + list(ch.items()))
-    file.seek(0)
-    num_racewarnings = file.read().count('[Warning][Race]')
-    d["race_warnings"] = num_racewarnings
-    file.close()
+    with open(log, "r") as file:
+        num_racewarnings = file.read().count('[Warning][Race]')
+        d["race_warnings"] = num_racewarnings
+        file.close()
     return d
 
 def extract_precision_from_compare_log(log):
-    file = open(log, "r")
     pattern = "equal: (?P<equal>[0-9]+), more precise: (?P<moreprec>[0-9]+), less precise: (?P<lessprec>[0-9]+), incomparable: (?P<incomp>[0-9]+), total: (?P<total>[0-9]+)"
-    precision = find_line(pattern, file)
-    file.close()
+    precision = find_line(pattern, log)
     return {k: int(v) for k,v in precision.items()} if precision else None
 
 def barplot(data_set):
@@ -125,7 +126,8 @@ def barplot(data_set):
     plt.savefig("figure.pdf")
 
 def get_cleaned_filtered_data(result_csv_filename, filterRelCLOC=False, filterDetectedChanges=False):
-    df=pandas.read_csv(result_csv_filename, index_col=0)
+    df=pandas.read_csv(result_csv_filename, index_col=0, sep=";")
+
     # clean dataset (remove all rows for which any of the runtime entries is 0 which means that the respective analysis
     # run failed)
     df = df[(df[header_runtime_parent] != 0) & (df[header_runtime_incr_child] != 0) & (df[header_runtime_incr_rel_child] != 0)]
@@ -171,7 +173,7 @@ def cummulative_distr_plot(data_sets, base, outfile, figsize=None, title=None, l
     plt.title(title)
     plt.savefig(outfile)
 
-def hist_plot(data, step, title, xlabel, ylabel, outfile, cutoffs=None):
+def hist_plot(data, step, title, xlabel, ylabel, outfile, size, cutoffs=None):
     min = data.min()
     max = data.max()
     min = min//step
@@ -184,13 +186,34 @@ def hist_plot(data, step, title, xlabel, ylabel, outfile, cutoffs=None):
         bax.hist(data, bins, histtype='bar')
         plt.xlabel(xlabel, labelpad=0)
         plt.ylabel(ylabel, labelpad=0)
-        plt.title(title)
+        if title: plt.title(title)
         plt.savefig(outfile, bbox_inches='tight')
     else:
-        plt.figure()
+        fig = plt.figure()
+        width, height = size
+        fig.set_size_inches(w=width, h=height)
         plt.hist(data, bins)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
-        plt.title(title)
+        if title: plt.title(title)
         plt.tight_layout()
         plt.savefig(outfile)
+
+def hist_subplots(ax, data, step):
+    min = data.min()
+    max = data.max()
+    min = min//step
+    max = max//step + 1
+    bins = np.arange(min*step,(max+1)*step,step)
+    ax.hist(data, bins)
+
+def four_hist_subplots(data, title, xlabel, ylabel, outfile):
+    step = 0.01
+    fig, ((ax1,ax2),(ax3,ax4)) = plt.subplots(2,2,tight_layout=True)
+    for i, ax in enumerate([ax1,ax2,ax3,ax4]):
+        hist_subplots(ax, data, step)
+        ax.title.set_text(title[i])
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.tight_layout()
+    fig.savefig(outfile, dpi=600)

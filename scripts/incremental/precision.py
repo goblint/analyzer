@@ -19,6 +19,7 @@ import multiprocessing as mp
 if len(sys.argv) != 3:
       print("Wrong number of parameters.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
       exit()
+res_dir = os.path.abspath('result_precision')
 maxCLOC       = None
 url           = "https://github.com/facebook/zstd"
 repo_name     = "zstd"
@@ -35,7 +36,6 @@ except ValueError:
     exit()
 ################################################################################
 
-res_dir = os.path.abspath('result_precision')
 utc = pytz.UTC
 compare_commits = [1,2,5,10,15]
 skipSeqShorterEq = 5 # minimum number of incremental commits in chain

@@ -20,12 +20,12 @@ import pandas as pd
 if len(sys.argv) != 3:
       print("Wrong number of parameters.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
       exit()
-result_dir    = os.path.join(os.getcwd(), 'result_efficiency')
+result_dir    = os.path.join(os.getcwd(), 'result_efficiency_incrpost') # 2) for the comparison "result_efficiency_baseline"
 maxCLOC       = 50
 url           = "https://github.com/facebook/zstd"
 repo_name     = "zstd"
 build_compdb  = "build_compdb_zstd.sh"
-conf          = "zstd-race-incrpostsolver" # for comparison: "zstd-race-baseline", very minimal: "zstd-minimal"
+conf          = "zstd-race-incrpostsolver" # 2) for comparison: "zstd-race-baseline", very minimal: "zstd-minimal"
 begin         = datetime(2021,8,1)
 to            = datetime(2022,2,1) # minimal subset: datetime(2021,8,4)
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
@@ -35,6 +35,7 @@ try:
 except ValueError:
     print("Parameter should be a number.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
     exit()
+only_collect_results = False # can be turned on to collect results, if data collection was aborted before the creation of result tables
 ################################################################################
 
 
@@ -104,60 +105,56 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
     print("Skipped: ", count_skipped)
 
 def collect_data(outdir):
-    index = []
-    data = {"Failed?": [], "Changed LOC": [], "Relevant changed LOC": [], "Changed/Added/Removed functions": [],
-      "Runtime for parent commit (non-incremental)": [], "Runtime for commit (incremental)": [],
-      "Runtime for commit (incremental, reluctant)": [], "Runtime for commit (incremental, extensive restarting)": [],
-      "Change in number of race warnings": []}
+    data = {"Commit": [], "Failed?": [], "Changed LOC": [], "Relevant changed LOC": [], "Changed/Added/Removed functions": [],
+      utils.header_runtime_parent: [], utils.header_runtime_incr_child: [],
+      utils.header_runtime_incr_rel_child: [], "Change in number of race warnings": []}
     for t in os.listdir(outdir):
         parentlog = os.path.join(outdir, t, 'parent', 'analyzer.log')
         childlog = os.path.join(outdir, t, 'child', 'analyzer.log')
         childrellog = os.path.join(outdir, t, 'child-rel', 'analyzer.log')
-        childexreslog = os.path.join(outdir, t, 'child-ex-rest', 'analyzer.log')
         commit_prop_log = os.path.join(outdir, t, 'commit_properties.log')
         t = int(t)
         commit_prop = json.load(open(commit_prop_log, "r"))
         data["Changed LOC"].append(commit_prop["CLOC"])
         data["Relevant changed LOC"].append(commit_prop["relCLOC"])
         data["Failed?"].append(commit_prop["failed"])
-        index.append(str(t) + ": " + commit_prop["hash"][:7])
+        data["Commit"].append(commit_prop["hash"][:7])
         if commit_prop["failed"] == True:
-            data["Runtime for parent commit (non-incremental)"].append(0)
-            data["Runtime for commit (incremental)"].append(0)
-            data["Runtime for commit (incremental, reluctant)"].append(0)
-            data["Runtime for commit (incremental, extensive restarting)"].append(0)
+            data[utils.header_runtime_parent].append(0)
+            data[utils.header_runtime_incr_child].append(0)
+            data[utils.header_runtime_incr_rel_child].append(0)
             data["Changed/Added/Removed functions"].append(0)
             data["Change in number of race warnings"].append(0)
             continue
         parent_info = utils.extract_from_analyzer_log(parentlog)
         child_info = utils.extract_from_analyzer_log(childlog)
         child_rel_info = utils.extract_from_analyzer_log(childrellog)
-        child_exres_info = utils.extract_from_analyzer_log(childexreslog)
         data["Changed/Added/Removed functions"].append(int(child_info["changed"]) + int(child_info["added"]) + int(child_info["removed"]))
-        data["Runtime for parent commit (non-incremental)"].append(float(parent_info["runtime"]))
-        data["Runtime for commit (incremental)"].append(float(child_info["runtime"]))
-        data["Runtime for commit (incremental, reluctant)"].append(float(child_rel_info["runtime"]))
-        data["Runtime for commit (incremental, extensive restarting)"].append(float(child_exres_info["runtime"]))
-        data["Change in number of race warnings"].append(int(parent_info["race_warnings"]) - int(child_info["race_warnings"]))
-    return {"index": index, "data": data}
+        data[utils.header_runtime_parent].append(float(parent_info["runtime"]))
+        data[utils.header_runtime_incr_child].append(float(child_info["runtime"]))
+        data[utils.header_runtime_incr_rel_child].append(float(child_rel_info["runtime"]))
+        data["Change in number of race warnings"].append(int(child_info["race_warnings"] - int(parent_info["race_warnings"])))
+    return data
 
 def runperprocess(core, from_c, to_c):
-    psutil.Process().cpu_affinity([core])
+    if not only_collect_results:
+        psutil.Process().cpu_affinity([core])
     cwd  = os.getcwd()
     outdir = os.path.join(cwd, 'out')
-    if os.path.exists(outdir) and os.path.isdir(outdir):
-      shutil.rmtree(outdir)
-    analyze_small_commits_in_repo(cwd, outdir, from_c, to_c)
+    if not only_collect_results:
+        if os.path.exists(outdir) and os.path.isdir(outdir):
+          shutil.rmtree(outdir)
+        analyze_small_commits_in_repo(cwd, outdir, from_c, to_c)
     data_set = collect_data(outdir)
-    df = pd.DataFrame(data_set["data"], index=data_set["index"])
-    df.sort_index(inplace=True, key=lambda idx: idx.map(lambda x: int(x.split(":")[0])))
+    df = pd.DataFrame(data_set)
+    #df.sort_index(inplace=True, key=lambda idx: idx.map(lambda x: int(x.split(":")[0])))
     print(df)
-    df.to_csv('results.csv')
+    df.to_csv('results.csv', sep =';')
 
 def analyze_chunks_of_commits_in_parallel():
     avail_phys_cores = psutil.cpu_count(logical=False)
     allowedcores = avail_phys_cores - 2
-    if numcores > allowedcores:
+    if not only_collect_results and numcores > allowedcores:
         print("Not enough physical cores on this maching (exist: ", avail_phys_cores, " allowed: ", allowedcores, ")")
         exit()
     # For equal load distribution, choose a processes to core mapping,
@@ -177,15 +174,18 @@ def analyze_chunks_of_commits_in_parallel():
 
     for i in range(numcores):
         dir = "process" + str(i)
-        os.mkdir(dir)
+        if not only_collect_results:
+            os.mkdir(dir)
         os.chdir(dir)
         # run script
         start = perprocess * i
         end = perprocess * (i + 1) if i < numcores - 1 else num_commits
-        p = mp.Process(target=runperprocess, args=[coremapping[i], start, end])
-        p.start()
-        processes.append(p)
-        # time.sleep(random.randint(5,60)) # add random delay between process creation to try to reduce interference
+        runperprocess(coremapping[i], start, end)
+        if not only_collect_results:
+            p = mp.Process(target=runperprocess, args=[coremapping[i], start, end])
+            p.start()
+            processes.append(p)
+            # time.sleep(random.randint(5,60)) # add random delay between process creation to try to reduce interference
         os.chdir(result_dir)
 
     for p in processes:
@@ -197,17 +197,18 @@ def merge_results():
     for process_dir in os.listdir("."):
         path = os.path.join(process_dir, filename)
         if os.path.exists(path):
-            t = pd.read_csv(path, index_col=0)
+            t = pd.read_csv(path, index_col=0, sep=";")
             frames.append(t)
     if len(frames) > 0:
         df = pd.concat(frames)
-        df.sort_index(inplace=True, key=lambda idx: idx.map(lambda x: int(x.split(":")[0])))
-        df.to_csv('total_results.csv')
+        #df.sort_index(inplace=True, key=lambda idx: idx.map(lambda x: int(x.split(":")[0])))
+        df.to_csv('total_results.csv', sep=";")
 
 
-if os.path.exists(result_dir):
-    shutil.rmtree(result_dir)
-os.mkdir(result_dir)
+if not only_collect_results:
+    if os.path.exists(result_dir):
+        shutil.rmtree(result_dir)
+    os.mkdir(result_dir)
 os.chdir(result_dir)
 
 analyze_chunks_of_commits_in_parallel()
