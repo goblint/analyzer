@@ -823,7 +823,7 @@ module WP =
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
         List.iter (fun (v,d) ->
-            if restart_sided then (
+            if restart_sided && not restart_only_access then (
               match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
                 ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
@@ -837,7 +837,7 @@ module WP =
             side v d
           ) st;
 
-        if restart_sided then (
+        if restart_sided && not restart_only_access then (
           List.iter (fun (v, _) ->
               match GobList.assoc_eq_opt S.Var.equal v st with
               | None ->
