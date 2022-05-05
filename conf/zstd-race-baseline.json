@@ -52,7 +52,7 @@
       }
     },
     "postsolver": {
-      "enabled": true
+      "enabled": false
     }
   },
   "exp": {
