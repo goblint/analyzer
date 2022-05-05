@@ -13,7 +13,7 @@
      // overwriting, therefore the current imprecision.
 -    assert(g == 1);
 -    assert(g != 2);
-+    assert(g != 1);
-+    assert(g == 2);
++    assert(g != 1); //TODO
++    assert(g == 2); //TODO
      return 0;
  }
