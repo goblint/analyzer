@@ -12,6 +12,8 @@ struct
   (* TODO: what does interesting mean? *)
   let rec interesting x =
     match x with
+    | BinOp ((PlusPI | IndexPI), e1, e2, _) ->
+    interesting e1 (* TODO: what about e2? *)
     | SizeOf _
     | SizeOfE _
     | SizeOfStr _
