@@ -169,7 +169,7 @@ jobs:
 
       - name: Build dev Docker image
         id: build
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v3
         with:
           context: .
           target: dev
