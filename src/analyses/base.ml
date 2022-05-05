@@ -2352,8 +2352,7 @@ struct
           set_many ~ctx ask gs st [
             (heap_addr, TVoid [], heap_val);
             (lv_addr, Cilfacade.typeOfLval lv, `Address heap_addr');
-          ]
-          (* TODO: free (i.e. invalidate) old blob if successful? *)
+          ] (* TODO: free (i.e. invalidate) old blob if successful? *)
         | None ->
           st
       end
