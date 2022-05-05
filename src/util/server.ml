@@ -57,9 +57,14 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
         match Parser.parse message.params with
         | Ok params -> (
             try
-              R.process params serv
-              |> R.response_to_yojson
-              |> Response.ok id
+              Maingoblint.reset_stats ();
+              let r =
+                R.process params serv
+                |> R.response_to_yojson
+                |> Response.ok id
+              in
+              Maingoblint.do_stats ();
+              r
             with Failure (code, message) -> Response.Error.(make ~code ~message () |> Response.error id))
         | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error id))
     | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:message.method_ () |> Response.error id)
@@ -104,6 +109,7 @@ let bind () =
 let start file =
   let input, output = bind () in
   GobConfig.set_bool "incremental.save" true;
+  Maingoblint.do_stats (); (* print pre-server stats just in case *)
   serve (make file ?input ?output)
 
 let reparse (s: t) =

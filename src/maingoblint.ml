@@ -394,6 +394,14 @@ let do_stats () =
     flush_all ()
   )
 
+let reset_stats () =
+  Goblintutil.vars := 0;
+  Goblintutil.evals := 0;
+  (* TODO: uncomment on interactive *)
+  (* Goblintutil.narrow_reuses := 0; *)
+  (* Goblintutil.aborts := 0; *)
+  Stats.reset SoftwareTimer
+
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
