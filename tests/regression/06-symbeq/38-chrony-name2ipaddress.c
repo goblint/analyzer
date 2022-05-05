@@ -1,10 +1,11 @@
-// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.activated[+] "'mallocFresh'" --set ana.malloc.wrappers '["Malloc"]' --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals
+// PARAM: --set ana.activated[+] "'var_eq'"  --set ana.activated[+] "'symb_locks'" --set ana.activated[+] "'mallocFresh'" --set ana.malloc.wrappers '["Malloc"]' --disable sem.unknown_function.spawn --disable sem.unknown_function.invalidate.globals --set pre.cppflags[+] -D_FORTIFY_SOURCE=2 --set pre.cppflags[+] -O3
 #include <stddef.h>
 #include <stdint.h>
 // #include <sys/types.h>
 // #include <sys/socket.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <string.h>
 
 void *
 Malloc(size_t size)
@@ -39,6 +40,8 @@ typedef struct {
 #define IPADDR_INET4 1
 #define IPADDR_INET6 2
 #define IPADDR_ID 3
+
+#define FEAT_IPV6 1
 
 static int address_family = IPADDR_UNSPEC;
 
