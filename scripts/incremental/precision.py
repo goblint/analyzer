@@ -37,8 +37,8 @@ except ValueError:
 
 res_dir = os.path.abspath('result_precision')
 utc = pytz.UTC
-compare_commits = [1,2,3,7,10,15]
-skipShorterSeq = 3
+compare_commits = [1,2,5,10,15]
+skipSeqShorterEq = 5 # minimum number of incremental commits in chain
 
 def start_commit_for_sequence_search():
     current_commit = ""
@@ -51,12 +51,12 @@ def start_commit_for_sequence_search():
 def find_sequences_rec(gr, commit, seq, seq_list, starting_points):
     commit_date = commit.committer_date.replace(tzinfo=None)
     if commit_date < begin:
-        if len(seq) > skipShorterSeq:
+        if len(seq) > skipSeqShorterEq:
             print("found seq of length: " + str(len(seq)))
             seq_list.insert(0,seq)
     elif commit.merge:
         seq.insert(0,commit.hash)
-        if len(seq) > skipShorterSeq:
+        if len(seq) > skipSeqShorterEq:
             print("found seq of length: " + str(len(seq)))
             seq_list.insert(0,seq)
         for ph in commit.parents:
