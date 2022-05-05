@@ -521,6 +521,8 @@ struct
   let rec eq_set_clos e s =
     if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
     let r = match e with
+    | BinOp ((PlusPI | IndexPI), e1, e2, _) ->
+      eq_set_clos e1 s (* TODO: what about e2? add to some Index offset to all? *)
     | SizeOf _
     | SizeOfE _
     | SizeOfStr _
