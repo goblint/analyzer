@@ -220,6 +220,7 @@ struct
         | "memset" | "__builtin_memset" | "__builtin___memset_chk" -> false
         | "bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk" -> false
         | "__builtin_object_size" -> false
+        | "realloc" -> false
         | _ -> true
       in
       List.iter (access_one_top ctx `Read reach) (arg_acc `Read);
