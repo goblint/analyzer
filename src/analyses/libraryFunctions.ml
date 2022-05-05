@@ -521,6 +521,7 @@ let invalidate_actions = [
     "down_trylock", readsAll;
     "up", readsAll;
     "ZSTD_customFree", frees [1]; (* only used with extraspecials *)
+    "__goblint_assume_join", readsAll;
   ]
 
 (* used by get_invalidate_action to make sure

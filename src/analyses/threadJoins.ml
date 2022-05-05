@@ -45,6 +45,19 @@ struct
         | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
+    | `Unknown "__goblint_assume_join" ->
+      let id = List.hd arglist in
+      let threads = ctx.ask (Queries.EvalThread id) in
+      if TIDs.is_top threads then
+        D.bot () (* consider everything joined, D is reversed so bot is All threads *)
+      else (
+        (* elements throws if the thread set is top *)
+        let threads = TIDs.elements threads in
+        List.fold_left (fun acc tid ->
+            let joined = ctx.global tid in
+            D.union (D.add tid acc) joined
+          ) ctx.local threads
+      )
     | _ -> ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
