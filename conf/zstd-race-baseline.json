@@ -9,7 +9,10 @@
       "var_eq"
     ],
     "base": {
-      "privatization": "none"
+      "privatization": "none",
+      "context": {
+        "non-ptr": false
+      }
     },
     "thread": {
       "domain": "plain",
