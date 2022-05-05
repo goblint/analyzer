@@ -7,7 +7,7 @@ open Printf
 (** the main function *)
 let main () =
   try
-    Stats.reset Stats.SoftwareTimer;
+    Maingoblint.reset_stats ();
     parse_arguments ();
     check_arguments ();
     AfterConfig.run ();
