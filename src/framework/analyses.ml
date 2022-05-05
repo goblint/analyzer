@@ -455,7 +455,7 @@ type increment_data = {
   new_file: Cil.file;
   changes: CompareCIL.change_info;
 
-  (* Globals for whiche the constraint
+  (* Globals for which the constraint
      system unknowns should be restarted *)
   restarting: VarQuery.t list;
 }
