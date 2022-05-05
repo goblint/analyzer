@@ -379,6 +379,12 @@ struct
           let st =
     *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     (*     Messages.warn ~msg:(sprint 80 (d_type () lvt)) (); *)
+    if M.tracing then (
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
+      M.tracel "var_eq" "add_eq interesting %a = %B\n" d_plainexp rv (Exp.interesting rv);
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainexp rv (is_global_var ask rv = Some false);
+      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt);
+    );
     if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv
     && is_global_var ask rv = Some false
