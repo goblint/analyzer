@@ -2134,6 +2134,11 @@ struct
         invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
+    let addr_type_of_exp exp = 
+      let lval = mkMem ~addr:(Cil.stripCasts exp) ~off:NoOffset in
+      let addr = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+      (addr, AD.get_type addr)
+    in
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
@@ -2146,10 +2151,7 @@ struct
         | ("memset" | "__builtin_memset"), [dest; ch; count] ->
           (* TODO: check count *)
           let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
-          let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
-          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
-          let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+          let dest_a, dest_typ = addr_type_of_exp dest in
           let value =
             match eval_ch with
             | `Int i when ID.to_int i = Some Z.zero ->
@@ -2166,10 +2168,7 @@ struct
         | "__explicit_bzero_chk", [dest; count; _ (* dest_size *)]
         | ("bzero" | "__builtin_bzero" | "explicit_bzero"), [dest; count] ->
           (* TODO: check count *)
-          let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
-          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
-          let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+          let dest_a, dest_typ = addr_type_of_exp dest in
           let value = VD.zero_init_value dest_typ in
           set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _, _ -> failwith "strange bzero arguments"
@@ -2188,10 +2187,7 @@ struct
           (* | _ -> ignore @@ Pretty.printf "strcpy: dst %a may point to anything!\n" d_exp dst; *)
           (*     ctx.local *)
           (* end *)
-          let dest_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
-          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
-          let dest_typ = AD.get_type dest_a in
+          let dest_a, dest_typ = addr_type_of_exp dst in
           let value = VD.top_value dest_typ in
           set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _ -> failwith "strcpy arguments are strange/complicated."
