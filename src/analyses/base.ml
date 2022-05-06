@@ -2174,9 +2174,9 @@ struct
           set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _, _ -> failwith "strange bzero arguments"
       end
-    | `Unknown "F59" (* strcpy *)
-    | `Unknown "F60" (* strncpy *)
-    | `Unknown "F63" (* memcpy *)
+    | `Unknown ("F59" | "strcpy")
+    | `Unknown ("F60" | "strncpy")
+    | `Unknown ("F63" | "memcpy")
       ->
       begin match args with
         | [dst; src]
