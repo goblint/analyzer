@@ -232,6 +232,7 @@ struct
     | `Int v1, `Int v2 ->
       let result_ik = Cilfacade.get_ikind t in
       `Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
+    | `Float v1, `Float v2 -> failwith "todo: float binop" 
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -430,6 +431,7 @@ struct
     | `List e -> reachable_from_value ask gs st (`Address (ValueDomain.Lists.entry_rand e)) t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
+    | `Float _ -> failwith "todo"
     | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
 
   (* Get the list of addresses accessable immediately from a given address, thus
@@ -567,6 +569,7 @@ struct
           in
           ValueDomain.Structs.fold f s (empty, TS.bot (), false)
         | `Int _ -> (empty, TS.bot (), false)
+        | `Float _ -> failwith "todo"
         | `Thread _ -> (empty, TS.bot (), false) (* TODO: is this right? *)
       in
       reachable_from_value (get (Analyses.ask_of_ctx ctx) ctx.global ctx.local adr None)

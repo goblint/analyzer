@@ -78,6 +78,7 @@ module Threads = ConcDomain.ThreadSet
 module rec Compound: S with type t = [
     | `Top
     | `Int of ID.t
+    | `Float of FD.t
     | `Address of AD.t
     | `Struct of Structs.t
     | `Union of Unions.t
@@ -91,6 +92,7 @@ struct
   type t = [
     | `Top
     | `Int of ID.t
+    | `Float of FD.t
     | `Address of AD.t
     | `Struct of Structs.t
     | `Union of Unions.t
@@ -115,6 +117,7 @@ struct
   let rec bot_value (t: typ): t =
     match t with
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
+    | TFloat _ -> failwith "todo"
     | TPtr _ -> `Address (AD.bot ())
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
@@ -130,6 +133,7 @@ struct
   let is_bot_value x =
     match x with
     | `Int x -> ID.is_bot x
+    | `Float x -> FD.is_bot x
     | `Address x -> AD.is_bot x
     | `Struct x -> Structs.is_bot x
     | `Union x -> Unions.is_bot x
@@ -144,6 +148,7 @@ struct
     match t with
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.top_of ik)
+    | TFloat (FDouble, _) -> `Float (FD.top ()) (* TODO(Practical2022): extend to other floating point types *)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -159,6 +164,7 @@ struct
   let rec top_value (t: typ): t =
     match t with
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
+    | TFloat (FDouble, _) -> `Float (FD.top ()) (* TODO(Practical2022): extend to other floating point types *)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
@@ -173,6 +179,7 @@ struct
   let is_top_value x (t: typ) =
     match x with
     | `Int x -> ID.is_top_of (Cilfacade.get_ikind (t)) x
+    | `Float x -> FD.is_top x
     | `Address x -> AD.is_top x
     | `Struct x -> Structs.is_top x
     | `Union x -> Unions.is_top x
@@ -186,6 +193,7 @@ struct
     let rec zero_init_value (t:typ): t =
       match t with
       | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
+      | TFloat (FDouble, _) -> failwith "todo"
       | TPtr _ -> `Address AD.null_ptr
       | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value fd.ftype) ci)
       | TComp ({cstruct=false; _} as ci,_) ->
@@ -208,7 +216,7 @@ struct
       | _ -> `Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Thread _ -> "Thread" | `Bot -> "Bot"
+    | `Top -> "Top" | `Int _ -> "Int" | `Float _ -> "Float" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Thread _ -> "Thread" | `Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
@@ -226,6 +234,7 @@ struct
   let pretty () state =
     match state with
     | `Int n ->  ID.pretty () n
+    | `Float n ->  FD.pretty () n
     | `Address n ->  AD.pretty () n
     | `Struct n ->  Structs.pretty () n
     | `Union n ->  Unions.pretty () n
@@ -239,6 +248,7 @@ struct
   let show state =
     match state with
     | `Int n ->  ID.show n
+    | `Float n ->  FD.show n
     | `Address n ->  AD.show n
     | `Struct n ->  Structs.show n
     | `Union n ->  Unions.show n
@@ -252,6 +262,7 @@ struct
   let pretty_diff () (x,y) =
     match (x,y) with
     | (`Int x, `Int y) -> ID.pretty_diff () (x,y)
+    | (`Float x, `Float y) -> FD.pretty_diff () (x,y)
     | (`Address x, `Address y) -> AD.pretty_diff () (x,y)
     | (`Struct x, `Struct y) -> Structs.pretty_diff () (x,y)
     | (`Union x, `Union y) -> Unions.pretty_diff () (x,y)
@@ -444,6 +455,7 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
+    | (`Float x, `Float y) -> FD.leq x y
     | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
     | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
@@ -467,6 +479,7 @@ struct
     | (`Bot, x) -> x
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn "%s" m; `Top)
+    | (`Float x, `Float y) -> `Float (FD.join x y) (* TODO(Practical2022): type check?! *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
@@ -501,6 +514,7 @@ struct
     | (`Bot, x) -> x
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn "%s" m; `Top)
+    | (`Float x, `Float y) -> `Float (FD.join x y) (* TODO(Practical2022): type check?! *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal BI.zero x -> AD.join AD.null_ptr y
@@ -536,6 +550,7 @@ struct
     | (`Bot, x) -> x
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn "%s" m; `Top)
+    | (`Float x, `Float y) -> `Float (FD.widen x y) (* TODO(Practical2022): type check?! *)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal BI.zero x -> AD.widen AD.null_ptr y
@@ -569,6 +584,7 @@ struct
     | (`Bot, _) -> true
     | (_, `Bot) -> false
     | (`Int x, `Int y) -> ID.leq x y
+    | (`Float x, `Float y) -> FD.leq x y
     | (`Int x, `Address y) when ID.to_int x = Some BI.zero && not (AD.is_not_null y) -> true
     | (`Int _, `Address y) when AD.may_be_unknown y -> true
     | (`Address _, `Int y) when ID.is_top_of (Cilfacade.ptrdiff_ikind ()) y -> true
@@ -592,6 +608,7 @@ struct
     | (`Top, x) -> x
     | (x, `Top) -> x
     | (`Int x, `Int y) -> `Int (ID.meet x y)
+    | (`Float x, `Float y) -> `Float (FD.meet x y)
     | (`Int _, `Address _) -> meet x (cast (TInt(ptr_ikind (),[])) y)
     | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
@@ -618,6 +635,7 @@ struct
     | (`Bot, x) -> x
     | (x, `Bot) -> x
     | (`Int x, `Int y) -> (try `Int (ID.widen x y) with IntDomain.IncompatibleIKinds m -> Messages.warn "%s" m; `Top)
+    | (`Float x, `Float y) -> `Float (FD.widen x y)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.widen AD.null_ptr y
@@ -645,6 +663,7 @@ struct
   let rec narrow x y =
     match (x,y) with
     | (`Int x, `Int y) -> `Int (ID.narrow x y)
+    | (`Float x, `Float y) -> `Float (FD.narrow x y)
     | (`Int _, `Address _) -> narrow x (cast IntDomain.Size.top_typ y)
     | (`Address x, `Int y) -> `Address (AD.narrow x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.narrow x y)
@@ -1077,6 +1096,7 @@ struct
   let printXml f state =
     match state with
     | `Int n ->  ID.printXml f n
+    | `Float n ->  FD.printXml f n
     | `Address n ->  AD.printXml f n
     | `Struct n ->  Structs.printXml f n
     | `Union n ->  Unions.printXml f n
@@ -1089,6 +1109,7 @@ struct
 
   let to_yojson = function
     | `Int n -> ID.to_yojson n
+    | `Float n -> FD.to_yojson n
     | `Address n -> AD.to_yojson n
     | `Struct n -> Structs.to_yojson n
     | `Union n -> Unions.to_yojson n
@@ -1112,6 +1133,7 @@ struct
   let rec project p (v: t): t =
     match v with
     | `Int n ->  `Int (ID.project p n)
+    | `Float n ->  failwith "todo"
     | `Address n -> `Address (project_addr p n)
     | `Struct n -> `Struct (Structs.map (fun (x: t) -> project p x) n)
     | `Union (f, v) -> `Union (f, project p v)
