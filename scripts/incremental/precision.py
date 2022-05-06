@@ -34,6 +34,7 @@ try:
 except ValueError:
     print("Parameter should be a number.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
     exit()
+only_collect_results = False # can be turned on to collect results, if data collection was aborted before the creation of result tables
 ################################################################################
 
 utc = pytz.UTC
@@ -212,10 +213,10 @@ def analyze_seq_in_parallel(seq_list):
         p.join()
 
 
-def merge_results():
+def merge_results(filename, outfilename):
     wd = os.getcwd()
     seq_summaries = []
-    prec_sums = {str(i): {"precision_sum": {"equal": 0, "moreprec": 0, "lessprec": 0, "incomp": 0, "total": 0}, "number_of_commits": 0, "relCLOC": 0} for i in compare_commits}
+    result_sums = {str(i): {"precpertotal": {"equal": 0, "moreprec": 0, "lessprec": 0, "incomp": 0, "total": 0}, "number_of_commits": 0, "relCLOC": 0} for i in compare_commits}
     num_seq = 0
     for s in map(lambda x: os.path.abspath(x), os.listdir(wd)):
         if not os.path.isdir(s) or os.path.basename(s)[:6] != "series":
@@ -233,7 +234,7 @@ def merge_results():
         relCLOC = 0
         for i in filter(lambda x: x != "0", commits):
             ith_dir = os.path.join(outdir, i)
-            comparelog = os.path.join(ith_dir, "compare", "compare.log")
+            comparelog = os.path.join(ith_dir, "compare", filename)
             with open(os.path.join(outdir, i, "commit_properties.log"), "r") as f:
                 relCLOC += json.load(f)["relCLOC"]
             if int(i) in compare_commits:
@@ -241,36 +242,41 @@ def merge_results():
                     int_prec[i]["precision"] = utils.extract_precision_from_compare_log(os.path.join(ith_dir, "compare", "compare.log"))
                     int_prec[i]["relCLOC"] = relCLOC
                     if int_prec[i]["precision"]:
-                        prec_sums[i]["precision_sum"] = {k: prec_sums[i]["precision_sum"].get(k, 0) + int_prec[i]["precision"].get(k, 0) for k in set(prec_sums[i]["precision_sum"])}
-                        prec_sums[i]["number_of_commits"] += 1
-                        prec_sums[i]["relCLOC"] += relCLOC
+                        result_sums[i]["precpertotal"] = {k: result_sums[i]["precpertotal"].get(k, 0) + (int_prec[i]["precision"].get(k, 0) / int_prec[i]["precision"]["total"]) for k in set(result_sums[i]["precpertotal"])}
+                        result_sums[i]["number_of_commits"] += 1
+                        result_sums[i]["relCLOC"] += relCLOC
             if int(i) != 0 and int(i) == len(commits) - 1:
                 if os.path.exists(comparelog):
                     final_prec = utils.extract_precision_from_compare_log(comparelog)
         summary = {"name": os.path.basename(s), "sequence": seq, "length": len(seq), "intermediate precision": int_prec, "final precision": final_prec, "finalRelCLOC": relCLOC}
         seq_summaries.append(summary)
         os.chdir(wd)
-    prec_avgs = {i: None for i in prec_sums.keys()}
-    for i, ps in prec_sums.items():
+    result_avgs = {i: None for i in result_sums.keys()}
+    for i, ps in result_sums.items():
         if ps["number_of_commits"] != 0:
-            avg_prec = {k: ps["precision_sum"].get(k,0) / ps["number_of_commits"] for k in set(ps["precision_sum"])}
-            prec_avgs[i] = {"precision_avg": avg_prec, "relCLOC_avg": ps["relCLOC"] / ps["number_of_commits"]}
-    res = {"seq_summary":  seq_summaries, "prec_avgs": prec_avgs}
-    with open("results.json", "w") as f:
+            avg_prec = {k: ps["precpertotal"].get(k,0) / ps["number_of_commits"] for k in set(ps["precpertotal"])}
+            result_avgs[i] = {"precpertotal_avg": avg_prec, "relCLOC_avg": ps["relCLOC"] / ps["number_of_commits"]}
+    res = {"seq_summary":  seq_summaries, "prec_avgs": result_avgs}
+    with open(outfilename, "w") as f:
         json.dump(res, f, indent=4)
     res
 
 
-if os.path.exists(res_dir):
-    shutil.rmtree(res_dir)
-os.mkdir(res_dir)
+if not only_collect_results:
+    os.mkdir(res_dir)
 os.chdir(res_dir)
 
-print("find sequences to analyze")
-seq_list = find_sequences()
+if not only_collect_results:
+    print("find sequences to analyze")
+    seq_list = find_sequences()
 
-print("\nanalyze sequences in parallel")
-analyze_seq_in_parallel(seq_list)
+    print("\nanalyze sequences in parallel")
+    analyze_seq_in_parallel(seq_list)
 
 print("\nmerge results")
-merge_results()
+comp_filename = "compare_prec.log"
+results_filename = "prec_results.json"
+merge_results(comp_filename, results_filename)
+comp_filename = "compare.log"
+results_filename = "results.json"
+merge_results(comp_filename, results_filename)

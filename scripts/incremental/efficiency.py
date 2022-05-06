@@ -180,12 +180,13 @@ def analyze_chunks_of_commits_in_parallel():
         # run script
         start = perprocess * i
         end = perprocess * (i + 1) if i < numcores - 1 else num_commits
-        runperprocess(coremapping[i], start, end)
         if not only_collect_results:
             p = mp.Process(target=runperprocess, args=[coremapping[i], start, end])
             p.start()
             processes.append(p)
             # time.sleep(random.randint(5,60)) # add random delay between process creation to try to reduce interference
+        else:
+            runperprocess(coremapping[i], start, end)
         os.chdir(result_dir)
 
     for p in processes:
@@ -206,8 +207,6 @@ def merge_results():
 
 
 if not only_collect_results:
-    if os.path.exists(result_dir):
-        shutil.rmtree(result_dir)
     os.mkdir(result_dir)
 os.chdir(result_dir)
 

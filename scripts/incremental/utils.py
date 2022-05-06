@@ -23,7 +23,6 @@ matplotlib.rcParams.update({
     'ytick.labelsize': 9
 })
 import matplotlib.pyplot as plt
-print(matplotlib.rcParams.keys())
 from matplotlib.ticker import ScalarFormatter
 
 header_runtime_parent = "Runtime for parent commit (non-incremental)"
@@ -173,7 +172,7 @@ def cummulative_distr_plot(data_sets, base, outfile, figsize=None, title=None, l
     plt.title(title)
     plt.savefig(outfile)
 
-def hist_plot(data, step, title, xlabel, ylabel, outfile, size, cutoffs=None):
+def hist_plot(data, step, title, xlabel, ylabel, outfile, size, xlim_right=None, cutoffs=None):
     min = data.min()
     max = data.max()
     min = min//step
@@ -193,6 +192,7 @@ def hist_plot(data, step, title, xlabel, ylabel, outfile, size, cutoffs=None):
         width, height = size
         fig.set_size_inches(w=width, h=height)
         plt.hist(data, bins)
+        plt.xlim(right=xlim_right)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         if title: plt.title(title)

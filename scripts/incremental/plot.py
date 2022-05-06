@@ -51,9 +51,9 @@ def distribution_reldiff_plot(title, result_csv_filename, outdir, cutoffs_incr=N
     diff = 1 - df.loc[:,utils.header_runtime_incr_rel_child] / df.loc[:,utils.header_runtime_incr_child]
     utils.hist_plot(diff, 0.005, title, 'Relative Improvement (reluctant compared to incremental)', 'Number of Commits', os.path.join(outdir, "figure_reldiff_distr_rel.pdf"), cutoffs_rel)
 
-def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filename, outdir, filterDetectedChanges):
-    df_base = utils.get_cleaned_filtered_data(os.path.join(dir_results_baseline,csv_filename), filterDetectedChanges=filterDetectedChanges)
-    df_incrps = utils.get_cleaned_filtered_data(os.path.join(dir_results_incrps,csv_filename), filterDetectedChanges=filterDetectedChanges)
+def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filename, outdir, filterRelCLOC=False, filterDetectedChanges=False):
+    df_base = utils.get_cleaned_filtered_data(os.path.join(dir_results_baseline,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
+    df_incrps = utils.get_cleaned_filtered_data(os.path.join(dir_results_incrps,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
     title1 = "Plain incremental\nvs. non-incr solver"
     title2 = "Plain incremental with incr. postsolver\nvs. Plain incremental"
     title3 = "Reluctant incremental with incr. postsolver\nvs. Plain incremental with incr. postsolver"
@@ -75,7 +75,7 @@ def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filena
         else:
             size = (7/3, 7/4)
             # with title: size = (7/3.33, 7/3.33)
-        utils.hist_plot(diff, step, None, "Relative speedup", "Number of commits", os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf"), size, cutoffs=None)
+        utils.hist_plot(diff, step, None, "Relative speedup", "\#Commits", os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf"), size, xlim_right=1, cutoffs=None)
 
 
 results_efficiency_baseline = "result_efficiency_incrpost" # TODO
@@ -83,5 +83,5 @@ results_efficiency_incrpostsolver = "result_efficiency_incrpost"
 outdir = "figures"
 os.mkdir(outdir)
 filename = "total_results.csv"
-filterDetectedChanges = True # TODO discuss (for reluctant it is benefical)
-paper_efficiency_graphs(results_efficiency_baseline, results_efficiency_incrpostsolver, filename, outdir, filterDetectedChanges)
+# TODO discuss filtering (for reluctant the more the better)
+paper_efficiency_graphs(results_efficiency_baseline, results_efficiency_incrpostsolver, filename, outdir, filterRelCLOC=True, filterDetectedChanges=False)
