@@ -315,6 +315,9 @@ let invalidate_actions = [
     "pthread_attr_setdetachstate", writesAll;(*unsafe*)
     "pthread_attr_setstacksize", writesAll;(*unsafe*)
     "pthread_attr_setscope", writesAll;(*unsafe*)
+    "pthread_attr_getdetachstate", readsAll;(*safe*)
+    "pthread_attr_getstacksize", readsAll;(*safe*)
+    "pthread_attr_getscope", readsAll;(*safe*)
     "pthread_cond_init", readsAll; (*safe*)
     "pthread_cond_wait", readsAll; (*safe*)
     "pthread_cond_signal", readsAll;(*safe*)
@@ -343,6 +346,7 @@ let invalidate_actions = [
     "__builtin___strcpy", writes [1];(*keep [1]*)
     "__builtin___strcpy_chk", writes [1];(*keep [1]*)
     "strcat", writes [1];(*keep [1]*)
+    "strtok", readsAll;(*safe*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
     "memchr", readsAll;(*safe*)
@@ -377,6 +381,7 @@ let invalidate_actions = [
     "fputs", readsAll;(*safe*)
     "fputc", readsAll;(*safe*)
     "fseek", writes[1];
+    "rewind", writesAll;
     "fileno", readsAll;
     "ferror", readsAll;
     "ftell", readsAll;
