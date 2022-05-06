@@ -2188,15 +2188,12 @@ struct
           (* | _ -> ignore @@ Pretty.printf "strcpy: dst %a may point to anything!\n" d_exp dst; *)
           (*     ctx.local *)
           (* end *)
-          let rec get_lval exp = match stripCasts exp with
-            | Lval x | AddrOf x | StartOf x -> x
-            | BinOp (PlusPI, e, i, _)
-            | BinOp (MinusPI, e, i, _) -> get_lval e
-            | x ->
-              ignore @@ Pretty.printf "strcpy: dst is %a!\n" d_plainexp dst;
-              failwith "strcpy: expecting first argument to be a pointer!"
-          in
-          assign ctx (get_lval dst) src
+          let dest_lval = mkMem ~addr:(Cil.stripCasts dst) ~off:NoOffset in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
+          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
+          let dest_typ = AD.get_type dest_a in
+          let value = VD.top_value dest_typ in
+          set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _ -> failwith "strcpy arguments are strange/complicated."
       end
     | `Unknown "F1" ->
