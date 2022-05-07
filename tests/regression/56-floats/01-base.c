@@ -6,12 +6,19 @@
 int main()
 {
     double middle;
-    double a = DBL_MAX;
-    double b = DBL_MAX;
+    double a = 2.;
+    double b = 4.;
 
-    middle = middle * 1.; // of course all accesses before initialization should result in a warning
+    assert(middle == 2.); // UNKNOWN!
+
+    assert(a == 2.); // SUCCESS!
+    assert(a < 10.); // SUCCESS!
+    assert(a > 10.); // FAIL!
 
     middle = (a + b) / 2.; // naive way of computing the middle
 
-    return middle - 100.; // further uses of the overflown middle value should result in a warning
+    assert(middle == 3.); // SUCCESS!
+
+    assert(-97. == middle - 100.);
+    return 0;
 }

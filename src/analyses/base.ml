@@ -10,6 +10,7 @@ module Q = Queries
 
 module GU = Goblintutil
 module ID = ValueDomain.ID
+module FD = ValueDomain.FD
 module IdxDom = ValueDomain.IndexDomain
 module AD = ValueDomain.AD
 module Addr = ValueDomain.Addr
@@ -127,10 +128,16 @@ struct
     | Neg  -> ID.neg
     | BNot -> ID.bitnot
     | LNot -> ID.lognot
+  
+  let unop_FD = function
+    | Neg  -> FD.neg
+    (* other unary operators are not implemented on float values *)
+    | _ -> (fun _ -> FD.top ())
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ = function
     | `Int v1 -> `Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
+    | `Float v -> `Float (unop_FD op v) (* TODO(Practical2022): Do we require a type check? *)
     | `Address a when op = LNot ->
       if AD.is_null a then
         `Int (ID.of_bool (Cilfacade.get_ikind typ) true)
@@ -161,6 +168,26 @@ struct
     | LAnd -> ID.logand
     | LOr -> ID.logor
     | b -> (fun x y -> (ID.top_of result_ik))
+
+  let binop_FD = function
+    | PlusA -> FD.add
+    | MinusA -> FD.sub
+    | Mult -> FD.mul
+    | Div -> FD.div
+    | _ -> (fun _ _ -> FD.top ())
+  
+  let int_returning_binop_FD = function 
+    | Lt -> FD.lt
+    | Gt -> FD.gt
+    | Le -> FD.le
+    | Ge -> FD.ge
+    | Eq -> FD.eq
+    | Ne -> FD.ne
+    | _ -> (fun _ _ -> ID.top ())
+  
+  let is_int_returning_binop_FD = function 
+    | Lt | Gt | Le | Ge | Eq | Ne -> true
+    | _ -> false
 
   (* Evaluate binop for two abstract values: *)
   let evalbinop (a: Q.ask) (st: store) (op: binop) (t1:typ) (a1:value) (t2:typ) (a2:value) (t:typ) :value =
@@ -232,7 +259,10 @@ struct
     | `Int v1, `Int v2 ->
       let result_ik = Cilfacade.get_ikind t in
       `Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
-    | `Float v1, `Float v2 -> failwith "todo: float binop" 
+    | `Float v1, `Float v2 when is_int_returning_binop_FD op -> 
+      let result_ik = Cilfacade.get_ikind t in
+      `Int (ID.cast_to result_ik (int_returning_binop_FD op v1 v2))
+    | `Float v1, `Float v2 -> `Float (binop_FD op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -697,6 +727,7 @@ struct
       | Const (CInt (num,ikind,str)) ->
         (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
+      | Const (CReal (num, _, _)) -> `Float (FD.of_const num) (* TODO(Practical(2022): use string representation instead *)
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
@@ -1436,6 +1467,7 @@ struct
         helper Ne x (null_val (Cilfacade.typeOf exp)) tv
       | UnOp (LNot,uexp,typ) -> derived_invariant uexp (not tv)
       | _ ->
+        (*TODO(Practical2022): Make goblint also understand floats *)
         if M.tracing then M.tracec "invariant" "Failed! (expression %a not understood)\n\n" d_plainexp exp;
         None
     in

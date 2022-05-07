@@ -117,7 +117,7 @@ struct
   let rec bot_value (t: typ): t =
     match t with
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
-    | TFloat _ -> failwith "todo"
+    | TFloat _ -> `Bot
     | TPtr _ -> `Address (AD.bot ())
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
@@ -1133,7 +1133,7 @@ struct
   let rec project p (v: t): t =
     match v with
     | `Int n ->  `Int (ID.project p n)
-    | `Float n ->  failwith "todo"
+    | `Float n ->  failwith "todo - project"
     | `Address n -> `Address (project_addr p n)
     | `Struct n -> `Struct (Structs.map (fun (x: t) -> project p x) n)
     | `Union (f, v) -> `Union (f, project p v)
