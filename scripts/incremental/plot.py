@@ -55,10 +55,13 @@ def distribution_reldiff_plot(title, result_csv_filename, outdir, cutoffs_incr=N
 def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filename, outdir, filterRelCLOC=False, filterDetectedChanges=False):
     df_base = utils.get_cleaned_filtered_data(os.path.join(dir_results_baseline,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
     df_incrps = utils.get_cleaned_filtered_data(os.path.join(dir_results_incrps,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
-    diff1 = 1 - df_base[utils.header_runtime_incr_child].astype('float') / df_base[utils.header_runtime_parent].astype('float')
-    diff2 = 1 - df_incrps[utils.header_runtime_incr_child].astype('float') / df_base[utils.header_runtime_incr_child].astype('float')
-    diff3 = 1 - df_incrps[utils.header_runtime_incr_rel_child].astype('float') / df_incrps[utils.header_runtime_incr_child].astype('float')
-    diff4 = 1 - df_incrps[utils.header_runtime_incr_child].astype('float') / df_base[utils.header_runtime_parent].astype('float')
+    df = df_base.join(df_incrps, how='inner', lsuffix=' base', rsuffix=' incrps')
+    print("len join:", len(df.index), "len base:", len(df_base.index), "len incrps:", len(df_incrps.index))
+    df.to_csv('join.csv',sep=";")
+    diff1 = 1 - df[utils.header_runtime_incr_child + " base"].astype('float') / df[utils.header_runtime_parent + " base"].astype('float')
+    diff2 = 1 - df[utils.header_runtime_incr_child + " incrps"].astype('float') / df[utils.header_runtime_incr_child + " base"].astype('float')
+    diff3 = 1 - df[utils.header_runtime_incr_rel_child].astype('float') / df[utils.header_runtime_incr_child + " incrps"].astype('float')
+    diff4 = 1 - df[utils.header_runtime_incr_rel_child].astype('float') / df[utils.header_runtime_parent + " base"].astype('float')
     step = 0.01
     for i, diff in enumerate([diff1,diff2,diff3,diff4]):
         # output textwidth in latex with
@@ -70,6 +73,7 @@ def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filena
         if i == 3:
             size = (textwidth, textwidth/4)
             xlim = 1.02
+            step = 0.005
             # with title: size = (7, 7/3) # 3.54in = 9cm # use 18*cm for specifying it in cm
         elif i == 0:
             size = (textwidth/3+0.1, textwidth/4) # additional ylabel
@@ -111,14 +115,13 @@ def paper_precision_graph(results_precision, filename, outdir):
 
 
 # efficiency plots
-results_efficiency_baseline = "result_efficiency_incrpost" # TODO
+results_efficiency_baseline = "result_efficiency_baseline"
 results_efficiency_incrpostsolver = "result_efficiency_incrpost"
 outdir = "figures"
 if os.path.exists(outdir):
     shutil.rmtree(outdir)
 os.mkdir(outdir)
 filename = "total_results.csv"
-# TODO discuss filtering (for reluctant the more the better)
 paper_efficiency_graphs(results_efficiency_baseline, results_efficiency_incrpostsolver, filename, outdir, filterRelCLOC=True, filterDetectedChanges=False)
 
 
