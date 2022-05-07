@@ -5,11 +5,12 @@ import subprocess
 from pydriller import Git
 import re
 import pandas
+import json
 import numpy as np
 import brokenaxes
-import matplotlib
-matplotlib.use("pgf")
-matplotlib.rcParams.update({
+import matplotlib as mpl
+mpl.use("pgf")
+mpl.rcParams.update({
     "pgf.texsystem": "pdflatex",
     'pgf.rcfonts': False,
     'text.usetex': True,
@@ -20,7 +21,8 @@ matplotlib.rcParams.update({
     'figure.titlesize': 9,
     'figure.dpi': 300,
     'xtick.labelsize': 9,
-    'ytick.labelsize': 9
+    'ytick.labelsize': 9,
+
 })
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
@@ -124,8 +126,8 @@ def barplot(data_set):
     plt.tight_layout()
     plt.savefig("figure.pdf")
 
-def get_cleaned_filtered_data(result_csv_filename, filterRelCLOC=False, filterDetectedChanges=False):
-    df=pandas.read_csv(result_csv_filename, index_col=0, sep=";")
+def get_cleaned_filtered_data(result_csv_file, filterRelCLOC=False, filterDetectedChanges=False):
+    df=pandas.read_csv(result_csv_file, index_col=0, sep=";")
 
     # clean dataset (remove all rows for which any of the runtime entries is 0 which means that the respective analysis
     # run failed)
@@ -134,6 +136,12 @@ def get_cleaned_filtered_data(result_csv_filename, filterRelCLOC=False, filterDe
         df = df[df["Relevant changed LOC"] > 0]
     if filterDetectedChanges:
         df = df[df["Changed/Added/Removed functions"] > 0]
+    return df
+
+def get_data_from_json(result_file):
+    with open(result_file) as f:
+        d = json.load(f)
+    df=pandas.json_normalize(d['seq_summary'])
     return df
 
 def create_cum_data(dataFrame, num_bins, relColumns):
@@ -193,10 +201,10 @@ def hist_plot(data, step, title, xlabel, ylabel, outfile, size, xlim_right=None,
         fig.set_size_inches(w=width, h=height)
         plt.hist(data, bins)
         plt.xlim(right=xlim_right)
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
+        if xlabel: plt.xlabel(xlabel)
+        if ylabel: plt.ylabel(ylabel)
         if title: plt.title(title)
-        plt.tight_layout()
+        plt.tight_layout(pad=0.4)
         plt.savefig(outfile)
 
 def hist_subplots(ax, data, step):
@@ -216,4 +224,19 @@ def four_hist_subplots(data, title, xlabel, ylabel, outfile):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.tight_layout()
-    fig.savefig(outfile, dpi=600)
+    fig.savefig(outfile)
+
+def scatter_plot(data, xlabel, ylabel, outfile, size):
+    fig = plt.figure()
+    width, height = size
+    fig.set_size_inches(w=width, h=height)
+    colors=['red','azure','blue','brown','chartreuse','chocolate','darkblue','darkgreen','seagreen','green','indigo','orangered','orange','coral','olive','mediumseagreen','grey','teal']
+    markers = ['x','+','o','s','p','*','D','d','v','^','<','>','1','2','3','4','H','P']
+    linestyles = ['dashed']
+    for i, (x, y) in enumerate(data):
+        plt.plot(x,y, marker='x', linewidth=0.4, markersize=1, alpha=0.85, color=colors[i % len(colors)], linestyle=linestyles[i % len(linestyles)])
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.ylim(bottom=-0.005, top=0.19)
+    plt.tight_layout(pad=0.4)
+    plt.savefig(outfile)

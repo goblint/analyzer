@@ -1,5 +1,6 @@
 import utils
 import os
+import shutil
 
 def cummulative_distr_compare2(outdir, result_csv_filename):
     num_bins = 2000
@@ -54,34 +55,74 @@ def distribution_reldiff_plot(title, result_csv_filename, outdir, cutoffs_incr=N
 def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filename, outdir, filterRelCLOC=False, filterDetectedChanges=False):
     df_base = utils.get_cleaned_filtered_data(os.path.join(dir_results_baseline,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
     df_incrps = utils.get_cleaned_filtered_data(os.path.join(dir_results_incrps,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
-    title1 = "Plain incremental\nvs. non-incr solver"
-    title2 = "Plain incremental with incr. postsolver\nvs. Plain incremental"
-    title3 = "Reluctant incremental with incr. postsolver\nvs. Plain incremental with incr. postsolver"
-    title4 = "Reluctant incremental with incr. postsolver vs. non-incr solver"
     diff1 = 1 - df_base[utils.header_runtime_incr_child].astype('float') / df_base[utils.header_runtime_parent].astype('float')
     diff2 = 1 - df_incrps[utils.header_runtime_incr_child].astype('float') / df_base[utils.header_runtime_incr_child].astype('float')
     diff3 = 1 - df_incrps[utils.header_runtime_incr_rel_child].astype('float') / df_incrps[utils.header_runtime_incr_child].astype('float')
     diff4 = 1 - df_incrps[utils.header_runtime_incr_child].astype('float') / df_base[utils.header_runtime_parent].astype('float')
     step = 0.01
-    for i, (diff,title) in enumerate([(diff1,title1),(diff2,title2),(diff3,title3),(diff4,title4)]):
+    for i, diff in enumerate([diff1,diff2,diff3,diff4]):
         # output textwidth in latex with
         # \usepackage{layouts}
         # \printinunitsof{cm}\prntlen{\textwidth}
         # \printinunitsof{in}\prntlen{\textwidth}
         # -> 17.7917cm / 7.00697in
+        textwidth = 7
         if i == 3:
-            size = (7, 7/4)
+            size = (textwidth, textwidth/4)
+            xlim = 1.02
             # with title: size = (7, 7/3) # 3.54in = 9cm # use 18*cm for specifying it in cm
+        elif i == 0:
+            size = (textwidth/3+0.1, textwidth/4) # additional ylabel
+            xlim = 1.05
         else:
-            size = (7/3, 7/4)
-            # with title: size = (7/3.33, 7/3.33)
-        utils.hist_plot(diff, step, None, "Relative speedup", "\#Commits", os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf"), size, xlim_right=1, cutoffs=None)
+            size = (textwidth/3-0.1/2, textwidth/4) # missing ylabel
+            xlim = 1.05
+            # with title: size = (7/3, 7/3)
+        utils.hist_plot(diff, step, None, "Relative speedup" if i==3 else None, "\# Commits" if i==0 or i==3 else None, os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf"), size, xlim_right=xlim, cutoffs=None)
+
+def paper_precision_graph(results_precision, filename, outdir):
+    df = utils.get_data_from_json(os.path.join(results_precision, filename))
+
+    lessprec1 = 'intermediate precision.1.precision.lessprec'
+    lessprec2 = 'intermediate precision.2.precision.lessprec'
+    lessprec5 = 'intermediate precision.5.precision.lessprec'
+    lessprec10 = 'intermediate precision.10.precision.lessprec'
+    lessprec15 = 'intermediate precision.15.precision.lessprec'
+    lessprecfinal = 'final precision.lessprec'
+    total1 = 'intermediate precision.1.precision.total'
+    total2 = 'intermediate precision.2.precision.total'
+    total5 = 'intermediate precision.5.precision.total'
+    total10 = 'intermediate precision.10.precision.total'
+    total15 = 'intermediate precision.15.precision.total'
+    totalfinal = 'final precision.total'
+
+    data = []
+    for i in range(len(df.index)):
+        x = [1,2,5,10,15,df.iloc[i]['length']]
+        vals = df.iloc[i][[lessprec1, lessprec2, lessprec5, lessprec10, lessprec15, lessprecfinal]].values
+        total = df.iloc[i][[total1, total2, total5, total10, total15, totalfinal]].values
+        x = [x[i] for i in range(len(x)) if vals[i] == vals[i]]
+        y = [vals[i] / total[i] for i in range(len(vals)) if vals[i] == vals[i] and total[i] == total[i]]
+        data.append((x,y))
+    halftextwidth = 3.3
+    size=(halftextwidth,halftextwidth*2/3)
+    utils.scatter_plot(data, "\# Commits", "Share of less precise program points", os.path.join(outdir, "precision_figure.pgf"), size)
 
 
+
+# efficiency plots
 results_efficiency_baseline = "result_efficiency_incrpost" # TODO
 results_efficiency_incrpostsolver = "result_efficiency_incrpost"
 outdir = "figures"
+if os.path.exists(outdir):
+    shutil.rmtree(outdir)
 os.mkdir(outdir)
 filename = "total_results.csv"
 # TODO discuss filtering (for reluctant the more the better)
 paper_efficiency_graphs(results_efficiency_baseline, results_efficiency_incrpostsolver, filename, outdir, filterRelCLOC=True, filterDetectedChanges=False)
+
+
+# precision plot
+results_precision = "result_precision"
+filename = "prec_results.json"
+paper_precision_graph(results_precision, filename, outdir)
