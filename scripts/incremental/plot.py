@@ -56,7 +56,6 @@ def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filena
     df_base = utils.get_cleaned_filtered_data(os.path.join(dir_results_baseline,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
     df_incrps = utils.get_cleaned_filtered_data(os.path.join(dir_results_incrps,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
     df = df_base.join(df_incrps, how='inner', lsuffix=' base', rsuffix=' incrps')
-    print("len join:", len(df.index), "len base:", len(df_base.index), "len incrps:", len(df_incrps.index))
     df.to_csv('join.csv',sep=";")
     diff1 = 1 - df[utils.header_runtime_incr_child + " base"].astype('float') / df[utils.header_runtime_parent + " base"].astype('float')
     diff2 = 1 - df[utils.header_runtime_incr_child + " incrps"].astype('float') / df[utils.header_runtime_incr_child + " base"].astype('float')
@@ -70,6 +69,7 @@ def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filena
         # \printinunitsof{in}\prntlen{\textwidth}
         # -> 17.7917cm / 7.00697in
         textwidth = 7
+        xlimleft = None
         if i == 3:
             size = (textwidth, textwidth/4)
             xlim = 1.02
@@ -78,11 +78,15 @@ def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filena
         elif i == 0:
             size = (textwidth/3+0.1, textwidth/4) # additional ylabel
             xlim = 1.05
+        elif i == 1:
+            xlimleft = -0.3
+            size = (textwidth/3-0.1/2, textwidth/4) # missing ylabel
+            xlim = 1.05
         else:
             size = (textwidth/3-0.1/2, textwidth/4) # missing ylabel
             xlim = 1.05
             # with title: size = (7/3, 7/3)
-        utils.hist_plot(diff, step, None, "Relative speedup" if i==3 else None, "\# Commits" if i==0 or i==3 else None, os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf"), size, xlim_right=xlim, cutoffs=None)
+        utils.hist_plot(diff, step, None, "Relative speedup" if i==3 else None, "\# Commits" if i==0 or i==3 else None, os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf"), size, xlim_left=xlimleft, xlim_right=xlim, cutoffs=None)
 
 def paper_precision_graph(results_precision, filename, outdir):
     df = utils.get_data_from_json(os.path.join(results_precision, filename))

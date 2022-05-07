@@ -181,7 +181,7 @@ def cummulative_distr_plot(data_sets, base, outfile, figsize=None, title=None, l
     plt.title(title)
     plt.savefig(outfile)
 
-def hist_plot(data, step, title, xlabel, ylabel, outfile, size, xlim_right=None, cutoffs=None):
+def hist_plot(data, step, title, xlabel, ylabel, outfile, size, xlim_left=None, xlim_right=None, cutoffs=None):
     min = data.min()
     max = data.max()
     min = min//step
@@ -201,7 +201,10 @@ def hist_plot(data, step, title, xlabel, ylabel, outfile, size, xlim_right=None,
         width, height = size
         fig.set_size_inches(w=width, h=height)
         plt.hist(data, bins)
-        plt.xlim(right=xlim_right)
+        if xlim_left:
+            plt.xlim(left=xlim_left, right=xlim_right)
+        else:
+            plt.xlim(right=xlim_right)
         if xlabel: plt.xlabel(xlabel)
         if ylabel: plt.ylabel(ylabel)
         if title: plt.title(title)
