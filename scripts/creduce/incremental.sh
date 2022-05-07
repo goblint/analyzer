@@ -17,6 +17,6 @@ sed "s/case 2:/case 2:\n    case 3:/" $FILE.c > $FILE.new.c
 $HERE/goblint --enable incremental.load --set save_run incrementalrun $FILE.new.c &> after.incr.log
 $HERE/goblint --set save_run originalrun $FILE.new.c &> after.scratch.log
 
-$HERE/goblint --enable solverdiffs --compare_runs originalrun incrementalrun $FILE.new.c &> out.log
+$HERE/goblint --enable dbg.compare_runs.diff --compare_runs originalrun incrementalrun $FILE.new.c &> out.log
 grep -F "$INTERESTING" out.log
 

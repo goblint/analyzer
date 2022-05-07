@@ -14,7 +14,7 @@ struct
     let should_print _ = true
   end
 
-  let access ctx e vo w: MHP.t =
+  let access ctx _: MHP.t =
     {
       tid = ctx.ask CurrentThreadId;
       created = ctx.ask CreatedThreads;

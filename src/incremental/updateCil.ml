@@ -1,11 +1,13 @@
 open Cil
 open CompareCIL
-open VersionLookup
+open MaxIdUtil
 open MyCFG
 
 include UpdateCil0
 
-let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_identifier, Cil.global) Hashtbl.t) (changes: change_info) =
+let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change_info) =
+  UpdateCil0.init (); (* reset for server mode *)
+
   let vid_max = ref ids.max_vid in
   let sid_max = ref ids.max_sid in
 
@@ -48,10 +50,9 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
     v.vid <- old_v.vid;
     update_vid_max v.vid;
   in
-  let reset_globals (glob: global) =
+  let reset_globals (glob: unchanged_global) =
     try
-      let old_glob = Hashtbl.find map (CompareCFG.identifier_of_global glob) in
-      match glob, old_glob with
+      match glob.current, glob.old with
       | GFun (nw, _), GFun (old, _) -> reset_fun nw old
       | GVar (nw, _, _), GVar (old, _, _) -> reset_var nw old
       | GVarDecl (nw, _), GVarDecl (old, _) -> reset_var nw old
@@ -103,11 +104,10 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   in
   let update_globals (glob: global) =
     try
-      let old_glob = Hashtbl.find map (CompareCFG.identifier_of_global glob) in
-      match glob, old_glob with
-      | GFun (nw, _), GFun (old, _) -> update_fun nw
-      | GVar (nw, _, _), GVar (old, _, _) -> update_var nw
-      | GVarDecl (nw, _), GVarDecl (old, _) -> update_var nw
+      match glob with
+      | GFun (nw, _) -> update_fun nw
+      | GVar (nw, _, _) -> update_var nw
+      | GVarDecl (nw, _) -> update_var nw
       | _ -> ()
     with Failure m -> ()
   in
@@ -116,7 +116,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (map: (global_id
   List.iter update_globals changes.added;
 
   (* Update the sid_max and vid_max *)
-  Cil.iterGlobals new_file (update_max_ids vid_max sid_max);
+  Cil.iterGlobals new_file (update_max_ids ~sid_max ~vid_max);
   (* increment the sid so that the *unreachable* nodes that are introduced afterwards get unique sids *)
   while !sid_max > Cil.new_sid () do
     ()

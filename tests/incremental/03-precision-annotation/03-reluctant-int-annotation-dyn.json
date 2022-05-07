@@ -6,13 +6,16 @@
     },
     "ana": {
         "int": {
-            "refinement": "fixpoint"
+            "refinement": "fixpoint",
+            "interval_narrow_by_meet": true
         }
     },
     "incremental": {
         "reluctant": {
             "on": true
         },
-        "verify": false
+        "postsolver": {
+            "enabled":  false
+        }
     }
 }

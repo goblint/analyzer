@@ -16,7 +16,11 @@ struct
   module D = ApronComponents (AD) (Priv.D)
   module G = Priv.G
   module C = D
-  module V = Priv.V
+  module V =
+  struct
+    include Priv.V
+    include StdV
+  end
 
   open AD
   open (ApronDomain: (sig module V: (module type of ApronDomain.V) end)) (* open only V from ApronDomain (to shadow V of Spec), but don't open D (to not shadow D here) *)
@@ -330,6 +334,7 @@ struct
       let st' = match LibraryFunctions.get_invalidate_action f.vname with
         | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
         | None ->
+          (* nothing to do for args because only AddrOf arguments may be invalidated *)
           if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
             let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
                 match global with
@@ -411,16 +416,18 @@ struct
   let threadspawn ctx lval f args fctx =
     ctx.local
 
-  let event ctx e aprx =
+  let event ctx e octx =
     let st = ctx.local in
     match e with
-    | Events.Lock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.lock (Analyses.ask_of_ctx aprx) aprx.global st addr
+    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+      Priv.lock (Analyses.ask_of_ctx ctx) ctx.global st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.unlock (Analyses.ask_of_ctx aprx) aprx.global aprx.sideg st addr
+      if addr = UnknownPtr then
+        M.info ~category:Unsound "Unknown mutex unlocked, apron privatization unsound"; (* TODO: something more sound *)
+      Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
     (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
-      Priv.enter_multithreaded (Analyses.ask_of_ctx aprx) aprx.global aprx.sideg st
+      Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | _ ->
       st
 
@@ -440,24 +447,28 @@ struct
   let store_data file =
     let convert (m: AD.t RH.t): OctApron.t RH.t =
       let convert_single (a: AD.t): OctApron.t =
-        let generator = AD.to_lincons_array a in
-        OctApron.of_lincons_array generator
+        if Oct.manager_is_oct AD.Man.mgr then
+          Oct.Abstract1.to_oct a
+        else
+          let generator = AD.to_lincons_array a in
+          OctApron.of_lincons_array generator
       in
       RH.map (fun _ -> convert_single) m
     in
     let post_process m =
-      let m = convert m in
+      let m = Stats.time "convert" convert m in
       RH.map (fun _ v -> OctApron.marshal v) m
     in
     let results = post_process results in
-    let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ ")" in
+    let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ (if GobConfig.get_bool "ana.apron.threshold_widening" then ", th" else "" ) ^ ")" in
     let results: ApronPrecCompareUtil.dump = {marshalled = results; name } in
     Serialize.marshal results file
 
   let finalize () =
     let file = GobConfig.get_string "exp.apron.prec-dump" in
     if file <> "" then begin
-      store_data file
+      Printf.printf "exp.apron.prec-dump is potentially costly (for domains other than octagons), do not use for performance data!\n";
+      Stats.time "apron.prec-dump" store_data (Fpath.v file)
     end;
     Priv.finalize ()
 end

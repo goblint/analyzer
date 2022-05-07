@@ -8,7 +8,7 @@ opam_setup() {
   set -x
   opam init -y -a --bare $SANDBOXING # sandboxing is disabled in travis and docker
   opam update
-  opam switch -y create . --deps-only ocaml-base-compiler.4.13.1 --locked
+  opam switch -y create . --deps-only ocaml-base-compiler.4.14.0 --locked
 }
 
 rule() {
@@ -46,6 +46,11 @@ rule() {
       dune build src/apronPrecCompare.exe &&
       rm -f apronPrecCompare &&
       cp _build/default/src/apronPrecCompare.exe apronPrecCompare
+    ;; messagesCompare)
+      eval $(opam config env)
+      dune build src/messagesCompare.exe &&
+      rm -f messagesCompare &&
+      cp _build/default/src/messagesCompare.exe messagesCompare
     ;; byte)
       eval $(opam config env)
       dune build goblint.byte &&

@@ -1,0 +1,19 @@
+--- tests/incremental/13-restart-write/04-malloc-node.c
++++ tests/incremental/13-restart-write/04-malloc-node.c
+@@ -3,6 +3,7 @@
+
+ void *t_fun(void *arg) {
+   int *iarg = (int*) arg;
++  int y = 0; // NORACE (old access)
+   *iarg = 1; // RACE (without mallocFresh)
+   return NULL;
+ }
+@@ -11,6 +12,8 @@ int main() {
+   pthread_t id;
+   int *iarg;
+
++  assert(1);
++  int x = 0; // NORACE (old access)
+   for (int i = 0; i < 10; i++) {
+     iarg = malloc(sizeof(int));
+     *iarg = 0; // RACE (without mallocFresh)

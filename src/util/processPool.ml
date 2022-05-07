@@ -1,6 +1,6 @@
 type task = {
   command: string;
-  cwd: string option;
+  cwd: Fpath.t option;
 }
 
 let run ~jobs ?(terminated=fun _ _ -> ()) tasks =
@@ -15,7 +15,7 @@ let run ~jobs ?(terminated=fun _ _ -> ()) tasks =
           Fun.protect ~finally:(fun () ->
               Sys.chdir old_cwd
             ) (fun () ->
-              Sys.chdir cwd;
+              Sys.chdir (Fpath.to_string cwd);
               Unix.open_process task.command
             )
         | None ->

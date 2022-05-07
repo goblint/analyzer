@@ -329,7 +329,7 @@ struct
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
-    output_file ~filename:(Goblintutil.create_dir "result/" ^ "osek.os.pml") ~text:(snd (Pml_osek.init ()))
+    output_file ~filename:Fpath.(to_string @@ Goblintutil.create_dir (v "result") / "osek.os.pml") ~text:(snd (Pml_osek.init ()))
 
   let finalize () = (* writes out collected cfg *)
     (* TODO call Pml_osek.init again with the right number of resources to find out of bounds accesses? *)

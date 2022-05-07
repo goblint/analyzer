@@ -14,7 +14,11 @@ struct
   module D = RegionDomain.RegionDom
   module G = RegPart
   module C = D
-  module V = Printable.UnitConf (struct let name = "partitions" end)
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "partitions" end)
+    include StdV
+  end
 
   let regions exp part st : Lval.CilLval.t list =
     match st with
@@ -69,14 +73,18 @@ struct
       | Some r when Lvals.is_empty r -> false
       | _ -> true
   end
-  let access ctx e vo w =
-    (* TODO: remove regions that cannot be reached from the var*)
-    let rec unknown_index = function
-      | `NoOffset -> `NoOffset
-      | `Field (f, os) -> `Field (f, unknown_index os)
-      | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
-    in
-    Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
+  let access ctx (a: Queries.access) =
+    match a with
+    | Point ->
+      Some (Lvals.empty ())
+    | Memory {exp = e; _} ->
+      (* TODO: remove regions that cannot be reached from the var*)
+      let rec unknown_index = function
+        | `NoOffset -> `NoOffset
+        | `Field (f, os) -> `Field (f, unknown_index os)
+        | `Index (i, os) -> `Index (MyCFG.unknown_exp, unknown_index os) (* forget specific indices *)
+      in
+      Option.map (Lvals.of_list % List.map (Tuple2.map2 unknown_index)) (get_region ctx e)
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =
@@ -147,10 +155,11 @@ struct
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     match LibraryFunctions.classify f.vname arglist with
-    | `Malloc _ | `Calloc _ -> begin
+    | `Malloc _ | `Calloc _ | `Realloc _ -> begin
         match ctx.local, lval with
         | `Lifted reg, Some lv ->
           let old_regpart = ctx.global () in
+          (* TODO: should realloc use arg region if failed/in-place? *)
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
             ctx.sideg () regpart;

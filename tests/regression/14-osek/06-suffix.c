@@ -1,5 +1,5 @@
-// SKIP PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --set ana.osek.oil 02-example.oil --set ana.osek.tramp 06-suffix-tramp.h --set ana.osek.tasksuffix _func --set ana.osek.isrsuffix _func
-
+// SKIP PARAM: --set ana.activated "['base','threadid','threadflag','escape','fmode', 'OSEK', 'OSEK2', 'stack_trace_set','mallocWrapper']" --set ana.osek.oil 02-example.oil --set ana.osek.tasksuffix _func --set ana.osek.isrsuffix _func
+// Option 'tramp' has been removed, we used to set --set ana.osek.tramp 06-suffix-tramp.h 
 int x;
 int y;
 int z;

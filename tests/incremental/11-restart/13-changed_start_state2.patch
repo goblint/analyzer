@@ -1,0 +1,19 @@
+--- tests/incremental/11-restart/13-changed_start_state2.c
++++ tests/incremental/11-restart/13-changed_start_state2.c
+@@ -1,13 +1,13 @@
+ #include <assert.h>
+
+-int g = 1;
++int g = 2;
+
+ int main() {
+     // After the presolve phase, g is in the start state but neither in the context nor in the start variables.
+     // If the change of the start state of main would not be propagated by the call to side on all start variables, the
+     // asserts in the incremental run would wrongly fail. Side however only joins with the previous value instead of
+     // overwriting, therefore the current imprecision.
+-    assert(g == 1);
+-    assert(g != 2);
++    assert(g != 1); //TODO
++    assert(g == 2); //TODO
+     return 0;
+ }

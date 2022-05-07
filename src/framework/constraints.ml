@@ -430,7 +430,7 @@ struct
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    lift_fun ctx identity S.query  (fun (x) -> x q)            (Queries.Result.bot q)
+    lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
   let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
@@ -484,13 +484,8 @@ struct
     | _ -> S.sync ctx `Normal
 
   let side_context sideg f c =
-    let d =
-      if !GU.postsolving then
-        G.create_contexts (G.CSet.singleton c)
-      else
-        G.create_contexts (G.CSet.empty ()) (* HACK: just to pass validation with MCP DomVariantLattice *)
-    in
-    sideg (GVar.contexts f) d
+    if !GU.postsolving then
+      sideg (GVar.contexts f) (G.create_contexts (G.CSet.singleton c))
 
   let common_ctx var edge prev_node pval (getl:lv -> ld) sidel getg sideg : (D.t, S.G.t, S.C.t, S.V.t) ctx * D.t list ref * (lval option * varinfo * exp list * D.t) list ref =
     let r = ref [] in
@@ -741,7 +736,7 @@ struct
         | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
           (* Limited to loops with only one entry node. Otherwise unsound as is. *)
           (* TODO: Is it possible to do soundly for multi-entry loops? *)
-          let stricts = NodeH.find_all scc.prev v in
+          let stricts = NodeH.find_default scc.prev v [] in
           let pvals_stricts = List.map get_pval stricts in (* get pvals before executing any tf to maximize abort *)
           let xs_stricts = List.map2 tf' stricts pvals_stricts in
           if List.for_all S.D.is_bot xs_stricts then
@@ -839,6 +834,10 @@ struct
   let node = function
     | `L a -> LV.node a
     | `G a -> GV.node a
+
+  let is_write_only = function
+    | `L a -> LV.is_write_only a
+    | `G a -> GV.is_write_only a
 end
 
 (** Translate a [GlobConstrSys] into a [EqConstrSys] *)
@@ -1107,13 +1106,12 @@ struct
     include Printable.Either (S.V) (Node)
     let s x = `Left x
     let node x = `Right x
+    let is_write_only = function
+      | `Left x -> S.V.is_write_only x
+      | `Right _ -> true
   end
 
-  module EM =
-  struct
-    include MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
-    let leq x y = !GU.postsolving || leq x y (* HACK: to pass verify*)
-  end
+  module EM = MapDomain.MapBot (Basetype.CilExp) (Basetype.Bools)
 
   module G =
   struct
@@ -1210,7 +1208,7 @@ struct
   let intrpt ctx = S.intrpt (conv ctx)
 end
 
-module Compare
+module CompareGlobSys
     (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
                         and module GVar = GVarF (S.V)
@@ -1238,15 +1236,15 @@ struct
       if b1 && b2 then
         f_eq ()
       else if b1 then begin
-        if get_bool "solverdiffs" then
+        if get_bool "dbg.compare_runs.diff" then
           ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
         f_le ()
       end else if b2 then begin
-        if get_bool "solverdiffs" then
+        if get_bool "dbg.compare_runs.diff" then
           ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_gr ()
       end else begin
-        if get_bool "solverdiffs" then (
+        if get_bool "dbg.compare_runs.diff" then (
           ignore (Pretty.printf "Global %a is incomparable (diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
           ignore (Pretty.printf "Global %a is incomparable (reverse diff):\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v2,v1));
         );
@@ -1266,15 +1264,15 @@ struct
         if b1 && b2 then
           incr eq
         else if b1 then begin
-          if get_bool "solverdiffs" then
+          if get_bool "dbg.compare_runs.diff" then
             ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
           incr le
         end else if b2 then begin
-          if get_bool "solverdiffs" then
+          if get_bool "dbg.compare_runs.diff" then
             ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr gr
         end else begin
-          if get_bool "solverdiffs" then (
+          if get_bool "dbg.compare_runs.diff" then (
             ignore (Pretty.printf "%a @@ %a is incomparable (diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
             ignore (Pretty.printf "%a @@ %a is incomparable (reverse diff):\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v2,v1));
           );
@@ -1303,15 +1301,15 @@ struct
         if b1 && b2 then
           f_eq ()
         else if b1 then begin
-          if get_bool "solverdiffs" then
+          if get_bool "dbg.compare_runs.diff" then
             ignore (Pretty.printf "%a is more precise using left:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
           f_le ()
         end else if b2 then begin
-          if get_bool "solverdiffs" then
+          if get_bool "dbg.compare_runs.diff" then
             ignore (Pretty.printf "%a is more precise using right:\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
           f_gr ()
         end else begin
-          if get_bool "solverdiffs" then (
+          if get_bool "dbg.compare_runs.diff" then (
             ignore (Pretty.printf "%a is incomparable (diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v1,v2));
             ignore (Pretty.printf "%a is incomparable (reverse diff):\n%a\n" Sys.LVar.pretty_trace k D.pretty_diff (v2,v1));
           );
@@ -1339,19 +1337,19 @@ struct
     let h2 = PP.create 113 in
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
-    Printf.printf "\nComparing precision of %s (left) with %s (right) as GlobConstrSys:\n" name1 name2;
+    Printf.printf "\nComparing GlobConstrSys precision of %s (left) with %s (right):\n" name1 name2;
     compare_globals g1 g2;
     compare_locals h1 h2;
     compare_locals_ctx l1 l2;
     print_newline ();
 end
 
-module CompareEq (Sys: EqConstrSys) (VH: Hashtbl.S with type key = Sys.Var.t) =
+module CompareHashtbl (Var: VarType) (Dom: Lattice.S) (VH: Hashtbl.S with type key = Var.t) =
 struct
   module Var =
   struct
     include Printable.Std
-    include Sys.Var
+    include Var
 
     let pretty = pretty_trace
     include Printable.SimplePretty (
@@ -1361,12 +1359,61 @@ struct
       end
       )
   end
-  module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
+
+  include PrecCompare.MakeHashtbl (Var) (Dom) (VH)
+end
+
+module CompareEqSys (Sys: EqConstrSys) (VH: Hashtbl.S with type key = Sys.Var.t) =
+struct
+  module Compare = CompareHashtbl (Sys.Var) (Sys.Dom) (VH)
 
   let compare (name1, name2) vh1 vh2 =
-    Printf.printf "\nComparing precision of %s (left) with %s (right) as EqConstrSys:\n" name1 name2;
-    let verbose = get_bool "solverdiffs" in
+    Printf.printf "\nComparing EqConstrSys precision of %s (left) with %s (right):\n" name1 name2;
+    let verbose = get_bool "dbg.compare_runs.diff" in
     let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
-    ignore (Pretty.printf "Comparison summary: %t\n" (fun () -> msg));
+    ignore (Pretty.printf "EqConstrSys comparison summary: %t\n" (fun () -> msg));
+    print_newline ();
+end
+
+module CompareGlobal (GVar: VarType) (G: Lattice.S) (GH: Hashtbl.S with type key = GVar.t) =
+struct
+  module Compare = CompareHashtbl (GVar) (G) (GH)
+
+  let compare (name1, name2) vh1 vh2 =
+    Printf.printf "\nComparing globals precision of %s (left) with %s (right):\n" name1 name2;
+    let verbose = get_bool "dbg.compare_runs.diff" in
+    let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
+    ignore (Pretty.printf "Globals comparison summary: %t\n" (fun () -> msg));
+    print_newline ();
+end
+
+module CompareNode (C: Printable.S) (D: Lattice.S) (LH: Hashtbl.S with type key = VarF (C).t) =
+struct
+  module Node =
+  struct
+    include Node
+    let var_id _ = "nodes"
+    let node x = x
+    let is_write_only _ = false
+  end
+  module NH = Hashtbl.Make (Node)
+
+  module Compare = CompareHashtbl (Node) (D) (NH)
+
+  let join_contexts (lh: D.t LH.t): D.t NH.t =
+    let nh = NH.create 113 in
+    LH.iter (fun (n, _) d ->
+        let d' = try D.join (NH.find nh n) d with Not_found -> d in
+        NH.replace nh n d'
+      ) lh;
+    nh
+
+  let compare (name1, name2) vh1 vh2 =
+    Printf.printf "\nComparing nodes precision of %s (left) with %s (right):\n" name1 name2;
+    let vh1' = join_contexts vh1 in
+    let vh2' = join_contexts vh2 in
+    let verbose = get_bool "dbg.compare_runs.diff" in
+    let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
+    ignore (Pretty.printf "Nodes comparison summary: %t\n" (fun () -> msg));
     print_newline ();
 end

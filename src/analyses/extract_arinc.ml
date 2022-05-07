@@ -33,7 +33,11 @@ struct
   module C = D
   module Tasks = SetDomain.Make (Lattice.Prod (Queries.LS) (D)) (* set of created tasks to spawn when going multithreaded *)
   module G = Tasks
-  module V = Printable.UnitConf (struct let name = "tasks" end)
+  module V =
+  struct
+    include Printable.UnitConf (struct let name = "tasks" end)
+    include StdV
+  end
 
   type pname = string (* process name *)
   type fname = string (* function name *)
@@ -382,14 +386,14 @@ struct
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
-    if GobConfig.get_bool "ana.arinc.export" then output_file ~filename:(Goblintutil.create_dir "result/" ^ "arinc.os.pml") ~text:(snd (Pml_arinc.init ()))
+    if GobConfig.get_bool "ana.arinc.export" then output_file ~filename:Fpath.(to_string @@ Goblintutil.create_dir (v "result") / "arinc.os.pml") ~text:(snd (Pml_arinc.init ()))
 
   let finalize () = (* writes out collected cfg *)
     (* TODO call Pml_arinc.init again with the right number of resources to find out of bounds accesses? *)
     if GobConfig.get_bool "ana.arinc.export" then (
-      let path = Goblintutil.create_dir "result" ^ "/arinc.pml" in (* returns abs. path *)
-      output_file ~filename:path ~text:(codegen ());
-      print_endline @@ "Model saved as " ^ path;
+      let path = Fpath.(Goblintutil.create_dir (v "result") / "arinc.pml") in (* returns abs. path *)
+      output_file ~filename:(Fpath.to_string path) ~text:(codegen ());
+      print_endline @@ "Model saved as " ^ (Fpath.to_string path);
       print_endline "Run ./spin/check.sh to verify."
     )
 

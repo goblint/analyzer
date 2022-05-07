@@ -13,12 +13,12 @@ module MCP2 : Analyses.Spec
   with module D = DomListLattice (LocalDomainListSpec)
    and module G = DomVariantLattice (GlobalDomainListSpec)
    and module C = DomListPrintable (ContextListSpec)
-   and module V = DomVariantPrintable (VarListSpec) =
+   and module V = DomVariantSysVar (VarListSpec) =
 struct
   module D = DomListLattice (LocalDomainListSpec)
   module G = DomVariantLattice (GlobalDomainListSpec)
   module C = DomListPrintable (ContextListSpec)
-  module V = DomVariantPrintable (VarListSpec)
+  module V = DomVariantSysVar (VarListSpec)
 
   open List open Obj
   let v_of n v = (n, repr v)
@@ -275,8 +275,8 @@ struct
           (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
           let (n, g): V.t = Obj.obj g in
           f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
-        | Queries.PartAccess {exp; var_opt; write} ->
-          Obj.repr (access ctx exp var_opt write)
+        | Queries.PartAccess a ->
+          Obj.repr (access ctx a)
         | Queries.IterSysVars (vq, fi) ->
           (* IterSysVars is special: argument function is lifted for each analysis *)
           iter (fun ((n,(module S:MCPSpec),d) as t) ->
@@ -298,11 +298,11 @@ struct
     let querycache = QueryHash.create 13 in
     query' ~querycache QuerySet.empty ctx q
 
-  and access (ctx:(D.t, G.t, C.t, V.t) ctx) e vo w: MCPAccess.A.t =
+  and access (ctx:(D.t, G.t, C.t, V.t) ctx) a: MCPAccess.A.t =
     let ctx'' = outer_ctx "access" ctx in
     let f (n, (module S: MCPSpec), d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "access" ctx'' n d in
-      (n, repr (S.access ctx' e vo w))
+      (n, repr (S.access ctx' a))
     in
     BatList.map f (spec_list ctx.local) (* map without deadcode *)
 

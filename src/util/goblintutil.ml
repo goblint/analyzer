@@ -7,9 +7,6 @@ open GobConfig
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
-(** Files given as arguments. *)
-let arg_files : string list ref = ref []
-
 (** If this is true we output messages and collect accesses.
     This is set to true in control.ml before we verify the result (or already before solving if warn = 'early') *)
 let should_warn = ref false
@@ -64,19 +61,20 @@ let escape = XmlUtil.escape (* TODO: inline everywhere *)
 
 (** Creates a directory and returns the absolute path **)
 let create_dir name =
-  let dirName = GobFilename.absolute name in
+  let dirName = GobFpath.cwd_append name in
   GobSys.mkdir_or_exists dirName;
   dirName
 
 (** Remove directory and its content, as "rm -rf" would do. *)
 let rm_rf path =
   let rec f path =
-    if Sys.is_directory path then begin
-      let files = Array.map (Filename.concat path) (Sys.readdir path) in
+    let path_str = Fpath.to_string path in
+    if Sys.is_directory path_str then begin
+      let files = Array.map (Fpath.add_seg path) (Sys.readdir path_str) in
       Array.iter f files;
-      Unix.rmdir path
+      Unix.rmdir path_str
     end else
-      Sys.remove path
+      Sys.remove path_str
   in
   f path
 
@@ -141,7 +139,7 @@ let arinc_base_priority = if scrambled then "M164" else "BASE_PRIORITY"
 let arinc_period        = if scrambled then "M165" else "PERIOD"
 let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
-let exe_dir = Filename.dirname Sys.executable_name
+let exe_dir = Fpath.(parent (v Sys.executable_name))
 let command = String.concat " " (Array.to_list Sys.argv)
 
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)

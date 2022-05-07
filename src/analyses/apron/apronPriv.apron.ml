@@ -442,12 +442,17 @@ struct
     {st with apr = apr_local'}
 
   let lock ask getg (st: apron_components_t) m =
-    let apr = st.apr in
-    let get_m = get_m_with_mutex_inits ask getg m in
-    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let get_m = keep_only_protected_globals ask m get_m in
-    let apr' = AD.meet apr get_m in
-    {st with apr = apr'}
+    (* TODO: somehow actually unneeded here? *)
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let apr = st.apr in
+      let get_m = get_m_with_mutex_inits ask getg m in
+      (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+      let get_m = keep_only_protected_globals ask m get_m in
+      let apr' = AD.meet apr get_m in
+      {st with apr = apr'}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: apron_components_t) m: apron_components_t =
     let apr = st.apr in
@@ -946,15 +951,19 @@ struct
     {apr = apr_local'; priv = (W.add g w,LMust.add lm lmust,l')}
 
   let lock ask getg (st: apron_components_t) m =
-    let apr = st.apr in
-    let _,lmust,l = st.priv in
-    let lm = LLock.mutex m in
-    let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
-    let local_m = BatOption.default (LAD.bot ()) (L.find_opt lm l) in
-    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let local_m = Cluster.keep_only_protected_globals ask m local_m in
-    let apr = Cluster.lock apr local_m get_m in
-    {st with apr}
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let apr = st.apr in
+      let _,lmust,l = st.priv in
+      let lm = LLock.mutex m in
+      let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
+      let local_m = BatOption.default (LAD.bot ()) (L.find_opt lm l) in
+      (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+      let local_m = Cluster.keep_only_protected_globals ask m local_m in
+      let apr = Cluster.lock apr local_m get_m in
+      {st with apr}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: apron_components_t) m: apron_components_t =
     let apr = st.apr in

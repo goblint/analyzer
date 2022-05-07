@@ -14,7 +14,11 @@ struct
   module D = MustTIDs
   module C = D
   module G = MustTIDs
-  module V = TID
+  module V =
+  struct
+    include TID
+    include StdV
+  end
 
   (* transfer functions *)
   let return ctx (exp:exp option) (f:fundec) : D.t =

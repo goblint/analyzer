@@ -76,4 +76,4 @@ module PartitionedWithLength (Val: LatticeWithSmartOps) (Idx:IntDomain.Z): S wit
 (** Like partitioned but additionally manages the length of the array. *)
 
 module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t
-(** Switches between PartitionedWithLength and TrivialWithLength based on the value of ana.base.partition-arrays. *)
+(** Switches between PartitionedWithLength, TrivialWithLength and Unroll based on the value of ana.base.arrays.domain. *)

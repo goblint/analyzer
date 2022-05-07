@@ -1,4 +1,4 @@
-// SKIP PARAM: --set solver td3 --enable ana.int.interval --enable ana.base.partition-arrays.enabled  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
+// SKIP PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.base.partition-arrays.keep-expr "last" --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none --enable annotation.int.enabled --set ana.int.refinement fixpoint
 // skipped because https://github.com/goblint/analyzer/issues/468
 int global;
 

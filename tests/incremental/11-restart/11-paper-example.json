@@ -3,5 +3,12 @@
         "int": {
             "interval": true
         }
+    },
+    "incremental": {
+        "restart": {
+            "sided": {
+                "enabled": true
+            }
+        }
     }
 }

@@ -14,7 +14,11 @@ struct
   module D = ConcDomain.CreatedThreadSet
   module C = D
   module G = ConcDomain.ThreadCreation
-  module V = T
+  module V =
+  struct
+    include T
+    include StdV
+  end
 
   let should_join = D.equal
 
