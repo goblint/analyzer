@@ -405,7 +405,7 @@ struct
   let substitute_exp t var exp no_ov =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     let res = assign_exp t var exp no_ov in
-    remove_vars res [var]
+    forget_vars res [var]
 
   let substitute_exp t var exp ov =
     let res = substitute_exp t var exp ov
