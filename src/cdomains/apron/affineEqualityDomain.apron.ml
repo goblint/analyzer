@@ -228,15 +228,15 @@ struct
     res
 
   let leq t1 t2 =
+    let env_comp = Environment.compare t1.env t2.env in
+    if env_comp = -2 || env_comp > 0 then false else
     if is_bot t1 || is_top t2 then true else
     if is_bot t2 || is_top t1 then false else (
-      Environment.equal t1.env t2.env &&
-      match t1.d, t2.d with
-      | Some x, Some y -> begin match Matrix.normalize @@ Matrix.append_matrices x y with
-          | Some m -> Matrix.equal m x
-          | None -> false
-        end
-      | _ -> false )
+      let m1, m2 = Option.get t1.d, Option.get t2.d in
+      let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
+      match Matrix.normalize @@ Matrix.append_matrices m1' m2 with
+      | Some m -> Matrix.equal m m1'
+      | None -> false)
 
   let leq t1 t2 =
     let res = leq t1 t2 in
@@ -305,7 +305,7 @@ struct
 
   let join a b =
     let res = join a b in
-    if M.tracing then M.tracel "ops" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
     res
   let widen a b = join a b
   let narrow a b = meet a b
@@ -372,7 +372,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
+    if M.tracing then M.tracel "var" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
 
   let assign_var_parallel t vv's =
@@ -409,7 +409,8 @@ struct
 
   let substitute_exp t var exp ov =
     let res = substitute_exp t var exp ov
-    in if M.tracing then M.tracel "sub" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res); res
+    in if M.tracing then M.tracel "sub" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res);
+    res
 
   (** Assert a constraint expression. *)
   let meet_with_tcons t tcons expr =
@@ -449,23 +450,8 @@ struct
         | _, _ -> t end
     | None -> t
 
-  let unify (a: Bounds.t) (b: Bounds.t) =
-    let new_env, a_change, b_change  = Environment.lce_change a.env b.env in
-    let compute_change change t =
-      match change with
-      | None -> t
-      | Some change -> begin match t.d with
-          | None -> {d = None; env = new_env}
-          | Some d -> {d = Some (dim_add change d); env = new_env}
-        end
-    in
-    let reduced_a, reduced_b = compute_change a_change a, compute_change b_change b
-    in meet reduced_a reduced_b
-
   let unify a b =
-    let res = unify a b in
-    if M.tracing then M.tracel "ops" "unify\n";
-    res
+    meet a b
 
   let assert_cons d e negate no_ov =
     let no_ov = Lazy.force no_ov in
