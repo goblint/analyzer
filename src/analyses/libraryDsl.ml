@@ -96,7 +96,10 @@ let rec special: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pat.t = func
 let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
   match args_desc, args with
   | [], [] -> []
-  | Var arg, args -> failwith "TODO"
+  | Var arg_desc, args ->
+    List.map (fun acc ->
+        (acc, args)
+      ) arg_desc.accesses
   | arg_desc :: args_desc, arg :: args ->
     let accs'' = accs args_desc args in
     List.fold_left (fun (accs'': (access * Cil.exp list) list) (acc: access) ->
