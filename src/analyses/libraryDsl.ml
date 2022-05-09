@@ -1,3 +1,4 @@
+open LibraryDesc
 
 module Pat =
 struct
@@ -23,11 +24,6 @@ struct
   let map_result (p: _ t) ~(f): _ t = fun x k -> f (p x k)
   let (>>) (p: ('a, 'k, 'r) t) (k: 'k) (a: 'a): 'r = p a k
 end
-
-type access = [
-  | `Read
-  | `Write
-]
 
 type ('k, 'r) arg_desc = {
   accesses: access list; (* TODO: set *)
@@ -70,12 +66,6 @@ let rec special: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pat.t = func
   (* | arg :: args -> Pat.(^::) (special' arg) (special args) *)
   | arg :: args -> Pat.(^::) arg.capture (special args)
 
-type special = [
-  | `Lock of Cil.exp
-  | `Unknown
-]
-
-type accs = Cil.exp list -> (access * Cil.exp list) list
 
 (* let rec accs': type k r. (k, r) arg_desc' -> access list = function
   | [] -> []
@@ -95,11 +85,6 @@ let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
       (* ) accs'' (accs' arg_desc) *)
       ) accs'' arg_desc.accesses
   | _, _ -> invalid_arg "accs"
-
-type desc = {
-  special: Cil.exp list -> special;
-  accs: accs;
-}
 
 let (>>) p f = {
   special = Pat.(special p >> f);
