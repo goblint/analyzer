@@ -36,9 +36,10 @@ struct
     k
 end
 
-type ('k, 'r) arg_desc = {
+type ('k, 'l, 'r) arg_desc = {
   accesses: access list; (* TODO: set *)
   capture: (Cil.exp, 'k, 'r) Pat.t;
+  capture': (Cil.exp list, 'l, 'r) Pat.t;
 }
 
 (* type ('k, 'r) arg_desc' =
@@ -48,11 +49,12 @@ type ('k, 'r) arg_desc = {
 
 type ('k, 'r) args_desc =
   | []: ('r, 'r) args_desc
-  | VarArg: (Cil.exp -> 'k, 'r) arg_desc -> (Cil.exp list -> 'r, 'r) args_desc
-  | VarIgnore: ('r, 'r) arg_desc -> ('r, 'r) args_desc
-  | (::): ('k, 'm) arg_desc * ('m, 'r) args_desc -> ('k, 'r) args_desc
+  (* | VarArg: (Cil.exp -> 'k, 'r) arg_desc -> (Cil.exp list -> 'r, 'r) args_desc *)
+  (* | VarIgnore: ('r, 'r) arg_desc -> ('r, 'r) args_desc *)
+  | Var: ('k, 'l, 'r) arg_desc -> ('l, 'r) args_desc
+  | (::): ('k, 'l, 'm) arg_desc * ('m, 'r) args_desc -> ('k, 'r) args_desc
 
-let (__) = {
+(* let (__) = {
   accesses = [];
   capture = Pat.ignore;
 }
@@ -64,7 +66,7 @@ let r c = {
 let rw c = {
   accesses = [`Read; `Write];
   capture = c
-}
+} *)
 
 (* let rec special': type k r. (k, r) arg_desc' -> (Cil.exp, k, r) Pat.t = function
   | [] -> fun x k -> k
@@ -76,11 +78,12 @@ let rw c = {
 
 let rec special: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pat.t = function
   | [] -> Pat.nil
-  | VarArg arg -> Pat.many Pat.arg
+  (* | VarArg arg -> Pat.many Pat.arg *)
   (* | VarArg arg -> fun xs k -> Pat.many (fun x k -> k x) xs k *)
-  | VarIgnore arg -> Pat.ignore
+  (* | VarIgnore arg -> Pat.ignore *)
   (* | VarArg arg -> Pat.many (Pat.as__ arg.capture) *)
   (* | arg :: args -> Pat.(^::) (special' arg) (special args) *)
+  | Var arg -> arg.capture'
   | arg :: args -> Pat.(^::) arg.capture (special args)
 
 
@@ -93,7 +96,7 @@ let rec special: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pat.t = func
 let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
   match args_desc, args with
   | [], [] -> []
-  | VarArg arg, args -> failwith "TODO"
+  | Var arg, args -> failwith "TODO"
   | arg_desc :: args_desc, arg :: args ->
     let accs'' = accs args_desc args in
     List.fold_left (fun (accs'': (access * Cil.exp list) list) (acc: access) ->
@@ -115,19 +118,23 @@ let f = `Free
 let (__) = fun accesses -> {
   accesses;
   capture = Pat.arg;
+  capture' = Pat.arg;
 }
 let (~~) = fun accesses -> {
   accesses;
   capture = Pat.ignore;
+  capture' = Pat.ignore;
 }
 
 let (>:) name accesses = {
   accesses;
   capture = Pat.arg;
+  capture' = Pat.arg;
 }
 let (>~) name accesses = {
   accesses;
   capture = Pat.ignore;
+  capture' = Pat.ignore;
 }
 
 (* let p = [r Pat.arg; rw Pat.ignore; rw Pat.arg] >> fun e1 r2 -> `Lock e1 *)

@@ -17,11 +17,11 @@ let realloc_desc: LibraryDesc.desc = LibraryDsl.(
 )
 
 let scanf_desc': LibraryDesc.desc = LibraryDsl.(
-  ("format" >~ []) :: VarArg (__ [w]) >> fun (args: Cil.exp list) -> `Unknown
+  ("format" >~ []) :: Var (__ [w]) >> fun (args: Cil.exp list) -> `Unknown
 )
 
 let scanf_desc: LibraryDesc.desc = LibraryDsl.(
-  ("format" >~ []) :: VarIgnore (~~ [w]) >> `Unknown
+  ("format" >~ []) :: Var (~~ [w]) >> `Unknown
 )
 
 
