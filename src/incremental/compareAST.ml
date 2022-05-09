@@ -5,22 +5,21 @@ type global_type = Fun | Decl | Var
 
 and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
 
-type local_rename_assumption = string * string
-(**)
-type method_rename_assumption = {original_method_name: string; new_method_name: string; parameter_renames: (string * string) list}
+type method_rename_assumption = {original_method_name: string; new_method_name: string; parameter_renames: (string, string) Hashtbl.t}
+type method_rename_assumptions = (string, method_rename_assumption) Hashtbl.t
 
 (*rename_mapping is carried through the stack when comparing the AST. Holds a list of rename assumptions.*)
-type rename_mapping = (local_rename_assumption list) * (method_rename_assumption list)
+type rename_mapping = ((string, string) Hashtbl.t) * (method_rename_assumptions)
 
 (*Compares two names, being aware of the rename_mapping. Returns true iff:
  1. there is a rename for name1 -> name2 = rename(name1)
  2. there is no rename for name1 -> name1 = name2*)
 let rename_mapping_aware_name_comparison (name1: string) (name2: string) (rename_mapping: rename_mapping) = 
   let (local_c, method_c) = rename_mapping in
-  let existingAssumption: (string*string) option = List.find_opt (fun x -> match x with (original, now) -> original = name1) local_c in
+  let existingAssumption: string option = Hashtbl.find_opt local_c name1 in
 
   match existingAssumption with
-  | Some (original, now) -> 
+  | Some now -> 
     (*Printf.printf "Assumption is: %s -> %s\n" original now;*)
     now = name2
   | None -> 
@@ -33,11 +32,11 @@ let string_tuple_to_string (tuple: (string * string) list) = "[" ^ (tuple |>
 
 let rename_mapping_to_string (rename_mapping: rename_mapping) = 
   let (local, methods) = rename_mapping in
-  let local_string = string_tuple_to_string local in
-  let methods_string: string = methods |>
+  let local_string = string_tuple_to_string (List.of_seq (Hashtbl.to_seq local)) in
+  let methods_string: string = List.of_seq (Hashtbl.to_seq_values methods) |>
     List.map (fun x -> match x with {original_method_name; new_method_name; parameter_renames} -> 
       "(methodName: " ^ original_method_name ^ " -> " ^ new_method_name ^ 
-      "; renamed_params=" ^ string_tuple_to_string parameter_renames ^ ")") |>
+      "; renamed_params=" ^ string_tuple_to_string (List.of_seq (Hashtbl.to_seq parameter_renames)) ^ ")") |>
     String.concat ", " in
   "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "])"
 
@@ -180,9 +179,7 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
   (*When we compare function names, we can directly compare the naming from the rename_mapping if it exists.*)
   let isNamingOk = match b.vtype with
     | TFun(_, _, _, _) -> (
-        let specific_method_rename_mapping = List.find_opt (fun x -> match x with
-          | {original_method_name; new_method_name; parameter_renames} -> original_method_name = a.vname && new_method_name = b.vname
-        ) method_rename_mappings in  
+        let specific_method_rename_mapping = Hashtbl.find_opt method_rename_mappings a.vname in  
         match specific_method_rename_mapping with
           | Some method_rename_mapping -> method_rename_mapping.original_method_name = a.vname && method_rename_mapping.new_method_name = b.vname
           | None -> a.vname = b.vname
@@ -193,15 +190,13 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
   (*If the following is a method call, we need to check if we have a mapping for that method call. *)
   let typ_rename_mapping = match b.vtype with
       | TFun(_, _, _, _) -> (
-        let new_locals = List.find_opt (fun x -> match x with
-          | {original_method_name; new_method_name; parameter_renames} -> original_method_name = a.vname && new_method_name = b.vname
-        ) method_rename_mappings in
+        let new_locals = Hashtbl.find_opt method_rename_mappings a.vname in
 
         match new_locals with
           | Some locals -> 
             (*Printf.printf "Performing rename_mapping switch. New rename_mapping=%s\n" (rename_mapping_to_string (locals.parameter_renames, method_rename_mappings));*)
             (locals.parameter_renames, method_rename_mappings)
-          | None -> ([], method_rename_mappings)
+          | None -> (Hashtbl.create 0, method_rename_mappings)
         )
       | _ -> rename_mapping
     in
