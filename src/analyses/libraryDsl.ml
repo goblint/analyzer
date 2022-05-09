@@ -23,6 +23,17 @@ struct
   let map (p: _ t) ~(f): _ t = fun x k -> p x (f k)
   let map_result (p: _ t) ~(f): _ t = fun x k -> f (p x k)
   let (>>) (p: ('a, 'k, 'r) t) (k: 'k) (a: 'a): 'r = p a k
+
+  let many (p: _ t): _ t = fun l k ->
+    let rec aux accu = function
+      | [] -> k (List.rev accu)
+      | x :: xs -> p x (fun x -> aux (x :: accu) xs)
+    in
+    aux [] l
+
+  let as__ (p: _ t): _ t = fun x k ->
+    let k = p x (k x) in
+    k
 end
 
 type ('k, 'r) arg_desc = {
@@ -37,6 +48,8 @@ type ('k, 'r) arg_desc = {
 
 type ('k, 'r) args_desc =
   | []: ('r, 'r) args_desc
+  | VarArg: (Cil.exp -> 'k, 'r) arg_desc -> (Cil.exp list -> 'r, 'r) args_desc
+  | VarIgnore: ('r, 'r) arg_desc -> ('r, 'r) args_desc
   | (::): ('k, 'm) arg_desc * ('m, 'r) args_desc -> ('k, 'r) args_desc
 
 let (__) = {
@@ -63,6 +76,10 @@ let rw c = {
 
 let rec special: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pat.t = function
   | [] -> Pat.nil
+  | VarArg arg -> Pat.many Pat.arg
+  (* | VarArg arg -> fun xs k -> Pat.many (fun x k -> k x) xs k *)
+  | VarIgnore arg -> Pat.ignore
+  (* | VarArg arg -> Pat.many (Pat.as__ arg.capture) *)
   (* | arg :: args -> Pat.(^::) (special' arg) (special args) *)
   | arg :: args -> Pat.(^::) arg.capture (special args)
 
@@ -76,6 +93,7 @@ let rec special: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pat.t = func
 let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
   match args_desc, args with
   | [], [] -> []
+  | VarArg arg, args -> failwith "TODO"
   | arg_desc :: args_desc, arg :: args ->
     let accs'' = accs args_desc args in
     List.fold_left (fun (accs'': (access * Cil.exp list) list) (acc: access) ->

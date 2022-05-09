@@ -16,6 +16,15 @@ let realloc_desc: LibraryDesc.desc = LibraryDsl.(
   ["ptr" >: [r; f]; "size" >: []] >> fun ptr size -> `Realloc (ptr, size)
 )
 
+let scanf_desc': LibraryDesc.desc = LibraryDsl.(
+  ("format" >~ []) :: VarArg (__ [w]) >> fun (args: Cil.exp list) -> `Unknown
+)
+
+let scanf_desc: LibraryDesc.desc = LibraryDsl.(
+  ("format" >~ []) :: VarIgnore (~~ [w]) >> `Unknown
+)
+
+
 let tests =
   "libraryDslTest" >::: [
 
