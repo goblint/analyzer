@@ -1,6 +1,6 @@
 open LibraryDesc
 
-module Pat =
+module Pattern =
 struct
   type ('a, 'k, 'r) t = 'a -> 'k -> 'r
 
@@ -38,25 +38,25 @@ end
 
 type ('k, 'l, 'r) arg_desc = {
   accesses: access list;
-  capture: (Cil.exp, 'k, 'r) Pat.t;
-  capture': (Cil.exp list, 'l, 'r) Pat.t;
+  match_arg: (Cil.exp, 'k, 'r) Pattern.t;
+  match_var_args: (Cil.exp list, 'l, 'r) Pattern.t;
 }
 
 type ('k, 'r) args_desc =
   | []: ('r, 'r) args_desc
-  | Var: ('k, 'l, 'r) arg_desc -> ('l, 'r) args_desc
+  | VarArgs: ('k, 'l, 'r) arg_desc -> ('l, 'r) args_desc
   | (::): ('k, 'l, 'm) arg_desc * ('m, 'r) args_desc -> ('k, 'r) args_desc
 
-let rec special: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pat.t = function
-  | [] -> Pat.nil
-  | Var arg -> arg.capture'
-  | arg :: args -> Pat.(^::) arg.capture (special args)
+let rec match_args: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pattern.t = function
+  | [] -> Pattern.nil
+  | VarArgs {match_var_args; _} -> match_var_args
+  | {match_arg; _} :: args -> Pattern.(match_arg ^:: match_args args)
 
 
 let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
   match args_desc, args with
   | [], [] -> []
-  | Var arg_desc, args ->
+  | VarArgs arg_desc, args ->
     List.map (fun acc ->
         (acc, args)
       ) arg_desc.accesses
@@ -69,36 +69,34 @@ let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
       ) accs'' arg_desc.accesses
   | _, _ -> invalid_arg "accs"
 
-let map ?(attrs:attr list=[]) p f = {
-  special = Pat.(special p >> f);
-  accs = accs p;
+let special ?(attrs:attr list=[]) args_desc special_cont = {
+  special = Fun.flip (match_args args_desc) special_cont;
+  accs = accs args_desc;
   attrs;
 }
 
-let unknown ?attrs p = map ?attrs p `Unknown
-
-let (>>) p f = map p f
+let unknown ?attrs args_desc = special ?attrs args_desc `Unknown
 
 let r = `Read
 let w = `Write
 let f = `Free
-let (__) = fun name accesses -> {
+let (__) = fun _name accesses -> {
   accesses;
-  capture = Pat.(__);
-  capture' = Pat.(__);
+  match_arg = Pattern.(__);
+  match_var_args = Pattern.(__);
 }
-let drop = fun name accesses -> {
+let drop = fun _name accesses -> {
   accesses;
-  capture = Pat.drop;
-  capture' = Pat.drop;
+  match_arg = Pattern.drop;
+  match_var_args = Pattern.drop;
 }
 let (__') = fun accesses -> {
   accesses;
-  capture = Pat.(__);
-  capture' = Pat.(__);
+  match_arg = Pattern.(__);
+  match_var_args = Pattern.(__);
 }
 let drop' = fun accesses -> {
   accesses;
-  capture = Pat.drop;
-  capture' = Pat.drop;
+  match_arg = Pattern.drop;
+  match_var_args = Pattern.drop;
 }
