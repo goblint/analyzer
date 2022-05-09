@@ -47,8 +47,6 @@ module NTH = Hashtbl.Make(
  * process on their successors. If a node from the old CFG can not be matched, it is added to diff and no further
  * comparison is done for its successors. The two function entry nodes make up the tuple to start the comparison from. *)
 let compareCfgs (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 fun2 =
-  let _ = Printf.printf "ComparingCfgs" in
-
   let diff = NH.create 113 in
   let same = NTH.create 113 in
   let waitingList : (node * node) t = Queue.create () in
@@ -132,7 +130,6 @@ let reexamine f1 f2 (same : unit NTH.t) (diffNodes1 : unit NH.t) (module CfgOld 
   (NTH.to_seq_keys same, NH.to_seq_keys diffNodes1, NH.to_seq_keys diffNodes2)
 
 let compareFun (module CfgOld : CfgForward) (module CfgNew : CfgForward) fun1 fun2 =
-  let _ = Printf.printf "Comparing funs" in
   let same, diff = compareCfgs (module CfgOld) (module CfgNew) fun1 fun2 in
   let unchanged, diffNodes1, diffNodes2 = reexamine fun1 fun2 same diff (module CfgOld) (module CfgNew) in
   List.of_seq unchanged, List.of_seq diffNodes1, List.of_seq diffNodes2

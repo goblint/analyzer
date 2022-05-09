@@ -16,13 +16,13 @@ patch -p0 -b <$patch1
 
 cat $source
 
-./goblint --conf $conf $args --enable incremental.load --set save_run $base/$test-incrementalrun $source &> $base/$test.after.incr1.log --html
+./goblint --conf $conf $args --enable incremental.load --enable incremental.save $source &> $base/$test.after.incr1.log --html
 
 patch -p0 <$patch2
 
 cat $source
 
-./goblint --conf $conf $args --enable incremental.load --set save_run $base/$test-incrementalrun $source &> $base/$test.after.incr2.log --html
+./goblint --conf $conf $args --enable incremental.load --enable incremental.save --set save_run $base/$test-incrementalrun $source &> $base/$test.after.incr2.log --html
 
 
 #./goblint --conf $conf $args --enable incremental.only-rename --set save_run $base/$test-originalrun $source &> $base/$test.after.scratch.log --html

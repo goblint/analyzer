@@ -845,7 +845,7 @@ struct
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->
-          M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval; do_offs AD.unknown_ptr ofs
+          M.debug ~category:Analyzer "Failed evaluating %a to lvalue" RenameMapping.d_lval lval; do_offs AD.unknown_ptr ofs
       end
 
   (* run eval_rv from above and keep a result that is bottom *)
@@ -1128,7 +1128,7 @@ struct
             with Cilfacade.TypeOfError _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-              M.warn "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
+              M.warn "Cilfacade.typeOfLval failed Could not obtain the type of %a" RenameMapping.d_lval (Var x, cil_offset);
               lval_type
       in
       let update_offset old_value =
@@ -1307,7 +1307,7 @@ struct
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
-        if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
+        if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" RenameMapping.d_lval x VD.pretty value;
         (match value with
         | `Int n ->
           let ikind = Cilfacade.get_ikind_exp (Lval lval) in
@@ -1320,13 +1320,13 @@ struct
               match ID.to_int n with
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
-                if M.tracing then M.tracec "invariant" "Yes, %a is not %s\n" d_lval x (BI.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, %a is not %s\n" RenameMapping.d_lval x (BI.to_string n);
                 let ikind = Cilfacade.get_ikind_exp (Lval lval) in
                 Some (x, `Int (ID.of_excl_list ikind [n]))
               | None -> None
             end
           | `Address n -> begin
-              if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
+              if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" RenameMapping.d_lval x AD.pretty n;
               match eval_rv_address a gs st (Lval x) with
               | `Address a when AD.is_definite n ->
                 Some (x, `Address (AD.diff a n))
@@ -1353,7 +1353,7 @@ struct
             let limit_from = if tv then ID.maximal else ID.minimal in
             match limit_from n with
             | Some n ->
-              if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (BI.to_string n);
+              if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" RenameMapping.d_lval x (BI.to_string n);
               Some (x, `Int (range_from n))
             | None -> None
             end
@@ -1368,7 +1368,7 @@ struct
             let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (BI.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" RenameMapping.d_lval x (BI.to_string n);
                 Some (x, `Int (range_from n))
               | None -> None
             end
@@ -1428,12 +1428,12 @@ struct
     in
     match derived_invariant exp tv with
     | Some (lval, value) ->
-      if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
+      if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" RenameMapping.d_lval lval VD.pretty value;
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
         let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
-        let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
+        let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" RenameMapping.d_lval lval; VD.top ()) else oldval in
         let t_lval = Cilfacade.typeOfLval lval in
         let state_with_excluded = set a gs st addr t_lval value ~invariant:true ~ctx:(Some ctx) in
         let value =  get a gs state_with_excluded addr None in
@@ -1639,7 +1639,7 @@ struct
            let v = VD.meet oldv c' in
            if is_some_bot v then raise Deadcode
            else (
-             if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
+             if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" RenameMapping.d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
              set' x v st
            ))
       | Const _ -> st (* nothing to do *)
@@ -2019,47 +2019,6 @@ struct
     | _ ->  []
 
   let assert_fn ctx e should_warn change =
-    (*
-    let _ = Hashtbl.iter (fun fun_name map -> 
-      begin
-        Printf.printf "%s: [" fun_name;
-        Hashtbl.iter (fun from tox -> Printf.printf "%s -> %s; " from tox) map;
-        Printf.printf "]\n";
-      end
-      ) !CompareCIL.rename_map in
-
-    let parent_function: fundec = Node.find_fundec ctx.node in
-
-    (*Performs the actual rename on lvals for renamed local variables.*)
-    let rename_lval lhost offset =  
-      let new_lhost = match lhost with
-        | Var varinfo -> 
-          varinfo.vname <- CompareCIL.get_local_rename parent_function.svar.vname varinfo.vname;
-          Var varinfo
-        | _ -> lhost
-      in
-      (new_lhost, offset)
-    in
-
-    (*Recusivly go through the expression and rename all occurences of local variables. TODO: What happens with global vars*)
-    let rec rename_exp (exp: exp) = match exp with
-      | Lval (lhost, offset) -> Lval (rename_lval lhost offset)
-      | Real e -> Real (rename_exp e)
-      | Imag e -> Imag (rename_exp e)
-      | SizeOfE e -> SizeOfE (rename_exp e)
-      | AlignOfE e -> AlignOfE (rename_exp e)
-      | UnOp (unop, e, typ) -> UnOp (unop, rename_exp e, typ)
-      | BinOp (binop, e1, e2, typ) -> BinOp (binop, rename_exp e1, rename_exp e2, typ)
-      | Question (e1, e2, e3, typ) -> Question (rename_exp e1, rename_exp e2, rename_exp e3, typ)
-      | CastE (typ, e) -> CastE (typ, rename_exp e)
-      | AddrOf (lhost, offset) -> AddrOf (rename_lval lhost offset)
-      | StartOf (lhost, offset) -> StartOf (rename_lval lhost offset)
-      (*TODO: AddrOfLabel?*)
-      | _ -> exp
-    in
-    *)
-    
-
     let check_assert e st =
       match eval_rv (Analyses.ask_of_ctx ctx) ctx.global st e with
       | `Int v when ID.is_bool v ->
@@ -2131,8 +2090,6 @@ struct
     invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
-    List.iter (fun x -> ignore @@ Pretty.printf "%a\n" RenameMapping.d_exp x;) args;
-
     let invalidate_ret_lv st = match lv with
       | Some lv ->
         if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv (RenameMapping.show_varinfo f);
