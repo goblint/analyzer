@@ -2,10 +2,13 @@
 type access = [
   | `Read
   | `Write
+  | `Free
 ]
 
 type special = [
   | `Lock of Cil.exp
+  | `ThreadCreate of (Cil.exp * Cil.exp * Cil.exp)
+  | `Realloc of (Cil.exp * Cil.exp)
   | `Unknown
 ]
 

@@ -93,6 +93,7 @@ let (>>) p f = {
 
 let r = `Read
 let w = `Write
+let f = `Free
 let (__) = fun accesses -> {
   accesses;
   capture = Pat.arg;
