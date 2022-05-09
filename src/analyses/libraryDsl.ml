@@ -4,8 +4,8 @@ module Pat =
 struct
   type ('a, 'k, 'r) t = 'a -> 'k -> 'r
 
-  let arg: _ t = fun x k -> k x
-  let ignore: _ t = fun _ k -> k
+  let (__): _ t = fun x k -> k x
+  let drop: _ t = fun _ k -> k
 
   let nil: _ t = fun x k ->
     match x with
@@ -123,31 +123,31 @@ let (>>) p f = map p f
 let r = `Read
 let w = `Write
 let f = `Free
-let (__) = fun accesses -> {
+let (__) = fun name accesses -> {
   accesses;
-  capture = Pat.arg;
-  capture' = Pat.arg;
+  capture = Pat.(__);
+  capture' = Pat.(__);
 }
-let (~~) = fun accesses -> {
+let drop = fun name accesses -> {
   accesses;
-  capture = Pat.ignore;
-  capture' = Pat.ignore;
+  capture = Pat.drop;
+  capture' = Pat.drop;
+}
+let (__') = fun accesses -> {
+  accesses;
+  capture = Pat.(__);
+  capture' = Pat.(__);
+}
+let drop' = fun accesses -> {
+  accesses;
+  capture = Pat.drop;
+  capture' = Pat.drop;
 }
 
-let (>:) name accesses = {
-  accesses;
-  capture = Pat.arg;
-  capture' = Pat.arg;
-}
-let (>~) name accesses = {
-  accesses;
-  capture = Pat.ignore;
-  capture' = Pat.ignore;
-}
 
 (* let p = [r Pat.arg; rw Pat.ignore; rw Pat.arg] >> fun e1 r2 -> `Lock e1 *)
 (* let p = [[r; __]; [r]; [r; w; __]; "foo".%{`Read; `Write}; "foo".%{`Read}] >> fun e1 r2 -> `Lock e1 *)
-let p = [__ [r]; ~~ [r; w]; "dest" >: []] >> fun e1 r2 -> `Lock e1
-let p = [~~ [r]; ~~ [r; w]; "dest" >~ []] >> `Unknown
+(* let p = [__ [r]; ~~ [r; w]; "dest" >: []] >> fun e1 r2 -> `Lock e1 *)
+(* let p = [~~ [r]; ~~ [r; w]; "dest" >~ []] >> `Unknown *)
 (* let s = p.special *)
 (* let a = p.accs *)

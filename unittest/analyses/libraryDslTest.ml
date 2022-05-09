@@ -1,27 +1,27 @@
 open OUnit2
 
 let memset_desc: LibraryDesc.desc = LibraryDsl.(
-  ["dest" >~ [w]; "ch" >~ []; "count" >~ []] >> `Unknown
+  [drop "dest" [w]; drop "ch" []; drop "count" []] >> `Unknown
 )
 
 let pthread_mutex_lock_desc: LibraryDesc.desc = LibraryDsl.(
-  [__ [r]] >> fun e -> `Lock e
+  [__' [r]] >> fun e -> `Lock e
 )
 
 let pthread_create_desc: LibraryDesc.desc = LibraryDsl.(
-  ["thread" >: [w]; "attr" >~ [r]; "start_routine" >: [r]; "arg" >: [r]] >> fun thread start_routine arg -> `ThreadCreate (thread, start_routine, arg)
+  [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [r]; __ "arg" [r]] >> fun thread start_routine arg -> `ThreadCreate (thread, start_routine, arg)
 )
 
 let realloc_desc: LibraryDesc.desc = LibraryDsl.(
-  ["ptr" >: [r; f]; "size" >: []] >> fun ptr size -> `Realloc (ptr, size)
+  [__ "ptr" [r; f]; __ "size" []] >> fun ptr size -> `Realloc (ptr, size)
 )
 
 let scanf_desc': LibraryDesc.desc = LibraryDsl.(
-  ("format" >~ []) :: Var (__ [w]) >> fun (args: Cil.exp list) -> `Unknown
+  (drop "format" []) :: Var (__' [w]) >> fun (args: Cil.exp list) -> `Unknown
 )
 
 let scanf_desc: LibraryDesc.desc = LibraryDsl.(
-  ("format" >~ []) :: Var (~~ [w]) >> `Unknown
+  (drop "format" []) :: Var (drop' [w]) >> `Unknown
 )
 
 let rand_desc: LibraryDesc.desc = LibraryDsl.(
