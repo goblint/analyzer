@@ -55,6 +55,18 @@ module WP =
         Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint)
 
+    let verify_data data =
+      if GobConfig.get_bool "solvers.td3.verify" then (
+        (* every variable in (pruned) rho should be stable *)
+        HM.iter (fun x _ ->
+            if not (HM.mem data.stable x) then (
+              ignore (Pretty.printf "unstable in rho: %a\n" S.Var.pretty_trace x);
+              assert false
+            )
+          ) data.rho
+        (* vice versa doesn't currently hold, because stable is not pruned *)
+      )
+
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
     module P =
@@ -85,7 +97,10 @@ module WP =
         print_context_stats rho
       in
 
-      if GobConfig.get_bool "incremental.load" then print_data data "Loaded data for incremental analysis";
+      if GobConfig.get_bool "incremental.load" then (
+        print_data data "Loaded data for incremental analysis";
+        verify_data data
+      );
 
       let cache_sizes = ref [] in
 
@@ -168,7 +183,7 @@ module WP =
         | Some f -> f get set
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
-        if S.system y = None then (init y; HM.find rho y) else
+        if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
         if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
         (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
@@ -436,6 +451,7 @@ module WP =
 
       Post.post st vs rho; (* TODO: add side_infl postsolver *)
 
+      verify_data data;
       {st; infl; sides; rho; wpoint; stable}
 
     let solve box st vs =

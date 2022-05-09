@@ -146,7 +146,7 @@ struct
     | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let is_private (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    not (ThreadFlag.is_multi a) && is_excluded_from_earlyglobs v (* not multi, but excluded from earlyglobs *)
     || not (a.f (Q.MayBePublic {global=v; write=false})) (* usual case where MayBePublic answers *)
 
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
@@ -172,7 +172,7 @@ struct
     let side_var (v: varinfo) (value) (st: BaseComponents.t) =
       if M.tracing then M.traceli "globalize" ~var:(RenameMapping.show_varinfo v) "Tracing for %s\n" (RenameMapping.show_varinfo v);
       let res =
-        if is_global ask v && ((privates && not (is_precious_glob v)) || not (is_private ask v)) then begin
+        if is_global ask v && ((privates && not (is_excluded_from_earlyglobs v)) || not (is_private ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           sideg v value;
           {st with cpa = CPA.remove v st.cpa}
@@ -276,18 +276,23 @@ struct
     cpa' *)
 
   let lock ask getg (st: BaseComponents (D).t) m =
-    let get_m = get_m_with_mutex_inits ask getg m in
-    (* Really we want is_unprotected, but pthread_cond_wait emits unlock-lock events,
-       where our (necessary) original context still has the mutex,
-       so the query would be on the wrong lockset.
-       TODO: Fixing the event contexts is hard: https://github.com/goblint/analyzer/pull/487#discussion_r765905029.
-       Therefore, just use _without to exclude the mutex we shouldn't have.
-       In non-cond locks we don't have it anyway, so there's no difference.
-       No other privatization uses is_unprotected, so this hack is only needed here. *)
-    let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
-    let cpa' = CPA.filter is_in_V get_m in
-    if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
-    {st with cpa = CPA.fold CPA.add cpa' st.cpa}
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let get_m = get_m_with_mutex_inits ask getg m in
+      (* Really we want is_unprotected, but pthread_cond_wait emits unlock-lock events,
+         where our (necessary) original context still has the mutex,
+         so the query would be on the wrong lockset.
+         TODO: Fixing the event contexts is hard: https://github.com/goblint/analyzer/pull/487#discussion_r765905029.
+         Therefore, just use _without to exclude the mutex we shouldn't have.
+         In non-cond locks we don't have it anyway, so there's no difference.
+         No other privatization uses is_unprotected, so this hack is only needed here. *)
+      let is_in_V x _ = is_protected_by ask m x && is_unprotected_without ask x m in
+      let cpa' = CPA.filter is_in_V get_m in
+      if M.tracing then M.tracel "priv" "PerMutexOplusPriv.lock m=%a cpa'=%a\n" LockDomain.Addr.pretty m CPA.pretty cpa';
+      {st with cpa = CPA.fold CPA.add cpa' st.cpa}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
+
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     let side_m_cpa = CPA.filter is_in_Gm st.cpa in
@@ -351,15 +356,20 @@ struct
     ignore (Pretty.printf "WRITE GLOBAL %a %a = %a\n" d_varinfo x VD.pretty v CPA.pretty cpa');
     cpa' *)
 
-  let lock ask getg (st: BaseComponents (D).t) m =
-    let get_m = get_m_with_mutex_inits ask getg m in
-    (* Additionally filter get_m in case it contains variables it no longer protects. *)
-    let is_in_Gm x _ = is_protected_by ask m x in
-    let get_m = CPA.filter is_in_Gm get_m in
-    let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
-    let meet = long_meet st.cpa get_m in
-    if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
-    {st with cpa = meet}
+  let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let get_m = get_m_with_mutex_inits ask getg m in
+      (* Additionally filter get_m in case it contains variables it no longer protects. *)
+      let is_in_Gm x _ = is_protected_by ask m x in
+      let get_m = CPA.filter is_in_Gm get_m in
+      let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2 in
+      let meet = long_meet st.cpa get_m in
+      if M.tracing then M.tracel "priv" "LOCK %a:\n  get_m: %a\n  meet: %a\n" LockDomain.Addr.pretty m CPA.pretty get_m CPA.pretty meet;
+      {st with cpa = meet}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
+
   let unlock ask getg sideg (st: BaseComponents (D).t) m =
     let is_in_Gm x _ = is_protected_by ask m x in
     sideg (V.mutex m) (CPA.filter is_in_Gm st.cpa);
@@ -421,7 +431,7 @@ struct
     | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
 
   let is_invisible (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    not (ThreadFlag.is_multi a) && is_excluded_from_earlyglobs v (* not multi, but excluded from earlyglobs *)
     || not (a.f (Q.MayBePublic {global=v; write=false})) (* usual case where MayBePublic answers *)
   let is_private = is_invisible
 
@@ -441,7 +451,7 @@ struct
     )
 
   let is_protected (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_precious_glob v (* not multi, but precious (earlyglobs) *)
+    not (ThreadFlag.is_multi a) && is_excluded_from_earlyglobs v (* not multi, but excluded from earlyglobs *)
     || not (a.f (Q.MayBePublic {global=v; write=true})) (* usual case where MayBePublic answers *)
 
   let sync ask getg sideg (st: BaseComponents (D).t) reason =
@@ -452,7 +462,7 @@ struct
       let res =
         if is_global ask v then
           let protected = is_protected ask v in
-          if privates && not (is_precious_glob v) || not protected then begin
+          if privates && not (is_excluded_from_earlyglobs v) || not protected then begin
             if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
             sideg v value;
             { st with cpa = CPA.remove v st.cpa; priv = MustVars.remove v st.priv}
@@ -694,7 +704,7 @@ struct
     let s = current_lockset ask in
     let t = current_thread ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s (ThreadMap.singleton t v)));
     {st with cpa = cpa'}
 
@@ -751,7 +761,7 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
     {st with cpa = cpa'}
 
@@ -821,7 +831,7 @@ struct
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
     let s = current_lockset ask in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then
       sideg (V.global x) (G.create_weak (GWeak.singleton s v));
     {st with cpa = cpa'; priv = W.add x st.priv}
 
@@ -962,7 +972,7 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s v))
     );
@@ -1105,7 +1115,7 @@ struct
     let p' = P.add x (MinLocksets.singleton s) p in
     let p' = P.map (fun s' -> MinLocksets.add s s') p' in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );
@@ -1267,7 +1277,7 @@ struct
       ) l vv
     in
     let cpa' = CPA.add x v st.cpa in
-    if not (!GU.earlyglobs && is_precious_glob x) then (
+    if not (!GU.earlyglobs && is_excluded_from_earlyglobs x) then (
       let v = distr_init getg x v in
       sideg (V.global x) (G.create_weak (GWeak.singleton s (GWeakW.singleton s v)))
     );

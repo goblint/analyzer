@@ -58,6 +58,7 @@ sv-comp/goblint.zip
 
 privPrecCompare*
 apronPrecCompare
+messagesCompare
 tests/regression/*/run
 
 # csmith

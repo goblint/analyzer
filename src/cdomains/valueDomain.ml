@@ -272,7 +272,7 @@ struct
     | TInt (ik,_), TFloat (fk,_) (* does a1 fit into ik's range? *)
     | TFloat (fk,_), TInt (ik,_) (* can a1 be represented as fk? *)
       -> false (* TODO precision *)
-    | _ -> bitsSizeOf t2 >= bitsSizeOf t1
+    | _ -> IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
   (*| _ -> false*)
 
   let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
@@ -304,7 +304,7 @@ struct
         M.tracel "casta" "same size\n";
         if not (typ_eq t ta) then err "Cast to different type of same size."
         else (M.tracel "casta" "SUCCESS!\n"; o)
-      | 1 -> (* cast to bigger/outer type *)
+      | c when c > 0 -> (* cast to bigger/outer type *)
         M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
@@ -329,8 +329,8 @@ struct
           end
     in
     let one_addr = let open Addr in function
-        | Addr ({ vtype = TVoid _; _} as v, offs) -> (* we had no information about the type (e.g. malloc), so we add it *)
-          Addr ({ v with vtype = t }, offs)
+        | Addr ({ vtype = TVoid _; _} as v, offs) when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
+          Addr ({ v with vtype = t }, offs) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
         | Addr (v, o) as a ->
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
             with CastError s -> (* don't know how to handle this cast :( *)
@@ -437,7 +437,7 @@ struct
     if GobConfig.get_bool "dbg.verbose" then
       ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
 
-  let leq x y =
+  let rec leq x y =
     match (x,y) with
     | (_, `Top) -> true
     | (`Top, _) -> false
@@ -453,6 +453,8 @@ struct
     | (`Array x, `Array y) -> CArrays.leq x y
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
+    | `Blob (x,s,o), y -> leq (x:t) y
+    | x, `Blob (y,s,o) -> leq x (y:t)
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
     | (`Address x, `Thread y) -> true
@@ -688,6 +690,7 @@ struct
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
     |                 _ , `List n       -> `Top
     |                 _ , `Thread _     -> state (* TODO: no top thread ID set! *)
+    | _, `Bot -> `Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 
 

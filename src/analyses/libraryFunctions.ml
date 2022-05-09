@@ -39,6 +39,11 @@ let classify' fn exps =
       | size::_ -> `Malloc size
       | _ -> strange_arguments ()
     end
+  | "ZSTD_customMalloc" -> (* only used with extraspecials *)
+    begin match exps with
+      | size::_ -> `Malloc size
+      | _ -> strange_arguments ()
+    end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
@@ -47,6 +52,11 @@ let classify' fn exps =
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
+      | _ -> strange_arguments ()
+    end
+  | "ZSTD_customCalloc" -> (* only used with extraspecials *)
+    begin match exps with
+      | size::_ -> `Calloc (Cil.one, size)
       | _ -> strange_arguments ()
     end
   | "realloc" ->
@@ -60,6 +70,7 @@ let classify' fn exps =
       | _ -> M.warn "Assert argument mismatch!"; `Unknown fn
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
+  | "down_trylock"
     -> `Lock(true, true, true)
   | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
     -> `Lock (true, true, false)
@@ -69,7 +80,8 @@ let classify' fn exps =
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
-  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
+  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
+  | "spin_lock_irqsave" | "spin_lock"
     -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
     -> `Lock (get_bool "sem.lock.fail", true, false)
@@ -78,16 +90,16 @@ let classify' fn exps =
     -> `Lock (get_bool "sem.lock.fail", false, true)
   | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
-  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
+  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
+  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
+  | "up"
     -> `Unlock
   | x -> `Unknown x
 
 let classify fn exps =
   if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
-type action = [ `Write | `Read ]
 
 module Invalidate =
 struct
@@ -112,48 +124,70 @@ struct
     match a with
     | `Write -> f a x @ drop n x
     | `Read  -> f a x
+    | `Free  -> []
 
   let readsAllButFirst n f a x =
     match a with
     | `Write -> f a x
     | `Read  -> f a x @ drop n x
+    | `Free  -> []
 
   let reads ns a x =
     let i, o = partition ns x in
     match a with
     | `Write -> o
     | `Read  -> i
+    | `Free  -> []
 
   let writes ns a x =
     let i, o = partition ns x in
     match a with
     | `Write -> i
     | `Read  -> o
+    | `Free  -> []
+
+  let frees ns a x =
+    let i, o = partition ns x in
+    match a with
+    | `Write -> []
+    | `Read  -> o
+    | `Free  -> i
+
+  let readsFrees rs fs a x =
+    match a with
+    | `Write -> []
+    | `Read  -> keep rs x
+    | `Free  -> keep fs x
 
   let onlyReads ns a x =
     match a with
     | `Write -> []
     | `Read  -> keep ns x
+    | `Free  -> []
 
   let onlyWrites ns a x =
     match a with
     | `Write -> keep ns x
     | `Read  -> []
+    | `Free  -> []
 
   let readsWrites rs ws a x =
     match a with
     | `Write -> keep ws x
     | `Read  -> keep rs x
+    | `Free  -> []
 
   let readsAll a x =
     match a with
     | `Write -> []
     | `Read  -> x
+    | `Free  -> []
 
   let writesAll a x =
     match a with
     | `Write -> x
     | `Read  -> []
+    | `Free  -> []
 end
 
 open Invalidate
@@ -172,6 +206,9 @@ let invalidate_actions = [
     "__builtin_ctzll", readsAll;
     "__builtin_clz", readsAll;
     "bzero", writes [1]; (*keep 1*)
+    "__builtin_bzero", writes [1]; (*keep [1]*)
+    "explicit_bzero", writes [1];
+    "__explicit_bzero_chk", writes [1];
     "connect", readsAll;          (*safe*)
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
@@ -185,7 +222,7 @@ let invalidate_actions = [
     "__fread_alias", writes [1;4];
     "__fread_chk", writes [1;4];
     "utimensat", readsAll;
-    "free", writesAll; (*unsafe*)
+    "free", frees [1]; (*unsafe*)
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
@@ -194,9 +231,9 @@ let invalidate_actions = [
     "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
     "__builtin___mempcpy_chk", writes [1];
-    "memset", writesAll;(*unsafe*)
-    "__builtin_memset", writesAll;(*unsafe*)
-    "__builtin___memset_chk", writesAll;
+    "memset", writes [1];(*unsafe*)
+    "__builtin_memset", writes [1];(*unsafe*)
+    "__builtin___memset_chk", writes [1];
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
@@ -385,7 +422,6 @@ let invalidate_actions = [
     "__maskrune", writesAll; (*unsafe*)
     "inet_addr", readsAll; (*safe*)
     "gethostbyname", readsAll; (*safe*)
-    "__builtin_bzero", writes [1]; (*keep [1]*)
     "setsockopt", readsAll; (*safe*)
     "listen", readsAll; (*safe*)
     "getsockname", writes [1;3]; (*keep [1;3]*)
@@ -422,7 +458,7 @@ let invalidate_actions = [
     "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
-    "realloc", writesAll;(*unsafe*)
+    "realloc", readsFrees [0; 1] [0]; (* read+free first argument, read second argument *)
     "setrlimit", readsAll; (*safe*)
     "getrlimit", writes [2]; (*keep [2]*)
     "sem_init", readsAll; (*safe*)
@@ -475,6 +511,16 @@ let invalidate_actions = [
     "isatty", readsAll;
     "setpriority", readsAll;
     "getpriority", readsAll;
+    (* ddverify *)
+    "spin_lock_init", readsAll;
+    "spin_lock", readsAll;
+    "spin_unlock", readsAll;
+    "spin_unlock_irqrestore", readsAll;
+    "spin_lock_irqsave", readsAll;
+    "sema_init", readsAll;
+    "down_trylock", readsAll;
+    "up", readsAll;
+    "ZSTD_customFree", frees [1]; (* only used with extraspecials *)
   ]
 
 (* used by get_invalidate_action to make sure

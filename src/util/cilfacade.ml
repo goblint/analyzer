@@ -31,12 +31,17 @@ let get_stmtLoc stmt =
     get_labelsLoc stmt.labels
   | _ -> get_stmtkindLoc stmt.skind
 
+(** Is character type (N1570 6.2.5.15)? *)
+let isCharType = function
+  | TInt ((IChar | ISChar | IUChar), _) -> true
+  | _ -> false
+
 
 let init () =
   initCIL ();
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
-  Mergecil.merge_inlines := true; (* work around https://github.com/goblint/analyzer/pull/603#issuecomment-1054204635 *)
+  Mergecil.merge_inlines := get_bool "cil.merge.inlines";
   (* lineDirectiveStyle := None; *)
   Rmtmps.keepUnused := true;
   print_CIL_Input := true
@@ -44,7 +49,7 @@ let init () =
 let current_file = ref dummyFile
 
 let parse fileName =
-  Frontc.parse fileName ()
+  Frontc.parse (Fpath.to_string fileName) ()
 
 let print_to_file (fileName: string) (fileAST: file) =
   let oc = Stdlib.open_out fileName in
@@ -261,7 +266,7 @@ class addConstructors cons = object
 end
 
 let getMergedAST fileASTs =
-  let merged = Mergecil.merge fileASTs "stdout" in
+  let merged = Stats.time "mergeCIL"  (Mergecil.merge fileASTs) "stdout" in
   if !E.hadErrors then
     E.s (E.error "There were errors during merging\n");
   merged

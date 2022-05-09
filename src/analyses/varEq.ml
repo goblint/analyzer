@@ -193,6 +193,7 @@ struct
     let bt =
       match unrollTypeDeep (Cilfacade.typeOf b) with
       | TPtr (t,_) -> t
+      | exception Cilfacade.TypeOfError _
       | _ -> voidType
     in (* type of thing that changed: typeof( *b ) *)
     let rec type_may_change_apt a =
@@ -401,44 +402,13 @@ struct
       | None -> None
       | Some st ->
         let vs = ask.f (Queries.ReachableFrom e) in
-        Some (Queries.LS.join vs st)
+        if Queries.LS.is_top vs then
+          None
+        else
+          Some (Queries.LS.join vs st)
     in
     List.fold_right reachable es (Some (Queries.LS.empty ()))
 
-  let rec reachable_from (r:Queries.LS.t) e =
-    if Queries.LS.is_top r then true else
-      let rec is_prefix x1 x2 =
-        match x1, x2 with
-        | _, `NoOffset -> true
-        | Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> is_prefix o1 o2
-        | Index (_,o1), `Index (_,o2) -> is_prefix o1 o2
-        | _ -> false
-      in
-      let has_reachable_prefix v1 ofs =
-        let suitable_prefix (v2,ofs2) =
-          CilType.Varinfo.equal v1 v2
-          && is_prefix ofs ofs2
-        in
-        Queries.LS.exists suitable_prefix r
-      in
-      match e with
-      | SizeOf _
-      | SizeOfE _
-      | SizeOfStr _
-      | AlignOf _
-      | Const _
-      | AlignOfE _
-      | UnOp  _
-      | BinOp _ -> true
-      | AddrOf  (Var v2,ofs)
-      | StartOf (Var v2,ofs)
-      | Lval    (Var v2,ofs) -> has_reachable_prefix v2 ofs
-      | AddrOf  (Mem e,_)
-      | StartOf (Mem e,_)
-      | Lval    (Mem e,_)
-      | CastE (_,e)           -> reachable_from r e
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
 
   (* Probably ok as is. *)
   let body ctx f = ctx.local
@@ -485,22 +455,26 @@ struct
       | None -> st2
 
   let remove_reachable ctx es =
-    match reachables (Analyses.ask_of_ctx ctx) es with
+    let ask = Analyses.ask_of_ctx ctx in
+    match reachables ask es with
     | None -> D.top ()
     | Some rs ->
-      let remove_reachable1 es st =
-        let remove_reachable2 e st =
-          if reachable_from rs e && not (isConstant e) then remove_exp (Analyses.ask_of_ctx ctx) e st else st
-        in
-        D.B.fold remove_reachable2 es st
-      in
-      D.fold remove_reachable1 ctx.local ctx.local
+      (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
+         each expression in ctx.local was checked for reachability from es/rs using very conservative but also unsound reachable_from.
+         It is unknown, why that was necessary. *)
+      Queries.LS.fold (fun lval st ->
+          remove ask (Lval.CilLval.to_lval lval) st
+        ) rs ctx.local
 
   let unknown_fn ctx lval f args =
     let args =
       match LF.get_invalidate_action f.vname with
       | Some fnc -> fnc `Write args
-      | _ -> args
+      | None ->
+        if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
+          args
+        else
+          []
     in
     let es =
       match lval with

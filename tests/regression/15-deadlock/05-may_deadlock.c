@@ -7,7 +7,7 @@ pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t1(void *arg) {
-  pthread_mutex_lock(&mutex1);
+  pthread_mutex_lock(&mutex1); // DEADLOCK
   pthread_mutex_lock(&mutex2); // DEADLOCK
   g1 = g2 + 1;
   pthread_mutex_unlock(&mutex2);
@@ -18,7 +18,7 @@ void *t1(void *arg) {
 void *t2(void *arg) {
   int k = rand() % 2;
   if (k)
-    pthread_mutex_lock(&mutex2);
+    pthread_mutex_lock(&mutex2); // DEADLOCK
   pthread_mutex_lock(&mutex1); // DEADLOCK
   g2 = g1 + 1;
   pthread_mutex_unlock(&mutex1);

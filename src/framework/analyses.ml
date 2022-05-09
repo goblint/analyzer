@@ -272,16 +272,14 @@ struct
     | "sarif" ->
       let open BatPrintf in
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
-      Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
+      Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
-      let files = Hashtbl.to_list Preprocessor.dependencies in
-      let filter_system = List.filter_map (fun (f,system) -> if system then None else Some f) in
       let json = `Assoc [
-          ("files", `Assoc (List.map (Tuple2.map2 (fun deps -> [%to_yojson:string list] @@ filter_system deps)) files));
+          ("files", Preprocessor.dependencies_to_yojson ());
           ("messages", Messages.Table.to_yojson ());
         ]
       in
-      Yojson.Safe.pretty_to_channel ~std:true out json
+      Yojson.Safe.to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -397,7 +395,7 @@ sig
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   module A: MCPA
-  val access: (D.t, G.t, C.t, V.t) ctx -> exp -> varinfo option -> bool -> A.t
+  val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
 end
 
 type analyzed_data = {
@@ -575,7 +573,7 @@ struct
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
   module A = UnitA
-  let access _ _ _ _ = ()
+  let access _ _ = ()
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

@@ -23,7 +23,7 @@ void test_memset() {
 void test_bzero() {
   int n = 1;
   bzero(&n, sizeof(int));
-  assert(n == 1); // UNKNOWN!
+  assert(n == 0);
 }
 
 void test_getopt() {
@@ -52,7 +52,7 @@ void test_free() {
 void test_memcpy() {
   int dest = 0;
   int src = 1;
-  
+
   memcpy(&dest, &src, sizeof(int));
 
   assert(dest == 0); // UNKNOWN!
