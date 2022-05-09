@@ -255,7 +255,7 @@ struct
           in
           let a_r = Matrix.get_row a r in
           let mapping = Matrix.map2i_pt_with (fun i x y -> if i < r then
-                                                 Vector.map2_pt_with (+:) x (Vector.apply_with_c_pt_with ( *:) y a_r) else x ) a col_b
+                                                 Vector.map2_pt_with (fun u j -> u +: y *: j) x a_r else x) a col_b
           in Matrix.remove_row mapping r
         in
         let case_three a b col_a col_b max =
@@ -272,7 +272,7 @@ struct
               let zero_vec = Vector.zero_vec (Matrix.num_rows m - Vector.length sub_col) in
               let cs = Vector.append sub_col zero_vec in
               Matrix.map2i_pt_with (fun i' x c -> if i' <= max then let beta = c /: diff in
-                                       let mul_t = Vector.apply_with_c_pt_with ( *:) beta t in Vector.map2_pt_with (-:) x mul_t else x) m cs
+                                       Vector.map2_pt_with (fun u j -> u -: (beta *: j)) x t else x) m cs
             in
             Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
         in
