@@ -37,61 +37,21 @@ struct
 end
 
 type ('k, 'l, 'r) arg_desc = {
-  accesses: access list; (* TODO: set *)
+  accesses: access list;
   capture: (Cil.exp, 'k, 'r) Pat.t;
   capture': (Cil.exp list, 'l, 'r) Pat.t;
 }
 
-(* type ('k, 'r) arg_desc' =
-  | []: ('r, 'r) arg_desc'
-  | (::): ('k, 'm) arg_desc * ('m, 'r) arg_desc' -> ('k, 'r) arg_desc' *)
-
-
 type ('k, 'r) args_desc =
   | []: ('r, 'r) args_desc
-  (* | VarArg: (Cil.exp -> 'k, 'r) arg_desc -> (Cil.exp list -> 'r, 'r) args_desc *)
-  (* | VarIgnore: ('r, 'r) arg_desc -> ('r, 'r) args_desc *)
   | Var: ('k, 'l, 'r) arg_desc -> ('l, 'r) args_desc
   | (::): ('k, 'l, 'm) arg_desc * ('m, 'r) args_desc -> ('k, 'r) args_desc
 
-(* let (__) = {
-  accesses = [];
-  capture = Pat.ignore;
-}
-
-let r c = {
-  accesses = [`Read];
-  capture = c
-}
-let rw c = {
-  accesses = [`Read; `Write];
-  capture = c
-} *)
-
-(* let rec special': type k r. (k, r) arg_desc' -> (Cil.exp, k, r) Pat.t = function
-  | [] -> fun x k -> k
-  (* | arg :: args -> Pat.(^::) arg.capture (special' args) *)
-  | arg :: args -> fun x k ->
-    let k = arg.capture x k in
-    let k = special' args x k in
-    k *)
-
 let rec special: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pat.t = function
   | [] -> Pat.nil
-  (* | VarArg arg -> Pat.many Pat.arg *)
-  (* | VarArg arg -> fun xs k -> Pat.many (fun x k -> k x) xs k *)
-  (* | VarIgnore arg -> Pat.ignore *)
-  (* | VarArg arg -> Pat.many (Pat.as__ arg.capture) *)
-  (* | arg :: args -> Pat.(^::) (special' arg) (special args) *)
   | Var arg -> arg.capture'
   | arg :: args -> Pat.(^::) arg.capture (special args)
 
-
-(* let rec accs': type k r. (k, r) arg_desc' -> access list = function
-  | [] -> []
-  | arg_desc' :: arg_desc'' ->
-    let accs' = accs' arg_desc'' in
-    arg_desc'.accesses @ accs' *)
 
 let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
   match args_desc, args with
@@ -106,7 +66,6 @@ let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
         match List.assoc_opt acc accs'' with
         | Some args -> (acc, arg :: args) :: List.remove_assoc acc accs''
         | None -> (acc, arg :: args) :: accs''
-      (* ) accs'' (accs' arg_desc) *)
       ) accs'' arg_desc.accesses
   | _, _ -> invalid_arg "accs"
 
@@ -143,11 +102,3 @@ let drop' = fun accesses -> {
   capture = Pat.drop;
   capture' = Pat.drop;
 }
-
-
-(* let p = [r Pat.arg; rw Pat.ignore; rw Pat.arg] >> fun e1 r2 -> `Lock e1 *)
-(* let p = [[r; __]; [r]; [r; w; __]; "foo".%{`Read; `Write}; "foo".%{`Read}] >> fun e1 r2 -> `Lock e1 *)
-(* let p = [__ [r]; ~~ [r; w]; "dest" >: []] >> fun e1 r2 -> `Lock e1 *)
-(* let p = [~~ [r]; ~~ [r; w]; "dest" >~ []] >> `Unknown *)
-(* let s = p.special *)
-(* let a = p.accs *)
