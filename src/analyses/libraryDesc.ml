@@ -15,8 +15,13 @@ type special = [
 
 type accs = Cil.exp list -> (access * Cil.exp list) list
 
+type attr = [
+  | `ThreadUnsafe
+]
+
 (* TODO: rename to t *)
 type desc = {
   special: Cil.exp list -> special;
   accs: accs;
+  attrs: attr list;
 }

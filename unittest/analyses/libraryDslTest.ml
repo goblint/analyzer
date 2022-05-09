@@ -24,6 +24,9 @@ let scanf_desc: LibraryDesc.desc = LibraryDsl.(
   ("format" >~ []) :: Var (~~ [w]) >> `Unknown
 )
 
+let rand_desc: LibraryDesc.desc = LibraryDsl.(
+  unknown ~attrs:[`ThreadUnsafe] []
+)
 
 let tests =
   "libraryDslTest" >::: [

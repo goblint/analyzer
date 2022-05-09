@@ -110,10 +110,15 @@ let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
       ) accs'' arg_desc.accesses
   | _, _ -> invalid_arg "accs"
 
-let (>>) p f = {
+let map ?(attrs:attr list=[]) p f = {
   special = Pat.(special p >> f);
   accs = accs p;
+  attrs;
 }
+
+let unknown ?attrs p = map ?attrs p `Unknown
+
+let (>>) p f = map p f
 
 let r = `Read
 let w = `Write
@@ -144,5 +149,5 @@ let (>~) name accesses = {
 (* let p = [[r; __]; [r]; [r; w; __]; "foo".%{`Read; `Write}; "foo".%{`Read}] >> fun e1 r2 -> `Lock e1 *)
 let p = [__ [r]; ~~ [r; w]; "dest" >: []] >> fun e1 r2 -> `Lock e1
 let p = [~~ [r]; ~~ [r; w]; "dest" >~ []] >> `Unknown
-let s = p.special
-let a = p.accs
+(* let s = p.special *)
+(* let a = p.accs *)
