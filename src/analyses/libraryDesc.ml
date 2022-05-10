@@ -37,12 +37,9 @@ struct
   let old (accs: t): Access.t -> Cil.exp list -> Cil.exp list = fun acc args ->
     BatOption.(List.assoc_opt acc (accs args) |? [])
 
-  let old' (accs: t): AccessKind.t -> Cil.exp list -> Cil.exp list = fun acc args ->
+  let old' (accs: t): AccessKind.t -> Cil.exp list -> Cil.exp list = fun kind args ->
     let o a = old accs a args in
-    match acc with
-    | Read -> o { kind = Read; deep = true; } @ o { kind = Read; deep = false; } @ o { kind = Write; deep = true; } @ o { kind = Write; deep = false; }
-    | Write -> o { kind = Write; deep = true; } @ o { kind = Write; deep = false; }
-    | Free -> o { kind = Free; deep = true; } @ o { kind = Free; deep = false; }
+    o { kind; deep = true; } @ o { kind; deep = false; }
 
   let iter (accs: t) (f: Access.t -> Cil.exp -> unit) args: unit =
     accs args
