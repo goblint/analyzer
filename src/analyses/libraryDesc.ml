@@ -22,6 +22,7 @@ type special =
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
   | Unknown (* TODO: rename to Other? *)
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
+  | Bzero of { dest: Cil.exp; count: Cil.exp; }
 
 
 module Accesses =

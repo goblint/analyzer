@@ -10,6 +10,10 @@ let library_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
   ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
   ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+  ("bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+  ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+  ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+  ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
 ]
 
 let library_descs = Hashtbl.of_list library_descs_list
@@ -194,10 +198,6 @@ let invalidate_actions = [
     "__builtin_ctzl", readsAll;
     "__builtin_ctzll", readsAll;
     "__builtin_clz", readsAll;
-    "bzero", writes [1]; (*keep 1*)
-    "__builtin_bzero", writes [1]; (*keep [1]*)
-    "explicit_bzero", writes [1];
-    "__explicit_bzero_chk", writes [1];
     "connect", readsAll;          (*safe*)
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)

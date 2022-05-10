@@ -2128,20 +2128,15 @@ struct
           VD.top_value dest_typ
       in
       set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-    | Unknown, (("bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk") as name) ->
+    | Bzero { dest; count; }, _ ->
       (* TODO: share something with memset special case? *)
-      begin match name, args with
-        | "__explicit_bzero_chk", [dest; count; _ (* dest_size *)]
-        | ("bzero" | "__builtin_bzero" | "explicit_bzero"), [dest; count] ->
-          (* TODO: check count *)
-          let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
-          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
-          let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
-          let value = VD.zero_init_value dest_typ in
-          set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | _, _ -> failwith "strange bzero arguments"
-      end
+      (* TODO: check count *)
+      let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
+      let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
+      (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
+      let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+      let value = VD.zero_init_value dest_typ in
+      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Unknown, "F59" (* strcpy *)
     | Unknown, "F60" (* strncpy *)
     | Unknown, "F63" (* memcpy *)

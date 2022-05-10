@@ -178,7 +178,6 @@ struct
           (* TODO: move to LibraryFunctions via DSL *)
           let reach =
             match f.vname with
-            | "bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk" -> false
             | "__builtin_object_size" -> false
             | _ -> deep
           in
