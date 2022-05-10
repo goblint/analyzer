@@ -19,8 +19,7 @@ type attr = [
   | `ThreadUnsafe
 ]
 
-(* TODO: rename to t *)
-type desc = {
+type t = {
   special: Cil.exp list -> special;
   accs: accs;
   attrs: attr list;
