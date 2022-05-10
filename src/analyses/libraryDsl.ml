@@ -47,8 +47,8 @@ type ('k, 'l, 'r) arg_desc = {
 
 type ('k, 'r) args_desc =
   | []: ('r, 'r) args_desc
-  | VarArgs: ('k, 'l, 'r) arg_desc -> ('l, 'r) args_desc
-  | (::): ('k, 'l, 'm) arg_desc * ('m, 'r) args_desc -> ('k, 'r) args_desc
+  | VarArgs: (_, 'l, 'r) arg_desc -> ('l, 'r) args_desc
+  | (::): ('k, _, 'm) arg_desc * ('m, 'r) args_desc -> ('k, 'r) args_desc
 
 let rec match_args: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pattern.t = function
   | [] -> Pattern.nil
@@ -85,7 +85,7 @@ let empty____desc = {
   match_var_args = Pattern.(__);
   accesses = [];
 }
-let __ _name accesses = { empty____desc with accesses; }
+let __ (_name: string) accesses = { empty____desc with accesses; }
 let __' accesses = { empty____desc with accesses; }
 
 let empty_drop_desc = {
@@ -93,7 +93,7 @@ let empty_drop_desc = {
   match_var_args = Pattern.drop;
   accesses = [];
 }
-let drop _name accesses = { empty_drop_desc with accesses; }
+let drop (_name: string) accesses = { empty_drop_desc with accesses; }
 let drop' accesses = { empty_drop_desc with accesses; }
 
 
