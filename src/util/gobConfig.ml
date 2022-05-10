@@ -307,8 +307,8 @@ struct
 
   let wrap_get f x =
     (* self-observe options, which Spec construction depends on *)
-    (* if !building_spec then
-      Printf.printf "GET during spec building: %s\n" x; *)
+    if !building_spec && Tracing.tracing then Tracing.trace "config" "get during building_spec: %s\n" x;
+    (* TODO: blacklist such building_spec option from server mode modification since it will have no effect (spec is already built) *)
     f x
 
   let get_int    = wrap_get memo_int.get
