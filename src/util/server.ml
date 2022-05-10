@@ -57,9 +57,14 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
         match Parser.parse message.params with
         | Ok params -> (
             try
-              R.process params serv
-              |> R.response_to_yojson
-              |> Response.ok id
+              Maingoblint.reset_stats ();
+              let r =
+                R.process params serv
+                |> R.response_to_yojson
+                |> Response.ok id
+              in
+              Maingoblint.do_stats ();
+              r
             with Failure (code, message) -> Response.Error.(make ~code ~message () |> Response.error id))
         | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error id))
     | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:message.method_ () |> Response.error id)
@@ -104,6 +109,7 @@ let bind () =
 let start file =
   let input, output = bind () in
   GobConfig.set_bool "incremental.save" true;
+  Maingoblint.do_stats (); (* print pre-server stats just in case *)
   serve (make file ?input ?output)
 
 let reparse (s: t) =
@@ -125,12 +131,12 @@ let increment_data (s: t) file reparsed = match !Serialize.server_solver_data wi
     let changes = CompareCIL.compareCilFiles s.file file in
     let old_data = Some { Analyses.cil_file = s.file; solver_data } in
     s.max_ids <- UpdateCil.update_ids s.file s.max_ids file changes;
-    { Analyses.changes; old_data; new_file = file }, false
+    { server = true; Analyses.changes; old_data; new_file = file }, false
   | Some solver_data ->
     let changes = virtual_changes file in
     let old_data = Some { Analyses.cil_file = file; solver_data } in
-    { Analyses.changes; old_data; new_file = file }, false
-  | _ -> Analyses.empty_increment_data file, true
+    { server = true; Analyses.changes; old_data; new_file = file }, false
+  | _ -> Analyses.empty_increment_data ~server:true file, true
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
@@ -171,7 +177,6 @@ let () =
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
       with Sys.Break ->
-        assert (GobConfig.get_bool "ana.opt.hashcons"); (* TODO: TD3 doesn't copy input solver data, so will modify it in place and screw up Serialize.server_solver_data accidentally *)
         {status = Aborted}
   end);
 

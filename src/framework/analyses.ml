@@ -398,12 +398,15 @@ type analyzed_data = {
 }
 
 type increment_data = {
+  server: bool;
+
   old_data: analyzed_data option;
   new_file: Cil.file;
   changes: CompareCIL.change_info
 }
 
-let empty_increment_data file = {
+let empty_increment_data ?(server=false) file = {
+  server;
   old_data = None;
   new_file = file;
   changes = CompareCIL.empty_change_info ()

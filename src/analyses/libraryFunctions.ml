@@ -115,7 +115,6 @@ let classify' fn exps =
 let classify fn exps =
   if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
-type action = [ `Write | `Read ]
 
 module Invalidate =
 struct
@@ -140,48 +139,70 @@ struct
     match a with
     | `Write -> f a x @ drop n x
     | `Read  -> f a x
+    | `Free  -> []
 
   let readsAllButFirst n f a x =
     match a with
     | `Write -> f a x
     | `Read  -> f a x @ drop n x
+    | `Free  -> []
 
   let reads ns a x =
     let i, o = partition ns x in
     match a with
     | `Write -> o
     | `Read  -> i
+    | `Free  -> []
 
   let writes ns a x =
     let i, o = partition ns x in
     match a with
     | `Write -> i
     | `Read  -> o
+    | `Free  -> []
+
+  let frees ns a x =
+    let i, o = partition ns x in
+    match a with
+    | `Write -> []
+    | `Read  -> o
+    | `Free  -> i
+
+  let readsFrees rs fs a x =
+    match a with
+    | `Write -> []
+    | `Read  -> keep rs x
+    | `Free  -> keep fs x
 
   let onlyReads ns a x =
     match a with
     | `Write -> []
     | `Read  -> keep ns x
+    | `Free  -> []
 
   let onlyWrites ns a x =
     match a with
     | `Write -> keep ns x
     | `Read  -> []
+    | `Free  -> []
 
   let readsWrites rs ws a x =
     match a with
     | `Write -> keep ws x
     | `Read  -> keep rs x
+    | `Free  -> []
 
   let readsAll a x =
     match a with
     | `Write -> []
     | `Read  -> x
+    | `Free  -> []
 
   let writesAll a x =
     match a with
     | `Write -> x
     | `Read  -> []
+    | `Free  -> []
 end
 
 open Invalidate
@@ -212,7 +233,7 @@ let invalidate_actions = [
     "__fread_alias", writes [1;4];
     "__fread_chk", writes [1;4];
     "utimensat", readsAll;
-    "free", writesAll; (*unsafe*)
+    "free", frees [1]; (*unsafe*)
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
@@ -445,7 +466,7 @@ let invalidate_actions = [
     "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
-    "realloc", writesAll;(*unsafe*)
+    "realloc", readsFrees [0; 1] [0]; (* read+free first argument, read second argument *)
     "setrlimit", readsAll; (*safe*)
     "getrlimit", writes [2]; (*keep [2]*)
     "sem_init", readsAll; (*safe*)
@@ -506,6 +527,7 @@ let invalidate_actions = [
     "sema_init", readsAll;
     "down_trylock", readsAll;
     "up", readsAll;
+    "ZSTD_customFree", frees [1]; (* only used with extraspecials *)
   ]
 
 
@@ -539,7 +561,13 @@ let find name =
     | Some old_accesses ->
       LibraryDesc.of_old old_accesses (classify name)
     | None ->
-      LibraryDesc.of_old ~attrs:[InvalidateGlobals] writesAll (classify name)
+      let old_accesses =
+        if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
+          writesAll
+        else
+          readsAll
+      in
+      LibraryDesc.of_old ~attrs:[InvalidateGlobals] old_accesses (classify name)
 
 
 let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])

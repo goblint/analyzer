@@ -30,23 +30,24 @@ struct
   type t = Cil.exp list -> (Access.t * Cil.exp list) list
 
   (* TODO: remove after migration *)
-  type old = [`Read | `Write ] -> Cil.exp list -> Cil.exp list
+  type old = [`Read | `Write | `Free ] -> Cil.exp list -> Cil.exp list
   let of_old (f: old): t = fun args ->
     [
       ({ kind = Read; deep = true; }, f `Read args);
       ({ kind = Write; deep = true; }, f `Write args);
-      ({ kind = Free; deep = true; }, f `Write args); (* old write also imply free *) (* TODO: change after interactive *)
+      ({ kind = Free; deep = true; }, f `Free args);
     ]
 
   (* TODO: remove/rename after migration? *)
   let old (accs: t): Access.t -> Cil.exp list -> Cil.exp list = fun acc args ->
     BatOption.(List.assoc_opt acc (accs args) |? [])
 
-  let old' (accs: t): [`Read | `Write] -> Cil.exp list -> Cil.exp list = fun acc args ->
+  let old' (accs: t): [`Read | `Write | `Free] -> Cil.exp list -> Cil.exp list = fun acc args ->
     let o a = old accs a args in
     match acc with
-    | `Read -> o { kind = Read; deep = true; } @ o { kind = Read; deep = false; } @ o { kind = Write; deep = true; } @ o { kind = Write; deep = false; } @ o { kind = Free; deep = true; } @ o { kind = Free; deep = false; }
-    | `Write -> o { kind = Write; deep = true; } @ o { kind = Write; deep = false; } @ o { kind = Free; deep = true; } @ o { kind = Free; deep = false; }
+    | `Read -> o { kind = Read; deep = true; } @ o { kind = Read; deep = false; } @ o { kind = Write; deep = true; } @ o { kind = Write; deep = false; }
+    | `Write -> o { kind = Write; deep = true; } @ o { kind = Write; deep = false; }
+    | `Free -> o { kind = Free; deep = true; } @ o { kind = Free; deep = false; }
 
   let iter (accs: t) (f: Access.t -> Cil.exp -> unit) args: unit =
     accs args

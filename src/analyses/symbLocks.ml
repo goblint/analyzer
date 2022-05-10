@@ -85,7 +85,7 @@ struct
     | Unknown, fn when VarEq.safe_fn fn ->
       Messages.warn "Assume that %s does not change lockset." fn;
       ctx.local
-    | Unknown, x -> begin
+    | Unknown, x -> begin (* TODO: _ ? *)
         let st =
           match lval with
           | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
