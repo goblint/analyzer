@@ -78,7 +78,7 @@ let special ?(attrs:attr list=[]) args_desc special_cont = {
   attrs;
 }
 
-let unknown ?attrs args_desc = special ?attrs args_desc `Unknown
+let unknown ?attrs args_desc = special ?attrs args_desc Unknown
 
 let empty____desc = {
   match_arg = Pattern.(__);
@@ -97,6 +97,6 @@ let drop (_name: string) accesses = { empty_drop_desc with accesses; }
 let drop' accesses = { empty_drop_desc with accesses; }
 
 
-let r = Access.{ kind = `Read; deep = false; }
-let w = Access.{ kind = `Write; deep = false; }
-let f = Access.{ kind = `Free; deep = false; }
+let r = Access.{ kind = Read; deep = false; }
+let w = Access.{ kind = Write; deep = false; }
+let f = Access.{ kind = Free; deep = false; }

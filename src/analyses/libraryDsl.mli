@@ -7,7 +7,7 @@ type ('k, 'r) args_desc =
 
 
 val special: ?attrs:LibraryDesc.attr list -> ('k, LibraryDesc.special) args_desc -> 'k -> LibraryDesc.t
-val unknown: ?attrs:LibraryDesc.attr list -> ([> `Unknown ], LibraryDesc.special) args_desc -> LibraryDesc.t
+val unknown: ?attrs:LibraryDesc.attr list -> (LibraryDesc.special, LibraryDesc.special) args_desc -> LibraryDesc.t
 
 
 val __: string -> LibraryDesc.Access.t list -> (Cil.exp -> 'r, Cil.exp list -> 'r, 'r) arg_desc
