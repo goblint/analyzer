@@ -173,10 +173,9 @@ struct
     | _, "pthread_cond_timedwait" ->
       ctx.local
     | _, x ->
+      let desc = LF.find x in
       let arg_acc act =
-        match LF.get_threadsafe_inv_ac x with
-        | Some fnc -> (fnc act arglist)
-        | _ -> arglist
+        LibraryDesc.Accesses.old' desc.accs act arglist
       in
       (* TODO: per-argument reach *)
       let reach =
