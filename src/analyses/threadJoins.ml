@@ -26,8 +26,8 @@ struct
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `ThreadJoin (id, ret_var) ->
+    match (LibraryFunctions.find f.vname).special arglist with
+    | ThreadJoin { thread = id; ret_var } ->
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then
         ctx.local

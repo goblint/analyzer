@@ -43,8 +43,8 @@ struct
     rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose parents)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `ThreadJoin (id, ret_var) ->
+    match (LibraryFunctions.find f.vname).special arglist with
+    | ThreadJoin { thread = id; ret_var } ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
       (* TODO: elements might throw an exception *)
       let threads = TS.elements (ctx.ask (Queries.EvalThread id)) in

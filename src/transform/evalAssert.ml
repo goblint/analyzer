@@ -64,8 +64,8 @@ module EvalAssert = struct
       let is_lock exp args =
         match exp with
         | Lval(Var v,_) ->
-          (match LibraryFunctions.classify v.vname args with
-           | `Lock _ -> true
+          (match (LibraryFunctions.find v.vname).special args with
+           | Lock _ -> true
            | _ -> false)
         | _ -> false
       in
