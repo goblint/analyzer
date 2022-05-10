@@ -501,8 +501,11 @@ let invalidate_actions = [
     "up", readsAll;
   ]
 
+let find name =
+  let old_accesses = List.assoc_opt name invalidate_actions |? writesAll in
+  LibraryDesc.of_old old_accesses (classify name)
 (* TODO: remove *)
-let _: LibraryDesc.t = LibraryDesc.of_old readsAll
+let _: LibraryDesc.t = find "pthread_create"
 
 (* used by get_invalidate_action to make sure
  * that hash of invalidates is built only once

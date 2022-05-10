@@ -12,10 +12,15 @@ struct
 end
 
 type special =
-  | Lock of Cil.exp
-  | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
+  | Malloc of Cil.exp
+  | Calloc of { count: Cil.exp; size: Cil.exp; }
   | Realloc of { ptr: Cil.exp; size: Cil.exp; }
-  | Unknown
+  | Assert of Cil.exp
+  | Lock of { lock: Cil.exp; try_: bool; write: bool; return_on_success: bool; }
+  | Unlock of Cil.exp
+  | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
+  | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
+  | Unknown (* TODO: rename to Other? *)
 
 
 module Accesses =
@@ -57,8 +62,20 @@ type t = {
   attrs: attr list;
 }
 
-let of_old (old_accesses: Accesses.old): t = {
+let special_of_old classify_name = fun args ->
+  match classify_name args with
+  | `Malloc e -> Malloc e
+  | `Calloc (count, size) -> Calloc { count; size; }
+  | `Realloc (ptr, size) -> Realloc { ptr; size; }
+  | `Assert e -> Assert e
+  | `Lock (try_, write, return_on_success) -> Lock { lock = List.hd args; try_; write; return_on_success; }
+  | `Unlock -> Unlock (List.hd args)
+  | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }
+  | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
+  | `Unknown _ -> Unknown
+
+let of_old (old_accesses: Accesses.old) (classify_name): t = {
   attrs = [];
   accs = Accesses.of_old old_accesses;
-  special = fun args -> Unknown; (* TODO: classify *)
+  special = special_of_old classify_name;
 }
