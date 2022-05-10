@@ -1,11 +1,16 @@
-// SKIP PARAM: --set "ana.activated[+]" taint --disable warn.imprecise
+// SKIP PARAM: --set "ana.activated[+]" taint --disable warn.imprecise --set "exp.extraspecials[+]" getchar --set "exp.extraspecials[+]" putchar --set "exp.extraspecials[+]" printInt
 
-int readInt() __attribute__((__taint_source__));
+// getchar from the standard library is marked as a source
+int getchar() __attribute__((__taint_source__));
+
+// putchar from the standard library is marked as a sink
+int putchar(int c)  __attribute__((__taint_sink__));
+
+// we can also declare our own functions to be sources / sinks
 void printInt(int x,int y ,int z) __attribute__((__taint_sink__));
 
-
 int main(void) {
-    int x = readInt();
+    int x = getchar();
     int y;
     int tmp;
 
@@ -21,7 +26,7 @@ int main(void) {
     printInt(x,x,x); //NOWARN
 
     y = x+17;
-    y = y/readInt();
+    y = y/getchar();
     printInt(y,y,y); //WARN
 
 
@@ -33,7 +38,7 @@ int main(void) {
     }
 
     if(z == 0) {
-        z = readInt();
+        z = getchar();
     }
 
     printInt(z,z,z); //NOWARN

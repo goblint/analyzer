@@ -1,6 +1,12 @@
-// SKIP PARAM: --set "ana.activated[+]" taint --disable warn.imprecise
+// SKIP PARAM: --set "ana.activated[+]" taint --disable warn.imprecise --set "exp.extraspecials[+]" getchar --set "exp.extraspecials[+]" putchar --set "exp.extraspecials[+]" printInt
 
-int readInt() __attribute__((__taint_source__));
+// getchar from the standard library is marked as a source
+int getchar() __attribute__((__taint_source__));
+
+// putchar from the standard library is marked as a sink
+int putchar(int c)  __attribute__((__taint_sink__));
+
+// we can also declare our own functions to be sources / sinks
 void printInt(int x,int y ,int z) __attribute__((__taint_sink__));
 
 int id(int x) {
@@ -30,8 +36,8 @@ int contextNotSufficient() {
 
     int r = fun(x,y);
     printInt(r,r,r); // Here, we would hope for no warn, but we actually get a spurious warning, as we are not using enough context in the example
-    x = readInt();
-    y = readInt();
+    x = getchar();
+    y = getchar();
 
     r = fun(x,y);
     printInt(r,r,r); //WARN
@@ -39,7 +45,7 @@ int contextNotSufficient() {
 
 
 int main(void) {
-    int x = readInt();
+    int x = getchar();
     int y;
 
     x = id(x);
