@@ -815,7 +815,7 @@
                 "kzalloc"
               ]
             },
-            unique_address_count: {
+            "unique_address_count": {
                 "title": "ana.malloc.unique_address_count",
                 "description": "Number of unique memory addresses allocated for each malloc node.",
                 "type": "integer",
