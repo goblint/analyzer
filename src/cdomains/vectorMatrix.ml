@@ -388,9 +388,23 @@ module ListMatrix : AbstractMatrix =
 
     let set_col_with = set_col
 
-    let map2_pt_with = map2
+    let map2_pt_with f m v =
+      let v' = let a_length, b_length = num_rows m, V.length v in
+        match Int.compare a_length b_length with
+        | -1 -> V.keep_vals v a_length
+        |  1 -> V.append v @@ V.zero_vec (a_length - b_length)
+        | _ -> v
+      in
+      map2 f m v'
 
-    let map2i_pt_with = map2i
+    let map2i_pt_with f m v =
+      let v' = let a_length, b_length = num_rows m, V.length v in
+        match Int.compare a_length b_length with
+        | -1 -> V.keep_vals v a_length
+        |  1 -> V.append v @@ V.zero_vec (a_length - b_length)
+        | _ -> v
+      in
+      map2i f m v'
   end
 
 
@@ -666,6 +680,7 @@ module ArrayMatrix: AbstractMatrix =
 
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
+      (*Both input matrices must be in rref form!*)
       if num_rows m1 > num_rows m2 then false else
         try
           for i = 0 to num_rows m1 -1 do
@@ -699,10 +714,20 @@ module ArrayMatrix: AbstractMatrix =
       let f' x y = V.to_array @@ f (V.of_array x) y in Array.map2 f' m (V.to_array v)
 
     let map2_pt_with f m v =
-      Array.iter2i (fun i x y -> m.(i) <- V.to_array @@ f (V.of_array x) y) m (V.to_array v); m
+      if num_rows m = V.length v then
+        Array.iter2i (fun i x y -> m.(i) <- V.to_array @@ f (V.of_array x) y) m (V.to_array v)
+      else
+        for i = 0 to Stdlib.min (num_rows m) (V.length v) -1  do
+          m.(i) <- V.to_array @@ f (V.of_array m.(i)) (V.nth v i)
+        done; m
 
     let map2i_pt_with f m v =
-      Array.iter2i (fun i x y -> m.(i) <- V.to_array @@ f i (V.of_array x) y) m (V.to_array v); m
+      if num_rows m = V.length v then
+        Array.iter2i (fun i x y -> m.(i) <- V.to_array @@ f i (V.of_array x) y) m (V.to_array v)
+      else
+        for i = 0 to Stdlib.min (num_rows m) (V.length v) -1 do
+          m.(i) <- V.to_array @@ f i (V.of_array m.(i)) (V.nth v i)
+        done; m
 
     let init_with_vec v =
       let new_matrix = Array.make_matrix 1 (V.length v) (of_int 0) in

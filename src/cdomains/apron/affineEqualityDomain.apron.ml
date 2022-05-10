@@ -245,12 +245,6 @@ struct
     let rec lin_disjunc r s a b =
       if s >= Matrix.num_cols a then a else
         let case_two a r col_b =
-          let col_b = let a_length, b_length = Matrix.num_rows a, Vector.length col_b in
-            match Int.compare a_length b_length with
-            | -1 -> Vector.keep_vals col_b a_length
-            |  1 -> Vector.append col_b @@ Vector.zero_vec (a_length - b_length)
-            | _ -> col_b
-          in
           let a_r = Matrix.get_row a r in
           let mapping = Matrix.map2i_pt_with (fun i x y -> if i < r then
                                                  Vector.map2_pt_with (fun u j -> u +: y *: j) x a_r else x) a col_b
@@ -267,10 +261,8 @@ struct
             let a_r, b_r = Matrix.get_row a r, Matrix.get_row b r in
             let sub_col = Vector.rev_pt_with @@ Vector.map2_pt_with (fun x y -> x -: y) a_rev b_rev in
             let multiply_by_t m t =
-              let zero_vec = Vector.zero_vec (Matrix.num_rows m - Vector.length sub_col) in
-              let cs = Vector.append sub_col zero_vec in
               Matrix.map2i_pt_with (fun i' x c -> if i' <= max then let beta = c /: diff in
-                                       Vector.map2_pt_with (fun u j -> u -: (beta *: j)) x t else x) m cs
+                                       Vector.map2_pt_with (fun u j -> u -: (beta *: j)) x t else x) m sub_col
             in
             Matrix.remove_row (multiply_by_t a a_r) r, Matrix.remove_row (multiply_by_t b b_r) r, (max - 1)
         in
