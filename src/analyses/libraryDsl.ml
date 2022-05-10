@@ -80,26 +80,23 @@ let special ?(attrs:attr list=[]) args_desc special_cont = {
 
 let unknown ?attrs args_desc = special ?attrs args_desc `Unknown
 
+let empty____desc = {
+  match_arg = Pattern.(__);
+  match_var_args = Pattern.(__);
+  accesses = [];
+}
+let __ _name accesses = { empty____desc with accesses; }
+let __' accesses = { empty____desc with accesses; }
+
+let empty_drop_desc = {
+  match_arg = Pattern.drop;
+  match_var_args = Pattern.drop;
+  accesses = [];
+}
+let drop _name accesses = { empty_drop_desc with accesses; }
+let drop' accesses = { empty_drop_desc with accesses; }
+
+
 let r = `Read
 let w = `Write
 let f = `Free
-let (__) = fun _name accesses -> {
-  accesses;
-  match_arg = Pattern.(__);
-  match_var_args = Pattern.(__);
-}
-let drop = fun _name accesses -> {
-  accesses;
-  match_arg = Pattern.drop;
-  match_var_args = Pattern.drop;
-}
-let (__') = fun accesses -> {
-  accesses;
-  match_arg = Pattern.(__);
-  match_var_args = Pattern.(__);
-}
-let drop' = fun accesses -> {
-  accesses;
-  match_arg = Pattern.drop;
-  match_var_args = Pattern.drop;
-}
