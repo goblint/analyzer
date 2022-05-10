@@ -10,13 +10,13 @@ val special: ?attrs:LibraryDesc.attr list -> ('k, LibraryDesc.special) args_desc
 val unknown: ?attrs:LibraryDesc.attr list -> ([> `Unknown ], LibraryDesc.special) args_desc -> LibraryDesc.t
 
 
-val __: string -> LibraryDesc.access list -> (Cil.exp -> 'r, Cil.exp list -> 'r, 'r) arg_desc
-val __': LibraryDesc.access list -> (Cil.exp -> 'r, Cil.exp list -> 'r, 'r) arg_desc
+val __: string -> LibraryDesc.Access.t list -> (Cil.exp -> 'r, Cil.exp list -> 'r, 'r) arg_desc
+val __': LibraryDesc.Access.t list -> (Cil.exp -> 'r, Cil.exp list -> 'r, 'r) arg_desc
 
-val drop: string -> LibraryDesc.access list -> ('r, 'r, 'r) arg_desc
-val drop': LibraryDesc.access list -> ('r, 'r, 'r) arg_desc
+val drop: string -> LibraryDesc.Access.t list -> ('r, 'r, 'r) arg_desc
+val drop': LibraryDesc.Access.t list -> ('r, 'r, 'r) arg_desc
 
 
-val r: [> `Read ]
-val w: [> `Write ]
-val f: [> `Free ]
+val r: LibraryDesc.Access.t
+val w: LibraryDesc.Access.t
+val f: LibraryDesc.Access.t

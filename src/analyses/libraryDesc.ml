@@ -1,9 +1,16 @@
+module Access =
+struct
+  type kind = [
+    | `Read
+    | `Write
+    | `Free
+  ]
 
-type access = [
-  | `Read
-  | `Write
-  | `Free
-]
+  type t = {
+    kind: kind;
+    deep: bool;
+  }
+end
 
 type special = [
   | `Lock of Cil.exp
@@ -13,7 +20,7 @@ type special = [
 ]
 
 
-type accs = Cil.exp list -> (access * Cil.exp list) list
+type accs = Cil.exp list -> (Access.t * Cil.exp list) list
 
 type attr = [
   | `ThreadUnsafe

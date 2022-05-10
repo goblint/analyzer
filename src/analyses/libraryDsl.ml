@@ -40,7 +40,7 @@ struct
 end
 
 type ('k, 'l, 'r) arg_desc = {
-  accesses: access list;
+  accesses: Access.t list;
   match_arg: (Cil.exp, 'k, 'r) Pattern.t;
   match_var_args: (Cil.exp list, 'l, 'r) Pattern.t;
 }
@@ -65,7 +65,7 @@ let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
       ) arg_desc.accesses
   | arg_desc :: args_desc, arg :: args ->
     let accs'' = accs args_desc args in
-    List.fold_left (fun (accs'': (access * Cil.exp list) list) (acc: access) ->
+    List.fold_left (fun (accs'': (Access.t * Cil.exp list) list) (acc: Access.t) ->
         match List.assoc_opt acc accs'' with
         | Some args -> (acc, arg :: args) :: List.remove_assoc acc accs''
         | None -> (acc, arg :: args) :: accs''
@@ -97,6 +97,6 @@ let drop (_name: string) accesses = { empty_drop_desc with accesses; }
 let drop' accesses = { empty_drop_desc with accesses; }
 
 
-let r = `Read
-let w = `Write
-let f = `Free
+let r = Access.{ kind = `Read; deep = false; }
+let w = Access.{ kind = `Write; deep = false; }
+let f = Access.{ kind = `Free; deep = false; }
