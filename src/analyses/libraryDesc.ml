@@ -61,6 +61,7 @@ end
 
 type attr =
   | ThreadUnsafe
+  | InvalidateGlobals (* TODO: AccessGlobals of Access.t list? *)
 
 type t = {
   special: Cil.exp list -> special;
@@ -80,8 +81,8 @@ let special_of_old classify_name = fun args ->
   | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
   | `Unknown _ -> Unknown
 
-let of_old (old_accesses: Accesses.old) (classify_name): t = {
-  attrs = [];
+let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old) (classify_name): t = {
+  attrs;
   accs = Accesses.of_old old_accesses;
   special = special_of_old classify_name;
 }

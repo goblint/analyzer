@@ -2312,10 +2312,9 @@ struct
     | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true
     | `Assert e -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
     | _ -> begin
+        let desc = LF.find f.vname in
         let st =
-          match LF.get_invalidate_action f.vname with
-          | Some fnc -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (fnc `Write  args)
-          | None ->
+          if List.mem LibraryDesc.InvalidateGlobals desc.attrs then
             special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
             (*
              *  TODO: invalidate vars reachable via args
@@ -2323,6 +2322,8 @@ struct
              *  if single-threaded: *call f*, privatize globals
              *  else: spawn f
              *)
+          else
+            invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (LibraryDesc.Accesses.old' desc.accs `Write args)
         in
         (* invalidate lhs in case of assign *)
         let st = invalidate_ret_lv st in

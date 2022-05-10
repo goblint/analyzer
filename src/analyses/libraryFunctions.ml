@@ -502,8 +502,11 @@ let invalidate_actions = [
   ]
 
 let find name =
-  let old_accesses = List.assoc_opt name invalidate_actions |? writesAll in
-  LibraryDesc.of_old old_accesses (classify name)
+  match List.assoc_opt name invalidate_actions with
+  | Some old_accesses ->
+    LibraryDesc.of_old old_accesses (classify name)
+  | None ->
+    LibraryDesc.of_old ~attrs:[InvalidateGlobals] writesAll (classify name)
 (* TODO: remove *)
 let _: LibraryDesc.t = find "pthread_create"
 
