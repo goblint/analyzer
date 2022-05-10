@@ -5,6 +5,16 @@ open GobConfig
 
 module M = Messages
 
+
+let library_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+  ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+  ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+  ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+]
+
+let library_descs = Hashtbl.of_list library_descs_list
+
+
 type categories = [
   | `Malloc       of exp
   | `Calloc       of exp * exp
@@ -210,9 +220,6 @@ let invalidate_actions = [
     "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
     "__builtin___mempcpy_chk", writes [1];
-    "memset", writes [1];(*unsafe*)
-    "__builtin_memset", writes [1];(*unsafe*)
-    "__builtin___memset_chk", writes [1];
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
@@ -525,11 +532,14 @@ let get_invalidate_action name =
   else None
 
 let find name =
-  match get_invalidate_action name with
-  | Some old_accesses ->
-    LibraryDesc.of_old old_accesses (classify name)
+  match Hashtbl.find_option library_descs name with
+  | Some desc -> desc
   | None ->
-    LibraryDesc.of_old ~attrs:[InvalidateGlobals] writesAll (classify name)
+    match get_invalidate_action name with
+    | Some old_accesses ->
+      LibraryDesc.of_old old_accesses (classify name)
+    | None ->
+      LibraryDesc.of_old ~attrs:[InvalidateGlobals] writesAll (classify name)
 
 
 let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])

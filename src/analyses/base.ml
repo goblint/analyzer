@@ -2113,26 +2113,21 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     match (LF.find f.vname).special args, f.vname with
-    | Unknown, (("memset" | "__builtin_memset" | "__builtin___memset_chk") as name) ->
-      begin match name, args with
-        | "__builtin___memset_chk", [dest; ch; count; _ (* dest_size *)]
-        | ("memset" | "__builtin_memset"), [dest; ch; count] ->
-          (* TODO: check count *)
-          let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
-          let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
-          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
-          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
-          let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
-          let value =
-            match eval_ch with
-            | `Int i when ID.to_int i = Some Z.zero ->
-              VD.zero_init_value dest_typ
-            | _ ->
-              VD.top_value dest_typ
-          in
-          set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
-        | _, _ -> failwith "strange memset arguments"
-      end
+    | Memset { dest; ch; count; }, _ ->
+      (* TODO: check count *)
+      let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
+      let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
+      let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
+      (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
+      let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+      let value =
+        match eval_ch with
+        | `Int i when ID.to_int i = Some Z.zero ->
+          VD.zero_init_value dest_typ
+        | _ ->
+          VD.top_value dest_typ
+      in
+      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
     | Unknown, (("bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk") as name) ->
       (* TODO: share something with memset special case? *)
       begin match name, args with
