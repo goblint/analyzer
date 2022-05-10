@@ -174,19 +174,22 @@ struct
       ctx.local
     | _, x ->
       let desc = LF.find x in
-      let arg_acc act =
-        LibraryDesc.Accesses.old' desc.accs act arglist
-      in
-      (* TODO: per-argument reach *)
-      let reach =
-        match f.vname with
-        | "memset" | "__builtin_memset" | "__builtin___memset_chk" -> false
-        | "bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk" -> false
-        | "__builtin_object_size" -> false
-        | _ -> true
-      in
-      List.iter (access_one_top ctx false reach) (arg_acc `Read);
-      List.iter (access_one_top ctx true  reach) (arg_acc `Write);
+      LibraryDesc.Accesses.iter desc.accs (fun {kind; deep} exp ->
+          (* TODO: move to LibraryFunctions via DSL *)
+          let reach =
+            match f.vname with
+            | "memset" | "__builtin_memset" | "__builtin___memset_chk" -> false
+            | "bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk" -> false
+            | "__builtin_object_size" -> false
+            | _ -> deep
+          in
+          let write =
+            match kind with
+            | Read -> false
+            | Write | Free -> true
+          in
+          access_one_top ctx write reach exp
+        ) arglist;
       (match lv with
        | Some x -> access_one_top ctx true false (AddrOf x)
        | None -> ());
