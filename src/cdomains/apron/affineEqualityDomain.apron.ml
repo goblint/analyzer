@@ -234,9 +234,7 @@ struct
     if is_bot t2 || is_top t1 then false else (
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
-      match Matrix.normalize @@ Matrix.append_matrices m1' m2 with
-      | Some m -> Matrix.equal m m1'
-      | None -> false)
+      Matrix.is_covered_by m2 m1')
 
   let leq t1 t2 =
     let res = leq t1 t2 in

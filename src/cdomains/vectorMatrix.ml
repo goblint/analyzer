@@ -251,6 +251,8 @@ sig
 
   val remove_zero_rows: t -> t
 
+  val is_covered_by: t -> t -> bool
+
   val copy_pt: t -> t
 
 end
@@ -362,6 +364,12 @@ module ListMatrix : AbstractMatrix =
     let normalize t =
       let res = normalize t in
       if M.tracing then M.tracel "norm" "normalize: %s -> %s \n" (show t) (if Option.is_none res then "None" else show @@ Option.get res); res
+
+    let is_covered_by m1 m2 =
+      let m_c = append_matrices m1 m2 in
+      match normalize m_c with
+      | Some x when equal x m2 -> true
+      | _ -> false
 
     let find_opt =
       List.find_opt
@@ -655,6 +663,34 @@ module ArrayMatrix: AbstractMatrix =
     let normalize m =
       let copy = copy m in
       normalize_pt_with copy
+
+    let is_covered_by m1 m2 =
+      (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
+      if num_rows m1 > num_rows m2 then false else
+        try
+          for i = 0 to num_rows m1 -1 do
+            if Array.exists2 (<>) m1.(i) m2.(i) then (*Start to reduce row to zero*)
+              (
+                let m1_i = Array.copy m1.(i) in
+                for j = 0 to num_cols m1 -1 do
+                  if m1_i.(j) <> of_int 0 then (
+                    if j = num_cols m1 -1 then raise Exit; (*Unsolvable*)
+                    let found = ref 0 in
+                    let exception Found in
+                    try (
+                      for i' = i to num_rows m2 -1 do
+                        if m2.(i').(j) <> of_int 0 then
+                          let beta = m1_i.(j) /: m2.(i').(j) in
+                          Array.iteri (fun c x -> m1_i.(c) <- x -: beta *: m2.(i').(c)) m1_i;
+                          raise Found;
+                      done;)
+                    with Found -> incr found;
+                      if !found = 0 then raise Exit (*m1.(i).(j) can not be reduced to zero*)
+                  )
+                done
+              )
+          done; true
+        with Exit -> false;;
 
     let find_opt f m =
       let f' x = f (V.of_array x) in Option.map V.of_array (Array.find_opt f' m)
