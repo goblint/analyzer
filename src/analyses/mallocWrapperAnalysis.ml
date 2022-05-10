@@ -146,7 +146,6 @@ struct
     | _ -> Queries.Result.top q
 
   let init marshal =
-    Printexc.record_backtrace true;
     List.iter (fun wrapper -> Hashtbl.replace wrappers wrapper ()) (get_string_list "ana.malloc.wrappers");
     NodeVarinfoMap.unmarshal marshal
 
