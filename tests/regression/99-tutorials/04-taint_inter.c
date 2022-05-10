@@ -1,4 +1,4 @@
-// SKIP PARAM: --set "ana.activated[+]" taint --disable warn.imprecise --set "exp.extraspecials[+]" getchar --set "exp.extraspecials[+]" putchar --set "exp.extraspecials[+]" printInt
+// SKIP PARAM: --set "ana.activated[+]" taint --disable warn.imprecise --set "exp.extraspecials[+]" printInt
 
 // getchar from the standard library is marked as a source
 int getchar() __attribute__((__taint_source__));
