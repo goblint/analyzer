@@ -1,4 +1,4 @@
-// SKIP PARAM: --set "ana.activated[+]" taint --set "exp.extraspecials[+]" readInt --set "exp.extraspecials[+]" printInt  --disable warn.imprecise
+// SKIP PARAM: --set "ana.activated[+]" taint --disable warn.imprecise
 
 int readInt() __attribute__((__taint_source__));
 void printInt(int x,int y ,int z) __attribute__((__taint_sink__));
