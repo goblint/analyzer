@@ -554,7 +554,7 @@ let diff_and_rename current_file =
       | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
-    {Analyses.changes = changes; old_data; new_file = current_file}
+    {server = false; Analyses.changes = changes; old_data; new_file = current_file}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)
