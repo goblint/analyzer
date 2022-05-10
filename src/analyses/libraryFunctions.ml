@@ -361,6 +361,7 @@ let invalidate_actions = [
     "putc", readsAll;(*safe*)
     "putw", readsAll;(*safe*)
     "putchar", readsAll;(*safe*)
+    "getchar", readsAll;(*safe*)
     "feof", readsAll;(*safe*)
     "__getdelim", writes [3];(*keep [3]*)
     "vsyslog", readsAll;(*safe*)
