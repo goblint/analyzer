@@ -48,7 +48,7 @@ let rec match_args: type k r. (k, r) args_desc -> (Cil.exp list, k, r) Pattern.t
   | {match_arg; _} :: args -> Pattern.(match_arg ^:: match_args args)
 
 
-let rec accs: type k r. (k, r) args_desc -> accs = fun args_desc args ->
+let rec accs: type k r. (k, r) args_desc -> Accesses.t = fun args_desc args ->
   match args_desc, args with
   | [], [] -> []
   | VarArgs arg_desc, args ->

@@ -18,13 +18,31 @@ type special =
   | Unknown
 
 
-type accs = Cil.exp list -> (Access.t * Cil.exp list) list
+module Accesses =
+struct
+  type t = Cil.exp list -> (Access.t * Cil.exp list) list
+
+  let old (accs: t): Cil.exp list -> Access.t -> Cil.exp list = fun args acc ->
+    BatOption.(List.assoc_opt acc (accs args) |? [])
+
+  let iter (accs: t) (f: Access.t -> Cil.exp -> unit) args: unit =
+    accs args
+    |> List.iter (fun (acc, exps) ->
+        List.iter (fun exp -> f acc exp) exps
+      )
+
+  let fold (accs: t) (f: Access.t -> Cil.exp -> 'a -> 'a) args (a: 'a): 'a =
+    accs args
+    |> List.fold_left (fun a (acc, exps) ->
+        List.fold_left (fun a exp -> f acc exp a) a exps
+      ) a
+end
 
 type attr =
   | ThreadUnsafe
 
 type t = {
   special: Cil.exp list -> special;
-  accs: accs;
+  accs: Accesses.t;
   attrs: attr list;
 }
