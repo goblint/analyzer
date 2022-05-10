@@ -17,12 +17,12 @@ let is_source varinfo = Cil.hasAttribute "taint_source" varinfo.vattr
 (** "Fake" variable to handle returning from a function *)
 let return_varinfo = dummyFunDec.svar
 
-module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
+module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "taint"
-  module D = Lattice.Unit (* TODO: Change such that you have a fitting local domain; also update in the signature above *)
+  module D = Lattice.Unit (* TODO: Change such that you have a fitting local domain *)
   module C = Lattice.Unit
 
   (* We are context insensitive in this analysis *)
