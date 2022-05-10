@@ -13,8 +13,8 @@ end
 
 type special =
   | Lock of Cil.exp
-  | ThreadCreate of (Cil.exp * Cil.exp * Cil.exp)
-  | Realloc of (Cil.exp * Cil.exp)
+  | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
+  | Realloc of { ptr: Cil.exp; size: Cil.exp; }
   | Unknown
 
 
