@@ -468,9 +468,7 @@ struct
 
   let unknown_fn ctx lval f args =
     let args =
-      match LF.get_invalidate_action f.vname with
-      | Some fnc -> fnc `Write args
-      | _ -> args
+      LibraryDesc.Accesses.old' (LF.find f.vname).accs `Write args
     in
     let es =
       match lval with

@@ -2018,9 +2018,8 @@ struct
     | `Unknown "free" -> []
     | `Unknown _ when get_bool "sem.unknown_function.spawn" -> begin
         let args =
-          match LF.get_invalidate_action f.vname with
-          | Some fnc -> fnc `Write  args (* why do we only spawn arguments that are written?? *)
-          | None -> args
+          (* TODO: why do we only spawn arguments that are written?? *)
+          LibraryDesc.Accesses.old' (LF.find f.vname).accs `Write args
         in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat_map AD.to_var_may flist in
