@@ -486,19 +486,19 @@ struct
 
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
-    match LibraryFunctions.classify f.vname args with
-    | `Unknown "spinlock_check" ->
+    match (LibraryFunctions.find f.vname).special args, f.vname with
+    | Unknown, "spinlock_check" ->
       begin match lval with
         | Some x -> assign ctx x (List.hd args)
         | None -> unknown_fn ctx lval f args
       end
-    | `Unknown x when safe_fn x -> ctx.local
-    | `ThreadCreate (_,_, arg) ->
+    | Unknown, x when safe_fn x -> ctx.local
+    | ThreadCreate { arg; _ }, _ ->
       begin match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
       | false -> remove_reachable ctx [arg]
       end
-    | _ -> unknown_fn ctx lval f args
+    | _, _ -> unknown_fn ctx lval f args
   (* query stuff *)
 
   let eq_set (e:exp) s =

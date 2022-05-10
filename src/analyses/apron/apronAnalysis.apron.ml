@@ -305,13 +305,13 @@ struct
         )
     in
     let st = ctx.local in
-    match LibraryFunctions.classify f.vname args with
+    match (LibraryFunctions.find f.vname).special args, f.vname with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | `Assert expression -> st
-    | `Unknown "__goblint_check" -> st
-    | `Unknown "__goblint_commit" -> st
-    | `Unknown "__goblint_assert" -> st
-    | `ThreadJoin (id,retvar) ->
+    | Assert expression, _ -> st
+    | Unknown, "__goblint_check" -> st
+    | Unknown, "__goblint_commit" -> st
+    | Unknown, "__goblint_assert" -> st
+    | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
       (
         let st' = Priv.thread_join ask ctx.global id st in
@@ -319,7 +319,7 @@ struct
         | Some lv -> invalidate_one st' lv
         | None -> st'
       )
-    | _ ->
+    | _, _ ->
       let ask = Analyses.ask_of_ctx ctx in
       let invalidate_one st lv =
         assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->

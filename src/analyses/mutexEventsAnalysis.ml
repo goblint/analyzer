@@ -84,12 +84,12 @@ struct
         raise Analyses.Deadcode
       | _ -> failwith "unlock has multiple arguments"
     in
-    match (LF.classify f.vname arglist, f.vname) with
+    match (LF.find f.vname).special arglist, f.vname with
     | _, "_lock_kernel" ->
       ctx.emit (Events.Lock (big_kernel_lock, true))
     | _, "_unlock_kernel" ->
       ctx.emit (Events.Unlock big_kernel_lock)
-    | `Lock (failing, rw, nonzero_return_when_aquired), _ ->
+    | Lock { try_ = failing; write = rw; return_on_success = nonzero_return_when_aquired; _ }, _ ->
       begin match f.vname, arglist with
         | _, [arg]
         | "spin_lock_irqsave", [arg; _] ->
@@ -97,8 +97,8 @@ struct
           lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arg
         | _ -> failwith "lock has multiple arguments"
       end
-    | `Unlock, "__raw_read_unlock"
-    | `Unlock, "__raw_write_unlock"  ->
+    | Unlock _, "__raw_read_unlock"
+    | Unlock _, "__raw_write_unlock"  ->
       let drop_raw_lock x =
         let rec drop_offs o =
           match o with
@@ -112,7 +112,7 @@ struct
         | None -> x
       in
       unlock (fun l -> remove_rw (drop_raw_lock l))
-    | `Unlock, _ ->
+    | Unlock _, _ ->
       (*print_endline @@ "Mutex `Unlock "^f.vname;*)
       unlock remove_rw
     | _, "spinlock_check" -> ()

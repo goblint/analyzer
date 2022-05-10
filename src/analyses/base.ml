@@ -1999,9 +1999,9 @@ struct
           None
         )
     in
-    match LF.classify f.vname args with
+    match (LF.find f.vname).special args, f.vname with
     (* handling thread creations *)
-    | `ThreadCreate (id,start,ptc_arg) -> begin
+    | ThreadCreate { thread = id; start_routine = start; arg = ptc_arg }, _ -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
         publish_all ctx `Thread;
         (* Collect the threads. *)
@@ -2015,8 +2015,8 @@ struct
         in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | `Unknown "free" -> []
-    | `Unknown _ when get_bool "sem.unknown_function.spawn" -> begin
+    | Unknown, "free" -> []
+    | Unknown, _ when get_bool "sem.unknown_function.spawn" -> begin
         let args =
           (* TODO: why do we only spawn arguments that are written?? *)
           LibraryDesc.Accesses.old' (LF.find f.vname).accs `Write args
@@ -2026,7 +2026,7 @@ struct
         if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
         List.filter_map (create_thread None None) addrs
       end
-    | _ ->  []
+    | _, _ ->  []
 
   let assert_fn ctx e should_warn change =
 
@@ -2112,8 +2112,8 @@ struct
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
-    match LF.classify f.vname args with
-    | `Unknown (("memset" | "__builtin_memset" | "__builtin___memset_chk") as name) ->
+    match (LF.find f.vname).special args, f.vname with
+    | Unknown, (("memset" | "__builtin_memset" | "__builtin___memset_chk") as name) ->
       begin match name, args with
         | "__builtin___memset_chk", [dest; ch; count; _ (* dest_size *)]
         | ("memset" | "__builtin_memset"), [dest; ch; count] ->
@@ -2133,7 +2133,7 @@ struct
           set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _, _ -> failwith "strange memset arguments"
       end
-    | `Unknown (("bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk") as name) ->
+    | Unknown, (("bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk") as name) ->
       (* TODO: share something with memset special case? *)
       begin match name, args with
         | "__explicit_bzero_chk", [dest; count; _ (* dest_size *)]
@@ -2147,9 +2147,9 @@ struct
           set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
         | _, _ -> failwith "strange bzero arguments"
       end
-    | `Unknown "F59" (* strcpy *)
-    | `Unknown "F60" (* strncpy *)
-    | `Unknown "F63" (* memcpy *)
+    | Unknown, "F59" (* strcpy *)
+    | Unknown, "F60" (* strncpy *)
+    | Unknown, "F63" (* memcpy *)
       ->
       begin match args with
         | [dst; src]
@@ -2172,14 +2172,14 @@ struct
           assign ctx (get_lval dst) src
         | _ -> failwith "strcpy arguments are strange/complicated."
       end
-    | `Unknown "F1" ->
+    | Unknown, "F1" ->
       begin match args with
         | [dst; data; len] -> (* memset: write char to dst len times *)
           let dst_lval = mkMem ~addr:dst ~off:NoOffset in
           assign ctx dst_lval data (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
         | _ -> failwith "memset arguments are strange/complicated."
       end
-    | `Unknown "list_add" when (get_bool "exp.list-type") ->
+    | Unknown, "list_add" when (get_bool "exp.list-type") ->
       begin match args with
         | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] ->
           begin
@@ -2196,7 +2196,7 @@ struct
           end
         | _ -> failwith "List function arguments are strange/complicated."
       end
-    | `Unknown "list_del" when (get_bool "exp.list-type") ->
+    | Unknown, "list_del" when (get_bool "exp.list-type") ->
       begin match args with
         | [ AddrOf (Var elm,next) ] ->
           begin
@@ -2218,16 +2218,16 @@ struct
           end
         | _ -> failwith "List function arguments are strange/complicated."
       end
-    | `Unknown "__builtin" ->
+    | Unknown, "__builtin" ->
       begin match args with
         | Const (CStr ("invariant",_)) :: ((_ :: _) as args) ->
           List.fold_left (fun d e -> invariant ctx (Analyses.ask_of_ctx ctx) ctx.global d e true) ctx.local args
         | _ -> failwith "Unknown __builtin."
       end
-    | `Unknown "exit" ->  raise Deadcode
-    | `Unknown "abort" -> raise Deadcode
-    | `Unknown "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
-    | `Unknown "pthread_exit" ->
+    | Unknown, "exit" ->  raise Deadcode
+    | Unknown, "abort" -> raise Deadcode
+    | Unknown, "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
+    | Unknown, "pthread_exit" ->
       begin match args with
         | [exp] ->
           begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
@@ -2242,21 +2242,21 @@ struct
           raise Deadcode
         | _ -> failwith "Unknown pthread_exit."
       end
-    | `Unknown "__builtin_expect" ->
+    | Unknown, "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)
         | None -> ctx.local (* just calling __builtin_expect(...) without assigning is a nop, since the arguments are CIl exp and therefore have no side-effects *)
       end
-    | `Unknown "spinlock_check" ->
+    | Unknown, "spinlock_check" ->
       begin match lv with
         | Some x -> assign ctx x (List.hd args)
         | None -> ctx.local
       end
     (* handling thread creations *)
-    | `ThreadCreate _ ->
+    | ThreadCreate _, _ ->
       invalidate_ret_lv ctx.local (* actual results joined via threadspawn *)
     (* handling thread joins... sort of *)
-    | `ThreadJoin (id,ret_var) ->
+    | ThreadJoin { thread = id; ret_var }, _ ->
       let st' =
         match (eval_rv (Analyses.ask_of_ctx ctx) gs st ret_var) with
         | `Int n when GobOption.exists (BI.equal BI.zero) (ID.to_int n) -> st
@@ -2271,7 +2271,7 @@ struct
         | _      -> invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st [ret_var]
       in
       invalidate_ret_lv st'
-    | `Malloc size -> begin
+    | Malloc size, _ -> begin
         match lv with
         | Some lv ->
           let heap_var =
@@ -2284,7 +2284,7 @@ struct
                                   (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address heap_var)]
         | _ -> st
       end
-    | `Calloc (n, size) ->
+    | Calloc { count = n; size }, _ ->
       begin match lv with
         | Some lv -> (* array length is set to one, as num*size is done when turning into `Calloc *)
           let heap_var = heap_var ctx in
@@ -2297,7 +2297,7 @@ struct
                                   (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
         | _ -> st
       end
-    | `Unknown "__goblint_unknown" ->
+    | Unknown, "__goblint_unknown" ->
       begin match args with
         | [Lval lv] | [CastE (_,AddrOf lv)] ->
           let st = set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv)  `Top in
@@ -2306,12 +2306,12 @@ struct
           failwith "Function __goblint_unknown expected one address-of argument."
       end
     (* Handling the assertions *)
-    | `Unknown "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
-    | `Unknown "__goblint_check" -> assert_fn ctx (List.hd args) true false
-    | `Unknown "__goblint_commit" -> assert_fn ctx (List.hd args) false true
-    | `Unknown "__goblint_assert" -> assert_fn ctx (List.hd args) true true
-    | `Assert e -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
-    | _ -> begin
+    | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
+    | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) true false
+    | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) false true
+    | Unknown, "__goblint_assert" -> assert_fn ctx (List.hd args) true true
+    | Assert e, _ -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
+    | _, _ -> begin
         let desc = LF.find f.vname in
         let st =
           if List.mem LibraryDesc.InvalidateGlobals desc.attrs then

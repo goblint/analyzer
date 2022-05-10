@@ -75,17 +75,17 @@ struct
     | _ -> PS.empty ()
 
   let special ctx lval f arglist =
-    match LF.classify f.vname arglist with
-    | `Lock _ ->
+    match (LF.find f.vname).special arglist, f.vname with
+    | Lock _, _ ->
       D.add (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | `Unlock ->
+    | Unlock _, _ ->
       D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | `Unknown "ZSTD_customFree" -> (* only used with extraspecials *)
+    | Unknown, "ZSTD_customFree" -> (* only used with extraspecials *)
       ctx.local
-    | `Unknown fn when VarEq.safe_fn fn ->
+    | Unknown, fn when VarEq.safe_fn fn ->
       Messages.warn "Assume that %s does not change lockset." fn;
       ctx.local
-    | `Unknown x -> begin
+    | Unknown, x -> begin
         let st =
           match lval with
           | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
@@ -96,7 +96,7 @@ struct
         in
         List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
       end
-    | _ ->
+    | _, _ ->
       ctx.local
 
 

@@ -145,18 +145,18 @@ struct
     ctx.local
 
   let special ctx lv f arglist : D.t =
-    match (LF.classify f.vname arglist, f.vname) with
+    match (LF.find f.vname).special arglist, f.vname with
     (* TODO: remove cases *)
     | _, "_lock_kernel" ->
       ctx.local
     | _, "_unlock_kernel" ->
       ctx.local
-    | `Lock (failing, rw, nonzero_return_when_aquired), _
+    | Lock { try_ = failing; write = rw; return_on_success = nonzero_return_when_aquired; _ }, _
       -> ctx.local
-    | `Unlock, "__raw_read_unlock"
-    | `Unlock, "__raw_write_unlock"  ->
+    | Unlock _, "__raw_read_unlock"
+    | Unlock _, "__raw_write_unlock"  ->
       ctx.local
-    | `Unlock, _ ->
+    | Unlock _, _ ->
       ctx.local
     | _, "spinlock_check" -> ctx.local
     | _, "acquire_console_sem" when get_bool "kernel" ->
