@@ -468,7 +468,7 @@ struct
 
   let unknown_fn ctx lval f args =
     let args =
-      LibraryDesc.Accesses.old' (LF.find f.vname).accs `Write args
+      LibraryDesc.Accesses.old' (LF.find f.vname).accs Write args
     in
     let es =
       match lval with

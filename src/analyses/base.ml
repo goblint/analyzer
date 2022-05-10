@@ -2031,7 +2031,7 @@ struct
     | Unknown, _ when get_bool "sem.unknown_function.spawn" -> begin
         let args =
           (* TODO: why do we only spawn arguments that are written?? *)
-          LibraryDesc.Accesses.old' (LF.find f.vname).accs `Write args
+          LibraryDesc.Accesses.old' (LF.find f.vname).accs Write args
         in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat_map AD.to_var_may flist in
@@ -2363,7 +2363,7 @@ struct
              *  else: spawn f
              *)
           else
-            invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (LibraryDesc.Accesses.old' desc.accs `Write args)
+            invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (LibraryDesc.Accesses.old' desc.accs Write args)
         in
         (* invalidate lhs in case of assign *)
         let st = invalidate_ret_lv st in

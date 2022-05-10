@@ -92,7 +92,7 @@ struct
           | None -> ctx.local
         in
         let write_args =
-          LibraryDesc.Accesses.old' (LF.find x).accs `Write arglist
+          LibraryDesc.Accesses.old' (LF.find x).accs Write arglist
         in
         List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
       end

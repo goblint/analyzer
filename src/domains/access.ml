@@ -249,7 +249,7 @@ let add_propagate side e kind conf ty ls a =
     let vars = Ht.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
-let rec distribute_access_lval f kind r c lv =
+let rec distribute_access_lval f (kind: AccessKind.t) r c lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
   (* f kind r c (mkAddrOf lv); *)
   f kind r c (AddrOf lv);
@@ -261,14 +261,14 @@ and distribute_access_lval_addr f kind r c lv =
     distribute_access_offset f c os
   | (Mem e, os) ->
     distribute_access_offset f c os;
-    distribute_access_exp f `Read false c e
+    distribute_access_exp f AccessKind.Read false c e
 
 and distribute_access_offset f c = function
   | NoOffset -> ()
   | Field (_,os) ->
     distribute_access_offset f c os
   | Index (e,os) ->
-    distribute_access_exp f `Read false c e;
+    distribute_access_exp f Read false c e;
     distribute_access_offset f c os
 
 and distribute_access_exp f kind r c = function
@@ -289,13 +289,13 @@ and distribute_access_exp f kind r c = function
     if r then
       distribute_access_lval f kind r c lval
     else
-      distribute_access_lval_addr f `Read r c lval
+      distribute_access_lval_addr f Read r c lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
   | CastE  (t, exp) ->
     distribute_access_exp f kind r c exp
   | Question (b,t,e,_) ->
-    distribute_access_exp f `Read r c b;
+    distribute_access_exp f Read r c b;
     distribute_access_exp f kind r c t;
     distribute_access_exp f kind r c e
   | _ -> ()
@@ -370,10 +370,10 @@ module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
 
 (* Check if two accesses may race and if yes with which confidence *)
-let may_race (conf,kind,loc,e,a) (conf2,kind2,loc2,e2,a2) =
-  if kind = `Read && kind2 = `Read then
+let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),loc2,e2,a2) =
+  if kind = Read && kind2 = Read then
     false (* two read/read accesses do not race *)
-  else if not (get_bool "ana.race.free") && (kind = `Free || kind2 = `Free) then
+  else if not (get_bool "ana.race.free") && (kind = Free || kind2 = Free) then
     false
   else if not (MCPAccess.A.may_race a a2) then
     false (* analysis-specific information excludes race *)

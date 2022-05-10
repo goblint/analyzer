@@ -119,6 +119,7 @@ let classify fn exps =
 module Invalidate =
 struct
   [@@@warning "-unused-value-declaration"] (* some functions are not used below *)
+  open AccessKind
 
   let drop = List.drop
   let keep ns = List.filteri (fun i _ -> List.mem i ns)
@@ -137,72 +138,72 @@ struct
 
   let writesAllButFirst n f a x =
     match a with
-    | `Write -> f a x @ drop n x
-    | `Read  -> f a x
-    | `Free  -> []
+    | Write -> f a x @ drop n x
+    | Read  -> f a x
+    | Free  -> []
 
   let readsAllButFirst n f a x =
     match a with
-    | `Write -> f a x
-    | `Read  -> f a x @ drop n x
-    | `Free  -> []
+    | Write -> f a x
+    | Read  -> f a x @ drop n x
+    | Free  -> []
 
   let reads ns a x =
     let i, o = partition ns x in
     match a with
-    | `Write -> o
-    | `Read  -> i
-    | `Free  -> []
+    | Write -> o
+    | Read  -> i
+    | Free  -> []
 
   let writes ns a x =
     let i, o = partition ns x in
     match a with
-    | `Write -> i
-    | `Read  -> o
-    | `Free  -> []
+    | Write -> i
+    | Read  -> o
+    | Free  -> []
 
   let frees ns a x =
     let i, o = partition ns x in
     match a with
-    | `Write -> []
-    | `Read  -> o
-    | `Free  -> i
+    | Write -> []
+    | Read  -> o
+    | Free  -> i
 
   let readsFrees rs fs a x =
     match a with
-    | `Write -> []
-    | `Read  -> keep rs x
-    | `Free  -> keep fs x
+    | Write -> []
+    | Read  -> keep rs x
+    | Free  -> keep fs x
 
   let onlyReads ns a x =
     match a with
-    | `Write -> []
-    | `Read  -> keep ns x
-    | `Free  -> []
+    | Write -> []
+    | Read  -> keep ns x
+    | Free  -> []
 
   let onlyWrites ns a x =
     match a with
-    | `Write -> keep ns x
-    | `Read  -> []
-    | `Free  -> []
+    | Write -> keep ns x
+    | Read  -> []
+    | Free  -> []
 
   let readsWrites rs ws a x =
     match a with
-    | `Write -> keep ws x
-    | `Read  -> keep rs x
-    | `Free  -> []
+    | Write -> keep ws x
+    | Read  -> keep rs x
+    | Free  -> []
 
   let readsAll a x =
     match a with
-    | `Write -> []
-    | `Read  -> x
-    | `Free  -> []
+    | Write -> []
+    | Read  -> x
+    | Free  -> []
 
   let writesAll a x =
     match a with
-    | `Write -> x
-    | `Read  -> []
-    | `Free  -> []
+    | Write -> x
+    | Read  -> []
+    | Free  -> []
 end
 
 open Invalidate
