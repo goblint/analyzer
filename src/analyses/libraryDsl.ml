@@ -7,7 +7,7 @@ struct
   exception Expected of string
   let fail s = raise (Expected s)
 
-  let (__): _ t = fun x k -> k x
+  let __: _ t = fun x k -> k x
   let drop: _ t = fun _ k -> k
 
   let nil: _ t = fun x k ->
@@ -23,20 +23,12 @@ struct
       k
     | [] -> fail "^::"
 
-  let map (p: _ t) ~(f): _ t = fun x k -> p x (f k)
-  let map_result (p: _ t) ~(f): _ t = fun x k -> f (p x k)
-  let (>>) (p: ('a, 'k, 'r) t) (k: 'k) (a: 'a): 'r = p a k
-
   let many (p: _ t): _ t = fun l k ->
     let rec aux accu = function
       | [] -> k (List.rev accu)
       | x :: xs -> p x (fun x -> aux (x :: accu) xs)
     in
     aux [] l
-
-  let as__ (p: _ t): _ t = fun x k ->
-    let k = p x (k x) in
-    k
 end
 
 type ('k, 'l, 'r) arg_desc = {
