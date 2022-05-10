@@ -482,7 +482,7 @@ module WP =
           data.stable <- HM.copy data.stable;
           data.wpoint <- HM.copy data.wpoint;
           data.infl <- HM.copy data.infl;
-          (* data.st <- data.st; *)
+          (* data.st is immutable, no need to copy *)
         )
         else if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           let rho' = HM.create (HM.length data.rho) in
