@@ -14,7 +14,8 @@ let library_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
-  ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []])
+  ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
+  ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
 ]
 
 let library_descs = Hashtbl.of_list library_descs_list
@@ -72,11 +73,6 @@ let classify' fn exps =
   | "ZSTD_customCalloc" -> (* only used with extraspecials *)
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
-      | _ -> strange_arguments ()
-    end
-  | "realloc" ->
-    begin match exps with
-      | p::size::_ -> `Realloc (p, size)
       | _ -> strange_arguments ()
     end
   | "assert" ->
@@ -467,7 +463,6 @@ let invalidate_actions = [
     "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
-    "realloc", readsFrees [0; 1] [0]; (* read+free first argument, read second argument *)
     "setrlimit", readsAll; (*safe*)
     "getrlimit", writes [2]; (*keep [2]*)
     "sem_init", readsAll; (*safe*)
