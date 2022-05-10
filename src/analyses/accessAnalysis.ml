@@ -174,13 +174,7 @@ struct
       ctx.local
     | _, x ->
       let desc = LF.find x in
-      LibraryDesc.Accesses.iter desc.accs (fun {kind; deep} exp ->
-          (* TODO: move to LibraryFunctions via DSL *)
-          let reach =
-            match f.vname with
-            | "__builtin_object_size" -> false
-            | _ -> deep
-          in
+      LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
           let write =
             match kind with
             | Read -> false

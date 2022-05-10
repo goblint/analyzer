@@ -14,6 +14,7 @@ let library_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
+  ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []])
 ]
 
 let library_descs = Hashtbl.of_list library_descs_list
@@ -470,7 +471,6 @@ let invalidate_actions = [
     "pthread_rwlock_destroy", readsAll;
     "pthread_rwlock_init", readsAll;
     "pthread_rwlock_unlock", readsAll;
-    "__builtin_object_size", readsAll;
     "__builtin_bswap16", readsAll;
     "__builtin_bswap32", readsAll;
     "__builtin_bswap64", readsAll;
