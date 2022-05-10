@@ -4,11 +4,13 @@
 
 typedef struct { int myint; pthread_mutex_t mymutex; } mystruct;
 
+void acc(mystruct *s) { s->myint=s->myint+1; } // NORACE
+
 void *foo(void *arg) {
   mystruct *s = (mystruct *) arg;
 
   pthread_mutex_lock(&s->mymutex);
-  s->myint=s->myint+1; // NORACE
+  acc(s);
   pthread_mutex_unlock(&s->mymutex);
 
   return NULL;

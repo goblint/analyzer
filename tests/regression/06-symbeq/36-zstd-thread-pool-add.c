@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] symb_locks
+// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] var_eq --set exp.extraspecials[+] ZSTD_customMalloc --set exp.extraspecials[+] ZSTD_customCalloc
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.
@@ -258,6 +258,57 @@ void POOL_free(POOL_ctx *ctx) {
     ZSTD_customFree(ctx, ctx->customMem);
 }
 
+static int isQueueFull(POOL_ctx const* ctx) {
+    if (ctx->queueSize > 1) {
+        return ctx->queueHead == ((ctx->queueTail + 1) % ctx->queueSize);
+    } else {
+        return (ctx->numThreadsBusy == ctx->threadLimit) ||
+               !ctx->queueEmpty;
+    }
+}
+
+
+static void
+POOL_add_internal(POOL_ctx* ctx, POOL_function function, void *opaque)
+{
+    POOL_job const job = {function, opaque};
+    assert(ctx != NULL);
+    if (ctx->shutdown) return;
+
+    ctx->queueEmpty = 0;
+    ctx->queue[ctx->queueTail] = job;
+    ctx->queueTail = (ctx->queueTail + 1) % ctx->queueSize;
+    ZSTD_pthread_cond_signal(&ctx->queuePopCond);
+}
+
+void POOL_add(POOL_ctx* ctx, POOL_function function, void* opaque)
+{
+    assert(ctx != NULL);
+    ZSTD_pthread_mutex_lock(&ctx->queueMutex);
+    /* Wait until there is space in the queue for the new job */
+    while (isQueueFull(ctx) && (!ctx->shutdown)) {
+        ZSTD_pthread_cond_wait(&ctx->queuePushCond, &ctx->queueMutex);
+    }
+    POOL_add_internal(ctx, function, opaque);
+    ZSTD_pthread_mutex_unlock(&ctx->queueMutex);
+}
+
+void foo(void *arg) {
+    assert(1); // reachable
+}
+
+int g;
+
+void bar(void *arg) {
+    g++; // RACE!
+}
+
 int main() {
     POOL_ctx* const ctx = POOL_create(20, 10);
+    if (ctx) {
+        POOL_add(ctx, foo, NULL);
+        POOL_add(ctx, bar, NULL);
+        POOL_add(ctx, bar, NULL);
+    }
+    return 0;
 }

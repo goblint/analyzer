@@ -32,7 +32,9 @@ let marshal obj fileName  =
   close_out chan
 
 let unmarshal fileName =
-  if GobConfig.get_bool "dbg.verbose" then Format.printf "Unmarshalling %a... If type of content changed, this will result in a segmentation fault!" Fpath.pp fileName;
+  if GobConfig.get_bool "dbg.verbose" then
+    (* Do NOT replace with Printf because of Gobview: https://github.com/goblint/gobview/issues/10 *)
+    print_endline ("Unmarshalling " ^ Fpath.to_string fileName ^ "... If type of content changed, this will result in a segmentation fault!");
   Marshal.input (open_in_bin (Fpath.to_string fileName))
 
 let results_exist () =

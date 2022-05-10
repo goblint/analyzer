@@ -1,4 +1,4 @@
-// SKIP
+// PARAM: --set ana.activated[+] mallocFresh
 #include <stdlib.h>
 #include <pthread.h>
 
@@ -7,7 +7,7 @@ void *t_fun(void *arg) {
   x = malloc(sizeof(int));
   *x = 3; // NORACE
   (*x)++; // NORACE
-  free(x);
+  free(x); // NORACE
   return NULL;
 }
 
@@ -16,7 +16,7 @@ int main() {
 
   pthread_create(&id1, NULL, t_fun, NULL);
   pthread_create(&id2, NULL, t_fun, NULL);
-  
+
   return 0;
 }
 

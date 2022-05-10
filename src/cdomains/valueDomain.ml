@@ -304,7 +304,7 @@ struct
         M.tracel "casta" "same size\n";
         if not (typ_eq t ta) then err "Cast to different type of same size."
         else (M.tracel "casta" "SUCCESS!\n"; o)
-      | 1 -> (* cast to bigger/outer type *)
+      | c when c > 0 -> (* cast to bigger/outer type *)
         M.tracel "casta" "cast to bigger size\n";
         if d = Some false then err "Ptr-cast to type of incompatible size!" else
         if o = `NoOffset then err "Ptr-cast to outer type, but no offset to remove."
@@ -437,7 +437,7 @@ struct
     if GobConfig.get_bool "dbg.verbose" then
       ignore @@ printf "warn_type %s: incomparable abstr. values %s and %s at %a: %a and %a\n" op (tag_name x) (tag_name y) CilType.Location.pretty !Tracing.current_loc pretty x pretty y
 
-  let leq x y =
+  let rec leq x y =
     match (x,y) with
     | (_, `Top) -> true
     | (`Top, _) -> false
@@ -453,6 +453,8 @@ struct
     | (`Array x, `Array y) -> CArrays.leq x y
     | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
+    | `Blob (x,s,o), y -> leq (x:t) y
+    | x, `Blob (y,s,o) -> leq x (y:t)
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
     | (`Address x, `Thread y) -> true

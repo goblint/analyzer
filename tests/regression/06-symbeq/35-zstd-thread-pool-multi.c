@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated[+] symb_locks
+// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] mallocFresh
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Copyright (c) Facebook, Inc.
@@ -195,26 +195,26 @@ POOL_ctx* POOL_create_advanced(size_t numThreads, size_t queueSize,
      * It needs one extra space since one space is wasted to differentiate
      * empty and full queues.
      */
-    ctx->queueSize = queueSize + 1;
-    ctx->queue = (POOL_job*)ZSTD_customMalloc(ctx->queueSize * sizeof(POOL_job), customMem);
-    ctx->queueHead = 0;
-    ctx->queueTail = 0;
-    ctx->numThreadsBusy = 0;
-    ctx->queueEmpty = 1;
+    ctx->queueSize = queueSize + 1; // NORACE
+    ctx->queue = (POOL_job*)ZSTD_customMalloc(ctx->queueSize * sizeof(POOL_job), customMem); // NORACE
+    ctx->queueHead = 0; // NORACE
+    ctx->queueTail = 0; // NORACE
+    ctx->numThreadsBusy = 0; // NORACE
+    ctx->queueEmpty = 1; // NORACE
     {
         int error = 0;
-        error |= ZSTD_pthread_mutex_init(&ctx->queueMutex, NULL);
-        error |= ZSTD_pthread_cond_init(&ctx->queuePushCond, NULL);
-        error |= ZSTD_pthread_cond_init(&ctx->queuePopCond, NULL);
+        error |= ZSTD_pthread_mutex_init(&ctx->queueMutex, NULL); // NORACE
+        error |= ZSTD_pthread_cond_init(&ctx->queuePushCond, NULL); // NORACE
+        error |= ZSTD_pthread_cond_init(&ctx->queuePopCond, NULL); // NORACE
         if (error) { POOL_free(ctx); return NULL; }
     }
-    ctx->shutdown = 0;
+    ctx->shutdown = 0; // NORACE
     /* Allocate space for the thread handles */
-    ctx->threads = (ZSTD_pthread_t*)ZSTD_customMalloc(numThreads * sizeof(ZSTD_pthread_t), customMem);
-    ctx->threadCapacity = 0;
-    ctx->customMem = customMem;
+    ctx->threads = (ZSTD_pthread_t*)ZSTD_customMalloc(numThreads * sizeof(ZSTD_pthread_t), customMem); // NORACE
+    ctx->threadCapacity = 0; // NORACE
+    ctx->customMem = customMem; // NORACE
     /* Check for errors */
-    if (!ctx->threads || !ctx->queue) { POOL_free(ctx); return NULL; }
+    if (!ctx->threads || !ctx->queue) { POOL_free(ctx); return NULL; } // NORACE
     /* Initialize the threads */
     {   size_t i;
         for (i = 0; i < numThreads; ++i) {
@@ -259,5 +259,7 @@ void POOL_free(POOL_ctx *ctx) {
 }
 
 int main() {
-    POOL_ctx* const ctx = POOL_create(20, 10);
+    while (1) {
+        POOL_ctx* const ctx = POOL_create(20, 10);
+    }
 }

@@ -131,6 +131,13 @@ struct
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ = function
     | `Int v1 -> `Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
+    | `Address a when op = LNot ->
+      if AD.is_null a then
+        `Int (ID.of_bool (Cilfacade.get_ikind typ) true)
+      else if AD.is_not_null a then
+        `Int (ID.of_bool (Cilfacade.get_ikind typ) false)
+      else
+        `Int (ID.top_of (Cilfacade.get_ikind typ))
     | `Bot -> `Bot
     | _ -> VD.top ()
 
@@ -344,7 +351,7 @@ struct
    *  adding proper dependencies.
    *  For the exp argument it is always ok to put None. This means not using precise information about
    *  which part of an array is involved.  *)
-  let rec get ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
+  let rec get ?(top=VD.top ()) ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.get_type addrs in
     let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
@@ -362,7 +369,7 @@ struct
       let f = function
         | Addr.Addr (x, o) -> f_addr (x, o)
         | Addr.NullPtr -> VD.bot () (* TODO: why bot? *)
-        | Addr.UnknownPtr -> VD.top ()
+        | Addr.UnknownPtr -> top (* top may be more precise than VD.top, e.g. for address sets, such that known addresses are kept for soundness *)
         | Addr.StrPtr _ -> `Int (ID.top_of IChar)
       in
       (* We form the collecting function by joining *)
@@ -720,10 +727,11 @@ struct
                   else
                     false
               end
+            | NullPtr | UnknownPtr -> true (* TODO: are these sound? *)
             | _ -> false
           in
           if AD.for_all cast_ok p then
-            get a gs st p (Some exp)  (* downcasts are safe *)
+            get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
           else
             VD.top () (* upcasts not! *)
         in
@@ -802,6 +810,8 @@ struct
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
+    | Index (CastE (TInt(IInt,[]), Const (CStr ("unknown",No_encoding))), ofs) -> (* special offset added by convertToQueryLval *)
+      `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
       let exp_rv = eval_rv a gs st exp in
       match exp_rv with
@@ -1813,6 +1823,11 @@ struct
         if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
         raise Deadcode
       end
+    (* for some reason refine () can refine these, but not raise Deadcode in struct *)
+    | `Address ad when tv && AD.is_null ad ->
+      raise Deadcode
+    | `Address ad when not tv && AD.is_not_null ad ->
+      raise Deadcode
     | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
       if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
@@ -2099,6 +2114,40 @@ struct
     let st: store = ctx.local in
     let gs = ctx.global in
     match LF.classify f.vname args with
+    | `Unknown (("memset" | "__builtin_memset" | "__builtin___memset_chk") as name) ->
+      begin match name, args with
+        | "__builtin___memset_chk", [dest; ch; count; _ (* dest_size *)]
+        | ("memset" | "__builtin_memset"), [dest; ch; count] ->
+          (* TODO: check count *)
+          let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in
+          let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
+          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
+          let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+          let value =
+            match eval_ch with
+            | `Int i when ID.to_int i = Some Z.zero ->
+              VD.zero_init_value dest_typ
+            | _ ->
+              VD.top_value dest_typ
+          in
+          set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | _, _ -> failwith "strange memset arguments"
+      end
+    | `Unknown (("bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk") as name) ->
+      (* TODO: share something with memset special case? *)
+      begin match name, args with
+        | "__explicit_bzero_chk", [dest; count; _ (* dest_size *)]
+        | ("bzero" | "__builtin_bzero" | "explicit_bzero"), [dest; count] ->
+          (* TODO: check count *)
+          let dest_lval = mkMem ~addr:(Cil.stripCasts dest) ~off:NoOffset in
+          let dest_a = eval_lv (Analyses.ask_of_ctx ctx) gs st dest_lval in
+          (* let dest_typ = Cilfacade.typeOfLval dest_lval in *)
+          let dest_typ = AD.get_type dest_a in (* TODO: what is the right way? *)
+          let value = VD.zero_init_value dest_typ in
+          set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) gs st dest_a dest_typ value
+        | _, _ -> failwith "strange bzero arguments"
+      end
     | `Unknown "F59" (* strcpy *)
     | `Unknown "F60" (* strncpy *)
     | `Unknown "F63" (* memcpy *)
