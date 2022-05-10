@@ -501,14 +501,6 @@ let invalidate_actions = [
     "up", readsAll;
   ]
 
-let find name =
-  match List.assoc_opt name invalidate_actions with
-  | Some old_accesses ->
-    LibraryDesc.of_old old_accesses (classify name)
-  | None ->
-    LibraryDesc.of_old ~attrs:[InvalidateGlobals] writesAll (classify name)
-(* TODO: remove *)
-let _: LibraryDesc.t = find "pthread_create"
 
 (* used by get_invalidate_action to make sure
  * that hash of invalidates is built only once
@@ -532,31 +524,12 @@ let get_invalidate_action name =
   then Some (Hashtbl.find tbl name)
   else None
 
-let threadSafe =
-  let rec threadSafe n ns xs =
-    match ns, xs with
-    | n'::ns, x::xs when n=n' -> mone::threadSafe (n+1) ns xs
-    | n'::ns, x::xs -> x::threadSafe (n+1) (n'::ns) xs
-    | _ -> xs
-  in
-  threadSafe 1
-
-let thread_safe_fn =
-  ["strerror", threadSafe [1];
-   "fprintf",  threadSafe [1];
-   "fgets",    threadSafe [3];
-   "strerror_r", threadSafe [1];
-   "fclose", threadSafe [1]
-  ]
-
-let get_threadsafe_inv_ac name =
-  try
-    let f = List.assoc name thread_safe_fn in
-    match get_invalidate_action name with
-    | Some g -> Some (fun a xs -> g a (f xs))
-    | None -> Some (fun a xs -> f xs)
-  with Not_found -> get_invalidate_action name
-
+let find name =
+  match get_invalidate_action name with
+  | Some old_accesses ->
+    LibraryDesc.of_old old_accesses (classify name)
+  | None ->
+    LibraryDesc.of_old ~attrs:[InvalidateGlobals] writesAll (classify name)
 
 
 let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
