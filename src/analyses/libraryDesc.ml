@@ -22,6 +22,16 @@ module Accesses =
 struct
   type t = Cil.exp list -> (Access.t * Cil.exp list) list
 
+  (* TODO: remove after migration *)
+  type old = [`Read | `Write ] -> Cil.exp list -> Cil.exp list
+  let of_old (f: old): t = fun args ->
+    [
+      ({ kind = Read; deep = true; }, f `Read args);
+      ({ kind = Write; deep = true; }, f `Write args);
+      ({ kind = Free; deep = true; }, f `Write args); (* old write also imply free *) (* TODO: change after interactive *)
+    ]
+
+  (* TODO: remove/rename after migration? *)
   let old (accs: t): Cil.exp list -> Access.t -> Cil.exp list = fun args acc ->
     BatOption.(List.assoc_opt acc (accs args) |? [])
 
@@ -45,4 +55,10 @@ type t = {
   special: Cil.exp list -> special;
   accs: Accesses.t;
   attrs: attr list;
+}
+
+let of_old (old_accesses: Accesses.old): t = {
+  attrs = [];
+  accs = Accesses.of_old old_accesses;
+  special = fun args -> Unknown; (* TODO: classify *)
 }

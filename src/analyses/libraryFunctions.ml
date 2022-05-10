@@ -501,6 +501,9 @@ let invalidate_actions = [
     "up", readsAll;
   ]
 
+(* TODO: remove *)
+let _: LibraryDesc.t = LibraryDesc.of_old readsAll
+
 (* used by get_invalidate_action to make sure
  * that hash of invalidates is built only once
  *
