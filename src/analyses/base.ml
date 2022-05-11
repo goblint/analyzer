@@ -2027,7 +2027,6 @@ struct
         in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | Unknown, "free" -> []
     | Unknown, _ when get_bool "sem.unknown_function.spawn" -> begin
         let args =
           (* TODO: why do we only spawn arguments that are written?? *)
