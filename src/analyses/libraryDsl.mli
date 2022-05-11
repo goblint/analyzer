@@ -18,5 +18,8 @@ val drop': LibraryDesc.Access.t list -> ('r, 'r, 'r) arg_desc
 
 
 val r: LibraryDesc.Access.t
+val r_deep: LibraryDesc.Access.t
 val w: LibraryDesc.Access.t
+val w_deep: LibraryDesc.Access.t
 val f: LibraryDesc.Access.t
+val f_deep: LibraryDesc.Access.t

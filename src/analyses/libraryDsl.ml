@@ -90,5 +90,8 @@ let drop' accesses = { empty_drop_desc with accesses; }
 
 
 let r = Access.{ kind = Read; deep = false; }
+let r_deep = Access.{ kind = Read; deep = true; }
 let w = Access.{ kind = Write; deep = false; }
+let w_deep = Access.{ kind = Write; deep = true; }
 let f = Access.{ kind = Free; deep = false; }
+let f_deep = Access.{ kind = Free; deep = true; }
