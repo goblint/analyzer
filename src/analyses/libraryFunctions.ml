@@ -571,34 +571,6 @@ let get_invalidate_action name =
   then Some (Hashtbl.find tbl name)
   else None
 
-let unknown_desc name = (* TODO: remove name argument, unknown function shouldn't have classify *)
-  let old_accesses (kind: AccessKind.t) args = match kind with
-    | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
-    | Write -> []
-    | Read -> args
-    | Free -> []
-    | Spawn when get_bool "sem.unknown_function.spawn" -> args
-    | Spawn -> []
-  in
-  let attrs: LibraryDesc.attr list =
-    if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then
-      [InvalidateGlobals]
-    else
-      []
-  in
-  LibraryDesc.of_old ~attrs old_accesses (classify name)
-
-let find f =
-  let name = f.vname in
-  match Hashtbl.find_option library_descs name with
-  | Some desc -> desc
-  | None ->
-    match get_invalidate_action name with
-    | Some old_accesses ->
-      LibraryDesc.of_old old_accesses (classify name)
-    | None ->
-      unknown_desc name
-
 
 let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
@@ -613,3 +585,41 @@ let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]
 let is_safe_uncalled fn_name =
   Set.String.mem fn_name kernel_safe_uncalled ||
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
+
+
+let unknown_desc ~f name = (* TODO: remove name argument, unknown function shouldn't have classify *)
+  let old_accesses (kind: AccessKind.t) args = match kind with
+    | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
+    | Write -> []
+    | Read -> args
+    | Free -> []
+    | Spawn when get_bool "sem.unknown_function.spawn" -> args
+    | Spawn -> []
+  in
+  let attrs: LibraryDesc.attr list =
+    if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then
+      [InvalidateGlobals]
+    else
+      []
+  in
+  let classify_name args =
+    match classify name args with
+    | `Unknown _ as category ->
+      (* TODO: remove hack when all classify are migrated *)
+      if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then
+        M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname;
+      category
+    | category -> category
+  in
+  LibraryDesc.of_old ~attrs old_accesses classify_name
+
+let find f =
+  let name = f.vname in
+  match Hashtbl.find_option library_descs name with
+  | Some desc -> desc
+  | None ->
+    match get_invalidate_action name with
+    | Some old_accesses ->
+      LibraryDesc.of_old old_accesses (classify name)
+    | None ->
+      unknown_desc ~f name
