@@ -5,20 +5,42 @@ open GobConfig
 
 module M = Messages
 
-
-let library_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+(** C standard library functions.
+    These are specified by the C standard. *)
+let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
   ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
   ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+  ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
+]
+
+(** C POSIX library functions.
+    These are {e not} specified by the C standard, but available on POSIX systems. *)
+let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
-  ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
-  ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
 ]
 
-let library_descs = Hashtbl.of_list library_descs_list
+(** GCC builtin functions.
+    These are not builtin versions of functions from other lists. *)
+let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+  ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
+]
+
+(** Linux kernel functions. *)
+let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+
+]
+
+(* TODO: allow selecting which lists to use *)
+let library_descs = Hashtbl.of_list (List.concat [
+  c_descs_list;
+  posix_descs_list;
+  gcc_descs_list;
+  linux_descs_list;
+])
 
 
 type categories = [
