@@ -549,6 +549,21 @@ let get_invalidate_action name =
   then Some (Hashtbl.find tbl name)
   else None
 
+let unknown_desc name = (* TODO: remove name argument, unknown function shouldn't have classify *)
+  let old_accesses =
+    if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
+      writesAll
+    else
+      readsAll
+  in
+  let attrs: LibraryDesc.attr list =
+    if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then
+      [InvalidateGlobals]
+    else
+      []
+  in
+  LibraryDesc.of_old ~attrs old_accesses (classify name)
+
 let find name =
   match Hashtbl.find_option library_descs name with
   | Some desc -> desc
@@ -557,13 +572,7 @@ let find name =
     | Some old_accesses ->
       LibraryDesc.of_old old_accesses (classify name)
     | None ->
-      let old_accesses =
-        if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
-          writesAll
-        else
-          readsAll
-      in
-      LibraryDesc.of_old ~attrs:[InvalidateGlobals] old_accesses (classify name)
+      unknown_desc name
 
 
 let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])

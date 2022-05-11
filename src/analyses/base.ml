@@ -2094,14 +2094,10 @@ struct
   let special_unknown_invalidate ctx ask gs st f args =
     (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname);
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
+    let desc = LF.find f.vname in
+    let addrs = LibraryDesc.Accesses.old' desc.accs Write args in
     let addrs =
-      if get_bool "sem.unknown_function.invalidate.args" then
-        args
-      else
-        []
-    in
-    let addrs =
-      if get_bool "sem.unknown_function.invalidate.globals" then (
+      if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
         foldGlobals !Cilfacade.current_file (fun acc global ->
             match global with
@@ -2352,18 +2348,14 @@ struct
     | Unknown, "__goblint_assert" -> assert_fn ctx (List.hd args) true true
     | Assert e, _ -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
     | _, _ -> begin
-        let desc = LF.find f.vname in
         let st =
-          if List.mem LibraryDesc.InvalidateGlobals desc.attrs then
-            special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
-            (*
-             *  TODO: invalidate vars reachable via args
-             *  publish globals
-             *  if single-threaded: *call f*, privatize globals
-             *  else: spawn f
-             *)
-          else
-            invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st (LibraryDesc.Accesses.old' desc.accs Write args)
+          special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
+          (*
+           *  TODO: invalidate vars reachable via args
+           *  publish globals
+           *  if single-threaded: *call f*, privatize globals
+           *  else: spawn f
+           *)
         in
         (* invalidate lhs in case of assign *)
         let st = invalidate_ret_lv st in

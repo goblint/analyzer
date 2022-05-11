@@ -329,7 +329,7 @@ struct
       in
       (* nothing to do for args because only AddrOf arguments may be invalidated *)
       let st' =
-        if GobConfig.get_bool "sem.unknown_function.invalidate.globals" && List.mem LibraryDesc.InvalidateGlobals (LibraryFunctions.find f.vname).attrs then (
+        if List.mem LibraryDesc.InvalidateGlobals (LibraryFunctions.find f.vname).attrs then (
           let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
               match global with
               | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
