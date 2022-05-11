@@ -95,3 +95,5 @@ let w = Access.{ kind = Write; deep = false; }
 let w_deep = Access.{ kind = Write; deep = true; }
 let f = Access.{ kind = Free; deep = false; }
 let f_deep = Access.{ kind = Free; deep = true; }
+let s = Access.{ kind = Spawn; deep = false; }
+let s_deep = Access.{ kind = Spawn; deep = true; }

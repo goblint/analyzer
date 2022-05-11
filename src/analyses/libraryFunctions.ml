@@ -134,70 +134,70 @@ struct
 
   let writesAllButFirst n f a x =
     match a with
-    | Write -> f a x @ drop n x
+    | Write | Spawn -> f a x @ drop n x
     | Read  -> f a x
     | Free  -> []
 
   let readsAllButFirst n f a x =
     match a with
-    | Write -> f a x
+    | Write | Spawn -> f a x
     | Read  -> f a x @ drop n x
     | Free  -> []
 
   let reads ns a x =
     let i, o = partition ns x in
     match a with
-    | Write -> o
+    | Write | Spawn -> o
     | Read  -> i
     | Free  -> []
 
   let writes ns a x =
     let i, o = partition ns x in
     match a with
-    | Write -> i
+    | Write | Spawn -> i
     | Read  -> o
     | Free  -> []
 
   let frees ns a x =
     let i, o = partition ns x in
     match a with
-    | Write -> []
+    | Write | Spawn -> []
     | Read  -> o
     | Free  -> i
 
   let readsFrees rs fs a x =
     match a with
-    | Write -> []
+    | Write | Spawn -> []
     | Read  -> keep rs x
     | Free  -> keep fs x
 
   let onlyReads ns a x =
     match a with
-    | Write -> []
+    | Write | Spawn -> []
     | Read  -> keep ns x
     | Free  -> []
 
   let onlyWrites ns a x =
     match a with
-    | Write -> keep ns x
+    | Write | Spawn -> keep ns x
     | Read  -> []
     | Free  -> []
 
   let readsWrites rs ws a x =
     match a with
-    | Write -> keep ws x
+    | Write | Spawn -> keep ws x
     | Read  -> keep rs x
     | Free  -> []
 
   let readsAll a x =
     match a with
-    | Write -> []
+    | Write | Spawn -> []
     | Read  -> x
     | Free  -> []
 
   let writesAll a x =
     match a with
-    | Write -> x
+    | Write | Spawn -> x
     | Read  -> []
     | Free  -> []
 end
@@ -550,11 +550,13 @@ let get_invalidate_action name =
   else None
 
 let unknown_desc name = (* TODO: remove name argument, unknown function shouldn't have classify *)
-  let old_accesses =
-    if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
-      writesAll
-    else
-      readsAll
+  let old_accesses (kind: AccessKind.t) args = match kind with
+    | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
+    | Write -> []
+    | Read -> args
+    | Free -> []
+    | Spawn when get_bool "sem.unknown_function.spawn" -> args
+    | Spawn -> []
   in
   let attrs: LibraryDesc.attr list =
     if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then

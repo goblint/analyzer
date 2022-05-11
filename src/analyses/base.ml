@@ -2027,11 +2027,8 @@ struct
         in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | Unknown, _ when get_bool "sem.unknown_function.spawn" -> begin
-        let args =
-          (* TODO: why do we only spawn arguments that are written?? *)
-          LibraryDesc.Accesses.old' (LF.find f.vname).accs Write args
-        in
+    | Unknown, _ -> begin
+        let args = LibraryDesc.Accesses.old' (LF.find f.vname).accs Spawn args in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat_map AD.to_var_may flist in
         if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;

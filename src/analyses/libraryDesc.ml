@@ -31,6 +31,7 @@ struct
       ({ kind = Read; deep = true; }, f Read args);
       ({ kind = Write; deep = true; }, f Write args);
       ({ kind = Free; deep = true; }, f Free args);
+      ({ kind = Spawn; deep = true; }, f Spawn args);
     ]
 
   (* TODO: remove/rename after migration? *)

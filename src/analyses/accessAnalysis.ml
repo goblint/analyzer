@@ -113,6 +113,7 @@ struct
       let write = match kind with
         | Write | Free -> true
         | Read -> false
+        | Spawn -> false (* TODO: avoid any do_access altogether *)
       in
       if reach || write then do_access ctx kind reach conf exp;
       Access.distribute_access_exp (do_access ctx) Read false conf exp;

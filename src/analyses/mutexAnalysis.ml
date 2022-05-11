@@ -133,6 +133,7 @@ struct
             let write = match kind with
               | Write | Free -> true
               | Read -> false
+              | Spawn -> false (* TODO: nonsense? *)
             in
             let el = P.effect_fun ~write ls in
             ctx.sideg v el
