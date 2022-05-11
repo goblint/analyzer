@@ -7,7 +7,7 @@ struct
     kind: AccessKind.t; (** Kind of access. *)
     deep: bool; (** Depth of access
                     - Shallow only accesses directly pointed values (may point to).
-                    - Deep additionally follows all pointers in values (reachable). *)
+                    - Deep additionally follows all pointers in values (reachable). Rarely needed. *)
   }
 end
 

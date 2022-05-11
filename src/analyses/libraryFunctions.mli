@@ -14,4 +14,5 @@ val use_special : string -> bool
 val osek_renames : bool ref
 val is_safe_uncalled : string -> bool
 
+(** Find library function descriptor for function. *)
 val find: Cil.varinfo -> LibraryDesc.t
