@@ -2011,7 +2011,7 @@ struct
           None
         )
     in
-    match (LF.find f.vname).special args, f.vname with
+    match (LF.find f).special args, f.vname with
     (* handling thread creations *)
     | ThreadCreate { thread = id; start_routine = start; arg = ptc_arg }, _ -> begin
         (* extra sync so that we do not analyze new threads with bottom global invariant *)
@@ -2028,7 +2028,7 @@ struct
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
     | Unknown, _ -> begin
-        let args = LibraryDesc.Accesses.old' (LF.find f.vname).accs Spawn args in
+        let args = LibraryDesc.Accesses.old' (LF.find f).accs Spawn args in
         let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
         let addrs = List.concat_map AD.to_var_may flist in
         if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
@@ -2090,7 +2090,7 @@ struct
   let special_unknown_invalidate ctx ask gs st f args =
     (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname);
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
-    let desc = LF.find f.vname in
+    let desc = LF.find f in
     let addrs = LibraryDesc.Accesses.old' desc.accs Write args in
     let addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
@@ -2122,7 +2122,7 @@ struct
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
-    match (LF.find f.vname).special args, f.vname with
+    match (LF.find f).special args, f.vname with
     | Memset { dest; ch; count; }, _ ->
       (* TODO: check count *)
       let eval_ch = eval_rv (Analyses.ask_of_ctx ctx) gs st ch in

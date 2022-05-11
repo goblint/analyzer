@@ -84,7 +84,7 @@ struct
         raise Analyses.Deadcode
       | _ -> failwith "unlock has multiple arguments"
     in
-    match (LF.find f.vname).special arglist, f.vname with
+    match (LF.find f).special arglist, f.vname with
     | _, "_lock_kernel" ->
       ctx.emit (Events.Lock (big_kernel_lock, true))
     | _, "_unlock_kernel" ->

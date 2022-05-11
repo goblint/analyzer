@@ -150,7 +150,7 @@ struct
     ctx.local
 
   let special ctx lv f arglist : D.t =
-    match (LF.find f.vname).special arglist, f.vname with
+    match (LF.find f).special arglist, f.vname with
     (* TODO: remove cases *)
     | _, "_lock_kernel" ->
       ctx.local
@@ -178,7 +178,7 @@ struct
     | _, "pthread_cond_timedwait" ->
       ctx.local
     | _, x ->
-      let desc = LF.find x in
+      let desc = LF.find f in
       LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
           access_one_top ctx kind reach exp
         ) arglist;

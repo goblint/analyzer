@@ -566,7 +566,8 @@ let unknown_desc name = (* TODO: remove name argument, unknown function shouldn'
   in
   LibraryDesc.of_old ~attrs old_accesses (classify name)
 
-let find name =
+let find f =
+  let name = f.vname in
   match Hashtbl.find_option library_descs name with
   | Some desc -> desc
   | None ->

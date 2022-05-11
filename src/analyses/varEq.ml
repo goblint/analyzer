@@ -468,7 +468,7 @@ struct
 
   let unknown_fn ctx lval f args =
     let args =
-      LibraryDesc.Accesses.old' (LF.find f.vname).accs Write args
+      LibraryDesc.Accesses.old' (LF.find f).accs Write args
     in
     let es =
       match lval with
@@ -486,7 +486,7 @@ struct
 
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
-    match (LibraryFunctions.find f.vname).special args, f.vname with
+    match (LibraryFunctions.find f).special args, f.vname with
     | Unknown, "spinlock_check" ->
       begin match lval with
         | Some x -> assign ctx x (List.hd args)

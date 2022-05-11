@@ -305,7 +305,7 @@ struct
         )
     in
     let st = ctx.local in
-    match (LibraryFunctions.find f.vname).special args, f.vname with
+    match (LibraryFunctions.find f).special args, f.vname with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
     | Assert expression, _ -> st
     | Unknown, "__goblint_check" -> st
@@ -329,7 +329,7 @@ struct
       in
       (* nothing to do for args because only AddrOf arguments may be invalidated *)
       let st' =
-        if List.mem LibraryDesc.InvalidateGlobals (LibraryFunctions.find f.vname).attrs then (
+        if List.mem LibraryDesc.InvalidateGlobals (LibraryFunctions.find f).attrs then (
           let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
               match global with
               | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
