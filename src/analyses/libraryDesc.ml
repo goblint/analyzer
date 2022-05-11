@@ -18,6 +18,7 @@ type special =
   | Unknown (* TODO: rename to Other? *)
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
+  | Abort
 
 
 module Accesses =

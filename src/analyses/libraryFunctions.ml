@@ -12,6 +12,8 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
   ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
   ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
+  ("abort", special [] Abort);
+  ("exit", special [drop "exit_code" []] Abort);
 ]
 
 (** C POSIX library functions.
@@ -34,12 +36,22 @@ let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 
 ]
 
+(** Goblint kernel functions. *)
+let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+  ("__goblint_unknown", unknown [drop' [w]]);
+  ("__goblint_check", unknown [drop' []]);
+  ("__goblint_commit", unknown [drop' []]);
+  ("__goblint_assert", unknown [drop' []]);
+]
+
+
 (* TODO: allow selecting which lists to use *)
 let library_descs = Hashtbl.of_list (List.concat [
   c_descs_list;
   posix_descs_list;
   gcc_descs_list;
   linux_descs_list;
+  goblint_descs_list;
 ])
 
 

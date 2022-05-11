@@ -2223,8 +2223,7 @@ struct
           List.fold_left (fun d e -> invariant ctx (Analyses.ask_of_ctx ctx) ctx.global d e true) ctx.local args
         | _ -> failwith "Unknown __builtin."
       end
-    | Unknown, "exit" ->  raise Deadcode
-    | Unknown, "abort" -> raise Deadcode
+    | Abort, _ -> raise Deadcode
     | Unknown, "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
     | Unknown, "pthread_exit" ->
       begin match args with
