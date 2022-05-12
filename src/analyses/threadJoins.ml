@@ -60,6 +60,13 @@ struct
       )
     | _ -> ctx.local
 
+  let threadspawn ctx lval f args fctx =
+    match ThreadId.get_current (Analyses.ask_of_ctx fctx) with
+    | `Lifted tid ->
+      D.remove tid ctx.local
+    | _ ->
+      ctx.local
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with
     | Queries.MustJoinedThreads -> (ctx.local:ConcDomain.MustThreadSet.t) (* type annotation needed to avoid "would escape the scope of its equation" *)
