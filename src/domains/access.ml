@@ -251,8 +251,8 @@ let add_propagate side e kind conf ty ls a =
 
 let rec distribute_access_lval f c lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
-  (* f kind r c (mkAddrOf lv); *)
-  f AccessKind.Read false c (AddrOf lv);
+  (* f c (mkAddrOf lv); *)
+  f c (AddrOf lv);
   distribute_access_lval_addr f c lv
 
 and distribute_access_lval_addr f c lv =
