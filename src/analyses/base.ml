@@ -2343,14 +2343,6 @@ struct
         | None ->
           st
       end
-    (* | Unknown, "__goblint_unknown" ->
-      begin match args with
-        | [Lval lv] | [CastE (_,AddrOf lv)] ->
-          let st = set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv)  `Top in
-          st
-        | _ ->
-          failwith "Function __goblint_unknown expected one address-of argument."
-      end *)
     (* Handling the assertions *)
     | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
     | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) true false
