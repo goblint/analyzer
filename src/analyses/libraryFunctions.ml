@@ -11,9 +11,11 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
   ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
   ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+  ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
   ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
   ("abort", special [] Abort);
   ("exit", special [drop "exit_code" []] Abort);
+  ("assert", special [__ "cond" [r]] @@ fun cond -> Assert cond);
 ]
 
 (** C POSIX library functions.
@@ -23,6 +25,11 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
   ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
+]
+
+(** Pthread functions. *)
+let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+  ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
 ]
 
 (** GCC builtin functions.
@@ -44,14 +51,22 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("__goblint_assert", unknown [drop' []]);
 ]
 
+(** zstd functions.
+    Only used with extraspecials. *)
+let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+  ("ZSTD_customMalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Malloc size);
+  ("ZSTD_customCalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Calloc { size; count = Cil.one });
+]
 
 (* TODO: allow selecting which lists to use *)
 let library_descs = Hashtbl.of_list (List.concat [
   c_descs_list;
   posix_descs_list;
+  pthread_descs_list;
   gcc_descs_list;
   linux_descs_list;
   goblint_descs_list;
+  zstd_descs_list;
 ])
 
 
@@ -74,22 +89,12 @@ let classify' fn exps =
     `Unknown fn
   in
   match fn with
-  | "pthread_create" ->
-    begin match exps with
-      | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
-      | _ -> strange_arguments ()
-    end
   | "pthread_join" ->
     begin match exps with
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
       | _ -> strange_arguments ()
     end
-  | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
-    begin match exps with
-      | size::_ -> `Malloc size
-      | _ -> strange_arguments ()
-    end
-  | "ZSTD_customMalloc" -> (* only used with extraspecials *)
+  | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
       | _ -> strange_arguments ()
@@ -103,16 +108,6 @@ let classify' fn exps =
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
       | _ -> strange_arguments ()
-    end
-  | "ZSTD_customCalloc" -> (* only used with extraspecials *)
-    begin match exps with
-      | size::_ -> `Calloc (Cil.one, size)
-      | _ -> strange_arguments ()
-    end
-  | "assert" ->
-    begin match exps with
-      | [e] -> `Assert e
-      | _ -> M.warn "Assert argument mismatch!"; `Unknown fn
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
   | "down_trylock"
@@ -533,7 +528,6 @@ let invalidate_actions = [
     "dev_driver_string", readsAll;
     "__spin_lock_init", writes [1];
     "kmem_cache_create", readsAll;
-    "pthread_create", onlyWrites [0; 2]; (* TODO: onlyWrites/keep is 0-indexed now, WTF? *)
     "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];

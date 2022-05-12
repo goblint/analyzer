@@ -85,20 +85,17 @@ struct
     | Unknown, fn when VarEq.safe_fn fn ->
       Messages.warn "Assume that %s does not change lockset." fn;
       ctx.local
-    | Unknown, x -> begin (* TODO: _ ? *)
-        let st =
-          match lval with
-          | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
-          | None -> ctx.local
-        in
-        let write_args =
-          LibraryDesc.Accesses.find_kind (LF.find f).accs Write arglist
-        in
-        (* TODO: why doesn't invalidate_exp involve any reachable for deep write? *)
-        List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
-      end
     | _, _ ->
-      ctx.local
+      let st =
+        match lval with
+        | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
+        | None -> ctx.local
+      in
+      let write_args =
+        LibraryDesc.Accesses.find_kind (LF.find f).accs Write arglist
+      in
+      (* TODO: why doesn't invalidate_exp involve any reachable for deep write? *)
+      List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
 
 
   let rec conv_const_offset x =
