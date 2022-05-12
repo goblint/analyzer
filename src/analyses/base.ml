@@ -1911,7 +1911,18 @@ struct
     in
     List.concat_map do_exp exps
 
-  let invalidate ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
+  let collect_invalidate ~deep ask ?(warn=false) (gs:glob_fun) (st:store) (exps: exp list) =
+    if deep then
+      collect_funargs ask ~warn gs st exps
+    else (
+      let mpt e = match eval_rv_address ask gs st e with
+        | `Address a -> AD.remove NullPtr a
+        | _ -> AD.empty ()
+      in
+      List.map mpt exps
+    )
+
+  let invalidate ?(deep=true) ?ctx ask (gs:glob_fun) (st:store) (exps: exp list): store =
     if M.tracing && exps <> [] then M.tracel "invalidate" "Will invalidate expressions [%a]\n" (d_list ", " d_plainexp) exps;
     if exps <> [] then M.info ~category:Imprecise "Invalidating expressions: %a" (d_list ", " d_plainexp) exps;
     (* To invalidate a single address, we create a pair with its corresponding
@@ -1925,7 +1936,7 @@ struct
     (* We define the function that invalidates all the values that an address
      * expression e may point to *)
     let invalidate_exp exps =
-      let args = collect_funargs ~warn:true ask gs st exps in
+      let args = collect_invalidate ~deep ~warn:true ask gs st exps in
       List.map (invalidate_address st) args
     in
     let invalids = invalidate_exp exps in
@@ -2028,8 +2039,12 @@ struct
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
     | Unknown, _ -> begin
-        let args = LibraryDesc.Accesses.old' (LF.find f).accs Spawn args in
-        let flist = collect_funargs (Analyses.ask_of_ctx ctx) ctx.global ctx.local args in
+        let desc = LF.find f in
+        let shallow_args = LibraryDesc.Accesses.old desc.accs { kind = Spawn; deep = false } args in
+        let deep_args = LibraryDesc.Accesses.old desc.accs { kind = Spawn; deep = true } args in
+        let shallow_flist = collect_invalidate ~deep:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
+        let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
+        let flist = shallow_flist @ deep_flist in
         let addrs = List.concat_map AD.to_var_may flist in
         if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
         List.filter_map (create_thread None None) addrs
@@ -2090,8 +2105,9 @@ struct
   let special_unknown_invalidate ctx ask gs st f args =
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
     let desc = LF.find f in
-    let addrs = LibraryDesc.Accesses.old' desc.accs Write args in
-    let addrs =
+    let shallow_addrs = LibraryDesc.Accesses.old desc.accs { kind = Write; deep = false } args in
+    let deep_addrs = LibraryDesc.Accesses.old desc.accs { kind = Write; deep = true } args in
+    let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";
         foldGlobals !Cilfacade.current_file (fun acc global ->
@@ -2100,14 +2116,15 @@ struct
               mkAddrOf (Var vi, NoOffset) :: acc
             (* TODO: what about GVarDecl? *)
             | _ -> acc
-          ) addrs
+          ) deep_addrs
       )
       else
-        addrs
+        deep_addrs
     in
     (* TODO: what about escaped local variables? *)
     (* invalidate arguments and non-static globals for unknown functions *)
-    invalidate ~ctx (Analyses.ask_of_ctx ctx) gs st addrs
+    let st' = invalidate ~deep:false ~ctx (Analyses.ask_of_ctx ctx) gs st shallow_addrs in
+    invalidate ~deep:true ~ctx (Analyses.ask_of_ctx ctx) gs st' deep_addrs
 
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
@@ -2327,14 +2344,14 @@ struct
         | None ->
           st
       end
-    | Unknown, "__goblint_unknown" ->
+    (* | Unknown, "__goblint_unknown" ->
       begin match args with
         | [Lval lv] | [CastE (_,AddrOf lv)] ->
           let st = set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv) (Cilfacade.typeOfLval lv)  `Top in
           st
         | _ ->
           failwith "Function __goblint_unknown expected one address-of argument."
-      end
+      end *)
     (* Handling the assertions *)
     | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
     | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) true false

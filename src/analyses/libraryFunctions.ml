@@ -36,7 +36,7 @@ let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 
 ]
 
-(** Goblint kernel functions. *)
+(** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("__goblint_unknown", unknown [drop' [w]]);
   ("__goblint_check", unknown [drop' []]);
