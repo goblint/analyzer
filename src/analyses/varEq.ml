@@ -468,8 +468,8 @@ struct
 
   let unknown_fn ctx lval f args =
     let desc = LF.find f in
-    let shallow_args = LibraryDesc.Accesses.old desc.accs { kind = Write; deep = false } args in
-    let deep_args = LibraryDesc.Accesses.old desc.accs { kind = Write; deep = true } args in
+    let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+    let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
     let shallow_args =
       match lval with
       | Some l -> mkAddrOf l :: shallow_args

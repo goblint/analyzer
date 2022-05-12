@@ -2040,8 +2040,8 @@ struct
       end
     | Unknown, _ -> begin
         let desc = LF.find f in
-        let shallow_args = LibraryDesc.Accesses.old desc.accs { kind = Spawn; deep = false } args in
-        let deep_args = LibraryDesc.Accesses.old desc.accs { kind = Spawn; deep = true } args in
+        let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
+        let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
         let shallow_flist = collect_invalidate ~deep:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
         let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
         let flist = shallow_flist @ deep_flist in
@@ -2105,8 +2105,8 @@ struct
   let special_unknown_invalidate ctx ask gs st f args =
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
     let desc = LF.find f in
-    let shallow_addrs = LibraryDesc.Accesses.old desc.accs { kind = Write; deep = false } args in
-    let deep_addrs = LibraryDesc.Accesses.old desc.accs { kind = Write; deep = true } args in
+    let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+    let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
     let deep_addrs =
       if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
         M.info ~category:Imprecise "INVALIDATING ALL GLOBALS!";

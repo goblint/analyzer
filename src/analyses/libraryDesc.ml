@@ -44,12 +44,12 @@ struct
     ]
 
   (* TODO: remove/rename after migration? *)
-  let old (accs: t): Access.t -> Cil.exp list -> Cil.exp list = fun acc args ->
+  let find (accs: t): Access.t -> Cil.exp list -> Cil.exp list = fun acc args ->
     BatOption.(List.assoc_opt acc (accs args) |? [])
 
-  let old' (accs: t): AccessKind.t -> Cil.exp list -> Cil.exp list = fun kind args ->
-    let o a = old accs a args in
-    o { kind; deep = true; } @ o { kind; deep = false; }
+  let find_kind (accs: t): AccessKind.t -> Cil.exp list -> Cil.exp list = fun kind args ->
+    let f a = find accs a args in
+    f { kind; deep = true; } @ f { kind; deep = false; }
 
   let iter (accs: t) (f: Access.t -> Cil.exp -> unit) args: unit =
     accs args

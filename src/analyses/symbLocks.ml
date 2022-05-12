@@ -92,8 +92,9 @@ struct
           | None -> ctx.local
         in
         let write_args =
-          LibraryDesc.Accesses.old' (LF.find f).accs Write arglist
+          LibraryDesc.Accesses.find_kind (LF.find f).accs Write arglist
         in
+        (* TODO: why doesn't invalidate_exp involve any reachable for deep write? *)
         List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
       end
     | _, _ ->
