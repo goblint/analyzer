@@ -1,3 +1,4 @@
+// PARAM: --enable ana.float.interval
 #include <assert.h>
 #include <float.h>
 #include <limits.h>

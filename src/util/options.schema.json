@@ -511,6 +511,20 @@
           },
           "additionalProperties": false
         },
+        "float": {
+          "title": "ana.float",
+          "type": "object",
+          "properties": {
+            "interval": {
+              "title": "ana.float.interval",
+              "description":
+                "Use FloatDomain: (float * float) option.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "file": {
           "title": "ana.file",
           "type": "object",

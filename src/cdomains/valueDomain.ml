@@ -36,7 +36,7 @@ sig
   val is_top_value: t -> typ -> bool
   val zero_init_value: typ -> t
 
-  val project: precision -> t -> t
+  val project: int_precision -> t -> t
 end
 
 module type Blob =
