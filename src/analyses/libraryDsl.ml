@@ -1,7 +1,12 @@
 open LibraryDesc
 
+(** First-class patterns for arguments matching.
+    @see <https://github.com/ocaml-ppx/ppxlib/blob/main/src/ast_pattern.ml> for inspiration from ppxlib. *)
 module Pattern =
 struct
+  (** @param a Type of value to match.
+      @param k Type of continuation function.
+      @param r Return type of match. *)
   type ('a, 'k, 'r) t = 'a -> 'k -> 'r
 
   exception Expected of string
