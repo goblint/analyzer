@@ -23,7 +23,6 @@ let eq_edge x y = match x, y with
   | ASM _, ASM _ -> false
   | Skip, Skip -> true
   | VDecl v1, VDecl v2 -> eq_varinfo v1 v2
-  | SelfLoop, SelfLoop -> true
   | _ -> false
 
 (* The order of the edges in the list is relevant. Therefore compare them one to one without sorting first *)

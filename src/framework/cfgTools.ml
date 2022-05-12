@@ -611,16 +611,6 @@ let getCFG (file: file) : cfg * cfg =
   (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n [])
 
 
-(* TODO: unused *)
-let generate_irpt_edges cfg =
-  let make_irpt_edge toNode (_, fromNode) =
-    match toNode with
-    | FunctionEntry f -> let _ = print_endline ( " Entry " ) in ()
-    | _ -> H.add cfg toNode (SelfLoop, toNode)
-  in
-  H.iter make_irpt_edge cfg
-
-
 let iter_fd_edges (module Cfg : CfgBackward) fd =
   let ready      = NH.create 113 in
   let rec printNode (toNode : node) f =

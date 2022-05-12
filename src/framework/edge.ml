@@ -29,8 +29,6 @@ type t =
     * appeared *)
   | Skip
   (** This is here for historical reasons. I never use Skip edges! *)
-  | SelfLoop
-  (** This for interrupt edges.! *)
 [@@deriving eq, to_yojson]
 
 
@@ -45,7 +43,6 @@ let pretty () = function
   | ASM (_,_,_) -> Pretty.text "ASM ..."
   | Skip -> Pretty.text "skip"
   | VDecl v -> Cil.defaultCilPrinter#pVDecl () v
-  | SelfLoop -> Pretty.text "SelfLoop"
 
 let pretty_plain () = function
   | Assign (lv,rv) -> dprintf "Assign '%a = %a' " d_lval lv d_exp rv
@@ -58,4 +55,3 @@ let pretty_plain () = function
   | ASM _ -> text "ASM ..."
   | Skip -> text "Skip"
   | VDecl v -> dprintf "VDecl '%a %s;'" d_type v.vtype v.vname
-  | SelfLoop -> text "SelfLoop"
