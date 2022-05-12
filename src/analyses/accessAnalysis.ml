@@ -50,6 +50,7 @@ struct
     ctx.sideg (lv_opt, ty) d
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
+    if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t): MCPAccess.A.t =
       ctx.emit (Access {var_opt=vo; kind});
@@ -107,7 +108,7 @@ struct
       add_access (conf - 60) None None
 
   let access_one_top ?(force=false) ctx (kind: AccessKind.t) reach exp =
-    (* ignore (Pretty.printf "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp); *)
+    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
       let write = match kind with
@@ -117,7 +118,8 @@ struct
       in
       if reach || write then do_access ctx kind reach conf exp;
       Access.distribute_access_exp (do_access ctx) Read false conf exp;
-    )
+    );
+    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
