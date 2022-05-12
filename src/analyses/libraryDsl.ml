@@ -65,7 +65,7 @@ let rec accs: type k r. (k, r) args_desc -> Accesses.t = fun args_desc args ->
     List.fold_left (fun (accs'': (Access.t * Cil.exp list) list) (acc: Access.t) ->
         match List.assoc_opt acc accs'' with
         | Some args -> (acc, arg :: args) :: List.remove_assoc acc accs''
-        | None -> (acc, arg :: args) :: accs''
+        | None -> (acc, [arg]) :: accs''
       ) accs'' arg_desc.accesses
   | _, _ -> invalid_arg "accs"
 

@@ -107,7 +107,7 @@ struct
       add_access (conf - 60) None None
 
   let access_one_top ?(force=false) ctx (kind: AccessKind.t) reach exp =
-    (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
+    (* ignore (Pretty.printf "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp); *)
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
       let write = match kind with
