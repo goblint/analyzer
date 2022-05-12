@@ -249,52 +249,52 @@ let add_propagate side e kind conf ty ls a =
     let vars = Ht.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
-let rec distribute_access_lval f (kind: AccessKind.t) c lv =
+let rec distribute_access_lval f c lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
   (* f kind r c (mkAddrOf lv); *)
-  f kind false c (AddrOf lv);
-  distribute_access_lval_addr f kind c lv
+  f AccessKind.Read false c (AddrOf lv);
+  distribute_access_lval_addr f c lv
 
-and distribute_access_lval_addr f kind c lv =
+and distribute_access_lval_addr f c lv =
   match lv with
   | (Var v, os) ->
     distribute_access_offset f c os
   | (Mem e, os) ->
     distribute_access_offset f c os;
-    distribute_access_exp f AccessKind.Read c e
+    distribute_access_exp f c e
 
 and distribute_access_offset f c = function
   | NoOffset -> ()
   | Field (_,os) ->
     distribute_access_offset f c os
   | Index (e,os) ->
-    distribute_access_exp f Read c e;
+    distribute_access_exp f c e;
     distribute_access_offset f c os
 
-and distribute_access_exp f kind c = function
+and distribute_access_exp f c = function
   (* Variables and address expressions *)
   | Lval lval ->
-    distribute_access_lval f kind c lval;
+    distribute_access_lval f c lval;
 
     (* Binary operators *)
   | BinOp (op,arg1,arg2,typ) ->
-    distribute_access_exp f kind c arg1;
-    distribute_access_exp f kind c arg2
+    distribute_access_exp f c arg1;
+    distribute_access_exp f c arg2
 
   (* Unary operators *)
-  | UnOp (op,arg1,typ) -> distribute_access_exp f kind c arg1
+  | UnOp (op,arg1,typ) -> distribute_access_exp f c arg1
 
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval ->
-    distribute_access_lval_addr f Read c lval
+    distribute_access_lval_addr f c lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
   | CastE  (t, exp) ->
-    distribute_access_exp f kind c exp
+    distribute_access_exp f c exp
   | Question (b,t,e,_) ->
-    distribute_access_exp f Read c b;
-    distribute_access_exp f kind c t;
-    distribute_access_exp f kind c e
+    distribute_access_exp f c b;
+    distribute_access_exp f c t;
+    distribute_access_exp f c e
   | _ -> ()
 
 let add side e kind conf vo oo a =
