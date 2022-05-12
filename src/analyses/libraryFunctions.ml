@@ -56,6 +56,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ("ZSTD_customMalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Malloc size);
   ("ZSTD_customCalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Calloc { size; count = Cil.one });
+  ("ZSTD_customFree", unknown [drop "ptr" [f]; drop "customMem" [r]]);
 ]
 
 (* TODO: allow selecting which lists to use *)
@@ -551,7 +552,6 @@ let invalidate_actions = [
     "sema_init", readsAll;
     "down_trylock", readsAll;
     "up", readsAll;
-    "ZSTD_customFree", frees [1]; (* only used with extraspecials *)
   ]
 
 
