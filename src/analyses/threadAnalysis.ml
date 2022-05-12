@@ -43,7 +43,8 @@ struct
     rep || n > 1 || n > 0 && is_not_unique ctx (TS.choose parents)
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match (LibraryFunctions.find f).special arglist with
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
     | ThreadJoin { thread = id; ret_var } ->
       (* TODO: generalize ThreadJoin like ThreadCreate *)
       (* TODO: elements might throw an exception *)

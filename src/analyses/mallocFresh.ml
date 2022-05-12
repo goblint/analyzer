@@ -33,7 +33,8 @@ struct
     | Some lval -> assign_lval (Analyses.ask_of_ctx ctx) lval f_local
 
   let special ctx lval f args =
-    match (LibraryFunctions.find f).special args with
+    let desc = LibraryFunctions.find f in
+    match desc.special args with
     | Malloc _
     | Calloc _
     | Realloc _ ->

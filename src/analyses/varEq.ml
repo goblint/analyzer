@@ -490,7 +490,8 @@ struct
 
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
-    match (LibraryFunctions.find f).special args, f.vname with
+    let desc = LibraryFunctions.find f in
+    match desc.special args, f.vname with
     | Unknown, "spinlock_check" ->
       begin match lval with
         | Some x -> assign ctx x (List.hd args)
