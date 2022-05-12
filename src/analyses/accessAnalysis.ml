@@ -107,16 +107,15 @@ struct
     | _ ->
       add_access (conf - 60) None None
 
-  let access_one_top ?(force=false) ctx (kind: AccessKind.t) reach exp =
+  (** Three access levels:
+      + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
+      + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
+      + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
+  let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
-      let write = match kind with
-        | Write | Free -> true
-        | Read -> false
-        | Spawn -> false (* TODO: avoid any do_access altogether *)
-      in
-      if reach || write then do_access ctx kind reach conf exp;
+      if reach || deref then do_access ctx kind reach conf exp;
       Access.distribute_access_exp (do_access ctx) Read false conf exp;
     );
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
@@ -132,7 +131,7 @@ struct
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin
-      access_one_top ctx Write false (AddrOf lval);
+      access_one_top ~deref:true ctx Write false (AddrOf lval);
       access_one_top ctx Read false rval;
       ctx.local
     end
@@ -182,11 +181,12 @@ struct
     | _, x ->
       let desc = LF.find f in
       LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
-          access_one_top ctx kind reach exp
+          access_one_top ~deref:true ctx kind reach exp (* access dereferenced using special accesses *)
         ) arglist;
       (match lv with
-       | Some x -> access_one_top ctx Write false (AddrOf x)
+       | Some x -> access_one_top ~deref:true ctx Write false (AddrOf x)
        | None -> ());
+      List.iter (access_one_top ctx Read false) arglist; (* always read all argument expressions without dereferencing *)
       ctx.local
 
   let enter ctx lv f args : (D.t * D.t) list =
@@ -196,7 +196,7 @@ struct
     access_one_top ctx Read false fexp;
     begin match lv with
       | None      -> ()
-      | Some lval -> access_one_top ctx Write false (AddrOf lval)
+      | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval)
     end;
     List.iter (access_one_top ctx Read false) args;
     al
@@ -206,7 +206,7 @@ struct
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
       | None -> ()
-      | Some lval -> access_one_top ~force:true ctx Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+      | Some lval -> access_one_top ~force:true ~deref:true ctx Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
     end;
     ctx.local
 
