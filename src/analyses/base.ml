@@ -2038,18 +2038,16 @@ struct
         in
         List.filter_map (create_thread (Some (Mem id, NoOffset)) (Some ptc_arg)) start_funvars_with_unknown
       end
-    | Unknown, _ -> begin
-        let desc = LF.find f in
-        let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
-        let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
-        let shallow_flist = collect_invalidate ~deep:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
-        let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
-        let flist = shallow_flist @ deep_flist in
-        let addrs = List.concat_map AD.to_var_may flist in
-        if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
-        List.filter_map (create_thread None None) addrs
-      end
-    | _, _ ->  []
+    | _, _ ->
+      let desc = LF.find f in
+      let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = false } args in
+      let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Spawn; deep = true } args in
+      let shallow_flist = collect_invalidate ~deep:false (Analyses.ask_of_ctx ctx) ctx.global ctx.local shallow_args in
+      let deep_flist = collect_invalidate ~deep:true (Analyses.ask_of_ctx ctx) ctx.global ctx.local deep_args in
+      let flist = shallow_flist @ deep_flist in
+      let addrs = List.concat_map AD.to_var_may flist in
+      if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
+      List.filter_map (create_thread None None) addrs
 
   let assert_fn ctx e should_warn change =
 
