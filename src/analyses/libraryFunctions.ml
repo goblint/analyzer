@@ -16,9 +16,8 @@ type categories = [
   | `ThreadJoin   of exp * exp (* id * ret_var *)
   | `Unknown      of string ]
 
-let osek_renames = ref false
 
-let classify' fn exps =
+let classify fn exps =
   let strange_arguments () =
     M.warn "%s arguments are strange!" fn;
     `Unknown fn
@@ -96,9 +95,6 @@ let classify' fn exps =
   | "up"
     -> `Unlock
   | x -> `Unknown x
-
-let classify fn exps =
-  if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
 
 module Invalidate =

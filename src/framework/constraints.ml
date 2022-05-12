@@ -580,7 +580,7 @@ struct
     let d =
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (get_string_list "mainfun")) &&
-         (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+         get_bool "kernel"
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
     in

@@ -244,18 +244,7 @@ let add m =
     Don't use for new (group) warnings. *)
 let msg_group_race_old severity group_name errors =
   let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None}) errors}} in
-  add m;
-
-  if (get_bool "ana.osek.warnfiles") then
-    let print ~out = print ~ppf:(Format.formatter_of_out_channel out) in
-    match (String.sub group_name 0 6) with
-    | "Safely" -> print ~out:!warn_safe m
-    | "Datara" -> print ~out:!warn_race m
-    | "High r" -> print ~out:!warn_higr m
-    | "High w" -> print ~out:!warn_higw m
-    | "Low re" -> print ~out:!warn_lowr m
-    | "Low wr" -> print ~out:!warn_loww m
-    | _ -> ()
+  add m
 
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 

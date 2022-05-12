@@ -99,9 +99,6 @@ def process_files():
             elif "kernel" in top_comment:
                 print("kernel")
                 continue
-            elif "osek" in top_comment:
-                print("osek")
-                continue
             elif "allfuns" in top_comment:
                 print("allfuns")
                 continue

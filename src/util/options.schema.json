@@ -334,119 +334,14 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "OSEK", "OSEK2", "mutex", "malloc_null", "uninit" ]
+          "default": [ "mutex", "malloc_null", "uninit" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
           "description": "List of context-insensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "OSEK2", "stack_loc", "stack_trace_set" ]
-        },
-        "osek": {
-          "title": "ana.osek",
-          "type": "object",
-          "properties": {
-            "oil": {
-              "title": "ana.osek.oil",
-              "description": "Oil file for the analyzed program",
-              "type": "string",
-              "default": ""
-            },
-            "defaults": {
-              "title": "ana.osek.defaults",
-              "description": "Generate default definitions for TASK and ISR",
-              "type": "boolean",
-              "default": true
-            },
-            "isrprefix": {
-              "title": "ana.osek.isrprefix",
-              "description": "Prefix added by the ISR macro",
-              "type": "string",
-              "default": "function_of_"
-            },
-            "taskprefix": {
-              "title": "ana.osek.taskprefix",
-              "description": "Prefix added by the TASK macro",
-              "type": "string",
-              "default": "function_of_"
-            },
-            "isrsuffix": {
-              "title": "ana.osek.isrsuffix",
-              "description": "Suffix added by the ISR macro",
-              "type": "string",
-              "default": ""
-            },
-            "tasksuffix": {
-              "title": "ana.osek.tasksuffix",
-              "description": "Suffix added by the TASK macro",
-              "type": "string",
-              "default": ""
-            },
-            "intrpts": {
-              "title": "ana.osek.intrpts",
-              "description": "Enable constraints for interrupts.",
-              "type": "boolean",
-              "default": false
-            },
-            "check": {
-              "title": "ana.osek.check",
-              "description":
-                "Check if (assumed) OSEK conventions are fullfilled.",
-              "type": "boolean",
-              "default": false
-            },
-            "names": {
-              "title": "ana.osek.names",
-              "description":
-                "OSEK API function (re)names for the analysed program",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "warnfiles": {
-              "title": "ana.osek.warnfiles",
-              "description": "Print all warning types to separate file",
-              "type": "boolean",
-              "default": false
-            },
-            "safe_vars": {
-              "title": "ana.osek.safe_vars",
-              "description": "Suppress warnings on these vars",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "safe_task": {
-              "title": "ana.osek.safe_task",
-              "description": "Ignore accesses in these tasks",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "safe_isr": {
-              "title": "ana.osek.safe_isr",
-              "description": "Ignore accesses in these isr",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "flags": {
-              "title": "ana.osek.flags",
-              "description": "List of global variables that are flags.",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "def_header": {
-              "title": "ana.osek.def_header",
-              "description":
-                "Generate TASK/ISR macros with default structure",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
+          "default": [ "stack_loc", "stack_trace_set" ]
         },
         "int": {
           "title": "ana.int",

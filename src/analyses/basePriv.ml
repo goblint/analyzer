@@ -128,8 +128,7 @@ end
 
 (** Protection-Based Reading old implementation.
     Unsound!
-    Based on [sync].
-    Works for OSEK. *)
+    Based on [sync]. *)
 module ProtectionBasedOldPriv: S =
 struct
   include OldPrivBase
@@ -137,8 +136,7 @@ struct
   module G = BaseDomain.VD
   module V = VarinfoV
 
-  let init () =
-    if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
+  let init () = ()
 
   let read_global ask getg (st: BaseComponents (D).t) x =
     match CPA.find x st.cpa with
@@ -410,8 +408,7 @@ struct
 end
 
 (** Protection-Based Reading early implementation for traces paper by Vesal.
-    Based on [sync].
-    Works for OSEK. *)
+    Based on [sync]. *)
 module ProtectionBasedVesalPriv: S =
 struct
   include OldPrivBase
@@ -420,8 +417,7 @@ struct
   module G = BaseDomain.VD
   module V = VarinfoV
 
-  let init () =
-    if get_string "ana.osek.oil" = "" then ConfCheck.RequireMutexActivatedInit.init ()
+  let init () = ()
 
   let startstate () = D.top ()
 
