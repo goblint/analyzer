@@ -115,7 +115,7 @@ struct
     if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
-      if reach || deref then do_access ctx kind reach conf exp;
+      if deref then do_access ctx kind reach conf exp;
       Access.distribute_access_exp (do_access ctx) Read false conf exp;
     );
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
