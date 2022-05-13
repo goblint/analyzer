@@ -36,10 +36,39 @@ module type FloatDomainBase = sig
   include FloatArith with type t := t
 
   val of_const : float -> t
+  val of_int: IntDomain.IntDomTuple.t -> t
+  val cast_to: Cil.ikind -> t -> IntDomain.IntDomTuple.t
 end
 module FloatInterval = struct
   type t = (float * float) option [@@deriving eq, ord, to_yojson]
 
+
+  let big_int_of_float f =
+    let x, n = Float.frexp f in
+    let shift = min 52 n in
+    let x' = x *. Float.pow 2. (Float.of_int shift) in
+    Big_int_Z.mult_big_int
+      (Big_int_Z.big_int_of_int64 (Int64.of_float x'))
+      (Big_int_Z.power_int_positive_int 2 (n - shift))
+
+  let cast_to ik = function
+    | None -> IntDomain.IntDomTuple.top_of ik
+    | Some (l, h) -> 
+      (* as converting from float to integer is (exactly) defined as leaving out the fractional part,
+         (value is truncated towrad zero) we do not require specific rounding here *)
+      IntDomain.IntDomTuple.of_interval ik (big_int_of_float l, big_int_of_float h)
+
+  let of_int x = match IntDomain.IntDomTuple.minimal x, IntDomain.IntDomTuple.maximal x with
+    | Some l, Some h when l >= big_int_of_float (-. Float.max_float) && h <= big_int_of_float Float.max_float ->
+      let l' = Big_int_Z.float_of_big_int l in
+      let l'' = if big_int_of_float (l') <= l then l' else Float.pred l' in
+      let h' = Big_int_Z.float_of_big_int h in
+      let h'' = if big_int_of_float (h') >= h then h' else Float.succ h' in
+      if l'' = Float.neg_infinity || h'' = Float.infinity then
+        None
+      else
+        Some (l'', h'')
+    | _, _ -> None
 
   let hash = Hashtbl.hash
 
@@ -83,7 +112,7 @@ module FloatInterval = struct
     in if is_top normed then
       Messages.warn ~category:Messages.Category.FloatMessage ~tags:[CWE 189; CWE 739] 
         "Float could be +/-infinity or Nan";
-      normed
+    normed
 
   (**just for norming the arbitraries, so correct intervals get created, but no failwith if low > high*)
   let norm_arb v = 
@@ -308,6 +337,13 @@ module FloatDomTupleImpl = struct
     for_all
     % mapp { fp= (fun (type a) (module F : FloatDomainBase with type t = a) -> F.is_top); }
 
+  let of_int =
+    create { fi= (fun (type a) (module F : FloatDomainBase with type t = a) -> F.of_int); }
+
+  let cast_to ik x =
+    match x with
+    | Some f -> F1.cast_to ik f
+    | None -> IntDomain.IntDomTuple.top_of ik
 
   let leq =
     for_all

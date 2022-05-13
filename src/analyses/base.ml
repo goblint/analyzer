@@ -137,7 +137,7 @@ struct
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ = function
     | `Int v1 -> `Int (ID.cast_to (Cilfacade.get_ikind typ) (unop_ID op v1))
-    | `Float v -> `Float (unop_FD op v) (* TODO(Practical2022): Do we require a type check? *)
+    | `Float v -> `Float (unop_FD op v)
     | `Address a when op = LNot ->
       if AD.is_null a then
         `Int (ID.of_bool (Cilfacade.get_ikind typ) true)
@@ -727,7 +727,7 @@ struct
       | Const (CInt (num,ikind,str)) ->
         (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
-      | Const (CReal (num, _, _)) -> `Float (FD.of_const num) (* TODO(Practical(2022): use string representation instead *)
+      | Const (CReal (num, FDouble, _)) -> `Float (FD.of_const num) (* TODO(Practical(2022): use string representation instead, extend to other floating point types *)
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)

@@ -53,10 +53,11 @@ end
 
 module type FloatDomainBase = sig
   include Lattice.S
-
   include FloatArith with type t := t
 
   val of_const : float -> t
+  val of_int : IntDomain.IntDomTuple.t -> t
+  val cast_to : Cil.ikind -> t -> IntDomain.IntDomTuple.t
 end
 
 module FloatDomTupleImpl : sig
