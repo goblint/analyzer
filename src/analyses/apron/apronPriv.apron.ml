@@ -988,7 +988,7 @@ struct
     let tids = ask.f (Q.EvalThread exp) in
     if force then (
       if ConcDomain.ThreadSet.is_top tids then
-        failwith "TODO"
+        st (* don't consider anything more joined, matches threadJoins analysis *)
       else (
         (* fold throws if the thread set is top *)
         let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->

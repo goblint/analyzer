@@ -49,7 +49,7 @@ struct
       let id = List.hd arglist in
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then
-        D.bot () (* consider everything joined, D is reversed so bot is All threads *)
+        ctx.local (* don't consider everything joined, because would be confusing to have All threads unsoundly joined due to imprecision *)
       else (
         (* elements throws if the thread set is top *)
         let threads = TIDs.elements threads in
