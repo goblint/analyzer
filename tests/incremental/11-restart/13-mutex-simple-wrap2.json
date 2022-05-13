@@ -3,7 +3,7 @@
         "restart": {
             "sided": {
                 "enabled": true,
-                "fuel": 1
+                "fuel": 2
             }
         }
     }

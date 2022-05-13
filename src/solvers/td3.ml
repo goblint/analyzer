@@ -574,9 +574,12 @@ module WP =
             ()
         in
 
+        let restart_fuel_only_globals = GobConfig.get_bool "incremental.restart.sided.fuel-only-global" in
+
         (* destabilize which restarts side-effected vars *)
-        let rec destabilize_with_side ?(front=true) x =
-          if tracing then trace "sol2" "destabilize_with_side %a\n" S.Var.pretty_trace x;
+        (* side_fuel specifies how many times (in recursion depth) to destabilize side_infl, None means infinite *)
+        let rec destabilize_with_side ~side_fuel ?(front=true) x =
+          if tracing then trace "sol2" "destabilize_with_side %a %a\n" S.Var.pretty_trace x (Pretty.docOpt (Pretty.dprintf "%d")) side_fuel;
 
           (* is side-effected var (global/function entry)? *)
           let w = HM.find_default side_dep x VS.empty in
@@ -603,7 +606,7 @@ module WP =
                 HM.remove stable y;
                 HM.remove superstable y;
                 if restart_destab_with_sides then
-                  destabilize_with_side ~front:false y
+                  destabilize_with_side ~side_fuel ~front:false y
                 else
                   destabilize_normal ~front:false y
               ) w
@@ -618,25 +621,40 @@ module WP =
               if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              destabilize_with_side ~front:false y
+              destabilize_with_side ~side_fuel ~front:false y
             ) w;
 
           (* destabilize side infl *)
           let w = HM.find_default side_infl x VS.empty in
           HM.remove side_infl x;
-          (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
-          VS.iter (fun y ->
-              if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-              if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
-              HM.remove stable y;
-              HM.remove superstable y;
-              destabilize_with_side ~front:false y
-            ) w
+
+          if side_fuel <> Some 0 then ( (* non-0 or infinite fuel is fine *)
+            let side_fuel' =
+              if not restart_fuel_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec) then
+                Option.map Int.pred side_fuel
+              else
+                side_fuel (* don't decrease fuel for function entry side effect *)
+            in
+            (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
+            VS.iter (fun y ->
+                if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
+                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
+                HM.remove stable y;
+                HM.remove superstable y;
+                destabilize_with_side ~side_fuel:side_fuel' ~front:false y
+              ) w
+          )
         in
 
         destabilize_ref :=
-          if restart_sided then
-            destabilize_with_side
+          if restart_sided then (
+            let side_fuel =
+              match GobConfig.get_int "incremental.restart.sided.fuel" with
+              | fuel when fuel >= 0 -> Some fuel
+              | _ -> None (* infinite *)
+            in
+            destabilize_with_side ~side_fuel
+          )
           else
             destabilize_normal;
 
@@ -823,7 +841,7 @@ module WP =
         (* Call side on all globals and functions in the start variables to make sure that changes in the initializers are propagated.
          * This also destabilizes start functions if their start state changes because of globals that are neither in the start variables nor in the contexts *)
         List.iter (fun (v,d) ->
-            if restart_sided then (
+            if restart_sided && not restart_only_access then (
               match GobList.assoc_eq_opt S.Var.equal v data.st with
               | Some old_d when not (S.Dom.equal old_d d) ->
                 ignore (Pretty.printf "Destabilizing and restarting changed start var %a\n" S.Var.pretty_trace v);
@@ -837,7 +855,7 @@ module WP =
             side v d
           ) st;
 
-        if restart_sided then (
+        if restart_sided && not restart_only_access then (
           List.iter (fun (v, _) ->
               match GobList.assoc_eq_opt S.Var.equal v st with
               | None ->

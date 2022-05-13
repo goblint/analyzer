@@ -1062,6 +1062,18 @@
                   "description" : "TODO",
                   "type" : "boolean",
                   "default" : true
+                },
+                "fuel": {
+                  "title": "incremental.restart.sided.fuel",
+                  "description": "TODO",
+                  "type": "integer",
+                  "default": -1
+                },
+                "fuel-only-global": {
+                  "title": "incremental.restart.sided.fuel-only-global",
+                  "description": "TODO",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
