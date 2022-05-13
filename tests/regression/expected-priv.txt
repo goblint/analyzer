@@ -7,9 +7,6 @@ protection:
 protection-read:
 No errors :)
 
-protection-vesal:
-2 tests failed: ["13/22 traces-paper", "13/23 traces-paper2"]
-
 write:
 No errors :)
 
