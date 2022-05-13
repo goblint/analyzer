@@ -154,28 +154,9 @@ let () = AfterConfig.register (fun () ->
 let xml_file_name = ref ""
 
 
-
-(*Warning files*)
-let warn_race = ref stdout
-let warn_safe = ref stdout
-let warn_higr = ref stdout
-let warn_higw = ref stdout
-let warn_lowr = ref stdout
-let warn_loww = ref stdout
-
-let init_warn_files () =
-  warn_race := (open_out "goblint_warnings_race.txt");
-  warn_safe := (open_out "goblint_warnings_safe.txt");
-  warn_higr := (open_out "goblint_warnings_highreadrace.txt");
-  warn_higw := (open_out "goblint_warnings_highwriterace.txt");
-  warn_lowr := (open_out "goblint_warnings_lowreadrace.txt");
-  warn_loww := (open_out "goblint_warnings_lowwriterace.txt")
-
 let get_out name alternative = match get_string "dbg.dump" with
   | "" -> alternative
   | path -> open_out (Filename.concat path (name ^ ".out"))
-
-
 
 
 let print ?(ppf= !formatter) (m: Message.t) =
