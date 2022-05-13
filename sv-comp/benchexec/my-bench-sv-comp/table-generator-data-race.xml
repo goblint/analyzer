@@ -5,8 +5,6 @@
   <result filename="goblint*.results.*nodatarace*.xml.bz2">
     <column title="status"/>
     <column title="score"/>
-    <!-- <column title="witness" href="./LOGDIR/${rundefinition_name}/${taskdef_name}/witness.graphml"/> -->
-    <column title="witness" href="./LOGDIR/sv-comp21_prop-nodatarace/${taskdef_name}/witness.graphml">witness</column>
     <column title="cputime"/>
     <column title="walltime"/>
     <column title="memory" sourceUnit="B" displayUnit="MB"/>

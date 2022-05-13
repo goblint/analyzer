@@ -2,7 +2,7 @@
 <!DOCTYPE table PUBLIC "+//IDN sosy-lab.org//DTD BenchExec table 1.10//EN" "https://www.sosy-lab.org/benchexec/table-1.10.dtd">
 <table>
 
-  <result filename="goblint.*.results.*-ReachSafety.xml.bz2">
+  <result filename="goblint*.results.*.xml.bz2.merged.xml.bz2">
     <column title="status"/>
     <column title="score"/>
     <!-- <column title="witness" href="./LOGDIR/${rundefinition_name}/${taskdef_name}/witness.graphml"/> -->
@@ -12,6 +12,5 @@
     <column title="memory" sourceUnit="B" displayUnit="MB"/>
   </result>
 
-  <result filename="cpa.*.results.*.xml.bz2"/>
-  <result filename="uautomizer.*.results.*.xml.bz2"/>
+  <result filename="witnesslint-validate-tmp.*.results.*.xml.bz2"/>
 </table>

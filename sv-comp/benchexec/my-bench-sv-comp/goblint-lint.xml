@@ -3,9 +3,9 @@
 <benchmark tool="goblint" timelimit="60 s" hardtimelimit="64 s" memlimit="1 GB" cpuCores="1">
 <!-- <benchmark tool="goblint" timelimit="15 min" hardtimelimit="16 min" memlimit="2 GB" cpuCores="1"> -->
 
-  <resultfiles></resultfiles>
+  <resultfiles>**.graphml</resultfiles>
 
-  <option name="--conf">conf/svcomp.json</option>
+  <option name="--conf">conf/svcomp21.json</option>
 
 <rundefinition name="sv-comp20_prop-reachsafety">
   <!-- <tasks name="ReachSafety-Arrays">
@@ -49,11 +49,10 @@
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
   </tasks> -->
 
-  <tasks name="ConcurrencySafety-Main">
+  <!-- <tasks name="ConcurrencySafety-Main">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ConcurrencySafety-Main.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-    <exclude>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/pthread-wmm/*</exclude>
-  </tasks>
+  </tasks> -->
 
   <!-- <tasks name="SoftwareSystems-AWS-C-Common-ReachSafety">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-AWS-C-Common-ReachSafety.set</includesfile>
@@ -62,11 +61,6 @@
 
   <tasks name="SoftwareSystems-DeviceDriversLinux64-ReachSafety">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64-ReachSafety.set</includesfile>
-    <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-  </tasks>
-
-  <tasks name="SoftwareSystems-DeviceDriversLinux64Large-ReachSafety">
-    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64Large-ReachSafety.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
   </tasks>
 </rundefinition>

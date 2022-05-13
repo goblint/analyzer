@@ -2,13 +2,14 @@
 <!DOCTYPE benchmark PUBLIC "+//IDN sosy-lab.org//DTD BenchExec benchmark 1.9//EN" "https://www.sosy-lab.org/benchexec/benchmark-1.9.dtd">
 <benchmark tool="goblint" timelimit="60 s" hardtimelimit="64 s" memlimit="1 GB" cpuCores="1">
 
-  <resultfiles>**.graphml</resultfiles>
+  <resultfiles></resultfiles>
 
-  <option name="--conf">conf/svcomp21.json</option>
+  <option name="--conf">conf/svcomp.json</option>
 
 <rundefinition name="sv-comp21_prop-nodatarace">
   <tasks name="NoDataRace-Main">
-    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoDataRace-Main.set</includesfile>
+    <!-- <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoDataRace-Main.set</includesfile> -->
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoDataRace-ConcurrencySafety.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/no-data-race.prp</propertyfile>
   </tasks>
 </rundefinition>

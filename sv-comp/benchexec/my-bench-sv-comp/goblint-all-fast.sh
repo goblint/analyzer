@@ -3,8 +3,8 @@
 shopt -s extglob
 
 MYBENCHDIR=/mnt/goblint-svcomp/benchexec/my-bench-sv-comp
-RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/new-results13-all-fast-systems-base-cast-on-read-before
-GOBLINTPARALLEL=15
+RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/70-all-fast-no-interval
+GOBLINTPARALLEL=14
 
 mkdir $RESULTSDIR
 

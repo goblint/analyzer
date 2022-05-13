@@ -3,8 +3,8 @@
 shopt -s extglob
 
 MYBENCHDIR=/mnt/goblint-svcomp/benchexec/my-bench-sv-comp
-RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/data-race-results9-pr-1177-atomic-lock
-GOBLINTPARALLEL=15
+RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/data-race-results21-concurrencysafety-new
+GOBLINTPARALLEL=14
 
 mkdir $RESULTSDIR
 
