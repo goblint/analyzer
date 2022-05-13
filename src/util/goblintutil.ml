@@ -101,7 +101,6 @@ let seconds_of_duration_string =
 let vars = ref 0
 let evals = ref 0
 let narrow_reuses = ref 0
-let aborts = ref 0
 
 (* print GC statistics; taken from Cil.Stats.print which also includes timing; there's also Gc.print_stat, but it's in words instead of MB and more info than we want (also slower than quick_stat since it goes through the heap) *)
 let print_gc_quick_stat chn =

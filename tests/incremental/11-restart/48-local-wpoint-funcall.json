@@ -11,9 +11,7 @@
 					"enabled": true,
 					"once": true
 				}
-			},
-			"abort": false,
-			"abort-verify": false
+			}
 		}
 	}
 }

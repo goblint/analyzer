@@ -388,7 +388,7 @@ let preprocess_and_merge () = preprocess_files () |> merge_preprocessed
 let do_stats () =
   if get_bool "printstats" then (
     print_newline ();
-    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d    aborts = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses !Goblintutil.aborts);
+    ignore (Pretty.printf "vars = %d    evals = %d    narrow_reuses = %d\n" !Goblintutil.vars !Goblintutil.evals !Goblintutil.narrow_reuses);
     print_newline ();
     Stats.print (Messages.get_out "timing" Legacy.stderr) "Timings:\n";
     flush_all ()
@@ -398,7 +398,6 @@ let reset_stats () =
   Goblintutil.vars := 0;
   Goblintutil.evals := 0;
   Goblintutil.narrow_reuses := 0;
-  Goblintutil.aborts := 0;
   Stats.reset SoftwareTimer
 
 (** Perform the analysis over the merged AST.  *)

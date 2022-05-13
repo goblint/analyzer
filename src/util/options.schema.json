@@ -1911,18 +1911,6 @@
               },
               "additionalProperties": false
             },
-            "abort": {
-              "title": "solvers.td3.abort",
-              "description": "TODO",
-              "type": "boolean",
-              "default": false
-            },
-            "abort-verify": {
-              "title": "solvers.td3.abort-verify",
-              "description": "TODO",
-              "type": "boolean",
-              "default": false
-            },
             "verify": {
               "title": "solvers.td3.verify",
               "description": "Check TD3 data structure invariants",

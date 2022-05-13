@@ -104,15 +104,12 @@ module WP =
           Some f'
     end
 
-    exception AbortEq
-
     let solve box st vs data =
       let term  = GobConfig.get_bool "solvers.td3.term" in
       let side_widen = GobConfig.get_string "solvers.td3.side_widen" in
       let space = GobConfig.get_bool "solvers.td3.space" in
       let cache = GobConfig.get_bool "solvers.td3.space_cache" in
       let called = HM.create 10 in
-      let called_changed = HM.create 10 in
 
       let infl = data.infl in
       let sides = data.sides in
@@ -151,14 +148,6 @@ module WP =
       let var_messages = data.var_messages in
       let rho_write = data.rho_write in
 
-      let abort = GobConfig.get_bool "solvers.td3.abort" in
-      let destab_infl = HM.create 10 in
-      let destab_front = HM.create 10 in
-      let destab_dep = HM.create 10 in
-
-      let abort_verify = GobConfig.get_bool "solvers.td3.abort-verify" in
-      let prev_dep_vals = HM.create 10 in
-
       (* Tracks dependencies between an unknown and the things it depends on *)
       let dep = data.dep in
 
@@ -175,25 +164,14 @@ module WP =
 
       let cache_sizes = ref [] in
 
-      let trace_called () =
-        if tracing then (
-          let called_pretty () called =
-            HM.fold (fun x _ acc -> Pretty.dprintf "%a\n  %a" S.Var.pretty_trace x Pretty.insert acc) called Pretty.nil
-          in
-          trace "sol2" "called:\n  %a\n" called_pretty called
-        )
-      in
-      let vs_pretty () vs =
-        VS.fold (fun x acc -> Pretty.dprintf "%a, %a" S.Var.pretty_trace x Pretty.insert acc) vs Pretty.nil
-      in
-
       let add_infl y x =
         if tracing then trace "sol2" "add_infl %a %a\n" S.Var.pretty_trace y S.Var.pretty_trace x;
         HM.replace infl y (VS.add x (try HM.find infl y with Not_found -> VS.empty));
         HM.replace dep x (VS.add y (HM.find_default dep x VS.empty));
       in
       let add_sides y x = HM.replace sides y (VS.add x (try HM.find sides y with Not_found -> VS.empty)) in
-      let destabilize_ref: (?front:bool -> S.v -> unit) ref = ref (fun ?front _ -> failwith "no destabilize yet") in
+
+      let destabilize_ref: (S.v -> unit) ref = ref (fun _ -> failwith "no destabilize yet") in
       let destabilize x = !destabilize_ref x in (* must be eta-expanded to use changed destabilize_ref *)
 
       let rec destabilize_vs x = (* TODO remove? Only used for side_widen cycle. *)
@@ -206,13 +184,11 @@ module WP =
             HM.remove superstable y;
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
-      and solve ?reuse_eq ?(abortable=true) x phase (changed: bool): bool =
-        if tracing then trace "sol2" "solve %a, phase: %s, changed: %b, abortable: %b, called: %b, stable: %b\n" S.Var.pretty_trace x (match phase with Widen -> "Widen" | Narrow -> "Narrow") changed abortable (HM.mem called x) (HM.mem stable x);
-        trace_called ();
+      and solve ?reuse_eq x phase =
+        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pretty_trace x (match phase with Widen -> "Widen" | Narrow -> "Narrow") (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
-          if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace x;
           HM.replace stable x ();
           HM.replace called x ();
           (* Here we cache HM.mem wpoint x before eq. If during eq eval makes x wpoint, then be still don't apply widening the first time, but just overwrite.
@@ -222,80 +198,17 @@ module WP =
              Then the previous local wpoint value is discarded automagically and not joined/widened, providing limited restarting of local wpoints. (See eval for more complete restarting.) *)
           let wp = HM.mem wpoint x in
           let l = HM.create 10 in
-          let prev_dep_vals_x = HM.find_default prev_dep_vals x (HM.create 0) in (* used by abort_verify *)
-          let eval' =
-            if tracing then trace "sol2" "eval' %a abortable=%b destab_dep=%b\n" S.Var.pretty_trace x abortable (HM.mem destab_dep x);
-            if abort && abortable && HM.mem destab_dep x then (
-              let unasked_dep_x = ref (HM.find destab_dep x) in
-              if tracing then trace "sol2" "eval' %a dep=%a\n" S.Var.pretty_trace x vs_pretty !unasked_dep_x;
-              let all_dep_x_unchanged = ref true in
-              let all_dep_x_unchanged_verify = ref true in
-              fun y ->
-                let (d, changed) = eval l x y in
-                if tracing then trace "sol2" "eval' %a asked %a changed=%b mem=%b\n" S.Var.pretty_trace x S.Var.pretty_trace y changed (VS.mem y !unasked_dep_x);
-                if abort_verify then (
-                  let prev_d = HM.find_default prev_dep_vals_x y (S.Dom.bot ()) in
-                  if not (S.Dom.equal prev_d d) then (
-                    (* TODO: this is not a bug? change might be covered by destab_front *)
-                    (* if not changed then (
-                      ignore (Pretty.eprintf "not changed did change: eval %a %a: \nold=%a\n new=%a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty prev_d S.Dom.pretty d)
-                    ); *)
-                    all_dep_x_unchanged_verify := false;
-                    if tracing then trace "sol2" "eval' %a asked %a abort %B verify\n  prev=%a\n   now=%a\n" S.Var.pretty_trace x S.Var.pretty_trace y (HM.mem prev_dep_vals_x y) S.Dom.pretty prev_d S.Dom.pretty d;
-                  )
-                );
-                if VS.mem y !unasked_dep_x then (
-                  unasked_dep_x := VS.remove y !unasked_dep_x;
-                  if changed then
-                    all_dep_x_unchanged := false;
-                  if tracing then trace "sol2" "eval' %a asked %a checking abort unasked=%a all_unchanged=%b front=%b\n" S.Var.pretty_trace x S.Var.pretty_trace y vs_pretty !unasked_dep_x !all_dep_x_unchanged (HM.mem destab_front x);
-                  let should_abort = VS.is_empty !unasked_dep_x && !all_dep_x_unchanged && not (HM.mem destab_front x) in (* must check front here, because each eval might change it for x *)
-                  let should_abort_verify = !all_dep_x_unchanged_verify in
-                  if should_abort then (
-                    if abort_verify && not should_abort_verify then (
-                      failwith (Pretty.sprint ~width:max_int (Pretty.dprintf "TD3 abort verify: should not abort %a" S.Var.pretty_trace x));
-                    );
-                    raise AbortEq
-                  )
-                );
-                d
-            )
-            else
-              fun y ->
-                let (d, changed) = eval l x y in
-                d
-          in
-          let (tmp, aborted) =
+          let tmp =
             match reuse_eq with
             | Some d when narrow_reuse && not narrow_reuse_verify ->
               (* Do not reset deps for reuse of eq *)
               if tracing then trace "sol2" "eq reused %a\n" S.Var.pretty_trace x;
               incr Goblintutil.narrow_reuses;
-              (d, false)
+              d
             | _ ->
               (* The RHS is re-evaluated, all deps are re-trigerred *)
               HM.replace dep x VS.empty;
-              try
-                if abort && abort_verify then (
-                  (* collect dep vals for x *)
-                  let new_dep_vals_x = HM.create (HM.length prev_dep_vals_x) in
-                  let eval' y =
-                    let d = eval' y in
-                    HM.replace new_dep_vals_x y d;
-                    d
-                  in
-                  let tmp = eq x eval' (side ~x) in
-                  HM.replace prev_dep_vals x new_dep_vals_x;
-                  (tmp, false)
-                )
-                else
-                  (eq x eval' (side ~x), false)
-              with AbortEq ->
-                abort_rhs_event x;
-                if tracing then trace "sol2" "eq aborted %a\n" S.Var.pretty_trace x;
-                HM.remove destab_dep x; (* TODO: safe to remove here? doesn't prevent some aborts? *)
-                (* prev_dep_vals remain the same *)
-                (HM.find rho x, true) (* old *)
+              eq x (eval l x) (side ~x)
           in
           begin match reuse_eq with
             | Some reuse_eq when narrow_reuse_verify && not (S.Dom.equal tmp reuse_eq) ->
@@ -309,7 +222,6 @@ module WP =
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
           HM.remove called x;
-          HM.remove called_changed x;
           let old = HM.find rho x in (* find old value after eq since wpoint restarting in eq/eval might have changed it meanwhile *)
           let tmp =
             if not wp then tmp
@@ -324,93 +236,50 @@ module WP =
           if tracing then trace "cache" "cache size %d for %a\n" (HM.length l) S.Var.pretty_trace x;
           cache_sizes := HM.length l :: !cache_sizes;
           if not (Stats.time "S.Dom.equal" (fun () -> S.Dom.equal old tmp) ()) then (
-            if tracing then trace "sol" "Changed\n";
             update_var_event x old tmp;
             HM.replace rho x tmp;
-            HM.replace called_changed x ();
-            if abort then (
-              if HM.mem destab_front x then (
-                if HM.mem stable x then (
-                  (* If some side during eq made x unstable, then it should remain in destab_front.
-                    Otherwise recursive solve might prematurely abort it. *)
-                  if tracing then trace "sol2" "front remove %a\n" S.Var.pretty_trace x;
-                  HM.remove destab_front x;
-                );
-                if HM.mem destab_infl x then (
-                  VS.iter (fun y ->
-                      if tracing then trace "sol2" "pushing front from %a to %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-                      if tracing then trace "sol2" "front add %a\n" S.Var.pretty_trace y;
-                      HM.replace destab_front y ()
-                    ) (HM.find destab_infl x)
-                );
-                HM.remove destab_infl x
-              )
-            );
             destabilize x;
-            (solve[@tailcall]) x phase true
+            (solve[@tailcall]) x phase
           ) else (
             (* TODO: why non-equal and non-stable checks in switched order compared to TD3 paper? *)
             if not (HM.mem stable x) then (
-              (* If some side during eq made x unstable, then it should remain in destab_front.
-                 Otherwise recursive solve might prematurely abort it. *)
               if tracing then trace "sol2" "solve still unstable %a\n" S.Var.pretty_trace x;
-              (solve[@tailcall]) x Widen changed
+              (solve[@tailcall]) x Widen
             ) else (
-              if abort && HM.mem destab_front x then (
-                if tracing then trace "sol2" "front remove %a\n" S.Var.pretty_trace x;
-                HM.remove destab_front x;
-                if tracing then trace "sol2" "not pushing front from %a\n" S.Var.pretty_trace x;
-                (* don't push front here *)
-                HM.remove destab_infl x
-              );
               if term && phase = Widen && HM.mem wpoint x then ( (* TODO: or use wp? *)
                 if tracing then trace "sol2" "solve switching to narrow %a\n" S.Var.pretty_trace x;
                 if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace x;
                 HM.remove stable x;
                 HM.remove superstable x;
-                let reuse_eq = if not aborted then
-                    Some new_eq
-                  else
-                    None (* TODO: for some reason cannot reuse aborted rhs, see 34-localwn_restart/02-hybrid *)
-                in
-                (solve[@tailcall]) ?reuse_eq ~abortable:false x Narrow changed
+                (solve[@tailcall]) ~reuse_eq:new_eq x Narrow
               ) else if not space && (not term || phase = Narrow) then ( (* this makes e.g. nested loops precise, ex. tests/regression/34-localization/01-nested.c - if we do not remove wpoint, the inner loop head will stay a wpoint and widen the outer loop variable. *)
                 if tracing then trace "sol2" "solve removing wpoint %a (%b)\n" S.Var.pretty_trace x (HM.mem wpoint x);
-                HM.remove wpoint x;
-                changed
+                HM.remove wpoint x
               )
-              else
-                changed
             )
           )
         )
-        else if HM.mem called x then
-          changed || HM.mem called_changed x
-        else
-          changed
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
         eval_rhs_event x;
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f -> f get set
-      and simple_solve l x y: S.d * bool =
+      and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
-        if S.system y = None then (init y; HM.replace stable y (); (HM.find rho y, true (* TODO: ??? *))) else
-        if HM.mem rho y || not space then (let changed = solve y Widen false in (HM.find rho y, changed)) else
-        if abort then failwith "space abort unimplemented" else
-        if HM.mem called y then (init y; HM.remove l y; (HM.find rho y, true (* TODO: ??? *))) else
+        if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
+        if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
+        if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
         (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
-        if cache && HM.mem l y then (HM.find l y, true (* TODO: ??? *))
+        if cache && HM.mem l y then HM.find l y
         else (
           HM.replace called y ();
-          (* TODO: abort? *)
-          let tmp = eq y (fun z -> fst (eval l x z)) (side ~x) in
+          let tmp = eq y (eval l x) (side ~x) in
           HM.remove called y;
-          if HM.mem rho y then (HM.remove l y; ignore (solve y Widen false); (HM.find rho y, true (* TODO: ??? *)))
-          else (if cache then HM.replace l y tmp; (tmp, true (* TODO: ??? *)))
+          if HM.mem rho y then (HM.remove l y; solve y Widen; HM.find rho y)
+          else (if cache then HM.replace l y tmp; tmp)
         )
-      and eval l x y: S.d * bool =
+      and eval l x y =
         if tracing then trace "sol2" "eval %a ## %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
         get_var_event y;
         if HM.mem called y then (
@@ -421,11 +290,6 @@ module WP =
             if not (restart_once && HM.mem restarted_wpoint y) then (
               if tracing then trace "sol2" "wpoint restart %a ## %a\n" S.Var.pretty_trace y S.Dom.pretty (HM.find_default rho y (S.Dom.bot ()));
               HM.replace rho y (S.Dom.bot ());
-              HM.replace called_changed y (); (* just in case *)
-              (* required for abort (front), for 34-localwn_restart/21-restart_abort_aget *)
-              HM.remove stable y;
-              HM.remove superstable y;
-              destabilize y;
               if restart_once then (* avoid populating hashtable unnecessarily *)
                 HM.replace restarted_wpoint y ();
             )
@@ -434,7 +298,6 @@ module WP =
         );
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
-        if tracing then trace "sol2" "eval %a ## %a -> %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty (fst tmp);
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
         if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
@@ -454,7 +317,6 @@ module WP =
         in
         let old = HM.find rho y in
         let tmp = op old d in
-        if tracing then trace "sol2" "stable add %a\n" S.Var.pretty_trace y;
         HM.replace stable y ();
         if not (S.Dom.leq tmp old) then (
           (* if there already was a `side x y d` that changed rho[y] and now again, we make y a wpoint *)
@@ -512,40 +374,14 @@ module WP =
         (* solve x Widen *)
       in
 
-      let destabilize_front ~front x w =
-        if abort then (
-          if front then (
-            VS.iter (fun y ->
-                if tracing then trace "sol2" "front add %a (infl)\n" S.Var.pretty_trace y;
-                HM.replace destab_front y ()
-              ) w;
-            (* Also add front via destab_infl in case infl has already been removed by previous destabilize.
-               This fixes 29-svcomp/27-td3-front-via-destab-infl. *)
-            VS.iter (fun y ->
-                if tracing then trace "sol2" "front add %a (destab_infl)\n" S.Var.pretty_trace y;
-                HM.replace destab_front y ()
-              ) (HM.find_default destab_infl x VS.empty)
-          )
-          else (
-            HM.replace destab_infl x (VS.union w (HM.find_default destab_infl x VS.empty));
-            VS.iter (fun y ->
-                HM.replace destab_dep y (VS.add x (try HM.find destab_dep y with Not_found -> VS.empty))
-              ) w
-          )
-        )
-      in
-
-      let rec destabilize_normal ?(front=true) x =
+      let rec destabilize_normal x =
         if tracing then trace "sol2" "destabilize %a\n" S.Var.pretty_trace x;
-        trace_called ();
         let w = HM.find_default infl x VS.empty in
         HM.replace infl x VS.empty;
-        destabilize_front ~front x w;
         VS.iter (fun y ->
-            if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
             HM.remove stable y;
             HM.remove superstable y;
-            if not (HM.mem called y) then destabilize_normal ~front:false y
+            if not (HM.mem called y) then destabilize_normal y
           ) w
       in
 
@@ -575,7 +411,7 @@ module WP =
         in
 
         (* destabilize which restarts side-effected vars *)
-        let rec destabilize_with_side ?(front=true) x =
+        let rec destabilize_with_side x =
           if tracing then trace "sol2" "destabilize_with_side %a\n" S.Var.pretty_trace x;
 
           (* is side-effected var (global/function entry)? *)
@@ -593,32 +429,26 @@ module WP =
             (* restart side-effected var *)
             restart_leaf x;
 
-            (* add side_dep to front to prevent them from being aborted *)
-            destabilize_front ~front:true x w;
-
             (* destabilize side dep to redo side effects *)
             VS.iter (fun y ->
                 if tracing then trace "sol2" "destabilize_with_side %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-                if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
                 HM.remove stable y;
                 HM.remove superstable y;
                 if restart_destab_with_sides then
-                  destabilize_with_side ~front:false y
+                  destabilize_with_side y
                 else
-                  destabilize_normal ~front:false y
+                  destabilize_normal y
               ) w
           );
 
           (* destabilize eval infl *)
           let w = HM.find_default infl x VS.empty in
           HM.replace infl x VS.empty;
-          destabilize_front ~front x w;
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-              if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              destabilize_with_side ~front:false y
+              destabilize_with_side y
             ) w;
 
           (* destabilize side infl *)
@@ -627,10 +457,9 @@ module WP =
           (* TODO: should this also be conditional on restart_only_globals? right now goes through function entry side effects, but just doesn't restart them *)
           VS.iter (fun y ->
               if tracing then trace "sol2" "destabilize_with_side %a side_infl %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
-              if tracing then trace "sol2" "stable remove %a\n" S.Var.pretty_trace y;
               HM.remove stable y;
               HM.remove superstable y;
-              destabilize_with_side ~front:false y
+              destabilize_with_side y
             ) w
         in
 
@@ -784,8 +613,6 @@ module WP =
             let w = HM.find_default side_dep x VS.empty in
             if not (VS.is_empty w) then (
               HM.remove side_dep x;
-              (* add side_dep to front to prevent them from being aborted *)
-              destabilize_front ~front:true x w;
               (* destabilize side dep to redo side effects *)
               VS.iter (fun y ->
                   if tracing then trace "sol2" "destabilize_leaf %a side_dep %a\n" S.Var.pretty_trace x S.Var.pretty_trace y;
@@ -870,7 +697,7 @@ module WP =
           let op = if GobConfig.get_string "incremental.reluctant.compare" = "leq" then S.Dom.leq else S.Dom.equal in
           HM.iter (fun x (old_rho, old_infl) ->
               ignore @@ Pretty.printf "test for %a\n" Node.pretty_trace (S.Var.node x);
-              ignore (solve x Widen false); (* TODO: use returned changed for comparison? *)
+              solve x Widen;
               if not (op (HM.find rho x) old_rho) then (
                 print_endline "Destabilization required...";
                 HM.replace infl x old_infl;
@@ -905,7 +732,7 @@ module WP =
             print_newline ();
             flush_all ();
           );
-          List.iter (fun x -> ignore (solve x Widen false)) unstable_vs;
+          List.iter (fun x -> solve x Widen) unstable_vs;
           solver ();
         )
       in
