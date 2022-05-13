@@ -687,9 +687,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+                "Which privatization to use? none/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
               "type": "string",
-              "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
               "default": "protection-read"
             }
           },

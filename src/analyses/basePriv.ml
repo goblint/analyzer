@@ -78,7 +78,7 @@ struct
       !GU.earlyglobs && not (ThreadFlag.is_multi ask)
 end
 
-(* Copy of ProtectionBasedOldPriv with is_private constantly false. *)
+(* No Privatization *)
 module NonePriv: S =
 struct
   include OldPrivBase
@@ -90,10 +90,9 @@ struct
   let read_global ask getg (st: BaseComponents (D).t) x =
     getg x
 
-  let is_private (a: Q.ask) (v: varinfo): bool = false
-
   let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    if invariant && not (is_private ask x) then (
+    if invariant then (
+      (* Do not impose invariant, will not hold without privatization *)
       if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
       st
     )
@@ -113,64 +112,6 @@ struct
       if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
       let res =
         if is_global ask v then begin
-          if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
-          sideg v value;
-          {st with cpa = CPA.remove v st.cpa}
-        end else
-          st
-      in
-      if M.tracing then M.traceu "globalize" "Done!\n";
-      res
-    in
-    (* We fold over the local state, and side effect the globals *)
-    CPA.fold side_var st.cpa st
-end
-
-(** Protection-Based Reading old implementation.
-    Unsound!
-    Based on [sync]. *)
-module ProtectionBasedOldPriv: S =
-struct
-  include OldPrivBase
-
-  module G = BaseDomain.VD
-  module V = VarinfoV
-
-  let init () = ()
-
-  let read_global ask getg (st: BaseComponents (D).t) x =
-    match CPA.find x st.cpa with
-    | `Bot -> (if M.tracing then M.tracec "get" "Using global invariant.\n"; getg x)
-    | x -> (if M.tracing then M.tracec "get" "Using privatized version.\n"; x)
-
-  let is_private (a: Q.ask) (v: varinfo): bool =
-    not (ThreadFlag.is_multi a) && is_excluded_from_earlyglobs v (* not multi, but excluded from earlyglobs *)
-    || not (a.f (Q.MayBePublic {global=v; write=false})) (* usual case where MayBePublic answers *)
-
-  let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
-    if invariant && not (is_private ask x) then (
-      if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: BAD! effect = '%B', or else is private! \n" (not invariant);
-      st
-    )
-    else (
-      (* Here, an effect should be generated, but we add it to the local
-      * state, waiting for the sync function to publish it. *)
-      (* Copied from MainFunctor.update_variable *)
-      if ((get_bool "exp.volatiles_are_top") && (is_always_unknown x)) then
-        {st with cpa = CPA.add x (VD.top ()) st.cpa}
-      else
-        {st with cpa = CPA.add x v st.cpa}
-    )
-
-  let sync ask getg sideg (st: BaseComponents (D).t) reason =
-    let privates = sync_privates reason ask in
-    let module BaseComponents = BaseComponents (D) in
-    if M.tracing then M.tracel "sync" "OldPriv: %a\n" BaseComponents.pretty st;
-    (* For each global variable, we create the side effect *)
-    let side_var (v: varinfo) (value) (st: BaseComponents.t) =
-      if M.tracing then M.traceli "globalize" ~var:v.vname "Tracing for %s\n" v.vname;
-      let res =
-        if is_global ask v && ((privates && not (is_excluded_from_earlyglobs v)) || not (is_private ask v)) then begin
           if M.tracing then M.tracec "globalize" "Publishing its value: %a\n" VD.pretty value;
           sideg v value;
           {st with cpa = CPA.remove v st.cpa}
@@ -1505,7 +1446,6 @@ let priv_module: (module S) Lazy.t =
     let module Priv: S =
       (val match get_string "ana.base.privatization" with
         | "none" -> (module NonePriv: S)
-        | "protection-old" -> (module ProtectionBasedOldPriv)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
         | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
