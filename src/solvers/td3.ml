@@ -80,7 +80,7 @@ module WP =
 
     module HPM = Hashtbl.Make (P)
 
-    type phase = Widen | Narrow
+    type phase = Widen | Narrow [@@deriving show]
 
     let current_var = ref None
 
@@ -185,7 +185,7 @@ module WP =
             HM.mem called y || destabilize_vs y || b || was_stable && List.mem y vs
           ) w false
       and solve ?reuse_eq x phase =
-        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pretty_trace x (match phase with Widen -> "Widen" | Narrow -> "Narrow") (HM.mem called x) (HM.mem stable x);
+        if tracing then trace "sol2" "solve %a, phase: %s, called: %b, stable: %b\n" S.Var.pretty_trace x (show_phase phase) (HM.mem called x) (HM.mem stable x);
         init x;
         assert (S.system x <> None);
         if not (HM.mem called x || HM.mem stable x) then (
