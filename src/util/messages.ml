@@ -240,11 +240,6 @@ let add m =
     )
   )
 
-(** Adapts old [print_group] to new message structure.
-    Don't use for new (group) warnings. *)
-let msg_group_race_old severity group_name errors =
-  let m = Message.{tags = [Category Race]; severity; multipiece = Group {group_text = group_name; pieces = List.map (fun (s, loc) -> Piece.{loc = Some loc; text = s; context = None}) errors}} in
-  add m
 
 let current_context: Obj.t option ref = ref None (** (Control.get_spec ()) context, represented type: (Control.get_spec ()).C.t *)
 
