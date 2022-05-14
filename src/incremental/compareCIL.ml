@@ -102,7 +102,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_cont
       let sizeEqual, local_rename = context_aware_compare a.slocals b.slocals headerContext in
       let context: context = (local_rename, global_context) in
 
-      let _ = Printf.printf "Context=%s\n" (CompareAST.context_to_string context) in
+      (*let _ = Printf.printf "Context=%s\n" (CompareAST.context_to_string context) in*)
 
       let sameDef = unchangedHeader && sizeEqual in
       if not sameDef then
@@ -112,7 +112,6 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * cfg) option) (global_cont
         | None -> 
           eq_block (a.sbody, a) (b.sbody, b) context, None
         | Some (cfgOld, cfgNew) ->
-          Printf.printf "compareCIL.eqF: Compaing 2 cfgs now\n";
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgForward = struct let next = cfgNew end in
           let matches, diffNodes1, diffNodes2 = compareFun (module CfgOld) (module CfgNew) a b in
@@ -134,8 +133,6 @@ let eq_glob (a: global) (b: global) (cfgs : (cfg * cfg) option) (global_context:
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
-  let _ = Printf.printf "Comparing Cil files\n" in
-
   let cfgs = if GobConfig.get_string "incremental.compare" = "cfg"
     then Some (CfgTools.getCFG oldAST |> fst, CfgTools.getCFG newAST |> fst)
     else None in

@@ -191,8 +191,6 @@ struct
     match get_string "result" with
     | "pretty" -> ignore (fprintf out "%a\n" pretty (Lazy.force table))
     | "fast_xml" ->
-      Printf.printf "%s" (Printexc.get_callstack 15 |> Printexc.raw_backtrace_to_string);
-
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in

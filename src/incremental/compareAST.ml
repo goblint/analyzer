@@ -191,7 +191,7 @@ and eq_varinfo (a: varinfo) (b: varinfo) (context: context) =
     in 
 
   (*If the following is a method call, we need to check if we have a mapping for that method call. *)
-  let typ_context, did_context_switch = match b.vtype with
+  let typ_context = match b.vtype with
       | TFun(_, _, _, _) -> (
         let new_locals = List.find_opt (fun x -> match x with
           | {original_method_name; new_method_name; parameter_renames} -> original_method_name = a.vname && new_method_name = b.vname
@@ -200,10 +200,10 @@ and eq_varinfo (a: varinfo) (b: varinfo) (context: context) =
         match new_locals with
           | Some locals -> 
             (*Printf.printf "Performing context switch. New context=%s\n" (context_to_string (locals.parameter_renames, method_contexts));*)
-            (locals.parameter_renames, method_contexts), true
-          | None -> ([], method_contexts), false
+            (locals.parameter_renames, method_contexts)
+          | None -> ([], method_contexts)
         )
-      | _ -> context, false
+      | _ -> context
     in
 
   let typeCheck = eq_typ a.vtype b.vtype typ_context in
@@ -215,7 +215,6 @@ and eq_varinfo (a: varinfo) (b: varinfo) (context: context) =
   (*a.vname = b.vname*) 
   let result = isNamingOk && typeCheck && attrCheck &&
                         a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof in
-  if did_context_switch then Printf.printf "Undo context switch \n";
 
   result
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
