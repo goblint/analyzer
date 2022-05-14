@@ -61,9 +61,6 @@ struct
   let return ctx r f =
     D.lift @@ S.return (conv ctx) r f
 
-  let intrpt ctx =
-    D.lift @@ S.intrpt (conv ctx)
-
   let asm ctx =
     D.lift @@ S.asm (conv ctx)
 
@@ -140,9 +137,6 @@ struct
 
   let return ctx r f =
     S.return (conv ctx) r f
-
-  let intrpt ctx =
-    S.intrpt (conv ctx)
 
   let asm ctx =
     S.asm (conv ctx)
@@ -230,7 +224,6 @@ struct
   let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
-  let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
@@ -357,7 +350,6 @@ struct
   let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
-  let intrpt ctx      = lift_fun ctx S.intrpt identity
   let asm ctx         = lift_fun ctx S.asm    identity
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
@@ -430,13 +422,12 @@ struct
     lift_fun ctx liftmap S.enter ((|>) args % (|>) f % (|>) r) []
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    lift_fun ctx identity S.query  (fun (x) -> x q)            (Queries.Result.bot q)
+    lift_fun ctx identity S.query (fun (x) -> x q) (Queries.Result.bot q)
   let assign ctx lv e = lift_fun ctx D.lift   S.assign ((|>) e % (|>) lv) `Bot
   let vdecl ctx v     = lift_fun ctx D.lift   S.vdecl  ((|>) v)            `Bot
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
   let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
   let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
-  let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity            `Bot
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
@@ -552,10 +543,6 @@ struct
 
   let common_joins ctx ds splits spawns = common_join ctx (bigsqcup ds) splits spawns
 
-  let tf_loop var edge prev_node getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.intrpt ctx) !r !spawns
-
   let tf_assign var edge prev_node lv e getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.assign ctx lv e) !r !spawns
@@ -580,7 +567,7 @@ struct
     let d =
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (get_string_list "mainfun")) &&
-         (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+         get_bool "kernel"
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
     in
@@ -677,7 +664,6 @@ struct
       | Test (p,b)     -> tf_test var edge prev_node p b
       | ASM (_, _, _)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
       | Skip           -> tf_skip var edge prev_node
-      | SelfLoop       -> tf_loop var edge prev_node
     end getl sidel getg sideg d
 
   let tf var getl sidel getg sideg prev_node (_,edge) d (f,t) =
@@ -717,7 +703,7 @@ struct
         | Some scc when NodeH.mem scc.prev v && NodeH.length scc.prev = 1 ->
           (* Limited to loops with only one entry node. Otherwise unsound as is. *)
           (* TODO: Is it possible to do soundly for multi-entry loops? *)
-          let stricts = NodeH.find_all scc.prev v in
+          let stricts = NodeH.find_default scc.prev v [] in
           let xs_stricts = List.map tf' stricts in
           if List.for_all S.D.is_bot xs_stricts then
             S.D.bot ()
@@ -988,7 +974,6 @@ struct
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
@@ -1055,7 +1040,7 @@ struct
       branch ctx exp tv
 end
 
-module Compare
+module CompareGlobSys
     (S:Spec)
     (Sys:GlobConstrSys with module LVar = VarF (S.C)
                         and module GVar = GVarF (S.V)
@@ -1082,11 +1067,11 @@ struct
       if b1 && b2 then
         f_eq ()
       else if b1 then begin
-        if get_bool "solverdiffs" then
+        if get_bool "dbg.compare_runs.diff" then
           ignore (Pretty.printf "Global %a is more precise using left:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_le ()
       end else if b2 then begin
-        if get_bool "solverdiffs" then
+        if get_bool "dbg.compare_runs.diff" then
           ignore (Pretty.printf "Global %a is more precise using right:\n%a\n" Sys.GVar.pretty_trace k G.pretty_diff (v1,v2));
         f_gr ()
       end else
@@ -1105,11 +1090,11 @@ struct
         if b1 && b2 then
           incr eq
         else if b1 then begin
-          if get_bool "solverdiffs" then
+          if get_bool "dbg.compare_runs.diff" then
             ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr le
         end else if b2 then begin
-          if get_bool "solverdiffs" then
+          if get_bool "dbg.compare_runs.diff" then
             ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" Node.pretty_plain k CilType.Location.pretty (Node.location k) D.pretty_diff (v1,v2));
           incr gr
         end else
@@ -1137,11 +1122,11 @@ struct
         if b1 && b2 then
           f_eq ()
         else if b1 then begin
-          (* if get_bool "solverdiffs" then *)
+          (* if get_bool "dbg.compare_runs.diff" then *)
           (*   ignore (Pretty.printf "%a @@ %a is more precise using left:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
           f_le ()
         end else if b2 then begin
-          (* if get_bool "solverdiffs" then *)
+          (* if get_bool "dbg.compare_runs.diff" then *)
           (*   ignore (Pretty.printf "%a @@ %a is more precise using right:\n%a\n" pretty_node k CilType.Location.pretty (getLoc k) D.pretty_diff (v1,v2)); *)
           f_gr ()
         end else
@@ -1164,19 +1149,19 @@ struct
     let h2 = PP.create 113 in
     let _  = LH.fold one_ctx l1 h1 in
     let _  = LH.fold one_ctx l2 h2 in
-    Printf.printf "\nComparing precision of %s (left) with %s (right) as GlobConstrSys:\n" name1 name2;
+    Printf.printf "\nComparing GlobConstrSys precision of %s (left) with %s (right):\n" name1 name2;
     compare_globals g1 g2;
     compare_locals h1 h2;
     compare_locals_ctx l1 l2;
     print_newline ();
 end
 
-module CompareEq (Sys: EqConstrSys) (VH: Hashtbl.S with type key = Sys.Var.t) =
+module CompareHashtbl (Var: VarType) (Dom: Lattice.S) (VH: Hashtbl.S with type key = Var.t) =
 struct
   module Var =
   struct
     include Printable.Std
-    include Sys.Var
+    include Var
 
     let pretty = pretty_trace
     include Printable.SimplePretty (
@@ -1186,11 +1171,60 @@ struct
       end
       )
   end
-  module Compare = PrecCompare.MakeHashtbl (Var) (Sys.Dom) (VH)
+
+  include PrecCompare.MakeHashtbl (Var) (Dom) (VH)
+end
+
+module CompareEqSys (Sys: EqConstrSys) (VH: Hashtbl.S with type key = Sys.Var.t) =
+struct
+  module Compare = CompareHashtbl (Sys.Var) (Sys.Dom) (VH)
 
   let compare (name1, name2) vh1 vh2 =
-    Printf.printf "\nComparing precision of %s (left) with %s (right) as EqConstrSys:\n" name1 name2;
-    let (_, msg) = Compare.compare ~name1 vh1 ~name2 vh2 in
-    ignore (Pretty.printf "Comparison summary: %t\n" (fun () -> msg));
+    Printf.printf "\nComparing EqConstrSys precision of %s (left) with %s (right):\n" name1 name2;
+    let verbose = get_bool "dbg.compare_runs.diff" in
+    let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
+    ignore (Pretty.printf "EqConstrSys comparison summary: %t\n" (fun () -> msg));
+    print_newline ();
+end
+
+module CompareGlobal (GVar: VarType) (G: Lattice.S) (GH: Hashtbl.S with type key = GVar.t) =
+struct
+  module Compare = CompareHashtbl (GVar) (G) (GH)
+
+  let compare (name1, name2) vh1 vh2 =
+    Printf.printf "\nComparing globals precision of %s (left) with %s (right):\n" name1 name2;
+    let verbose = get_bool "dbg.compare_runs.diff" in
+    let (_, msg) = Compare.compare ~verbose ~name1 vh1 ~name2 vh2 in
+    ignore (Pretty.printf "Globals comparison summary: %t\n" (fun () -> msg));
+    print_newline ();
+end
+
+module CompareNode (C: Printable.S) (D: Lattice.S) (LH: Hashtbl.S with type key = VarF (C).t) =
+struct
+  module Node =
+  struct
+    include Node
+    let var_id _ = "nodes"
+    let node x = x
+  end
+  module NH = Hashtbl.Make (Node)
+
+  module Compare = CompareHashtbl (Node) (D) (NH)
+
+  let join_contexts (lh: D.t LH.t): D.t NH.t =
+    let nh = NH.create 113 in
+    LH.iter (fun (n, _) d ->
+        let d' = try D.join (NH.find nh n) d with Not_found -> d in
+        NH.replace nh n d'
+      ) lh;
+    nh
+
+  let compare (name1, name2) vh1 vh2 =
+    Printf.printf "\nComparing nodes precision of %s (left) with %s (right):\n" name1 name2;
+    let vh1' = join_contexts vh1 in
+    let vh2' = join_contexts vh2 in
+    let verbose = get_bool "dbg.compare_runs.diff" in
+    let (_, msg) = Compare.compare ~verbose ~name1 vh1' ~name2 vh2' in
+    ignore (Pretty.printf "Nodes comparison summary: %t\n" (fun () -> msg));
     print_newline ();
 end

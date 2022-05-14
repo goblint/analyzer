@@ -201,7 +201,7 @@ struct
   let assign (lval: lval) (rval: exp) (st: t): t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
     let t = Cilfacade.typeOf rval in
-    if isPointerType t then begin
+    if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
       match eval_exp (Lval lval), eval_exp rval with
       (* TODO: should offs_x matter? *)
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->

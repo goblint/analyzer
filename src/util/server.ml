@@ -5,8 +5,7 @@ exception Failure of Response.Error.Code.t * string
 
 type t = {
   mutable file: Cil.file;
-  mutable version_map: (CompareCIL.global_identifier, Cil.global) Hashtbl.t;
-  mutable max_ids: VersionLookup.max_ids;
+  mutable max_ids: MaxIdUtil.max_ids;
   input: IO.input;
   output: unit IO.output;
 }
@@ -58,9 +57,14 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
         match Parser.parse message.params with
         | Ok params -> (
             try
-              R.process params serv
-              |> R.response_to_yojson
-              |> Response.ok id
+              Maingoblint.reset_stats ();
+              let r =
+                R.process params serv
+                |> R.response_to_yojson
+                |> Response.ok id
+              in
+              Maingoblint.do_stats ();
+              r
             with Failure (code, message) -> Response.Error.(make ~code ~message () |> Response.error id))
         | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error id))
     | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:message.method_ () |> Response.error id)
@@ -71,8 +75,8 @@ let handle_request (serv: t) (message: Message.either) (id: Id.t) =
 let serve serv =
   serv.input
   |> Lexing.from_channel
-  |> Yojson.Safe.stream_from_lexbuf (Yojson.init_lexer ())
-  |> Stream.iter (fun json ->
+  |> GobYojson.seq_from_lexbuf (Yojson.init_lexer ())
+  |> Seq.iter (fun json ->
       let message = Message.either_of_yojson json in
       match message.id with
       | Some id -> handle_request serv message id
@@ -80,10 +84,9 @@ let serve serv =
     )
 
 let make ?(input=stdin) ?(output=stdout) file : t =
-  let version_map, max_ids = VersionLookup.create_map file in
+  let max_ids = MaxIdUtil.get_file_max_ids file in
   {
     file;
-    version_map;
     max_ids;
     input;
     output
@@ -106,6 +109,7 @@ let bind () =
 let start file =
   let input, output = bind () in
   GobConfig.set_bool "incremental.save" true;
+  Maingoblint.do_stats (); (* print pre-server stats just in case *)
   serve (make file ?input ?output)
 
 let reparse (s: t) =
@@ -117,31 +121,29 @@ let reparse (s: t) =
 (* Only called when the file has not been reparsed, so we can skip the expensive CFG comparison. *)
 let virtual_changes file =
   let eq (glob: Cil.global) _ _ _ = match glob with
-    | GFun (fdec, _) -> CompareCIL.should_reanalyze fdec, false, None
-    | _ -> false, false, None
+    | GFun (fdec, _) -> not (CompareCIL.should_reanalyze fdec), false, None
+    | _ -> true, false, None
   in
   CompareCIL.compareCilFiles ~eq file file
 
 let increment_data (s: t) file reparsed = match !Serialize.server_solver_data with
   | Some solver_data when reparsed ->
-    Printf.printf "Increment_data\n";
-    let _, changes = VersionLookup.updateMap s.file file s.version_map in
+    let changes = CompareCIL.compareCilFiles s.file file in
     let old_data = Some { Analyses.cil_file = s.file; solver_data } in
-    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file s.version_map changes;
-    { Analyses.changes; old_data; new_file = file }, false
+    s.max_ids <- UpdateCil.update_ids s.file s.max_ids file changes;
+    { server = true; Analyses.changes; old_data; new_file = file }, false
   | Some solver_data ->
     let changes = virtual_changes file in
     let old_data = Some { Analyses.cil_file = file; solver_data } in
-    { Analyses.changes; old_data; new_file = file }, false
-  | _ -> Analyses.empty_increment_data file, true
+    { server = true; Analyses.changes; old_data; new_file = file }, false
+  | _ -> Analyses.empty_increment_data ~server:true file, true
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
   Messages.Table.messages_list := [];
   let file, reparsed = reparse s in
   if reset then (
-    let version_map, max_ids = VersionLookup.create_map file in
-    s.version_map <- version_map;
+    let max_ids = MaxIdUtil.get_file_max_ids file in
     s.max_ids <- max_ids;
     Serialize.server_solver_data := None;
     Serialize.server_analysis_data := None);
@@ -150,6 +152,7 @@ let analyze ?(reset=false) (s: t) =
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
+  Access.reset ();
   s.file <- file;
   GobConfig.set_bool "incremental.load" (not fresh);
   Fun.protect ~finally:(fun () ->
@@ -174,7 +177,6 @@ let () =
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
       with Sys.Break ->
-        assert (GobConfig.get_bool "ana.opt.hashcons"); (* TODO: TD3 doesn't copy input solver data, so will modify it in place and screw up Serialize.server_solver_data accidentally *)
         {status = Aborted}
   end);
 
@@ -203,7 +205,14 @@ let () =
     let name = "messages"
     type params = unit [@@deriving of_yojson]
     type response = Messages.Message.t list [@@deriving to_yojson]
-    let process () _ = !Messages.Table.messages_list
+    let process () _ = Messages.Table.to_list ()
+  end);
+
+  register (module struct
+    let name = "files"
+    type params = unit [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process () _ = Preprocessor.dependencies_to_yojson ()
   end);
 
   register (module struct

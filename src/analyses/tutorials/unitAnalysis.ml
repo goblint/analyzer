@@ -3,7 +3,7 @@
 open Prelude.Ana
 open Analyses
 
-module Spec : Analyses.MCPSpec =
+module Spec : Analyses.MCPSpec with module D = Lattice.Unit and module C = Lattice.Unit =
 struct
   include Analyses.DefaultSpec
 

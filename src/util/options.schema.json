@@ -102,12 +102,6 @@
       "type": "string",
       "default": ""
     },
-    "solverdiffs": {
-      "title": "solverdiffs",
-      "description": "Print out solver differences.",
-      "type": "boolean",
-      "default": false
-    },
     "allfuns": {
       "title": "allfuns",
       "description":
@@ -242,6 +236,47 @@
           "type": "array",
           "items": { "type": "string" },
           "default": []
+        },
+        "compdb": {
+          "title": "pre.compdb",
+          "type": "object",
+          "properties": {
+            "original-path": {
+              "title": "pre.compdb.original-path",
+              "description":
+                "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
+              "type": "string",
+              "default": ""
+            },
+            "split": {
+              "title": "pre.compdb.split",
+              "description": "Split Compilation Database entries containing multiple .c files.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "cil": {
+      "title": "cil",
+      "description": "CIL configuration",
+      "type": "object",
+      "properties": {
+        "merge": {
+          "title": "cil.merge",
+          "type": "object",
+          "properties": {
+            "inlines": {
+              "title": "cil.merge.inlines",
+              "description": "Merge inline functions (by their body printout).",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -291,7 +326,7 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutex", "access", "mallocWrapper", "mhp"
+            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp"
           ]
         },
         "path_sens": {
@@ -299,119 +334,14 @@
           "description": "List of path-sensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "OSEK", "OSEK2", "mutex", "malloc_null", "uninit" ]
+          "default": [ "mutex", "malloc_null", "uninit" ]
         },
         "ctx_insens": {
           "title": "ana.ctx_insens",
           "description": "List of context-insensitive analyses",
           "type": "array",
           "items": { "type": "string" },
-          "default": [ "OSEK2", "stack_loc", "stack_trace_set" ]
-        },
-        "osek": {
-          "title": "ana.osek",
-          "type": "object",
-          "properties": {
-            "oil": {
-              "title": "ana.osek.oil",
-              "description": "Oil file for the analyzed program",
-              "type": "string",
-              "default": ""
-            },
-            "defaults": {
-              "title": "ana.osek.defaults",
-              "description": "Generate default definitions for TASK and ISR",
-              "type": "boolean",
-              "default": true
-            },
-            "isrprefix": {
-              "title": "ana.osek.isrprefix",
-              "description": "Prefix added by the ISR macro",
-              "type": "string",
-              "default": "function_of_"
-            },
-            "taskprefix": {
-              "title": "ana.osek.taskprefix",
-              "description": "Prefix added by the TASK macro",
-              "type": "string",
-              "default": "function_of_"
-            },
-            "isrsuffix": {
-              "title": "ana.osek.isrsuffix",
-              "description": "Suffix added by the ISR macro",
-              "type": "string",
-              "default": ""
-            },
-            "tasksuffix": {
-              "title": "ana.osek.tasksuffix",
-              "description": "Suffix added by the TASK macro",
-              "type": "string",
-              "default": ""
-            },
-            "intrpts": {
-              "title": "ana.osek.intrpts",
-              "description": "Enable constraints for interrupts.",
-              "type": "boolean",
-              "default": false
-            },
-            "check": {
-              "title": "ana.osek.check",
-              "description":
-                "Check if (assumed) OSEK conventions are fullfilled.",
-              "type": "boolean",
-              "default": false
-            },
-            "names": {
-              "title": "ana.osek.names",
-              "description":
-                "OSEK API function (re)names for the analysed program",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "warnfiles": {
-              "title": "ana.osek.warnfiles",
-              "description": "Print all warning types to separate file",
-              "type": "boolean",
-              "default": false
-            },
-            "safe_vars": {
-              "title": "ana.osek.safe_vars",
-              "description": "Suppress warnings on these vars",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "safe_task": {
-              "title": "ana.osek.safe_task",
-              "description": "Ignore accesses in these tasks",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "safe_isr": {
-              "title": "ana.osek.safe_isr",
-              "description": "Ignore accesses in these isr",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "flags": {
-              "title": "ana.osek.flags",
-              "description": "List of global variables that are flags.",
-              "type": "array",
-              "items": { "type": "string" },
-              "default": []
-            },
-            "def_header": {
-              "title": "ana.osek.def_header",
-              "description":
-                "Generate TASK/ISR macros with default structure",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
+          "default": [ "stack_loc", "stack_trace_set" ]
         },
         "int": {
           "title": "ana.int",
@@ -448,7 +378,7 @@
             "refinement": {
               "title": "ana.int.refinement",
               "description":
-                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'",
+                "Use mutual refinement of integer domains. Either 'never', 'once' or 'fixpoint'. Counterintuitively, may reduce precision unless ana.int.interval_narrow_by_meet is also enabled.",
               "type": "string",
               "enum": ["never", "once", "fixpoint"],
               "default": "never"
@@ -457,6 +387,12 @@
               "title": "ana.int.def_exc_widen_by_join",
               "description":
                 "Perform def_exc widening by joins. Gives threshold-widening like behavior, with thresholds given by the ranges of different integer types.",
+              "type": "boolean",
+              "default": false
+            },
+            "interval_narrow_by_meet": {
+              "title": "ana.int.interval_narrow_by_meet",
+              "description": "Perform interval narrowing by meets. Avoids precision loss if intervals are refined by def_exc ranges, which are more precise than type range.",
               "type": "boolean",
               "default": false
             },
@@ -751,9 +687,9 @@
             "privatization": {
               "title": "ana.base.privatization",
               "description":
-                "Which privatization to use? none/protection-old/mutex-oplus/mutex-meet/protection/protection-read/protection-vesal/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
+                "Which privatization to use? none/mutex-oplus/mutex-meet/protection/protection-read/mine/mine-nothread/mine-W/mine-W-noinit/lock/write/write+lock",
               "type": "string",
-              "enum": ["none", "protection-old", "mutex-oplus", "mutex-meet", "protection", "protection-read", "protection-vesal", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
+              "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
               "default": "protection-read"
             }
           },
@@ -875,6 +811,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "race": {
+          "title": "ana.race",
+          "type": "object",
+          "properties": {
+            "free": {
+              "title": "ana.race.free",
+              "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -891,6 +840,12 @@
           "type": "boolean",
           "default": false
         },
+        "load-dir": {
+          "title": "incremental.load-dir",
+          "description": "Location where to load incremental analysis results from.",
+          "type": "string",
+          "default": "incremental_data"
+        },
         "only-rename": {
           "title": "incremental.only-rename",
           "description":
@@ -903,6 +858,12 @@
           "description": "Store incremental analysis results.",
           "type": "boolean",
           "default": false
+        },
+        "save-dir": {
+          "title": "incremental.save-dir",
+          "description": "Location where to save incremental analysis results to.",
+          "type": "string",
+          "default": "incremental_data"
         },
         "stable": {
           "title": "incremental.stable",
@@ -990,6 +951,13 @@
                   "title": "sem.unknown_function.invalidate.globals",
                   "description":
                     "Unknown function call invalidates all globals",
+                  "type": "boolean",
+                  "default": true
+                },
+                "args": {
+                  "title": "sem.unknown_function.invalidate.args",
+                  "description":
+                    "Unknown function call invalidates arguments passed to it",
                   "type": "boolean",
                   "default": true
                 }
@@ -1082,6 +1050,33 @@
                 "Path to the JSON file containing an expression evaluation query.",
               "type": "string",
               "default": ""
+            }
+          },
+          "additionalProperties": false
+        },
+        "output" : {
+          "title": "trans.output",
+          "description": "Output filename for transformations that output a transformed file.",
+          "type":"string",
+          "default": "transformed.c"
+        },
+        "assert": {
+          "title": "trans.assert",
+          "type": "object",
+          "properties": {
+            "full": {
+              "title": "trans.assert.full",
+              "description":
+                "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
+              "type": "boolean",
+              "default": true
+            },
+            "only-at-locks":{
+              "title": "trans.assert.only-at-locks",
+              "description":
+                "Only put locks after mutexes have been acquired.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -1231,10 +1226,18 @@
           "type": "boolean",
           "default": false
         },
-        "precious_globs": {
-          "title": "exp.precious_globs",
+        "exclude_from_earlyglobs": {
+          "title": "exp.exclude_from_earlyglobs",
           "description":
             "Global variables that should be handled flow-sensitively when using earlyglobs.",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "exclude_from_invalidation" : {
+          "title": "exp.exclude_from_invalidation",
+          "description":
+            "Global variables that should not be invalidated. This assures the analysis that such globals are only modified through known code",
           "type": "array",
           "items": { "type": "string" },
           "default": []
@@ -1291,20 +1294,6 @@
             "Location of gcc. Used to combine source files with cilly. Change to gcc-9 or another version on OS X (with gcc being clang by default cilly will fail otherwise).",
           "type": "string",
           "default": "/usr/bin/gcc"
-        },
-        "compdb": {
-          "title": "exp.compdb",
-          "type": "object",
-          "properties": {
-            "original-path": {
-              "title": "exp.compdb.original-path",
-              "description":
-                "Original absolute path of Compilation Database. Used to reroot all absolute paths in there if moved, e.g. in container mounts.",
-              "type": "string",
-              "default": ""
-            }
-          },
-          "additionalProperties": false
         },
         "cpp-path": {
           "title": "exp.cpp-path",
@@ -1502,17 +1491,35 @@
           "title": "dbg.compare_runs",
           "type": "object",
           "properties": {
-            "glob": {
-              "title": "dbg.compare_runs.glob",
+            "globsys": {
+              "title": "dbg.compare_runs.globsys",
               "description": "Compare GlobConstrSys in compare_runs",
               "type": "boolean",
-              "default": true
+              "default": false
             },
-            "eq": {
-              "title": "dbg.compare_runs.eq",
+            "eqsys": {
+              "title": "dbg.compare_runs.eqsys",
               "description": "Compare EqConstrSys in compare_runs",
               "type": "boolean",
               "default": true
+            },
+            "global": {
+              "title": "dbg.compare_runs.global",
+              "description": "Compare globals in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "node": {
+              "title": "dbg.compare_runs.node",
+              "description": "Compare nodes (with joined contexts) in compare_runs",
+              "type": "boolean",
+              "default": false
+            },
+            "diff": {
+              "title": "dbg.compare_runs.diff",
+              "description": "Print differences",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1566,6 +1573,12 @@
         "race": {
           "title": "warn.race",
           "description": "Race warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "deadlock": {
+          "title": "warn.deadlock",
+          "description": "Deadlock warnings",
           "type": "boolean",
           "default": true
         },
@@ -1634,6 +1647,12 @@
           "description": "Quote code in message output.",
           "type": "boolean",
           "default": false
+        },
+        "race-threshold": {
+          "title": "warn.race-threshold",
+          "description": "Races with confidence at least threshold are warnings, lower are infos.",
+          "type": "integer",
+          "default": 0
         }
       },
       "additionalProperties": false
@@ -1680,6 +1699,12 @@
                 "Should the td3-space solver restore values for non-widening-points? Not needed for generating warnings, but needed for inspecting output!",
               "type": "boolean",
               "default": true
+            },
+            "verify": {
+              "title": "solvers.td3.verify",
+              "description": "Check TD3 data structure invariants",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1705,6 +1730,12 @@
       "title": "witness",
       "type": "object",
       "properties": {
+        "enabled": {
+          "title": "witness.enabled",
+          "description": "Output witness",
+          "type": "boolean",
+          "default": true
+        },
         "path": {
           "title": "witness.path",
           "description": "Witness output path",

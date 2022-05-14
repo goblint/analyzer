@@ -275,8 +275,8 @@ struct
           (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
           let (n, g): V.t = Obj.obj g in
           f ~q:(WarnGlobal (Obj.repr g)) (Result.top ()) (n, spec n, assoc n ctx.local)
-        | Queries.PartAccess {exp; var_opt; write} ->
-          Obj.repr (access ctx exp var_opt write)
+        | Queries.PartAccess a ->
+          Obj.repr (access ctx a)
         (* | EvalInt e ->
            (* TODO: only query others that actually respond to EvalInt *)
            (* 2x speed difference on SV-COMP nla-digbench-scaling/ps6-ll_valuebound5.c *)
@@ -291,11 +291,11 @@ struct
     let querycache = QueryHash.create 13 in
     query' ~querycache QuerySet.empty ctx q
 
-  and access (ctx:(D.t, G.t, C.t, V.t) ctx) e vo w: MCPAccess.A.t =
+  and access (ctx:(D.t, G.t, C.t, V.t) ctx) a: MCPAccess.A.t =
     let ctx'' = outer_ctx "access" ctx in
     let f (n, (module S: MCPSpec), d) =
       let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "access" ctx'' n d in
-      (n, repr (S.access ctx' e vo w))
+      (n, repr (S.access ctx' a))
     in
     BatList.map f (spec_list ctx.local) (* map without deadcode *)
 
@@ -406,22 +406,6 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let intrpt (ctx:(D.t, G.t, C.t, V.t) ctx) =
-    let spawns = ref [] in
-    let splits = ref [] in
-    let sides  = ref [] in
-    let emits = ref [] in
-    let ctx'' = outer_ctx "interpt" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "interpt" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.intrpt ctx'
-    in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
-    if q then raise Deadcode else d
 
   let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in

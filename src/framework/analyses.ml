@@ -272,16 +272,14 @@ struct
     | "sarif" ->
       let open BatPrintf in
       printf "Writing Sarif to file: %s\n%!" (get_string "outfile");
-      Yojson.Safe.pretty_to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
+      Yojson.Safe.to_channel ~std:true out (Sarif.to_yojson (List.rev !Messages.Table.messages_list));
     | "json-messages" ->
-      let files = Hashtbl.to_list Preprocessor.dependencies in
-      let filter_system = List.filter_map (fun (f,system) -> if system then None else Some f) in
       let json = `Assoc [
-          ("files", `Assoc (List.map (Tuple2.map2 (fun deps -> [%to_yojson:string list] @@ filter_system deps)) files));
+          ("files", Preprocessor.dependencies_to_yojson ());
           ("messages", Messages.Table.to_yojson ());
         ]
       in
-      Yojson.Safe.pretty_to_channel ~std:true out json
+      Yojson.Safe.to_channel ~std:true out json
     | "none" -> ()
     | s -> failwith @@ "Unsupported value for option `result`: "^s
 end
@@ -368,7 +366,6 @@ sig
   val branch: (D.t, G.t, C.t, V.t) ctx -> exp -> bool -> D.t
   val body  : (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t
   val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
-  val intrpt: (D.t, G.t, C.t, V.t) ctx -> D.t
   val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
   val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
 
@@ -397,7 +394,7 @@ sig
   val event : (D.t, G.t, C.t, V.t) ctx -> Events.t -> (D.t, G.t, C.t, V.t) ctx -> D.t
 
   module A: MCPA
-  val access: (D.t, G.t, C.t, V.t) ctx -> exp -> varinfo option -> bool -> A.t
+  val access: (D.t, G.t, C.t, V.t) ctx -> Queries.access -> A.t
 end
 
 type analyzed_data = {
@@ -406,12 +403,15 @@ type analyzed_data = {
 }
 
 type increment_data = {
+  server: bool;
+
   old_data: analyzed_data option;
   new_file: Cil.file;
   changes: CompareCIL.change_info
 }
 
-let empty_increment_data file = {
+let empty_increment_data ?(server=false) file = {
+  server;
   old_data = None;
   new_file = file;
   changes = CompareCIL.empty_change_info ()
@@ -549,9 +549,6 @@ struct
   (* prettier name for equation variables --- currently base can do this and
      MCP just forwards it to Base.*)
 
-  let intrpt x = x.local
-  (* Just ignore. *)
-
   let vdecl ctx _ = ctx.local
 
   let asm x =
@@ -575,7 +572,7 @@ struct
   (* Everything is context sensitive --- override in MCP and maybe elsewhere*)
 
   module A = UnitA
-  let access _ _ _ _ = ()
+  let access _ _ = ()
 end
 
 (* Even more default implementations. Most transfer functions acting as identity functions. *)

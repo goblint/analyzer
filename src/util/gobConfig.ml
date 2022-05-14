@@ -28,6 +28,8 @@ exception ConfigError of string
 (* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
 let phase = ref 0
 
+let building_spec = ref false
+
 
 module Validator = JsonSchema.Validator (struct let schema = Options.schema end)
 module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.require_all end)
@@ -35,6 +37,8 @@ module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.r
 (** The type for [gobConfig] module. *)
 module type S =
 sig
+  val get_json: string -> Yojson.Safe.t
+
   (** Functions to query conf variable of type int. *)
   val get_int    : string -> int
 
@@ -73,10 +77,10 @@ sig
   val print : 'a BatInnerIO.output -> unit
 
   (** Write the current configuration to [filename] *)
-  val write_file: string -> unit
+  val write_file: Fpath.t -> unit
 
   (** Merge configurations from a file with current. *)
-  val merge_file : string -> unit
+  val merge_file : Fpath.t -> unit
 
   (** Merge configurations from a JSON object with current. *)
   val merge : Yojson.Safe.t -> unit
@@ -172,7 +176,7 @@ struct
   (** Helper function to print the conf using [printf "%t"] and alike. *)
   let print ch : unit =
     GobYojson.print ch !json_conf
-  let write_file filename = File.with_file_out filename print
+  let write_file filename = File.with_file_out (Fpath.to_string filename) print
 
   (** Main function to receive values from the conf. *)
   let rec get_value o pth =
@@ -281,6 +285,7 @@ struct
       eprintf "Cannot find value '%s' in\n%t\nDid You forget to add default values to options.schema.json?\n"
         st print;
       failwith "get_path_string"
+  let get_json = get_path_string Fun.id
 
   (** Convenience functions for reading values. *)
   (* memoize for each type with BatCache: *)
@@ -300,10 +305,16 @@ struct
     in
     drop memo_int; drop memo_bool; drop memo_string; drop memo_list
 
-  let get_int    = memo_int.get
-  let get_bool   = memo_bool.get
-  let get_string = memo_string.get
-  let get_list   = memo_list.get
+  let wrap_get f x =
+    (* self-observe options, which Spec construction depends on *)
+    if !building_spec && Tracing.tracing then Tracing.trace "config" "get during building_spec: %s\n" x;
+    (* TODO: blacklist such building_spec option from server mode modification since it will have no effect (spec is already built) *)
+    f x
+
+  let get_int    = wrap_get memo_int.get
+  let get_bool   = wrap_get memo_bool.get
+  let get_string = wrap_get memo_string.get
+  let get_list   = wrap_get memo_list.get
   let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
   (** Helper functions for writing values. *)
@@ -347,9 +358,9 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in fn in
+    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
     merge v;
-    if tracing then trace "conf" "Merging with '%s', resulting\n%a.\n" fn GobYojson.pretty !json_conf
+    if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
 end
 
 include Impl
