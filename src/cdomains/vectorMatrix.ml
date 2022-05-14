@@ -233,6 +233,8 @@ sig
 
   val normalize_pt_with: t -> t Option.t
 
+  val rref_vec_with: t -> vec -> t Option.t
+
   val find_opt: (vec -> bool) -> t -> vec option
 
   val map2: (vec -> num -> vec) -> t -> vec -> t
@@ -405,6 +407,8 @@ module ListMatrix : AbstractMatrix =
         | _ -> v
       in
       map2i f m v'
+
+    let rref_vec_with m v = normalize @@ append_matrices m (init_with_vec v)
   end
 
 
@@ -512,6 +516,8 @@ module ArrayMatrix: AbstractMatrix =
     let copy m =
       let cp = Array.make_matrix (num_rows m) (num_cols m) (of_int 0) in
       Array.iteri (fun i x -> Array.blit x 0 cp.(i) 0 (num_cols m)) m; cp
+
+    let copy m = Stats.time "copy" copy m
 
     let add_empty_column m n =
       if is_empty m then m else
@@ -664,6 +670,57 @@ module ArrayMatrix: AbstractMatrix =
         done
       with Exit -> ();;
 
+    let rref_with m = Stats.time "rref_with" rref_with m
+
+    let init_with_vec v =
+      let new_matrix = Array.make_matrix 1 (V.length v) (of_int 0) in
+      new_matrix.(0) <- (V.to_array v); new_matrix
+
+    let rref_vec_with m v =
+      (*This function yields the same result as appending vector v to m and normalizing it afterwards would. However, it is usually faster than performing those ops manually.*)
+      (*m must be in rref form and contain the same num of cols as v*)
+      (*If m is empty then v is simply normalized and returned*)
+      let v = V.to_array v in
+      if is_empty m then
+        match Array.findi (fun x -> x <> of_int 0) v with
+        | exception Not_found -> None
+        | i -> if i = Array.length v - 1 then None else
+            let v_i = v.(i) in
+            Array.iteri (fun j x -> v.(j) <- x /: v_i) v; Some (init_with_vec @@ V.of_array v)
+      else
+        let reduce_col_with_vec j v =
+          for i = 0 to num_rows m - 1 do
+            if m.(i).(j) <> of_int 0 then
+              let beta = m.(i).(j) /: v.(j) in
+              Array.iteri (fun j' x ->  m.(i).(j') <- x -: beta *: v.(j')) m.(i)
+          done;
+        in
+        let pivot_elements = Array.make (num_rows m) 0
+        in Array.iteri (fun i x -> pivot_elements.(i) <- Array.findi (fun z -> z = of_int 1) x) m;
+        let insert = ref (-1) in
+        for j = 0 to Array.length v -2 do
+          if v.(j) <> of_int 0 then
+            match Array.bsearch  Int.ord pivot_elements j with
+            | `At i -> let beta = v.(j) /: m.(i).(j) in
+              Array.iteri (fun j' x -> v.(j') <- x -: beta *: m.(i).(j')) v
+            | _ -> if !insert < 0 then (let v_i = v.(j) in
+                                        Array.iteri (fun j' x -> v.(j') <- x /: v_i) v; insert := j;
+                                        reduce_col_with_vec j v)
+
+        done;
+        if !insert < 0 then (
+          if v.(Array.length v -1) <> of_int 0 then None
+          else Some m
+        )
+        else
+          let new_m = Array.create_matrix (num_rows m + 1) (num_cols m) (of_int 0)
+          in let (i, j) = Array.pivot_split Int.ord pivot_elements !insert in
+          if i = 0 && j = 0 then (new_m.(0) <- v; Array.blit m 0 new_m 1 (num_rows m))
+          else if i = num_rows m && j = num_rows m then (Array.blit m 0  new_m 0 j; new_m.(j) <- v)
+          else (Array.blit m 0 new_m 0 i; new_m.(i) <- v; Array.blit m i new_m (i + 1) (Array.length m - j));
+          Some new_m
+
+    let rref_vec_with m = Stats.time "rref_vec_with" rref_vec_with m
 
     let normalize_pt_with m =
       rref_with m;
@@ -673,6 +730,8 @@ module ArrayMatrix: AbstractMatrix =
       in
       if Array.exists (fun v -> is_unsolvable_row v) m then None
       else Some (remove_zero_rows m)
+
+    let normalize_pt_with m = Stats.time "normalize_pt_with" normalize_pt_with m
 
     let normalize m =
       let copy = copy m in
@@ -728,10 +787,6 @@ module ArrayMatrix: AbstractMatrix =
         for i = 0 to Stdlib.min (num_rows m) (V.length v) -1 do
           m.(i) <- V.to_array @@ f i (V.of_array m.(i)) (V.nth v i)
         done; m
-
-    let init_with_vec v =
-      let new_matrix = Array.make_matrix 1 (V.length v) (of_int 0) in
-      new_matrix.(0) <- (V.to_array v); new_matrix
 
     let copy_pt = copy
   end

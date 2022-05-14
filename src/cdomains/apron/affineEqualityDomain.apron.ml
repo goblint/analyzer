@@ -35,6 +35,8 @@ struct
         | Some m -> Some (if add then dim_add dim_change m else dim_remove dim_change m del)
     in {d = d'; env = new_env}
 
+  let change_d t new_env add del = Stats.time "dimension change" change_d t new_env add del
+
   let add_vars t vars =
     let vs' =
       vars
@@ -137,6 +139,8 @@ struct
     in match convert_texpr texp with
     | exception NotLinear -> None
     | x -> Some(x)
+
+  let get_coeff_vec t texp = Stats.time "coeff_vec" get_coeff_vec t texp
 end
 
 module ExpressionBounds (V: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(V) (Mx).t) =
@@ -159,6 +163,8 @@ struct
     match res with
     | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
     | _ -> res
+
+  let bound_texpr d texpr1 = Stats.time "bounds calculation" bound_texpr d texpr1
 end
 
 module D2(V: AbstractVector) (Mx: AbstractMatrix): SharedFunctions.AssertionRelD2 with type var = SharedFunctions.Var.t =
@@ -206,6 +212,7 @@ struct
     match t.d with
     | None -> true
     | _ -> false
+
   let top () =
     {d = Some (Matrix.empty ()); env = Environment.make [||] [||] }
 
@@ -224,8 +231,10 @@ struct
 
   let meet t1 t2 =
     let res = meet t1 t2 in
-    if M.tracing then M.tracel "meet" "meet \n a: %s \n b: %s -> %s \n" (show t1) (show t2) (show res) ;
+    if M.tracing then M.tracel "ops" "meet \n a: %s \n b: %s -> %s \n" (show t1) (show t2) (show res) ;
     res
+
+  let meet a b = Stats.time "meet" meet a b
 
   let leq t1 t2 =
     let env_comp = Environment.compare t1.env t2.env in
@@ -235,6 +244,8 @@ struct
       let m1, m2 = Option.get t1.d, Option.get t2.d in
       let m1' = if env_comp = 0 then m1 else dim_add (Environment.dimchange t1.env t2.env) m1 in
       Matrix.is_covered_by m2 m1')
+
+  let leq a b = Stats.time "leq" leq a b
 
   let leq t1 t2 =
     let res = leq t1 t2 in
@@ -293,9 +304,11 @@ struct
     | Some x, Some y when Matrix.equal x y -> {d = Some x; env = a.env}
     | Some x, Some y  -> {d = Some(lin_disjunc 0 0 (Matrix.copy_pt x) (Matrix.copy_pt y)); env = a.env}
 
+  let join a b = Stats.time "join" join a b
+
   let join a b =
     let res = join a b in
-    if M.tracing then M.tracel "join" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
+    if M.tracing then M.tracel "ops" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
     res
   let widen a b = join a b
   let narrow a b = meet a b
@@ -305,6 +318,8 @@ struct
   let remove_rels_with_var x var env imp =
     let j0 = Environment.dim_of_var env var in
     if imp then Matrix.reduce_col_pt_with x j0 else Matrix.reduce_col x j0
+
+  let remove_rels_with_var x var env imp = Stats.time "remove_rels_with_var" remove_rels_with_var x var env imp
 
   let forget_vars t vars =
     match t.d with
@@ -316,6 +331,13 @@ struct
             |            [] -> m
             | x :: xs -> rem_vars (remove_rels_with_var m x t.env true) xs end
         in {d = Some (Matrix.remove_zero_rows @@ rem_vars (Matrix.copy_pt m) vars); env = t.env}
+
+  let forget_vars t vars =
+    let res = forget_vars t vars in
+    if M.tracing then M.tracel "ops" "forget_vars %s -> %s\n" (show t) (show res);
+    res
+
+  let forget_vars t vars = Stats.time "forget_vars" forget_vars t vars
 
   let assign_texpr (t: VarManagement(V)(Mx).t) var texp =
     let assign_invertible_rels x var b env =
@@ -329,20 +351,25 @@ struct
           else z +: y *: d) x b) m rd_a
       in {d = Some (recalc_entries x reduced_a); env = env}
     in
+    let assign_invertible_rels x var b env = Stats.time "assign_invertible" (assign_invertible_rels x var b) env in
     let assign_uninvertible_rel x var b env =
-      let neg_vec = Vector.mapi_pt_with (fun i z -> if Vector.compare_length_with b (i + 1) > 0 then of_int (-1) *: z else z) b
+      let b_length = Vector.length b in
+      let neg_vec = Vector.mapi_pt_with (fun i z -> if i < b_length - 1 then of_int (-1) *: z else z) b
       in let var_vec = Vector.set_val_pt_with neg_vec (Environment.dim_of_var env var) (of_int 1)
-      in {d = Matrix.normalize_pt_with @@ Matrix.append_row x var_vec; env = env}
+      in {d = Matrix.rref_vec_with x var_vec; env = env}
     in
+    let assign_uninvertible_rel x var b env = Stats.time "assign_uninvertible" (assign_uninvertible_rel x var b) env in
     let is_invertible v = Vector.nth v @@ Environment.dim_of_var t.env var <> of_int 0
     in let affineEq_vec = get_coeff_vec t texp
     in match t.d, affineEq_vec with
     | None, _ -> failwith "Can not assign to bottom state!"
-    | Some m, Some v when Matrix.is_empty m-> if is_invertible v then t else assign_uninvertible_rel (Matrix.empty ()) var v t.env
+    | Some m, Some v when Matrix.is_empty m -> if is_invertible v then t else assign_uninvertible_rel m var v t.env
     | Some x, Some v -> if is_invertible v then let t' = assign_invertible_rels (Matrix.copy_pt x) var v t.env in {d = Matrix.normalize_pt_with @@ Option.get @@ t'.d; env = t'.env}
       else let new_x = Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env false
         in assign_uninvertible_rel new_x var v t.env
     | Some x, None -> {d = Some (Matrix.remove_zero_rows @@ remove_rels_with_var x var t.env false); env = t.env}
+
+  let assign_texpr t var texp = Stats.time "assign_texpr" (assign_texpr t var) texp
 
   let assign_exp (t: VarManagement(V)(Mx).t) var exp (no_ov: bool Lazy.t) =
     match Convert.texpr1_expr_of_cil_exp t t.env (Lazy.force no_ov) exp with
@@ -353,7 +380,7 @@ struct
 
   let assign_exp t var exp no_ov =
     let res = assign_exp t var exp no_ov in
-    if M.tracing then M.tracel "assign" "assign_exp t:\n %s \n var: %s \n exp: %s\n no_ov: %b -> \n %s\n"
+    if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %s\n no_ov: %b -> \n %s\n"
         (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (Lazy.force no_ov) (show res) ;
     res
   let assign_var (t: VarManagement(V)(Mx).t) v v' =
@@ -362,7 +389,7 @@ struct
 
   let assign_var t v v' =
     let res = assign_var t v v' in
-    if M.tracing then M.tracel "var" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
+    if M.tracing then M.tracel "ops" "assign_var t:\n %s \n v: %s \n v': %s\n -> %s\n" (show t) (Var.to_string v) (Var.to_string v') (show res) ;
     res
 
   let assign_var_parallel t vv's =
@@ -380,8 +407,15 @@ struct
       {d = Matrix.normalize_pt_with (Option.get res.d); env = res.env}
     | _ -> t
 
+  let assign_var_parallel t vv's = Stats.time "var_parallel" assign_var_parallel t vv's
+
   let assign_var_parallel_pt_with t vv's =
     assign_var_parallel t vv's
+
+  let assign_var_parallel_pt_with t vv's =
+    let res = assign_var_parallel_pt_with t vv's in
+    if M.tracing then M.tracel "ops" "assign_var parallel'\n";
+    res
 
   let assign_var_parallel' t vs1 vs2 =
     let vv's = List.combine vs1 vs2 in
@@ -399,8 +433,10 @@ struct
 
   let substitute_exp t var exp ov =
     let res = substitute_exp t var exp ov
-    in if M.tracing then M.tracel "sub" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res);
+    in if M.tracing then M.tracel "ops" "Substitute_expr t: \n %s \n var: %s \n exp: %s \n -> \n %s\n" (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (show res);
     res
+
+  let substitute_exp t var exp ov = Stats.time "substitution" substitute_exp t var exp ov
 
   (** Assert a constraint expression. *)
   let meet_with_tcons t tcons expr =
@@ -410,7 +446,7 @@ struct
     let meet_with_vec e =
       (*Flip the sign of the const. val in coeff vec*)
       let flip_e = Vector.mapi_pt_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e in
-      let res = meet t {d = Matrix.normalize_pt_with @@ Matrix.init_with_vec flip_e; env = t.env} in
+      let res = {d = if Option.is_none t.d then None else Matrix.rref_vec_with (Matrix. copy_pt @@ Option.get t.d) flip_e; env = t.env} in
       let overflow_res res = if IntDomain.should_ignore_overflow (Cilfacade.get_ikind_exp expr) then res else raise NotRefinable in
       match Convert.determine_bounds_one_var expr with
       | None -> overflow_res res
@@ -440,8 +476,15 @@ struct
         | _, _ -> t end
     | None -> t
 
+  let meet_with_tcons t tcons expr = Stats.time "meet_with_tcons" (meet_with_tcons t tcons) expr
+
   let unify a b =
     meet a b
+
+  let unify a b =
+    let res = unify a b  in
+    if M.tracing then M.tracel "ops" "unify: %s %s -> %s\n" (show a) (show b) (show res);
+    res
 
   let assert_cons d e negate no_ov =
     let no_ov = Lazy.force no_ov in
@@ -451,6 +494,8 @@ struct
       | exception Convert.Unsupported_CilExp ->
         d
     end
+
+  let assert_cons d e negate no_ov = Stats.time "assert_cons" assert_cons d e negate no_ov
 
   let relift t = t
 
