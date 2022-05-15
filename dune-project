@@ -34,6 +34,7 @@
     ppx_deriving_hash
     ppx_deriving_yojson
     (ppx_blob (>= 0.6.0))
+    round
     (ocaml-monadic (>= 0.5))
     (ounit2 :with-test)
     (qcheck-ounit :with-test)

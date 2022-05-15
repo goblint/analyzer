@@ -30,6 +30,7 @@ depends: [
   "ppx_deriving_hash"
   "ppx_deriving_yojson"
   "ppx_blob" {>= "0.6.0"}
+  "round"
   "ocaml-monadic" {>= "0.5"}
   "ounit2" {with-test}
   "qcheck-ounit" {with-test}
@@ -73,4 +74,5 @@ pin-depends: [
   # [ "ppx_deriving_yojson.3.6.1" "git+https://github.com/ocaml-ppx/ppx_deriving_yojson.git#e030f13a3450e9cf7d2c43fa04e709ef608486cd" ]
   # TODO: add back after release, only pinned for CI stability
   [ "apron.v0.9.13" "git+https://github.com/antoinemine/apron.git#c852ebcc89e5cf4a5a3318e7c13c73e1756abb11"]
+  [ "round.0.1" "git+https://github.com/brgr/ocaml-round.git#2dfe43050bfdac885607b6697c19c2ed913d5be4"]
 ]
