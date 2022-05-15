@@ -49,6 +49,7 @@ let eval_int_binop operation op1 op2 =
     (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
 
 let add (low1, high1) (low2, high2) = Some (low1 +. low2, high1 +. high2)
+
 let sub (low1, high1) (low2, high2) = Some (low1 -. low2, high1 -. high2)
 
 let mul (low1, high1) (low2, high2) =
@@ -87,17 +88,20 @@ let lt (low1, high1) (low2, high2) =
 let gt (low1, high1) (low2, high2) =
   if low1 > high2 then (1, 1) else if high1 < low2 then (0, 0) else (0, 1)
 
-module FloatDomTuple = struct
+module FloatInterval = struct
   type t = (float * float) option [@@deriving eq, to_yojson]
 
   let of_const f = Some (f, f)
+
   let hash = Hashtbl.hash
+
   let compare _ _ = failwith "todo"
 
   let show = function
-    | None -> "Float [arbitrary]"
+    | None ->
+        "Float [arbitrary]"
     | Some (low, high) ->
-      "Float [" ^ string_of_float low ^ "," ^ string_of_float high ^ "]"
+        "Float [" ^ string_of_float low ^ "," ^ string_of_float high ^ "]"
 
   let pretty () x = text (show x)
 
@@ -105,12 +109,19 @@ module FloatDomTuple = struct
     BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
   let name () = "float interval domain"
+
   let invariant _ (x : t) = failwith "todo"
+
   let tag (x : t) = failwith "todo"
+
   let arbitrary () = failwith "todo"
+
   let relift (x : t) = failwith "todo"
+
   let leq _ _ = failwith "todo"
+
   let join _ _ = failwith "todo"
+
   let meet _ _ = failwith "todo"
 
   (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
@@ -123,30 +134,44 @@ module FloatDomTuple = struct
     Pretty.dprintf "%a instead of %a" pretty x pretty y
 
   let bot () = failwith "no bot exists"
+
   let is_bot _ = failwith "no bot exists"
+
   let top () = None
+
   let is_top = Option.is_none
+
   let neg = Option.map (fun (low, high) -> (-.high, -.low))
+
   let add = eval_binop add
+
   let sub = eval_binop sub
+
   let mul = eval_binop mul
+
   let div = eval_binop div
+
   let lt = eval_int_binop lt
+
   let gt = eval_int_binop gt
+
   let le _ _ = failwith "todo - le"
+
   let ge _ _ = failwith "todo - ge"
+
   let eq = eval_int_binop eq
+
   let ne = eval_int_binop ne
 end
 
-module FloatDomainImpl = struct
+module FloatDomImpl = struct
   include Printable.Std (* for default invariant, tag, ... *)
-  module F1 = FloatDomTuple
+  module F1 = FloatInterval
   open Batteries
 
   type t = F1.t option [@@deriving to_yojson, eq, ord]
 
-  let name () = "floatdomtuple"
+  let name () = "FloatInterval"
 
   type 'a m = (module FloatDomainBase with type t = 'a)
   (* only first-order polymorphism on functions 
@@ -163,7 +188,7 @@ module FloatDomainImpl = struct
 
   let create r x =
     (* use where values are introduced *)
-    create r x (float_precision_from_node_or_config ())
+    create r x (float_precision_from_config ())
 
   let opt_map2 f =
     curry @@ function Some x, Some y -> Some (f x y) | _ -> None

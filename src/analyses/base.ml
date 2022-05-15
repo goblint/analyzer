@@ -2007,7 +2007,7 @@ struct
     let new_cpa = CPA.add_list_fun reachable (fun v -> CPA.find v st.cpa) new_cpa in
 
     (* Projection to Precision of the Callee *)
-    let p = PU.precision_from_fundec fundec in
+    let p = PU.int_precision_from_fundec fundec in
     let new_cpa = project (Some p) new_cpa in
 
     (* Identify locals of this fundec for which an outer copy (from a call down the callstack) is reachable *)
@@ -2448,7 +2448,7 @@ struct
       let nst = add_globals st fun_st in
 
       (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let p = PrecisionUtil.int_precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
       let return_val = project_val (Some p) return_val (is_privglob (return_varinfo ())) in
       let cpa' = project (Some p) nst.cpa in
 
