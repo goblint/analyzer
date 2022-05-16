@@ -1,0 +1,21 @@
+--- tests/incremental/05-method_rename/01-dependent_rename.c
++++ tests/incremental/05-method_rename/01-dependent_rename.c
+@@ -1,14 +1,14 @@
+ #include<stdio.h>
+
+-void fun1() {
++void bar1() {
+     printf("fun1");
+ }
+
+-void fun2() {
+-    fun1();
++void bar2() {
++    bar1();
+ }
+
+ int main() {
+-    fun2();
++    bar2();
+     return 0;
+ }

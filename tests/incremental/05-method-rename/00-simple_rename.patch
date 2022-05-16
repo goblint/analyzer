@@ -1,0 +1,15 @@
+--- tests/incremental/05-method_rename/00-simple_rename.c
++++ tests/incremental/05-method_rename/00-simple_rename.c
+@@ -1,10 +1,10 @@
+ #include<stdio.h>
+
+-void foo() {
++void bar() {
+     printf("foo");
+ }
+
+ int main() {
+-    foo();
++    bar();
+     return 0;
+ }
