@@ -14,8 +14,8 @@ sig
   (* Constants *)
   val zero : t
   val one : t
-  val lower_bound : t option
-  val upper_bound : t option
+  val lower_bound : t option (* TODO: unused *)
+  val upper_bound : t option (* TODO: unused *)
 
   (* Arithmetic *)
   val neg : t -> t
@@ -42,7 +42,7 @@ sig
   val compare : t -> t -> int
   val equal : t -> t -> bool
   val hash : t -> int
-  val top_range : t -> t -> bool
+  val top_range : t -> t -> bool (* TODO: unused *)
   val max : t -> t -> t
   val min : t -> t -> t
 
@@ -51,7 +51,7 @@ sig
   val to_int : t -> int
   val of_int64 : int64 -> t
   val to_int64 : t -> int64
-  val of_string : string -> t
+  val of_string : string -> t (* TODO: unused *)
   val to_string : t -> string
   val of_bigint : Big_int_Z.big_int -> t
   val to_bigint : t -> Big_int_Z.big_int
@@ -206,7 +206,7 @@ struct
   let to_bigint = Big_int_Z.big_int_of_int64
 end
 
-module BigIntOpsBase =
+module BigIntOpsBase : IntOpsBase with type t = Big_int_Z.big_int =
 struct
   type t = Big_int_Z.big_int
   let zero = Big_int_Z.zero_big_int
@@ -248,12 +248,6 @@ struct
   let to_string = Big_int_Z.string_of_big_int
   let of_bigint x = x
   let to_bigint x = x
-
-  let of_bool = function
-    | true -> one
-    | false -> zero
-
-  let to_bool x = if equal x zero then false else true
 
   let shift_left = Big_int_Z.shift_left_big_int
   let shift_right = Big_int_Z.shift_right_big_int

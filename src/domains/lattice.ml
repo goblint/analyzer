@@ -411,6 +411,7 @@ end
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
 module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
 
+(* TODO: unused, missing lattice ops *)
 module LexProd (Base1: S) (Base2: S) =
 struct
   include Prod (Base1) (Base2)

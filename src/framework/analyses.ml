@@ -29,16 +29,11 @@ struct
   type t = Node.t [@@deriving eq, ord, hash]
   let relift x = x
 
-  let getLocation n = Node.location n
-
-  let pretty_trace () x =  dprintf "%a on %a" Node.pretty_trace x CilType.Location.pretty (getLocation x)
-
   let printXml f n =
     let l = Node.location n in
     BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) l.file (Node.find_fundec n).svar.vname l.line l.byte l.column
 
   let var_id = Node.show_id
-  let node n = n
 end
 
 
@@ -89,11 +84,6 @@ struct
     match x with
     | `Lifted x -> x
     | _ -> raise Deadcode
-
-  let lifted f x =
-    match x with
-    | `Lifted x -> `Lifted (f x)
-    | tb -> tb
 
   let printXml f = function
     | `Top -> BatPrintf.fprintf f "<value>%s</value>" (XmlUtil.escape top_name)
@@ -300,7 +290,6 @@ type ('d,'g,'c,'v) ctx =
   ; local    : 'd
   ; global   : 'v -> 'g
   ; presub   : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
-  ; postsub  : string -> Obj.t (** raises [Not_found] if such dependency analysis doesn't exist *)
   ; spawn    : lval option -> varinfo -> exp list -> unit
   ; split    : 'd -> Events.t list -> unit
   ; sideg    : 'v -> 'g -> unit
@@ -313,13 +302,6 @@ let ctx_failwith s = raise (Ctx_failure s) (* TODO: use everywhere in ctx *)
 
 (** Convert [ctx] to [Queries.ask]. *)
 let ask_of_ctx ctx: Queries.ask = { Queries.f = fun (type a) (q: a Queries.t) -> ctx.ask q }
-
-let swap_st ctx st =
-  {ctx with local=st}
-
-let set_st_gl ctx st gl spawn_tr eff_tr split_tr =
-  {ctx with local=st; global=gl; spawn=spawn_tr ctx.spawn; sideg=eff_tr ctx.sideg;
-            split=split_tr ctx.split}
 
 
 module type Spec =
@@ -392,7 +374,6 @@ sig
 end
 
 type analyzed_data = {
-  cil_file: Cil.file ;
   solver_data: Obj.t;
 }
 
@@ -400,14 +381,12 @@ type increment_data = {
   server: bool;
 
   old_data: analyzed_data option;
-  new_file: Cil.file;
   changes: CompareCIL.change_info
 }
 
-let empty_increment_data ?(server=false) file = {
+let empty_increment_data ?(server=false) () = {
   server;
   old_data = None;
-  new_file = file;
   changes = CompareCIL.empty_change_info ()
 }
 

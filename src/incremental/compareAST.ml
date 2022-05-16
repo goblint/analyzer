@@ -202,13 +202,3 @@ and eq_stmt ?(cfg_comp = false) ((a, af): stmt * fundec) ((b, bf): stmt * fundec
 
 and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
   a.battrs = b.battrs && GobList.equal (fun x y -> eq_stmt (x, af) (y, bf)) a.bstmts b.bstmts
-
-let rec eq_init (a: init) (b: init) = match a, b with
-  | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
-  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 && GobList.equal (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 && eq_init i1 i2) l1 l2
-  | _, _ -> false
-
-let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
-  | (Some init_a), (Some init_b) -> eq_init init_a init_b
-  | None, None -> true
-  | _, _ -> false

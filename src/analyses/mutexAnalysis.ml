@@ -143,13 +143,6 @@ struct
       event ctx e octx (* delegate to must lockset analysis *)
 end
 
-module MyParam =
-struct
-  module G = LockDomain.Simple
-  let effect_fun ?write:(w=false) ls = Lockset.export_locks ls
-  let check_fun = effect_fun
-end
-
 module WriteBased =
 struct
   module GReadWrite =

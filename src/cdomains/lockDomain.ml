@@ -78,7 +78,6 @@ struct
   let empty = ReverseAddrSet.empty
   let is_empty = ReverseAddrSet.is_empty
 
-  let map = ReverseAddrSet.map
   let filter = ReverseAddrSet.filter
   let fold = ReverseAddrSet.fold
   let singleton = ReverseAddrSet.singleton
@@ -105,9 +104,6 @@ struct
   (* TODO: use SetDomain.Reverse *)
   module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
-
-  let empty = S.empty
-  let is_empty = S.is_empty
 
   let rec eq_set (ask: Queries.ask) e =
     S.union
@@ -145,6 +141,7 @@ struct
     S.diff st addrs
   let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
 
+  (* TODO: unused *)
   let kill_lval (host,offset) st =
     let rec last_field os ls =
       match os with
@@ -160,10 +157,7 @@ struct
       | Mem (Lval (Var v, NoOffset)) -> remove_var v st
       | Mem _ ->  top ()
 
-  let elements = S.elements
-  let choose = S.choose
   let filter = S.filter
-  let union = S.union
   let fold = S.fold
 
 end

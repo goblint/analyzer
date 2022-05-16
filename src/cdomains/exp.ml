@@ -59,6 +59,7 @@ struct
     in
     cv false e
 
+  (* TODO: unused *)
   let contains_field f e =
     let rec offs_contains o =
       match o with
@@ -159,6 +160,7 @@ struct
     | Question _ -> failwith "Logical operations should be compiled away by CIL."
     | _ -> failwith "Unmatched pattern."
 
+  (* TODO: unused *)
   let rec base_compinfo q exp =
     match exp with
     | SizeOf _
@@ -270,6 +272,7 @@ struct
 
   exception NotSimpleEnough
 
+  (* TODO: unused *)
   let rec ees_to_offs = function
     | [] 		-> `NoOffset
     (*	| Addr :: x ->
@@ -320,6 +323,7 @@ struct
     | EAddr::xs     , Lval lv   -> fromEl xs (AddrOf lv)
     | _            ,             _ -> raise (Invalid_argument "")
 
+  (* TODO: unused *)
   let strip_fields e =
     let rec sf e fs =
       match e with

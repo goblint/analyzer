@@ -46,10 +46,6 @@ module WP =
       stable = HM.create 10
     }
 
-    let clear_data data =
-      HM.clear data.infl;
-      HM.clear data.stable
-
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
         Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"

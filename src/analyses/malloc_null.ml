@@ -183,10 +183,6 @@ struct
 
   (* Function calls *)
 
-  let eval_funvar ctx (fv:exp) : varinfo list =
-    warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local fv;
-    []
-
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let nst = remove_unreachable (Analyses.ask_of_ctx ctx) args ctx.local in
     may (fun x -> warn_deref_exp (Analyses.ask_of_ctx ctx) ctx.local (Lval x)) lval;

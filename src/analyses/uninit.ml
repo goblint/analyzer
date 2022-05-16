@@ -47,6 +47,7 @@ struct
     | _ ->
       M.warn "Access to unknown address could be global"; []
 
+  (* TODO: unused? remove? *)
   let rec access_one_byval a rw (exp:exp) =
     match exp with
     (* Integer literals *)

@@ -7,30 +7,6 @@ module H = NodeH
 module NH = NodeH
 
 
-(* TODO: refactor duplication with find_loop_heads *)
-module NS = Set.Make (Node)
-let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
-  let loop_heads = NH.create 100 in
-  let global_visited_nodes = NH.create 100 in
-
-  (* DFS *)
-  let rec iter_node path_visited_nodes node =
-    if NS.mem node path_visited_nodes then
-      NH.replace loop_heads node ()
-    else if not (NH.mem global_visited_nodes node) then begin
-      NH.replace global_visited_nodes node ();
-      let new_path_visited_nodes = NS.add node path_visited_nodes in
-      List.iter (fun (_, to_node) ->
-          iter_node new_path_visited_nodes to_node
-        ) (Cfg.next node)
-    end
-  in
-
-  let entry_node = FunctionEntry fd in
-  iter_node NS.empty entry_node;
-
-  loop_heads
-
 let find_backwards_reachable ~initial_size (module Cfg:CfgBackward) (node:node): unit NH.t =
   let reachable = NH.create initial_size in
 

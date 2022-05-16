@@ -17,7 +17,6 @@ sig
   type t
 
   val embed: MyCFG.edge -> t
-  val cfgedge: t -> MyCFG.edge option
   val to_string: t -> string
 end
 
@@ -26,7 +25,6 @@ struct
   type t = edge
 
   let embed e = e
-  let cfgedge e = Some e
   let to_string e = Pretty.sprint ~width:80 (Edge.pretty_plain () e)
 end
 
@@ -47,10 +45,6 @@ struct
   type t = inline_edge [@@deriving to_yojson]
 
   let embed e = CFGEdge e
-
-  let cfgedge = function
-    | CFGEdge e -> Some e
-    | _ -> None
 
   let to_string e = Pretty.sprint ~width:80 (pretty_inline_edge () e)
 end

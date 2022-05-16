@@ -46,9 +46,7 @@ sig
   type origin
   include Lattice.S with type t = value * size * origin
 
-  val make: value -> size -> t
   val value: t -> value
-  val size: t -> size
   val invalidate_value: Q.ask -> typ -> t -> t
 end
 
@@ -65,9 +63,7 @@ struct
   let printXml f (x, y, z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
-  let make v s = v, s, true
   let value (a, b, c) = a
-  let size (a, b, c) = b
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
 
   let invariant c (v, _, _) = Value.invariant c v

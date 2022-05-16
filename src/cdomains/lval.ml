@@ -10,12 +10,6 @@ type ('a, 'b) offs = [
 ] [@@deriving eq, ord, hash]
 
 
-let rec listify ofs =
-  match ofs with
-  | `NoOffset -> []
-  | `Field (x,ofs) -> x :: listify ofs
-  | _ -> failwith "Indexing not supported here!"
-
 module Offset (Idx: IntDomain.Z) =
 struct
   type t = (fieldinfo, Idx.t) offs
@@ -67,7 +61,6 @@ struct
   let name () = "Offset"
 
   let from_offset x = x
-  let to_offset x = [x]
 
   let rec is_definite = function
     | `NoOffset -> true
@@ -75,6 +68,7 @@ struct
     | `Index (i,o) ->  Idx.is_int i && is_definite o
 
   (* append offset o2 to o1 *)
+  (* TODO: unused *)
   let rec add_offset o1 o2 =
     match o1 with
     | `NoOffset -> o2
@@ -180,10 +174,6 @@ struct
   include Printable.Std
   let name () = "Normal Lvals"
 
-  let get_location = function
-    | Addr (x,_) -> x.vdecl
-    | _ -> builtinLoc
-
   type group = Basetype.Variables.group
   let show_group = Basetype.Variables.show_group
   let to_group = function
@@ -281,6 +271,7 @@ struct
     | `NoOffset    -> y
     | `Index (i,x) -> `Index (i, add_offsets x y)
     | `Field (f,x) -> `Field (f, add_offsets x y)
+  (* TODO: unused *)
   let add_offset x o = match x with
     | Addr (v, u) -> Addr (v, add_offsets u o)
     | x -> x
@@ -355,11 +346,13 @@ struct
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
 
+  (* TODO: only used for unused musteqdomain *)
   let rec prefix x y = match x,y with
     | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
     | [], ys -> Some ys
     | _ -> None
 
+  (* TODO: only used for unused musteqdomain *)
   let append x y: t = x @ y
 
   let rec listify ofs: t =
@@ -368,6 +361,7 @@ struct
     | Field (x,ofs) -> `Left x :: listify ofs
     | Index (i,ofs) -> `Right i :: listify ofs
 
+  (* TODO: only used for unused musteqdomain *)
   let rec to_offs (ofs:t) tv = match ofs with
     | (`Left x::xs) -> `Field (x, to_offs xs tv)
     | (`Right x::xs) -> `Index (tv, to_offs xs tv)
@@ -378,11 +372,13 @@ struct
     | (`Right x::xs) -> `Index (x, to_offs' xs)
     | [] -> `NoOffset
 
+  (* TODO: only used for unused musteqdomain *)
   let rec occurs v fds = match fds with
     | (`Left x::xs) -> occurs v xs
     | (`Right x::xs) -> I.occurs v x || occurs v xs
     | [] -> false
 
+  (* TODO: only used for unused musteqdomain *)
   let rec occurs_where v (fds: t): t option = match fds with
     | (`Right x::xs) when I.occurs v x -> Some []
     | (x::xs) -> (match occurs_where v xs with None -> None | Some fd -> Some (x :: fd))

@@ -119,6 +119,7 @@ struct
       | _ -> false
 
   (* kill predicate for must-equality kind of analyses*)
+  (* TODO: why unused? how different from below? *)
   let may_change_t (b:exp) (a:exp) : bool =
     let rec type_may_change_t a bt =
       let rec may_change_t_offset o =
@@ -151,6 +152,7 @@ struct
     let bt =  unrollTypeDeep (Cilfacade.typeOf b) in
     type_may_change_t a bt
 
+  (* TODO: why unused? how different from below? *)
   let may_change_pt ask (b:exp) (a:exp) : bool =
     let pt e = ask (Queries.MayPointTo e) in
     let rec lval_may_change_pt a bl : bool =

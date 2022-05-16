@@ -29,8 +29,6 @@ struct
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
   let pretty () x = Pretty.text (show x)
-  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
-  let get_location x = x.vdecl
   type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
   let to_group = Option.some % function
@@ -40,8 +38,6 @@ struct
     | _ -> Local
   let name () = "variables"
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let var_id _ = "globals"
-  let node _ = MyCFG.Function Cil.dummyFunDec
 
   let arbitrary () = MyCheck.Arbitrary.varinfo
 end

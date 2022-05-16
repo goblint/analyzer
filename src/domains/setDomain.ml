@@ -36,38 +36,9 @@ sig
   val min_elt: t -> elt
   val max_elt: t -> elt
   val choose: t -> elt
-  val split: elt -> t -> t * bool * t
+  val split: elt -> t -> t * bool * t (* TODO: unused, remove? *)
 end
 
-(** A functor for creating a simple set domain, there is no top element, and
-  * calling [top ()] will raise an exception *)
-module Blank =
-struct
-  let empty _ = unsupported "empty"
-  let is_empty _ = unsupported "is_empty"
-  let mem _ _ = unsupported "mem"
-  let add _ _ = unsupported "add"
-  let singleton _ = unsupported "singleton"
-  let remove _ _ = unsupported "remove"
-  let union _ _ = unsupported "union"
-  let inter _ _ = unsupported "inter"
-  let diff _ _ = unsupported "diff"
-  let subset _ _ = unsupported "subset"
-  let iter _ _ = unsupported "iter"
-  let map _ _ = unsupported "map"
-  let fold _ _ _ = unsupported "fold"
-  let for_all _ _ = unsupported "for_all"
-  let exists _ _ = unsupported "exists"
-  let filter _ _ = unsupported "filter"
-  let partition _ _ = unsupported "partition"
-  let cardinal _ = unsupported "cardinal"
-  let elements _ = unsupported "elements"
-  let of_list _ = unsupported "of_list"
-  let min_elt _ = unsupported "min_elt"
-  let max_elt _ = unsupported "max_elt"
-  let choose _ = unsupported "choose"
-  let split _ _ = unsupported "split"
-end
 
 (** A functor for creating a simple set domain, there is no top element, and
   * calling [top ()] will raise an exception *)

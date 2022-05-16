@@ -31,7 +31,7 @@ sig
   val for_all: (key -> value -> bool) -> t -> bool
   val map2: (value -> value -> value) -> t -> t -> t
   val long_map2: (value -> value -> value) -> t -> t -> t
-  val merge : (key -> value option -> value option -> value option) -> t -> t -> t
+  val merge : (key -> value option -> value option -> value option) -> t -> t -> t (* TODO: unused, remove? *)
 
   val cardinal: t -> int
   val choose: t -> key * value

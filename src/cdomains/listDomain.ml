@@ -2,6 +2,8 @@ open Cil
 
 module GU = Goblintutil
 
+(* TODO: most operations unused *)
+
 module type S =
 sig
   include Lattice.S

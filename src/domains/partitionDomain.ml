@@ -132,6 +132,7 @@ struct
       in
       fold f xs (empty ())
 
+  (* TODO: unused *)
   let remove x ss = if is_bot ss then ss else
       let f (z: set) (zz: partition) =
         let res = B.remove x z in
