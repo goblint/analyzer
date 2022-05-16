@@ -530,8 +530,16 @@ struct
   let rec eq_set_clos e s =
     if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
     let r = match e with
-    | BinOp ((PlusPI | IndexPI), e1, e2, _) ->
-      eq_set_clos e1 s (* TODO: what about e2? add to some Index offset to all? *)
+    | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
+      (* convert IndexPI to Index offset *)
+      (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
+      Queries.ES.fold (fun e acc -> (* filter_map *)
+        match e with
+        | CastE (_, StartOf a') -> (* eq_set adds casts *)
+          let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
+          Queries.ES.add e' acc
+        | _ -> acc
+      ) (eq_set_clos a s) (Queries.ES.empty ())
     | SizeOf _
     | SizeOfE _
     | SizeOfStr _
