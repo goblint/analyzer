@@ -26,7 +26,7 @@ module ConstrSys = struct
   module D = Int
   module G = IntR
 
-  let increment = Analyses.empty_increment_data Cil.dummyFile
+  let increment = Analyses.empty_increment_data ()
 
   (*
     1. x := g
