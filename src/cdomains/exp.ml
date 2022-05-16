@@ -12,7 +12,8 @@ struct
   (* TODO: what does interesting mean? *)
   let rec interesting x =
     match x with
-    (* TODO: handle IndexPI like var_eq eq_set_clos? *)
+    | AddrOf (Mem (BinOp (IndexPI, a, _i, _)), _os) ->
+      interesting a
     | SizeOf _
     | SizeOfE _
     | SizeOfStr _
