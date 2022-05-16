@@ -10,9 +10,9 @@ struct cache_entry {
 
 void cache_entry_addref(struct cache_entry *entry) {
   pthread_mutex_lock(&entry->refs_mutex);
-  entry->refs++; // NORACE
-  (*entry).refs++; // NORACE
-  entry[1].refs++; // RACE
+  entry->refs++; // RACE!
+  (*entry).refs++; // RACE!
+  entry[1].refs++; // RACE!
   pthread_mutex_unlock(&entry->refs_mutex);
 }
 
