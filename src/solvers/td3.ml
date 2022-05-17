@@ -33,9 +33,9 @@ module WP =
       mutable stable: unit HM.t;
       mutable side_dep: VS.t HM.t; (** Dependencies of side-effected variables. Knowing these allows restarting them and re-triggering all side effects. *)
       mutable side_infl: VS.t HM.t; (** Influences to side-effected variables. Not normally in [infl], but used for restarting them. *)
-      mutable var_messages: Message.t HM.t;
-      mutable rho_write: S.Dom.t HM.t HM.t;
-      mutable dep: VS.t HM.t
+      mutable var_messages: Message.t HM.t; (** Messages from right-hand sides of variables. Used for incremental postsolving. *)
+      mutable rho_write: S.Dom.t HM.t HM.t; (** Side effects from variables to write-only variables with values. Used for fast incremental restarting of write-only variables. *)
+      mutable dep: VS.t HM.t; (** Dependencies of variables. Inverse of [infl]. Used for fast pre-reachable pruning in incremental postsolving. *)
     }
 
     type marshal = solver_data
@@ -128,8 +128,6 @@ module WP =
 
       let var_messages = data.var_messages in
       let rho_write = data.rho_write in
-
-      (* Tracks dependencies between an unknown and the things it depends on *)
       let dep = data.dep in
 
       let () = print_solver_stats := fun () ->
