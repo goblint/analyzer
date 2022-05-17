@@ -139,7 +139,7 @@ struct
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.diff st addrs
-  let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
+  let remove_var v st = S.filter (fun x -> not (SymbLocksDomain.Exp.contains_var v x)) st
 
   let filter = S.filter
   let fold = S.fold
