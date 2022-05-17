@@ -346,45 +346,17 @@ struct
 
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%a\n</data>\n</value>\n" printInnerXml x
 
-  (* TODO: only used for unused musteqdomain *)
-  let rec prefix x y = match x,y with
-    | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
-    | [], ys -> Some ys
-    | _ -> None
-
-  (* TODO: only used for unused musteqdomain *)
-  let append x y: t = x @ y
-
   let rec listify ofs: t =
     match ofs with
     | NoOffset -> []
     | Field (x,ofs) -> `Left x :: listify ofs
     | Index (i,ofs) -> `Right i :: listify ofs
 
-  (* TODO: only used for unused musteqdomain *)
-  let rec to_offs (ofs:t) tv = match ofs with
-    | (`Left x::xs) -> `Field (x, to_offs xs tv)
-    | (`Right x::xs) -> `Index (tv, to_offs xs tv)
-    | [] -> `NoOffset
-
   let rec to_offs' (ofs:t) = match ofs with
     | (`Left x::xs) -> `Field (x, to_offs' xs)
     | (`Right x::xs) -> `Index (x, to_offs' xs)
     | [] -> `NoOffset
 
-  (* TODO: only used for unused musteqdomain *)
-  let rec occurs v fds = match fds with
-    | (`Left x::xs) -> occurs v xs
-    | (`Right x::xs) -> I.occurs v x || occurs v xs
-    | [] -> false
-
-  (* TODO: only used for unused musteqdomain *)
-  let rec occurs_where v (fds: t): t option = match fds with
-    | (`Right x::xs) when I.occurs v x -> Some []
-    | (x::xs) -> (match occurs_where v xs with None -> None | Some fd -> Some (x :: fd))
-    | [] -> None
-
-  (* Same as the above, but always returns something. *)
   let rec kill v (fds: t): t = match fds with
     | (`Right x::xs) when I.occurs v x -> []
     | (x::xs) -> x :: kill v xs
