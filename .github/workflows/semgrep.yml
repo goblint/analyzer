@@ -18,11 +18,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Run semgrep SARIF
+      - name: Run semgrep
         run: semgrep scan --sarif --output=semgrep.sarif
-
-      - name: Run semgrep CI
-        run: semgrep ci
 
       - name: Upload SARIF file to GitHub Advanced Security Dashboard
         uses: github/codeql-action/upload-sarif@v2
