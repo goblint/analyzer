@@ -202,7 +202,6 @@ struct
   let subset _ _ = unsupported "Set.subset"
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
-  let split x a = unsupported "Set.split"
   let apply_list f s = elements s |> f |> of_list
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)

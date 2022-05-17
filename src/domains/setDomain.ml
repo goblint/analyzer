@@ -36,7 +36,6 @@ sig
   val min_elt: t -> elt
   val max_elt: t -> elt
   val choose: t -> elt
-  val split: elt -> t -> t * bool * t (* TODO: unused, remove? *)
 end
 
 
@@ -244,8 +243,6 @@ struct
   let choose = schema S.choose "choose on `Top"
   let partition f = schema (fun t -> match S.partition f t
                              with (a,b) -> (`Lifted a, `Lifted b)) "filter on `Top"
-  let split e = schema (fun t -> match S.split e t
-                         with (a,tv,b) -> (`Lifted a,tv,`Lifted b)) "split on `Top"
 
 
   (* The printable implementation *)
