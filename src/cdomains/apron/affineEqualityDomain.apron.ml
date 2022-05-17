@@ -27,7 +27,7 @@ struct
     if Array.length ch.dim = 0 || Matrix.is_empty m then m else (
       Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
       let m' = if not del then let m = Matrix.copy_pt m in Array.fold_left (fun y x -> Matrix.reduce_col_pt_with y x) m ch.dim else m in
-      Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
+      Matrix.copy_pt @@ Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
 
   let dim_remove ch m del = Stats.time "dim remove" (dim_remove ch m) del
 
