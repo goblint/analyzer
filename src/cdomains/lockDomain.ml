@@ -150,7 +150,7 @@ struct
       | Field (f,o) -> last_field o (Some f)
     in
     match last_field offset None with
-    | Some f -> S.filter (fun x -> not (Exp.contains_field f x)) st
+    | Some f -> S.filter (fun x -> not (SymbLocksDomain.Exp.contains_field f x)) st
     | None ->
       match host with
       | Var v -> remove_var v st
