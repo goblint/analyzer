@@ -61,9 +61,9 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
   let actHeaderRenameMapping = (headerRenameMapping, global_rename_mapping) in
 
   let unchangedHeader = eq_varinfo a.svar b.svar actHeaderRenameMapping &&>> forward_list_equal eq_varinfo a.sformals b.sformals in
-  let identical, diffOpt =
+  let identical, diffOpt, rename_mapping =
     if should_reanalyze a then
-      false, None
+      false, None, (StringMap.empty, StringMap.empty)
     else
       (* Here the local variables are checked to be equal *)
       let sizeEqual, local_rename = rename_mapping_aware_compare a.slocals b.slocals headerRenameMapping in
@@ -71,24 +71,26 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
 
       let sameDef = unchangedHeader &&> sizeEqual |> fst in
       if not sameDef then
-        (false, None)
+        (false, None, (StringMap.empty, StringMap.empty))
       else
         match cfgs with
-        | None -> eq_block (a.sbody, a) (b.sbody, b) rename_mapping |> fst, None
+        | None ->
+          let (identical, new_rename_mapping) = eq_block (a.sbody, a) (b.sbody, b) rename_mapping in
+          identical, None, new_rename_mapping
         | Some (cfgOld, (cfgNew, cfgNewBack)) ->
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
           let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) a b in
-          if diffNodes1 = [] then (true, None)
-          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1})
+          if diffNodes1 = [] then (true, None, (StringMap.empty, StringMap.empty))
+          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1}, (StringMap.empty, StringMap.empty))
   in
-  identical, unchangedHeader, diffOpt
+  identical, unchangedHeader |> fst, diffOpt
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) = match a, b with
   | GFun (f,_), GFun (g,_) ->
     let identical, unchangedHeader, diffOpt = eqF f g cfgs global_rename_mapping in
 
-    identical, unchangedHeader |> fst, diffOpt
+    identical, unchangedHeader, diffOpt
   | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty) |> fst, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty) |> fst, false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
