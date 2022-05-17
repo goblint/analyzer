@@ -1,4 +1,3 @@
-open GobConfig
 open Pretty
 open PrecisionUtil
 
@@ -164,14 +163,14 @@ module FloatInterval = struct
   let ne = eval_int_binop ne
 end
 
-module FloatDomImpl = struct
+module FloatDomTupleImpl = struct
   include Printable.Std (* for default invariant, tag, ... *)
   module F1 = FloatInterval
   open Batteries
 
   type t = F1.t option [@@deriving to_yojson, eq, ord]
 
-  let name () = "FloatInterval"
+  let name () = "floatdomtuple"
 
   type 'a m = (module FloatDomainBase with type t = 'a)
   (* only first-order polymorphism on functions 

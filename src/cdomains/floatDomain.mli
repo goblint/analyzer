@@ -38,6 +38,6 @@ module type FloatDomainBase = sig
   val of_const : float -> t
 end
 
-module FloatDomImpl : sig
+module FloatDomTupleImpl : sig
   include FloatDomainBase
 end
