@@ -1,7 +1,7 @@
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module Equ = MusteqDomain.Equ
-module Exp = Exp.Exp
+module Exp = CilType.Exp
 module IdxDom = ValueDomain.IndexDomain
 
 open Cil

@@ -3,7 +3,7 @@ open Cil
 
 module Exp =
 struct
-  include Exp.Exp
+  include CilType.Exp
 
   let  contains_var v e =
     let rec offs_contains o =

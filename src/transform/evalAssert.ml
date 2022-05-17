@@ -1,7 +1,7 @@
 open Prelude
 open Cil
 open Formatcil
-module ES = SetDomain.Make(Exp.Exp)
+module ES = SetDomain.Make(CilType.Exp)
 
 (** Instruments a program by inserting asserts either:
     - After an assignment to a variable (unless trans.assert.full is activated) and

@@ -36,8 +36,8 @@ struct
 end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
-module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
-module LiftedExp = Lattice.Flat(Exp.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
+module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
+module LiftedExp = Lattice.Flat(CilType.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"

@@ -3,7 +3,7 @@
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
-module Exp = Exp.Exp
+module Exp = CilType.Exp
 module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses

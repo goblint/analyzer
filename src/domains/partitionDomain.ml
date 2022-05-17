@@ -166,4 +166,4 @@ struct
       BatPrintf.fprintf f "</map>\n</value>\n"
 end
 
-module ExpPartitions = SetSet (Exp.Exp)
+module ExpPartitions = SetSet (CilType.Exp)
