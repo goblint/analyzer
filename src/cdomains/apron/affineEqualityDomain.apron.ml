@@ -27,7 +27,7 @@ struct
     if Array.length ch.dim = 0 || Matrix.is_empty m then m else (
       Array.iteri (fun i x-> ch.dim.(i) <- x + i) ch.dim;
       let m' = if not del then let m = Matrix.copy_pt m in Array.fold_left (fun y x -> Matrix.reduce_col_pt_with y x) m ch.dim else m in
-      Matrix.copy_pt @@ Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
+      Matrix.remove_zero_rows @@ Matrix.del_cols m' ch.dim)
 
   let dim_remove ch m del = Stats.time "dim remove" (dim_remove ch m) del
 
@@ -50,6 +50,8 @@ struct
     let env' = Environment.add t.env vs' [||] in
     change_d t env' true false
 
+  let add_vars t vars = Stats.time "add_vars" (add_vars t) vars
+
   let drop_vars t vars del =
     let vs' =
       vars
@@ -60,7 +62,11 @@ struct
     let env' = Environment.remove t.env vs' in
     change_d t env' false del
 
+  let drop_vars t vars = Stats.time "drop_vars" (drop_vars t) vars
+
   let remove_vars t vars = drop_vars t vars false
+
+  let remove_vars t vars = Stats.time "remove_vars" (remove_vars t) vars
 
   let remove_vars_pt_with t vars =
     remove_vars t vars
@@ -69,6 +75,8 @@ struct
     let env' = remove_filter t.env f in
     change_d t env' false false
 
+  let remove_filter t f = Stats.time "remove_filter" (remove_filter t) f
+
   let remove_filter_pt_with t f =
     remove_filter t f
 
@@ -76,9 +84,13 @@ struct
     let env' = keep_filter t.env f in
     change_d t env' false false
 
+  let keep_filter t f = Stats.time "keep_filter" (keep_filter t) f
+
   let keep_vars t vs =
     let env' = keep_vars t.env vs in
     change_d t env' false false
+
+  let keep_vars t vs = Stats.time "keep_vars" (keep_vars t) vs
 
   let vars t = vars t.env
 
@@ -311,6 +323,7 @@ struct
     if M.tracing then M.tracel "ops" "join a: %s b: %s -> %s \n" (show a) (show b) (show res) ;
     res
   let widen a b = join a b
+
   let narrow a b = meet a b
   let pretty_diff () (x, y) =
     dprintf "%s: %a not leq %a" (name ()) pretty x pretty y

@@ -521,7 +521,7 @@ module ArrayMatrix: AbstractMatrix =
       let cp = Array.make_matrix (num_rows m) (num_cols m) (of_int 0) in
       Array.iteri (fun i x -> Array.blit x 0 cp.(i) 0 (num_cols m)) m; cp
 
-    let copy m = Stats.time "copy" copy m
+    let copy m = Stats.time "copy" (copy) m
 
     let add_empty_column m n =
       if is_empty m then m else
@@ -780,31 +780,25 @@ module ArrayMatrix: AbstractMatrix =
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
       (*Both input matrices must be in rref form!*)
-      if num_rows m1 > num_rows m2 then false else
-        try
-          for i = 0 to num_rows m1 -1 do
-            if Array.exists2 (<>) m1.(i) m2.(i) then (*Start to reduce row to zero*)
-              (
-                let m1_i = Array.copy m1.(i) in
-                for j = 0 to num_cols m1 -1 do
-                  if m1_i.(j) <> of_int 0 then (
-                    if j = num_cols m1 -1 then raise Exit; (*Unsolvable*)
-                    let found = ref 0 in
-                    let exception Found in
-                    try (
-                      for i' = i to num_rows m2 -1 do
-                        if m2.(i').(j) <> of_int 0 then
-                          let beta = m1_i.(j) /: m2.(i').(j) in
-                          Array.iteri (fun c x -> m1_i.(c) <- x -: beta *: m2.(i').(c)) m1_i;
-                          raise Found;
-                      done;)
-                    with Found -> incr found;
-                      if !found = 0 then raise Exit (*m1.(i).(j) can not be reduced to zero*)
-                  )
-                done
-              )
-          done; true
-        with Exit -> false;;
+     if num_rows m1 > num_rows m2 then false else
+     let p2 = lazy (get_pivot_positions m2) in
+     try (
+     for i = 0 to num_rows m1 -1 do
+      if Array.exists2 (<>) m1.(i) m2.(i) then
+        let m1_i = Array.copy m1.(i) in
+        for j = 0 to Array.length m1_i -2 do
+          if m1_i.(j) <>  of_int 0 then
+          match Array.bsearch Int.ord (Lazy.force p2) j with
+          | `At pos -> let beta =  m1_i.(j) in
+                       Array.iteri (fun j' x -> m1_i.(j') <- m1_i.(j') -: beta *: m2.(pos).(j') ) m1_i
+          | _ -> raise Exit;
+          done;
+        if m1_i. (num_cols m1 - 1) <> of_int 0 then
+            raise Exit
+     done;
+     true
+    )
+    with Exit -> false;;
 
     let is_covered_by m1 m2 = Stats.time "is_covered_by" (is_covered_by m1) m2
 
