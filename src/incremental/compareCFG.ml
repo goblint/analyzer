@@ -3,30 +3,40 @@ open Queue
 open Cil
 include CompareAST
 
-let eq_node (x, fun1) (y, fun2) =
+(*Non propagating version of &&>>. Discords the new rename_mapping and alwas propagates the one in prev_result*)
+let (&&<>) (prev_result: bool * rename_mapping) f : bool * rename_mapping =
+  let (prev_equal, prev_rm) = prev_result in
+  if prev_equal then
+    let (r, _) = f prev_rm in
+    (r, prev_rm)
+  else false, prev_rm
+
+let eq_node (x, fun1) (y, fun2) : bool =
   let empty_rename_mapping: rename_mapping = (StringMap.empty, StringMap.empty) in
   match x,y with
-  | Statement s1, Statement s2 -> eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) empty_rename_mapping
-  | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar empty_rename_mapping
-  | FunctionEntry f1, FunctionEntry f2 -> eq_varinfo f1.svar f2.svar empty_rename_mapping
+  | Statement s1, Statement s2 -> eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) empty_rename_mapping |> fst
+  | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar empty_rename_mapping |> fst
+  | FunctionEntry f1, FunctionEntry f2 -> eq_varinfo f1.svar f2.svar empty_rename_mapping |> fst
   | _ -> false
 
 (* TODO: compare ASMs properly instead of simply always assuming that they are not the same *)
 let eq_edge x y =
   let empty_rename_mapping: rename_mapping = (StringMap.empty, StringMap.empty) in
-  match x, y with
-  | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 empty_rename_mapping && eq_exp rv1 rv2 empty_rename_mapping
-  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 empty_rename_mapping && GobList.equal (eq_exp2 empty_rename_mapping) ars1 ars2
+  let (r, _) = match x, y with
+  | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 empty_rename_mapping &&<> eq_exp rv1 rv2
+  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 empty_rename_mapping &&<> forward_list_equal eq_exp ars1 ars2
   | Proc (Some r1,f1,ars1), Proc (Some r2,f2,ars2) ->
-    eq_lval r1 r2 empty_rename_mapping && eq_exp f1 f2 empty_rename_mapping && GobList.equal (eq_exp2 empty_rename_mapping) ars1 ars2
+    eq_lval r1 r2 empty_rename_mapping &&<> eq_exp f1 f2 &&<> forward_list_equal eq_exp ars1 ars2
   | Entry f1, Entry f2 -> eq_varinfo f1.svar f2.svar empty_rename_mapping
   | Ret (None,fd1), Ret (None,fd2) -> eq_varinfo fd1.svar fd2.svar empty_rename_mapping
-  | Ret (Some r1,fd1), Ret (Some r2,fd2) -> eq_exp r1 r2 empty_rename_mapping && eq_varinfo fd1.svar fd2.svar empty_rename_mapping
-  | Test (p1,b1), Test (p2,b2) -> eq_exp p1 p2 empty_rename_mapping && b1 = b2
-  | ASM _, ASM _ -> false
-  | Skip, Skip -> true
+  | Ret (Some r1,fd1), Ret (Some r2,fd2) -> eq_exp r1 r2 empty_rename_mapping &&<> eq_varinfo fd1.svar fd2.svar
+  | Test (p1,b1), Test (p2,b2) -> eq_exp p1 p2 empty_rename_mapping &&> (b1 = b2)
+  | ASM _, ASM _ -> false, empty_rename_mapping
+  | Skip, Skip -> true, empty_rename_mapping
   | VDecl v1, VDecl v2 -> eq_varinfo v1 v2 empty_rename_mapping
-  | _ -> false
+  | _ -> false, empty_rename_mapping
+  in
+  r
 
 (* The order of the edges in the list is relevant. Therefore compare them one to one without sorting first *)
 let eq_edge_list xs ys = GobList.equal eq_edge xs ys

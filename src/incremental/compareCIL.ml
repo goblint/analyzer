@@ -60,7 +60,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
   let headerSizeEqual, headerRenameMapping = rename_mapping_aware_compare a.sformals b.sformals (StringMap.empty) in
   let actHeaderRenameMapping = (headerRenameMapping, global_rename_mapping) in
 
-  let unchangedHeader = eq_varinfo a.svar b.svar actHeaderRenameMapping && GobList.equal (eq_varinfo2 actHeaderRenameMapping) a.sformals b.sformals in
+  let unchangedHeader = eq_varinfo a.svar b.svar actHeaderRenameMapping &&>> forward_list_equal eq_varinfo a.sformals b.sformals in
   let identical, diffOpt =
     if should_reanalyze a then
       false, None
@@ -69,12 +69,12 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
       let sizeEqual, local_rename = rename_mapping_aware_compare a.slocals b.slocals headerRenameMapping in
       let rename_mapping: rename_mapping = (local_rename, global_rename_mapping) in
 
-      let sameDef = unchangedHeader && sizeEqual in
+      let sameDef = unchangedHeader &&> sizeEqual |> fst in
       if not sameDef then
         (false, None)
       else
         match cfgs with
-        | None -> eq_block (a.sbody, a) (b.sbody, b) rename_mapping, None
+        | None -> eq_block (a.sbody, a) (b.sbody, b) rename_mapping |> fst, None
         | Some (cfgOld, (cfgNew, cfgNewBack)) ->
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
@@ -88,9 +88,9 @@ let eq_glob (a: global) (b: global) (cfgs : (cfg * (cfg * cfg)) option) (global_
   | GFun (f,_), GFun (g,_) ->
     let identical, unchangedHeader, diffOpt = eqF f g cfgs global_rename_mapping in
 
-    identical, unchangedHeader, diffOpt
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty), false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty), false, None
+    identical, unchangedHeader |> fst, diffOpt
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty) |> fst, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty) |> fst, false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
