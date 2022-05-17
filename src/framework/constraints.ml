@@ -1412,3 +1412,29 @@ struct
     ignore (Pretty.printf "Nodes comparison summary: %t\n" (fun () -> msg));
     print_newline ();
 end
+
+(** [EqConstrSys] where [current_var] indicates the variable whose right-hand side is currently being evaluated. *)
+module CurrentVarEqConstrSys (S: EqConstrSys) =
+struct
+  let current_var = ref None
+
+  module S =
+  struct
+    include S
+
+    let system x =
+      match S.system x with
+      | None -> None
+      | Some f ->
+        let f' get set =
+          let old_current_var = !current_var in
+          current_var := Some x;
+          Fun.protect ~finally:(fun () ->
+              current_var := old_current_var
+            ) (fun () ->
+              f get set
+            )
+        in
+        Some f'
+  end
+end

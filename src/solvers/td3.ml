@@ -82,27 +82,8 @@ module WP =
 
     type phase = Widen | Narrow [@@deriving show]
 
-    let current_var = ref None
-
-    module S =
-    struct
-      include S
-
-      let system x =
-        match S.system x with
-        | None -> None
-        | Some f ->
-          let f' get set =
-            let old_current_var = !current_var in
-            current_var := Some x;
-            Fun.protect ~finally:(fun () ->
-                current_var := old_current_var
-              ) (fun () ->
-                f get set
-              )
-          in
-          Some f'
-    end
+    module CurrentVarS = Constraints.CurrentVarEqConstrSys (S)
+    module S = CurrentVarS.S
 
     let solve box st vs data =
       let term  = GobConfig.get_bool "solvers.td3.term" in
@@ -919,7 +900,7 @@ module WP =
 
           (* hook to collect new messages *)
           Messages.Table.add_hook := (fun m ->
-            match !current_var with
+            match !CurrentVarS.current_var with
             | Some x -> HM.add var_messages x m
             | None -> ()
           )
