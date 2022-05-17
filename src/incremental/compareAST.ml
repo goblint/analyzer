@@ -5,24 +5,26 @@ type global_type = Fun | Decl | Var
 
 and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
 
-type method_rename_assumption = {original_method_name: string; new_method_name: string; parameter_renames: (string, string) Hashtbl.t}
-type method_rename_assumptions = (string, method_rename_assumption) Hashtbl.t
+module StringMap = Map.Make(String)
+
+type method_rename_assumption = {original_method_name: string; new_method_name: string; parameter_renames: string StringMap.t}
+type method_rename_assumptions = method_rename_assumption StringMap.t
 
 (*rename_mapping is carried through the stack when comparing the AST. Holds a list of rename assumptions.*)
-type rename_mapping = ((string, string) Hashtbl.t) * (method_rename_assumptions)
+type rename_mapping = (string StringMap.t) * (method_rename_assumptions)
 
 (*Compares two names, being aware of the rename_mapping. Returns true iff:
  1. there is a rename for name1 -> name2 = rename(name1)
  2. there is no rename for name1 -> name1 = name2*)
-let rename_mapping_aware_name_comparison (name1: string) (name2: string) (rename_mapping: rename_mapping) = 
+let rename_mapping_aware_name_comparison (name1: string) (name2: string) (rename_mapping: rename_mapping) =
   let (local_c, method_c) = rename_mapping in
-  let existingAssumption: string option = Hashtbl.find_opt local_c name1 in
+  let existingAssumption: string option = StringMap.find_opt name1 local_c in
 
   match existingAssumption with
-  | Some now -> 
+  | Some now ->
     (*Printf.printf "Assumption is: %s -> %s\n" original now;*)
     now = name2
-  | None -> 
+  | None ->
     (*Printf.printf "No assumption when %s, %s, %b\n" name1 name2 (name1 = name2);*)
     name1 = name2 (*Var names differ, but there is no assumption, so this can't be good*)
 
@@ -30,13 +32,13 @@ let string_tuple_to_string (tuple: (string * string) list) = "[" ^ (tuple |>
   List.map (fun x -> match x with (first, second) -> "(" ^ first ^ " -> " ^ second ^ ")") |>
   String.concat ", ") ^ "]"
 
-let rename_mapping_to_string (rename_mapping: rename_mapping) = 
+let rename_mapping_to_string (rename_mapping: rename_mapping) =
   let (local, methods) = rename_mapping in
-  let local_string = string_tuple_to_string (List.of_seq (Hashtbl.to_seq local)) in
-  let methods_string: string = List.of_seq (Hashtbl.to_seq_values methods) |>
-    List.map (fun x -> match x with {original_method_name; new_method_name; parameter_renames} -> 
-      "(methodName: " ^ original_method_name ^ " -> " ^ new_method_name ^ 
-      "; renamed_params=" ^ string_tuple_to_string (List.of_seq (Hashtbl.to_seq parameter_renames)) ^ ")") |>
+  let local_string = string_tuple_to_string (List.of_seq (StringMap.to_seq local)) in
+  let methods_string: string = List.of_seq (StringMap.to_seq methods |> Seq.map snd) |>
+    List.map (fun x -> match x with {original_method_name; new_method_name; parameter_renames} ->
+      "(methodName: " ^ original_method_name ^ " -> " ^ new_method_name ^
+      "; renamed_params=" ^ string_tuple_to_string (List.of_seq (StringMap.to_seq parameter_renames)) ^ ")") |>
     String.concat ", " in
   "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "])"
 
@@ -58,7 +60,7 @@ let compare_name (a: string) (b: string) =
   let anon_union = "__anonunion_" in
   if a = b then true else BatString.(starts_with a anon_struct && starts_with b anon_struct || starts_with a anon_union && starts_with b anon_union)
 
-let rec eq_constant (rename_mapping: rename_mapping) (a: constant) (b: constant)  = 
+let rec eq_constant (rename_mapping: rename_mapping) (a: constant) (b: constant)  =
   match a, b with
   | CInt (val1, kind1, str1), CInt (val2, kind2, str2) -> Cilint.compare_cilint val1 val2 = 0 && kind1 = kind2 (* Ignore string representation, i.e. 0x2 == 2 *)
   | CEnum (exp1, str1, enuminfo1), CEnum (exp2, str2, enuminfo2) -> eq_exp exp1 exp2 rename_mapping (* Ignore name and enuminfo  *)
@@ -66,9 +68,9 @@ let rec eq_constant (rename_mapping: rename_mapping) (a: constant) (b: constant)
 
 and eq_exp2 (rename_mapping: rename_mapping) (a: exp) (b: exp) = eq_exp a b rename_mapping
 
-and eq_exp (a: exp) (b: exp) (rename_mapping: rename_mapping) = 
+and eq_exp (a: exp) (b: exp) (rename_mapping: rename_mapping) =
   match a, b with
-  | Const c1, Const c2 -> eq_constant rename_mapping c1 c2 
+  | Const c1, Const c2 -> eq_constant rename_mapping c1 c2
   | Lval lv1, Lval lv2 -> eq_lval lv1 lv2 rename_mapping
   | SizeOf typ1, SizeOf typ2 -> eq_typ typ1 typ2 rename_mapping
   | SizeOfE exp1, SizeOfE exp2 -> eq_exp exp1 exp2 rename_mapping
@@ -146,7 +148,7 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) (rename_mapping: rename_mapping) =
 (* Ignore ereferenced *)
 
 and eq_args (rename_mapping: rename_mapping) (acc: (typ * typ) list) (a: string * typ * attributes) (b: string * typ * attributes) = match a, b with
-    (name1, typ1, attr1), (name2, typ2, attr2) -> 
+    (name1, typ1, attr1), (name2, typ2, attr2) ->
       rename_mapping_aware_name_comparison name1 name2 rename_mapping && eq_typ_acc typ1 typ2 acc rename_mapping && GobList.equal (eq_attribute rename_mapping) attr1 attr2
 
 and eq_attrparam (rename_mapping: rename_mapping) (a: attrparam) (b: attrparam) = match a, b with
@@ -171,7 +173,7 @@ and eq_attribute (rename_mapping: rename_mapping) (a: attribute) (b: attribute) 
 
 and eq_varinfo2 (rename_mapping: rename_mapping) (a: varinfo) (b: varinfo) = eq_varinfo a b rename_mapping
 
-and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) = 
+and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
   (*Printf.printf "Comp %s with %s\n" a.vname b.vname;*)
 
   let (_, method_rename_mappings) = rename_mapping in
@@ -179,24 +181,24 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
   (*When we compare function names, we can directly compare the naming from the rename_mapping if it exists.*)
   let isNamingOk = match b.vtype with
     | TFun(_, _, _, _) -> (
-        let specific_method_rename_mapping = Hashtbl.find_opt method_rename_mappings a.vname in  
+        let specific_method_rename_mapping = StringMap.find_opt a.vname method_rename_mappings in
         match specific_method_rename_mapping with
           | Some method_rename_mapping -> method_rename_mapping.original_method_name = a.vname && method_rename_mapping.new_method_name = b.vname
           | None -> a.vname = b.vname
       )
     | _ -> rename_mapping_aware_name_comparison a.vname b.vname rename_mapping
-    in 
+    in
 
   (*If the following is a method call, we need to check if we have a mapping for that method call. *)
   let typ_rename_mapping = match b.vtype with
       | TFun(_, _, _, _) -> (
-        let new_locals = Hashtbl.find_opt method_rename_mappings a.vname in
+        let new_locals = StringMap.find_opt a.vname method_rename_mappings in
 
         match new_locals with
-          | Some locals -> 
+          | Some locals ->
             (*Printf.printf "Performing rename_mapping switch. New rename_mapping=%s\n" (rename_mapping_to_string (locals.parameter_renames, method_rename_mappings));*)
             (locals.parameter_renames, method_rename_mappings)
-          | None -> (Hashtbl.create 0, method_rename_mappings)
+          | None -> (StringMap.empty, method_rename_mappings)
         )
       | _ -> rename_mapping
     in
@@ -207,7 +209,7 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
     (*let _ = if isNamingOk then a.vname <- b.vname in*)
 
   (*let _ = Printf.printf "Comparing vars: %s = %s\n" a.vname b.vname in *)
-  (*a.vname = b.vname*) 
+  (*a.vname = b.vname*)
   let result = isNamingOk && typeCheck && attrCheck &&
                         a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof in
 
@@ -239,9 +241,9 @@ and eq_lval (a: lval) (b: lval) (rename_mapping: rename_mapping) = match a, b wi
 
 let eq_instr (rename_mapping: rename_mapping) (a: instr) (b: instr)  = match a, b with
   | Set (lv1, exp1, _l1, _el1), Set (lv2, exp2, _l2, _el2) -> eq_lval lv1 lv2 rename_mapping && eq_exp exp1 exp2 rename_mapping
-  | Call (Some lv1, f1, args1, _l1, _el1), Call (Some lv2, f2, args2, _l2, _el2) ->     
+  | Call (Some lv1, f1, args1, _l1, _el1), Call (Some lv2, f2, args2, _l2, _el2) ->
     eq_lval lv1 lv2 rename_mapping && eq_exp f1 f2 rename_mapping && GobList.equal (eq_exp2 rename_mapping) args1 args2
-  | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) -> 
+  | Call (None, f1, args1, _l1, _el1), Call (None, f2, args2, _l2, _el2) ->
     eq_exp f1 f2 rename_mapping && GobList.equal (eq_exp2 rename_mapping) args1 args2
   | Asm (attr1, tmp1, ci1, dj1, rk1, l1), Asm (attr2, tmp2, ci2, dj2, rk2, l2) -> GobList.equal String.equal tmp1 tmp2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_lval z1 z2 rename_mapping) ci1 ci2 && GobList.equal(fun (x1,y1,z1) (x2,y2,z2)-> x1 = x2 && y1 = y2 && eq_exp z1 z2 rename_mapping) dj1 dj2 && GobList.equal String.equal rk1 rk2(* ignore attributes and locations *)
   | VarDecl (v1, _l1), VarDecl (v2, _l2) -> eq_varinfo v1 v2 rename_mapping

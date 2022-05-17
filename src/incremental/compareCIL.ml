@@ -47,17 +47,17 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
 
   (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal,
    * and as a second a rename_mapping, holding the rename assumptions *)
-  let rec rename_mapping_aware_compare (alocals: varinfo list) (blocals: varinfo list) (rename_mapping: (string, string) Hashtbl.t) = match alocals, blocals with
+  let rec rename_mapping_aware_compare (alocals: varinfo list) (blocals: varinfo list) (rename_mapping: string StringMap.t) = match alocals, blocals with
         | [], [] -> true, rename_mapping
         | origLocal :: als, nowLocal :: bls ->
-          if origLocal.vname <> nowLocal.vname then Hashtbl.add rename_mapping origLocal.vname nowLocal.vname;
+          let new_mapping = if origLocal.vname <> nowLocal.vname then StringMap.add origLocal.vname nowLocal.vname rename_mapping else rename_mapping in
 
           (*TODO: maybe optimize this with eq_varinfo*)
-          rename_mapping_aware_compare als bls rename_mapping
+          rename_mapping_aware_compare als bls new_mapping
         | _, _ -> false, rename_mapping
         in
 
-  let headerSizeEqual, headerRenameMapping = rename_mapping_aware_compare a.sformals b.sformals (Hashtbl.create 0) in
+  let headerSizeEqual, headerRenameMapping = rename_mapping_aware_compare a.sformals b.sformals (StringMap.empty) in
   let actHeaderRenameMapping = (headerRenameMapping, global_rename_mapping) in
 
   let unchangedHeader = eq_varinfo a.svar b.svar actHeaderRenameMapping && GobList.equal (eq_varinfo2 actHeaderRenameMapping) a.sformals b.sformals in
@@ -89,8 +89,8 @@ let eq_glob (a: global) (b: global) (cfgs : (cfg * (cfg * cfg)) option) (global_
     let identical, unchangedHeader, diffOpt = eqF f g cfgs global_rename_mapping in
 
     identical, unchangedHeader, diffOpt
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (Hashtbl.create 0, Hashtbl.create 0), false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y (Hashtbl.create 0, Hashtbl.create 0), false, None
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty), false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty), false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
@@ -105,18 +105,16 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 
       match old_global, global with
         | GFun(f, _), GFun (g, _) ->
-          let renamed_params: (string, string) Hashtbl.t = if (List.length f.sformals) = (List.length g.sformals) then
+          let renamed_params: string StringMap.t = if (List.length f.sformals) = (List.length g.sformals) then
             List.combine f.sformals g.sformals |>
             List.filter (fun (original, now) -> not (original.vname = now.vname)) |>
             List.map (fun (original, now) -> (original.vname, now.vname)) |>
-            (fun list -> 
-              let table: (string, string) Hashtbl.t = Hashtbl.create (List.length list) in
-              List.iter (fun mapping -> Hashtbl.add table (fst mapping) (snd mapping)) list;
-              table
+            (fun list ->
+              List.fold_left (fun map mapping -> StringMap.add (fst mapping) (snd mapping) map) StringMap.empty list
             )
-          else Hashtbl.create 0 in
+          else StringMap.empty in
 
-          if not (f.svar.vname = g.svar.vname) || (Hashtbl.length renamed_params) > 0 then
+          if not (f.svar.vname = g.svar.vname) || not (StringMap.is_empty renamed_params) then
             Some {original_method_name=f.svar.vname; new_method_name=g.svar.vname; parameter_renames=renamed_params}
           else None
         | _, _ -> None
@@ -162,10 +160,8 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       | Some rename_mapping -> current_global_rename_mapping @ [rename_mapping]
       | None -> current_global_rename_mapping
   ) [] |>
-    (fun mappings -> 
-      let table = Hashtbl.create (List.length mappings) in
-      List.iter (fun mapping -> Hashtbl.add table mapping.original_method_name mapping) mappings;
-      table
+    (fun mappings ->
+      List.fold_left (fun map mapping -> StringMap.add mapping.original_method_name mapping map) StringMap.empty mappings
     ) in
 
   (*  For each function in the new file, check whether a function with the same name
