@@ -141,22 +141,6 @@ struct
     S.diff st addrs
   let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
 
-  (* TODO: unused *)
-  let kill_lval (host,offset) st =
-    let rec last_field os ls =
-      match os with
-      | NoOffset -> ls
-      | Index (i,o) -> last_field o None
-      | Field (f,o) -> last_field o (Some f)
-    in
-    match last_field offset None with
-    | Some f -> S.filter (fun x -> not (SymbLocksDomain.Exp.contains_field f x)) st
-    | None ->
-      match host with
-      | Var v -> remove_var v st
-      | Mem (Lval (Var v, NoOffset)) -> remove_var v st
-      | Mem _ ->  top ()
-
   let filter = S.filter
   let fold = S.fold
 

@@ -5,35 +5,6 @@ module Exp =
 struct
   include Exp.Exp
 
-  (* TODO: unused, except by other unused code *)
-  let contains_field f e =
-    let rec offs_contains o =
-      match o with
-      | NoOffset -> false
-      | Field (f',o) -> CilType.Fieldinfo.equal f f'
-      | Index (e,o) -> cv e || offs_contains o
-    and cv e =
-      match e with
-      | SizeOf _
-      | SizeOfE _
-      | SizeOfStr _
-      | AlignOf _
-      | Const _
-      | AlignOfE _ -> false
-      | UnOp  (_,e,_)     -> cv e
-      | BinOp (_,e1,e2,_) -> cv e1 || cv e2
-      | AddrOf  (Mem e,o)
-      | StartOf (Mem e,o)
-      | Lval    (Mem e,o) -> cv e || offs_contains o
-      | CastE (_,e)           -> cv e
-      | Lval    (Var v2,o) -> offs_contains o
-      | AddrOf  (Var v2,o)
-      | StartOf (Var v2,o) -> offs_contains o
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
-    in
-    cv e
-
   let rec fold_offs c =
     match c with
     | AddrOf (Mem e,o) -> begin
