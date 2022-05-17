@@ -375,7 +375,7 @@ struct
           end
     | _ -> x (* If the array is not partitioned, nothing to do *)
 
-  let move_if_affected ?(replace_with_const=false) = move_if_affected_with_length ~replace_with_const:replace_with_const None
+  let move_if_affected ?replace_with_const = move_if_affected_with_length ?replace_with_const None
 
   let set_with_length length (ask:Q.ask) ((e, (xl, xm, xr)) as x) (i,_) a =
     if M.tracing then M.trace "update_offset" "part array set_with_length %a %a %a\n" pretty x LiftExp.pretty i Val.pretty a;
@@ -736,8 +736,8 @@ struct
   let make l x = Base.make l x, l
   let length (_,l) = Some l
 
-  let move_if_affected ?(replace_with_const=false) ask (x,l) v i =
-    (Base.move_if_affected_with_length ~replace_with_const:replace_with_const (Some l) ask x v i), l
+  let move_if_affected ?replace_with_const ask (x,l) v i =
+    (Base.move_if_affected_with_length ?replace_with_const (Some l) ask x v i), l
 
   let map f (x, l):t = (Base.map f x, l)
   let fold_left f a (x, l) = Base.fold_left f a x

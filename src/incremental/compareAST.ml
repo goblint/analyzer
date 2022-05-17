@@ -196,9 +196,9 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   | Block block1, Block block2 -> eq_block' block1 block2
   | _, _ -> false
 
-and eq_stmt ?(cfg_comp = false) ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
+and eq_stmt ?cfg_comp ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
   GobList.equal eq_label a.labels b.labels &&
-  eq_stmtkind ~cfg_comp (a.skind, af) (b.skind, bf)
+  eq_stmtkind ?cfg_comp (a.skind, af) (b.skind, bf)
 
 and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
   a.battrs = b.battrs && GobList.equal (fun x y -> eq_stmt (x, af) (y, bf)) a.bstmts b.bstmts
