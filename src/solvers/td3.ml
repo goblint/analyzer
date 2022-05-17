@@ -477,7 +477,7 @@ module WP =
             )
         in
 
-        let reluctant = GobConfig.get_bool "incremental.reluctant.on" in
+        let reluctant = GobConfig.get_bool "incremental.reluctant.enabled" in
         let reanalyze_entry f =
           (* destabilize the entry points of a changed function when reluctant is off,
              or the function is to be force-reanalyzed  *)

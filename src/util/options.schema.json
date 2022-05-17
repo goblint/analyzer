@@ -988,8 +988,8 @@
           "title": "incremental.reluctant",
           "type": "object",
           "properties": {
-            "on": {
-              "title": "incremental.reluctant.on",
+            "enabled": {
+              "title": "incremental.reluctant.enabled",
               "description":
                 "Destabilize nodes in changed functions reluctantly",
               "type": "boolean",

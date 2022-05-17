@@ -15,7 +15,7 @@
             "funs": ["f"]
         },
         "reluctant" : {
-            "on": true
+            "enabled": true
         },
         "postsolver": {
             "enabled": false
