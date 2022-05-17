@@ -47,7 +47,6 @@ struct
     | _ ->
       M.warn "Access to unknown address could be global"; []
 
-  (* TODO: unused? remove? *)
   let rec access_one_byval a rw (exp:exp) =
     match exp with
     (* Integer literals *)
@@ -79,6 +78,7 @@ struct
     | Var x, ofs -> access_offset ofs
     | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
 
+  (* TODO: unused? remove? *)
   let access_byval a (rw: bool) (exps: exp list) =
     List.concat_map (access_one_byval a rw) exps
 
