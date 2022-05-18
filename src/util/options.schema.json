@@ -1886,6 +1886,18 @@
               "type": "boolean",
               "default": true
             },
+            "narrow-reuse-verify": {
+              "title": "solvers.td3.narrow-reuse-verify",
+              "description": "Instead of reusing value when switching from widening to narrowing phase, just verify that the reuse would be correct by re-evaluating.",
+              "type": "boolean",
+              "default": false
+            },
+            "skip-unchanged-rhs" : {
+              "title" : "solvers.td3.skip-unchanged-rhs",
+              "description" : "Skip evaluation of RHS if all dependencies are unchanged - INCOMPATIBLE WITH RESTARTING",
+              "type" : "boolean",
+              "default" : true
+            },
             "restart": {
               "title": "solvers.td3.restart",
               "type": "object",

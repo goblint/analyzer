@@ -119,7 +119,14 @@ module WP =
       let rho_write = data.rho_write in
       let dep = data.dep in
 
-      let skip_unchanged_rhs = true in
+      let skip_unchanged_rhs =
+        let enabled = GobConfig.get_bool "solvers.td3.skip-unchanged-rhs" in
+        if enabled && (restart_sided || restart_only_globals || restart_only_access || restart_wpoint || restart_once) then
+          (M.warn "restarting active, disabling solvers.td3.skip-unchanged-rhs"; false)
+        else
+          enabled
+      in
+      (* TODO: Do we want to marshal dep_vals? *)
       let dep_vals = HM.create 10 in
 
       let () = print_solver_stats := fun () ->
