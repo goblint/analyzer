@@ -178,34 +178,9 @@ module WP =
               incr Goblintutil.narrow_reuses;
               d
             | _ ->
-              if cheap_abort then
-                let all_deps_unchanged =
-                  match HM.find_option dep_vals x with
-                  | None -> false
-                  | Some deps ->
-                    let deps_inorder = List.rev deps in
-                    List.for_all (fun (var, value) -> S.Dom.equal (HM.find rho var) value) deps_inorder
-                in
-                if all_deps_unchanged then
-                  (Printf.printf "%s" (Pretty.sprint ~width:max_int (Pretty.dprintf "All deps unchanged for %a\n" S.Var.pretty_trace x));
-                   List.iter (fun (var,value) -> Printf.printf "%s" (Pretty.sprint ~width:max_int (Pretty.dprintf "\tdepends on %a with unchanged value of %a \n" S.Var.pretty_trace var S.Dom.pretty value))) (HM.find dep_vals x);
-                   (* reusing the old value from rho *)
-                   HM.find rho x)
-                else
-                  (let eval_add_dep_vals y =
-                     let res = eval l x y in
-                     (* guaranteed to be present in hash table *)
-                     let curr_dep_vals = HM.find dep_vals x in
-                     HM.replace dep_vals x ((y,res) :: curr_dep_vals); res
-                   in
-                   (* The RHS is re-evaluated, all deps are re-trigerred *)
-                   HM.replace dep x VS.empty;
-                   HM.replace dep_vals x [];
-                   eq x (eval_add_dep_vals) (side ~x))
-              else
-                ((* The RHS is re-evaluated, all deps are re-trigerred *)
-                  HM.replace dep x VS.empty;
-                  eq x (eval l x) (side ~x))
+              (* The RHS is re-evaluated, all deps are re-trigerred *)
+              HM.replace dep x VS.empty;
+              eq x (eval l x) (side ~x)
           in
           let new_eq = tmp in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would unnecessarily destabilize below. Seems like this does not happen. *) *)
@@ -251,11 +226,49 @@ module WP =
           )
         )
       and eq x get set =
-        if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
+        if tracing then trace "sol8" "eq %a\n" S.Var.pretty_trace x;
         eval_rhs_event x;
-        match S.system x with
+        let r = match S.system x with
         | None -> S.Dom.bot ()
-        | Some f -> f get set
+        | Some f ->
+          if cheap_abort then
+            let all_deps_unchanged =
+              match HM.find_option dep_vals x with
+              | None -> None
+              | Some (oldv, deps) ->
+                let deps_inorder = List.rev deps in
+                if List.for_all (fun (var, value) -> S.Dom.equal (get var) value) deps_inorder then
+                  Some oldv
+                else
+                  None
+                  (* List.for_all (fun (var, value) -> S.Dom.equal (HM.find rho var) value) deps_inorder *)
+            in
+            match all_deps_unchanged with
+            | Some oldv ->
+              (trace "sol8" "All deps unchanged for %a\n" S.Var.pretty_trace x;
+               (* List.iter (fun (var,value) -> trace "sol8"  "\tdepends on %a with unchanged value of %a \n" S.Var.pretty_trace var S.Dom.pretty value) (HM.find dep_vals x); *)
+               (* reusing the old value from rho *)
+               let res = oldv in
+               trace "sol8" "\t val for %a is %a\n" S.Var.pretty_trace x S.Dom.pretty res; res
+              )
+            | _ ->
+              (
+                let get_add_dep_vals y =
+                  let res = get y in
+                  (* guaranteed to be present in hash table *)
+                  (* let curr_dep_vals = HM.find dep_vals x in
+                     HM.replace dep_vals x ((y,res) :: curr_dep_vals); *) res
+                in
+                HM.replace dep_vals x (S.Dom.bot (),[]);
+                let res = f get set in
+                HM.replace dep_vals x (res, snd (HM.find dep_vals x));
+                res
+              )
+          else
+            f get set
+        in
+        if tracing then trace "sol8" "eq end %a\n" S.Var.pretty_trace x;
+        r
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
         if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
@@ -290,6 +303,9 @@ module WP =
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         if tracing then trace "sol2" "eval %a ## %a -> %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty tmp;
+        if cheap_abort then
+          (let (oldv,curr_dep_vals) = HM.find dep_vals x in
+           HM.replace dep_vals x (oldv,((y,tmp) :: curr_dep_vals)));
         tmp
       and side ?x y d = (* side from x to y; only to variables y w/o rhs; x only used for trace *)
         if tracing then trace "sol2" "side to %a (wpx: %b) from %a ## value: %a\n" S.Var.pretty_trace y (HM.mem wpoint y) (Pretty.docOpt (S.Var.pretty_trace ())) x S.Dom.pretty d;
