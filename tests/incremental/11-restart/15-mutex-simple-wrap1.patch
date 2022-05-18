@@ -1,5 +1,5 @@
---- tests/incremental/11-restart/14-mutex-simple-wrap1.c
-+++ tests/incremental/11-restart/14-mutex-simple-wrap1.c
+--- tests/incremental/11-restart/15-mutex-simple-wrap1.c
++++ tests/incremental/11-restart/15-mutex-simple-wrap1.c
 @@ -7,15 +7,15 @@ pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
  void *t_fun(void *arg) {
