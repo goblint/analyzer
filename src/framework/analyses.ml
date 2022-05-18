@@ -407,7 +407,7 @@ type increment_data = {
 
   old_data: analyzed_data option;
   new_file: Cil.file;
-  changes: CompareCIL.change_info
+  changes: CompareGlobals.change_info
 }
 
 let empty_increment_data ?(server=false) file = {
