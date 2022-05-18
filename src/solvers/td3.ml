@@ -119,7 +119,7 @@ module WP =
       let rho_write = data.rho_write in
       let dep = data.dep in
 
-      let cheap_abort = true in
+      let skip_unchanged_rhs = true in
       let dep_vals = HM.create 10 in
 
       let () = print_solver_stats := fun () ->
@@ -231,7 +231,7 @@ module WP =
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f ->
-          if cheap_abort then
+          if skip_unchanged_rhs then
             let all_deps_unchanged =
               match HM.find_option dep_vals x with
               | None -> None
@@ -291,7 +291,7 @@ module WP =
         let tmp = simple_solve l x y in
         if HM.mem rho y then add_infl y x;
         if tracing then trace "sol2" "eval %a ## %a -> %a\n" S.Var.pretty_trace x S.Var.pretty_trace y S.Dom.pretty tmp;
-        if cheap_abort then
+        if skip_unchanged_rhs then
           (let (oldv,curr_dep_vals) = HM.find dep_vals x in
            HM.replace dep_vals x (oldv,((y,tmp) :: curr_dep_vals)));
         tmp
