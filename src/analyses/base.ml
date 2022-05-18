@@ -426,7 +426,6 @@ struct
      * join all its values. *)
     | `Array a -> reachable_from_value ask gs st (ValueDomain.CArrays.get ask a (ExpDomain.top (), ValueDomain.ArrIdxDomain.top ())) t description
     | `Blob (e,_,_) -> reachable_from_value ask gs st e t description
-    | `List e -> reachable_from_value ask gs st (`Address (ValueDomain.Lists.entry_rand e)) t description
     | `Struct s -> ValueDomain.Structs.fold (fun k v acc -> AD.join (reachable_from_value ask gs st v t description) acc) s empty
     | `Int _ -> empty
     | `Thread _ -> empty (* thread IDs are abstract and nothing known can be reached from them *)
@@ -558,7 +557,6 @@ struct
         | `Union (t,e) -> with_field (reachable_from_value e) t
         | `Array a -> reachable_from_value (ValueDomain.CArrays.get (Analyses.ask_of_ctx ctx) a (ExpDomain.top(), ValueDomain.ArrIdxDomain.top ()))
         | `Blob (e,_,_) -> reachable_from_value e
-        | `List e -> reachable_from_value (`Address (ValueDomain.Lists.entry_rand e))
         | `Struct s ->
           let join_tr (a1,t1,_) (a2,t2,_) = AD.join a1 a2, TS.join t1 t2, false in
           let f k v =
@@ -1114,7 +1112,7 @@ struct
         let dep_new = List.fold_left (fun dep var -> add_one_dep x var dep) st.deps vars_in_partitioning in
         { st with deps = dep_new }
       end
-    (* `List and `Blob cannot contain arrays *)
+    (* `Blob cannot contain arrays *)
     | _ ->  st
 
   (** [set st addr val] returns a state where [addr] is set to [val]
@@ -1735,70 +1733,58 @@ struct
       | _ -> ()
     in
     char_array_hack ();
-    let is_list_init () =
-      match lval, rval with
-      | (Var a, Field (fi,NoOffset)), AddrOf((Var b, NoOffset))
-        when !GU.global_initialization && CilType.Varinfo.equal a b
-             && fi.fcomp.cname = "list_head"
-             && (fi.fname = "prev" || fi.fname = "next") -> Some a
-      | _ -> None
-    in
-    match is_list_init () with
-    | Some a when (get_bool "exp.list-type") ->
-        set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.singleton (Addr.from_var a)) lval_t (`List (ValueDomain.Lists.bot ()))
-    | _ ->
-      let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
-      let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
-      (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
-      (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
-      let not_local xs =
-        let not_local x =
-          match Addr.to_var_may x with
-          | Some x -> is_global (Analyses.ask_of_ctx ctx) x
-          | None -> x = Addr.UnknownPtr
-        in
-        AD.is_top xs || AD.exists not_local xs
+    let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
+    let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
+    (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
+    (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
+    let not_local xs =
+      let not_local x =
+        match Addr.to_var_may x with
+        | Some x -> is_global (Analyses.ask_of_ctx ctx) x
+        | None -> x = Addr.UnknownPtr
       in
-      (match rval_val, lval_val with
-      | `Address adrs, lval
-        when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
-        let find_fps e xs = match Addr.to_var_must e with
-          | Some x -> x :: xs
-          | None -> xs
-        in
-        let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
-        let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-        List.iter (fun x -> ctx.spawn None x []) funs
-      | _ -> ()
-      );
-      match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
-      | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
-        (* Optimization: In case of simple integral types, we not need to evaluate the old value.
-           v is not an allocated block, as v directly appears as a variable in the program;
-           so no explicit check is required here (unlike in set) *)
-        let current_val = if Cil.isIntegralType v.vtype then begin
-            assert (offs = NoOffset);
-            `Bot
-          end else
-            eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
-        in
-        begin match current_val with
-          | `Bot -> (* current value is VD `Bot *)
-            begin match Addr.to_var_offset (AD.choose lval_val) with
-              | Some (x,offs) ->
-                let t = v.vtype in
-                let iv = VD.bot_value t in (* correct bottom value for top level variable *)
-                if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
-                let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
-                set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
-              | None ->
-                set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
-            end
-          | _ ->
-            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
-        end
-      | _ ->
-        set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+      AD.is_top xs || AD.exists not_local xs
+    in
+    (match rval_val, lval_val with
+    | `Address adrs, lval
+      when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+      let find_fps e xs = match Addr.to_var_must e with
+        | Some x -> x :: xs
+        | None -> xs
+      in
+      let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
+      let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
+      List.iter (fun x -> ctx.spawn None x []) funs
+    | _ -> ()
+    );
+    match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
+    | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
+      (* Optimization: In case of simple integral types, we not need to evaluate the old value.
+          v is not an allocated block, as v directly appears as a variable in the program;
+          so no explicit check is required here (unlike in set) *)
+      let current_val = if Cil.isIntegralType v.vtype then begin
+          assert (offs = NoOffset);
+          `Bot
+        end else
+          eval_rv_keep_bot (Analyses.ask_of_ctx ctx) ctx.global ctx.local (Lval (Var v, NoOffset))
+      in
+      begin match current_val with
+        | `Bot -> (* current value is VD `Bot *)
+          begin match Addr.to_var_offset (AD.choose lval_val) with
+            | Some (x,offs) ->
+              let t = v.vtype in
+              let iv = VD.bot_value t in (* correct bottom value for top level variable *)
+              if M.tracing then M.tracel "set" "init bot value: %a\n" VD.pretty iv;
+              let nv = VD.update_offset (Analyses.ask_of_ctx ctx) iv offs rval_val (Some  (Lval lval)) lval t in (* do desired update to value *)
+              set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.from_var v) lval_t nv ~lval_raw:lval ~rval_raw:rval (* set top-level variable to updated value *)
+            | None ->
+              set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+          end
+        | _ ->
+          set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
+      end
+    | _ ->
+      set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval_val lval_t rval_val ~lval_raw:lval ~rval_raw:rval
 
 
   let branch ctx (exp:exp) (tv:bool) : store =
@@ -2189,45 +2175,6 @@ struct
           let dst_lval = mkMem ~addr:dst ~off:NoOffset in
           assign ctx dst_lval data (* this is only ok because we use ArrayDomain.Trivial per default, i.e., there's no difference between the first element or the whole array *)
         | _ -> failwith "memset arguments are strange/complicated."
-      end
-    | `Unknown "list_add" when (get_bool "exp.list-type") ->
-      begin match args with
-        | [ AddrOf (Var elm,next);(AddrOf (Var lst,NoOffset))] ->
-          begin
-            let ladr = AD.singleton (Addr.from_var lst) in
-            match get (Analyses.ask_of_ctx ctx) ctx.global ctx.local ladr  None with
-            | `List ld ->
-              let eadr = AD.singleton (Addr.from_var elm) in
-              let eitemadr = AD.singleton (Addr.from_var_offset (elm, convert_offset (Analyses.ask_of_ctx ctx) ctx.global ctx.local next)) in
-              let new_list = `List (ValueDomain.Lists.add eadr ld) in
-              let s1 = set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local ladr lst.vtype new_list in
-              let s2 = set ~ctx (Analyses.ask_of_ctx ctx) ctx.global s1 eitemadr (AD.get_type eitemadr) (`Address (AD.singleton (Addr.from_var lst))) in
-              s2
-            | _ -> set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local ladr lst.vtype `Top
-          end
-        | _ -> failwith "List function arguments are strange/complicated."
-      end
-    | `Unknown "list_del" when (get_bool "exp.list-type") ->
-      begin match args with
-        | [ AddrOf (Var elm,next) ] ->
-          begin
-            let eadr = AD.singleton (Addr.from_var elm) in
-            let lptr = AD.singleton (Addr.from_var_offset (elm, convert_offset (Analyses.ask_of_ctx ctx) ctx.global ctx.local next)) in
-            let lprt_val = get (Analyses.ask_of_ctx ctx) ctx.global ctx.local lptr None in
-            let lst_poison = `Address (AD.singleton (Addr.from_var ListDomain.list_poison)) in
-            let s1 = set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local lptr (AD.get_type lptr) (VD.join lprt_val lst_poison) in
-            match get (Analyses.ask_of_ctx ctx) ctx.global ctx.local lptr None with
-            | `Address ladr -> begin
-                match get (Analyses.ask_of_ctx ctx) ctx.global ctx.local ladr None with
-                | `List ld ->
-                  let del_ls = ValueDomain.Lists.del eadr ld in
-                  let s2 = set ~ctx (Analyses.ask_of_ctx ctx) ctx.global s1 ladr (AD.get_type ladr) (`List del_ls) in
-                  s2
-                | _ -> s1
-              end
-            | _ -> s1
-          end
-        | _ -> failwith "List function arguments are strange/complicated."
       end
     | `Unknown "__builtin" ->
       begin match args with

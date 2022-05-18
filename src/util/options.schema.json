@@ -1242,12 +1242,6 @@
           "items": { "type": "string" },
           "default": []
         },
-        "list-type": {
-          "title": "exp.list-type",
-          "description": "Use a special abstract value for lists.",
-          "type": "boolean",
-          "default": false
-        },
         "g2html_path": {
           "title": "exp.g2html_path",
           "description": "Location of the g2html.jar file.",
