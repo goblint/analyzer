@@ -988,8 +988,8 @@
           "title": "incremental.reluctant",
           "type": "object",
           "properties": {
-            "on": {
-              "title": "incremental.reluctant.on",
+            "enabled": {
+              "title": "incremental.reluctant.enabled",
               "description":
                 "Destabilize nodes in changed functions reluctantly",
               "type": "boolean",
@@ -1041,25 +1041,25 @@
               "properties": {
                 "enabled": {
                   "title": "incremental.restart.sided.enabled",
-                  "description": "TODO",
+                  "description": "Restart affected side-effected variables (transitively) to bot.",
                   "type": "boolean",
                   "default": false
                 },
                 "only-global": {
                   "title": "incremental.restart.sided.only-global",
-                  "description": "TODO",
+                  "description": "Restart only constraint system globals.",
                   "type": "boolean",
                   "default": false
                 },
                 "only-access" : {
                   "title" : "incremental.restart.sided.only-access",
-                  "description" : "TODO",
+                  "description" : "Restart only write-only variables.",
                   "type" : "boolean",
                   "default" : false
                 },
                 "destab-with-sides": {
                   "title" : "incremental.restart.sided.destab-with-sides",
-                  "description" : "TODO",
+                  "description" : "TODO BROKEN",
                   "type" : "boolean",
                   "default" : true
                 },
@@ -1887,13 +1887,13 @@
             },
             "narrow-reuse": {
               "title": "solvers.td3.narrow-reuse",
-              "description": "TODO",
+              "description": "Reuse value when switching from widening to narrowing phase. Avoids one unnecessary re-evaluation.",
               "type": "boolean",
               "default": true
             },
             "narrow-reuse-verify": {
               "title": "solvers.td3.narrow-reuse-verify",
-              "description": "TODO",
+              "description": "Instead of reusing value when switching from widening to narrowing phase, just verify that the reuse would be correct by re-evaluating.",
               "type": "boolean",
               "default": false
             },
@@ -1907,13 +1907,13 @@
                   "properties": {
                     "enabled": {
                       "title": "solvers.td3.restart.wpoint.enabled",
-                      "description": "TODO",
+                      "description": "Restart wpoint to bot when (re-)detected. Allows incremental to avoid reusing and republishing imprecise local values due to globals (which get restarted).",
                       "type": "boolean",
                       "default": false
                     },
                     "once": {
                       "title": "solvers.td3.restart.wpoint.once",
-                      "description": "TODO",
+                      "description": "Restart wpoint only on first detection. Useful for incremental loading.",
                       "type": "boolean",
                       "default": false
                     }
@@ -1922,18 +1922,6 @@
                 }
               },
               "additionalProperties": false
-            },
-            "abort": {
-              "title": "solvers.td3.abort",
-              "description": "TODO",
-              "type": "boolean",
-              "default": false
-            },
-            "abort-verify": {
-              "title": "solvers.td3.abort-verify",
-              "description": "TODO",
-              "type": "boolean",
-              "default": false
             },
             "verify": {
               "title": "solvers.td3.verify",

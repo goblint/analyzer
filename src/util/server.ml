@@ -147,13 +147,13 @@ let increment_data (s: t) file reparsed = match !Serialize.server_solver_data wi
     let old_data = Some { Analyses.cil_file = s_file; solver_data } in
     s.max_ids <- UpdateCil.update_ids s_file s.max_ids file changes;
     (* TODO: get globals for restarting from config *)
-    { Analyses.changes; old_data; new_file = file; restarting = [] }, false
+    { server = true; Analyses.changes; old_data; new_file = file; restarting = [] }, false
   | Some solver_data ->
     let changes = virtual_changes file in
     let old_data = Some { Analyses.cil_file = file; solver_data } in
     (* TODO: get globals for restarting from config *)
-    { Analyses.changes; old_data; new_file = file; restarting = [] }, false
-  | _ -> Analyses.empty_increment_data file, true
+    { server = true; Analyses.changes; old_data; new_file = file; restarting = [] }, false
+  | _ -> Analyses.empty_increment_data ~server:true file, true
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);
@@ -194,7 +194,6 @@ let () =
         analyze serve ~reset;
         {status = if !Goblintutil.verified = Some false then VerifyError else Success}
       with Sys.Break ->
-        assert (GobConfig.get_bool "ana.opt.hashcons"); (* TODO: TD3 doesn't copy input solver data, so will modify it in place and screw up Serialize.server_solver_data accidentally *)
         {status = Aborted}
   end);
 
