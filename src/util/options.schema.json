@@ -1086,6 +1086,12 @@
                 "type": "string"
               },
               "default": []
+            },
+            "write-only": {
+              "title": "incremental.restart.write-only",
+              "description": "TODO",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false

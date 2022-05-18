@@ -4,7 +4,8 @@
             "sided": {
                 "enabled": true,
                 "fuel": 1
-            }
+            },
+            "write-only": false
         }
     }
 }

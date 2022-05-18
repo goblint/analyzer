@@ -366,6 +366,8 @@ module WP =
       (* reluctantly unchanged return nodes to additionally query for postsolving to get warnings, etc. *)
       let reluctant_vs: S.Var.t list ref = ref [] in
 
+      let restart_write_only = GobConfig.get_bool "incremental.restart.write-only" in
+
       if GobConfig.get_bool "incremental.load" then (
         let c = S.increment.changes in
         List.(Printf.printf "change_info = { unchanged = %d; changed = %d; added = %d; removed = %d }\n" (length c.unchanged) (length c.changed) (length c.added) (length c.removed));
@@ -401,7 +403,7 @@ module WP =
             if restart_only_access then
               S.Var.is_write_only x
             else
-              (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) && (not (S.Var.is_write_only x))
+              (not restart_only_globals || Node.equal (S.Var.node x) (Function Cil.dummyFunDec)) && (not (S.Var.is_write_only x) || not restart_write_only)
           in
 
           if not (VS.is_empty w) && should_restart then (
@@ -874,12 +876,15 @@ module WP =
           HM.create 0 (* doesn't matter, not used *)
       in
 
-      (* restart write-only *)
-      HM.iter (fun x w ->
-          HM.iter (fun y d ->
-              HM.replace rho y (S.Dom.bot ());
-            ) w
-        ) rho_write;
+      if restart_write_only then (
+        (* restart write-only *)
+        HM.iter (fun x w ->
+            HM.iter (fun y d ->
+                ignore (Pretty.printf "Restarting write-only to bot %a\n" S.Var.pretty_trace y);
+                HM.replace rho y (S.Dom.bot ());
+              ) w
+          ) rho_write
+      );
 
       if incr_verify then (
         HM.filteri_inplace (fun x _ -> HM.mem reachable_and_superstable x) var_messages;
