@@ -1047,7 +1047,7 @@
                 },
                 "only-global": {
                   "title": "incremental.restart.sided.only-global",
-                  "description": "Restart only constraint system globals.",
+                  "description": "Restart only constraint system globals (not function entry nodes).",
                   "type": "boolean",
                   "default": false
                 },
@@ -1065,13 +1065,13 @@
                 },
                 "fuel": {
                   "title": "incremental.restart.sided.fuel",
-                  "description": "TODO",
+                  "description": "Initial fuel for bounding transitive restarting, which uses one fuel each time when following side_fuel to restart. Zero fuel never restarts. Negative fuel doesn't bound (infinite fuel).",
                   "type": "integer",
                   "default": -1
                 },
                 "fuel-only-global": {
                   "title": "incremental.restart.sided.fuel-only-global",
-                  "description": "TODO",
+                  "description": "Decrease fuel only when going to constraint system globals (not function entry nodes).",
                   "type": "boolean",
                   "default": false
                 }
@@ -1089,7 +1089,7 @@
             },
             "write-only": {
               "title": "incremental.restart.write-only",
-              "description": "TODO",
+              "description": "Restart write-only variables to bot during postprocessing.",
               "type": "boolean",
               "default": true
             }
