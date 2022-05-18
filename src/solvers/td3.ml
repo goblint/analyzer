@@ -119,6 +119,9 @@ module WP =
       let rho_write = data.rho_write in
       let dep = data.dep in
 
+      let cheap_abort = true in
+      let dep_vals = HM.create 10 in
+
       let () = print_solver_stats := fun () ->
           Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n"
             (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length rho_write) (HM.length dep);
@@ -175,9 +178,34 @@ module WP =
               incr Goblintutil.narrow_reuses;
               d
             | _ ->
-              (* The RHS is re-evaluated, all deps are re-trigerred *)
-              HM.replace dep x VS.empty;
-              eq x (eval l x) (side ~x)
+              if cheap_abort then
+                let all_deps_unchanged =
+                  match HM.find_option dep_vals x with
+                  | None -> false
+                  | Some deps ->
+                    let deps_inorder = List.rev deps in
+                    List.for_all (fun (var, value) -> S.Dom.equal (HM.find rho var) value) deps_inorder
+                in
+                if all_deps_unchanged then
+                  (Printf.printf "%s" (Pretty.sprint ~width:max_int (Pretty.dprintf "All deps unchanged for %a\n" S.Var.pretty_trace x));
+                   List.iter (fun (var,value) -> Printf.printf "%s" (Pretty.sprint ~width:max_int (Pretty.dprintf "\tdepends on %a with unchanged value of %a \n" S.Var.pretty_trace var S.Dom.pretty value))) (HM.find dep_vals x);
+                   (* reusing the old value from rho *)
+                   HM.find rho x)
+                else
+                  (let eval_add_dep_vals y =
+                     let res = eval l x y in
+                     (* guaranteed to be present in hash table *)
+                     let curr_dep_vals = HM.find dep_vals x in
+                     HM.replace dep_vals x ((y,res) :: curr_dep_vals); res
+                   in
+                   (* The RHS is re-evaluated, all deps are re-trigerred *)
+                   HM.replace dep x VS.empty;
+                   HM.replace dep_vals x [];
+                   eq x (eval_add_dep_vals) (side ~x))
+              else
+                ((* The RHS is re-evaluated, all deps are re-trigerred *)
+                  HM.replace dep x VS.empty;
+                  eq x (eval l x) (side ~x))
           in
           let new_eq = tmp in
           (* let tmp = if GobConfig.get_bool "ana.opt.hashcons" then S.Dom.join (S.Dom.bot ()) tmp else tmp in (* Call hashcons via dummy join so that the tag of the rhs value is up to date. Otherwise we might get the same value as old, but still with a different tag (because no lattice operation was called after a change), and since Printable.HConsed.equal just looks at the tag, we would unnecessarily destabilize below. Seems like this does not happen. *) *)
