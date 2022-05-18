@@ -226,9 +226,9 @@ module WP =
           )
         )
       and eq x get set =
-        if tracing then trace "sol8" "eq %a\n" S.Var.pretty_trace x;
+        if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
         eval_rhs_event x;
-        let r = match S.system x with
+        match S.system x with
         | None -> S.Dom.bot ()
         | Some f ->
           if cheap_abort then
@@ -241,34 +241,22 @@ module WP =
                   Some oldv
                 else
                   None
-                  (* List.for_all (fun (var, value) -> S.Dom.equal (HM.find rho var) value) deps_inorder *)
             in
             match all_deps_unchanged with
             | Some oldv ->
-              (trace "sol8" "All deps unchanged for %a\n" S.Var.pretty_trace x;
-               (* List.iter (fun (var,value) -> trace "sol8"  "\tdepends on %a with unchanged value of %a \n" S.Var.pretty_trace var S.Dom.pretty value) (HM.find dep_vals x); *)
-               (* reusing the old value from rho *)
-               let res = oldv in
-               trace "sol8" "\t val for %a is %a\n" S.Var.pretty_trace x S.Dom.pretty res; res
-              )
+              trace "sol2" "All deps unchanged for %a, not evaluating RHS\n" S.Var.pretty_trace x;
+              oldv
             | _ ->
               (
-                let get_add_dep_vals y =
-                  let res = get y in
-                  (* guaranteed to be present in hash table *)
-                  (* let curr_dep_vals = HM.find dep_vals x in
-                     HM.replace dep_vals x ((y,res) :: curr_dep_vals); *) res
-                in
+                (* Reset dep_vals to [] *)
                 HM.replace dep_vals x (S.Dom.bot (),[]);
                 let res = f get set in
+                (* Insert old value of last RHS evaluation *)
                 HM.replace dep_vals x (res, snd (HM.find dep_vals x));
                 res
               )
           else
             f get set
-        in
-        if tracing then trace "sol8" "eq end %a\n" S.Var.pretty_trace x;
-        r
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
         if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
