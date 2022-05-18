@@ -2,8 +2,7 @@
     "incremental": {
         "restart": {
             "sided": {
-                "enabled": true,
-                "fuel": 1
+                "enabled": false
             }
         }
     }
