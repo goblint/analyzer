@@ -187,7 +187,7 @@ module FloatDomTupleImpl = struct
 
   let create r x =
     (* use where values are introduced *)
-    create r x (float_precision_from_config ())
+    create r x (float_precision_from_node_or_config ())
 
   let opt_map2 f =
     curry @@ function Some x, Some y -> Some (f x y) | _ -> None

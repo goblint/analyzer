@@ -1229,6 +1229,20 @@
           },
           "additionalProperties": false
         },
+        "float": {
+          "title": "annotation.float",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "annotation.float.enabled",
+              "description":
+                "Enable manual annotation of functions with desired precision, i.e. the activated FloatDomains.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "goblint_context": {
           "title": "annotation.goblint_context",
           "type": "object",

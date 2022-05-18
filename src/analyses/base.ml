@@ -85,7 +85,7 @@ struct
 
   let project_val p_opt value is_glob =
     match GobConfig.get_bool "annotation.int.enabled", is_glob, p_opt with
-    | true, true, _ -> VD.project PU.max_precision value
+    | true, true, _ -> VD.project PU.max_int_precision value
     | true, false, Some p -> VD.project p value
     | _ -> value
 
