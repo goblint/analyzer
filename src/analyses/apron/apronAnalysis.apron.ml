@@ -323,6 +323,9 @@ struct
         | Some lv -> invalidate_one st' lv
         | None -> st'
       )
+    | `Unknown "__goblint_assume_join" ->
+      let id = List.hd args in
+      Priv.thread_join ~force:true ask ctx.global id st
     | _ ->
       let ask = Analyses.ask_of_ctx ctx in
       let invalidate_one st lv =

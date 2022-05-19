@@ -315,7 +315,8 @@ struct
            | _ -> failwith "Unmatched pattern."
     in
     let r =
-      if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
+      if Cil.isConstant b then false
+      else if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
       then ((*Messages.warn "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
@@ -323,7 +324,9 @@ struct
           then (Messages.warn ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           else (Messages.warn ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           Messages.warn ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
-    *)    r
+    *)
+    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pretty b CilType.Exp.pretty a r;
+    r
 
   (* Remove elements, that would change if the given lval would change.*)
   let remove_exp ask (e:exp) (st:D.t) : D.t =
@@ -376,6 +379,12 @@ struct
           let st =
     *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     (*     Messages.warn ~msg:(sprint 80 (d_type () lvt)) (); *)
+    if M.tracing then (
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
+      M.tracel "var_eq" "add_eq interesting %a = %B\n" d_plainexp rv (Exp.interesting rv);
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainexp rv (is_global_var ask rv = Some false);
+      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt);
+    );
     if is_global_var ask (Lval lv) = Some false
     && Exp.interesting rv
     && is_global_var ask rv = Some false
@@ -519,7 +528,18 @@ struct
       D.B.fold add es (Queries.ES.empty ())
 
   let rec eq_set_clos e s =
-    match e with
+    if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
+    let r = match e with
+    | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
+      (* convert IndexPI to Index offset *)
+      (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
+      Queries.ES.fold (fun e acc -> (* filter_map *)
+        match e with
+        | CastE (_, StartOf a') -> (* eq_set adds casts *)
+          let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
+          Queries.ES.add e' acc
+        | _ -> acc
+      ) (eq_set_clos a s) (Queries.ES.empty ())
     | SizeOf _
     | SizeOfE _
     | SizeOfStr _
@@ -541,6 +561,9 @@ struct
       Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
     | Question _ -> failwith "Logical operations should be compiled away by CIL."
     | _ -> failwith "Unmatched pattern."
+    in
+    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pretty r;
+    r
 
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
@@ -550,6 +573,7 @@ struct
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
       (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
+      if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
       r
     | _ -> Queries.Result.top x
 

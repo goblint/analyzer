@@ -37,7 +37,7 @@ module type S =
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> apron_components_t
     val threadenter: Q.ask -> (V.t -> G.t) -> apron_components_t -> apron_components_t
 
-    val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
+    val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
     val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
@@ -62,7 +62,7 @@ struct
   let lock ask getg st m = st
   let unlock ask getg sideg st m = st
 
-  let thread_join ask getg exp st = st
+  let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg st reason = st
@@ -270,7 +270,7 @@ struct
     {apr = apr_local'; priv = (p', w')}
 
 
-  let thread_join ask getg exp st = st
+  let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: apron_components_t) reason =
@@ -461,7 +461,7 @@ struct
     let apr_local = remove_globals_unprotected_after_unlock ask m apr in
     {st with apr = apr_local}
 
-  let thread_join ask getg exp st = st
+  let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: apron_components_t) reason =
@@ -983,22 +983,40 @@ struct
       let l' = L.add lm apr_side l in
       {apr = apr_local; priv = (w',LMust.add lm lmust,l')}
 
-  let thread_join (ask:Q.ask) getg exp (st: apron_components_t) =
+  let thread_join ?(force=false) (ask:Q.ask) getg exp (st: apron_components_t) =
     let w,lmust,l = st.priv in
     let tids = ask.f (Q.EvalThread exp) in
-    if ConcDomain.ThreadSet.is_top tids then
-      st (* TODO: why needed? *)
+    if force then (
+      if ConcDomain.ThreadSet.is_top tids then (
+        M.info ~category:Unsound "Unknown thread ID assume-joined, Apron privatization unsound"; (* TODO: something more sound *)
+        st (* cannot find all thread IDs to join them all *)
+      )
+      else (
+        (* fold throws if the thread set is top *)
+        let tids' = ConcDomain.ThreadSet.diff tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
+        let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->
+            let lmust',l' = G.thread (getg (V.thread tid)) in
+            (LMust.union lmust' lmust, L.join l l')
+          ) tids' (lmust, l)
+        in
+        {st with priv = (w, lmust', l')}
+      )
+    )
     else (
-      (* elements throws if the thread set is top *)
-      let tids = ConcDomain.ThreadSet.elements tids in
-      match tids with
-      | [tid] ->
-        let lmust',l' = G.thread (getg (V.thread tid)) in
-        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-      | _ ->
-        (* To match the paper more closely, one would have to join in the non-definite case too *)
-        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
-        st
+      if ConcDomain.ThreadSet.is_top tids then
+        st (* TODO: why needed? *)
+      else (
+        (* elements throws if the thread set is top *)
+        let tids = ConcDomain.ThreadSet.elements tids in
+        match tids with
+        | [tid] ->
+          let lmust',l' = G.thread (getg (V.thread tid)) in
+          {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+        | _ ->
+          (* To match the paper more closely, one would have to join in the non-definite case too *)
+          (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+          st
+      )
     )
 
   let thread_return ask getg sideg tid (st: apron_components_t) =
