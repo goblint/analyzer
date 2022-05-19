@@ -530,37 +530,37 @@ struct
   let rec eq_set_clos e s =
     if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
     let r = match e with
-    | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
-      (* convert IndexPI to Index offset *)
-      (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
-      Queries.ES.fold (fun e acc -> (* filter_map *)
-        match e with
-        | CastE (_, StartOf a') -> (* eq_set adds casts *)
-          let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
-          Queries.ES.add e' acc
-        | _ -> acc
-      ) (eq_set_clos a s) (Queries.ES.empty ())
-    | SizeOf _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | Const _
-    | AlignOfE _
-    | UnOp _
-    | BinOp _
-    | AddrOf  (Var _,_)
-    | StartOf (Var _,_)
-    | Lval    (Var _,_) -> eq_set e s
-    | AddrOf  (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | StartOf (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | Lval    (Mem e,ofs) ->
-      Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | CastE (t,e) ->
-      Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
+      | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
+        (* convert IndexPI to Index offset *)
+        (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
+        Queries.ES.fold (fun e acc -> (* filter_map *)
+          match e with
+          | CastE (_, StartOf a') -> (* eq_set adds casts *)
+            let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
+            Queries.ES.add e' acc
+          | _ -> acc
+        ) (eq_set_clos a s) (Queries.ES.empty ())
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _
+      | Const _
+      | AlignOfE _
+      | UnOp _
+      | BinOp _
+      | AddrOf  (Var _,_)
+      | StartOf (Var _,_)
+      | Lval    (Var _,_) -> eq_set e s
+      | AddrOf  (Mem e,ofs) ->
+        Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | StartOf (Mem e,ofs) ->
+        Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | Lval    (Mem e,ofs) ->
+        Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | CastE (t,e) ->
+        Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
+      | Question _ -> failwith "Logical operations should be compiled away by CIL."
+      | _ -> failwith "Unmatched pattern."
     in
     if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pretty r;
     r
