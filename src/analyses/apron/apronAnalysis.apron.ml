@@ -199,7 +199,14 @@ struct
 
   (* Function call transfer functions. *)
 
+  let pass_to_callee fundec reachable_from_args var =
+    let vname = Var.to_string var in
+    match List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) with
+    | None -> true
+    | Some v -> Queries.LS.exists (fun (v',_) -> v'.vid = v.vid) reachable_from_args
+
   let enter ctx r f args =
+    let fundec = Node.find_fundec ctx.node in
     let st = ctx.local in
     if M.tracing then M.tracel "combine" "apron enter f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron enter formals: %a\n" (d_list "," d_varinfo) f.sformals;
@@ -221,16 +228,9 @@ struct
           )
       ) new_apr arg_assigns
     in
-    let is_reachable var =
-      let fundec = Node.find_fundec ctx.node in
-      let vname = Var.to_string var in
-      match List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) with
-      | None -> true
-      | Some v -> Queries.LS.exists (fun (v',_) -> v'.vid = v.vid) reachable_from_args
-    in
     AD.remove_filter_with new_apr (fun var ->
         match V.find_metadata var with
-        | Some Local when not (is_reachable var) -> true (* remove caller locals provided they are unreachable *)
+        | Some Local when not (pass_to_callee fundec reachable_from_args var) -> true (* remove caller locals provided they are unreachable *)
         | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
@@ -285,6 +285,8 @@ struct
 
   let combine ctx r fe f args fc fun_st =
     let st = ctx.local in
+    let reachable_from_args = List.fold (fun ls e -> Queries.LS.join ls (ctx.ask (ReachableFrom e))) (Queries.LS.empty ()) args in
+    let fundec = Node.find_fundec ctx.node in
     if M.tracing then M.tracel "combine" "apron f: %a\n" d_varinfo f.svar;
     if M.tracing then M.tracel "combine" "apron formals: %a\n" (d_list "," d_varinfo) f.sformals;
     if M.tracing then M.tracel "combine" "apron args: %a\n" (d_list "," d_exp) args;
@@ -309,9 +311,9 @@ struct
     AD.remove_vars_with new_fun_apr arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
         match V.find_metadata var with
-        | Some Local -> true (* keep caller locals *)
+        | Some Local when not (pass_to_callee fundec reachable_from_args var) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some Arg -> true (* keep caller args *)
-        | _ -> false (* remove everything else (globals, global privs) *)
+        | _ -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
       )
     in
     let unify_apr = ApronDomain.A.unify Man.mgr new_apr new_fun_apr in (* TODO: unify_with *)
