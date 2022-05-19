@@ -534,12 +534,12 @@ struct
         (* convert IndexPI to Index offset *)
         (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
         Queries.ES.fold (fun e acc -> (* filter_map *)
-          match e with
-          | CastE (_, StartOf a') -> (* eq_set adds casts *)
-            let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
-            Queries.ES.add e' acc
-          | _ -> acc
-        ) (eq_set_clos a s) (Queries.ES.empty ())
+            match e with
+            | CastE (_, StartOf a') -> (* eq_set adds casts *)
+              let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
+              Queries.ES.add e' acc
+            | _ -> acc
+          ) (eq_set_clos a s) (Queries.ES.empty ())
       | SizeOf _
       | SizeOfE _
       | SizeOfStr _
