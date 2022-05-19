@@ -23,7 +23,7 @@ let main () =
       print_endline (localtime ());
       print_endline command;
     );
-    let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_and_merge) in
+    let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_parse_merge) in
     if get_bool "server.enabled" then (
       let file =
         if get_bool "server.reparse" then

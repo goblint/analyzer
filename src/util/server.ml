@@ -119,7 +119,7 @@ let start file =
 let reparse (s: t) =
   if GobConfig.get_bool "server.reparse" then (
     GoblintDir.init ();
-    let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge in
+    let file = Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_parse_merge in
     begin match s.file with
       | None ->
         let max_ids = MaxIdUtil.get_file_max_ids file in
@@ -239,7 +239,9 @@ let () =
     let process () s =
       if GobConfig.get_bool "server.reparse" then (
         GoblintDir.init ();
-        ignore (Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge)
+        Fun.protect ~finally:GoblintDir.finalize (fun () ->
+            ignore Maingoblint.(preprocess_files () |> parse_preprocessed)
+          )
       );
       Preprocessor.dependencies_to_yojson ()
   end);
