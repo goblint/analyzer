@@ -13,8 +13,11 @@ int main() {
   pthread_t id, id2;
   pthread_create(&id, NULL, t_fun, NULL);
 
-  __goblint_assume_join(id2); // joining unknown thread ID, shouldn't make joined set All threads
+  __goblint_assume_join(id2); // WARN joining unknown thread ID, make joined set All threads
 
+  g++; // NORACE
+
+  pthread_create(&id, NULL, t_fun, NULL); // WARN make joined set different from All threads
   g++; // RACE!
 
   return 0;

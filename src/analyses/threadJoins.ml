@@ -48,8 +48,10 @@ struct
     | `Unknown "__goblint_assume_join" ->
       let id = List.hd arglist in
       let threads = ctx.ask (Queries.EvalThread id) in
-      if TIDs.is_top threads then
-        ctx.local (* don't consider everything joined, because would be confusing to have All threads unsoundly joined due to imprecision *)
+      if TIDs.is_top threads then (
+        M.info ~category:Unsound "Unknown thread ID assume-joined, assuming ALL threads must-joined.";
+        D.bot () (* consider everything joined, D is reversed so bot is All threads *)
+      )
       else (
         (* elements throws if the thread set is top *)
         let threads = TIDs.elements threads in
@@ -61,11 +63,16 @@ struct
     | _ -> ctx.local
 
   let threadspawn ctx lval f args fctx =
-    match ThreadId.get_current (Analyses.ask_of_ctx fctx) with
-    | `Lifted tid ->
-      D.remove tid ctx.local
-    | _ ->
-      ctx.local
+    if D.is_bot ctx.local then ( (* bot is All threads *)
+      M.info ~category:Imprecise "Thread created while ALL threads must-joined, continuing with no threads joined.";
+      D.top () (* top is no threads *)
+    )
+    else
+      match ThreadId.get_current (Analyses.ask_of_ctx fctx) with
+      | `Lifted tid ->
+        D.remove tid ctx.local
+      | _ ->
+        ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with

@@ -159,6 +159,7 @@ class Tests
                     when /Assertion .* is unknown/   then "unknown"
                     when /^\[Warning\]/              then "warn"
                     when /^\[Error\]/                then "warn"
+                    when /^\[Info\]/                 then "warn"
                     when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                     when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
