@@ -234,7 +234,7 @@ module WP =
         )
       and eq x get set =
         if tracing then trace "sol2" "eq %a\n" S.Var.pretty_trace x;
-        
+
         match S.system x with
         | None -> S.Dom.bot ()
         | Some f ->
@@ -255,7 +255,7 @@ module WP =
               oldv
             | _ ->
               (
-                (* This needs to be done here as a local warpper around get to avoid polluting dep_vals during earlier checks *)
+                (* This needs to be done here as a local wrapper around get to avoid polluting dep_vals during earlier checks *)
                 let get y =
                   let tmp = get y in
                   let (oldv,curr_dep_vals) = HM.find dep_vals x in
