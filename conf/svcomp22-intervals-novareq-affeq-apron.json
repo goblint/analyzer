@@ -48,7 +48,8 @@
       }
     },
     "apron":{
-    "domain": "affeq"
+    "domain": "affeq",
+    "privatization": "dummy"
     }
   },
   "exp": {
