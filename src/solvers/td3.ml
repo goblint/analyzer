@@ -36,6 +36,7 @@ module WP =
       mutable var_messages: Message.t HM.t; (** Messages from right-hand sides of variables. Used for incremental postsolving. *)
       mutable rho_write: S.Dom.t HM.t HM.t; (** Side effects from variables to write-only variables with values. Used for fast incremental restarting of write-only variables. *)
       mutable dep: VS.t HM.t; (** Dependencies of variables. Inverse of [infl]. Used for fast pre-reachable pruning in incremental postsolving. *)
+      mutable dep_vals: (S.Dom.t * (S.Var.t * S.Dom.t) list) HM.t (** Dependencies of variables and values encountered at last eval of RHS. *)
     }
 
     type marshal = solver_data
@@ -52,12 +53,13 @@ module WP =
       var_messages = HM.create 10;
       rho_write = HM.create 10;
       dep = HM.create 10;
+      dep_vals = HM.create 10;
     }
 
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
-        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n"
-          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.rho_write) (HM.length data.dep)
+        Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n|dep_vals|=%d\n"
+          str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint) (HM.length data.side_dep) (HM.length data.side_infl) (HM.length data.rho_write) (HM.length data.dep) (HM.length data.dep_vals)
 
     let verify_data data =
       if GobConfig.get_bool "solvers.td3.verify" then (
@@ -126,12 +128,11 @@ module WP =
         else
           enabled
       in
-      (* TODO: Do we want to marshal dep_vals? *)
-      let dep_vals = HM.create 10 in
+      let dep_vals = data.dep_vals in
 
       let () = print_solver_stats := fun () ->
-          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n"
-            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length rho_write) (HM.length dep);
+          Printf.printf "|rho|=%d\n|called|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n|side_dep|=%d\n|side_infl|=%d\n|rho_write|=%d\n|dep|=%d\n|dep_vals|=%d\n"
+            (HM.length rho) (HM.length called) (HM.length stable) (HM.length infl) (HM.length wpoint) (HM.length side_dep) (HM.length side_infl) (HM.length rho_write) (HM.length dep) (HM.length dep_vals);
           print_context_stats rho
       in
 
@@ -863,6 +864,10 @@ module WP =
           filter_vs_hm side_dep;
           filter_vs_hm dep;
 
+          VH.filteri_inplace (fun k v ->
+              VH.mem reachable k
+            ) dep_vals;
+
           VH.filteri_inplace (fun x w ->
               if VH.mem reachable x then (
                 VH.filteri_inplace (fun y _ ->
@@ -1028,7 +1033,7 @@ module WP =
       print_data data "Data after postsolve";
 
       verify_data data;
-      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep}
+      {st; infl; sides; rho; wpoint; stable; side_dep; side_infl; var_messages; rho_write; dep; dep_vals}
 
     let solve box st vs =
       let reuse_stable = GobConfig.get_bool "incremental.stable" in
@@ -1064,6 +1069,7 @@ module WP =
           data.var_messages <- HM.copy data.var_messages;
           data.rho_write <- HM.map (fun x w -> HM.copy w) data.rho_write; (* map copies outer HM *)
           data.dep <- HM.copy data.dep;
+          data.dep_vals <- HM.copy data.dep_vals
         )
         else if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           let rho' = HM.create (HM.length data.rho) in
@@ -1119,6 +1125,11 @@ module WP =
               HM.replace dep' (S.Var.relift k) (VS.map S.Var.relift v)
             ) data.dep;
           data.dep <- dep';
+          let dep_vals' = HM.create (HM.length data.dep_vals) in
+          HM.iter (fun k (value,deps) ->
+              HM.replace dep_vals' (S.Var.relift k) (S.Dom.relift value, List.map (fun (var,value) -> (S.Var.relift var,S.Dom.relift value)) deps)
+            ) data.dep_vals;
+          data.dep_vals <- dep_vals';
         );
         if not reuse_stable then (
           print_endline "Destabilizing everything!";
