@@ -233,6 +233,18 @@ let () =
   end);
 
   register (module struct
+    let name = "pre_files"
+    type params = unit [@@deriving of_yojson]
+    type response = Yojson.Safe.t [@@deriving to_yojson]
+    let process () s =
+      if GobConfig.get_bool "server.reparse" then (
+        GoblintDir.init ();
+        ignore (Fun.protect ~finally:GoblintDir.finalize Maingoblint.preprocess_and_merge)
+      );
+      Preprocessor.dependencies_to_yojson ()
+  end);
+
+  register (module struct
     let name = "exp_eval"
     type params = ExpressionEvaluation.query [@@deriving of_yojson]
     type response =
