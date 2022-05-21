@@ -43,7 +43,20 @@ module FloatInterval = struct
 
   let norm v = 
     match v with
-    | Some (low, high) -> if Float.is_finite low && Float.is_finite high then v else None
+    | Some (low, high) -> 
+      if Float.is_finite low && Float.is_finite high then 
+        if low > high then failwith "invalid Interval"
+        else v
+      else None
+    | _ -> None
+
+  (**just for norming the arbitraries, so correct intervals get created, but no failwith if low > high*)
+  let norm_arb v = 
+    match v with
+    | Some (f1, f2) ->
+      if Float.is_finite f1 && Float.is_finite f2 
+      then Some(min f1 f2, max f1 f2) 
+      else None
     | _ -> None
 
   let of_const f = norm @@ Some (f, f)
@@ -65,7 +78,8 @@ module FloatInterval = struct
 
   let tag (x : t) = failwith "todo tag" (**Quote printable.ml line 24: Unique ID, given by HConsed, for context identification in witness *)
 
-  let arbitrary () = failwith "todo arbitrary" (**for QCheck: should describe how to generate random values and shrink possilbe counter examples *)
+  (**for QCheck: should describe how to generate random values and shrink possilbe counter examples *)
+  let arbitrary () = QCheck.map norm_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float)) 
 
   let relift x = x 
 
@@ -73,7 +87,7 @@ module FloatInterval = struct
     match v1, v2 with
     | _, None -> true
     | None, Some _ -> false
-    | Some (l1, h1), Some (l2, h2) -> l1 >= l2 && h1 <= l2
+    | Some (l1, h1), Some (l2, h2) -> l1 >= l2 && h1 <= h2
 
   let join v1 v2 = 
     match v1, v2 with
@@ -101,7 +115,7 @@ module FloatInterval = struct
       norm @@ Some (low, high)
 
   let narrow v1 v2 = (**TODO: support 'threshold_narrowing' and 'narrow_by_meet' option *)
-   match v1, v2 with (**we cannot distinguish between the lower bound beeing -inf or the upper bound beeing inf. Also there is nan *)
+    match v1, v2 with (**we cannot distinguish between the lower bound beeing -inf or the upper bound beeing inf. Also there is nan *)
     | None, _ -> v2
     | _, _ -> v1
 

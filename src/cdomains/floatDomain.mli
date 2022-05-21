@@ -30,6 +30,27 @@ module type FloatArith = sig
   (** Not equal to: [x != y] *)
 end
 
+module FloatInterval : sig (**Currently just for FloatDomainTest *)
+  type t = (float * float) option
+  include FloatArith with type t := t
+
+  val top : unit -> t
+
+  val is_bot : t -> bool
+
+  val is_top : t -> bool
+
+  val of_const : float -> t
+
+  val show : t -> string
+
+  val equal : t -> t -> bool
+
+  val leq : t -> t -> bool
+
+  val arbitrary : unit -> t QCheck.arbitrary
+end
+
 module type FloatDomainBase = sig
   include Lattice.S
 
