@@ -650,40 +650,44 @@ module ArrayMatrix: AbstractMatrix =
       Array.filter (fun x -> Array.exists (fun y -> y <> of_int 0) x) m
 
     let rref_with m =
-      (*from https://rosettacode.org/wiki/Reduced_row_echelon_form#OCaml (Slightly modified) *)
-      let swap_rows m i j =
-        let tmp = m.(i) in
-        m.(i) <- m.(j);
-        m.(j) <- tmp;
+      (*Based on Cousot - Principles of Abstract Interpretation (2021)*)
+      let swap_rows i1 i2 =
+        let tmp = m.(i1) in
+        m.(i1) <- m.(i2);
+        m.(i2) <- tmp;
       in
-      try
-        let lead = ref 0
-        and rows = num_rows m
-        and cols = num_cols m in
-        for r = 0 to pred rows do
-          if cols - 1 <= !lead then
-            raise Exit;
-          let i = ref r in
-          while m.(!i).(!lead) = of_int 0 do
-            incr i;
-            if rows = !i then begin
-              i := r;
-              incr lead;
-              if cols -1 = !lead then
-                raise Exit;
-            end
-          done;
-          swap_rows m !i r;
-          let lv = m.(r).(!lead) in
-          Array.iteri (fun i v -> m.(r).(i) <- v /: lv) m.(r);
-          for i = 0 to pred rows do
-            if i <> r then
-              let lv = m.(i).(!lead) in
-              Array.iteri (fun j iv -> m.(i).(j) <- iv -: lv *: m.(r).(j)) m.(i);
-          done;
-          incr lead;
-        done
-      with Exit -> ();;
+      let exception Unsolvable in
+      try (
+        for i = 0 to num_rows m -1 do
+          let exception Found in
+          try (
+            for j = 0 to num_cols m -2 do
+              for k = i to num_rows m -1 do
+                if m.(k).(j) <> of_int 0 then
+                  (
+                    if k <> i then swap_rows k i;
+                    let piv = m.(i).(j) in
+                    Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i);
+                    for l = 0 to num_rows m -1 do
+                      if l <> i && m.(l).(j) <> of_int 0 then (
+                        let is_only_zero = ref 1 in
+                        let m_lj = m.(l).(j) in
+                        for k = 0 to num_cols m - 2 do
+                          m.(l).(k) <- m.(i).(k) *: m_lj /: m.(i).(j);
+                          if m.(l).(k) <> of_int 0 then is_only_zero := 0;
+                        done;
+                        if !is_only_zero = 1 && m.(l).(num_cols m - 1) <> of_int 0 then raise Unsolvable;
+                      )
+                    done;
+                    raise Found
+                  )
+              done;
+            done;
+          )
+          with Found -> ()
+        done;
+        Some m)
+      with Unsolvable -> None
 
     let rref_with m = Stats.time "rref_with" rref_with m
 
@@ -763,13 +767,7 @@ module ArrayMatrix: AbstractMatrix =
     let rref_matrix_with m1 m2 = Stats.time "rref_matrix_with" (rref_matrix_with m1) m2
 
     let normalize_pt_with m =
-      rref_with m;
-      let is_unsolvable_row v = match Array.findi (fun x -> x <> of_int 0) v with
-        | exception Not_found -> false
-        | i -> i = num_cols m - 1
-      in
-      if Array.exists (fun v -> is_unsolvable_row v) m then None
-      else Some (remove_zero_rows m)
+      rref_with m
 
     let normalize_pt_with m = Stats.time "normalize_pt_with" normalize_pt_with m
 
@@ -780,25 +778,25 @@ module ArrayMatrix: AbstractMatrix =
     let is_covered_by m1 m2 =
       (*Performs a partial rref reduction to check if concatenating both matrices and afterwards normalizing them would yield a matrix <> m2 *)
       (*Both input matrices must be in rref form!*)
-     if num_rows m1 > num_rows m2 then false else
-     let p2 = lazy (get_pivot_positions m2) in
-     try (
-     for i = 0 to num_rows m1 -1 do
-      if Array.exists2 (<>) m1.(i) m2.(i) then
-        let m1_i = Array.copy m1.(i) in
-        for j = 0 to Array.length m1_i -2 do
-          if m1_i.(j) <>  of_int 0 then
-          match Array.bsearch Int.ord (Lazy.force p2) j with
-          | `At pos -> let beta =  m1_i.(j) in
-                       Array.iteri (fun j' x -> m1_i.(j') <- m1_i.(j') -: beta *: m2.(pos).(j') ) m1_i
-          | _ -> raise Exit;
+      if num_rows m1 > num_rows m2 then false else
+        let p2 = lazy (get_pivot_positions m2) in
+        try (
+          for i = 0 to num_rows m1 -1 do
+            if Array.exists2 (<>) m1.(i) m2.(i) then
+              let m1_i = Array.copy m1.(i) in
+              for j = 0 to Array.length m1_i -2 do
+                if m1_i.(j) <>  of_int 0 then
+                  match Array.bsearch Int.ord (Lazy.force p2) j with
+                  | `At pos -> let beta =  m1_i.(j) in
+                    Array.iteri (fun j' x -> m1_i.(j') <- m1_i.(j') -: beta *: m2.(pos).(j') ) m1_i
+                  | _ -> raise Exit;
+              done;
+              if m1_i. (num_cols m1 - 1) <> of_int 0 then
+                raise Exit
           done;
-        if m1_i. (num_cols m1 - 1) <> of_int 0 then
-            raise Exit
-     done;
-     true
-    )
-    with Exit -> false;;
+          true
+        )
+        with Exit -> false;;
 
     let is_covered_by m1 m2 = Stats.time "is_covered_by" (is_covered_by m1) m2
 
