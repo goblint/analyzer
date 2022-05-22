@@ -34,6 +34,7 @@ module type S =
 
     val sync: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> [`Normal | `Join | `Return | `Init | `Thread] -> apron_components_t
 
+    val escape: Node.t -> Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> EscapeDomain.EscapedVars.t -> apron_components_t
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> apron_components_t
     val threadenter: Q.ask -> (V.t -> G.t) -> apron_components_t -> apron_components_t
 
@@ -50,6 +51,9 @@ struct
   module D = Lattice.Unit
   module G = Lattice.Unit
   module V = EmptyV
+  module AV = ApronDomain.V
+
+  type apron_components_t = ApronDomain.ApronComponents (AD) (D).t
 
   let name () = "Dummy"
   let startstate () = ()
@@ -65,6 +69,21 @@ struct
   let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg st reason = st
+  let escape node ask getg sideg (st:apron_components_t) escaped:apron_components_t =
+    let apr = st.apr in
+    let esc_vars = List.filter (fun var -> match AV.find_metadata var with
+        | Some (Global _) -> false
+        | Some Local ->
+          (let fundec = Node.find_fundec node in
+           let r = AV.to_cil_varinfo fundec var in
+           match r with
+           | Some r -> EscapeDomain.EscapedVars.mem r escaped
+           | _ -> false)
+        | _ -> false
+      ) (AD.vars apr)
+    in
+    let apr_local = AD.remove_vars apr esc_vars in
+    { st with apr = apr_local }
 
   let enter_multithreaded ask getg sideg st = st
   let threadenter ask getg st = st
@@ -315,6 +334,8 @@ struct
     | `Thread ->
       st
 
+  let escape node ask getg sideg st escaped = (* TODO: Implement *) st
+
   let enter_multithreaded ask getg sideg (st: apron_components_t): apron_components_t =
     let apr = st.apr in
     let (g_vars, gs) =
@@ -508,6 +529,23 @@ struct
     sideg V.mutex_inits apr_side;
     let apr_local = AD.remove_vars apr g_vars in (* TODO: side effect initial values to mutex_globals? *)
     {st with apr = apr_local}
+
+  let escape node ask getg sideg (st:apron_components_t) escaped : apron_components_t =
+    let apr = st.apr in
+    let esc_vars = List.filter (fun var -> match AV.find_metadata var with
+        | Some (Global _) -> false
+        | Some Local ->
+          (let fundec = Node.find_fundec node in
+           let r = AV.to_cil_varinfo fundec var in
+           match r with
+           | Some r -> EscapeDomain.EscapedVars.mem r escaped
+           | _ -> false)
+        | _ -> false
+      ) (AD.vars apr) in
+    let apr_side = AD.keep_vars apr esc_vars in
+    sideg V.mutex_inits apr_side;
+    let apr_local = AD.remove_vars apr esc_vars in
+    { st with apr = apr_local }
 
   let threadenter ask getg (st: apron_components_t): apron_components_t =
     {apr = AD.bot (); priv = startstate ()}
@@ -1024,6 +1062,26 @@ struct
     | `Init
     | `Thread ->
       st
+
+  let escape node ask getg sideg (st: apron_components_t) escaped: apron_components_t =
+    let apr = st.apr in
+    let esc_vars = List.filter (fun var -> match AV.find_metadata var with
+        | Some (Global _) -> false
+        | Some Local ->
+          (let fundec = Node.find_fundec node in
+           let r = AV.to_cil_varinfo fundec var in
+           match r with
+           | Some r -> EscapeDomain.EscapedVars.mem r escaped
+           | _ -> false)
+        | _ -> false
+      ) (AD.vars apr) in
+    let apr_side = AD.keep_vars apr esc_vars in
+    let apr_side = Cluster.unlock (W.top ()) apr_side in (* top W to avoid any filtering *)
+    let tid = ThreadId.get_current ask in
+    let sidev = GMutex.singleton tid apr_side in
+    sideg V.mutex_inits (G.create_mutex sidev);
+    let apr_local = AD.remove_vars apr esc_vars in
+    { st with apr = apr_local }
 
   let enter_multithreaded (ask:Q.ask) getg sideg (st: apron_components_t): apron_components_t =
     let apr = st.apr in

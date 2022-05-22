@@ -52,12 +52,12 @@ struct
 
   module VH = BatHashtbl.Make (Basetype.Variables)
 
-  let read_globals_to_locals ask getg st e =
+  let read_globals_to_locals (ask:Queries.ask) getg st e =
     let v_ins = VH.create 10 in
     let visitor = object
       inherit nopCilVisitor
       method! vvrbl (v: varinfo) =
-        if v.vglob then (
+        if v.vglob || ThreadEscape.has_escaped ask v then (
           let v_in =
             if VH.mem v_ins v then
               VH.find v_ins v
@@ -110,7 +110,7 @@ struct
     (* This means that variables of which multiple copies may be reachable via pointers are also also excluded (they have their address taken) *)
     (* and no special handling for them is required (https://github.com/goblint/analyzer/pull/310) *)
     | (Var v, NoOffset) when AD.varinfo_tracked v ->
-      if not v.vglob then
+      if not v.vglob && not (ThreadEscape.has_escaped ask v) then
         (if ask.f (Queries.IsMultiple v) then
           {st with apr = AD.join (f st v) st.apr}
          else
@@ -463,6 +463,8 @@ struct
     (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
+    | Events.Escape escaped ->
+      Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | _ ->
       st
 
