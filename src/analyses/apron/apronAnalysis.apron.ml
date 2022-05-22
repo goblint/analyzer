@@ -104,14 +104,17 @@ struct
       {st with apr = apr'}
     )
 
-  let rec assign_to_global_wrapper ask getg sideg st lv f =
+  let rec assign_to_global_wrapper (ask:Queries.ask) getg sideg st lv f =
     match lv with
     (* Lvals which are numbers, have no offset and their address wasn't taken *)
     (* This means that variables of which multiple copies may be reachable via pointers are also also excluded (they have their address taken) *)
     (* and no special handling for them is required (https://github.com/goblint/analyzer/pull/310) *)
     | (Var v, NoOffset) when AD.varinfo_tracked v ->
       if not v.vglob then
-        {st with apr = f st v}
+        (if ask.f (Queries.IsMultiple v) then
+          {st with apr = AD.join (f st v) st.apr}
+         else
+          {st with apr = f st v})
       else (
         let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
         let st = {st with apr = AD.add_vars st.apr [V.local v_out]} in (* add temporary g#out *)

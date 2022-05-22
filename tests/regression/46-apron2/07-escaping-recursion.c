@@ -1,4 +1,5 @@
 // SKIP PARAM: --set solver td3 --set ana.activated "['base','threadid','threadflag','mallocWrapper','apron','escape']" --set ana.base.privatization none --set ana.apron.privatization dummy
+// Copy of 01/52 for Apron
 int rec(int i,int* ptr) {
     int top;
     int x = 17;
