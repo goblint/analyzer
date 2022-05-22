@@ -499,6 +499,7 @@ struct
       | None -> overflow_res res
       | Some (ev, min, max) ->
         begin match Bounds.bound_texpr res (Convert.texpr1_of_cil_exp res res.env ev true) with
+          | exception Convert.Unsupported_CilExp -> overflow_res res
           | Some b_min, Some b_max ->  let module BI = IntOps.BigIntOps in
             if min = BI.of_int 0 && b_min = b_max then raise NotRefinable
             else if (b_min < min && b_max < min) || (b_max > max && b_min > max) then

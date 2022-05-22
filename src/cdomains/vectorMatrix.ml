@@ -661,7 +661,7 @@ module ArrayMatrix: AbstractMatrix =
         for i = 0 to num_rows m -1 do
           let exception Found in
           try (
-            for j = 0 to num_cols m -2 do
+            for j = i to num_cols m -2 do
               for k = i to num_rows m -1 do
                 if m.(k).(j) <> of_int 0 then
                   (
@@ -672,8 +672,8 @@ module ArrayMatrix: AbstractMatrix =
                       if l <> i && m.(l).(j) <> of_int 0 then (
                         let is_only_zero = ref 1 in
                         let m_lj = m.(l).(j) in
-                        for k = 0 to num_cols m - 2 do
-                          m.(l).(k) <- m.(i).(k) *: m_lj /: m.(i).(j);
+                        for k = 0 to num_cols m - 1 do
+                          m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j);
                           if m.(l).(k) <> of_int 0 then is_only_zero := 0;
                         done;
                         if !is_only_zero = 1 && m.(l).(num_cols m - 1) <> of_int 0 then raise Unsolvable;
@@ -753,14 +753,16 @@ module ArrayMatrix: AbstractMatrix =
       (*Similar to rref_vec_with but takes two matrices instead.*)
       (*ToDo Could become inefficient for large matrices since pivot_elements are always recalculated + many row additions*)
       let b_m, s_m = if num_rows m1 > num_rows m2 then m1, m2 else m2, m1 in
+      let b = ref b_m in
       let exception Unsolvable in
       try (
         for i = 0 to num_rows s_m - 1 do
-          let pivot_elements = get_pivot_positions b_m in
-          let res = rref_vec b_m pivot_elements s_m.(i) in
-          if Option.is_none res then raise Unsolvable
+          let pivot_elements = get_pivot_positions !b in
+          let res = rref_vec !b pivot_elements s_m.(i) in
+          (if Option.is_none res then raise Unsolvable else
+          b := Option.get res)
         done;
-        Some b_m
+        Some !b
       )
       with Unsolvable -> None
 
