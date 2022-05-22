@@ -657,26 +657,30 @@ module ArrayMatrix: AbstractMatrix =
         m.(i2) <- tmp;
       in
       let exception Unsolvable in
+      let num_rows = num_rows m in
+      let num_cols = num_cols m in
       try (
-        for i = 0 to num_rows m -1 do
+        for i = 0 to num_rows-1 do
           let exception Found in
           try (
-            for j = i to num_cols m -2 do
-              for k = i to num_rows m -1 do
+            for j = i to num_cols -2 do
+              for k = i to num_rows -1 do
                 if m.(k).(j) <> of_int 0 then
                   (
                     if k <> i then swap_rows k i;
                     let piv = m.(i).(j) in
                     Array.iteri(fun j' x -> m.(i).(j') <- x /: piv) m.(i);
-                    for l = 0 to num_rows m -1 do
+                    for l = 0 to num_rows-1 do
                       if l <> i && m.(l).(j) <> of_int 0 then (
                         let is_only_zero = ref 1 in
                         let m_lj = m.(l).(j) in
-                        for k = 0 to num_cols m - 1 do
+                        for k = 0 to num_cols - 2 do
                           m.(l).(k) <- m.(l).(k) -: m.(i).(k) *: m_lj /: m.(i).(j);
                           if m.(l).(k) <> of_int 0 then is_only_zero := 0;
                         done;
-                        if !is_only_zero = 1 && m.(l).(num_cols m - 1) <> of_int 0 then raise Unsolvable;
+                        let k_end = num_cols - 1 in
+                        m.(l).(k_end) <- m.(l).(k_end) -: m.(i).(k_end) *: m_lj /: m.(i).(j);
+                        if !is_only_zero = 1 && m.(l).(k_end) <> of_int 0 then raise Unsolvable;
                       )
                     done;
                     raise Found
