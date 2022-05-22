@@ -293,7 +293,8 @@ struct
     let new_fun_apr = AD.add_vars fun_st.apr (AD.vars st.apr) in
     let arg_substitutes =
       GobList.combine_short f.sformals args (* TODO: is it right to ignore missing formals/args? *)
-      |> List.filter (fun (x, _) -> AD.varinfo_tracked x)
+      (* Do not do replacement for actuals whose value may be modified after the call *)
+      |> List.filter (fun (x, e) -> AD.varinfo_tracked x && List.for_all (fun v -> not (Queries.LS.exists (fun (v',_) -> v'.vid = v.vid) reachable_from_args)) (Basetype.CilExp.get_vars e))
       |> List.map (Tuple2.map1 V.arg)
     in
     (* AD.substitute_exp_parallel_with new_fun_oct arg_substitutes; (* doesn't need to be parallel since exps aren't arg vars directly *) *)
@@ -306,7 +307,7 @@ struct
           )
       ) new_fun_apr arg_substitutes
     in
-    let arg_vars = List.map fst arg_substitutes in
+    let arg_vars = f.sformals |> List.filter (AD.varinfo_tracked) |> List.map V.arg in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_apr arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
