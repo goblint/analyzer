@@ -133,115 +133,106 @@ module FloatInterval = struct
 
   let neg = Option.map (fun (low, high) -> (-.high, -.low))
 
-  let add op1 op2 = 
-    match op1, op2 with
-    | Some (l1, h1), Some (l2, h2) -> Some (add Down l1 l2, add Up h1 h2)
+  (** evaluation of the binary operations *)
+  let eval_binop eval_operation op1 op2 =
+    match (op1, op2) with 
+    | Some v1, Some v2 -> norm @@ eval_operation v1 v2 
     | _ -> None
 
-  let sub op1 op2 = 
-    match op1, op2 with
-    | Some (l1, h1), Some (l2, h2) -> norm @@ Some (sub Down l1 l2, sub Up h1 h2)
-    | _ -> None
-
-  let mul op1 op2 = 
-    match op1, op2 with
-    | Some (l1, h1), Some (l2, h2) -> 
-      let mul1u = mul Up l1 l2 in
-      let mul2u = mul Up l1 h2 in
-      let mul3u = mul Up h1 l2 in
-      let mul4u = mul Up h1 h2 in
-      let mul1d = mul Down l1 l2 in
-      let mul2d = mul Down l1 h2 in
-      let mul3d = mul Down h1 l2 in
-      let mul4d = mul Down h1 h2 in
-      let high = max (max (max mul1u mul2u) mul3u) mul4u in
-      let low = min (min (min mul1d mul2d) mul3d) mul4d in
-      norm @@ Some (low, high)
-    | _ -> None
-
-  let div op1 op2 = 
-    match op1, op2 with
-    | Some (l1, h1), Some (l2, h2) ->
-      if l2 <= 0. && h2 >= 0. then None
-      else
-        let div1u = div Up l1 l2 in
-        let div2u = div Up l1 h2 in
-        let div3u = div Up h1 l2 in
-        let div4u = div Up h1 h2 in
-        let div1d = div Down l1 l2 in
-        let div2d = div Down l1 h2 in
-        let div3d = div Down h1 l2 in
-        let div4d = div Down h1 h2 in
-        let high = max (max (max div1u div2u) div3u) div4u in
-        let low = min (min (min div1d div2d) div3d) div4d in
-        norm @@ Some (low, high)
-    | _ -> None
-
-  let lt op1 op2 =
-    let (a, b) =
-      match op1, op2 with
-      | Some (l1, h1), Some (l2, h2) -> 
-        if h1 < l2 then (1, 1)
-        else if l1 >= h2 then (0, 0) 
-        else (0, 1)
+  let eval_int_binop eval_operation op1 op2 =
+    let a, b =
+      match (op1, op2) with 
+      | Some v1, Some v2 -> eval_operation v1 v2 
       | _ -> (0, 1)
     in
-    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+    IntDomain.IntDomTuple.of_interval IBool
+      (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
 
-  let gt op1 op2 =
-    let (a, b) =
-      match op1, op2 with
-      | Some (l1, h1), Some (l2, h2) -> 
-        if l1 > h2 then (1, 1)
-        else if h1 <= l2 then (0, 0) 
-        else (0, 1)
-      | _ -> (0, 1)
-    in
-    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+  let eval_add (l1, h1) (l2, h2) = 
+    Some (add Down l1 l2, add Up h1 h2)
 
-  let le op1 op2 =
-    let (a, b) =
-      match op1, op2 with
-      | Some (l1, h1), Some (l2, h2) -> 
-        if h1 <= l2 then (1, 1)
-        else if l1 > h2 then (0, 0) 
-        else (0, 1)
-      | _ -> (0, 1)
-    in
-    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+  let eval_sub (l1, h1) (l2, h2) = 
+    Some (sub Down l1 l2, sub Up h1 h2)
 
-  let ge op1 op2 =
-    let (a, b) =
-      match op1, op2 with
-      | Some (l1, h1), Some (l2, h2) -> 
-        if l1 >= h2 then (1, 1)
-        else if h1 < l2 then (0, 0) 
-        else (0, 1)
-      | _ -> (0, 1)
-    in
-    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+  let eval_mul (l1, h1) (l2, h2) =
+    let mul1u = mul Up l1 l2 in
+    let mul2u = mul Up l1 h2 in
+    let mul3u = mul Up h1 l2 in
+    let mul4u = mul Up h1 h2 in
+    let mul1d = mul Down l1 l2 in
+    let mul2d = mul Down l1 h2 in
+    let mul3d = mul Down h1 l2 in
+    let mul4d = mul Down h1 h2 in
+    let high = max (max (max mul1u mul2u) mul3u) mul4u in
+    let low = min (min (min mul1d mul2d) mul3d) mul4d in
+    Some (low, high)
 
-  let eq op1 op2 = 
-    let (a, b) =
-      match op1, op2 with
-      | Some (l1, h1), Some (l2, h2) -> 
-        if h1 < l2 || h2 < l1 then (0, 0)
-        else if h1 = l1 && h2 = l2 && l1 = l2 then (1, 1)
-        else (0, 1)
-      | _ -> (0, 1)
-    in
-    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+  let eval_div (l1, h1) (l2, h2) =
+    if l2 <= 0. && h2 >= 0. then None
+    else
+      let div1u = div Up l1 l2 in
+      let div2u = div Up l1 h2 in
+      let div3u = div Up h1 l2 in
+      let div4u = div Up h1 h2 in
+      let div1d = div Down l1 l2 in
+      let div2d = div Down l1 h2 in
+      let div3d = div Down h1 l2 in
+      let div4d = div Down h1 h2 in
+      let high = max (max (max div1u div2u) div3u) div4u in
+      let low = min (min (min div1d div2d) div3d) div4d in
+      Some (low, high)
 
-  let ne op1 op2 =    
-    let (a, b) =
-      match op1, op2 with
-      | Some (l1, h1), Some (l2, h2) -> 
-        if h1 < l2 || h2 < l1 then (1, 1)
-        else if h1 = l1 && h2 = l2 && l1 = l2 then (0, 0)
-        else (0, 1)
-      | _ -> (0, 1)
-    in
-    IntDomain.IntDomTuple.of_interval IBool (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+
+  let eval_lt (l1, h1) (l2, h2) = 
+    if h1 < l2 then (1, 1)
+    else if l1 >= h2 then (0, 0) 
+    else (0, 1)
+
+  let eval_gt (l1, h1) (l2, h2) =
+    if l1 > h2 then (1, 1)
+    else if h1 <= l2 then (0, 0) 
+    else (0, 1)
+
+  let eval_le (l1, h1) (l2, h2) =
+    if h1 <= l2 then (1, 1)
+    else if l1 > h2 then (0, 0) 
+    else (0, 1)
+
+  let eval_ge (l1, h1) (l2, h2) =
+    if l1 >= h2 then (1, 1)
+    else if h1 < l2 then (0, 0) 
+    else (0, 1)
+
+  let eval_eq (l1, h1) (l2, h2) =
+    if h1 < l2 || h2 < l1 then (0, 0)
+    else if h1 = l1 && h2 = l2 && l1 = l2 then (1, 1)
+    else (0, 1)
+
+  let eval_ne (l1, h1) (l2, h2) =
+    if h1 < l2 || h2 < l1 then (1, 1)
+    else if h1 = l1 && h2 = l2 && l1 = l2 then (0, 0)
+    else (0, 1)
+
+  let add = eval_binop eval_add
+
+  let sub = eval_binop eval_sub
+
+  let mul = eval_binop eval_mul
+
+  let div = eval_binop eval_div
+
+  let lt = eval_int_binop eval_lt
+
+  let gt = eval_int_binop eval_gt
+
+  let le = eval_int_binop eval_le
+
+  let ge = eval_int_binop eval_ge
+
+  let eq = eval_int_binop eval_eq
+
+  let ne = eval_int_binop eval_ne
+
 end
 
 module FloatDomTupleImpl = struct

@@ -9,8 +9,8 @@ struct
   let fi_zero = FI.of_const 0.
   let fi_one = FI.of_const 1.
   let fi_neg_one = FI.of_const (-.1.)
-  let itb_true = IT.of_interval IBool (Big_int_Z.big_int_of_int 1, Big_int_Z.big_int_of_int 1)
-  let itb_false = IT.of_interval IBool (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 0)
+  let itb_true = IT.of_int IBool (Big_int_Z.big_int_of_int 1)
+  let itb_false = IT.of_int IBool (Big_int_Z.big_int_of_int 0)
   let itb_unknown = IT.of_interval IBool (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 1)
 
   let assert_equal v1 v2 =
@@ -28,6 +28,8 @@ struct
 
   let test_FI_add2 _ =
     assert_equal fi_zero (FI.add fi_one fi_neg_one)
+
+  (**TODO: add tests for specific edge cases (eg. overflow to infinity when dbl.max + 1) *)
 
   (**interval tests using QCheck arbitraries *)
   let test_FI_not_bot =
