@@ -183,7 +183,7 @@ struct
     let apr = st.apr in
     let (p, w) = st.priv in
     let g_local_var = AV.local g in
-    let x_var = Var.of_string x.vname in
+    let x_var = AV.local x in
     let apr_local =
       if W.mem g w then
         AD.assign_var apr x_var g_local_var
@@ -221,7 +221,7 @@ struct
     let (p, w) = st.priv in
     let g_local_var = AV.local g in
     let g_unprot_var = AV.unprot g in
-    let x_var = Var.of_string x.vname in
+    let x_var = AV.local x in
     let apr_local = AD.add_vars apr [g_local_var] in
     let apr_local = AD.assign_var apr_local g_local_var x_var in
     let apr_side = AD.add_vars apr_local [g_unprot_var] in
@@ -426,7 +426,7 @@ struct
     let apr = AD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* read *)
     let g_var = AV.global g in
-    let x_var = Var.of_string x.vname in
+    let x_var = AV.local x in
     let apr_local = AD.add_vars apr [g_var] in
     let apr_local = AD.assign_var apr_local x_var g_var in
     (* unlock *)
@@ -444,7 +444,7 @@ struct
     let apr = AD.meet apr (get_mutex_global_g_with_mutex_inits ask getg g) in
     (* write *)
     let g_var = AV.global g in
-    let x_var = Var.of_string x.vname in
+    let x_var = AV.local x in
     let apr_local = AD.add_vars apr [g_var] in
     let apr_local = AD.assign_var apr_local g_var x_var in
     (* unlock *)
@@ -943,7 +943,7 @@ struct
     let apr = Cluster.lock apr local_m tmp in
     (* read *)
     let g_var = AV.global g in
-    let x_var = Var.of_string x.vname in
+    let x_var = AV.local x in
     let apr_local = AD.add_vars apr [g_var] in
     let apr_local = AD.assign_var apr_local x_var g_var in
     (* unlock *)
@@ -966,7 +966,7 @@ struct
     let apr = Cluster.lock apr local_m tmp in
     (* write *)
     let g_var = AV.global g in
-    let x_var = Var.of_string x.vname in
+    let x_var = AV.local x in
     let apr_local = AD.add_vars apr [g_var] in
     let apr_local = AD.assign_var apr_local g_var x_var in
     (* unlock *)

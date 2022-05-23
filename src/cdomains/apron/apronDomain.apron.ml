@@ -73,7 +73,8 @@ struct
   include VarMetadataTbl (VM)
   open VM
 
-  let local x = make_var ~name:x.vname Local
+  let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
+  let local x = make_var ~name:(local_name x) Local
   let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
   let return = make_var Return
   let global g = make_var (Global g)
@@ -83,7 +84,7 @@ struct
     | Some (Global v) -> Some v
     | Some (Local) ->
       let vname = Var.to_string v in
-      List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals)
+      List.find_opt (fun v -> local_name v = vname) (fundec.sformals @ fundec.slocals)
     | _ -> None
 end
 
@@ -212,7 +213,7 @@ struct
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
         if not v.vglob then
-          let var = Var.of_string v.vname in
+          let var = V.local v in
           if Environment.mem_var env var then
             Var var
           else
