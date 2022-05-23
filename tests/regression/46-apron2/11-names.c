@@ -2,6 +2,7 @@
 extern int __VERIFIER_nondet_int();
 
 void change(int *p) {
+    // Check that `a` refers to the local of `change` and not to the local of `main`
     int a;
     (*p)++;
     a++;
