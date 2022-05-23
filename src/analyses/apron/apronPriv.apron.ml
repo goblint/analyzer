@@ -142,7 +142,9 @@ struct
     include ApronDomain.VarMetadataTbl (VM)
     open VM
 
-    let local g = make_var (Local g)
+    let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
+
+    let local g = make_var ~name:(local_name g) (Local g)
     let unprot g = make_var (Unprot g)
     let prot g = make_var (Prot g)
   end
