@@ -679,7 +679,7 @@ struct
       WResult.write lh gh entrystates;
 
     if get_bool "witness.yaml.enabled" then (
-      let module YWitness = YamlWitness.Make (Spec) (EQSys) (LHT) (GHT) in
+      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (Spec) (EQSys) (LHT) (GHT) in
       YWitness.write lh gh
     );
 

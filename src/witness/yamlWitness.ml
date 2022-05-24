@@ -3,6 +3,8 @@ open Analyses
 let uuid_random_state = Random.State.make_self_init ()
 
 module Make
+    (File: WitnessUtil.File)
+    (Cfg: MyCFG.CfgBidir)
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                         and module GVar = GVarF (Spec.V)
@@ -13,6 +15,7 @@ module Make
 struct
 
   module NH = BatHashtbl.Make (Node)
+  module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
 
   (* copied from Constraints.CompareNode *)
   let join_contexts (lh: Spec.D.t LHT.t): Spec.D.t NH.t =
@@ -63,7 +66,7 @@ struct
 
     let yaml_entries = NH.fold (fun n local acc ->
         match n with
-        | Statement _ ->
+        | Statement _ when WitnessInvariant.is_invariant_node n ->
           let context: Invariant.context = {
               scope=Node.find_fundec n;
               i = -1;
