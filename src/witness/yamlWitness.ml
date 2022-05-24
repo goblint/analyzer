@@ -40,15 +40,23 @@ struct
     let sha256_file f = Sha256.(to_hex (file f)) in
     let sha256_file_cache = BatCache.make_ht ~gen:sha256_file ~init_size:5 in
     let sha256_file = sha256_file_cache.get in
-    let yaml_task = `O [
+    let yaml_task = `O ([
         ("input_files", `A (List.map Yaml.Util.string files));
         ("input_file_hashes", `O (List.map (fun file ->
             (file, `String (sha256_file file))
           ) files));
-        (* TODO: specification *)
-        (* TODO: data_model *)
+        ("data_model", `String (match GobConfig.get_string "exp.architecture" with
+          | "64bit" -> "LP64"
+          | "32bit" -> "ILP32"
+          | _ -> failwith "invalid architecture"));
         ("language", `String "C");
-      ]
+      ] @ match !Svcomp.task with
+            | Some (module Task) -> [
+                ("specification", `String (Svcomp.Specification.to_string Task.specification))
+              ]
+            | None ->
+              []
+      )
     in
 
     let nh = join_contexts lh in

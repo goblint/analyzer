@@ -1286,6 +1286,7 @@
           "title": "exp.architecture",
           "description": "Architecture for analysis, currently for witness",
           "type": "string",
+          "enum": ["64bit", "32bit"],
           "default": "64bit"
         },
         "gcc_path": {
