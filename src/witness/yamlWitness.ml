@@ -79,31 +79,34 @@ struct
             | Some inv ->
               let inv = InvariantCil.exp_replace_original_name inv in
               let loc = Node.location n in
-              let uuid = Uuidm.v4_gen uuid_random_state () in
-              let entry = `O [
-                  ("entry_type", `String "loop_invariant");
-                  ("metadata", `O [
-                      ("format_version", `String "0.1");
-                      ("uuid", `String (Uuidm.to_string uuid));
-                      ("creation_time", yaml_creation_time);
-                      ("producer", yaml_producer);
-                      ("task", yaml_task);
-                    ]);
-                  ("location", `O [
-                      ("file_name", `String loc.file);
-                      ("file_hash", `String (sha256_file loc.file));
-                      ("line", `Float (float_of_int loc.line));
-                      ("column", `Float (float_of_int (loc.column - 1)));
-                      ("function", `String (Node.find_fundec n).svar.vname);
-                    ]);
-                  ("loop_invariant", `O [
-                      ("string", `String (CilType.Exp.show inv));
-                      ("type", `String "assertion");
-                      ("format", `String "C");
-                    ]);
-                ]
-              in
-              entry :: acc
+              let invs = EvalAssert.EvalAssert.pullOutCommonConjuncts inv in
+              EvalAssert.ES.fold (fun inv acc ->
+                  let uuid = Uuidm.v4_gen uuid_random_state () in
+                  let entry = `O [
+                      ("entry_type", `String "loop_invariant");
+                      ("metadata", `O [
+                          ("format_version", `String "0.1");
+                          ("uuid", `String (Uuidm.to_string uuid));
+                          ("creation_time", yaml_creation_time);
+                          ("producer", yaml_producer);
+                          ("task", yaml_task);
+                        ]);
+                      ("location", `O [
+                          ("file_name", `String loc.file);
+                          ("file_hash", `String (sha256_file loc.file));
+                          ("line", `Float (float_of_int loc.line));
+                          ("column", `Float (float_of_int (loc.column - 1)));
+                          ("function", `String (Node.find_fundec n).svar.vname);
+                        ]);
+                      ("loop_invariant", `O [
+                          ("string", `String (CilType.Exp.show inv));
+                          ("type", `String "assertion");
+                          ("format", `String "C");
+                        ]);
+                    ]
+                  in
+                  entry :: acc
+                ) invs acc
             | None ->
               acc
           end
