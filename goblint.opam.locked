@@ -95,6 +95,7 @@ depends: [
   "topkg" {= "1.0.5"}
   "tyxml" {= "4.5.0" & with-doc}
   "uri" {= "4.2.0"}
+  "uuidm" {= "0.9.8"}
   "uutf" {= "1.0.3" & with-doc}
   "yaml" {= "3.1.0"}
   "yojson" {= "1.7.0"}

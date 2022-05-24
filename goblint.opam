@@ -42,6 +42,7 @@ depends: [
   "cpu"
   "arg-complete"
   "yaml"
+  "uuidm"
   "conf-gmp" {>= "3"}
   "conf-ruby" {with-test}
   "benchmark" {with-test}
