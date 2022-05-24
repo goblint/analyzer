@@ -21,7 +21,7 @@ let main () =
     handle_flags ();
     if get_bool "dbg.verbose" then (
       print_endline (localtime ());
-      print_endline command;
+      print_endline Goblintutil.command_line;
     );
     let file = Fun.protect ~finally:GoblintDir.finalize preprocess_and_merge in
     if get_bool "server.enabled" then Server.start file else (

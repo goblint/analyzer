@@ -32,7 +32,7 @@ struct
         ("version", `String Version.goblint);
         (* TODO: configuration *)
         (* ("configuration", yaml_conf); *) (* yaml_conf is too verbose *)
-        (* TODO: command_line *)
+        ("command_line", `String Goblintutil.command_line);
         (* TODO: description *)
       ]
     in
