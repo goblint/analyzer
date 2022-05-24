@@ -23,10 +23,13 @@ struct
       ]
     in
     let files = GobConfig.get_string_list "files" in
+    let sha256_file f = Sha256.(to_hex (file f)) in
+    let sha256_file_cache = BatCache.make_ht ~gen:sha256_file ~init_size:5 in
+    let sha256_file = sha256_file_cache.get in
     let yaml_task = `O [
         ("input_files", `A (List.map Yaml.Util.string files));
-        ("input_file_hashes", `O (List.map (fun f ->
-            (f, `String (Sha256.(to_hex (file f))))
+        ("input_file_hashes", `O (List.map (fun file ->
+            (file, `String (sha256_file file))
           ) files));
         (* TODO: specification *)
         (* TODO: data_model *)
@@ -59,7 +62,7 @@ struct
                 ]);
               ("location", `O [
                   ("file_name", `String loc.file);
-                  ("file_hash", `String (Sha256.(to_hex (file loc.file))));
+                  ("file_hash", `String (sha256_file loc.file));
                   ("line", `Float (float_of_int loc.line));
                   ("column", `Float (float_of_int (loc.column - 1)));
                   ("function", `String (Node.find_fundec n).svar.vname);
