@@ -10,12 +10,15 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
   let module Cfg = Task.Cfg in
   let loop_heads = find_loop_heads (module Cfg) Task.file in
 
+  let emit_loop_head = GobConfig.get_bool "witness.invariant.loop-head" in
+  (* TODO: handle witness.invariant.after-lock *)
+  let emit_other = GobConfig.get_bool "witness.invariant.other" in
+
   let is_invariant_node cfgnode =
-    match get_string "witness.invariant.nodes" with
-    | "all" -> true
-    | "loop_heads" -> WitnessUtil.NH.mem loop_heads cfgnode
-    | "none" -> false
-    | _ -> failwith "witness.invariant.nodes: invalid value"
+    if WitnessUtil.NH.mem loop_heads cfgnode then
+      emit_loop_head
+    else
+      emit_other
   in
 
   let module TaskResult =

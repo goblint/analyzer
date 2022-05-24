@@ -1733,25 +1733,31 @@
           "title": "witness.invariant",
           "type": "object",
           "properties": {
-            "nodes": {
-              "title": "witness.invariant.nodes",
+            "loop-head":{
+              "title": "witness.invariant.loop-head",
               "description":
-                "Which witness nodes to add invariants to? all/loop_heads/none",
-              "type": "string",
-              "enum": ["all", "loop_heads", "none"],
-              "default": "all"
+                "Emit invariants at loop heads",
+              "type": "boolean",
+              "default": true
+            },
+            "after-lock":{
+              "title": "witness.invariant.after-lock",
+              "description":
+                "Emit invariants after mutex locking",
+              "type": "boolean",
+              "default": true
+            },
+            "other":{
+              "title": "witness.invariant.other",
+              "description":
+                "Emit invariants at all other locations",
+              "type": "boolean",
+              "default": true
             },
             "full": {
               "title": "witness.invariant.full",
               "description":
                 "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
-              "type": "boolean",
-              "default": true
-            },
-            "only-at-locks":{
-              "title": "witness.invariant.only-at-locks",
-              "description":
-                "Only put locks after mutexes have been acquired.",
               "type": "boolean",
               "default": true
             }
