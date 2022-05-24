@@ -24,11 +24,14 @@ struct
     nh
 
   let write lh gh =
+    (* yaml_conf is too verbose *)
+    (* let yaml_conf: Yaml.value = Json_repr.convert (module Json_repr.Yojson) (module Json_repr.Ezjsonm) (!GobConfig.json_conf) in *)
     let yaml_creation_time = `String (TimeUtil.iso8601_now ()) in
     let yaml_producer = `O [
         ("name", `String "Goblint");
         ("version", `String Version.goblint);
         (* TODO: configuration *)
+        (* ("configuration", yaml_conf); *) (* yaml_conf is too verbose *)
         (* TODO: command_line *)
         (* TODO: description *)
       ]
