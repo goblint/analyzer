@@ -1,5 +1,7 @@
 open Analyses
 
+let uuid_random_state = Random.State.make_self_init ()
+
 module Make
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
@@ -11,7 +13,28 @@ module Make
 struct
 
   let write lh gh =
-    let entries = LHT.fold (fun (n, _) local acc ->
+    let yaml_creation_time = `String (TimeUtil.iso8601_now ()) in
+    let yaml_producer = `O [
+        ("name", `String "Goblint");
+        ("version", `String Version.goblint);
+        (* TODO: configuration *)
+        (* TODO: command_line *)
+        (* TODO: description *)
+      ]
+    in
+    let files = GobConfig.get_string_list "files" in
+    let yaml_task = `O [
+        ("input_files", `A (List.map Yaml.Util.string files));
+        ("input_file_hashes", `O (List.map (fun f ->
+            (f, `String (Sha256.(to_hex (file f))))
+          ) files));
+        (* TODO: specification *)
+        (* TODO: data_model *)
+        ("language", `String "C");
+      ]
+    in
+
+    let yaml_entries = LHT.fold (fun (n, _) local acc ->
         let context: Invariant.context = {
             scope=Node.find_fundec n;
             i = -1;
@@ -24,13 +47,19 @@ struct
         | Some inv ->
           let inv = InvariantCil.exp_replace_original_name inv in
           let loc = Node.location n in
+          let uuid = Uuidm.v4_gen uuid_random_state () in
           let entry = `O [
               ("entry_type", `String "loop_invariant");
               ("metadata", `O [
                   ("format_version", `String "0.1");
+                  ("uuid", `String (Uuidm.to_string uuid));
+                  ("creation_time", yaml_creation_time);
+                  ("producer", yaml_producer);
+                  ("task", yaml_task);
                 ]);
               ("location", `O [
                   ("file_name", `String loc.file);
+                  ("file_hash", `String (Sha256.(to_hex (file loc.file))));
                   ("line", `Float (float_of_int loc.line));
                   ("column", `Float (float_of_int (loc.column - 1)));
                   ("function", `String (Node.find_fundec n).svar.vname);
@@ -47,6 +76,7 @@ struct
           acc
       ) lh []
     in
-    let yaml = `A entries in
+
+    let yaml = `A yaml_entries in
     Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.path")) yaml
 end
