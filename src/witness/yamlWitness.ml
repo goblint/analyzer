@@ -141,22 +141,21 @@ struct
     nh
 
   let validate lh gh (file: Cil.file) =
-    let nh = join_contexts lh in
 
     let global_variables =
       file.globals
       |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None)
     in
 
-    let ask_local n local =
+    let ask_local (lvar:EQSys.LVar.t) local =
       (* build a ctx for using the query system *)
       let rec ctx =
         { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
-        ; node   = n
+        ; node   = fst lvar
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> failwith "TODO")
-        ; context = (fun () -> failwith "TODO")
+        ; control_context = Obj.repr (fun () -> snd lvar)
+        ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
         ; global = GHT.find gh
@@ -193,7 +192,7 @@ struct
         in
 
         (* TODO: better node finding *)
-        let found = NH.fold (fun n d found ->
+        let found = LHT.fold (fun ((n, _) as lvar) d found ->
             let nloc = Node.location n in
             if loc.file = nloc.file && loc.line = nloc.line && loc.column = nloc.column then (
               let fd = Node.find_fundec n in
@@ -201,7 +200,7 @@ struct
 
               begin match Formatcil.cExp inv (local_variables @ global_variables) with
                 | inv_exp ->
-                  begin match ask_local n d (Queries.EvalInt inv_exp) with
+                  begin match ask_local lvar d (Queries.EvalInt inv_exp) with
                     | x when Queries.ID.is_bool x ->
                       if Option.get (Queries.ID.to_bool x) then
                         M.success ~category:Witness ~loc "invariant confirmed: %s" inv
@@ -217,7 +216,7 @@ struct
             )
             else
               found
-          ) nh false
+          ) lh false
         in
         if not found then
           M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
