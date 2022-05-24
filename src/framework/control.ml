@@ -685,7 +685,7 @@ struct
 
     if get_string "witness.yaml.validate" <> "" then (
       let module YWitness = YamlWitness.Validator (Spec) (EQSys) (LHT) (GHT) in
-      YWitness.validate lh gh
+      YWitness.validate lh gh file
     );
 
     let marshal = Spec.finalize () in

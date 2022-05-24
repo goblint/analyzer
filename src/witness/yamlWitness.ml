@@ -135,8 +135,35 @@ struct
       ) lh;
     nh
 
-  let validate lh gh =
+  let validate lh gh (file: Cil.file) =
     let nh = join_contexts lh in
+
+    let global_variables =
+      file.globals
+      |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None)
+    in
+
+    let ask_local n local =
+      (* build a ctx for using the query system *)
+      let rec ctx =
+        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
+        ; node   = n
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> failwith "TODO")
+        ; context = (fun () -> failwith "TODO")
+        ; edge    = MyCFG.Skip
+        ; local  = local
+        ; global = GHT.find gh
+        ; presub = (fun _ -> raise Not_found)
+        ; postsub= (fun _ -> raise Not_found)
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+        }
+      in
+      Spec.query ctx
+    in
 
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
     let yaml_entries = match yaml with
@@ -159,6 +186,25 @@ struct
           endByte = -1;
         }
         in
-        ignore (Pretty.printf "%a: %s\n" CilType.Location.pretty loc inv)
+        ignore (Pretty.printf "%a: %s\n" CilType.Location.pretty loc inv);
+
+        (* TODO: better node finding *)
+        NH.iter (fun n d ->
+            let nloc = Node.location n in
+            if loc.file = nloc.file && loc.line = nloc.line && loc.column = nloc.column then (
+              ignore (Pretty.printf "  %a\n" Node.pretty n);
+
+              let fd = Node.find_fundec n in
+              let local_variables = fd.slocals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v) in
+
+              match Formatcil.cExp inv (local_variables @ global_variables) with
+              | inv_exp ->
+                ignore (Pretty.printf "  parsed %a\n" Cil.d_plainexp inv_exp);
+                let r = ask_local n d (Queries.EvalInt inv_exp) in
+                ignore (Pretty.printf "  -> %a\n" Queries.ID.pretty r)
+              | exception _ ->
+                ignore (Pretty.printf "  couldn't parse %s\n" inv)
+            )
+          ) nh
       ) yaml_entries
 end
