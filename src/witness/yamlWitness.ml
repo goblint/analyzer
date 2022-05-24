@@ -112,3 +112,53 @@ struct
     let yaml = `A yaml_entries in
     Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.path")) yaml
 end
+
+
+module Validator
+    (Spec : Spec)
+    (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
+                        and module GVar = GVarF (Spec.V)
+                        and module D = Spec.D
+                        and module G = Spec.G)
+    (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
+    (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+struct
+
+  module NH = BatHashtbl.Make (Node)
+
+  (* copied from Constraints.CompareNode *)
+  let join_contexts (lh: Spec.D.t LHT.t): Spec.D.t NH.t =
+    let nh = NH.create 113 in
+    LHT.iter (fun (n, _) d ->
+        let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
+        NH.replace nh n d'
+      ) lh;
+    nh
+
+  let validate lh gh =
+    let nh = join_contexts lh in
+
+    let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
+    let yaml_entries = match yaml with
+      | `A yaml_entries -> yaml_entries
+      | _ -> failwith "invalid YAML"
+    in
+    List.iter (fun yaml_entry ->
+        let yaml_location = Yaml.Util.(yaml_entry |> find_exn "location" |> Option.get) in
+        let file = Yaml.Util.(yaml_location |> find_exn "file_name" |> Option.get |> to_string_exn) in
+        let line = Yaml.Util.(yaml_location |> find_exn "line" |> Option.get |> to_float_exn |> int_of_float) in
+        let column = Yaml.Util.(yaml_location |> find_exn "column" |> Option.get |> to_float_exn |> int_of_float) + 1 in
+        let inv = Yaml.Util.(yaml_entry |> find_exn "loop_invariant" |> Option.get |> find_exn "string" |> Option.get |> to_string_exn) in
+        let loc: Cil.location = {
+          file;
+          line;
+          column;
+          byte = -1;
+          endLine = -1;
+          endColumn = -1;
+          endByte = -1;
+        }
+        in
+        ignore (Pretty.printf "%a: %s\n" CilType.Location.pretty loc inv)
+      ) yaml_entries
+end
