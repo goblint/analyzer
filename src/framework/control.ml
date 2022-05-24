@@ -678,8 +678,10 @@ struct
     if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;
 
-    let module YWitness = YamlWitness.Make (Spec) (EQSys) (LHT) (GHT) in
-    YWitness.write lh gh;
+    if get_bool "witness.yaml.enabled" then (
+      let module YWitness = YamlWitness.Make (Spec) (EQSys) (LHT) (GHT) in
+      YWitness.write lh gh
+    );
 
     let marshal = Spec.finalize () in
     (* copied from solve_and_postprocess *)

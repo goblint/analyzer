@@ -1788,6 +1788,25 @@
           "description": "Output witness for unknown result",
           "type": "boolean",
           "default": true
+        },
+        "yaml": {
+          "title": "witness.yaml",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "witness.yaml.enabled",
+              "description": "Output YAML witness",
+              "type": "boolean",
+              "default": false
+            },
+            "path": {
+              "title": "witness.yaml.path",
+              "description": "YAML witness output path",
+              "type": "string",
+              "default": "witness.yml"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

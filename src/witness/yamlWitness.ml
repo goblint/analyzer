@@ -47,6 +47,6 @@ struct
           acc
       ) lh []
     in
-    let y = `A entries in
-    Format.printf "YAML:\n%a\n" Yaml.pp y
+    let yaml = `A entries in
+    Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.path")) yaml
 end
