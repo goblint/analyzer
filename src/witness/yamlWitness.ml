@@ -191,25 +191,35 @@ struct
           endByte = -1;
         }
         in
-        ignore (Pretty.printf "%a: %s\n" CilType.Location.pretty loc inv);
 
         (* TODO: better node finding *)
-        NH.iter (fun n d ->
+        let found = NH.fold (fun n d found ->
             let nloc = Node.location n in
             if loc.file = nloc.file && loc.line = nloc.line && loc.column = nloc.column then (
-              ignore (Pretty.printf "  %a\n" Node.pretty n);
-
               let fd = Node.find_fundec n in
               let local_variables = (fd.slocals @ fd.sformals) |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v) in
 
-              match Formatcil.cExp inv (local_variables @ global_variables) with
-              | inv_exp ->
-                ignore (Pretty.printf "  parsed %a\n" Cil.d_plainexp inv_exp);
-                let r = ask_local n d (Queries.EvalInt inv_exp) in
-                ignore (Pretty.printf "  -> %a\n" Queries.ID.pretty r)
-              | exception _ ->
-                ignore (Pretty.printf "  couldn't parse %s\n" inv)
+              begin match Formatcil.cExp inv (local_variables @ global_variables) with
+                | inv_exp ->
+                  begin match ask_local n d (Queries.EvalInt inv_exp) with
+                    | x when Queries.ID.is_bool x ->
+                      if Option.get (Queries.ID.to_bool x) then
+                        M.success ~category:Witness ~loc "invariant confirmed: %s" inv
+                      else
+                        M.error ~category:Witness ~loc "invariant refuted: %s" inv
+                    | _ ->
+                      M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
+                  end
+                | exception _ ->
+                  M.error ~category:Witness ~loc "couldn't parse invariant: %s" inv
+              end;
+              true
             )
-          ) nh
+            else
+              found
+          ) nh false
+        in
+        if not found then
+          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
       ) yaml_entries
 end

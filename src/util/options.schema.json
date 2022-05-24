@@ -1586,6 +1586,12 @@
           "type": "boolean",
           "default": true
         },
+        "witness": {
+          "title": "warn.witness",
+          "description": "Witness messages",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",
