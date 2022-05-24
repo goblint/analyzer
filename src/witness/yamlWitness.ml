@@ -46,19 +46,19 @@ struct
     let yaml_task = `O ([
         ("input_files", `A (List.map Yaml.Util.string files));
         ("input_file_hashes", `O (List.map (fun file ->
-            (file, `String (sha256_file file))
-          ) files));
+             (file, `String (sha256_file file))
+           ) files));
         ("data_model", `String (match GobConfig.get_string "exp.architecture" with
-          | "64bit" -> "LP64"
-          | "32bit" -> "ILP32"
-          | _ -> failwith "invalid architecture"));
+             | "64bit" -> "LP64"
+             | "32bit" -> "ILP32"
+             | _ -> failwith "invalid architecture"));
         ("language", `String "C");
       ] @ match !Svcomp.task with
-            | Some (module Task) -> [
-                ("specification", `String (Svcomp.Specification.to_string Task.specification))
-              ]
-            | None ->
-              []
+      | Some (module Task) -> [
+          ("specification", `String (Svcomp.Specification.to_string Task.specification))
+        ]
+      | None ->
+        []
       )
     in
 
@@ -68,12 +68,12 @@ struct
         match n with
         | Statement _ when WitnessInvariant.is_invariant_node n ->
           let context: Invariant.context = {
-              scope=Node.find_fundec n;
-              i = -1;
-              lval=None;
-              offset=Cil.NoOffset;
-              deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-            }
+            scope=Node.find_fundec n;
+            i = -1;
+            lval=None;
+            offset=Cil.NoOffset;
+            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+          }
           in
           begin match Spec.D.invariant context local with
             | Some inv ->
