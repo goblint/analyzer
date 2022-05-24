@@ -533,21 +533,10 @@ struct
     {st with apr = apr_local}
 
   let escape node ask getg sideg (st:apron_components_t) escaped : apron_components_t =
-    let apr = st.apr in
-    let esc_vars = List.filter (fun var -> match AV.find_metadata var with
-        | Some (Global _) -> false
-        | Some Local ->
-          (let fundec = Node.find_fundec node in
-           let r = AV.to_cil_varinfo fundec var in
-           match r with
-           | Some r -> EscapeDomain.EscapedVars.mem r escaped
-           | _ -> false)
-        | _ -> false
-      ) (AD.vars apr) in
-    let apr_side = AD.keep_vars apr esc_vars in
-    sideg V.mutex_inits apr_side;
-    let apr_local = AD.remove_vars apr esc_vars in
-    { st with apr = apr_local }
+    let esc_vars = EscapeDomain.EscapedVars.elements escaped in
+    let esc_vars = List.filter (fun v -> not v.vglob && AD.varinfo_tracked v && AD.mem_var st.apr (AV.local v)) esc_vars in
+    let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
+    List.fold_left (fun st v -> escape_one v st) st esc_vars
 
   let threadenter ask getg (st: apron_components_t): apron_components_t =
     {apr = AD.bot (); priv = startstate ()}
@@ -1066,24 +1055,10 @@ struct
       st
 
   let escape node ask getg sideg (st: apron_components_t) escaped: apron_components_t =
-    let apr = st.apr in
-    let esc_vars = List.filter (fun var -> match AV.find_metadata var with
-        | Some (Global _) -> false
-        | Some Local ->
-          (let fundec = Node.find_fundec node in
-           let r = AV.to_cil_varinfo fundec var in
-           match r with
-           | Some r -> EscapeDomain.EscapedVars.mem r escaped
-           | _ -> false)
-        | _ -> false
-      ) (AD.vars apr) in
-    let apr_side = AD.keep_vars apr esc_vars in
-    let apr_side = Cluster.unlock (W.top ()) apr_side in (* top W to avoid any filtering *)
-    let tid = ThreadId.get_current ask in
-    let sidev = GMutex.singleton tid apr_side in
-    sideg V.mutex_inits (G.create_mutex sidev);
-    let apr_local = AD.remove_vars apr esc_vars in
-    { st with apr = apr_local }
+    let esc_vars = EscapeDomain.EscapedVars.elements escaped in
+    let esc_vars = List.filter (fun v -> not v.vglob && AD.varinfo_tracked v && AD.mem_var st.apr (AV.local v)) esc_vars in
+    let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
+    List.fold_left (fun st v -> escape_one v st) st esc_vars
 
   let enter_multithreaded (ask:Q.ask) getg sideg (st: apron_components_t): apron_components_t =
     let apr = st.apr in

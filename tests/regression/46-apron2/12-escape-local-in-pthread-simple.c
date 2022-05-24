@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
-
+int g = 8;
 
 void *foo(void* p){
     sleep(2);
@@ -22,6 +22,8 @@ int main(){
     sleep(4); // to make sure that we actually fail the assert when running.
     assert(x == 42); //UNKNOWN!
     assert(x == 0); //UNKNOWN!
+    assert(x <= 50);
+    assert(g == 8);
     pthread_join(thread, NULL);
     return 0;
 }
