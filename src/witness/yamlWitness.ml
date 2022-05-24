@@ -12,6 +12,17 @@ module Make
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
 
+  module NH = BatHashtbl.Make (Node)
+
+  (* copied from Constraints.CompareNode *)
+  let join_contexts (lh: Spec.D.t LHT.t): Spec.D.t NH.t =
+    let nh = NH.create 113 in
+    LHT.iter (fun (n, _) d ->
+        let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
+        NH.replace nh n d'
+      ) lh;
+    nh
+
   let write lh gh =
     let yaml_creation_time = `String (TimeUtil.iso8601_now ()) in
     let yaml_producer = `O [
@@ -37,7 +48,9 @@ struct
       ]
     in
 
-    let yaml_entries = LHT.fold (fun (n, _) local acc ->
+    let nh = join_contexts lh in
+
+    let yaml_entries = NH.fold (fun n local acc ->
         let context: Invariant.context = {
             scope=Node.find_fundec n;
             i = -1;
@@ -77,7 +90,7 @@ struct
           entry :: acc
         | None ->
           acc
-      ) lh []
+      ) nh []
     in
 
     let yaml = `A yaml_entries in
