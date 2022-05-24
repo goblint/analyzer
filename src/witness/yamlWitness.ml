@@ -198,7 +198,7 @@ struct
               ignore (Pretty.printf "  %a\n" Node.pretty n);
 
               let fd = Node.find_fundec n in
-              let local_variables = fd.slocals |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v) in
+              let local_variables = (fd.slocals @ fd.sformals) |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v) in
 
               match Formatcil.cExp inv (local_variables @ global_variables) with
               | inv_exp ->
