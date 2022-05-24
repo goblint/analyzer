@@ -1,7 +1,6 @@
 open Prelude
 open Cil
 open Formatcil
-module ES = SetDomain.Make(Exp.Exp)
 
 (** Instruments a program by inserting asserts either:
     - After an assignment to a variable (unless witness.invariant.full is activated) and
@@ -23,9 +22,6 @@ module ES = SetDomain.Make(Exp.Exp)
 *)
 
 module EvalAssert = struct
-  (* should asserts of conjuncts be one-by-one instead of one big assert?  *)
-  let distinctAsserts = true
-
   (* should asserts be surrounded by __VERIFIER_atomic_{begin,end}? *)
   let surroundByAtomic = true
 
@@ -34,26 +30,6 @@ module EvalAssert = struct
   let atomicBegin = makeVarinfo true "__VERIFIER_atomic_begin" (TVoid [])
   let atomicEnd = makeVarinfo true "__VERIFIER_atomic_end" (TVoid [])
 
-
-  (* Turns an expression into alist of conjuncts, pulling out common conjuncts from top-level disjunctions *)
-  let rec pullOutCommonConjuncts e =
-    let rec to_conjunct_set = function
-      | BinOp(LAnd,e1,e2,_) -> ES.join (to_conjunct_set e1) (to_conjunct_set e2)
-      | e -> ES.singleton e
-    in
-    let combine_conjuncts es = ES.fold (fun e acc -> match acc with | None -> Some e | Some acce -> Some (BinOp(LAnd,acce,e,Cil.intType))) es None in
-    match e with
-    | BinOp(LOr, e1, e2,t) ->
-      let e1s = pullOutCommonConjuncts e1 in
-      let e2s = pullOutCommonConjuncts e2 in
-      let common = ES.inter e1s e2s in
-      let e1s' = ES.diff e1s e2s in
-      let e2s' = ES.diff e2s e1s in
-      (match combine_conjuncts e1s', combine_conjuncts e2s' with
-       | Some e1e, Some e2e -> ES.add (BinOp(LOr,e1e,e2e,Cil.intType)) common
-       | _ -> common (* if one of the disjuncts is empty, it is equivalent to true here *)
-      )
-    | e -> to_conjunct_set e
 
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
@@ -80,7 +56,7 @@ module EvalAssert = struct
         } in
         match (ask loc).f (Queries.Invariant context) with
         | `Lifted e ->
-          let es = if distinctAsserts then ES.elements (pullOutCommonConjuncts e) else [e] in
+          let es = WitnessUtil.InvariantExp.process_exp e in
           let asserts = List.map (fun e -> cInstr ("%v:assert (%e:exp);") loc [("assert", Fv ass); ("exp", Fe e)]) es in
           if surroundByAtomic then
             let abegin = (cInstr ("%v:__VERIFIER_atomic_begin();") loc [("__VERIFIER_atomic_begin", Fv atomicBegin)]) in

@@ -77,10 +77,9 @@ struct
           in
           begin match Spec.D.invariant context local with
             | Some inv ->
-              let inv = InvariantCil.exp_replace_original_name inv in
               let loc = Node.location n in
-              let invs = EvalAssert.EvalAssert.pullOutCommonConjuncts inv in
-              EvalAssert.ES.fold (fun inv acc ->
+              let invs = WitnessUtil.InvariantExp.process_exp inv in
+              List.fold_left (fun acc inv ->
                   let uuid = Uuidm.v4_gen uuid_random_state () in
                   let entry = `O [
                       ("entry_type", `String "loop_invariant");
@@ -106,7 +105,7 @@ struct
                     ]
                   in
                   entry :: acc
-                ) invs acc
+                ) acc invs
             | None ->
               acc
           end

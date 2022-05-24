@@ -1733,24 +1733,30 @@
           "title": "witness.invariant",
           "type": "object",
           "properties": {
-            "loop-head":{
+            "loop-head": {
               "title": "witness.invariant.loop-head",
               "description":
                 "Emit invariants at loop heads",
               "type": "boolean",
               "default": true
             },
-            "after-lock":{
+            "after-lock": {
               "title": "witness.invariant.after-lock",
               "description":
                 "Emit invariants after mutex locking",
               "type": "boolean",
               "default": true
             },
-            "other":{
+            "other": {
               "title": "witness.invariant.other",
               "description":
                 "Emit invariants at all other locations",
+              "type": "boolean",
+              "default": true
+            },
+            "split-conjunction": {
+              "title": "witness.invariant.split-conjunction",
+              "description": "Split conjunctive invariant to multiple invariants",
               "type": "boolean",
               "default": true
             },
