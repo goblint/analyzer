@@ -45,19 +45,6 @@ let find_loop_heads (module Cfg:CfgForward) (file:Cil.file): unit NH.t =
   loop_heads
 
 
-module HashedPair (M1: Hashtbl.HashedType) (M2: Hashtbl.HashedType):
-  Hashtbl.HashedType with type t = M1.t * M2.t =
-struct
-  type t = M1.t * M2.t [@@deriving eq, hash]
-end
-
-module HashedList (M: Hashtbl.HashedType):
-  Hashtbl.HashedType with type t = M.t list =
-struct
-  type t = M.t list [@@deriving eq, hash]
-end
-
-
 module type File =
 sig
   val file: Cil.file
@@ -66,14 +53,29 @@ end
 module Invariant (File: File) (Cfg: MyCFG.CfgBidir) =
 struct
   let emit_loop_head = GobConfig.get_bool "witness.invariant.loop-head"
-  (* TODO: handle witness.invariant.after-lock *)
+  let emit_after_lock = GobConfig.get_bool "witness.invariant.after-lock"
   let emit_other = GobConfig.get_bool "witness.invariant.other"
 
   let loop_heads = find_loop_heads (module Cfg) File.file
 
+  let is_after_lock to_node =
+    List.exists (fun (edges, from_node) ->
+        List.exists (fun (_, edge) ->
+            match edge with
+            | Proc (_, Lval (Var fv, NoOffset), args) ->
+              begin match LibraryFunctions.classify fv.vname args with
+                | `Lock _ -> true
+                | _ -> false
+              end
+            | _ -> false
+          ) edges
+      ) (Cfg.prev to_node)
+
   let is_invariant_node cfgnode =
     if NH.mem loop_heads cfgnode then
       emit_loop_head
+    else if is_after_lock cfgnode then
+      emit_after_lock
     else
       emit_other
 end
