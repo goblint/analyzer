@@ -4,14 +4,14 @@ open Formatcil
 module ES = SetDomain.Make(Exp.Exp)
 
 (** Instruments a program by inserting asserts either:
-    - After an assignment to a variable (unless trans.assert.full is activated) and
+    - After an assignment to a variable (unless witness.invariant.full is activated) and
     - At join points about all local variables
 
                 OR
 
-    - Only after pthread_mutex_lock (trans.assert.only-at-locks), about all locals and globals
+    - Only after pthread_mutex_lock (witness.invariant.only-at-locks), about all locals and globals
 
-    Limitations without trans.assert.only-at locks:
+    Limitations without witness.invariant.only-at-locks:
     - Currently only works for top-level variables (not inside an array, a struct, ...)
     - Does not work for accesses through pointers
     - At join points asserts all locals, but ideally should only assert ones that are
@@ -57,8 +57,8 @@ module EvalAssert = struct
 
   class visitor (ask:Cil.location -> Queries.ask) = object(self)
     inherit nopCilVisitor
-    val full = GobConfig.get_bool "trans.assert.full"
-    val only_at_locks = GobConfig.get_bool "trans.assert.only-at-locks"
+    val full = GobConfig.get_bool "witness.invariant.full"
+    val only_at_locks = GobConfig.get_bool "witness.invariant.only-at-locks"
 
     method! vstmt s =
       let is_lock exp args =
@@ -135,7 +135,7 @@ module EvalAssert = struct
         | [p1; p2] when not only_at_locks ->
           (* exactly two predecessors -> join point, assert locals if they changed *)
           let join_loc = get_stmtLoc s.skind in
-          (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if trans.assert.full is false *)
+          (* Possible enhancement: It would be nice to only assert locals here that were modified in either branch if witness.invariant.full is false *)
           let asserts = make_assert join_loc None in
           self#queueInstr asserts; ()
         | _ -> ()
