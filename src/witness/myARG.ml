@@ -1,4 +1,3 @@
-open WitnessUtil
 open MyCFG
 
 module type Node =
@@ -68,7 +67,7 @@ end
 module StackNode (Node: Node):
   Node with type t = Node.t list =
 struct
-  include HashedList (Node)
+  type t = Node.t list [@@deriving eq, hash]
 
   let cfgnode nl = Node.cfgnode (List.hd nl)
   let to_string nl =

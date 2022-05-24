@@ -3,6 +3,8 @@ open Analyses
 let uuid_random_state = Random.State.make_self_init ()
 
 module Make
+    (File: WitnessUtil.File)
+    (Cfg: MyCFG.CfgBidir)
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
                         and module GVar = GVarF (Spec.V)
@@ -13,6 +15,7 @@ module Make
 struct
 
   module NH = BatHashtbl.Make (Node)
+  module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
 
   (* copied from Constraints.CompareNode *)
   let join_contexts (lh: Spec.D.t LHT.t): Spec.D.t NH.t =
@@ -43,19 +46,19 @@ struct
     let yaml_task = `O ([
         ("input_files", `A (List.map Yaml.Util.string files));
         ("input_file_hashes", `O (List.map (fun file ->
-            (file, `String (sha256_file file))
-          ) files));
+             (file, `String (sha256_file file))
+           ) files));
         ("data_model", `String (match GobConfig.get_string "exp.architecture" with
-          | "64bit" -> "LP64"
-          | "32bit" -> "ILP32"
-          | _ -> failwith "invalid architecture"));
+             | "64bit" -> "LP64"
+             | "32bit" -> "ILP32"
+             | _ -> failwith "invalid architecture"));
         ("language", `String "C");
       ] @ match !Svcomp.task with
-            | Some (module Task) -> [
-                ("specification", `String (Svcomp.Specification.to_string Task.specification))
-              ]
-            | None ->
-              []
+      | Some (module Task) -> [
+          ("specification", `String (Svcomp.Specification.to_string Task.specification))
+        ]
+      | None ->
+        []
       )
     in
 
@@ -63,21 +66,20 @@ struct
 
     let yaml_entries = NH.fold (fun n local acc ->
         match n with
-        | Statement _ ->
+        | Statement _ when WitnessInvariant.is_invariant_node n ->
           let context: Invariant.context = {
-              scope=Node.find_fundec n;
-              i = -1;
-              lval=None;
-              offset=Cil.NoOffset;
-              deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-            }
+            scope=Node.find_fundec n;
+            i = -1;
+            lval=None;
+            offset=Cil.NoOffset;
+            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+          }
           in
           begin match Spec.D.invariant context local with
             | Some inv ->
-              let inv = InvariantCil.exp_replace_original_name inv in
               let loc = Node.location n in
-              let invs = EvalAssert.EvalAssert.pullOutCommonConjuncts inv in
-              EvalAssert.ES.fold (fun inv acc ->
+              let invs = WitnessUtil.InvariantExp.process_exp inv in
+              List.fold_left (fun acc inv ->
                   let uuid = Uuidm.v4_gen uuid_random_state () in
                   let entry = `O [
                       ("entry_type", `String "loop_invariant");
@@ -103,7 +105,7 @@ struct
                     ]
                   in
                   entry :: acc
-                ) invs acc
+                ) acc invs
             | None ->
               acc
           end
