@@ -1,5 +1,4 @@
 open MyCFG
-open WitnessUtil
 open Graphml
 open Svcomp
 open GobConfig
@@ -8,18 +7,7 @@ module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEd
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
   let module Cfg = Task.Cfg in
-  let loop_heads = find_loop_heads (module Cfg) Task.file in
-
-  let emit_loop_head = GobConfig.get_bool "witness.invariant.loop-head" in
-  (* TODO: handle witness.invariant.after-lock *)
-  let emit_other = GobConfig.get_bool "witness.invariant.other" in
-
-  let is_invariant_node cfgnode =
-    if WitnessUtil.NH.mem loop_heads cfgnode then
-      emit_loop_head
-    else
-      emit_other
-  in
+  let module Invariant = WitnessUtil.Invariant (struct let file = Task.file end) (Cfg) in
 
   let module TaskResult =
     (val if get_bool "witness.stack" then
@@ -41,12 +29,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       let to_cfgnode = N.cfgnode to_node in
       if TaskResult.is_violation to_node || TaskResult.is_sink to_node then
         true
-      else if WitnessUtil.NH.mem loop_heads to_cfgnode then
+      else if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
         true
       else begin match edge with
         | MyARG.CFGEdge (Test _) -> true
         | _ -> false
-      end || begin if is_invariant_node to_cfgnode then
+      end || begin if Invariant.is_invariant_node to_cfgnode then
             match to_cfgnode, TaskResult.invariant to_node with
             | Statement _, Some _ -> true
             | _, _ -> false
@@ -145,7 +133,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             []
         end;
         begin
-          if is_invariant_node cfgnode then
+          if Invariant.is_invariant_node cfgnode then
             match cfgnode, TaskResult.invariant node with
             | Statement _, Some i ->
               let i = InvariantCil.exp_replace_original_name i in
@@ -203,7 +191,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           else
             []
         end;
-        begin if WitnessUtil.NH.mem loop_heads to_cfgnode then
+        begin if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
             [("enterLoopHead", "true")]
           else
             []

@@ -56,3 +56,24 @@ module HashedList (M: Hashtbl.HashedType):
 struct
   type t = M.t list [@@deriving eq, hash]
 end
+
+
+module type File =
+sig
+  val file: Cil.file
+end
+
+module Invariant (File: File) (Cfg: MyCFG.CfgBidir) =
+struct
+  let emit_loop_head = GobConfig.get_bool "witness.invariant.loop-head"
+  (* TODO: handle witness.invariant.after-lock *)
+  let emit_other = GobConfig.get_bool "witness.invariant.other"
+
+  let loop_heads = find_loop_heads (module Cfg) File.file
+
+  let is_invariant_node cfgnode =
+    if NH.mem loop_heads cfgnode then
+      emit_loop_head
+    else
+      emit_other
+end
