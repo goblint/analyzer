@@ -129,17 +129,6 @@ module Validator
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
 
-  module NH = BatHashtbl.Make (Node)
-
-  (* copied from Constraints.CompareNode *)
-  let join_contexts (lh: Spec.D.t LHT.t): Spec.D.t NH.t =
-    let nh = NH.create 113 in
-    LHT.iter (fun (n, _) d ->
-        let d' = try Spec.D.join (NH.find nh n) d with Not_found -> d in
-        NH.replace nh n d'
-      ) lh;
-    nh
-
   let validate lh gh (file: Cil.file) =
 
     let global_vars = List.filter_map (function
@@ -213,7 +202,7 @@ struct
                       M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
                   )
                   else
-                    M.error ~category:Witness ~loc "invalid CIL expression invariant: %s" inv
+                    M.error ~category:Witness ~loc "broken CIL expression invariant: %s" inv
                 | exception _ ->
                   M.error ~category:Witness ~loc "couldn't parse invariant: %s" inv
               end;
