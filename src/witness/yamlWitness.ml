@@ -129,7 +129,19 @@ module Validator
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
 
+  module FileH = BatHashtbl.Make (Basetype.RawStrings)
+  module LocM = BatMap.Make (CilType.Location)
+  module LvarS = BatSet.Make (EQSys.LVar)
+
   let validate lh gh (file: Cil.file) =
+    (* for each file, locations (of lvar nodes) have total order, so LocM essentially does binary search *)
+    let file_loc_lvars: LvarS.t LocM.t FileH.t = FileH.create 100 in
+    LHT.iter (fun ((n, _) as lvar) _ ->
+        let loc = Node.location n in
+        FileH.modify_def LocM.empty loc.file (
+          LocM.modify_def LvarS.empty loc (LvarS.add lvar)
+        ) file_loc_lvars
+      ) lh;
 
     let global_vars = List.filter_map (function
         | Cil.GVar (v, _, _) -> Some v
@@ -181,38 +193,46 @@ struct
         }
         in
 
-        (* TODO: better node finding *)
-        let found = LHT.fold (fun ((n, _) as lvar) d found ->
-            let nloc = Node.location n in
-            if loc.file = nloc.file && loc.line = nloc.line && loc.column = nloc.column then (
+        let lvars_opt: LvarS.t option =
+          let (let*) = Option.bind in (* TODO: move to general library *)
+          let* loc_lvars = FileH.find_option file_loc_lvars loc.file in
+          (* for each file, locations (of lvar nodes) have total order, so LocM essentially does binary search *)
+          let* (_, lvars) = LocM.find_first_opt (fun loc' ->
+              CilType.Location.compare loc loc' <= 0 (* allow inexact match *)
+            ) loc_lvars
+          in
+          if LvarS.is_empty lvars then
+            None
+          else
+            Some lvars
+        in
+
+        match lvars_opt with
+        | Some lvars ->
+          LvarS.iter (fun ((n, _) as lvar) ->
+              let d = LHT.find lh lvar in
               let fd = Node.find_fundec n in
               let vars = fd.sformals @ fd.slocals @ global_vars in
               let fas = List.map (fun (v: Cil.varinfo) -> (v.vname, Cil.Fv v)) vars in
 
-              begin match Formatcil.cExp inv fas with
-                | inv_exp ->
-                  if Check.checkStandaloneExp ~vars inv_exp then (
-                    match ask_local lvar d (Queries.EvalInt inv_exp) with
-                    | x when Queries.ID.is_bool x ->
-                      if Option.get (Queries.ID.to_bool x) then
-                        M.success ~category:Witness ~loc "invariant confirmed: %s" inv
-                      else
-                        M.error ~category:Witness ~loc "invariant refuted: %s" inv
-                    | _ ->
-                      M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
-                  )
-                  else
-                    M.error ~category:Witness ~loc "broken CIL expression invariant: %s" inv
-                | exception _ ->
-                  M.error ~category:Witness ~loc "couldn't parse invariant: %s" inv
-              end;
-              true
-            )
-            else
-              found
-          ) lh false
-        in
-        if not found then
+              match Formatcil.cExp inv fas with
+              | inv_exp ->
+                if Check.checkStandaloneExp ~vars inv_exp then (
+                  match ask_local lvar d (Queries.EvalInt inv_exp) with
+                  | x when Queries.ID.is_bool x ->
+                    if Option.get (Queries.ID.to_bool x) then
+                      M.success ~category:Witness ~loc "invariant confirmed: %s" inv
+                    else
+                      M.error ~category:Witness ~loc "invariant refuted: %s" inv
+                  | _ ->
+                    M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
+                )
+                else
+                  M.error ~category:Witness ~loc "broken CIL expression invariant: %s" inv
+              | exception _ ->
+                M.error ~category:Witness ~loc "couldn't parse invariant: %s" inv
+            ) lvars
+        | None ->
           M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
       ) yaml_entries
 end
