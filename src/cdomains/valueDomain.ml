@@ -133,7 +133,7 @@ struct
 
   let rec init_value (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
-    | t when is_mutex_type t -> `Top
+    | t when is_mutex_type t -> `Bot (* use `Bot instead of `Top to avoid unknown value escape warnings *)
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TPtr _ -> `Address AD.top_ptr
     | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
@@ -854,7 +854,8 @@ struct
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
-      | _, _ when is_mutex_type t -> `Top (* hide mutex structure contents, not updated anyway *)
+      | _, _ when is_mutex_type t -> (* hide mutex structure contents, not updated anyway *)
+        `Bot (* use `Bot instead of `Top to avoid unknown value escape warnings *)
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
