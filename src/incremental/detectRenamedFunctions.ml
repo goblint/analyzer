@@ -98,27 +98,6 @@ let categorizeUnknownFunctions
       | None -> StringMap.add functionWithUnknownStatusName ChangedOrNewOrDeleted map
     ) unknownFunctions StringMap.empty
 
-
-(*Marks the changed node as changed in the results and also marks all nodes that depend on that node as changed. *)
-let rec propagateChangedNode (changedNodeOldName: string)
-    (nodeMap: nodeData StringMap.t)
-    (dependencyHeap: DependencyHeap.t)
-    (currentResults: results) : (nodeData StringMap.t) * (DependencyHeap.t) * (results) =
-  let resultsWithChangedNode = StringMap.add changedNodeOldName ChangedOrNewOrDeleted currentResults in
-  let changedNodeData = StringMap.find changedNodeOldName nodeMap in
-  (*BatHeap does not support removing an element directly. Maybe we should use a different implementation.*)
-  let dependencyHeapWithoutChangedNode: DependencyHeap.t =
-    dependencyHeap |>
-    DependencyHeap.to_list |>
-    List.filter (fun pointer -> pointer.oldName <> changedNodeOldName) |>
-    DependencyHeap.of_list in
-
-  changedNodeData.dependents |>
-  StringMap.to_seq |>
-  Seq.fold_left (fun (nodeMap, dependencyHeap, currentResults) (dependentName, _) ->
-      propagateChangedNode dependentName nodeMap dependencyHeap currentResults
-    ) (nodeMap, dependencyHeapWithoutChangedNode, resultsWithChangedNode)
-
 (* Takes the node with the currently least dependencies and tries to reduce the graph from that node.
    Cyclic dependency graphs are currently not supported. If a cyclic dependency is found, all remaining nodes are marked as changed.
 
@@ -135,15 +114,17 @@ let rec reduceNodeGraph (nodeMap: nodeData StringMap.t) (dependencyHeap: Depende
     if topDependencyPointer.dependencyCount = 0 then
       (*Remove this node from the dependecies of the nodes that depend on it.
          The nodes that depend on the wrong name are set to be changed.*)
-      let newNodeMap = currentNode.dependents |>
+      let (newNodeMap, updatedDependencyHeap) = currentNode.dependents |>
                        StringMap.to_seq |>
-                       Seq.fold_left (fun nodeMap (dependingFun, dependingOnName) ->
+                       Seq.fold_left (fun (nodeMap, dependencyHeap) (dependingFun, dependingOnName) ->
                            let dependeeNodeData: nodeData = StringMap.find dependingFun nodeMap in
 
                            (*Remove the dependency of current node from the dependencies of the dependee*)
                            let newDependencies = dependeeNodeData.dependencies |>
                                                  StringMap.filter (fun dependingName _ -> dependingName <> topDependencyPointer.oldName)
                            in
+
+                           (*TODO: Update dependencyheap by decreasing the dependency count by 1*)
 
                            let hadWrongAssumption = if currentNode.nowName <> dependingOnName then true
                              else dependeeNodeData.hadWrongAssumption
@@ -159,9 +140,9 @@ let rec reduceNodeGraph (nodeMap: nodeData StringMap.t) (dependencyHeap: Depende
                            (*Replace node data in map*)
                            let newNodeMap = StringMap.add dependingFun newNodeData nodeMap in
 
-                           newNodeMap
+                           newNodeMap, dependencyHeap
 
-                         ) nodeMap in
+                         ) (nodeMap, newDependencyHeap) in
 
       let status = if currentNode.hadWrongAssumption then ChangedOrNewOrDeleted else Renamed({nowName=currentNode.nowName; dependencies=currentNode.dependencies}) in
 
