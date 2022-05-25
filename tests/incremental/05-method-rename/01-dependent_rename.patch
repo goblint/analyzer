@@ -1,5 +1,5 @@
---- tests/incremental/05-method_rename/01-dependent_rename.c
-+++ tests/incremental/05-method_rename/01-dependent_rename.c
+--- tests/incremental/05-method-rename/01-dependent_rename.c
++++ tests/incremental/05-method-rename/01-dependent_rename.c
 @@ -1,14 +1,14 @@
  #include<stdio.h>
 

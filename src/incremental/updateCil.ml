@@ -1,5 +1,4 @@
 open Cil
-open CompareCIL
 open MaxIdUtil
 open MyCFG
 open CompareGlobals

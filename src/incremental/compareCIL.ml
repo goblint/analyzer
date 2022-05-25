@@ -40,7 +40,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
       let isGFun = match global with
         | GFun _-> false (* set to true later to disable finding changes for funs*)
         | _ -> false
-        in
+      in
 
       if not isGFun then
         let ident = identifier_of_global global in
@@ -52,34 +52,46 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
         else changes.changed <- {current = global; old = old_global; unchangedHeader; diff} :: changes.changed
     with Not_found -> () (* Global was no variable or function, it does not belong into the map *)
   in
-  let checkExists map global =
-    match identifier_of_global global with
-    | name -> GlobalMap.mem name map
-    | exception Not_found -> true (* return true, so isn't considered a change *)
-  in
+
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
-  let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
 
   let renameDetectionResults = detectRenamedFunctions oldAST newAST in
   FundecMap.to_seq renameDetectionResults |>
-    Seq.iter
+  Seq.iter
     (fun (fundec, (functionGlobal, status)) ->
-      Printf.printf "Function satus of %s is=" fundec.svar.vname;
-      match status with
-      | SameName _ -> Printf.printf "Same Name\n";
-      | Renamed rd -> Printf.printf "Renamed to %s" rd.nowName;
-      | ChangedOrNewOrDeleted -> Printf.printf "Changed or new or deleted."
-      );
+       Printf.printf "Function status of %s is=" fundec.svar.vname;
+       match status with
+       | Unchanged _ -> Printf.printf "Same Name\n";
+       | Added -> Printf.printf "Added\n";
+       | Removed -> Printf.printf "Removed\n";
+       | Changed _ -> Printf.printf "Changed\n";
+       | UnchangedButRenamed toFrom ->
+         match toFrom with
+         | GFun (f, _) -> Printf.printf "Renamed to %s\n" f.svar.vname;
+         | _ -> Printf.printf "TODO";
+    );
 
   (*  For each function in the new file, check whether a function with the same name
       already existed in the old version, and whether it is the same function. *)
   Cil.iterGlobals newAST
     (fun glob -> findChanges oldMap glob);
 
-  (* We check whether functions have been added or removed *)
-  Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then changes.added <- (glob::changes.added));
-  Cil.iterGlobals oldAST (fun glob -> if not (checkExists newMap glob) then changes.removed <- (glob::changes.removed));
+  let unchanged, changed, added, removed = FundecMap.fold (fun _ (global, status) (u, c, a, r) ->
+      match status with
+      | Unchanged now -> (u @ [{old=global; current=now}], c, a, r)
+      | UnchangedButRenamed now -> (u @ [{old=global; current=now}], c, a, r)
+      | Added -> (u, c, a @ [global], r)
+      | Removed -> (u, c, a, r @ [global])
+      | Changed (now, unchangedHeader) -> (u, c @ [{old=global; current=now; unchangedHeader=unchangedHeader; diff=None}], a, r)
+    ) renameDetectionResults (changes.unchanged, changes.changed, changes.added, changes.removed)
+  in
+
+  changes.added <- added;
+  changes.removed <- removed;
+  changes.changed <- changed;
+  changes.unchanged <- unchanged;
+
   changes
 
 (** Given an (optional) equality function between [Cil.global]s, an old and a new [Cil.file], this function computes a [change_info],
