@@ -142,9 +142,10 @@ struct
 
   let validate lh gh (file: Cil.file) =
 
-    let global_variables =
-      file.globals
-      |> List.filter_map (function Cil.GVar (v, _, _) -> Some (v.vname, Cil.Fv v) | _ -> None)
+    let global_vars = List.filter_map (function
+        | Cil.GVar (v, _, _) -> Some v
+        | _ -> None
+      ) file.globals
     in
 
     let ask_local (lvar:EQSys.LVar.t) local =
@@ -196,11 +197,13 @@ struct
             let nloc = Node.location n in
             if loc.file = nloc.file && loc.line = nloc.line && loc.column = nloc.column then (
               let fd = Node.find_fundec n in
-              let local_variables = (fd.slocals @ fd.sformals) |> List.map (fun (v : Cil.varinfo) -> v.vname, Cil.Fv v) in
+              let vars = fd.sformals @ fd.slocals @ global_vars in
+              let fas = List.map (fun (v: Cil.varinfo) -> (v.vname, Cil.Fv v)) vars in
 
-              begin match Formatcil.cExp inv (local_variables @ global_variables) with
+              begin match Formatcil.cExp inv fas with
                 | inv_exp ->
-                  begin match ask_local lvar d (Queries.EvalInt inv_exp) with
+                  if Check.checkStandaloneExp ~vars inv_exp then (
+                    match ask_local lvar d (Queries.EvalInt inv_exp) with
                     | x when Queries.ID.is_bool x ->
                       if Option.get (Queries.ID.to_bool x) then
                         M.success ~category:Witness ~loc "invariant confirmed: %s" inv
@@ -208,7 +211,9 @@ struct
                         M.error ~category:Witness ~loc "invariant refuted: %s" inv
                     | _ ->
                       M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
-                  end
+                  )
+                  else
+                    M.error ~category:Witness ~loc "invalid CIL expression invariant: %s" inv
                 | exception _ ->
                   M.error ~category:Witness ~loc "couldn't parse invariant: %s" inv
               end;
