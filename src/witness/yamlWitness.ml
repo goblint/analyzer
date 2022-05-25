@@ -228,7 +228,7 @@ struct
                     M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
                 )
                 else
-                  M.error ~category:Witness ~loc "broken CIL expression invariant: %s" inv
+                  M.error ~category:Witness ~loc "broken CIL expression invariant: %s (%a)" inv Cil.d_plainexp inv_exp
               | exception _ ->
                 M.error ~category:Witness ~loc "couldn't parse invariant: %s" inv
             ) lvars
