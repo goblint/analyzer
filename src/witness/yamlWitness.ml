@@ -228,9 +228,12 @@ struct
                     Cil.currentExpLoc := loc;
                     Cabs2cil.currentFunctionFDEC := fd;
                     let old_locals = fd.slocals in
+                    let old_useLogicalOperators = !Cil.useLogicalOperators in
                     Fun.protect ~finally:(fun () ->
-                        fd.slocals <- old_locals (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
+                        fd.slocals <- old_locals; (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
+                        Cil.useLogicalOperators := old_useLogicalOperators
                       ) (fun () ->
+                        Cil.useLogicalOperators := true;
                         Cabs2cil.convStandaloneExp ~genv ~env inv_cabs
                       )
                   in
