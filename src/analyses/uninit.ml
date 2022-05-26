@@ -65,7 +65,7 @@ struct
     | StartOf lval -> access_lv_byval a lval
     (* Most casts are currently just ignored, that's probably not a good idea! *)
     | CastE  (t, exp) -> access_one_byval a rw exp
-    | _ -> []
+    | _ -> [] (* TODO: remove wildcard *)
   (* Accesses during the evaluation of an lval, not the lval itself! *)
   and access_lv_byval a (lval:lval) =
     let rec access_offset (ofs: offset) =

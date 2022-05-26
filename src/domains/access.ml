@@ -111,7 +111,7 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
         `Struct (s1, o1)
       | _ -> `Type t
     end
-  | _ -> `Type fb
+  | _ -> `Type fb (* TODO: remove wildcard *)
 
 let get_type fb e =
   (* printf "e = %a\n" d_plainexp e; *)
@@ -298,7 +298,7 @@ and distribute_access_exp f kind r c = function
     distribute_access_exp f `Read r c b;
     distribute_access_exp f kind r c t;
     distribute_access_exp f kind r c e
-  | _ -> ()
+  | _ -> () (* TODO: remove wildcard *)
 
 let add side e kind conf vo oo a =
   let ty = get_val_type e vo oo in

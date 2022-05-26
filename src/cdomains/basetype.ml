@@ -103,7 +103,7 @@ struct
     | UnOp (_,e,_) -> occurs x e
     | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
     | CastE (_,e) -> occurs x e
-    | _ -> false
+    | _ -> false (* TODO: remove wildcard? *)
 
   let replace (x:varinfo) (exp: exp) (e:exp): exp =
     let rec replace_lv (v,offs): lval =
@@ -123,7 +123,7 @@ struct
       | UnOp (op,e,t) -> UnOp (op, replace_rv e, t)
       | BinOp (op,e1,e2,t) -> BinOp (op, replace_rv e1, replace_rv e2, t)
       | CastE (t,e) -> CastE(t, replace_rv e)
-      | x -> x
+      | x -> x (* TODO: remove wildcard? *)
     in
     constFold true (replace_rv e)
 
@@ -138,7 +138,7 @@ struct
     | AlignOf _
     | Question _
     | AddrOf _
-    | StartOf _ -> []
+    | StartOf _ -> [] (* TODO: return not empty, some may contain vars! *)
     | UnOp (_, e, _ )
     | CastE (_, e)
     | Real e

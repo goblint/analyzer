@@ -797,7 +797,7 @@ struct
       | CastE  (t, exp) ->
         let v = eval_rv a gs st exp in
         VD.cast ~torg:(Cilfacade.typeOf exp) t v
-      | _ -> VD.top ()
+      | _ -> VD.top () (* TODO: remove wildcard *)
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r

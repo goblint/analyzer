@@ -45,7 +45,7 @@ let rec exp_contains_tmp = function
   | UnOp (_, e, _) -> exp_contains_tmp e
   | BinOp (_, e1, e2, _) -> exp_contains_tmp e1 || exp_contains_tmp e2
   | CastE (_, e) -> exp_contains_tmp e
-  | exp -> exp = MyCFG.unknown_exp
+  | exp -> exp = MyCFG.unknown_exp (* TODO: remove wildcard *)
 
 (* TODO: synchronize magic constant with BaseDomain *)
 let var_is_heap {vname; _} = BatString.starts_with vname "(alloc@"

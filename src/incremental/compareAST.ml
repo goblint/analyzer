@@ -41,7 +41,7 @@ and eq_exp (a: exp) (b: exp) = match a,b with
   | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 &&  eq_exp exp1 exp2
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2
   | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2
-  | _, _ -> false
+  | _, _ -> false (* TODO: remove wildcard *)
 
 and eq_lhost (a: lhost) (b: lhost) = match a, b with
     Var v1, Var v2 -> eq_varinfo v1 v2

@@ -105,7 +105,7 @@ module EvalAssert = struct
         | Lval (Var v, _) -> [v]
         | UnOp (_, e, _) -> get_vars e
         | BinOp (_, e1, e2, _) -> (get_vars e1) @ (get_vars e2)
-        | _ -> []
+        | _ -> [] (* TODO: remove wildcard, return not empty because some may contain vars! *)
       in
 
       let instrument_join s =

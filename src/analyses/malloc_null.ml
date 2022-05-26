@@ -79,7 +79,7 @@ struct
     | UnOp (_,e,_)
     | CastE  (_,e) ->
       warn_deref_exp a st e
-    | _ -> ()
+    | _ -> () (* TODO: remove wildcard *)
 
   let may (f: 'a -> 'b) (x: 'a option) : unit =
     match x with

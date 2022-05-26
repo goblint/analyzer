@@ -16,7 +16,8 @@ struct
     | AlignOf _
     | AlignOfE _
     | UnOp  _
-    | BinOp _ -> false
+    | BinOp _
+    | Question _ -> false
     | Const _ -> true
     | AddrOf  (Var v2,_)
     | StartOf (Var v2,_)
@@ -25,8 +26,7 @@ struct
     | StartOf (Mem e,_)
     | Lval    (Mem e,_)
     | CastE (_,e)           -> interesting e
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
+    | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
 
   let  contains_var v e =
     let rec offs_contains o =
@@ -54,8 +54,8 @@ struct
         if deref
         then CilType.Varinfo.equal v v2 || offs_contains o
         else offs_contains o
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
+      | Question (b, t, f, _) -> cv deref b || cv deref t || cv deref f
+      | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
     in
     cv false e
 
@@ -82,8 +82,8 @@ struct
       | Lval    (Var v2,o) -> offs_contains o
       | AddrOf  (Var v2,o)
       | StartOf (Var v2,o) -> offs_contains o
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
+      | Question (b, t, f, _) -> cv b || cv t || cv f
+      | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
     in
     cv e
 
@@ -146,6 +146,7 @@ struct
     | UnOp _
     | BinOp _
     | Const _
+    | Question _
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> exp
@@ -156,8 +157,7 @@ struct
     | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (conv_offs offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
     | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
+    | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
 
   let rec base_compinfo q exp =
     match exp with
@@ -169,6 +169,7 @@ struct
     | UnOp _
     | BinOp _
     | Const _
+    | Question _
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> None
@@ -179,8 +180,7 @@ struct
     | StartOf (Mem e,Field (f,_)) when simple_eq e q -> Some f.fcomp
     | StartOf (Mem e,o) -> base_compinfo q e
     | CastE (t,e) -> base_compinfo q e
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
+    | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
 
   let rec conc i =
     match i with
@@ -298,14 +298,14 @@ struct
       | UnOp _
       | BinOp _
       | StartOf _
-      | Const _ -> raise NotSimpleEnough
+      | Const _
+      | Question _ -> raise NotSimpleEnough
       | Lval (Var v, os) -> EVar v :: conv_o os
       | Lval (Mem e, os) -> helper e @ [EDeref] @ conv_o os
       | AddrOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
       | AddrOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
       | CastE (_,e) -> helper e
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
+      | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
     in
     try helper exp
     with NotSimpleEnough -> []
