@@ -156,6 +156,24 @@ struct
 end
 
 
+module ValidationResult =
+struct
+  (* constructor order is important for the chain lattice *)
+  type result =
+    | Confirmed
+    | Unconfirmed
+    | Refuted
+    | ParseError
+  [@@deriving enum, show]
+
+  module ChainParams =
+  struct
+    let n = max_result - 1
+    let names i = show_result (Option.get (result_of_enum i))
+  end
+  include Lattice.Chain (ChainParams)
+end
+
 module Validator
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
@@ -252,8 +270,9 @@ struct
 
           begin match lvars_opt with
             | Some lvars ->
-              (* TODO: only one certificate per entry *)
-              LvarS.fold (fun ((n, _) as lvar) yaml_entries' ->
+              let module VR = ValidationResult in
+
+              let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
                   let d = LHT.find lh lvar in
                   let fd = Node.find_fundec n in
                   let vars = fd.sformals @ fd.slocals @ global_vars in
@@ -279,30 +298,40 @@ struct
                       )
                   in
 
-                  match inv_exp_opt with
-                  | Some inv_exp ->
-                    if Check.checkStandaloneExp ~vars inv_exp then (
-                      match ask_local lvar d (Queries.EvalInt inv_exp) with
-                      | x when Queries.ID.is_bool x ->
-                        let verdict = Option.get (Queries.ID.to_bool x) in
-                        if verdict then
-                          M.success ~category:Witness ~loc "invariant confirmed: %s" inv
-                        else
-                          M.error ~category:Witness ~loc "invariant refuted: %s" inv;
-                        let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict in
-                        certificate_entry :: yaml_entry :: yaml_entries'
-                      | _ ->
-                        M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;
-                        yaml_entry :: yaml_entries'
-                    )
-                    else (
-                      M.error ~category:Witness ~loc "broken CIL expression invariant: %s (%a)" inv Cil.d_plainexp inv_exp;
-                      yaml_entry :: yaml_entries'
-                    )
-                  | None ->
-                    M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
-                    yaml_entry :: yaml_entries'
-                ) lvars yaml_entries'
+                  let result: VR.result = match inv_exp_opt with
+                    | Some inv_exp when Check.checkStandaloneExp ~vars inv_exp ->
+                      begin match ask_local lvar d (Queries.EvalInt inv_exp) with
+                        | x when Queries.ID.is_bool x ->
+                          let verdict = Option.get (Queries.ID.to_bool x) in
+                          if verdict then
+                            Confirmed
+                          else
+                            Refuted
+                        | _ ->
+                          Unconfirmed
+                      end
+                    | _ ->
+                      ParseError
+                  in
+                  VR.join acc (VR.result_to_enum result)
+                ) lvars (VR.bot ())
+              in
+
+              begin match Option.get (VR.result_of_enum result) with
+                | Confirmed ->
+                  M.success ~category:Witness ~loc "invariant confirmed: %s" inv;
+                  let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict:true in
+                  certificate_entry :: yaml_entry :: yaml_entries'
+                | Unconfirmed ->
+                  M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;yaml_entry :: yaml_entries'
+                | Refuted ->
+                  M.error ~category:Witness ~loc "invariant refuted: %s" inv;let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict:false in
+                  certificate_entry :: yaml_entry :: yaml_entries'
+                | ParseError ->
+                  M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
+                  M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv;
+                  yaml_entry :: yaml_entries'
+              end
             | None ->
               M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
               yaml_entry :: yaml_entries'
@@ -310,6 +339,7 @@ struct
         | exception Frontc.ParseError _ ->
           Errormsg.log "\n"; (* CIL prints garbage without \n before *)
           M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
+          M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv;
           yaml_entry :: yaml_entries'
       ) [] yaml_entries
     in
