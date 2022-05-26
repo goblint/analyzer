@@ -223,7 +223,19 @@ struct
                       Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
                     ) (fd.sformals @ fd.slocals);
 
-                  match Cabs2cil.convStandaloneExp ~genv ~env inv_cabs with
+                  let inv_exp_opt =
+                    Cil.currentLoc := loc;
+                    Cil.currentExpLoc := loc;
+                    Cabs2cil.currentFunctionFDEC := fd;
+                    let old_locals = fd.slocals in
+                    Fun.protect ~finally:(fun () ->
+                        fd.slocals <- old_locals (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
+                      ) (fun () ->
+                        Cabs2cil.convStandaloneExp ~genv ~env inv_cabs
+                      )
+                  in
+
+                  match inv_exp_opt with
                   | Some inv_exp ->
                     if Check.checkStandaloneExp ~vars inv_exp then (
                       match ask_local lvar d (Queries.EvalInt inv_exp) with
