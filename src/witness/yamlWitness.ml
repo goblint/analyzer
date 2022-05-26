@@ -176,7 +176,25 @@ struct
       | `A yaml_entries -> yaml_entries
       | _ -> failwith "invalid YAML"
     in
-    List.iter (fun yaml_entry ->
+
+    (* TODO: deduplicate *)
+    (* yaml_conf is too verbose *)
+    (* let yaml_conf: Yaml.value = Json_repr.convert (module Json_repr.Yojson) (module Json_repr.Ezjsonm) (!GobConfig.json_conf) in *)
+    let yaml_creation_time = `String (TimeUtil.iso8601_now ()) in
+    let yaml_producer = `O [
+        ("name", `String "Goblint");
+        ("version", `String Version.goblint);
+        (* TODO: configuration *)
+        (* ("configuration", yaml_conf); *) (* yaml_conf is too verbose *)
+        ("command_line", `String Goblintutil.command_line);
+        (* TODO: description *)
+      ]
+    in
+    let sha256_file f = Sha256.(to_hex (file f)) in
+    let sha256_file_cache = BatCache.make_ht ~gen:sha256_file ~init_size:5 in
+    let sha256_file = sha256_file_cache.get in
+
+    let yaml_entries' = List.fold_left (fun yaml_entries' yaml_entry ->
         let yaml_location = Yaml.Util.(yaml_entry |> find_exn "location" |> Option.get) in
         let file = Yaml.Util.(yaml_location |> find_exn "file_name" |> Option.get |> to_string_exn) in
         let line = Yaml.Util.(yaml_location |> find_exn "line" |> Option.get |> to_float_exn |> int_of_float) in
@@ -212,7 +230,8 @@ struct
 
           begin match lvars_opt with
             | Some lvars ->
-              LvarS.iter (fun ((n, _) as lvar) ->
+              (* TODO: only one certificate per entry *)
+              LvarS.fold (fun ((n, _) as lvar) yaml_entries' ->
                   let d = LHT.find lh lvar in
                   let fd = Node.find_fundec n in
                   let vars = fd.sformals @ fd.slocals @ global_vars in
@@ -243,23 +262,58 @@ struct
                     if Check.checkStandaloneExp ~vars inv_exp then (
                       match ask_local lvar d (Queries.EvalInt inv_exp) with
                       | x when Queries.ID.is_bool x ->
-                        if Option.get (Queries.ID.to_bool x) then
+                        let b = Option.get (Queries.ID.to_bool x) in
+                        if b then
                           M.success ~category:Witness ~loc "invariant confirmed: %s" inv
                         else
-                          M.error ~category:Witness ~loc "invariant refuted: %s" inv
+                          M.error ~category:Witness ~loc "invariant refuted: %s" inv;
+                        let yaml_metadata = Yaml.Util.(yaml_entry |> find_exn "metadata" |> Option.get) in
+                        let uuid = Yaml.Util.(yaml_metadata |> find_exn "uuid" |> Option.get |> to_string_exn) in
+                        let certificate_uuid = Uuidm.v4_gen uuid_random_state () in
+                        let certificate_entry = `O [
+                            ("entry_type", `String "loop_invariant_certificate");
+                            ("metadata", `O [
+                                ("format_version", `String "0.1");
+                                ("uuid", `String (Uuidm.to_string certificate_uuid));
+                                ("creation_time", yaml_creation_time);
+                                ("producer", yaml_producer);
+                              ]);
+                            ("target", `O [
+                                ("uuid", `String uuid);
+                                ("type", `String "loop_invariant"); (* TODO: check *)
+                                ("file_hash", `String (sha256_file loc.file));
+                              ]);
+                            ("certification", `O [
+                                ("string", `String (if b then "confirmed" else "rejected"));
+                                ("type", `String "verdict");
+                                ("format", `String "confirmed | rejected");
+                              ]);
+                          ]
+                        in
+                        certificate_entry :: yaml_entry :: yaml_entries'
                       | _ ->
-                        M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
+                        M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;
+                        yaml_entry :: yaml_entries'
                     )
-                    else
-                      M.error ~category:Witness ~loc "broken CIL expression invariant: %s (%a)" inv Cil.d_plainexp inv_exp
+                    else (
+                      M.error ~category:Witness ~loc "broken CIL expression invariant: %s (%a)" inv Cil.d_plainexp inv_exp;
+                      yaml_entry :: yaml_entries'
+                    )
                   | None ->
-                    M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv
-                ) lvars
+                    M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
+                    yaml_entry :: yaml_entries'
+                ) lvars yaml_entries'
             | None ->
-              M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
+              M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
+              yaml_entry :: yaml_entries'
           end
         | exception Frontc.ParseError _ ->
           Errormsg.log "\n"; (* CIL prints garbage without \n before *)
-          M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv
-      ) yaml_entries
+          M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
+          yaml_entry :: yaml_entries'
+      ) [] yaml_entries
+    in
+
+    let yaml' = `A (List.rev yaml_entries') in
+    Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.certificate")) yaml'
 end

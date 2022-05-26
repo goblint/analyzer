@@ -1822,6 +1822,12 @@
               "description": "YAML witness input path",
               "type": "string",
               "default": ""
+            },
+            "certificate": {
+              "title": "witness.yaml.certificate",
+              "description": "YAML witness certificate output path",
+              "type": "string",
+              "default": "witness.certificate.yml"
             }
           },
           "additionalProperties": false
