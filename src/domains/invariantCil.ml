@@ -39,13 +39,26 @@ let exp_is_in_scope scope e =
 let tmp_var_regexp = Str.regexp "^\\(tmp\\(___[0-9]+\\)?\\|cond\\|RETURN\\)$"
 (* let var_is_tmp {vname; _} = Str.string_match tmp_var_regexp vname 0 *)
 let var_is_tmp vi = Option.is_none (Cilfacade.find_original_name vi)
-(* TODO: use visitor for this *)
-let rec exp_contains_tmp = function
-  | Lval (Var vi, _) -> var_is_tmp vi
-  | UnOp (_, e, _) -> exp_contains_tmp e
-  | BinOp (_, e1, e2, _) -> exp_contains_tmp e1 || exp_contains_tmp e2
-  | CastE (_, e) -> exp_contains_tmp e
-  | exp -> exp = MyCFG.unknown_exp (* TODO: remove wildcard *)
+class exp_contains_tmp_visitor (acc: bool ref) = object
+  inherit nopCilVisitor as super
+  method! vvrbl (vi: varinfo) =
+    if var_is_tmp vi then
+      acc := true;
+    SkipChildren
+
+  method! vexpr (e: exp) =
+    if e = MyCFG.unknown_exp then (
+      acc := true;
+      SkipChildren
+    )
+    else
+      super#vexpr e
+end
+let exp_contains_tmp e =
+  let acc = ref false in
+  let visitor = new exp_contains_tmp_visitor acc in
+  ignore (visitCilExpr visitor e);
+  !acc
 
 (* TODO: synchronize magic constant with BaseDomain *)
 let var_is_heap {vname; _} = BatString.starts_with vname "(alloc@"

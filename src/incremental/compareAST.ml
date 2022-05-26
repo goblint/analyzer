@@ -41,7 +41,11 @@ and eq_exp (a: exp) (b: exp) = match a,b with
   | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 &&  eq_exp exp1 exp2
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2
   | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2
-  | _, _ -> false (* TODO: remove wildcard *)
+  | Real exp1, Real exp2 -> eq_exp exp1 exp2
+  | Imag exp1, Imag exp2 -> eq_exp exp1 exp2
+  | Question (b1, t1, f1, typ1), Question (b2, t2, f2, typ2) -> eq_exp b1 b2 && eq_exp t1 t2 && eq_exp f1 f2 && eq_typ typ1 typ2
+  | AddrOfLabel _, AddrOfLabel _ -> false (* TODO: what to do? *)
+  | _, _ -> false
 
 and eq_lhost (a: lhost) (b: lhost) = match a, b with
     Var v1, Var v2 -> eq_varinfo v1 v2

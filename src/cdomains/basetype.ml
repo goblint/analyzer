@@ -100,10 +100,20 @@ struct
     match e with
     | Lval l -> occurs_lv l
     | AddrOf l -> occurs_lv l
-    | UnOp (_,e,_) -> occurs x e
+    | StartOf l -> occurs_lv l
+    | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e -> occurs x e
     | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
     | CastE (_,e) -> occurs x e
-    | _ -> false (* TODO: remove wildcard? *)
+    | Question (b, t, f, _) -> occurs x b || occurs x t || occurs x f
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _ -> false
 
   let replace (x:varinfo) (exp: exp) (e:exp): exp =
     let rec replace_lv (v,offs): lval =
@@ -119,11 +129,21 @@ struct
       match e with
       | Lval (Var y, NoOffset) when Variables.equal x y -> exp
       | Lval l -> Lval (replace_lv l)
-      | AddrOf l -> Lval (replace_lv l)
+      | AddrOf l -> Lval (replace_lv l) (* TODO: should be AddrOf? *)
+      | StartOf l -> StartOf (replace_lv l)
       | UnOp (op,e,t) -> UnOp (op, replace_rv e, t)
       | BinOp (op,e1,e2,t) -> BinOp (op, replace_rv e1, replace_rv e2, t)
       | CastE (t,e) -> CastE(t, replace_rv e)
-      | x -> x (* TODO: remove wildcard? *)
+      | Real e -> Real (replace_rv e)
+      | Imag e -> Imag (replace_rv e)
+      | SizeOfE e -> SizeOfE (replace_rv e)
+      | AlignOfE e -> AlignOfE (replace_rv e)
+      | Question (b, t, f, typ) -> Question (replace_rv b, replace_rv t, replace_rv f, typ)
+      | Const _
+      | SizeOf _
+      | SizeOfStr _
+      | AlignOf _
+      | AddrOfLabel _ -> e
     in
     constFold true (replace_rv e)
 

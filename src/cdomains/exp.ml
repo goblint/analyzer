@@ -17,7 +17,10 @@ struct
     | AlignOfE _
     | UnOp  _
     | BinOp _
-    | Question _ -> false
+    | Question _
+    | Real _
+    | Imag _
+    | AddrOfLabel _ -> false
     | Const _ -> true
     | AddrOf  (Var v2,_)
     | StartOf (Var v2,_)
@@ -26,7 +29,6 @@ struct
     | StartOf (Mem e,_)
     | Lval    (Mem e,_)
     | CastE (_,e)           -> interesting e
-    | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
 
   let  contains_var v e =
     let rec offs_contains o =
@@ -41,8 +43,11 @@ struct
       | SizeOfStr _
       | AlignOf _
       | Const _
-      | AlignOfE _ -> false
-      | UnOp  (_,e,_)     -> cv deref e
+      | AlignOfE _
+      | AddrOfLabel _ -> false (* TODO: some may contain vars? *)
+      | UnOp  (_,e,_)
+      | Real e
+      | Imag e -> cv deref e
       | BinOp (_,e1,e2,_) -> cv deref e1 || cv deref e2
       | AddrOf  (Mem e,o)
       | StartOf (Mem e,o)
@@ -55,7 +60,6 @@ struct
         then CilType.Varinfo.equal v v2 || offs_contains o
         else offs_contains o
       | Question (b, t, f, _) -> cv deref b || cv deref t || cv deref f
-      | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
     in
     cv false e
 
@@ -72,8 +76,11 @@ struct
       | SizeOfStr _
       | AlignOf _
       | Const _
-      | AlignOfE _ -> false
-      | UnOp  (_,e,_)     -> cv e
+      | AlignOfE _
+      | AddrOfLabel _ -> false (* TODO: some may contain fields? *)
+      | UnOp  (_,e,_)
+      | Real e
+      | Imag e -> cv e
       | BinOp (_,e1,e2,_) -> cv e1 || cv e2
       | AddrOf  (Mem e,o)
       | StartOf (Mem e,o)
@@ -83,7 +90,6 @@ struct
       | AddrOf  (Var v2,o)
       | StartOf (Var v2,o) -> offs_contains o
       | Question (b, t, f, _) -> cv b || cv t || cv f
-      | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
     in
     cv e
 
@@ -147,6 +153,9 @@ struct
     | BinOp _
     | Const _
     | Question _
+    | Real _
+    | Imag _
+    | AddrOfLabel _
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> exp
@@ -157,7 +166,6 @@ struct
     | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (conv_offs offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
     | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
-    | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
 
   let rec base_compinfo q exp =
     match exp with
@@ -170,6 +178,9 @@ struct
     | BinOp _
     | Const _
     | Question _
+    | Real _
+    | Imag _
+    | AddrOfLabel _
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> None
@@ -180,7 +191,6 @@ struct
     | StartOf (Mem e,Field (f,_)) when simple_eq e q -> Some f.fcomp
     | StartOf (Mem e,o) -> base_compinfo q e
     | CastE (t,e) -> base_compinfo q e
-    | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
 
   let rec conc i =
     match i with
@@ -299,13 +309,15 @@ struct
       | BinOp _
       | StartOf _
       | Const _
-      | Question _ -> raise NotSimpleEnough
+      | Question _
+      | Real _
+      | Imag _
+      | AddrOfLabel _ -> raise NotSimpleEnough
       | Lval (Var v, os) -> EVar v :: conv_o os
       | Lval (Mem e, os) -> helper e @ [EDeref] @ conv_o os
       | AddrOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
       | AddrOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
       | CastE (_,e) -> helper e
-      | _ -> failwith "Unmatched pattern." (* TODO: remove wildcard *)
     in
     try helper exp
     with NotSimpleEnough -> []

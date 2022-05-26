@@ -124,7 +124,10 @@ struct
        | AlignOfE _
        | UnOp _
        | BinOp _
-       | Question _ -> S.empty ()
+       | Question _
+       | Real _
+       | Imag _
+       | AddrOfLabel _ -> S.empty ()
        | AddrOf  (Var _,_)
        | StartOf (Var _,_)
        | Lval    (Var _,_) -> S.singleton e
@@ -132,7 +135,7 @@ struct
        | StartOf (Mem e,ofs) -> S.map (fun e -> StartOf (Mem e,ofs)) (eq_set ask e)
        | Lval    (Mem e,ofs) -> S.map (fun e -> Lval    (Mem e,ofs)) (eq_set ask e)
        | CastE (_,e)           -> eq_set ask e
-       | _ -> failwith "Unmatched pattern.") (* TODO: remove wildcard *)
+      )
 
   let add (ask: Queries.ask) e st =
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in

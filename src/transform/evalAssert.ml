@@ -100,14 +100,6 @@ module EvalAssert = struct
         instrument_instructions il
       in
 
-      let rec get_vars e =
-        match e with
-        | Lval (Var v, _) -> [v]
-        | UnOp (_, e, _) -> get_vars e
-        | BinOp (_, e1, e2, _) -> (get_vars e1) @ (get_vars e2)
-        | _ -> [] (* TODO: remove wildcard, return not empty because some may contain vars! *)
-      in
-
       let instrument_join s =
         match s.preds with
         | [p1; p2] when emit_other ->
@@ -126,7 +118,7 @@ module EvalAssert = struct
           s.skind <- Instr (instrument_instructions il s);
           s
         | If (e, b1, b2, l,l2) ->
-          let vars = get_vars e in
+          let vars = Basetype.CilExp.get_vars e in
           let asserts loc vs = if full then make_assert loc None else List.map (fun x -> make_assert loc (Some (Var x,NoOffset))) vs |> List.concat in
           let add_asserts block =
             if block.bstmts <> [] then
