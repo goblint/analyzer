@@ -193,46 +193,58 @@ struct
         }
         in
 
-        let lvars_opt: LvarS.t option =
-          let (let*) = Option.bind in (* TODO: move to general library *)
-          let* loc_lvars = FileH.find_option file_loc_lvars loc.file in
-          (* for each file, locations (of lvar nodes) have total order, so LocM essentially does binary search *)
-          let* (_, lvars) = LocM.find_first_opt (fun loc' ->
-              CilType.Location.compare loc loc' <= 0 (* allow inexact match *)
-            ) loc_lvars
+        match Frontc.parse_standalone_exp inv with
+        | inv_cabs ->
+
+          let lvars_opt: LvarS.t option =
+            let (let*) = Option.bind in (* TODO: move to general library *)
+            let* loc_lvars = FileH.find_option file_loc_lvars loc.file in
+            (* for each file, locations (of lvar nodes) have total order, so LocM essentially does binary search *)
+            let* (_, lvars) = LocM.find_first_opt (fun loc' ->
+                CilType.Location.compare loc loc' <= 0 (* allow inexact match *)
+              ) loc_lvars
+            in
+            if LvarS.is_empty lvars then
+              None
+            else
+              Some lvars
           in
-          if LvarS.is_empty lvars then
-            None
-          else
-            Some lvars
-        in
 
-        match lvars_opt with
-        | Some lvars ->
-          LvarS.iter (fun ((n, _) as lvar) ->
-              let d = LHT.find lh lvar in
-              let fd = Node.find_fundec n in
-              let vars = fd.sformals @ fd.slocals @ global_vars in
-              let fas = List.map (fun (v: Cil.varinfo) -> (v.vname, Cil.Fv v)) vars in
+          begin match lvars_opt with
+            | Some lvars ->
+              LvarS.iter (fun ((n, _) as lvar) ->
+                  let d = LHT.find lh lvar in
+                  let fd = Node.find_fundec n in
+                  let vars = fd.sformals @ fd.slocals @ global_vars in
 
-              match Formatcil.cExp inv fas with
-              | inv_exp ->
-                if Check.checkStandaloneExp ~vars inv_exp then (
-                  match ask_local lvar d (Queries.EvalInt inv_exp) with
-                  | x when Queries.ID.is_bool x ->
-                    if Option.get (Queries.ID.to_bool x) then
-                      M.success ~category:Witness ~loc "invariant confirmed: %s" inv
+                  let genv = Cabs2cil.genvironment in
+                  let env = Hashtbl.copy genv in
+                  List.iter (fun (v: Cil.varinfo) ->
+                      Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
+                    ) (fd.sformals @ fd.slocals);
+
+                  match Cabs2cil.convStandaloneExp ~genv ~env inv_cabs with
+                  | Some inv_exp ->
+                    if Check.checkStandaloneExp ~vars inv_exp then (
+                      match ask_local lvar d (Queries.EvalInt inv_exp) with
+                      | x when Queries.ID.is_bool x ->
+                        if Option.get (Queries.ID.to_bool x) then
+                          M.success ~category:Witness ~loc "invariant confirmed: %s" inv
+                        else
+                          M.error ~category:Witness ~loc "invariant refuted: %s" inv
+                      | _ ->
+                        M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
+                    )
                     else
-                      M.error ~category:Witness ~loc "invariant refuted: %s" inv
-                  | _ ->
-                    M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv
-                )
-                else
-                  M.error ~category:Witness ~loc "broken CIL expression invariant: %s (%a)" inv Cil.d_plainexp inv_exp
-              | exception _ ->
-                M.error ~category:Witness ~loc "couldn't parse invariant: %s" inv
-            ) lvars
-        | None ->
-          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
+                      M.error ~category:Witness ~loc "broken CIL expression invariant: %s (%a)" inv Cil.d_plainexp inv_exp
+                  | None ->
+                    M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv
+                ) lvars
+            | None ->
+              M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
+          end
+        | exception Frontc.ParseError _ ->
+          Errormsg.log "\n"; (* CIL prints garbage without \n before *)
+          M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv
       ) yaml_entries
 end
