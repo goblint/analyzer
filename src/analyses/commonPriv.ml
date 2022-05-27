@@ -61,9 +61,6 @@ struct
     let r = is_protected_by ask m x in
     if r then ProtectionLogging.record m x;
     r
-
-  let is_atomic ask: bool =
-    ask Q.MustBeAtomic
 end
 
 module MutexGlobals =

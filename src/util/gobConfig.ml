@@ -70,12 +70,6 @@ sig
   (** Set a list of values *)
   val set_list : string -> Yojson.Safe.t list -> unit
 
-  (** Functions to set a conf variables to null. *)
-  val set_null   : string -> unit
-
-  (** Print the current configuration *)
-  val print : 'a BatInnerIO.output -> unit
-
   (** Write the current configuration to [filename] *)
   val write_file: Fpath.t -> unit
 
@@ -331,7 +325,6 @@ struct
   let set_int    st i = set_path_string_trace st (`Int i)
   let set_bool   st i = set_path_string_trace st (`Bool i)
   let set_string st i = set_path_string_trace st (`String i)
-  let set_null   st   = set_path_string_trace st `Null
   let set_list   st l =
     drop_memo ();
     set_value (`List l) json_conf (parse_path st)

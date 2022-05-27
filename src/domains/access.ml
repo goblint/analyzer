@@ -122,27 +122,6 @@ let get_type fb e =
   | x -> x
 
 
-module Ht =
-struct
-  include Hashtbl
-
-  let find_def ht k z : 'b =
-    try
-      find ht k
-    with Not_found ->
-      let v = Lazy.force z in
-      add ht k v;
-      v
-
-  let modify_def ht k z f: unit =
-    let g = function
-      | None -> Some (f (Lazy.force z))
-      | Some b -> Some (f b)
-    in
-    modify_opt k g ht
-
-end
-
 
 type var_o = varinfo option
 type off_o = offset  option
@@ -227,7 +206,7 @@ let add_propagate side e kind conf ty ls a =
       | _ -> failwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
-    let vars = Ht.find_all typeVar ts in
+    let vars = Hashtbl.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     let add_vars v = add_struct side e kind conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
     List.iter add_vars vars;
@@ -244,9 +223,9 @@ let add_propagate side e kind conf ty ls a =
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
-    let incl = Ht.find_all typeIncl (typeSig t) in
+    let incl = Hashtbl.find_all typeIncl (typeSig t) in
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset))) incl;
-    let vars = Ht.find_all typeVar (typeSig t) in
+    let vars = Hashtbl.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
 let rec distribute_access_lval f kind r c lv =

@@ -3,7 +3,7 @@
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
-module Exp = Exp.Exp
+module Exp = CilType.Exp
 module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
@@ -109,6 +109,27 @@ struct
     |	CastE (t1,e1),	CastE (t2,e2) -> typ_equal t1 t2 && exp_equal e1 e2
     | _ -> false
 
+  (* TODO: what does interesting mean? *)
+  let rec interesting x =
+    match x with
+    | SizeOf _
+    | SizeOfE _
+    | SizeOfStr _
+    | AlignOf _
+    | AlignOfE _
+    | UnOp  _
+    | BinOp _ -> false
+    | Const _ -> true
+    | AddrOf  (Var v2,_)
+    | StartOf (Var v2,_)
+    | Lval    (Var v2,_) -> true
+    | AddrOf  (Mem e,_)
+    | StartOf (Mem e,_)
+    | Lval    (Mem e,_)
+    | CastE (_,e)           -> interesting e
+    | Question _ -> failwith "Logical operations should be compiled away by CIL."
+    | _ -> failwith "Unmatched pattern."
+
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 g s =
     let e1 = constFold false (stripCasts e1) in
@@ -119,6 +140,7 @@ struct
       | _ -> false
 
   (* kill predicate for must-equality kind of analyses*)
+  (* TODO: why unused? how different from below? *)
   let may_change_t (b:exp) (a:exp) : bool =
     let rec type_may_change_t a bt =
       let rec may_change_t_offset o =
@@ -151,6 +173,7 @@ struct
     let bt =  unrollTypeDeep (Cilfacade.typeOf b) in
     type_may_change_t a bt
 
+  (* TODO: why unused? how different from below? *)
   let may_change_pt ask (b:exp) (a:exp) : bool =
     let pt e = ask (Queries.MayPointTo e) in
     let rec lval_may_change_pt a bl : bool =
@@ -377,7 +400,7 @@ struct
     *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     (*     Messages.warn ~msg:(sprint 80 (d_type () lvt)) (); *)
     if is_global_var ask (Lval lv) = Some false
-    && Exp.interesting rv
+    && interesting rv
     && is_global_var ask rv = Some false
     && ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt)
     then D.add_eq (rv,Lval lv) (remove ask lv st)
@@ -387,7 +410,7 @@ struct
         | Lval rlval -> begin
             match ask (Queries.MayPointTo (mkAddrOf rlval)) with
               | rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 ->
-                  let rv = Exp.of_clval (Queries.LS.choose rv) in
+                  let rv = Lval.CilLval.to_exp (Queries.LS.choose rv) in
                   if is_local lv && Exp.is_global_var rv = Some false
                   then D.add_eq (rv,Lval lv) st
                   else st

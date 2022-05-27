@@ -82,7 +82,7 @@ end
 
 module InvariantExp =
 struct
-  module ES = SetDomain.Make (Exp.Exp)
+  module ES = SetDomain.Make (CilType.Exp)
 
   (* Turns an expression into alist of conjuncts, pulling out common conjuncts from top-level disjunctions *)
   let rec pullOutCommonConjuncts e =
