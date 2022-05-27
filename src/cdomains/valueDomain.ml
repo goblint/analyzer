@@ -855,7 +855,6 @@ struct
       let mu = function `Blob (`Blob (y, s', orig), s, orig2) -> `Blob (y, ID.join s s',orig) | x -> x in
       let r =
       match x, offs with
-      | _, _ when is_mutex_type t -> `Top (* hide mutex structure contents, not updated anyway *)
       | `Blob (x,s,orig), `Index (_,ofs) ->
         begin
           let l', o' = shift_one_over l o in
