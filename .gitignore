@@ -53,7 +53,9 @@ goblint.bc.js
 
 sv-comp/goblint.zip
 
-privPrecCompare*
+privPrecCompare
+privPrecCompare-creduce
+privPrecCompareRes
 apronPrecCompare
 messagesCompare
 tests/regression/*/run

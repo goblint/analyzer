@@ -138,7 +138,9 @@ let arinc_period        = if scrambled then "M165" else "PERIOD"
 let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
 let exe_dir = Fpath.(parent (v Sys.executable_name))
-let command = String.concat " " (Array.to_list Sys.argv)
+let command_line = match Array.to_list Sys.argv with
+  | command :: arguments -> Filename.quote_command command arguments
+  | [] -> assert false
 
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
 (* https://ocaml.github.io/ocamlunix/signals.html *)
