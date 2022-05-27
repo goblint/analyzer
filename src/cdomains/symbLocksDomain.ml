@@ -5,31 +5,6 @@ module Exp =
 struct
   include CilType.Exp
 
-  let name () = "Cil expressions"
-
-  (* TODO: what does interesting mean? *)
-  let rec interesting x =
-    match x with
-    | SizeOf _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | AlignOfE _
-    | UnOp  _
-    | BinOp _
-    | Question _
-    | Real _
-    | Imag _
-    | AddrOfLabel _ -> false
-    | Const _ -> true
-    | AddrOf  (Var v2,_)
-    | StartOf (Var v2,_)
-    | Lval    (Var v2,_) -> true
-    | AddrOf  (Mem e,_)
-    | StartOf (Mem e,_)
-    | Lval    (Mem e,_)
-    | CastE (_,e)           -> interesting e
-
   let  contains_var v e =
     let rec offs_contains o =
       match o with
@@ -62,44 +37,6 @@ struct
       | Question (b, t, f, _) -> cv deref b || cv deref t || cv deref f
     in
     cv false e
-
-  let contains_field f e =
-    let rec offs_contains o =
-      match o with
-      | NoOffset -> false
-      | Field (f',o) -> CilType.Fieldinfo.equal f f'
-      | Index (e,o) -> cv e || offs_contains o
-    and cv e =
-      match e with
-      | SizeOf _
-      | SizeOfE _
-      | SizeOfStr _
-      | AlignOf _
-      | Const _
-      | AlignOfE _
-      | AddrOfLabel _ -> false (* TODO: some may contain fields? *)
-      | UnOp  (_,e,_)
-      | Real e
-      | Imag e -> cv e
-      | BinOp (_,e1,e2,_) -> cv e1 || cv e2
-      | AddrOf  (Mem e,o)
-      | StartOf (Mem e,o)
-      | Lval    (Mem e,o) -> cv e || offs_contains o
-      | CastE (_,e)           -> cv e
-      | Lval    (Var v2,o) -> offs_contains o
-      | AddrOf  (Var v2,o)
-      | StartOf (Var v2,o) -> offs_contains o
-      | Question (b, t, f, _) -> cv b || cv t || cv f
-    in
-    cv e
-
-  let rec conv_offs (offs:(fieldinfo,exp) Lval.offs) : offset =
-    match offs with
-    | `NoOffset -> NoOffset
-    | `Field (f,o) -> Field (f, conv_offs o)
-    | `Index (e,o) -> Index (e, conv_offs o)
-
-  let of_clval (v,offs) = Lval (Var v, conv_offs offs)
 
   let rec fold_offs c =
     match c with
@@ -159,38 +96,14 @@ struct
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> exp
-    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (conv_offs offs))
+    | Lval (Mem e,o)    when simple_eq e q -> Lval (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
     | Lval (Mem e,o)                       -> Lval (Mem (replace_base (v,offs) q e), o)
-    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (conv_offs offs))
+    | AddrOf (Mem e,o)  when simple_eq e q -> AddrOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
     | AddrOf (Mem e,o)                     -> AddrOf (Mem (replace_base (v,offs) q e), o)
-    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (conv_offs offs))
+    | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
     | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
 
-  let rec base_compinfo q exp =
-    match exp with
-    | SizeOf _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | AlignOfE _
-    | UnOp _
-    | BinOp _
-    | Const _
-    | Question _
-    | Real _
-    | Imag _
-    | AddrOfLabel _
-    | Lval (Var _,_)
-    | AddrOf (Var _,_)
-    | StartOf (Var _,_) -> None
-    | Lval (Mem e,Field (f,_)) when simple_eq e q -> Some f.fcomp
-    | Lval (Mem e,o) -> base_compinfo q e
-    | AddrOf (Mem e,Field (f,_)) when simple_eq e q -> Some f.fcomp
-    | AddrOf (Mem e,o) -> base_compinfo q e
-    | StartOf (Mem e,Field (f,_)) when simple_eq e q -> Some f.fcomp
-    | StartOf (Mem e,o) -> base_compinfo q e
-    | CastE (t,e) -> base_compinfo q e
 
   let rec conc i =
     match i with
@@ -280,17 +193,6 @@ struct
 
   exception NotSimpleEnough
 
-  let rec ees_to_offs = function
-    | [] 		-> `NoOffset
-    (*	| Addr :: x ->
-      	| Deref :: x ->
-    *)	| EAddr :: EDeref :: x -> ees_to_offs x
-    | EDeref :: EAddr :: x -> ees_to_offs x
-    | EField f :: x -> `Field (f,ees_to_offs x)
-    | EIndex (Const (CInt (i, ik, str))) :: x -> `Index (IntDomain.of_const (i, ik, str),ees_to_offs x)
-    | EIndex i :: x -> `NoOffset              (* Ideally this would be ValueDomain.IntDomain but that leads to issues *)
-    | x  -> raise NotSimpleEnough             (* with a cyclic build *)
-
   let toEl exp =
     let rec conv_o o =
       match o with
@@ -331,16 +233,6 @@ struct
     | EIndex i::xs  , Lval lv   -> fromEl xs (Lval (Mem (AddrOf lv), Index (i, NoOffset)))
     | EAddr::xs     , Lval lv   -> fromEl xs (AddrOf lv)
     | _            ,             _ -> raise (Invalid_argument "")
-
-  let strip_fields e =
-    let rec sf e fs =
-      match e with
-      | EField f :: es -> sf es (EField f::fs)
-      | EDeref :: EAddr :: es -> sf es fs
-      | _ -> e, fs
-    in
-    let el, fs = sf (List.rev e) [] in
-    List.rev el, fs
 
   let from_exps a l : t option =
     let a, l = toEl a, toEl l in

@@ -88,9 +88,9 @@ module Make
     (Cfg: MyCFG.CfgBidir)
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                        and module GVar = GVarF (Spec.V)
-                        and module D = Spec.D
-                        and module G = Spec.G)
+                            and module GVar = GVarF (Spec.V)
+                            and module D = Spec.D
+                            and module G = Spec.G)
     (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
@@ -177,9 +177,9 @@ end
 module Validator
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                        and module GVar = GVarF (Spec.V)
-                        and module D = Spec.D
-                        and module G = Spec.G)
+                            and module GVar = GVarF (Spec.V)
+                            and module D = Spec.D
+                            and module G = Spec.G)
     (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
@@ -217,7 +217,6 @@ struct
         ; local  = local
         ; global = GHT.find gh
         ; presub = (fun _ -> raise Not_found)
-        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")

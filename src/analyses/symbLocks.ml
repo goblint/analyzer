@@ -1,8 +1,8 @@
 (** Symbolic lock-sets for use in per-element patterns. *)
 
 module LF = LibraryFunctions
-module LP = Exp.LockingPattern
-module Exp = Exp.Exp
+module LP = SymbLocksDomain.LockingPattern
+module Exp = SymbLocksDomain.Exp
 module VarEq = VarEq.Spec
 
 module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)

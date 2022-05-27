@@ -2221,10 +2221,10 @@ struct
       | _ -> top ()
 
 
-  let cast_to ?torg ?(no_ov=false) (t : Cil.ikind) x =
+  let cast_to ?torg ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
-    let res = cast_to ?torg ~no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t pretty_bool no_ov pretty res;
+    let res = cast_to ?torg ?no_ov t x in
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
     res
 
   let widen = join

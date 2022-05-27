@@ -39,14 +39,6 @@ struct
     | [(v,_)] -> Some v
     | _ -> None
 
-  let query_eq (ask: Queries.ask) exp =
-    match ask.f (Queries.EqualSet exp) with
-    | l when not (Queries.ES.is_top l) ->
-      Queries.ES.elements l
-    | _ -> []
-  let print_query_eq ?msg:(msg="") ask exp =
-    let xs = query_eq ask exp in (* EqualSet -> ExpSet *)
-    Messages.debug "%s EqualSet %a = [%a]" msg d_exp exp (Pretty.d_list ", " d_exp) xs
 
   (* transfer functions *)
   let assign ctx (lval:lval) (rval:exp) : D.t =

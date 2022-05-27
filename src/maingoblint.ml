@@ -531,10 +531,10 @@ let diff_and_rename current_file =
       Serialize.store_data max_ids Serialize.VersionData
     end;
     let old_data = match old_file, solver_data with
-      | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
+      | Some cil_file, Some solver_data -> Some ({solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
-    {server = false; Analyses.changes = changes; old_data; new_file = current_file}
+    {server = false; Analyses.changes = changes; old_data}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)

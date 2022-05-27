@@ -563,7 +563,7 @@ let get_threadsafe_inv_ac name =
 
 
 
-let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
+let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 

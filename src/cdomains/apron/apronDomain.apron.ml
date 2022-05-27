@@ -1000,11 +1000,7 @@ sig
   include SLattice with type t = Man.mt A.t
 
 
-  val exp_is_cons : exp -> bool
-  val assert_cons : t -> exp -> bool -> t
   val assert_inv : t -> exp -> bool -> t
-  val check_assert : t -> exp -> [> `False | `Top | `True ]
-  val eval_interval_expr : t -> exp -> Z.t option * Z.t option
   val eval_int : t -> exp -> Queries.ID.t
 end
 
@@ -1020,7 +1016,6 @@ module ApronComponents (D2: S2) (PrivD: Lattice.S):
 sig
   module AD: S2 with type Man.mt = D2.Man.mt
   include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
-  val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
   module AD = D2
