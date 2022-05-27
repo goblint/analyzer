@@ -495,7 +495,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
+                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
@@ -677,6 +677,11 @@ struct
 
     if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;
+
+    if get_bool "witness.yaml.enabled" then (
+      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (Spec) (EQSys) (LHT) (GHT) in
+      YWitness.write lh gh
+    );
 
     let marshal = Spec.finalize () in
     (* copied from solve_and_postprocess *)

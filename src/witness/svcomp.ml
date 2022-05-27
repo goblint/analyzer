@@ -52,7 +52,7 @@ sig
   val file: Cil.file
   val specification: Specification.t
 
-  module Cfg: MyCFG.CfgForward
+  module Cfg: MyCFG.CfgBidir
 end
 
 let task: (module Task) option ref = ref None
