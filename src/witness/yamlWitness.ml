@@ -7,9 +7,9 @@ module Make
     (Cfg: MyCFG.CfgBidir)
     (Spec : Spec)
     (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                        and module GVar = GVarF (Spec.V)
-                        and module D = Spec.D
-                        and module G = Spec.G)
+                            and module GVar = GVarF (Spec.V)
+                            and module D = Spec.D
+                            and module G = Spec.G)
     (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
