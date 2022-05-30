@@ -37,29 +37,9 @@ module type FloatDomainBase = sig
 
   val of_const : float -> t
 end
-
 module FloatInterval = struct
   type t = (float * float) option [@@deriving eq, ord, to_yojson]
 
-  let norm v = 
-    match v with
-    | Some (low, high) -> 
-      if Float.is_finite low && Float.is_finite high then 
-        if low > high then failwith "invalid Interval"
-        else v
-      else None
-    | _ -> None
-
-  (**just for norming the arbitraries, so correct intervals get created, but no failwith if low > high*)
-  let norm_arb v = 
-    match v with
-    | Some (f1, f2) ->
-      if Float.is_finite f1 && Float.is_finite f2 
-      then Some(min f1 f2, max f1 f2) 
-      else None
-    | _ -> None
-
-  let of_const f = norm @@ Some (f, f)
 
   let hash = Hashtbl.hash
 
@@ -77,9 +57,47 @@ module FloatInterval = struct
   let invariant _ (x : t) = failwith "todo invariant"
 
   let tag (x : t) = failwith "todo tag" (**Quote printable.ml line 24: Unique ID, given by HConsed, for context identification in witness *)
+  (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
+
+  let pretty_diff () (x, y) =
+    Pretty.dprintf "%a instead of %a" pretty x pretty y
+
+  let bot () = failwith "no bot exists"
+
+  let is_bot _ = false
+
+  let top () = None
+
+  let is_top = Option.is_none
+
+  let neg = Option.map (fun (low, high) -> (-.high, -.low))
+
+  let norm v = 
+    let normed = match v with
+      | Some (low, high) -> 
+        if Float.is_finite low && Float.is_finite high then 
+          if low > high then failwith "invalid Interval"
+          else v
+        else None
+      | _ -> None
+    in if is_top normed then
+      Messages.warn ~category:Messages.Category.FloatMessage ~tags:[CWE 189; CWE 739] 
+        "Float could be +/-infinity or Nan";
+      normed
+
+  (**just for norming the arbitraries, so correct intervals get created, but no failwith if low > high*)
+  let norm_arb v = 
+    match v with
+    | Some (f1, f2) ->
+      if Float.is_finite f1 && Float.is_finite f2 
+      then Some(min f1 f2, max f1 f2) 
+      else None
+    | _ -> None
 
   (**for QCheck: should describe how to generate random values and shrink possilbe counter examples *)
   let arbitrary () = QCheck.map norm_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float)) 
+
+  let of_const f = norm @@ Some (f, f)
 
   let relift x = x 
 
@@ -119,24 +137,10 @@ module FloatInterval = struct
     | None, _ -> v2
     | _, _ -> v1
 
-  (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
-  let pretty_diff () (x, y) =
-    Pretty.dprintf "%a instead of %a" pretty x pretty y
-
-  let bot () = failwith "no bot exists"
-
-  let is_bot _ = false
-
-  let top () = None
-
-  let is_top = Option.is_none
-
-  let neg = Option.map (fun (low, high) -> (-.high, -.low))
-
   (** evaluation of the binary operations *)
   let eval_binop eval_operation op1 op2 =
-    match (op1, op2) with 
-    | Some v1, Some v2 -> norm @@ eval_operation v1 v2 
+    norm @@ match (op1, op2) with 
+    | Some v1, Some v2 -> eval_operation v1 v2 
     | _ -> None
 
   let eval_int_binop eval_operation op1 op2 =

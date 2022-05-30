@@ -1697,6 +1697,12 @@
           "type": "boolean",
           "default": true
         },
+        "float": {
+          "title": "warn.float",
+          "description": "float warnings",
+          "type": "boolean",
+          "default": false
+        },
         "cast": {
           "title": "warn.cast",
           "description": "Cast (Type_mismatch(bug) warnings",
