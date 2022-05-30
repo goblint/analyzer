@@ -21,7 +21,7 @@ let main () =
     handle_flags ();
     if get_bool "dbg.verbose" then (
       print_endline (localtime ());
-      print_endline command;
+      print_endline Goblintutil.command_line;
     );
     let file = lazy (Fun.protect ~finally:GoblintDir.finalize preprocess_and_merge) in
     if get_bool "server.enabled" then (
@@ -39,7 +39,7 @@ let main () =
         if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then
           diff_and_rename file
         else
-          Analyses.empty_increment_data file
+          Analyses.empty_increment_data ()
       in
       file |> do_analyze changeInfo;
       do_stats ();

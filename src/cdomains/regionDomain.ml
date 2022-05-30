@@ -23,7 +23,6 @@ struct
   let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
   (* Joins the fields, assuming the vars are equal. *)
   let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
-  let is_glob (v,f) = v.vglob
   let kill x (v,f) = v, F.kill x f
   let replace x exp (v,fd) = v, F.replace x exp fd
 end

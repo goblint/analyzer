@@ -36,8 +36,8 @@ struct
 end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
-module ES = SetDomain.Reverse (SetDomain.ToppedSet (Exp.Exp) (struct let topname = "All" end))
-module LiftedExp = Lattice.Flat(Exp.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
+module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
+module LiftedExp = Lattice.Flat(CilType.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -81,7 +81,6 @@ type _ t =
   | ReachableUkTypes: exp -> TS.t t
   | Regions: exp -> LS.t t
   | MayEscape: varinfo -> MayBool.t t
-  | Priority: string -> ID.t t
   | MayBePublic: maybepublic -> MayBool.t t (* old behavior with write=false *)
   | MayBePublicWithout: maybepublicwithout -> MayBool.t t
   | MustBeProtectedBy: mustbeprotectedby -> MustBool.t t
@@ -96,7 +95,6 @@ type _ t =
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
   | BlobSize: exp -> ID.t t (* size of a dynamically allocated `Blob pointed to by exp *)
-  | PrintFullState: Unit.t t
   | CondVars: exp -> ES.t t
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
@@ -149,14 +147,12 @@ struct
     | MustBeSingleThreaded -> (module MustBool)
     | MustBeUniqueThread -> (module MustBool)
     | MustBeEqual _ -> (module MustBool)
-    | Priority _ -> (module ID)
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
     | EvalStr _ -> (module SD)
-    | PrintFullState -> (module Unit)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
@@ -202,14 +198,12 @@ struct
     | MustBeSingleThreaded -> MustBool.top ()
     | MustBeUniqueThread -> MustBool.top ()
     | MustBeEqual _ -> MustBool.top ()
-    | Priority _ -> ID.top ()
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
     | EvalStr _ -> SD.top ()
-    | PrintFullState -> Unit.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
@@ -238,7 +232,6 @@ struct
     | Any (ReachableUkTypes _) -> 3
     | Any (Regions _) -> 4
     | Any (MayEscape _) -> 5
-    | Any (Priority _) -> 6
     | Any (MayBePublic _) -> 7
     | Any (MayBePublicWithout _) -> 8
     | Any (MustBeProtectedBy _) -> 9
@@ -253,7 +246,6 @@ struct
     | Any (EvalStr _) -> 18
     | Any (EvalLength _) -> 19
     | Any (BlobSize _) -> 20
-    | Any PrintFullState -> 21
     | Any (CondVars _) -> 22
     | Any (PartAccess _) -> 23
     | Any (IterPrevVars _) -> 24
@@ -283,7 +275,6 @@ struct
       | Any (ReachableUkTypes e1), Any (ReachableUkTypes e2) -> CilType.Exp.compare e1 e2
       | Any (Regions e1), Any (Regions e2) -> CilType.Exp.compare e1 e2
       | Any (MayEscape vi1), Any (MayEscape vi2) -> CilType.Varinfo.compare vi1 vi2
-      | Any (Priority s1), Any (Priority s2) -> compare s1 s2
       | Any (MayBePublic x1), Any (MayBePublic x2) -> compare_maybepublic x1 x2
       | Any (MayBePublicWithout x1), Any (MayBePublicWithout x2) -> compare_maybepublicwithout x1 x2
       | Any (MustBeProtectedBy x1), Any (MustBeProtectedBy x2) -> compare_mustbeprotectedby x1 x2
@@ -320,7 +311,6 @@ struct
     | Any (ReachableUkTypes e) -> CilType.Exp.hash e
     | Any (Regions e) -> CilType.Exp.hash e
     | Any (MayEscape vi) -> CilType.Varinfo.hash vi
-    | Any (Priority s) -> Hashtbl.hash s
     | Any (MayBePublic x) -> hash_maybepublic x
     | Any (MayBePublicWithout x) -> hash_maybepublicwithout x
     | Any (MustBeProtectedBy x) -> hash_mustbeprotectedby x

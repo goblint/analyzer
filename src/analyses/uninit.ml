@@ -78,23 +78,6 @@ struct
     | Var x, ofs -> access_offset ofs
     | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
 
-  let access_byval a (rw: bool) (exps: exp list) =
-    List.concat_map (access_one_byval a rw) exps
-
-  (* TODO: unused? remove? *)
-  let access_byref ask (exps: exp list) =
-    (* Find the addresses reachable from some expression, and assume that these
-     * can all be written to. *)
-    let do_exp e =
-      match ask (Queries.ReachableFrom e) with
-      | a when not (Queries.LS.is_top a) ->
-        let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
-        Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-      (* Ignore soundness warnings, as invalidation proper will raise them. *)
-      | _ -> []
-    in
-    List.concat_map do_exp exps
-
   (* list accessed addresses *)
   let varoffs a (rval:exp) =
     let f vs (v,o,_) = (v,o) :: vs in

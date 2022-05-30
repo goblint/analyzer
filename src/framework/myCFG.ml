@@ -18,7 +18,6 @@ type edge = Edge.t =
   | ASM of string list * Edge.asm_out * Edge.asm_in
   | VDecl of CilType.Varinfo.t
   | Skip
-  | SelfLoop
 
 
 type edges = (location * edge) list

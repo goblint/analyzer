@@ -242,7 +242,6 @@ struct
         ; local   = Spec.D.top ()
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
         ; presub  = (fun _ -> raise Not_found)
-        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -343,7 +342,6 @@ struct
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
         ; presub  = (fun _ -> raise Not_found)
-        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -377,7 +375,6 @@ struct
         ; local   = st
         ; global  = (fun g -> EQSys.G.spec (getg (EQSys.GVar.spec g)))
         ; presub  = (fun _ -> raise Not_found)
-        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = (fun g d -> sideg (EQSys.GVar.spec g) (EQSys.G.create_spec d))
@@ -479,7 +476,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
+                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
@@ -594,7 +591,6 @@ struct
                   ; local  = local
                   ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
                   ; presub = (fun _ -> raise Not_found)
-                  ; postsub= (fun _ -> raise Not_found)
                   ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
                   ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
                   ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -649,7 +645,6 @@ struct
         ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
         ; global = (fun v -> EQSys.G.spec (try GHT.find gh (EQSys.GVar.spec v) with Not_found -> EQSys.G.bot ()))
         ; presub = (fun _ -> raise Not_found)
-        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -665,6 +660,11 @@ struct
 
     if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;
+
+    if get_bool "witness.yaml.enabled" then (
+      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (Spec) (EQSys) (LHT) (GHT) in
+      YWitness.write lh gh
+    );
 
     let marshal = Spec.finalize () in
     (* copied from solve_and_postprocess *)
@@ -701,11 +701,6 @@ let rec analyze_loop (module CFG : CfgBidir) file fs change_info =
 
 let compute_cfg file =
   let cfgF, cfgB = CfgTools.getCFG file in
-  let cfgB' = function
-    | MyCFG.Statement s as n -> ([Cilfacade.get_stmtLoc s,MyCFG.SelfLoop], n) :: cfgB n
-    | n -> cfgB n
-  in
-  let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
   (module struct let prev = cfgB let next = cfgF end : CfgBidir)
 
 (** The main function to perform the selected analyses. *)

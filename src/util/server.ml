@@ -30,9 +30,6 @@ end
 
 let registry = Registry.make ()
 
-let handle_exn id exn =
-  Response.Error.(make ~code:Code.InternalError ~message:(Printexc.to_string exn) () |> Response.error id)
-
 module ParamParser (R : Request) = struct
   let parse params =
     let maybe_params =
@@ -144,16 +141,16 @@ let increment_data (s: t) file reparsed = match !Serialize.server_solver_data wi
   | Some solver_data when reparsed ->
     let s_file = Option.get s.file in
     let changes = CompareCIL.compareCilFiles s_file file in
-    let old_data = Some { Analyses.cil_file = s_file; solver_data } in
+    let old_data = Some { Analyses.solver_data } in
     s.max_ids <- UpdateCil.update_ids s_file s.max_ids file changes;
     (* TODO: get globals for restarting from config *)
-    { server = true; Analyses.changes; old_data; new_file = file; restarting = [] }, false
+    { server = true; Analyses.changes; old_data; restarting = [] }, false
   | Some solver_data ->
     let changes = virtual_changes file in
-    let old_data = Some { Analyses.cil_file = file; solver_data } in
+    let old_data = Some { Analyses.solver_data } in
     (* TODO: get globals for restarting from config *)
-    { server = true; Analyses.changes; old_data; new_file = file; restarting = [] }, false
-  | _ -> Analyses.empty_increment_data ~server:true file, true
+    { server = true; Analyses.changes; old_data; restarting = [] }, false
+  | _ -> Analyses.empty_increment_data ~server:true (), true
 
 let analyze ?(reset=false) (s: t) =
   Messages.Table.(MH.clear messages_table);

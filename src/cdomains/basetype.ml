@@ -29,8 +29,6 @@ struct
       "(" ^ x.vname ^ ", " ^ description ^ ")"
     else x.vname
   let pretty () x = Pretty.text (show x)
-  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname CilType.Location.pretty x.vdecl
-  let get_location x = x.vdecl
   type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
   let to_group = Option.some % function

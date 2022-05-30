@@ -132,6 +132,7 @@ struct
       in
       fold f xs (empty ())
 
+  (* TODO: unused *)
   let remove x ss = if is_bot ss then ss else
       let f (z: set) (zz: partition) =
         let res = B.remove x z in
@@ -165,4 +166,4 @@ struct
       BatPrintf.fprintf f "</map>\n</value>\n"
 end
 
-module ExpPartitions = SetSet (Exp.Exp)
+module ExpPartitions = SetSet (CilType.Exp)
