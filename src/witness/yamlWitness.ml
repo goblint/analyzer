@@ -299,6 +299,7 @@ struct
         let line = Yaml.Util.(yaml_location |> find_exn "line" |> Option.get |> to_float_exn |> int_of_float) in
         let column = Yaml.Util.(yaml_location |> find_exn "column" |> Option.get |> to_float_exn |> int_of_float) + 1 in
         let inv = Yaml.Util.(yaml_entry |> find_exn "loop_invariant" |> Option.get |> find_exn "string" |> Option.get |> to_string_exn) in
+        let pre = Yaml.Util.(yaml_entry |> find_exn "precondition" |> Option.map (fun x -> x |> find_exn "string" |> Option.get |> to_string_exn)) in
         let loc: Cil.location = {
           file;
           line;
@@ -330,6 +331,54 @@ struct
           begin match lvars_opt with
             | Some lvars ->
               let module VR = ValidationResult in
+
+              let lvars = match pre with
+                | Some pre ->
+                  let pre_cabs = Frontc.parse_standalone_exp pre in (* TODO: consistent handling *)
+
+                  LvarS.filter (fun ((n, c) as lvar) ->
+                    let fd = Node.find_fundec n in
+                    let pre_d = LHT.find lh (FunctionEntry fd, c) in
+                    let vars = fd.sformals @ fd.slocals @ global_vars in
+
+                    let genv = Cabs2cil.genvironment in
+                    let env = Hashtbl.copy genv in
+                    List.iter (fun (v: Cil.varinfo) ->
+                        Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
+                      ) (fd.sformals @ fd.slocals);
+
+                    let pre_exp_opt =
+                      Cil.currentLoc := loc;
+                      Cil.currentExpLoc := loc;
+                      Cabs2cil.currentFunctionFDEC := fd;
+                      let old_locals = fd.slocals in
+                      let old_useLogicalOperators = !Cil.useLogicalOperators in
+                      Fun.protect ~finally:(fun () ->
+                          fd.slocals <- old_locals; (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
+                          Cil.useLogicalOperators := old_useLogicalOperators
+                        ) (fun () ->
+                          Cil.useLogicalOperators := true;
+                          Cabs2cil.convStandaloneExp ~genv ~env pre_cabs
+                        )
+                    in
+
+                    match pre_exp_opt with
+                    | Some pre_exp when Check.checkStandaloneExp ~vars pre_exp ->
+                      begin match ask_local lvar pre_d (Queries.EvalInt pre_exp) with
+                        | x when Queries.ID.is_bool x ->
+                          Option.get (Queries.ID.to_bool x)
+                        | _ ->
+                          true (* TODO: what to do here? *)
+                      end
+                    | _ ->
+                      failwith "precondition parse error" (* TODO: consistent handling *)
+                  ) lvars
+                | None ->
+                  lvars
+              in
+
+              if LvarS.is_empty lvars then
+                failwith "precondition never holds";
 
               let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
                   let d = LHT.find lh lvar in
