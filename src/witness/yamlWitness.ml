@@ -65,6 +65,33 @@ struct
         ]);
     ]
 
+  (* non-standard extension *)
+  (* TODO: deduplicate *)
+  let yaml_precondition_loop_invariant ~yaml_task ~location:(loc:Cil.location) ~location_function ~precondition ~invariant =
+    `O [
+      ("entry_type", `String "precondition_loop_invariant");
+      ("metadata", yaml_metadata ~extra:[
+          ("task", yaml_task);
+        ] ());
+      ("location", `O [
+          ("file_name", `String loc.file);
+          ("file_hash", `String (sha256_file loc.file));
+          ("line", `Float (float_of_int loc.line));
+          ("column", `Float (float_of_int (loc.column - 1)));
+          ("function", `String location_function);
+        ]);
+      ("loop_invariant", `O [
+          ("string", `String invariant);
+          ("type", `String "assertion");
+          ("format", `String "C");
+        ]);
+      ("precondition", `O [
+          ("string", `String precondition);
+          ("type", `String "assertion");
+          ("format", `String "C");
+        ]);
+    ]
+
   let yaml_loop_invariant_certificate ~target_uuid ~target_file_name ~verdict =
     `O [
       ("entry_type", `String "loop_invariant_certificate");
@@ -149,6 +176,39 @@ struct
         | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
           acc
       ) nh []
+    in
+
+    (* TODO: deduplicate *)
+    let yaml_entries = LHT.fold (fun (n, c) local acc ->
+        match n with
+        | Statement _ when WitnessInvariant.is_invariant_node n ->
+          let context: Invariant.context = {
+            scope=Node.find_fundec n;
+            i = -1;
+            lval=None;
+            offset=Cil.NoOffset;
+            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+          }
+          in
+          begin match Spec.C.invariant context c, Spec.D.invariant context local with
+            | Some c_inv, Some inv ->
+              let loc = Node.location n in
+              (* TODO: group by precondition *)
+              let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
+              let invs = WitnessUtil.InvariantExp.process_exp inv in
+              List.fold_left (fun acc inv ->
+                  let location_function = (Node.find_fundec n).svar.vname in
+                  let precondition = CilType.Exp.show c_inv in
+                  let invariant = CilType.Exp.show inv in
+                  let entry = Entry.yaml_precondition_loop_invariant ~yaml_task ~location:loc ~location_function ~precondition ~invariant in
+                  entry :: acc
+                ) acc invs
+            | _, _ -> (* TODO: handle some other combination? *)
+              acc
+          end
+        | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
+          acc
+      ) lh yaml_entries
     in
 
     let yaml = `A yaml_entries in
