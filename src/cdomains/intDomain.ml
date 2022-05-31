@@ -830,7 +830,7 @@ struct
   let invariant c x = failwith "unimplemented"
 
   let invariant_ikind c ik x =
-    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
       let x1 = Ints_t.to_bigint x1 in
@@ -1599,7 +1599,7 @@ struct
   let lognot ik = eq ik (of_int ik BigInt.zero)
 
   let invariant_ikind c ik (x:t) =
-    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
     match x with
     | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x, intType))
     | `Excluded (s, _) ->
@@ -2005,7 +2005,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let ne ik x y = lognot ik (eq ik x y)
 
   let invariant_ikind c ik x =
-    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
     match x with
     | Inc ps ->
       List.fold_left (fun a x ->
@@ -2448,7 +2448,7 @@ struct
     res
 
   let invariant_ikind ctxt ik x =
-    let l = Cil.(Lval (BatOption.get ctxt.Invariant.lval)) in
+    let l = Cil.(mkCast ~e:(Lval (BatOption.get ctxt.Invariant.lval)) ~newt:(TInt (ik, []))) in
     match x with
     | Some (c, m) when m =: Ints_t.zero ->
       let c = Ints_t.to_bigint c in
@@ -2894,7 +2894,7 @@ module IntDomTupleImpl = struct
     match to_int x with
     | Some v ->
       (* If definite, output single equality instead of every subdomain repeating same equality *)
-      let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
+      let c_exp = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
       Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik v, intType))
     | None ->
       let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind c ik } x)

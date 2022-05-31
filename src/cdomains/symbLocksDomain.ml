@@ -20,8 +20,11 @@ struct
       | SizeOfStr _
       | AlignOf _
       | Const _
-      | AlignOfE _ -> false
-      | UnOp  (_,e,_)     -> cv deref e
+      | AlignOfE _
+      | AddrOfLabel _ -> false (* TODO: some may contain vars? *)
+      | UnOp  (_,e,_)
+      | Real e
+      | Imag e -> cv deref e
       | BinOp (_,e1,e2,_) -> cv deref e1 || cv deref e2
       | AddrOf  (Mem e,o)
       | StartOf (Mem e,o)
@@ -33,8 +36,7 @@ struct
         if deref
         then CilType.Varinfo.equal v v2 || offs_contains o
         else offs_contains o
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
+      | Question (b, t, f, _) -> cv deref b || cv deref t || cv deref f
     in
     cv false e
 
@@ -89,6 +91,10 @@ struct
     | UnOp _
     | BinOp _
     | Const _
+    | Question _
+    | Real _
+    | Imag _
+    | AddrOfLabel _
     | Lval (Var _,_)
     | AddrOf (Var _,_)
     | StartOf (Var _,_) -> exp
@@ -99,8 +105,6 @@ struct
     | StartOf (Mem e,o) when simple_eq e q -> StartOf (Var v, addOffset o (Lval.CilLval.to_ciloffs offs))
     | StartOf (Mem e,o)                    -> StartOf (Mem (replace_base (v,offs) q e), o)
     | CastE (t,e) -> CastE (t, replace_base (v,offs) q e)
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
 
 
   let rec conc i =
@@ -208,7 +212,11 @@ struct
       | AlignOfE _
       | UnOp _
       | BinOp _
-      | Const _ -> raise NotSimpleEnough
+      | Const _
+      | Question _
+      | Real _
+      | Imag _
+      | AddrOfLabel _ -> raise NotSimpleEnough
       | Lval (Var v, os) -> EVar v :: conv_o os
       | Lval (Mem e, os) -> helper e @ [EDeref] @ conv_o os
       | AddrOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
@@ -216,8 +224,6 @@ struct
       | StartOf (Var v, os) -> EVar v :: conv_o os @ [EAddr]
       | StartOf (Mem e, os) -> helper e @ [EDeref] @ conv_o os @ [EAddr]
       | CastE (_,e) -> helper e
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
     in
     try helper exp
     with NotSimpleEnough -> []

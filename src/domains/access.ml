@@ -111,7 +111,11 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
         `Struct (s1, o1)
       | _ -> `Type t
     end
-  | _ -> `Type fb
+  | Const _
+  | Lval _
+  | Real _
+  | Imag _ ->
+    `Type fb (* TODO: is this right? *)
 
 let get_type fb e =
   (* printf "e = %a\n" d_plainexp e; *)
@@ -260,8 +264,12 @@ and distribute_access_exp f kind r c = function
     distribute_access_exp f kind r c arg1;
     distribute_access_exp f kind r c arg2
 
-  (* Unary operators *)
-  | UnOp (op,arg1,typ) -> distribute_access_exp f kind r c arg1
+  | UnOp (_,e,_)
+  | Real e
+  | Imag e
+  | SizeOfE e
+  | AlignOfE e ->
+    distribute_access_exp f kind r c e
 
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval ->
@@ -277,7 +285,12 @@ and distribute_access_exp f kind r c = function
     distribute_access_exp f `Read r c b;
     distribute_access_exp f kind r c t;
     distribute_access_exp f kind r c e
-  | _ -> ()
+  | Const _
+  | SizeOf _
+  | SizeOfStr _
+  | AlignOf _
+  | AddrOfLabel _ ->
+    ()
 
 let add side e kind conf vo oo a =
   let ty = get_val_type e vo oo in

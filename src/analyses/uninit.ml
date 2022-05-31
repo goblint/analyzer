@@ -49,8 +49,11 @@ struct
 
   let rec access_one_byval a rw (exp:exp) =
     match exp with
-    (* Integer literals *)
-    | Const _ -> []
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _ -> []
     (* Variables and address expressions *)
     | Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
     (* Binary operators *)
@@ -58,14 +61,19 @@ struct
       let a1 = access_one_byval a rw arg1 in
       let a2 = access_one_byval a rw arg2 in
       a1 @ a2
-    (* Unary operators *)
-    | UnOp (op,arg1,typ) -> access_one_byval a rw arg1
+    | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e ->
+      access_one_byval a rw e
     (* The address operators, we just check the accesses under them *)
     | AddrOf lval -> access_lv_byval a lval
     | StartOf lval -> access_lv_byval a lval
     (* Most casts are currently just ignored, that's probably not a good idea! *)
     | CastE  (t, exp) -> access_one_byval a rw exp
-    | _ -> []
+    | Question (b, t, f, _) ->
+      access_one_byval a rw b @ access_one_byval a rw t @ access_one_byval a rw f
   (* Accesses during the evaluation of an lval, not the lval itself! *)
   and access_lv_byval a (lval:lval) =
     let rec access_offset (ofs: offset) =
