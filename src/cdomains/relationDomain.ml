@@ -31,7 +31,6 @@ sig
   val forget_vars : t -> var list -> t
   val assign_exp : t -> var -> exp -> bool Lazy.t -> t
   val assign_var : t -> var -> var -> t
-  val assign_var_parallel : t -> (var * var) list -> t
   val assign_var_parallel_pt_with : t -> (var * var) list -> t
   val assign_var_parallel' : t -> var list -> var list -> t
   val substitute_exp : t -> var -> exp -> bool Lazy.t -> t

@@ -484,11 +484,11 @@ struct
   let substitute_exp t var exp ov = Stats.time "substitution" (substitute_exp t var exp) ov
 
   (** Assert a constraint expression. *)
-  let meet_with_tcons t tcons expr =
+  let meet_tcons t tcons expr =
     let check_const cmp c = if cmp c (of_int 0) then bot_env else t
     in
     let exception NotRefinable in
-    let meet_with_vec e =
+    let meet_vec e =
       (*Flip the sign of the const. val in coeff vec*)
       let flip_e = Vector.mapi_pt_with (fun i x -> if Vector.compare_length_with e (i + 1) = 0 then (of_int (-1)) *: x else x) e in
       let res = if is_bot t then bot () else
@@ -514,16 +514,16 @@ struct
         | Some c, EQ -> check_const (<>) c
         | Some c, SUPEQ -> check_const (<:) c
         | None, DISEQ | None, SUP ->
-          begin match meet_with_vec v with
+          begin match meet_vec v with
             | exception NotRefinable -> t
             | res -> if equal res t then bot_env else t end
-        | None, EQ -> begin match meet_with_vec v with
+        | None, EQ -> begin match meet_vec v with
             | exception NotRefinable -> t
             | res -> if is_bot res then bot_env else res end
         | _, _ -> t end
     | None -> t
 
-  let meet_with_tcons t tcons expr = Stats.time "meet_with_tcons" (meet_with_tcons t tcons) expr
+  let meet_tcons t tcons expr = Stats.time "meet_tcons" (meet_tcons t tcons) expr
 
   let unify a b =
     meet a b
@@ -537,7 +537,7 @@ struct
     let no_ov = Lazy.force no_ov in
     if M.tracing then M.tracel "assert_cons" "assert_cons with expr: %s \n %b" (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () e)) no_ov;
     begin match Convert.tcons1_of_cil_exp d d.env e negate no_ov with
-      | tcons1 -> meet_with_tcons d tcons1 e
+      | tcons1 -> meet_tcons d tcons1 e
       | exception Convert.Unsupported_CilExp ->
         d
     end

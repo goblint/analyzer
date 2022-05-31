@@ -536,11 +536,6 @@ struct
     A.assign_texpr_array_with Man.mgr nd vs texpr1s None;
     nd
 
-  let assign_var_parallel d vv's =
-    (* TODO: non-_with version? *)
-    let nd = copy d in
-    assign_var_parallel_pt_with nd vv's
-
   let assign_var_parallel' d vs v's = (* unpaired parallel assigns *)
     (* TODO: _with version? *)
     let env = A.env d in
@@ -601,7 +596,7 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.substitute_texpr_with Man.mgr nd v texpr1 None
 
-  let meet_with_tcons d tcons1 e =
+  let meet_tcons d tcons1 e =
     let earray = Tcons1.array_make (A.env d) 1 in
     Tcons1.array_set earray 0 tcons1;
     let res = A.meet_tcons_array Man.mgr d earray in
@@ -620,6 +615,8 @@ struct
                 else res
               | _, _ -> overflow_res res end end
     | _ -> res
+
+    let meet_tcons t tcons expr = Stats.time "meet_tcons" (meet_tcons t tcons) expr
 
   let to_lincons_array d =
     A.to_lincons_array Man.mgr d
@@ -716,7 +713,7 @@ struct
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate no_ov with
         | tcons1 ->
-          meet_with_tcons d tcons1 e
+          meet_tcons d tcons1 e
         | exception Convert.Unsupported_CilExp ->
           d
       end
