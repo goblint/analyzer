@@ -118,7 +118,11 @@ struct
     | AlignOf _
     | AlignOfE _
     | UnOp  _
-    | BinOp _ -> false
+    | BinOp _
+    | Question _
+    | Real _
+    | Imag _
+    | AddrOfLabel _ -> false
     | Const _ -> true
     | AddrOf  (Var v2,_)
     | StartOf (Var v2,_)
@@ -127,8 +131,6 @@ struct
     | StartOf (Mem e,_)
     | Lval    (Mem e,_)
     | CastE (_,e)           -> interesting e
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
 
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 g s =
@@ -157,8 +159,11 @@ struct
       | SizeOfE _
       | SizeOfStr _
       | AlignOf _
-      | AlignOfE _ -> false
-      | UnOp (_,e,_) -> type_may_change_t e bt
+      | AlignOfE _
+      | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+      | UnOp (_,e,_)
+      | Real e
+      | Imag e -> type_may_change_t e bt
       | BinOp (_,e1,e2,_) -> type_may_change_t e1 bt || type_may_change_t e2 bt
       | Lval (Var _,o)
       | AddrOf (Var _,o)
@@ -167,8 +172,7 @@ struct
       | AddrOf (Mem e,o)
       | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t e bt
       | CastE (t,e) -> type_may_change_t e bt
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
+      | Question (b, t, f, _) -> type_may_change_t b bt || type_may_change_t t bt || type_may_change_t f bt
     in
     let bt =  unrollTypeDeep (Cilfacade.typeOf b) in
     type_may_change_t a bt
@@ -191,8 +195,11 @@ struct
       | SizeOfE _
       | SizeOfStr _
       | AlignOf _
-      | AlignOfE _ -> false
-      | UnOp (_,e,_) -> lval_may_change_pt e bl
+      | AlignOfE _
+      | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+      | UnOp (_,e,_)
+      | Real e
+      | Imag e -> lval_may_change_pt e bl
       | BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
       | Lval (Var _,o)
       | AddrOf (Var _,o)
@@ -201,8 +208,7 @@ struct
       | AddrOf (Mem e,o)
       | StartOf (Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl
       | CastE (t,e) -> lval_may_change_pt e bl
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
+      | Question (b, t, f, _) -> lval_may_change_pt t bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let bls = pt b in
     if Queries.LS.is_top bls
@@ -258,8 +264,11 @@ struct
               | SizeOfE _
               | SizeOfStr _
               | AlignOf _
-              | AlignOfE _ -> false
-              | UnOp (_,e,_) -> type_may_change_t deref e
+              | AlignOfE _
+              | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+              | UnOp (_,e,_)
+              | Real e
+              | Imag e -> type_may_change_t deref e
               | BinOp (_,e1,e2,_) -> type_may_change_t deref e1 || type_may_change_t deref e2
               | Lval (Var _,o)
               | AddrOf (Var _,o)
@@ -268,8 +277,7 @@ struct
               | AddrOf (Mem e,o)  -> (*Messages.warn "Addr" ;*) may_change_t_offset o || type_may_change_t false e
               | StartOf (Mem e,o) -> (*Messages.warn "Start";*) may_change_t_offset o || type_may_change_t false e
               | CastE (t,e) -> type_may_change_t deref e
-              | Question _ -> failwith "Logical operations should be compiled away by CIL."
-              | _ -> failwith "Unmatched pattern."
+              | Question (b, t, f, _) -> type_may_change_t deref b || type_may_change_t deref t || type_may_change_t deref f
 
     and lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
@@ -324,8 +332,11 @@ struct
            | SizeOfE _
            | SizeOfStr _
            | AlignOf _
-           | AlignOfE _ -> false
-           | UnOp (_,e,_) -> lval_may_change_pt e bl
+           | AlignOfE _
+           | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+           | UnOp (_,e,_)
+           | Real e
+           | Imag e -> lval_may_change_pt e bl
            | BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
            | Lval (Var _,o)
            | AddrOf (Var _,o)
@@ -334,8 +345,7 @@ struct
            | AddrOf (Mem e,o)
            | StartOf (Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl
            | CastE (t,e) -> lval_may_change_pt e bl
-           | Question _ -> failwith "Logical operations should be compiled away by CIL."
-           | _ -> failwith "Unmatched pattern."
+           | Question (b, t, f, _) -> lval_may_change_pt b bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let r =
       if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
@@ -373,7 +383,11 @@ struct
     | AlignOf _
     | AlignOfE _
     | UnOp _
-    | BinOp _ -> None
+    | BinOp _
+    | Question _
+    | AddrOfLabel _
+    | Real _
+    | Imag _ -> None
     | Const _ -> Some false
     | Lval (Var v,_) ->
       Some (v.vglob || (ask.f (Queries.IsMultiple v)))
@@ -388,8 +402,6 @@ struct
     | AddrOf lv -> Some false (* TODO: sound?! *)
     | StartOf (Var v,_) ->  Some (ask.f (Queries.IsMultiple v)) (* Taking an address of a global is fine*)
     | StartOf lv -> Some false (* TODO: sound?! *)
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
 
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
@@ -551,6 +563,10 @@ struct
     | AlignOfE _
     | UnOp _
     | BinOp _
+    | Question _
+    | AddrOfLabel _
+    | Real _
+    | Imag _
     | AddrOf  (Var _,_)
     | StartOf (Var _,_)
     | Lval    (Var _,_) -> eq_set e s
@@ -562,8 +578,6 @@ struct
       Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
     | CastE (t,e) ->
       Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
 
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =

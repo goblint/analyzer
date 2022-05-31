@@ -678,6 +678,11 @@ struct
       YWitness.write lh gh
     );
 
+    if get_string "witness.yaml.validate" <> "" then (
+      let module YWitness = YamlWitness.Validator (Spec) (EQSys) (LHT) (GHT) in
+      YWitness.validate lh gh file
+    );
+
     let marshal = Spec.finalize () in
     (* copied from solve_and_postprocess *)
     let gobview = get_bool "gobview" in

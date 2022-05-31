@@ -1580,6 +1580,12 @@
           "type": "boolean",
           "default": true
         },
+        "witness": {
+          "title": "warn.witness",
+          "description": "Witness messages",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",
@@ -1804,6 +1810,18 @@
               "description": "YAML witness output path",
               "type": "string",
               "default": "witness.yml"
+            },
+            "validate": {
+              "title": "witness.yaml.validate",
+              "description": "YAML witness input path",
+              "type": "string",
+              "default": ""
+            },
+            "certificate": {
+              "title": "witness.yaml.certificate",
+              "description": "YAML witness certificate output path",
+              "type": "string",
+              "default": "witness.certificate.yml"
             }
           },
           "additionalProperties": false

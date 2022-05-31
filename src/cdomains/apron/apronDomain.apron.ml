@@ -335,7 +335,7 @@ struct
 
 
   let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
-    let zero = Cil.zero in
+    let zero = Cil.kinteger ILongLong 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
