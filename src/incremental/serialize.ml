@@ -107,8 +107,7 @@ module Cache = struct
     | CilFileRequest -> !(!data.cil_file)
 
   (** Get incremental data from the in-memory cache.
-      Same as [get_opt_data], except not yielding an optional and failing when the requested data is not present.
-      To populate the in-memory cache with data, call [load_data] first. *)
+      Same as [get_opt_data], except not yielding an optional and failing when the requested data is not present. *)
   let get_data : type a. a data_query -> a =
     fun a ->
     match get_opt_data a with
