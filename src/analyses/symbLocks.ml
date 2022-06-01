@@ -109,7 +109,26 @@ struct
   struct
     module Idx =
     struct
-      include ValueDomain.IndexDomain
+      include Printable.Std
+      type t =
+        | Unknown
+        | Star
+      [@@deriving eq, ord, hash]
+      let name () = "i-lock index"
+
+      let show = function
+        | Unknown -> "?"
+        | Star -> "*"
+
+      include Printable.SimpleShow (
+        struct
+          type nonrec t = t
+          let show = show
+        end
+        )
+
+      let equal_to _ _ = `Top
+      let is_int _ = false
     end
 
     include Lval.Normal (Idx)
@@ -119,9 +138,8 @@ struct
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-
-    | Index (Const  (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
-    | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
+    | Index (Const  (CInt (i,ikind,s)),o) when Z.to_int64 i = GU.inthack -> `Index (ILock.Idx.Star, conv_const_offset o)
+    | Index (_,o) -> `Index (ILock.Idx.Unknown, conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 
   module A =
