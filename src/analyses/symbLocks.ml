@@ -105,6 +105,16 @@ struct
     | _ ->
       ctx.local
 
+  module ILock =
+  struct
+    module Idx =
+    struct
+      include ValueDomain.IndexDomain
+    end
+
+    include Lval.Normal (Idx)
+  end
+
 
   let rec conv_const_offset x =
     match x with
@@ -117,11 +127,11 @@ struct
   module A =
   struct
     module E = struct
-      include Printable.Either (CilType.Offset) (ValueDomain.Addr)
+      include Printable.Either (CilType.Offset) (ILock)
 
       let pretty () = function
         | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
-        | `Right addr -> Pretty.dprintf "i-lock:%a" ValueDomain.Addr.pretty addr
+        | `Right addr -> Pretty.dprintf "i-lock:%a" ILock.pretty addr
 
       include Printable.SimplePretty (
         struct
@@ -164,7 +174,7 @@ struct
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->
-        let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
+        let lock = ILock.from_var_offset (v, conv_const_offset o) in
         A.add (`Right lock) xs
       | _ ->
         Messages.warn "Internal error: found a strange lockstep pattern.";
