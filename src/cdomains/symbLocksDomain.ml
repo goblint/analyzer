@@ -273,3 +273,41 @@ struct
     with Invalid_argument _ -> None
   let printXml f (x,y,z) = BatPrintf.fprintf f "<value>\n<map>\n<key>1</key>\n%a<key>2</key>\n%a<key>3</key>\n%a</map>\n</value>\n" Exp.printXml x Exp.printXml y Exp.printXml z
 end
+
+module ILock =
+struct
+  module Idx =
+  struct
+    include Printable.Std
+    type t =
+      | Unknown
+      | Star
+    [@@deriving eq, ord, hash]
+    let name () = "i-lock index"
+
+    let show = function
+      | Unknown -> "?"
+      | Star -> "*"
+
+    include Printable.SimpleShow (
+      struct
+        type nonrec t = t
+        let show = show
+      end
+      )
+
+    let equal_to _ _ = `Top
+    let is_int _ = false
+  end
+
+  include Lval.Normal (Idx)
+
+  let rec conv_const_offset x =
+    match x with
+    | NoOffset    -> `NoOffset
+    | Index (i,o) when Exp.(equal i star) -> `Index (Idx.Star, conv_const_offset o)
+    | Index (_,o) -> `Index (Idx.Unknown, conv_const_offset o)
+    | Field (f,o) -> `Field (f, conv_const_offset o)
+
+  let from_var_offset (v, o) = from_var_offset (v, conv_const_offset o)
+end

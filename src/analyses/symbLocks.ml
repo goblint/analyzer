@@ -3,6 +3,7 @@
 module LF = LibraryFunctions
 module LP = SymbLocksDomain.LockingPattern
 module Exp = SymbLocksDomain.Exp
+module ILock = SymbLocksDomain.ILock
 module VarEq = VarEq.Spec
 
 module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
@@ -105,42 +106,6 @@ struct
     | _ ->
       ctx.local
 
-  module ILock =
-  struct
-    module Idx =
-    struct
-      include Printable.Std
-      type t =
-        | Unknown
-        | Star
-      [@@deriving eq, ord, hash]
-      let name () = "i-lock index"
-
-      let show = function
-        | Unknown -> "?"
-        | Star -> "*"
-
-      include Printable.SimpleShow (
-        struct
-          type nonrec t = t
-          let show = show
-        end
-        )
-
-      let equal_to _ _ = `Top
-      let is_int _ = false
-    end
-
-    include Lval.Normal (Idx)
-  end
-
-
-  let rec conv_const_offset x =
-    match x with
-    | NoOffset    -> `NoOffset
-    | Index (i,o) when Exp.(equal i star) -> `Index (ILock.Idx.Star, conv_const_offset o)
-    | Index (_,o) -> `Index (ILock.Idx.Unknown, conv_const_offset o)
-    | Field (f,o) -> `Field (f, conv_const_offset o)
 
   module A =
   struct
@@ -192,7 +157,7 @@ struct
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->
-        let lock = ILock.from_var_offset (v, conv_const_offset o) in
+        let lock = ILock.from_var_offset (v, o) in
         A.add (`Right lock) xs
       | _ ->
         Messages.warn "Internal error: found a strange lockstep pattern.";
