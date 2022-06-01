@@ -43,17 +43,17 @@ let results_exist () =
 (** Module to cache the data for incremental analaysis during a run, before it is stored to disk, as well as the server mode *)
 module Cache = struct
   type t = {
-    solver_data: Obj.t option ref;
-    analysis_data: Obj.t option ref;
-    version_data: MaxIdUtil.max_ids option ref;
-    cil_file: Cil.file option ref;
+    mutable solver_data: Obj.t option;
+    mutable analysis_data: Obj.t option;
+    mutable version_data: MaxIdUtil.max_ids option;
+    mutable cil_file: Cil.file option;
   }
 
   let data = ref {
-      solver_data = ref None ;
-      analysis_data = ref None ;
-      version_data = ref None ;
-      cil_file = ref None ;
+      solver_data = None;
+      analysis_data = None;
+      version_data = None;
+      cil_file = None;
     }
 
   (* GADT that may be used to query data from and pass data to the cache *)
@@ -79,25 +79,25 @@ module Cache = struct
 
   (** Update the some incremental data in the in-memory cache *)
   let update_data: type a. a data_query -> a -> unit = fun q d -> match q with
-    | SolverDataRequest -> !data.solver_data := Some d
-    | AnalysisDataRequest -> !data.analysis_data := Some d
-    | VersionDataRequest -> !data.version_data := Some d
-    | CilFileRequest -> !data.cil_file := Some d
+    | SolverDataRequest -> !data.solver_data <- Some d
+    | AnalysisDataRequest -> !data.analysis_data <- Some d
+    | VersionDataRequest -> !data.version_data <- Some d
+    | CilFileRequest -> !data.cil_file <- Some d
 
   (** Reset some incremental data in the in-memory cache to [None]*)
   let reset_data : type a. a data_query -> unit = function
-    | SolverDataRequest -> !data.solver_data := None
-    | AnalysisDataRequest -> !data.analysis_data := None
-    | VersionDataRequest -> !data.version_data := None
-    | CilFileRequest -> !data.cil_file := None
+    | SolverDataRequest -> !data.solver_data <- None
+    | AnalysisDataRequest -> !data.analysis_data <- None
+    | VersionDataRequest -> !data.version_data <- None
+    | CilFileRequest -> !data.cil_file <- None
 
   (** Get incremental data from the in-memory cache wrapped in an optional.
       To populate the in-memory cache with data, call [load_data] first. *)
   let get_opt_data : type a. a data_query -> a option = function
-    | SolverDataRequest -> !(!data.solver_data)
-    | AnalysisDataRequest -> !(!data.analysis_data)
-    | VersionDataRequest -> !(!data.version_data)
-    | CilFileRequest -> !(!data.cil_file)
+    | SolverDataRequest -> !data.solver_data
+    | AnalysisDataRequest -> !data.analysis_data
+    | VersionDataRequest -> !data.version_data
+    | CilFileRequest -> !data.cil_file
 
   (** Get incremental data from the in-memory cache.
       Same as [get_opt_data], except not yielding an optional and failing when the requested data is not present. *)
