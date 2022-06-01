@@ -56,19 +56,12 @@ module Cache = struct
       cil_file = ref None ;
     }
 
-  (* GADT that may be used to query data from the cache *)
+  (* GADT that may be used to query data from and pass data to the cache *)
   type _ data_query =
     | SolverDataRequest : Obj.t data_query
     | CilFileRequest : Cil.file data_query
     | VersionDataRequest : MaxIdUtil.max_ids data_query
     | AnalysisDataRequest : Obj.t data_query
-
-  (* Data type to pass incremental data into the cache *)
-  type incremental_data =
-    | SolverData of Obj.t
-    | CilFile of Cil.file
-    | VersionData of MaxIdUtil.max_ids
-    | AnalysisData of Obj.t
 
   (** Loads data for incremental runs from the appropriate file *)
   let load_data () =
@@ -85,11 +78,11 @@ module Cache = struct
     marshal !data p
 
   (** Update the some incremental data in the in-memory cache *)
-  let update_data (d : incremental_data) = match d with
-    | SolverData s -> !data.solver_data := Some s
-    | AnalysisData a -> !data.analysis_data := Some a
-    | VersionData v -> !data.version_data := Some v
-    | CilFile c -> !data.cil_file := Some c
+  let update_data: type a. a data_query -> a -> unit = fun q d -> match q with
+    | SolverDataRequest -> !data.solver_data := Some d
+    | AnalysisDataRequest -> !data.analysis_data := Some d
+    | VersionDataRequest -> !data.version_data := Some d
+    | CilFileRequest -> !data.cil_file := Some d
 
   (** Reset some incremental data in the in-memory cache to [None]*)
   let reset_data : type a. a data_query -> unit = function

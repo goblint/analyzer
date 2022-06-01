@@ -469,7 +469,7 @@ struct
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if GobConfig.get_bool "incremental.save" then
-            Serialize.Cache.(update_data (SolverData (Obj.repr solver_data)));
+            Serialize.Cache.(update_data SolverDataRequest (Obj.repr solver_data));
           if save_run_str <> "" then (
             let save_run = Fpath.v save_run_str in
             let analyses = Fpath.(save_run / "analyses.marshalled") in
@@ -677,7 +677,7 @@ struct
       Serialize.marshal marshal Fpath.(v save_run / "spec_marshal")
     );
     if get_bool "incremental.save" then (
-      Serialize.Cache.(update_data (AnalysisData (Obj.repr marshal)));
+      Serialize.Cache.(update_data AnalysisDataRequest (Obj.repr marshal));
       Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
