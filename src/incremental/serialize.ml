@@ -3,7 +3,6 @@ open Prelude
 (* TODO: GoblintDir *)
 let incremental_data_file_name = "analysis.data"
 let results_dir = "results"
-let results_tmp_dir = "results_tmp"
 
 type operation = Save | Load
 
@@ -17,9 +16,6 @@ let gob_directory op =
 
 let gob_results_dir op =
   Fpath.(gob_directory op / results_dir)
-
-let gob_results_tmp_dir op =
-  Fpath.(gob_directory op / results_tmp_dir)
 
 let server () = GobConfig.get_bool "server.enabled"
 
