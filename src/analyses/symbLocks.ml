@@ -138,7 +138,7 @@ struct
   let rec conv_const_offset x =
     match x with
     | NoOffset    -> `NoOffset
-    | Index (Const  (CInt (i,ikind,s)),o) when Z.to_int64 i = GU.inthack -> `Index (ILock.Idx.Star, conv_const_offset o)
+    | Index (i,o) when Exp.(equal i star) -> `Index (ILock.Idx.Star, conv_const_offset o)
     | Index (_,o) -> `Index (ILock.Idx.Unknown, conv_const_offset o)
     | Field (f,o) -> `Field (f, conv_const_offset o)
 

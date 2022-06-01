@@ -111,6 +111,8 @@ struct
     | Index (i,o) -> isConstant i && conc o
     | Field (_,o) -> conc o
 
+  let star = Lval (Cil.var (Goblintutil.create_var (makeGlobalVar "*" intType)))
+
   let rec one_unknown_array_index exp =
     let rec separate_fields_index o =
       match o with
@@ -121,7 +123,6 @@ struct
         | Some (osf, ie,o) -> Some ((fun o -> Field (f,o)), ie, o)
         | x -> x
     in
-    let star = kinteger64 IInt Goblintutil.inthack in
     match exp with
     | Lval (Mem (Lval (Var v, io)),o) when conc o ->
       begin match separate_fields_index io with

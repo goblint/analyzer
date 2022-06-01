@@ -930,7 +930,7 @@ struct
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
+  let show (x: Ints_t.t) = Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
