@@ -126,7 +126,7 @@ let virtual_changes file =
   in
   CompareCIL.compareCilFiles ~eq file file
 
-let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data SolverDataRequest with
+let increment_data (s: t) file reparsed = match Serialize.Cache.get_opt_data SolverData with
   | Some solver_data when reparsed ->
     let changes = CompareCIL.compareCilFiles s.file file in
     let old_data = Some { Analyses.cil_file = s.file; solver_data } in
@@ -145,8 +145,8 @@ let analyze ?(reset=false) (s: t) =
   if reset then (
     let max_ids = MaxIdUtil.get_file_max_ids file in
     s.max_ids <- max_ids;
-    Serialize.Cache.reset_data SolverDataRequest;
-    Serialize.Cache.reset_data AnalysisDataRequest);
+    Serialize.Cache.reset_data SolverData;
+    Serialize.Cache.reset_data AnalysisData);
   let increment_data, fresh = increment_data s file reparsed in
   Cilfacade.reset_lazy ();
   WideningThresholds.reset_lazy ();

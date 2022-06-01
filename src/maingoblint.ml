@@ -533,9 +533,9 @@ let diff_and_rename current_file =
     let (changes, old_file, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
         Serialize.Cache.load_data ();
-        let old_file = Serialize.Cache.(get_data CilFileRequest) in
+        let old_file = Serialize.Cache.(get_data CilFile) in
         let changes = CompareCIL.compareCilFiles old_file current_file in
-        let max_ids = Serialize.Cache.(get_data VersionDataRequest) in
+        let max_ids = Serialize.Cache.(get_data VersionData) in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
         (changes, Some old_file, max_ids)
       end else begin
@@ -544,12 +544,12 @@ let diff_and_rename current_file =
       end
     in
     let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")
-      then Some Serialize.Cache.(get_data SolverDataRequest)
+      then Some Serialize.Cache.(get_data SolverData)
       else None
     in
     if GobConfig.get_bool "incremental.save" then begin
-      Serialize.Cache.(update_data CilFileRequest current_file);
-      Serialize.Cache.(update_data VersionDataRequest max_ids);
+      Serialize.Cache.(update_data CilFile current_file);
+      Serialize.Cache.(update_data VersionData max_ids);
     end;
     let old_data = match old_file, solver_data with
       | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
