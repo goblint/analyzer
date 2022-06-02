@@ -40,6 +40,7 @@ module type FloatDomainBase = sig
   val cast_to: Cil.ikind -> t -> IntDomain.IntDomTuple.t
 end
 module FloatInterval = struct
+  include Printable.Std (* for default invariant, tag and relift *)
   type t = (float * float) option [@@deriving eq, ord, to_yojson]
 
 
@@ -83,11 +84,7 @@ module FloatInterval = struct
 
   let name () = "FloatInterval"
 
-  let invariant _ (x : t) = failwith "todo invariant"
-
-  let tag (x : t) = failwith "todo tag" (**Quote printable.ml line 24: Unique ID, given by HConsed, for context identification in witness *)
   (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
-
   let pretty_diff () (x, y) =
     Pretty.dprintf "%a instead of %a" pretty x pretty y
 
@@ -126,9 +123,7 @@ module FloatInterval = struct
   (**for QCheck: should describe how to generate random values and shrink possilbe counter examples *)
   let arbitrary () = QCheck.map norm_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float)) 
 
-  let of_const f = norm @@ Some (f, f)
-
-  let relift x = x 
+  let of_const f = norm @@ Some (f, f) 
 
   let leq v1 v2 = 
     match v1, v2 with
@@ -185,7 +180,7 @@ module FloatInterval = struct
     Some (add Down l1 l2, add Up h1 h2)
 
   let eval_sub (l1, h1) (l2, h2) = 
-    Some (sub Down l1 l2, sub Up h1 h2)
+    Some (sub Down l1 h2, sub Up h1 l2)
 
   let eval_mul (l1, h1) (l2, h2) =
     let mul1u = mul Up l1 l2 in
