@@ -1,0 +1,270 @@
+module Producer =
+struct
+  type t = {
+    name: string;
+    version: string;
+    (* TODO: configuration *)
+    command_line: string;
+    (* TODO: description *)
+  }
+
+  let to_yaml {name; version; command_line} =
+    `O [
+      ("name", `String name);
+      ("version", `String version);
+      ("command_line", `String command_line);
+    ]
+end
+
+module Task =
+struct
+  type t = {
+    input_files: string list;
+    input_file_hashes: (string * string) list;
+    data_model: string;
+    language: string;
+    specification: string option;
+  }
+
+  let to_yaml {input_files; input_file_hashes; data_model; language; specification} =
+    `O ([
+        ("input_files", `A (List.map Yaml.Util.string input_files));
+        ("input_file_hashes", `O (List.map (fun (file, hash) ->
+             (file, `String hash)
+           ) input_file_hashes));
+        ("data_model", `String data_model);
+        ("language", `String language);
+      ] @ match specification with
+      | Some specification -> [
+          ("specification", `String specification)
+        ]
+      | None ->
+        []
+      )
+end
+
+module Metadata =
+struct
+  type t = {
+    format_version: string;
+    uuid: string;
+    creation_time: string;
+    producer: Producer.t;
+    task: Task.t option;
+  }
+
+  let to_yaml {format_version; uuid; creation_time; producer; task} =
+    `O ([
+        ("format_version", `String format_version);
+        ("uuid", `String uuid);
+        ("creation_time", `String creation_time);
+        ("producer", Producer.to_yaml producer);
+      ] @ match task with
+      | Some task -> [
+          ("task", Task.to_yaml task)
+        ]
+      | None ->
+        []
+      )
+end
+
+module Location =
+struct
+  type t = {
+    file_name: string;
+    file_hash: string;
+    line: int;
+    column: int;
+    function_: string;
+  }
+
+  let to_yaml {file_name; file_hash; line; column; function_} =
+    `O [
+      ("file_name", `String file_name);
+      ("file_hash", `String file_hash);
+      ("line", `Float (float_of_int line));
+      ("column", `Float (float_of_int column));
+      ("function", `String function_);
+    ]
+end
+
+module Invariant =
+struct
+  type t = {
+    string: string;
+    type_: string;
+    format: string;
+  }
+
+  let to_yaml {string; type_; format} =
+    `O [
+      ("string", `String string);
+      ("type", `String type_);
+      ("format", `String format);
+    ]
+end
+
+module LoopInvariant =
+struct
+  type t = {
+    location: Location.t;
+    loop_invariant: Invariant.t;
+  }
+
+  let entry_type = "loop_invariant"
+
+  let to_yaml' {location; loop_invariant} =
+    [
+      ("location", Location.to_yaml location);
+      ("loop_invariant", Invariant.to_yaml loop_invariant);
+    ]
+end
+
+module PreconditionLoopInvariant =
+struct
+  type t = {
+    location: Location.t;
+    loop_invariant: Invariant.t;
+    precondition: Invariant.t;
+  }
+
+  let entry_type = "precondition_loop_invariant"
+
+  let to_yaml' {location; loop_invariant; precondition} =
+    [
+      ("location", Location.to_yaml location);
+      ("loop_invariant", Invariant.to_yaml loop_invariant);
+      ("precondition", Invariant.to_yaml precondition);
+    ]
+end
+
+module Target =
+struct
+  type t = {
+    uuid: string;
+    type_: string;
+    file_hash: string;
+  }
+
+  let to_yaml {uuid; type_; file_hash} =
+    `O [
+      ("uuid", `String uuid);
+      ("type", `String type_);
+      ("file_hash", `String file_hash);
+    ]
+end
+
+module Certification =
+struct
+  type t = {
+    string: string;
+    type_: string;
+    format: string;
+  }
+
+  let to_yaml {string; type_; format} =
+    `O [
+      ("string", `String string);
+      ("type", `String type_);
+      ("format", `String format);
+    ]
+end
+
+module LoopInvariantCertificate =
+struct
+  type t = {
+    target: Target.t;
+    certification: Certification.t;
+  }
+
+  let entry_type = "loop_invariant_certificate"
+
+  let to_yaml' {target; certification} =
+    [
+      ("target", Target.to_yaml target);
+      ("certification", Certification.to_yaml certification);
+    ]
+end
+
+(* module type EntryType =
+sig
+  type t
+  val entry_type: string
+  val to_yaml': t -> (string * Yaml.value) list
+end
+
+module EntryType =
+struct
+  type _ t =
+    | LoopInvariant: LoopInvariant.t -> LoopInvariant.t t
+    | PreconditionLoopInvariant: PreconditionLoopInvariant.t -> PreconditionLoopInvariant.t t
+    | LoopInvariantCertificate: LoopInvariantCertificate.t -> LoopInvariantCertificate.t t
+
+  let module_ (type a) (e: a t): (module EntryType with type t = a) =
+    match e with
+    | LoopInvariant _ -> (module LoopInvariant)
+    | PreconditionLoopInvariant _ -> (module PreconditionLoopInvariant)
+    | LoopInvariantCertificate _ -> (module LoopInvariantCertificate)
+
+  let value (type a) (e: a t): a =
+    match e with
+    | LoopInvariant x -> x
+    | PreconditionLoopInvariant x -> x
+    | LoopInvariantCertificate x -> x
+
+  type any = Any: _ t -> any
+end
+
+module Entry =
+struct
+  type t = {
+    entry_type: EntryType.any;
+    metadata: Metadata.t;
+  }
+
+  let make metadata entry_type = {
+    entry_type = Any entry_type;
+    metadata;
+  }
+
+  let to_yaml {entry_type; metadata} =
+    let (Any entry_type') = entry_type in
+    let module ET = (val EntryType.module_ entry_type') in
+    let x = EntryType.value entry_type' in
+    `O ([
+      ("entry_type", `String ET.entry_type);
+      ("metadata", Metadata.to_yaml metadata);
+      ] @ ET.to_yaml' x)
+end *)
+
+module EntryType =
+struct
+  type t =
+    | LoopInvariant of LoopInvariant.t
+    | PreconditionLoopInvariant of PreconditionLoopInvariant.t
+    | LoopInvariantCertificate of LoopInvariantCertificate.t
+
+  let entry_type = function
+    | LoopInvariant _ -> LoopInvariant.entry_type
+    | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
+    | LoopInvariantCertificate _ -> LoopInvariantCertificate.entry_type
+
+  let to_yaml' = function
+    | LoopInvariant x -> LoopInvariant.to_yaml' x
+    | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
+    | LoopInvariantCertificate x -> LoopInvariantCertificate.to_yaml' x
+end
+
+module Entry =
+struct
+  type t = {
+    entry_type: EntryType.t;
+    metadata: Metadata.t;
+  }
+
+  let to_yaml {entry_type; metadata} =
+    `O ([
+      ("entry_type", `String (EntryType.entry_type entry_type));
+      ("metadata", Metadata.to_yaml metadata);
+      ] @ EntryType.to_yaml' entry_type)
+end

@@ -8,105 +8,89 @@ let sha256_file = sha256_file_cache.get
 
 module Entry =
 struct
+  open YamlWitnessType
+
   (* yaml_conf is too verbose *)
   (* let yaml_conf: Yaml.value = Json_repr.convert (module Json_repr.Yojson) (module Json_repr.Ezjsonm) (!GobConfig.json_conf) in *)
-  let yaml_producer = `O [
-      ("name", `String "Goblint");
-      ("version", `String Version.goblint);
-      (* TODO: configuration *)
-      (* ("configuration", yaml_conf); *) (* yaml_conf is too verbose *)
-      ("command_line", `String Goblintutil.command_line);
-      (* TODO: description *)
-    ]
+  let producer: Producer.t = {
+    name = "Goblint";
+    version = Version.goblint;
+    command_line = Goblintutil.command_line;
+  }
 
-  let yaml_metadata ?(extra=[]) () =
+  let metadata ?task (): Metadata.t =
     let uuid = Uuidm.v4_gen uuid_random_state () in
     let creation_time = TimeUtil.iso8601_now () in
-    `O ([
-        ("format_version", `String "0.1");
-        ("uuid", `String (Uuidm.to_string uuid));
-        ("creation_time", `String creation_time);
-        ("producer", yaml_producer);
-      ] @ extra)
+    {
+      format_version = "0.1";
+      uuid = Uuidm.to_string uuid;
+      creation_time;
+      producer;
+      task
+    }
 
-  let yaml_task ~input_files ~data_model ~specification =
-    `O ([
-        ("input_files", `A (List.map Yaml.Util.string input_files));
-        ("input_file_hashes", `O (List.map (fun file ->
-             (file, `String (sha256_file file))
-           ) input_files));
-        ("data_model", `String data_model);
-        ("language", `String "C");
-      ] @ match specification with
-      | Some specification -> [
-          ("specification", `String specification)
-        ]
-      | None ->
-        []
-      )
+  let task ~input_files ~data_model ~(specification): Task.t =
+    {
+      input_files;
+      input_file_hashes = List.map (fun file ->
+          (file, sha256_file file)
+        ) input_files;
+      data_model;
+      language = "C";
+      specification
+    }
 
-  let yaml_loop_invariant ~yaml_task ~location:(loc:Cil.location) ~location_function ~invariant =
-    `O [
-      ("entry_type", `String "loop_invariant");
-      ("metadata", yaml_metadata ~extra:[
-          ("task", yaml_task);
-        ] ());
-      ("location", `O [
-          ("file_name", `String loc.file);
-          ("file_hash", `String (sha256_file loc.file));
-          ("line", `Float (float_of_int loc.line));
-          ("column", `Float (float_of_int (loc.column - 1)));
-          ("function", `String location_function);
-        ]);
-      ("loop_invariant", `O [
-          ("string", `String invariant);
-          ("type", `String "assertion");
-          ("format", `String "C");
-        ]);
-    ]
+  let location ~location:(loc: Cil.location) ~(location_function): Location.t = {
+    file_name = loc.file;
+    file_hash = sha256_file loc.file;
+    line = loc.line;
+    column = loc.column - 1;
+    function_ = location_function;
+  }
+
+  let invariant invariant: Invariant.t = {
+    string = invariant;
+    type_ = "assertion";
+    format = "C";
+  }
+
+  let loop_invariant ~task ~location ~(invariant): Entry.t = {
+    entry_type = LoopInvariant {
+      location;
+      loop_invariant = invariant;
+    };
+    metadata = metadata ~task ();
+  }
 
   (* non-standard extension *)
-  (* TODO: deduplicate *)
-  let yaml_precondition_loop_invariant ~yaml_task ~location:(loc:Cil.location) ~location_function ~precondition ~invariant =
-    `O [
-      ("entry_type", `String "precondition_loop_invariant");
-      ("metadata", yaml_metadata ~extra:[
-          ("task", yaml_task);
-        ] ());
-      ("location", `O [
-          ("file_name", `String loc.file);
-          ("file_hash", `String (sha256_file loc.file));
-          ("line", `Float (float_of_int loc.line));
-          ("column", `Float (float_of_int (loc.column - 1)));
-          ("function", `String location_function);
-        ]);
-      ("loop_invariant", `O [
-          ("string", `String invariant);
-          ("type", `String "assertion");
-          ("format", `String "C");
-        ]);
-      ("precondition", `O [
-          ("string", `String precondition);
-          ("type", `String "assertion");
-          ("format", `String "C");
-        ]);
-    ]
+  let precondition_loop_invariant ~task ~location ~precondition ~(invariant): Entry.t = {
+    entry_type = PreconditionLoopInvariant {
+      location;
+      loop_invariant = invariant;
+      precondition;
+    };
+    metadata = metadata ~task ();
+  }
 
-  let yaml_loop_invariant_certificate ~target_uuid ~target_file_name ~verdict =
-    `O [
-      ("entry_type", `String "loop_invariant_certificate");
-      ("metadata", yaml_metadata ());
-      ("target", `O [
-          ("uuid", `String target_uuid);
-          ("type", `String "loop_invariant"); (* TODO: check *)
-          ("file_hash", `String (sha256_file target_file_name));
-        ]);
-      ("certification", `O [
-          ("string", `String (if verdict then "confirmed" else "rejected"));
-          ("type", `String "verdict");
-          ("format", `String "confirmed | rejected");
-        ]);
-    ]
+  let target ~uuid ~(file_name): Target.t = {
+    uuid;
+    type_ = "loop_invariant"; (* TODO: check *)
+    file_hash = sha256_file file_name;
+  }
+
+  let certification verdict: Certification.t = {
+    string = if verdict then "confirmed" else "rejected";
+    type_ = "verdict";
+    format = "confirmed | rejected";
+  }
+
+  let loop_invariant_certificate ~target ~(certification): Entry.t = {
+    entry_type = LoopInvariantCertificate {
+      target;
+      certification;
+    };
+    metadata = metadata ();
+  }
 end
 
 
@@ -145,7 +129,7 @@ struct
         Svcomp.Specification.to_string Task.specification
       ) !Svcomp.task
     in
-    let yaml_task = Entry.yaml_task ~input_files ~data_model ~specification in
+    let task = Entry.task ~input_files ~data_model ~specification in
 
     let nh = join_contexts lh in
 
@@ -166,9 +150,10 @@ struct
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
                   let location_function = (Node.find_fundec n).svar.vname in
-                  let invariant = CilType.Exp.show inv in
-                  let entry = Entry.yaml_loop_invariant ~yaml_task ~location:loc ~location_function ~invariant in
-                  entry :: acc
+                  let location = Entry.location ~location:loc ~location_function in
+                  let invariant = Entry.invariant (CilType.Exp.show inv) in
+                  let entry = Entry.loop_invariant ~task ~location ~invariant in
+                  YamlWitnessType.Entry.to_yaml entry :: acc
                 ) acc invs
             | None ->
               acc
@@ -198,10 +183,11 @@ struct
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
                   let location_function = (Node.find_fundec n).svar.vname in
-                  let precondition = CilType.Exp.show c_inv in
-                  let invariant = CilType.Exp.show inv in
-                  let entry = Entry.yaml_precondition_loop_invariant ~yaml_task ~location:loc ~location_function ~precondition ~invariant in
-                  entry :: acc
+                  let location = Entry.location ~location:loc ~location_function in
+                  let precondition = Entry.invariant (CilType.Exp.show c_inv) in
+                  let invariant = Entry.invariant (CilType.Exp.show inv) in
+                  let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
+                  YamlWitnessType.Entry.to_yaml entry :: acc
                 ) acc invs
             | _, _ -> (* TODO: handle some other combination? *)
               acc
@@ -428,13 +414,18 @@ struct
               begin match Option.get (VR.result_of_enum result) with
                 | Confirmed ->
                   M.success ~category:Witness ~loc "invariant confirmed: %s" inv;
-                  let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict:true in
-                  certificate_entry :: yaml_entry :: yaml_entries'
+                  let target = Entry.target ~uuid ~file_name:loc.file in
+                  let certification = Entry.certification true in
+                  let certificate_entry = Entry.loop_invariant_certificate ~target ~certification in
+                  YamlWitnessType.Entry.to_yaml certificate_entry :: yaml_entry :: yaml_entries'
                 | Unconfirmed ->
                   M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;yaml_entry :: yaml_entries'
                 | Refuted ->
-                  M.error ~category:Witness ~loc "invariant refuted: %s" inv;let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict:false in
-                  certificate_entry :: yaml_entry :: yaml_entries'
+                  M.error ~category:Witness ~loc "invariant refuted: %s" inv;
+                  let target = Entry.target ~uuid ~file_name:loc.file in
+                  let certification = Entry.certification false in
+                  let certificate_entry = Entry.loop_invariant_certificate ~target ~certification in
+                  YamlWitnessType.Entry.to_yaml certificate_entry :: yaml_entry :: yaml_entries'
                 | ParseError ->
                   M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
                   M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv;
