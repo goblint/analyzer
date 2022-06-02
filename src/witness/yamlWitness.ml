@@ -133,7 +133,7 @@ struct
 
     let nh = join_contexts lh in
 
-    let yaml_entries = NH.fold (fun n local acc ->
+    let entries = NH.fold (fun n local acc ->
         match n with
         | Statement _ when WitnessInvariant.is_invariant_node n ->
           let context: Invariant.context = {
@@ -153,7 +153,7 @@ struct
                   let location = Entry.location ~location:loc ~location_function in
                   let invariant = Entry.invariant (CilType.Exp.show inv) in
                   let entry = Entry.loop_invariant ~task ~location ~invariant in
-                  YamlWitnessType.Entry.to_yaml entry :: acc
+                  entry :: acc
                 ) acc invs
             | None ->
               acc
@@ -164,7 +164,7 @@ struct
     in
 
     (* TODO: deduplicate *)
-    let yaml_entries = LHT.fold (fun (n, c) local acc ->
+    let entries = LHT.fold (fun (n, c) local acc ->
         match n with
         | Statement _ when WitnessInvariant.is_invariant_node n ->
           let context: Invariant.context = {
@@ -187,17 +187,17 @@ struct
                   let precondition = Entry.invariant (CilType.Exp.show c_inv) in
                   let invariant = Entry.invariant (CilType.Exp.show inv) in
                   let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                  YamlWitnessType.Entry.to_yaml entry :: acc
+                  entry :: acc
                 ) acc invs
             | _, _ -> (* TODO: handle some other combination? *)
               acc
           end
         | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
           acc
-      ) lh yaml_entries
+      ) lh entries
     in
 
-    let yaml = `A yaml_entries in
+    let yaml = `A (List.map YamlWitnessType.Entry.to_yaml entries) in
     Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.path")) yaml
 end
 
@@ -277,19 +277,9 @@ struct
       | _ -> failwith "invalid YAML"
     in
 
-    let yaml_entries' = List.fold_left (fun yaml_entries' yaml_entry ->
-        let entry = YamlWitnessType.Entry.of_yaml yaml_entry in
-        let entry: YamlWitnessType.Entry.t = entry |> BatResult.get_ok in (* TODO: no get_ok *)
-        let uuid = entry.metadata.uuid in
-        let (location, inv, pre) =
-          match entry.entry_type with
-          | LoopInvariant x ->
-            (x.location, x.loop_invariant.string, None)
-          | PreconditionLoopInvariant x ->
-            (x.location, x.loop_invariant.string, Some x.precondition.string)
-          | LoopInvariantCertificate _ ->
-            failwith "cannot validate certificate"
-        in
+    let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
+      let uuid = entry.metadata.uuid in
+      let validate_loop_invariant (location: YamlWitnessType.Location.t) inv pre =
         let loc: Cil.location = {
           file = location.file_name;
           line = location.line;
@@ -421,28 +411,49 @@ struct
                   let target = Entry.target ~uuid ~file_name:loc.file in
                   let certification = Entry.certification true in
                   let certificate_entry = Entry.loop_invariant_certificate ~target ~certification in
-                  YamlWitnessType.Entry.to_yaml certificate_entry :: yaml_entry :: yaml_entries'
+                  Some certificate_entry
                 | Unconfirmed ->
-                  M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;yaml_entry :: yaml_entries'
+                  M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;None
                 | Refuted ->
                   M.error ~category:Witness ~loc "invariant refuted: %s" inv;
                   let target = Entry.target ~uuid ~file_name:loc.file in
                   let certification = Entry.certification false in
                   let certificate_entry = Entry.loop_invariant_certificate ~target ~certification in
-                  YamlWitnessType.Entry.to_yaml certificate_entry :: yaml_entry :: yaml_entries'
+                  Some certificate_entry
                 | ParseError ->
                   M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
                   M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv;
-                  yaml_entry :: yaml_entries'
+                  None
               end
             | None ->
               M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
-              yaml_entry :: yaml_entries'
+              None
           end
         | exception Frontc.ParseError _ ->
           Errormsg.log "\n"; (* CIL prints garbage without \n before *)
           M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
           M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv;
+          None
+      in
+
+      match entry.entry_type with
+      | LoopInvariant x ->
+        validate_loop_invariant x.location x.loop_invariant.string None
+      | PreconditionLoopInvariant x ->
+        validate_loop_invariant x.location x.loop_invariant.string (Some x.precondition.string)
+      | _ ->
+        M.info_noloc ~category:Witness "cannot validate entry of type %s" (YamlWitnessType.EntryType.entry_type entry.entry_type);
+        None
+    in
+
+    let yaml_entries' = List.fold_left (fun yaml_entries' yaml_entry ->
+        match YamlWitnessType.Entry.of_yaml yaml_entry with
+        | Ok entry ->
+          let certificate_entry = validate_entry entry in
+          let yaml_certificate_entry = Option.map YamlWitnessType.Entry.to_yaml certificate_entry in
+          Option.to_list yaml_certificate_entry @ yaml_entry :: yaml_entries'
+        | Error (`Msg e) ->
+          M.info_noloc ~category:Witness "couldn't parse entry: %s" e;
           yaml_entry :: yaml_entries'
       ) [] yaml_entries
     in
