@@ -133,7 +133,7 @@ struct
     include SetDomain.Make (E)
 
     let name () = "symblock"
-    let may_race lp lp2 = is_empty @@ inter lp lp2
+    let may_race lp lp2 = disjoint lp lp2
     let should_print lp = not (is_empty lp)
   end
 
