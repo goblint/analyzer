@@ -278,18 +278,22 @@ struct
     in
 
     let yaml_entries' = List.fold_left (fun yaml_entries' yaml_entry ->
-        let yaml_metadata = Yaml.Util.(yaml_entry |> find_exn "metadata" |> Option.get) in
-        let uuid = Yaml.Util.(yaml_metadata |> find_exn "uuid" |> Option.get |> to_string_exn) in
-        let yaml_location = Yaml.Util.(yaml_entry |> find_exn "location" |> Option.get) in
-        let file = Yaml.Util.(yaml_location |> find_exn "file_name" |> Option.get |> to_string_exn) in
-        let line = Yaml.Util.(yaml_location |> find_exn "line" |> Option.get |> to_float_exn |> int_of_float) in
-        let column = Yaml.Util.(yaml_location |> find_exn "column" |> Option.get |> to_float_exn |> int_of_float) + 1 in
-        let inv = Yaml.Util.(yaml_entry |> find_exn "loop_invariant" |> Option.get |> find_exn "string" |> Option.get |> to_string_exn) in
-        let pre = Yaml.Util.(yaml_entry |> find_exn "precondition" |> Option.map (fun x -> x |> find_exn "string" |> Option.get |> to_string_exn)) in
+        let entry = YamlWitnessType.Entry.of_yaml yaml_entry in
+        let entry: YamlWitnessType.Entry.t = entry |> BatResult.get_ok in (* TODO: no get_ok *)
+        let uuid = entry.metadata.uuid in
+        let (location, inv, pre) =
+          match entry.entry_type with
+          | LoopInvariant x ->
+            (x.location, x.loop_invariant.string, None)
+          | PreconditionLoopInvariant x ->
+            (x.location, x.loop_invariant.string, Some x.precondition.string)
+          | LoopInvariantCertificate _ ->
+            failwith "cannot validate certificate"
+        in
         let loc: Cil.location = {
-          file;
-          line;
-          column;
+          file = location.file_name;
+          line = location.line;
+          column = location.column + 1;
           byte = -1;
           endLine = -1;
           endColumn = -1;

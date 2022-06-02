@@ -14,6 +14,13 @@ struct
       ("version", `String version);
       ("command_line", `String command_line);
     ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* name = y |> find "name" >>= to_string in
+    let* version = y |> find "version" >>= to_string in
+    let+ command_line = y |> find "command_line" >>= to_string in
+    {name; version; command_line}
 end
 
 module Task =
@@ -41,6 +48,18 @@ struct
       | None ->
         []
       )
+
+  let of_yaml y =
+    let open GobYaml in
+    let* input_files = y |> find "input_files" >>= list in
+    let input_files = List.map to_string_exn input_files in (* TODO: no exn *)
+    let* input_file_hashes = y |> find "input_file_hashes" >>= entries in
+    let input_file_hashes = List.map (BatTuple.Tuple2.map2 to_string_exn) input_file_hashes in (* TODO: no exn *)
+    let* data_model = y |> find "data_model" >>= to_string in
+    let* language = y |> find "language" >>= to_string in
+    let+ specification = y |> Yaml.Util.find "specification" in
+    let specification = Option.map to_string_exn specification in (* TODO: no exn *)
+    {input_files; input_file_hashes; data_model; language; specification}
 end
 
 module Metadata =
@@ -66,6 +85,15 @@ struct
       | None ->
         []
       )
+  let of_yaml y =
+    let open GobYaml in
+    let* format_version = y |> find "format_version" >>= to_string in
+    let* uuid = y |> find "uuid" >>= to_string in
+    let* creation_time = y |> find "creation_time" >>= to_string in
+    let* producer = y |> find "producer" >>= Producer.of_yaml in
+    let+ task = y |> Yaml.Util.find "task" in
+    let task = Option.map (fun y_task -> y_task |> Task.of_yaml |> BatResult.get_ok) task in (* TODO: no get_ok *)
+    {format_version; uuid; creation_time; producer; task}
 end
 
 module Location =
@@ -86,6 +114,15 @@ struct
       ("column", `Float (float_of_int column));
       ("function", `String function_);
     ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* file_name = y |> find "file_name" >>= to_string in
+    let* file_hash = y |> find "file_hash" >>= to_string in
+    let* line = y |> find "line" >>= to_int in
+    let* column = y |> find "column" >>= to_int in
+    let+ function_ = y |> find "function" >>= to_string in
+    {file_name; file_hash; line; column; function_}
 end
 
 module Invariant =
@@ -102,6 +139,13 @@ struct
       ("type", `String type_);
       ("format", `String format);
     ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* string = y |> find "string" >>= to_string in
+    let* type_ = y |> find "type" >>= to_string in
+    let+ format = y |> find "format" >>= to_string in
+    {string; type_; format}
 end
 
 module LoopInvariant =
@@ -118,6 +162,12 @@ struct
       ("location", Location.to_yaml location);
       ("loop_invariant", Invariant.to_yaml loop_invariant);
     ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* location = y |> find "location" >>= Location.of_yaml in
+    let+ loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml in
+    {location; loop_invariant}
 end
 
 module PreconditionLoopInvariant =
@@ -136,6 +186,13 @@ struct
       ("loop_invariant", Invariant.to_yaml loop_invariant);
       ("precondition", Invariant.to_yaml precondition);
     ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* location = y |> find "location" >>= Location.of_yaml in
+    let* loop_invariant = y |> find "loop_invariant" >>= Invariant.of_yaml in
+    let+ precondition = y |> find "precondition" >>= Invariant.of_yaml in
+    {location; loop_invariant; precondition}
 end
 
 module Target =
@@ -152,6 +209,13 @@ struct
       ("type", `String type_);
       ("file_hash", `String file_hash);
     ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* uuid = y |> find "uuid" >>= to_string in
+    let* type_ = y |> find "type" >>= to_string in
+    let+ file_hash = y |> find "file_hash" >>= to_string in
+    {uuid; type_; file_hash}
 end
 
 module Certification =
@@ -168,6 +232,13 @@ struct
       ("type", `String type_);
       ("format", `String format);
     ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* string = y |> find "string" >>= to_string in
+    let* type_ = y |> find "type" >>= to_string in
+    let+ format = y |> find "format" >>= to_string in
+    {string; type_; format}
 end
 
 module LoopInvariantCertificate =
@@ -184,6 +255,12 @@ struct
       ("target", Target.to_yaml target);
       ("certification", Certification.to_yaml certification);
     ]
+
+  let of_yaml y =
+    let open GobYaml in
+    let* target = y |> find "target" >>= Target.of_yaml in
+    let+ certification = y |> find "certification" >>= Certification.of_yaml in
+    {target; certification}
 end
 
 (* module type EntryType =
@@ -253,6 +330,21 @@ struct
     | LoopInvariant x -> LoopInvariant.to_yaml' x
     | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
     | LoopInvariantCertificate x -> LoopInvariantCertificate.to_yaml' x
+
+  let of_yaml y =
+    let open GobYaml in
+    let* entry_type = y |> find "entry_type" >>= to_string in
+    if entry_type = LoopInvariant.entry_type then
+      let+ x = y |> LoopInvariant.of_yaml in
+      LoopInvariant x
+    else if entry_type = PreconditionLoopInvariant.entry_type then
+      let+ x = y |> PreconditionLoopInvariant.of_yaml in
+      PreconditionLoopInvariant x
+    else if entry_type = LoopInvariantCertificate.entry_type then
+      let+ x = y |> LoopInvariantCertificate.of_yaml in
+      LoopInvariantCertificate x
+    else
+      Error (`Msg "entry_type")
 end
 
 module Entry =
@@ -267,4 +359,10 @@ struct
       ("entry_type", `String (EntryType.entry_type entry_type));
       ("metadata", Metadata.to_yaml metadata);
       ] @ EntryType.to_yaml' entry_type)
+
+  let of_yaml y =
+    let open GobYaml in
+    let* metadata = y |> find "metadata" >>= Metadata.of_yaml in
+    let+ entry_type = y |> EntryType.of_yaml in
+    {entry_type; metadata}
 end
