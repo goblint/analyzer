@@ -263,6 +263,12 @@ struct
     {target; certification}
 end
 
+module PreconditionLoopInvariantCertificate =
+struct
+  include LoopInvariantCertificate
+  let entry_type = "precondition_loop_invariant_certificate"
+end
+
 (* module type EntryType =
 sig
   type t
@@ -320,16 +326,19 @@ struct
     | LoopInvariant of LoopInvariant.t
     | PreconditionLoopInvariant of PreconditionLoopInvariant.t
     | LoopInvariantCertificate of LoopInvariantCertificate.t
+    | PreconditionLoopInvariantCertificate of PreconditionLoopInvariantCertificate.t
 
   let entry_type = function
     | LoopInvariant _ -> LoopInvariant.entry_type
     | PreconditionLoopInvariant _ -> PreconditionLoopInvariant.entry_type
     | LoopInvariantCertificate _ -> LoopInvariantCertificate.entry_type
+    | PreconditionLoopInvariantCertificate _ -> PreconditionLoopInvariantCertificate.entry_type
 
   let to_yaml' = function
     | LoopInvariant x -> LoopInvariant.to_yaml' x
     | PreconditionLoopInvariant x -> PreconditionLoopInvariant.to_yaml' x
     | LoopInvariantCertificate x -> LoopInvariantCertificate.to_yaml' x
+    | PreconditionLoopInvariantCertificate x -> PreconditionLoopInvariantCertificate.to_yaml' x
 
   let of_yaml y =
     let open GobYaml in
@@ -343,6 +352,9 @@ struct
     else if entry_type = LoopInvariantCertificate.entry_type then
       let+ x = y |> LoopInvariantCertificate.of_yaml in
       LoopInvariantCertificate x
+    else if entry_type = PreconditionLoopInvariantCertificate.entry_type then
+      let+ x = y |> PreconditionLoopInvariantCertificate.of_yaml in
+      PreconditionLoopInvariantCertificate x
     else
       Error (`Msg "entry_type")
 end

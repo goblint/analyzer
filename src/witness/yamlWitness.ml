@@ -72,9 +72,9 @@ struct
     metadata = metadata ~task ();
   }
 
-  let target ~uuid ~(file_name): Target.t = {
+  let target ~uuid ~type_ ~(file_name): Target.t = {
     uuid;
-    type_ = "loop_invariant"; (* TODO: check *)
+    type_;
     file_hash = sha256_file file_name;
   }
 
@@ -86,6 +86,14 @@ struct
 
   let loop_invariant_certificate ~target ~(certification): Entry.t = {
     entry_type = LoopInvariantCertificate {
+      target;
+      certification;
+    };
+    metadata = metadata ();
+  }
+
+  let precondition_loop_invariant_certificate ~target ~(certification): Entry.t = {
+    entry_type = PreconditionLoopInvariantCertificate {
       target;
       certification;
     };
@@ -279,7 +287,7 @@ struct
 
     let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
       let uuid = entry.metadata.uuid in
-      let validate_loop_invariant (location: YamlWitnessType.Location.t) inv pre =
+      let validate_loop_invariant ~entry_certificate ~target_type (location: YamlWitnessType.Location.t) inv pre =
         let loc: Cil.location = {
           file = location.file_name;
           line = location.line;
@@ -408,17 +416,17 @@ struct
               begin match Option.get (VR.result_of_enum result) with
                 | Confirmed ->
                   M.success ~category:Witness ~loc "invariant confirmed: %s" inv;
-                  let target = Entry.target ~uuid ~file_name:loc.file in
+                  let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
                   let certification = Entry.certification true in
-                  let certificate_entry = Entry.loop_invariant_certificate ~target ~certification in
+                  let certificate_entry = entry_certificate ~target ~certification in
                   Some certificate_entry
                 | Unconfirmed ->
                   M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;None
                 | Refuted ->
                   M.error ~category:Witness ~loc "invariant refuted: %s" inv;
-                  let target = Entry.target ~uuid ~file_name:loc.file in
+                  let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
                   let certification = Entry.certification false in
-                  let certificate_entry = Entry.loop_invariant_certificate ~target ~certification in
+                  let certificate_entry = entry_certificate ~target ~certification in
                   Some certificate_entry
                 | ParseError ->
                   M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
@@ -438,9 +446,11 @@ struct
 
       match entry.entry_type with
       | LoopInvariant x ->
-        validate_loop_invariant x.location x.loop_invariant.string None
+        let entry_certificate = Entry.loop_invariant_certificate in
+        validate_loop_invariant ~entry_certificate ~target_type:YamlWitnessType.LoopInvariant.entry_type x.location x.loop_invariant.string None
       | PreconditionLoopInvariant x ->
-        validate_loop_invariant x.location x.loop_invariant.string (Some x.precondition.string)
+        let entry_certificate = Entry.precondition_loop_invariant_certificate in
+        validate_loop_invariant ~entry_certificate ~target_type:YamlWitnessType.PreconditionLoopInvariant.entry_type x.location x.loop_invariant.string (Some x.precondition.string)
       | _ ->
         M.info_noloc ~category:Witness "cannot validate entry of type %s" (YamlWitnessType.EntryType.entry_type entry.entry_type);
         None
