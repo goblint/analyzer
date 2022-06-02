@@ -308,7 +308,7 @@ struct
       if get_string "load_run" <> "" then
         Some (Serialize.unmarshal Fpath.(v (get_string "load_run") / "spec_marshal"))
       else if Serialize.results_exist () && get_bool "incremental.load" then
-        Some (Obj.obj (Serialize.Cache.(get_data AnalysisData)))
+        Some (Serialize.Cache.(get_data AnalysisData))
       else
         None
     in
