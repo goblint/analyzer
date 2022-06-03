@@ -54,7 +54,7 @@ module Cache = struct
 
   (** GADT that may be used to query data from and pass data to the cache. *)
   type _ data_query =
-    | SolverData : Obj.t data_query
+    | SolverData : _ data_query
     | CilFile : Cil.file data_query
     | VersionData : MaxIdUtil.max_ids data_query
     | AnalysisData : _ data_query
@@ -75,7 +75,7 @@ module Cache = struct
 
   (** Update the some incremental data in the in-memory cache *)
   let update_data: type a. a data_query -> a -> unit = fun q d -> match q with
-    | SolverData -> !data.solver_data <- Some d
+    | SolverData -> !data.solver_data <- Some (Obj.repr d)
     | AnalysisData -> !data.analysis_data <- Some (Obj.repr d)
     | VersionData -> !data.version_data <- Some d
     | CilFile -> !data.cil_file <- Some d
@@ -90,7 +90,7 @@ module Cache = struct
   (** Get incremental data from the in-memory cache wrapped in an optional.
       To populate the in-memory cache with data, call [load_data] first. *)
   let get_opt_data : type a. a data_query -> a option = function
-    | SolverData -> !data.solver_data
+    | SolverData -> Option.map Obj.obj !data.solver_data
     | AnalysisData -> Option.map Obj.obj !data.analysis_data
     | VersionData -> !data.version_data
     | CilFile -> !data.cil_file
