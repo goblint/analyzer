@@ -98,62 +98,62 @@ struct
 end
 
 type ('a, 'b) relcomponents_t = {
-  apr: 'b;
+  rel: 'b;
   priv: 'a;
 } [@@deriving eq, ord, to_yojson]
 
-module RelComponent (D2: RelD2) =
+module RelComponents (D2: RelD2) =
   functor (PrivD: Lattice.S) ->
   struct
     type t = (PrivD.t, D2.t) relcomponents_t [@@deriving eq, ord, to_yojson]
 
     include Printable.Std
     open Pretty
-    let hash r  = D2.hash r.apr + PrivD.hash r.priv * 33
+    let hash r  = D2.hash r.rel + PrivD.hash r.priv * 33
 
     let show r =
-      let first  = D2.show r.apr in
+      let first  = D2.show r.rel in
       let third  = PrivD.show r.priv in
       "(" ^ first ^ ", " ^ third  ^ ")"
 
     let pretty () r =
       text "(" ++
-      D2.pretty () r.apr
+      D2.pretty () r.rel
       ++ text ", " ++
       PrivD.pretty () r.priv
       ++ text ")"
 
     let printXml f r =
-      BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+      BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.rel (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
     let name () = D2.name () ^ " * " ^ PrivD.name ()
 
-    let invariant c {apr; priv} =
-      Invariant.(D2.invariant c apr && PrivD.invariant c priv)
+    let invariant c {rel; priv} =
+      Invariant.(D2.invariant c rel && PrivD.invariant c priv)
 
-    let of_tuple(apr, priv):t = {apr; priv}
-    let to_tuple r = (r.apr, r.priv)
+    let of_tuple(rel, priv):t = {rel; priv}
+    let to_tuple r = (r.rel, r.priv)
 
     let arbitrary () =
       let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
       QCheck.map ~rev:to_tuple of_tuple tr
 
-    let bot () = { apr = D2.bot (); priv = PrivD.bot ()}
-    let is_bot {apr; priv} = D2.is_bot apr && PrivD.is_bot priv
-    let top () = {apr = D2.top (); priv = PrivD.bot ()}
-    let is_top {apr; priv} = D2.is_top apr && PrivD.is_top priv
+    let bot () = { rel = D2.bot (); priv = PrivD.bot ()}
+    let is_bot {rel; priv} = D2.is_bot rel && PrivD.is_bot priv
+    let top () = {rel = D2.top (); priv = PrivD.bot ()}
+    let is_top {rel; priv} = D2.is_top rel && PrivD.is_top priv
 
-    let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
+    let leq {rel=x1; priv=x3 } {rel=y1; priv=y3} =
       D2.leq x1 y1 && PrivD.leq x3 y3
 
-    let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
+    let pretty_diff () (({rel=x1; priv=x3}:t),({rel=y1; priv=y3}:t)): Pretty.doc =
       if not (D2.leq x1 y1) then
         D2.pretty_diff () (x1,y1)
       else
         PrivD.pretty_diff () (x3,y3)
 
-    let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
-      {apr = op1 x1 y1; priv = op3 x3 y3 }
+    let op_scheme op1 op3 {rel=x1; priv=x3} {rel=y1; priv=y3}: t =
+      {rel = op1 x1 y1; priv = op3 x3 y3 }
     let join = op_scheme D2.join PrivD.join
     let meet = op_scheme D2.meet PrivD.meet
     let widen = op_scheme D2.widen PrivD.widen
