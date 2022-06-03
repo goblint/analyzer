@@ -128,7 +128,7 @@ module ListVector: AbstractVector =
       "["^list_str t^"\n"
 
     let equal v1 v2 =
-      List.equal (=:) v1 v2
+      Stdlib.compare v1 v2 = 0
 
     let keep_vals v n =
       List.filteri (fun i x -> i < n) v
@@ -309,7 +309,7 @@ module ListMatrix : AbstractMatrix =
       | x :: xs -> V.length x
 
     let equal m1 m2 =
-     Stdlib.compare m1 m2 = 0
+      Stdlib.compare m1 m2 = 0
 
     let subtract_rows_c row1 row2 c =
       V.map2 (fun x y -> x -: (y *: c)) row1 row2
