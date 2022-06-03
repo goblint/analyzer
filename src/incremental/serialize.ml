@@ -52,15 +52,17 @@ module Cache = struct
     mutable cil_file: Cil.file option;
   }
 
-  (** To be used in server mode to temporarly store input_data before it is replaced with new data.
-      Needed because a signal might interrupt the copying process. *)
-  let backup_data : t option ref = ref None
+  let incomplete_update = ref false
 
   (** Data from previous run used as input for incremental analysis *)
   let input_data : t option ref = ref None
 
+  (** To be used in server mode to temporarly store input_data before it is replaced with new data.
+      Needed because a signal might interrupt the copying process. *)
+  let backup_data : t option ref = ref None
+
   (** Data that generated during the current run is added to tmp_data.
-    For server mode, the data that is gathered here, needs to be moved to [input_data] so it can be read in the subsequent run. *)
+      For server mode, the data that is gathered here, needs to be moved to [input_data] so it can be read in the subsequent run. *)
   let tmp_data = ref {
       solver_data = None;
       analysis_data = None;
@@ -118,4 +120,35 @@ module Cache = struct
     match get_opt_data a with
     | Some d -> d
     | None -> failwith "Requested data is not loaded."
+
+  (** Moves the [tmp_data] to [input_data], in case none of the fields in the latter is [None]*)
+  let update_input_data (): (unit, string) Result.t =
+    match tmp_data.contents with
+    | {
+      solver_data = Some solver_data;
+      analysis_data = Some analysis_data;
+      version_data = Some version_data;
+      cil_file = Some cil_file;
+    } ->
+      let new_input : t = {
+        solver_data;
+        analysis_data;
+        version_data;
+        cil_file;
+      } in
+      incomplete_update := true;
+      backup_data := !input_data;
+      input_data := Some new_input;
+      incomplete_update := false;
+      Ok ()
+    | _ -> Error "Some field was None!"
+
+  (** Moves the [backup_data] back into [input_data]. It should be ensured at the call site that the analyzer execution
+      is not resumed if this function is interrupted. *)
+  let revert_incomplete_update () =
+    if !incomplete_update then
+      input_data := !backup_data
+    else
+      ()
+
 end
