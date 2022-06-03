@@ -983,6 +983,13 @@ struct
     else
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 
+  let widen x y =
+    if M.tracing then M.traceli "apron" "widen %a %a\n" pretty x pretty y;
+    let w = widen x y in
+    if M.tracing then M.trace "apron" "widen same %B\n" (equal y w);
+    if M.tracing then M.traceu "apron" "-> %a\n" pretty w;
+    w
+
   (* TODO: better narrow *)
   let narrow x y = x
 
