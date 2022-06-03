@@ -1223,7 +1223,7 @@ struct
     let thread x = `Right x
   end
 
-  let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.apron.priv.must-joined" then  ",join"  else "") ^ ")"
+  let name () = "PerMutexMeetPrivTID(" ^ (Cluster.name ()) ^ (if GobConfig.get_bool "ana.relation.priv.must-joined" then  ",join"  else "") ^ ")"
 
 
   let compatible (ask:Q.ask) current must_joined other =
@@ -1231,9 +1231,9 @@ struct
     | `Lifted current, `Lifted other ->
       if (TID.is_unique current) && (TID.equal current other) then
         false (* self-read *)
-      else if GobConfig.get_bool "ana.apron.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
+      else if GobConfig.get_bool "ana.relation.priv.not-started" && MHP.definitely_not_started (current, ask.f Q.CreatedThreads) other then
         false (* other is not started yet *)
-      else if GobConfig.get_bool "ana.apron.priv.must-joined" && MHP.must_be_joined other must_joined then
+      else if GobConfig.get_bool "ana.relation.priv.must-joined" && MHP.must_be_joined other must_joined then
         false (* accounted for in local information *)
       else
         true
@@ -1569,7 +1569,7 @@ end
 let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
-      (val match get_string "ana.apron.privatization" with
+      (val match get_string "ana.relation.privatization" with
          | "dummy" -> (module Dummy : S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
@@ -1579,7 +1579,7 @@ let priv_module: (module S) Lazy.t =
          | "mutex-meet-tid-cluster2" -> (module PerMutexMeetPrivTID (ArbitraryCluster (Clustering2)))
          | "mutex-meet-tid-cluster-max" -> (module PerMutexMeetPrivTID (ArbitraryCluster (ClusteringMax)))
          | "mutex-meet-tid-cluster-power" -> (module PerMutexMeetPrivTID (DownwardClosedCluster (ClusteringPower)))
-         | _ -> failwith "ana.apron.privatization: illegal value"
+         | _ -> failwith "ana.relation.privatization: illegal value"
       )
     in
     let module Priv = TracingPriv (Priv)  in

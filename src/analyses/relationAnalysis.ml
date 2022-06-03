@@ -21,7 +21,7 @@ struct
   let should_join = Priv.should_join
 
   let context fd x =
-    if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.apron.context" ~removeAttr:"apron.no-context" ~keepAttr:"apron.context" fd then
+    if ContextUtil.should_keep ~isAttr:GobContext ~keepOption:"ana.relation.context" ~removeAttr:"relation.no-context" ~keepAttr:"relation.context" fd then
       x
     else
       D.bot () (* just like startstate, heterogeneous RD.bot () means top over empty set of variables *)

@@ -842,10 +842,10 @@ let vector =
       ["list", (module ListVector: AbstractVector);
        "array", (module ArrayVector: AbstractVector);]
     in
-    let matrix = (GobConfig.get_string "ana.matrix") in
+    let matrix = (GobConfig.get_string "ana.affeq.matrix") in
     match List.assoc_opt matrix options with
     | Some man -> man
-    | None -> failwith @@ "Matrix " ^ matrix ^ " is not supported. Please check the ana.matrix setting."
+    | None -> failwith @@ "Matrix " ^ matrix ^ " is not supported. Please check the ana.affeq.matrix setting."
   )
 
 let get_vector () = Lazy.force vector
@@ -856,10 +856,10 @@ let matrix =
       ["list", (module ListMatrix: AbstractMatrix);
        "array", (module ArrayMatrix: AbstractMatrix);]
     in
-    let matrix = (GobConfig.get_string "ana.matrix") in
+    let matrix = (GobConfig.get_string "ana.affeq.matrix") in
     match List.assoc_opt matrix options with
     | Some man -> man
-    | None -> failwith @@ "Matrix " ^ matrix ^ " is not supported. Please check the ana.matrix setting."
+    | None -> failwith @@ "Matrix " ^ matrix ^ " is not supported. Please check the ana.affeq.matrix setting."
   )
 
 let get_matrix () = Lazy.force matrix

@@ -23,5 +23,5 @@ The following string arguments are supported:
 1. `base.interval`/`base.no-interval` to override the `ana.base.context.interval` option.
 2. `base.int`/`base.no-int` to override the `ana.base.context.interval` option.
 3. `base.non-ptr`/`base.no-non-ptr` to override the `ana.base.context.non-ptr` option.
-4. `apron.context`/`apron.no-context` to override the `ana.apron.context` option.
+4. `relation.context`/`relation.no-context` to override the `ana.relation.context` option.
 5. `widen`/`no-widen` to override the `ana.context.widen` option.

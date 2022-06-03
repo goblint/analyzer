@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --sets ana.apron.privatization mutex-meet-tid-cluster12
+// SKIP PARAM: --set ana.activated[+] apron --set ana.path_sens[+] threadflag --sets ana.relation.privatization mutex-meet-tid-cluster12
 extern int __VERIFIER_nondet_int();
 
 #include <pthread.h>

@@ -1,4 +1,4 @@
-//SKIP PARAM: --set ana.activated[+] affeq  --set ana.matrix "array" --sem.int.signed_overflow "assume_none"  --enable ana.int.interval
+//SKIP PARAM: --set ana.activated[+] affeq  --set ana.affeq.matrix "array" --sem.int.signed_overflow "assume_none"  --enable ana.int.interval
 // Mistake in leq check lead to verify error
 
 int main() {

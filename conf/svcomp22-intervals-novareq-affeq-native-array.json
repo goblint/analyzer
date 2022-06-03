@@ -9,7 +9,9 @@
       "enums": false,
       "interval": true
     },
-    "matrix": "array",
+    "affeq": {
+      "matrix": "list"
+    },
     "activated": [
       "base",
       "threadid",
