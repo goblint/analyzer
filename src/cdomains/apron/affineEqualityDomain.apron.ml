@@ -4,6 +4,14 @@ module M = Messages
 open Apron
 open VectorMatrix
 
+module Mpqf = struct
+  include Mpqf
+
+  let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
+
+  let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
+end
+
 module VarManagement (Vec: AbstractVector) (Mx: AbstractMatrix)=
 struct
   include SharedFunctions.EnvOps
