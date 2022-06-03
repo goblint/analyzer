@@ -18,14 +18,6 @@ sig
   val get_num: t -> IntOps.BigIntOps.t
 end
 
-module Mpqf = struct
-  include Mpqf
-
-  let get_den x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_den x
-
-  let get_num x = Z_mlgmpidl.z_of_mpzf @@ Mpqf.get_num x
-end
-
 module ConvenienceOps (A: RatOps) =
 struct
   let ( *: ) = A.mul
