@@ -39,13 +39,29 @@ let results_exist () =
 (** Module to cache the data for incremental analaysis during a run, before it is stored to disk, as well as the server mode *)
 module Cache = struct
   type t = {
+    solver_data: Obj.t;
+    analysis_data: Obj.t;
+    version_data: MaxIdUtil.max_ids;
+    cil_file: Cil.file;
+  }
+
+  type mt = {
     mutable solver_data: Obj.t option;
     mutable analysis_data: Obj.t option;
     mutable version_data: MaxIdUtil.max_ids option;
     mutable cil_file: Cil.file option;
   }
 
-  let data = ref {
+  (** To be used in server mode to temporarly store input_data before it is replaced with new data.
+      Needed because a signal might interrupt the copying process. *)
+  let backup_data : t option ref = ref None
+
+  (** Data from previous run used as input for incremental analysis *)
+  let input_data : t option ref = ref None
+
+  (** Data that generated during the current run is added to tmp_data.
+    For server mode, the data that is gathered here, needs to be moved to [input_data] so it can be read in the subsequent run. *)
+  let tmp_data = ref {
       solver_data = None;
       analysis_data = None;
       version_data = None;
@@ -63,7 +79,7 @@ module Cache = struct
   let load_data () =
     let p = Fpath.(gob_results_dir Load / incremental_data_file_name) in
     let loaded_data = unmarshal p in
-    data := loaded_data
+    tmp_data := loaded_data
 
   (** Stores data for future incremental runs at the appropriate file. *)
   let store_data () =
@@ -71,29 +87,29 @@ module Cache = struct
     let d = gob_results_dir Save in
     GobSys.mkdir_or_exists d;
     let p = Fpath.(d / incremental_data_file_name) in
-    marshal !data p
+    marshal !tmp_data p
 
   (** Update the some incremental data in the in-memory cache *)
   let update_data: type a. a data_query -> a -> unit = fun q d -> match q with
-    | SolverData -> !data.solver_data <- Some (Obj.repr d)
-    | AnalysisData -> !data.analysis_data <- Some (Obj.repr d)
-    | VersionData -> !data.version_data <- Some d
-    | CilFile -> !data.cil_file <- Some d
+    | SolverData -> !tmp_data.solver_data <- Some (Obj.repr d)
+    | AnalysisData -> !tmp_data.analysis_data <- Some (Obj.repr d)
+    | VersionData -> !tmp_data.version_data <- Some d
+    | CilFile -> !tmp_data.cil_file <- Some d
 
   (** Reset some incremental data in the in-memory cache to [None]*)
   let reset_data : type a. a data_query -> unit = function
-    | SolverData -> !data.solver_data <- None
-    | AnalysisData -> !data.analysis_data <- None
-    | VersionData -> !data.version_data <- None
-    | CilFile -> !data.cil_file <- None
+    | SolverData -> !tmp_data.solver_data <- None
+    | AnalysisData -> !tmp_data.analysis_data <- None
+    | VersionData -> !tmp_data.version_data <- None
+    | CilFile -> !tmp_data.cil_file <- None
 
   (** Get incremental data from the in-memory cache wrapped in an optional.
       To populate the in-memory cache with data, call [load_data] first. *)
   let get_opt_data : type a. a data_query -> a option = function
-    | SolverData -> Option.map Obj.obj !data.solver_data
-    | AnalysisData -> Option.map Obj.obj !data.analysis_data
-    | VersionData -> !data.version_data
-    | CilFile -> !data.cil_file
+    | SolverData -> Option.map Obj.obj !tmp_data.solver_data
+    | AnalysisData -> Option.map Obj.obj !tmp_data.analysis_data
+    | VersionData -> !tmp_data.version_data
+    | CilFile -> !tmp_data.cil_file
 
   (** Get incremental data from the in-memory cache.
       Same as [get_opt_data], except not yielding an optional and failing when the requested data is not present. *)
