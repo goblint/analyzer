@@ -309,7 +309,7 @@ module ListMatrix : AbstractMatrix =
       | x :: xs -> V.length x
 
     let equal m1 m2 =
-      List.equal V.equal m1 m2
+     Stdlib.compare m1 m2 = 0
 
     let subtract_rows_c row1 row2 c =
       V.map2 (fun x y -> x -: (y *: c)) row1 row2
