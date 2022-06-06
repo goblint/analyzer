@@ -51,14 +51,15 @@ struct
 
   let of_yaml y =
     let open GobYaml in
-    let* input_files = y |> find "input_files" >>= list in
-    let input_files = List.map to_string_exn input_files in (* TODO: no exn *)
-    let* input_file_hashes = y |> find "input_file_hashes" >>= entries in
-    let input_file_hashes = List.map (BatTuple.Tuple2.map2 to_string_exn) input_file_hashes in (* TODO: no exn *)
+    let* input_files = y |> find "input_files" >>= list >>= list_map to_string in
+    let* input_file_hashes = y |> find "input_file_hashes" >>= entries >>= list_map (fun (file, y_hash) ->
+        let+ hash = to_string y_hash in
+        (file, hash)
+      )
+    in
     let* data_model = y |> find "data_model" >>= to_string in
     let* language = y |> find "language" >>= to_string in
-    let+ specification = y |> Yaml.Util.find "specification" in
-    let specification = Option.map to_string_exn specification in (* TODO: no exn *)
+    let+ specification = y |> Yaml.Util.find "specification" >>= option_map to_string in
     {input_files; input_file_hashes; data_model; language; specification}
 end
 
@@ -91,8 +92,7 @@ struct
     let* uuid = y |> find "uuid" >>= to_string in
     let* creation_time = y |> find "creation_time" >>= to_string in
     let* producer = y |> find "producer" >>= Producer.of_yaml in
-    let+ task = y |> Yaml.Util.find "task" in
-    let task = Option.map (fun y_task -> y_task |> Task.of_yaml |> BatResult.get_ok) task in (* TODO: no get_ok *)
+    let+ task = y |> Yaml.Util.find "task" >>= option_map Task.of_yaml in
     {format_version; uuid; creation_time; producer; task}
 end
 

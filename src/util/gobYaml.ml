@@ -4,6 +4,19 @@ let (let*) = Result.bind
 let (let+) r f = Result.map f r
 let (>>=) = Result.bind
 
+let option_map (f: 'a -> ('b, 'e) result) (o: 'a option): ('b option, 'e) result =
+  match o with
+  | Some x -> Result.map Option.some (f x)
+  | None -> Ok None
+
+let rec list_map (f: 'a -> ('b, 'e) result) (l: 'a list): ('b list, 'e) result =
+  match l with
+  | [] -> Ok []
+  | x :: xs ->
+    let* y = f x in
+    let+ ys = list_map f xs in
+    y :: ys
+
 let find s y =
   (* let* y' = Yaml.Util.find s y in
   match y' with
