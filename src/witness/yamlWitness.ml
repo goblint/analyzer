@@ -379,7 +379,7 @@ struct
                     | x when Queries.ID.is_bool x ->
                       Option.get (Queries.ID.to_bool x)
                     | _ ->
-                      true (* TODO: what to do here? *)
+                      false (* unknown precondition is excluded from checking *)
                   end
                 | Error e ->
                   M.error ~category:Witness ~loc "CIL couldn't parse precondition: %s" inv;
@@ -388,8 +388,10 @@ struct
               in
 
               let lvars = LvarS.filter precondition_holds lvars in
-              if LvarS.is_empty lvars then
-                failwith "precondition never holds"
+              if LvarS.is_empty lvars then (
+                M.warn ~category:Witness ~loc "precondition never definitely holds: %s" pre;
+                None
+              )
               else
                 validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
             | Error e ->
