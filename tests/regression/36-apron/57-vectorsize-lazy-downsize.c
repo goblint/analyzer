@@ -94,9 +94,9 @@ int main() {
   capacity = 1;
   assert(used >= 0);
   assert(capacity >= 1);
-  assert(capacity <= MAX_CAPACITY); // TODO
+  assert(capacity <= MAX_CAPACITY);
   assert(used <= capacity);
-  assert(used >= capacity - used - 1); // TODO: 2 * used >= capacity - 1, but without overflow in *
+  assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
 
   pthread_t worker1;
   pthread_t worker2;
