@@ -1,0 +1,27 @@
+--- tests/incremental/05-method-rename/04-cyclic_with_swap.c
++++ tests/incremental/05-method-rename/04-cyclic_with_swap.c
+@@ -2,15 +2,19 @@
+
+ //Changed.
+
+-void foo1(int c) {
+-    if (c < 10) foo2(c + 1);
++void newFun(int c) {
++    printf("newfun");
+ }
+
+-void foo2(int c) {
+-    if (c < 10) foo1(c + 1);
++void bar1(int c) {
++    if (c < 10) bar2(c + 1);
++}
++
++void bar2(int c) {
++    if (c < 10) newFun(c + 1);
+ }
+
+ int main() {
+-    foo1(0);
++    bar1(0);
+     return 0;
+ }

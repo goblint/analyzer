@@ -1,0 +1,25 @@
+--- tests/incremental/05-method-rename/03-cyclic_rename_dependency.c
++++ tests/incremental/05-method-rename/03-cyclic_rename_dependency.c
+@@ -2,16 +2,16 @@
+
+ //Unchanged.
+
+-void foo1(int c) {
+-    if (c < 10) foo2(c + 1);
++void bar1(int c) {
++    if (c < 10) bar2(c + 1);
+ }
+
+-void foo2(int c) {
+-    if (c < 10) foo1(c + 1);
++void bar2(int c) {
++    if (c < 10) bar1(c + 1);
+ }
+
+ int main() {
+-    foo1(0);
+-    foo2(0);
++    bar1(0);
++    bar2(0);
+     return 0;
+ }
