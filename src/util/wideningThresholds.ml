@@ -58,7 +58,13 @@ class extractInvariantsVisitor (exps) = object
       DoChildren
 
   method! vstmt (s: stmt) =
-    DoChildren
+    match s.skind with
+    | If (e, _, _, _, _)
+    | Switch (e, _, _, _, _) ->
+      EH.replace exps e ();
+      DoChildren
+    | _ ->
+      DoChildren
 end
 
 let exps = ResettableLazy.from_fun (fun () ->
