@@ -282,10 +282,7 @@ struct
     in
 
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
-    let yaml_entries = match yaml with
-      | `A yaml_entries -> yaml_entries
-      | _ -> failwith "invalid YAML"
-    in
+    let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 
     let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
       let uuid = entry.metadata.uuid in
