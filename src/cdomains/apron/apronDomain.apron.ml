@@ -211,7 +211,7 @@ struct
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if not v.vglob then
+        if true || not v.vglob then
           let var = Var.of_string v.vname in
           if Environment.mem_var env var then
             Var var
@@ -662,20 +662,20 @@ sig
   include Lattice.S with type t := t
 end
 
+module Tracked =
+struct
+  let type_tracked typ =
+    isIntegralType typ
+
+  let varinfo_tracked vi =
+    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+    type_tracked vi.vtype && not vi.vaddrof
+end
+
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
   module Bounds = Bounds (Man)
-
-  module Tracked =
-  struct
-    let type_tracked typ =
-      isIntegralType typ
-
-    let varinfo_tracked vi =
-      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-      type_tracked vi.vtype && not vi.vaddrof
-  end
 
   include AOps (Tracked) (Man)
 
@@ -970,16 +970,44 @@ struct
   let widen x y =
     let x_env = A.env x in
     let y_env = A.env y in
-    if Environment.equal x_env y_env  then
-      if GobConfig.get_bool "ana.apron.threshold_widening" && Oct.manager_is_oct Man.mgr then
-        let octmgr = Oct.manager_to_oct Man.mgr in
-        let ts = ResettableLazy.force widening_thresholds_apron in
-        let x_oct = Oct.Abstract1.to_oct x in
-        let y_oct = Oct.Abstract1.to_oct y in
-        let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
-        Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+    if Environment.equal x_env y_env then (
+      if GobConfig.get_bool "ana.apron.threshold_widening" then (
+        if Oct.manager_is_oct Man.mgr then (
+          let octmgr = Oct.manager_to_oct Man.mgr in
+          let ts = ResettableLazy.force widening_thresholds_apron in
+          let x_oct = Oct.Abstract1.to_oct x in
+          let y_oct = Oct.Abstract1.to_oct y in
+          let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+          Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+        )
+        else (
+          (* TODO: clean this up *)
+          let exps = ResettableLazy.force WideningThresholds.exps in
+          let module Convert = Convert (Tracked) (Man) in
+          ignore (Pretty.printf "threshold y: %a\n" pretty y);
+          let cons = List.map (fun e ->
+              (* ignore (Pretty.printf "threshold: %a\n" CilType.Exp.pretty e); *)
+              match Convert.tcons1_of_cil_exp y y_env e false with
+              | cons ->
+                let {Lincons1.lincons0_array; _} = A.of_tcons_array Man.mgr y_env {array_env=y_env; tcons0_array = [|Tcons1.get_tcons0 cons|]}
+                |> A.to_lincons_array Man.mgr in
+                Array.to_list lincons0_array
+              | exception Convert.Unsupported_CilExp ->
+                []
+            ) exps
+            |> List.flatten
+          in
+          let cons': Lincons1.earray = {
+            array_env = y_env;
+            lincons0_array = Array.of_list cons
+          }
+          in
+          A.widening_threshold Man.mgr x y cons'
+        )
+      )
       else
         A.widening Man.mgr x y
+    )
     else
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 
@@ -1016,6 +1044,7 @@ type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, 
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
   include DWithOps (Man) (DHetero (Man))
+  module Tracked = Tracked
   module Man = Man
 end
 
