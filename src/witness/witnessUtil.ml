@@ -160,3 +160,32 @@ struct
     | _ ->
       Error "parse_cil"
 end
+
+module Locator (E: Set.OrderedType) =
+struct
+  module FileH = BatHashtbl.Make (Basetype.RawStrings)
+  module LocM = BatMap.Make (CilType.Location)
+  module ES = BatSet.Make (E)
+
+  (* for each file, locations have total order, so LocM essentially does binary search *)
+  type t = ES.t LocM.t FileH.t
+
+  let create () = FileH.create 100
+
+  let add (file_loc_es: t) (loc: Cil.location) (e: E.t): unit =
+    FileH.modify_def LocM.empty loc.file (
+        LocM.modify_def ES.empty loc (ES.add e)
+      ) file_loc_es
+
+  let find_opt (file_loc_es: t) (loc: Cil.location): ES.t option =
+    let (let*) = Option.bind in (* TODO: move to general library *)
+    let* loc_es = FileH.find_option file_loc_es loc.file in
+    let* (_, es) = LocM.find_first_opt (fun loc' ->
+        CilType.Location.compare loc loc' <= 0 (* allow inexact match *)
+      ) loc_es
+    in
+    if ES.is_empty es then
+      None
+    else
+      Some es
+end

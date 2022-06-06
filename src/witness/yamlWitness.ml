@@ -237,20 +237,15 @@ module Validator
     (LHT : BatHashtbl.S with type key = EQSys.LVar.t)
     (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
-
-  module FileH = BatHashtbl.Make (Basetype.RawStrings)
-  module LocM = BatMap.Make (CilType.Location)
-  module LvarS = BatSet.Make (EQSys.LVar)
+  module Locator = WitnessUtil.Locator (EQSys.LVar)
+  module LvarS = Locator.ES
   module InvariantParser = WitnessUtil.InvariantParser
 
   let validate lh gh (file: Cil.file) =
-    (* for each file, locations (of lvar nodes) have total order, so LocM essentially does binary search *)
-    let file_loc_lvars: LvarS.t LocM.t FileH.t = FileH.create 100 in
+    let locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
-        FileH.modify_def LocM.empty loc.file (
-          LocM.modify_def LvarS.empty loc (LvarS.add lvar)
-        ) file_loc_lvars
+        Locator.add locator loc lvar
       ) lh;
 
     let inv_parser = InvariantParser.create file in
@@ -298,22 +293,7 @@ struct
 
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
-
-          let lvars_opt: LvarS.t option =
-            let (let*) = Option.bind in (* TODO: move to general library *)
-            let* loc_lvars = FileH.find_option file_loc_lvars loc.file in
-            (* for each file, locations (of lvar nodes) have total order, so LocM essentially does binary search *)
-            let* (_, lvars) = LocM.find_first_opt (fun loc' ->
-                CilType.Location.compare loc loc' <= 0 (* allow inexact match *)
-              ) loc_lvars
-            in
-            if LvarS.is_empty lvars then
-              None
-            else
-              Some lvars
-          in
-
-          begin match lvars_opt with
+          begin match Locator.find_opt locator loc with
             | Some lvars ->
               let module VR = ValidationResult in
 
