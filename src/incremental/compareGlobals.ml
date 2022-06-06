@@ -34,7 +34,7 @@ let should_reanalyze (fdec: Cil.fundec) =
 (* If some CFGs of the two functions to be compared are provided, a fine-grained CFG comparison is done that also determines which
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
- let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) =
+ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (global_function_rename_mapping: method_rename_assumptions) (global_var_rename_mapping: glob_var_rename_assumptions) =
   let local_rename_map: (string, string) Hashtbl.t = Hashtbl.create (List.length a.slocals) in
 
   if (List.length a.slocals) = (List.length b.slocals) then
@@ -56,20 +56,20 @@ let should_reanalyze (fdec: Cil.fundec) =
         in
 
   let headerSizeEqual, headerRenameMapping = rename_mapping_aware_compare a.sformals b.sformals (StringMap.empty) in
-  let actHeaderRenameMapping = (headerRenameMapping, global_rename_mapping) in
+  let actHeaderRenameMapping = (headerRenameMapping, global_function_rename_mapping, global_var_rename_mapping) in
 
   let unchangedHeader = eq_varinfo a.svar b.svar actHeaderRenameMapping &&>> forward_list_equal eq_varinfo a.sformals b.sformals in
-  let identical, diffOpt, (_, renamed_method_dependencies) =
+  let identical, diffOpt, (_, renamed_method_dependencies, renamed_global_vars_dependencies) =
     if should_reanalyze a then
-      false, None, (StringMap.empty, StringMap.empty)
+      false, None, emptyRenameMapping
     else
       (* Here the local variables are checked to be equal *)
       let sizeEqual, local_rename = rename_mapping_aware_compare a.slocals b.slocals headerRenameMapping in
-      let rename_mapping: rename_mapping = (local_rename, global_rename_mapping) in
+      let rename_mapping: rename_mapping = (local_rename, global_function_rename_mapping, global_var_rename_mapping) in
 
       let sameDef = unchangedHeader &&> sizeEqual |> fst in
       if not sameDef then
-        (false, None, (StringMap.empty, StringMap.empty))
+        (false, None, emptyRenameMapping)
       else
         match cfgs with
         | None ->
@@ -79,7 +79,7 @@ let should_reanalyze (fdec: Cil.fundec) =
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
           let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) a b in
-          if diffNodes1 = [] then (true, None, (StringMap.empty, StringMap.empty))
-          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1}, (StringMap.empty, StringMap.empty))
+          if diffNodes1 = [] then (true, None, emptyRenameMapping)
+          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1}, emptyRenameMapping)
   in
-  identical, unchangedHeader |> fst, diffOpt, renamed_method_dependencies
+  identical, unchangedHeader |> fst, diffOpt, renamed_method_dependencies, renamed_global_vars_dependencies

@@ -12,7 +12,7 @@ let (&&<>) (prev_result: bool * rename_mapping) f : bool * rename_mapping =
   else false, prev_rm
 
 let eq_node (x, fun1) (y, fun2) : bool =
-  let empty_rename_mapping: rename_mapping = (StringMap.empty, StringMap.empty) in
+  let empty_rename_mapping: rename_mapping = emptyRenameMapping in
   match x,y with
   | Statement s1, Statement s2 -> eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) empty_rename_mapping |> fst
   | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar empty_rename_mapping |> fst
@@ -21,7 +21,7 @@ let eq_node (x, fun1) (y, fun2) : bool =
 
 (* TODO: compare ASMs properly instead of simply always assuming that they are not the same *)
 let eq_edge x y =
-  let empty_rename_mapping: rename_mapping = (StringMap.empty, StringMap.empty) in
+  let empty_rename_mapping: rename_mapping = emptyRenameMapping in
   let (r, _) = match x, y with
   | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 empty_rename_mapping &&<> eq_exp rv1 rv2
   | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 empty_rename_mapping &&<> forward_list_equal eq_exp ars1 ars2

@@ -9,11 +9,11 @@ let empty_change_info () : change_info = {added = []; removed = []; changed = []
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * (cfg * cfg)) option) = match a, b with
   | GFun (f,_), GFun (g,_) ->
-    let identical, unchangedHeader, diffOpt, _ = CompareGlobals.eqF f g cfgs StringMap.empty in
+    let identical, unchangedHeader, diffOpt, _, _ = CompareGlobals.eqF f g cfgs StringMap.empty VarinfoMap.empty in
 
     identical, unchangedHeader, diffOpt
-  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty) |> fst, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
-  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y (StringMap.empty, StringMap.empty) |> fst, false, None
+  | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y emptyRenameMapping |> fst, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
+  | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y emptyRenameMapping |> fst, false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
 
 let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =

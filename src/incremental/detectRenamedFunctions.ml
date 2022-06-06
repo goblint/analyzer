@@ -17,7 +17,7 @@ end
 module FundecMap = Map.Make(FundecForMap)
 
 (*A dependency maps the function it depends on to the name the function has to be changed to*)
-type dependencies = string StringMap.t
+type functionDependencies = string StringMap.t
 
 (*Renamed: newName * dependencies; Modified=now*unchangedHeader*)
 type functionStatus = SameName of fundec | Renamed of fundec | Created | Deleted | Modified of fundec * bool
@@ -87,7 +87,7 @@ let registerMapping oldF nowF data =
    reverseMethodMapping=FundecMap.add nowF oldF data.reverseMethodMapping}
 
 (*returns true iff for all dependencies it is true, that the dependency has a corresponding function with the new name and matches the without having dependencies itself and the new name is not already present on the old AST. *)
-let doAllDependenciesMatch (dependencies: dependencies) (oldFunctionMap: f StringMap.t) (newFunctionMap: f StringMap.t) (data: carryType) : bool * carryType =
+let doAllDependenciesMatch (dependencies: functionDependencies) (global_var_dependencies: glob_var_rename_assumptions) (oldFunctionMap: f StringMap.t) (newFunctionMap: f StringMap.t) (data: carryType) : bool * carryType =
   StringMap.fold (fun oldName newName (allEqual, data) ->
       (*Early cutoff if a previous dependency returned false or the newName is already present in the old map*)
       if allEqual && not (StringMap.mem newName oldFunctionMap) then
@@ -106,9 +106,9 @@ let doAllDependenciesMatch (dependencies: dependencies) (oldFunctionMap: f Strin
 
           match newFundecOption with
           | Some((newFundec, _)) ->
-            let doMatch, _, _, dependencies = CompareGlobals.eqF oldFundec newFundec None StringMap.empty in
+            let doMatch, _, _, function_dependencies, global_var_dependencies = CompareGlobals.eqF oldFundec newFundec None StringMap.empty VarinfoMap.empty in
 
-            if doMatch && StringMap.is_empty dependencies then
+            if doMatch && StringMap.is_empty function_dependencies && VarinfoMap.is_empty global_var_dependencies then
               true, registerMapping oldFundec newFundec data
             else false, data
 
@@ -144,12 +144,15 @@ let detectRenamedFunctions (oldAST: file) (newAST: file) : output FundecMap.t = 
         match matchingNewFundec with
         | Some (newFun, _) ->
           (*Compare if they are similar*)
-          let doMatch, unchangedHeader, _, dependencies = CompareGlobals.eqF f newFun None StringMap.empty in
+          let doMatch, unchangedHeader, _, function_dependencies, global_var_dependencies =
+          CompareGlobals.eqF f newFun None StringMap.empty VarinfoMap.empty in
 
-          let actDependencies = getDependencies dependencies in
+          let _ = Pretty.printf "%s\n" (rename_mapping_to_string (StringMap.empty, function_dependencies, global_var_dependencies)) in
+
+          let actDependencies = getDependencies function_dependencies in
 
           if doMatch then
-            let doDependenciesMatch, updatedData = doAllDependenciesMatch actDependencies oldFunctionMap nowFunctionMap data in
+            let doDependenciesMatch, updatedData = doAllDependenciesMatch actDependencies global_var_dependencies oldFunctionMap nowFunctionMap data in
             if doDependenciesMatch then
               registerBiStatus f newFun (SameName(newFun)) updatedData
             else

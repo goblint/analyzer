@@ -7,17 +7,30 @@ and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
 
 module StringMap = Map.Make(String)
 
+module VarinfoOrdered = struct
+  type t = varinfo
+
+  (*x.svar.uid cannot be used, as they may overlap between old and now AST*)
+  let compare (x: varinfo) (y: varinfo) = String.compare x.vname y.vname
+end
+
+
+module VarinfoMap = Map.Make(VarinfoOrdered)
+
 type method_rename_assumption = {original_method_name: string; new_method_name: string; parameter_renames: string StringMap.t}
 type method_rename_assumptions = method_rename_assumption StringMap.t
+type glob_var_rename_assumptions = string VarinfoMap.t
 
 (*rename_mapping is carried through the stack when comparing the AST. Holds a list of rename assumptions.*)
-type rename_mapping = (string StringMap.t) * (method_rename_assumptions)
+type rename_mapping = (string StringMap.t) * (method_rename_assumptions) * glob_var_rename_assumptions
+
+let emptyRenameMapping = (StringMap.empty, StringMap.empty, VarinfoMap.empty)
 
 (*Compares two names, being aware of the rename_mapping. Returns true iff:
   1. there is a rename for name1 -> name2 = rename(name1)
   2. there is no rename for name1 -> name1 = name2*)
 let rename_mapping_aware_name_comparison (name1: string) (name2: string) (rename_mapping: rename_mapping) =
-  let (local_c, method_c) = rename_mapping in
+  let (local_c, method_c, _) = rename_mapping in
   let existingAssumption: string option = StringMap.find_opt name1 local_c in
 
   match existingAssumption with
@@ -44,14 +57,18 @@ let string_tuple_to_string (tuple: (string * string) list) = "[" ^ (tuple |>
                                                                     String.concat ", ") ^ "]"
 
 let rename_mapping_to_string (rename_mapping: rename_mapping) =
-  let (local, methods) = rename_mapping in
+  let (local, methods, glob_vars) = rename_mapping in
   let local_string = string_tuple_to_string (List.of_seq (StringMap.to_seq local)) in
   let methods_string: string = List.of_seq (StringMap.to_seq methods |> Seq.map snd) |>
                                List.map (fun x -> match x with {original_method_name; new_method_name; parameter_renames} ->
                                    "(methodName: " ^ original_method_name ^ " -> " ^ new_method_name ^
                                    "; renamed_params=" ^ string_tuple_to_string (List.of_seq (StringMap.to_seq parameter_renames)) ^ ")") |>
                                String.concat ", " in
-  "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "])"
+
+  let global_var_string: string = string_tuple_to_string (List.of_seq (VarinfoMap.to_seq glob_vars) |>
+  List.map (fun (v, nowName) -> v.vname, nowName)) in
+
+  "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "]; glob_vars=" ^ global_var_string ^ ")"
 
 let identifier_of_global glob =
   match glob with
@@ -215,16 +232,30 @@ and eq_varinfo2 (rename_mapping: rename_mapping) (a: varinfo) (b: varinfo) = eq_
 and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool * rename_mapping =
   (*Printf.printf "Comp %s with %s\n" a.vname b.vname;*)
 
-  let (locals_renames, method_rename_mappings) = rename_mapping in
+  let (locals_renames, method_rename_mappings, glob_vars) = rename_mapping in
+
+  let compare_local_and_global_var = fun old_varinfo now_varinfo ->
+    let is_local = StringMap.mem old_varinfo.vname locals_renames in
+    if not is_local then
+      let present_mapping = VarinfoMap.find_opt old_varinfo glob_vars in
+
+      match present_mapping with
+        | Some (knownNowName) -> now_varinfo.vname = knownNowName, method_rename_mappings, glob_vars
+        | None -> (
+          let update_glob_vars = VarinfoMap.add old_varinfo now_varinfo.vname glob_vars in
+          true, method_rename_mappings, update_glob_vars
+        )
+    else rename_mapping_aware_name_comparison old_varinfo.vname now_varinfo.vname rename_mapping, method_rename_mappings, glob_vars
+  in
 
   (*When we compare function names, we can directly compare the naming from the rename_mapping if it exists.*)
-  let isNamingOk, updated_method_rename_mappings = match a.vtype, b.vtype with
+  let isNamingOk, updated_method_rename_mappings, updatedGlobVarMapping = match a.vtype, b.vtype with
     | TFun(_, aParamSpec, _, _), TFun(_, bParamSpec, _, _) -> (
         let specific_method_rename_mapping = StringMap.find_opt a.vname method_rename_mappings in
         match specific_method_rename_mapping with
         | Some method_rename_mapping ->
           let is_naming_ok = method_rename_mapping.original_method_name = a.vname && method_rename_mapping.new_method_name = b.vname in
-          is_naming_ok, method_rename_mappings
+          is_naming_ok, method_rename_mappings, glob_vars
         | None ->
           if a.vname <> b.vname then
             (*Function that extracts the names from the param spec of the TFun*)
@@ -240,10 +271,13 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
             let assumption =
               {original_method_name = a.vname; new_method_name = b.vname; parameter_renames = create_locals_rename_mapping aParamNames bParamNames} in
 
-            true, StringMap.add a.vname assumption method_rename_mappings
-          else true, method_rename_mappings
+            true, StringMap.add a.vname assumption method_rename_mappings, glob_vars
+          else true, method_rename_mappings, glob_vars
       )
-    | _, _ -> rename_mapping_aware_name_comparison a.vname b.vname rename_mapping, method_rename_mappings
+    | TInt (_, _), TInt (_, _) -> compare_local_and_global_var a b
+    | TFloat (_, _), TFloat (_, _) -> compare_local_and_global_var a b
+    | TPtr (_, _), TPtr(_, _) -> compare_local_and_global_var a b
+    | _, _ -> rename_mapping_aware_name_comparison a.vname b.vname rename_mapping, method_rename_mappings, glob_vars
   in
 
   (*If the following is a method call, we need to check if we have a mapping for that method call. *)
@@ -253,17 +287,23 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
 
         match new_locals with
         | Some locals ->
-          (*Printf.printf "Performing rename_mapping switch. New rename_mapping=%s\n" (rename_mapping_to_string (locals.parameter_renames, method_rename_mappings));*)
-          (locals.parameter_renames, updated_method_rename_mappings)
-        | None -> (StringMap.empty, updated_method_rename_mappings)
+          (locals.parameter_renames, updated_method_rename_mappings, updatedGlobVarMapping)
+        | None -> (StringMap.empty, updated_method_rename_mappings, updatedGlobVarMapping)
       )
-    | _ -> (locals_renames, updated_method_rename_mappings)
+    (*| GVar (_, _, _) -> (
+        let new_local = VarinfoMap.find_opt a glob_vars in
+
+        match new_local with
+        | Some now_name -> (StringMap.add a.vname now_name StringMap.empty, updated_method_rename_mappings, updatedGlobVarMapping)
+        | None -> (StringMap.empty, updated_method_rename_mappings, updatedGlobVarMapping)
+    )*)
+    | _ -> (locals_renames, updated_method_rename_mappings, updatedGlobVarMapping)
   in
 
   (*Ignore rename mapping for type check, as it doesn't change anyway*)
   let (typeCheck, _) = eq_typ a.vtype b.vtype typ_rename_mapping in
 
-  (typeCheck, (locals_renames, updated_method_rename_mappings)) &&>>
+  (typeCheck, (locals_renames, updated_method_rename_mappings, updatedGlobVarMapping)) &&>>
   forward_list_equal eq_attribute a.vattr b.vattr &&>
   (a.vstorage = b.vstorage) &&> (a.vglob = b.vglob) &&> (a.vaddrof = b.vaddrof)
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
