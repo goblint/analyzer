@@ -241,6 +241,7 @@ struct
   module FileH = BatHashtbl.Make (Basetype.RawStrings)
   module LocM = BatMap.Make (CilType.Location)
   module LvarS = BatSet.Make (EQSys.LVar)
+  module InvariantParser = WitnessUtil.InvariantParser
 
   let validate lh gh (file: Cil.file) =
     (* for each file, locations (of lvar nodes) have total order, so LocM essentially does binary search *)
@@ -252,11 +253,7 @@ struct
         ) file_loc_lvars
       ) lh;
 
-    let global_vars = List.filter_map (function
-        | Cil.GVar (v, _, _) -> Some v
-        | _ -> None
-      ) file.globals
-    in
+    let inv_parser = InvariantParser.create file in
 
     let ask_local (lvar:EQSys.LVar.t) local =
       (* build a ctx for using the query system *)
@@ -299,8 +296,8 @@ struct
         }
         in
 
-        match Frontc.parse_standalone_exp inv with
-        | inv_cabs ->
+        match InvariantParser.parse_cabs inv with
+        | Ok inv_cabs ->
 
           let lvars_opt: LvarS.t option =
             let (let*) = Option.bind in (* TODO: move to general library *)
@@ -322,43 +319,21 @@ struct
 
               let lvars = match pre with
                 | Some pre ->
-                  let pre_cabs = Frontc.parse_standalone_exp pre in (* TODO: consistent handling *)
+                  let pre_cabs = InvariantParser.parse_cabs pre |> BatResult.get_ok in (* TODO: consistent handling *)
 
                   LvarS.filter (fun ((n, c) as lvar) ->
-                    let fd = Node.find_fundec n in
-                    let pre_d = LHT.find lh (FunctionEntry fd, c) in
-                    let vars = fd.sformals @ fd.slocals @ global_vars in
+                    let fundec = Node.find_fundec n in
+                    let pre_d = LHT.find lh (FunctionEntry fundec, c) in
 
-                    let genv = Cabs2cil.genvironment in
-                    let env = Hashtbl.copy genv in
-                    List.iter (fun (v: Cil.varinfo) ->
-                        Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
-                      ) (fd.sformals @ fd.slocals);
-
-                    let pre_exp_opt =
-                      Cil.currentLoc := loc;
-                      Cil.currentExpLoc := loc;
-                      Cabs2cil.currentFunctionFDEC := fd;
-                      let old_locals = fd.slocals in
-                      let old_useLogicalOperators = !Cil.useLogicalOperators in
-                      Fun.protect ~finally:(fun () ->
-                          fd.slocals <- old_locals; (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
-                          Cil.useLogicalOperators := old_useLogicalOperators
-                        ) (fun () ->
-                          Cil.useLogicalOperators := true;
-                          Cabs2cil.convStandaloneExp ~genv ~env pre_cabs
-                        )
-                    in
-
-                    match pre_exp_opt with
-                    | Some pre_exp when Check.checkStandaloneExp ~vars pre_exp ->
+                    match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
+                    | Ok pre_exp ->
                       begin match ask_local lvar pre_d (Queries.EvalInt pre_exp) with
                         | x when Queries.ID.is_bool x ->
                           Option.get (Queries.ID.to_bool x)
                         | _ ->
                           true (* TODO: what to do here? *)
                       end
-                    | _ ->
+                    | Error e ->
                       failwith "precondition parse error" (* TODO: consistent handling *)
                   ) lvars
                 | None ->
@@ -370,32 +345,10 @@ struct
 
               let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
                   let d = LHT.find lh lvar in
-                  let fd = Node.find_fundec n in
-                  let vars = fd.sformals @ fd.slocals @ global_vars in
+                  let fundec = Node.find_fundec n in
 
-                  let genv = Cabs2cil.genvironment in
-                  let env = Hashtbl.copy genv in
-                  List.iter (fun (v: Cil.varinfo) ->
-                      Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
-                    ) (fd.sformals @ fd.slocals);
-
-                  let inv_exp_opt =
-                    Cil.currentLoc := loc;
-                    Cil.currentExpLoc := loc;
-                    Cabs2cil.currentFunctionFDEC := fd;
-                    let old_locals = fd.slocals in
-                    let old_useLogicalOperators = !Cil.useLogicalOperators in
-                    Fun.protect ~finally:(fun () ->
-                        fd.slocals <- old_locals; (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
-                        Cil.useLogicalOperators := old_useLogicalOperators
-                      ) (fun () ->
-                        Cil.useLogicalOperators := true;
-                        Cabs2cil.convStandaloneExp ~genv ~env inv_cabs
-                      )
-                  in
-
-                  let result: VR.result = match inv_exp_opt with
-                    | Some inv_exp when Check.checkStandaloneExp ~vars inv_exp ->
+                  let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                    | Ok inv_exp ->
                       begin match ask_local lvar d (Queries.EvalInt inv_exp) with
                         | x when Queries.ID.is_bool x ->
                           let verdict = Option.get (Queries.ID.to_bool x) in
@@ -406,7 +359,7 @@ struct
                         | _ ->
                           Unconfirmed
                       end
-                    | _ ->
+                    | Error e ->
                       ParseError
                   in
                   VR.join acc (VR.result_to_enum result)
@@ -437,7 +390,7 @@ struct
               M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
               None
           end
-        | exception Frontc.ParseError _ ->
+        | Error e ->
           Errormsg.log "\n"; (* CIL prints garbage without \n before *)
           M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
           M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv;

@@ -111,3 +111,52 @@ struct
     else
       [inv']
 end
+
+module InvariantParser =
+struct
+  type t = {
+    global_vars: Cil.varinfo list;
+  }
+
+  let create (file: Cil.file): t =
+    let global_vars = List.filter_map (function
+        | Cil.GVar (v, _, _) -> Some v
+        | _ -> None
+      ) file.globals
+    in
+    {global_vars}
+
+  let parse_cabs (inv: string): (Cabs.expression, string) result =
+    match Frontc.parse_standalone_exp inv with
+    | inv_cabs -> Ok inv_cabs
+    | exception (Frontc.ParseError e) -> Error e
+
+  let parse_cil {global_vars} ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
+    let genv = Cabs2cil.genvironment in
+    let env = Hashtbl.copy genv in
+    List.iter (fun (v: Cil.varinfo) ->
+        Hashtbl.replace env v.vname (Cabs2cil.EnvVar v, v.vdecl)
+      ) (fundec.sformals @ fundec.slocals);
+
+    let inv_exp_opt =
+      Cil.currentLoc := loc;
+      Cil.currentExpLoc := loc;
+      Cabs2cil.currentFunctionFDEC := fundec;
+      let old_locals = fundec.slocals in
+      let old_useLogicalOperators = !Cil.useLogicalOperators in
+      Fun.protect ~finally:(fun () ->
+          fundec.slocals <- old_locals; (* restore locals, Cabs2cil may mangle them by inserting temporary variables *)
+          Cil.useLogicalOperators := old_useLogicalOperators
+        ) (fun () ->
+          Cil.useLogicalOperators := true;
+          Cabs2cil.convStandaloneExp ~genv ~env inv_cabs
+        )
+    in
+
+    let vars = fundec.sformals @ fundec.slocals @ global_vars in
+    match inv_exp_opt with
+    | Some inv_exp when Check.checkStandaloneExp ~vars inv_exp ->
+      Ok inv_exp
+    | _ ->
+      Error "parse_cil"
+end
