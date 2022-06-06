@@ -1,4 +1,6 @@
-(** Symbolic lock-sets for use in per-element patterns. *)
+(** Symbolic lock-sets for use in per-element patterns.
+
+    See Section 5 and 6 in https://dl.acm.org/doi/10.1145/2970276.2970337 for more details. *)
 
 module LF = LibraryFunctions
 module LP = SymbLocksDomain.LockingPattern

@@ -274,14 +274,17 @@ struct
   let printXml f (x,y,z) = BatPrintf.fprintf f "<value>\n<map>\n<key>1</key>\n%a<key>2</key>\n%a<key>3</key>\n%a</map>\n</value>\n" Exp.printXml x Exp.printXml y Exp.printXml z
 end
 
+(** Index-based symbolic lock *)
 module ILock =
 struct
+
+  (** Index in index-based symbolic lock *)
   module Idx =
   struct
     include Printable.Std
     type t =
-      | Unknown
-      | Star
+      | Unknown (** Unknown index. Mutex index not synchronized with access index. *)
+      | Star (** Star index. Mutex index synchronized with access index. Corresponds to star_0 in ASE16 paper, multiple star indices not supported in this implementation. *)
     [@@deriving eq, ord, hash]
     let name () = "i-lock index"
 
