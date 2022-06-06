@@ -196,8 +196,13 @@ struct
     (min, max)
 end
 
+module type ConvertArg =
+sig
+  val allow_global: bool
+end
+
 (** Conversion from CIL expressions to Apron. *)
-module Convert (Tracked: Tracked) (Man: Manager)=
+module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
 struct
   open Texpr1
   open Tcons1
@@ -211,7 +216,7 @@ struct
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if true || not v.vglob then
+        if not v.vglob || Arg.allow_global then
           let var = Var.of_string v.vname in
           if Environment.mem_var env var then
             Var var
@@ -353,7 +358,7 @@ end
 (** Convenience operations on A. *)
 module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = Convert (Tracked) (Man)
+  module Convert = Convert (struct let allow_global = false end) (Tracked) (Man)
 
   type t = Man.mt A.t
 
@@ -982,7 +987,7 @@ struct
         )
         else (
           let exps = ResettableLazy.force WideningThresholds.exps in
-          let module Convert = Convert (Tracked) (Man) in
+          let module Convert = Convert (struct let allow_global = true end) (Tracked) (Man) in
           (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
           let tcons1s = List.filter_map (fun e ->
               match Convert.tcons1_of_cil_exp y y_env e false with
