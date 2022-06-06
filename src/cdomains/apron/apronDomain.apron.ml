@@ -981,28 +981,26 @@ struct
           Oct.Abstract1.of_oct {x_oct with abstract0 = r}
         )
         else (
-          (* TODO: clean this up *)
           let exps = ResettableLazy.force WideningThresholds.exps in
           let module Convert = Convert (Tracked) (Man) in
-          ignore (Pretty.printf "threshold y: %a\n" pretty y);
-          let cons = List.map (fun e ->
-              (* ignore (Pretty.printf "threshold: %a\n" CilType.Exp.pretty e); *)
+          (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
+          let tcons1s = List.filter_map (fun e ->
               match Convert.tcons1_of_cil_exp y y_env e false with
-              | cons ->
-                let {Lincons1.lincons0_array; _} = A.of_tcons_array Man.mgr y_env {array_env=y_env; tcons0_array = [|Tcons1.get_tcons0 cons|]}
-                |> A.to_lincons_array Man.mgr in
-                Array.to_list lincons0_array
+              | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
+                Some tcons1
+              | _
               | exception Convert.Unsupported_CilExp ->
-                []
+                None
             ) exps
-            |> List.flatten
           in
-          let cons': Lincons1.earray = {
+          let tcons1_earray: Tcons1.earray = {
             array_env = y_env;
-            lincons0_array = Array.of_list cons
+            tcons0_array = tcons1s |> List.enum |> Enum.map Tcons1.get_tcons0 |> Array.of_enum
           }
           in
-          A.widening_threshold Man.mgr x y cons'
+          let w = A.widening Man.mgr x y in
+          A.meet_tcons_array_with Man.mgr w tcons1_earray;
+          w
         )
       )
       else
