@@ -241,6 +241,16 @@ struct
   module LvarS = Locator.ES
   module InvariantParser = WitnessUtil.InvariantParser
 
+  let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
+    file = location.file_name;
+    line = location.line;
+    column = location.column + 1;
+    byte = -1;
+    endLine = -1;
+    endColumn = -1;
+    endByte = -1;
+  }
+
   let validate lh gh (file: Cil.file) =
     let locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
@@ -279,113 +289,126 @@ struct
 
     let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
       let uuid = entry.metadata.uuid in
-      let validate_loop_invariant ~entry_certificate ~target_type (location: YamlWitnessType.Location.t) inv pre =
-        let loc: Cil.location = {
-          file = location.file_name;
-          line = location.line;
-          column = location.column + 1;
-          byte = -1;
-          endLine = -1;
-          endColumn = -1;
-          endByte = -1;
-        }
-        in
+      let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
 
+      let validate_lvars_invariant ~entry_certificate ~loc ~lvars inv =
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
-          begin match Locator.find_opt locator loc with
-            | Some lvars ->
-              let module VR = ValidationResult in
+          let module VR = ValidationResult in
 
-              let lvars = match pre with
-                | Some pre ->
-                  let pre_cabs = InvariantParser.parse_cabs pre |> BatResult.get_ok in (* TODO: consistent handling *)
+          let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
+              let d = LHT.find lh lvar in
+              let fundec = Node.find_fundec n in
 
-                  LvarS.filter (fun ((n, c) as lvar) ->
-                    let fundec = Node.find_fundec n in
-                    let pre_d = LHT.find lh (FunctionEntry fundec, c) in
-
-                    match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
-                    | Ok pre_exp ->
-                      begin match ask_local lvar pre_d (Queries.EvalInt pre_exp) with
-                        | x when Queries.ID.is_bool x ->
-                          Option.get (Queries.ID.to_bool x)
-                        | _ ->
-                          true (* TODO: what to do here? *)
-                      end
-                    | Error e ->
-                      failwith "precondition parse error" (* TODO: consistent handling *)
-                  ) lvars
-                | None ->
-                  lvars
+              let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                | Ok inv_exp ->
+                  begin match ask_local lvar d (Queries.EvalInt inv_exp) with
+                    | x when Queries.ID.is_bool x ->
+                      let verdict = Option.get (Queries.ID.to_bool x) in
+                      if verdict then
+                        Confirmed
+                      else
+                        Refuted
+                    | _ ->
+                      Unconfirmed
+                  end
+                | Error e ->
+                  ParseError
               in
+              VR.join acc (VR.result_to_enum result)
+            ) lvars (VR.bot ())
+          in
 
-              if LvarS.is_empty lvars then
-                failwith "precondition never holds";
-
-              let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
-                  let d = LHT.find lh lvar in
-                  let fundec = Node.find_fundec n in
-
-                  let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
-                    | Ok inv_exp ->
-                      begin match ask_local lvar d (Queries.EvalInt inv_exp) with
-                        | x when Queries.ID.is_bool x ->
-                          let verdict = Option.get (Queries.ID.to_bool x) in
-                          if verdict then
-                            Confirmed
-                          else
-                            Refuted
-                        | _ ->
-                          Unconfirmed
-                      end
-                    | Error e ->
-                      ParseError
-                  in
-                  VR.join acc (VR.result_to_enum result)
-                ) lvars (VR.bot ())
-              in
-
-              begin match Option.get (VR.result_of_enum result) with
-                | Confirmed ->
-                  M.success ~category:Witness ~loc "invariant confirmed: %s" inv;
-                  let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
-                  let certification = Entry.certification true in
-                  let certificate_entry = entry_certificate ~target ~certification in
-                  Some certificate_entry
-                | Unconfirmed ->
-                  M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;None
-                | Refuted ->
-                  M.error ~category:Witness ~loc "invariant refuted: %s" inv;
-                  let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
-                  let certification = Entry.certification false in
-                  let certificate_entry = entry_certificate ~target ~certification in
-                  Some certificate_entry
-                | ParseError ->
-                  M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
-                  M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv;
-                  None
-              end
-            | None ->
-              M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
+          begin match Option.get (VR.result_of_enum result) with
+            | Confirmed ->
+              M.success ~category:Witness ~loc "invariant confirmed: %s" inv;
+              let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
+              let certification = Entry.certification true in
+              let certificate_entry = entry_certificate ~target ~certification in
+              Some certificate_entry
+            | Unconfirmed ->
+              M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;None
+            | Refuted ->
+              M.error ~category:Witness ~loc "invariant refuted: %s" inv;
+              let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
+              let certification = Entry.certification false in
+              let certificate_entry = entry_certificate ~target ~certification in
+              Some certificate_entry
+            | ParseError ->
+              M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
+              M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv;
               None
           end
         | Error e ->
-          Errormsg.log "\n"; (* CIL prints garbage without \n before *)
           M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
           M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv;
           None
       in
 
+      let validate_loop_invariant (loop_invariant: YamlWitnessType.LoopInvariant.t) =
+        let loc = loc_of_location loop_invariant.location in
+        let inv = loop_invariant.loop_invariant.string in
+        let entry_certificate = Entry.loop_invariant_certificate in
+
+        match Locator.find_opt locator loc with
+        | Some lvars ->
+          validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
+        | None ->
+          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
+          None
+      in
+
+      let validate_precondition_loop_invariant (precondition_loop_invariant: YamlWitnessType.PreconditionLoopInvariant.t) =
+        let loc = loc_of_location precondition_loop_invariant.location in
+        let pre = precondition_loop_invariant.precondition.string in
+        let inv = precondition_loop_invariant.loop_invariant.string in
+        let entry_certificate = Entry.precondition_loop_invariant_certificate in
+
+        match Locator.find_opt locator loc with
+        | Some lvars ->
+          begin match InvariantParser.parse_cabs pre with
+            | Ok pre_cabs ->
+
+              let precondition_holds ((n, c) as lvar) =
+                let fundec = Node.find_fundec n in
+                let pre_d = LHT.find lh (FunctionEntry fundec, c) in
+
+                match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
+                | Ok pre_exp ->
+                  begin match ask_local lvar pre_d (Queries.EvalInt pre_exp) with
+                    | x when Queries.ID.is_bool x ->
+                      Option.get (Queries.ID.to_bool x)
+                    | _ ->
+                      true (* TODO: what to do here? *)
+                  end
+                | Error e ->
+                  M.error ~category:Witness ~loc "CIL couldn't parse precondition: %s" inv;
+                  M.info ~category:Witness ~loc "precondition has undefined variables or side effects: %s" inv;
+                  false
+              in
+
+              let lvars = LvarS.filter precondition_holds lvars in
+              if LvarS.is_empty lvars then
+                failwith "precondition never holds"
+              else
+                validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
+            | Error e ->
+              M.error ~category:Witness ~loc "Frontc couldn't parse precondition: %s" pre;
+              M.info ~category:Witness ~loc "precondition has invalid syntax: %s" pre;
+              None
+          end
+        | None ->
+          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
+          None
+      in
+
       match entry.entry_type with
       | LoopInvariant x ->
-        let entry_certificate = Entry.loop_invariant_certificate in
-        validate_loop_invariant ~entry_certificate ~target_type:YamlWitnessType.LoopInvariant.entry_type x.location x.loop_invariant.string None
+        validate_loop_invariant x
       | PreconditionLoopInvariant x ->
-        let entry_certificate = Entry.precondition_loop_invariant_certificate in
-        validate_loop_invariant ~entry_certificate ~target_type:YamlWitnessType.PreconditionLoopInvariant.entry_type x.location x.loop_invariant.string (Some x.precondition.string)
+        validate_precondition_loop_invariant x
       | _ ->
-        M.info_noloc ~category:Witness "cannot validate entry of type %s" (YamlWitnessType.EntryType.entry_type entry.entry_type);
+        M.info_noloc ~category:Witness "cannot validate entry of type %s" target_type;
         None
     in
 

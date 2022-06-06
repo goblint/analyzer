@@ -129,7 +129,9 @@ struct
   let parse_cabs (inv: string): (Cabs.expression, string) result =
     match Frontc.parse_standalone_exp inv with
     | inv_cabs -> Ok inv_cabs
-    | exception (Frontc.ParseError e) -> Error e
+    | exception (Frontc.ParseError e) ->
+      Errormsg.log "\n"; (* CIL prints garbage without \n before *)
+      Error e
 
   let parse_cil {global_vars} ~(fundec: Cil.fundec) ~loc (inv_cabs: Cabs.expression): (Cil.exp, string) result =
     let genv = Cabs2cil.genvironment in
