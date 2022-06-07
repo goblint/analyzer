@@ -38,7 +38,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let findChanges map global =
     try
       let isGFun = match global with
-        | GFun _-> false (* set to true later to disable finding changes for funs*)
+        | GFun _-> true (* set to true later to disable finding changes for funs*)
         | _ -> false
       in
 
@@ -57,10 +57,10 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
 
   let renameDetectionResults = detectRenamedFunctions oldAST newAST in
-  FundecMap.to_seq renameDetectionResults |>
+  GlobalElemMap.to_seq renameDetectionResults |>
   Seq.iter
-    (fun (fundec, (functionGlobal, status)) ->
-       Printf.printf "Function status of %s is=" fundec.svar.vname;
+    (fun (gT, (functionGlobal, status)) ->
+       Printf.printf "Function status of %s is=" (globalElemName gT);
        match status with
        | Unchanged _ -> Printf.printf "Same Name\n";
        | Added -> Printf.printf "Added\n";
@@ -69,6 +69,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
        | UnchangedButRenamed toFrom ->
          match toFrom with
          | GFun (f, _) -> Printf.printf "Renamed to %s\n" f.svar.vname;
+         | GVar(v, _, _) -> Printf.printf "Renamed to %s\n" v.vname;
          | _ -> Printf.printf "TODO";
     );
 
@@ -77,7 +78,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   Cil.iterGlobals newAST
     (fun glob -> findChanges oldMap glob);
 
-  let unchanged, changed, added, removed = FundecMap.fold (fun _ (global, status) (u, c, a, r) ->
+  let unchanged, changed, added, removed = GlobalElemMap.fold (fun _ (global, status) (u, c, a, r) ->
       match status with
       | Unchanged now -> (u @ [{old=global; current=now}], c, a, r)
       | UnchangedButRenamed now -> (u @ [{old=global; current=now}], c, a, r)

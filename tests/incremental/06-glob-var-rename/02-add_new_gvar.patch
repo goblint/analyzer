@@ -1,0 +1,13 @@
+--- tests/incremental/06-glob-var-rename/02-add_new_gvar.c
++++ tests/incremental/06-glob-var-rename/02-add_new_gvar.c
+@@ -1,8 +1,9 @@
+ #include<stdio.h>
+
+ int myVar = 1;
++int foo = 1;
+
+ int main() {
+     printf("%d", myVar);
+-    printf("%d", myVar);
++    printf("%d", foo);
+ }

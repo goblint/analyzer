@@ -66,7 +66,7 @@ let rename_mapping_to_string (rename_mapping: rename_mapping) =
                                String.concat ", " in
 
   let global_var_string: string = string_tuple_to_string (List.of_seq (VarinfoMap.to_seq glob_vars) |>
-  List.map (fun (v, nowName) -> v.vname, nowName)) in
+                                                          List.map (fun (v, nowName) -> v.vname, nowName)) in
 
   "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "]; glob_vars=" ^ global_var_string ^ ")"
 
@@ -234,18 +234,19 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
 
   let (locals_renames, method_rename_mappings, glob_vars) = rename_mapping in
 
-  let compare_local_and_global_var = fun old_varinfo now_varinfo ->
-    let is_local = StringMap.mem old_varinfo.vname locals_renames in
+  let compare_local_and_global_var =
+    let is_local = StringMap.mem a.vname locals_renames in
     if not is_local then
-      let present_mapping = VarinfoMap.find_opt old_varinfo glob_vars in
+      let present_mapping = VarinfoMap.find_opt a glob_vars in
 
       match present_mapping with
-        | Some (knownNowName) -> now_varinfo.vname = knownNowName, method_rename_mappings, glob_vars
-        | None -> (
-          let update_glob_vars = VarinfoMap.add old_varinfo now_varinfo.vname glob_vars in
+      | Some (knownNowName) ->
+        b.vname = knownNowName, method_rename_mappings, glob_vars
+      | None -> (
+          let update_glob_vars = VarinfoMap.add a b.vname glob_vars in
           true, method_rename_mappings, update_glob_vars
         )
-    else rename_mapping_aware_name_comparison old_varinfo.vname now_varinfo.vname rename_mapping, method_rename_mappings, glob_vars
+    else rename_mapping_aware_name_comparison a.vname b.vname rename_mapping, method_rename_mappings, glob_vars
   in
 
   (*When we compare function names, we can directly compare the naming from the rename_mapping if it exists.*)
@@ -274,9 +275,9 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
             true, StringMap.add a.vname assumption method_rename_mappings, glob_vars
           else true, method_rename_mappings, glob_vars
       )
-    | TInt (_, _), TInt (_, _) -> compare_local_and_global_var a b
-    | TFloat (_, _), TFloat (_, _) -> compare_local_and_global_var a b
-    | TPtr (_, _), TPtr(_, _) -> compare_local_and_global_var a b
+    | TInt (_, _), TInt (_, _) -> compare_local_and_global_var
+    | TFloat (_, _), TFloat (_, _) -> compare_local_and_global_var
+    | TPtr (_, _), TPtr(_, _) -> compare_local_and_global_var
     | _, _ -> rename_mapping_aware_name_comparison a.vname b.vname rename_mapping, method_rename_mappings, glob_vars
   in
 
@@ -296,14 +297,14 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
         match new_local with
         | Some now_name -> (StringMap.add a.vname now_name StringMap.empty, updated_method_rename_mappings, updatedGlobVarMapping)
         | None -> (StringMap.empty, updated_method_rename_mappings, updatedGlobVarMapping)
-    )*)
+      )*)
     | _ -> (locals_renames, updated_method_rename_mappings, updatedGlobVarMapping)
   in
 
   (*Ignore rename mapping for type check, as it doesn't change anyway*)
   let (typeCheck, _) = eq_typ a.vtype b.vtype typ_rename_mapping in
 
-  (typeCheck, (locals_renames, updated_method_rename_mappings, updatedGlobVarMapping)) &&>>
+  (isNamingOk && typeCheck, (locals_renames, updated_method_rename_mappings, updatedGlobVarMapping)) &&>>
   forward_list_equal eq_attribute a.vattr b.vattr &&>
   (a.vstorage = b.vstorage) &&> (a.vglob = b.vglob) &&> (a.vaddrof = b.vaddrof)
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)
