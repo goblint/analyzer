@@ -111,6 +111,8 @@ struct
     | Index (i,o) -> isConstant i && conc o
     | Field (_,o) -> conc o
 
+  let star = Lval (Cil.var (Goblintutil.create_var (makeGlobalVar "*" intType)))
+
   let rec one_unknown_array_index exp =
     let rec separate_fields_index o =
       match o with
@@ -121,7 +123,6 @@ struct
         | Some (osf, ie,o) -> Some ((fun o -> Field (f,o)), ie, o)
         | x -> x
     in
-    let star = kinteger64 IInt Goblintutil.inthack in
     match exp with
     | Lval (Mem (Lval (Var v, io)),o) when conc o ->
       begin match separate_fields_index io with
@@ -271,4 +272,45 @@ struct
       | _ -> None
     with Invalid_argument _ -> None
   let printXml f (x,y,z) = BatPrintf.fprintf f "<value>\n<map>\n<key>1</key>\n%a<key>2</key>\n%a<key>3</key>\n%a</map>\n</value>\n" Exp.printXml x Exp.printXml y Exp.printXml z
+end
+
+(** Index-based symbolic lock *)
+module ILock =
+struct
+
+  (** Index in index-based symbolic lock *)
+  module Idx =
+  struct
+    include Printable.Std
+    type t =
+      | Unknown (** Unknown index. Mutex index not synchronized with access index. *)
+      | Star (** Star index. Mutex index synchronized with access index. Corresponds to star_0 in ASE16 paper, multiple star indices not supported in this implementation. *)
+    [@@deriving eq, ord, hash]
+    let name () = "i-lock index"
+
+    let show = function
+      | Unknown -> "?"
+      | Star -> "*"
+
+    include Printable.SimpleShow (
+      struct
+        type nonrec t = t
+        let show = show
+      end
+      )
+
+    let equal_to _ _ = `Top
+    let is_int _ = false
+  end
+
+  include Lval.Normal (Idx)
+
+  let rec conv_const_offset x =
+    match x with
+    | NoOffset    -> `NoOffset
+    | Index (i,o) when Exp.(equal i star) -> `Index (Idx.Star, conv_const_offset o)
+    | Index (_,o) -> `Index (Idx.Unknown, conv_const_offset o)
+    | Field (f,o) -> `Field (f, conv_const_offset o)
+
+  let from_var_offset (v, o) = from_var_offset (v, conv_const_offset o)
 end
