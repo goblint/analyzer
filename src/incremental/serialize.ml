@@ -36,7 +36,7 @@ let results_exist () =
   let r_str = Fpath.to_string r in
   Sys.file_exists r_str && Sys.is_directory r_str
 
-(** Module to cache the data for incremental analaysis during a run, before it is stored to disk, as well as the server mode *)
+(** Module to cache the data for incremental analaysis during a run, before it is stored to disk, as well as for the server mode *)
 module Cache = struct
   type t = {
     mutable solver_data: Obj.t option;
@@ -73,7 +73,7 @@ module Cache = struct
     let p = Fpath.(d / incremental_data_file_name) in
     marshal !data p
 
-  (** Update the some incremental data in the in-memory cache *)
+  (** Update the incremental data in the in-memory cache *)
   let update_data: type a. a data_query -> a -> unit = fun q d -> match q with
     | SolverData -> !data.solver_data <- Some (Obj.repr d)
     | AnalysisData -> !data.analysis_data <- Some (Obj.repr d)
