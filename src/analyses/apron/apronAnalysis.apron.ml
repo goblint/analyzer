@@ -132,7 +132,7 @@ struct
        | `Lifted s ->
          let lvals = Queries.LS.elements r in
          let ass' = List.map (fun lv -> assign_to_global_wrapper ask getg sideg st (Lval.CilLval.to_lval lv) f) lvals in
-         List.fold_right (fun {apr=apr1; priv=priv1} {apr=apr2; priv=priv2} -> {apr = AD.join apr1 apr2; priv = Priv.D.join priv1 priv2}) ass' {apr = AD.bot (); priv = Priv.D.bot ()}
+         List.fold_right D.join ass' (D.bot ())
       )
     (* Ignoring all other assigns *)
     | _ ->
