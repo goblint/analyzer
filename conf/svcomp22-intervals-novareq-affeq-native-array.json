@@ -18,6 +18,7 @@
       "threadflag",
       "mallocWrapper",
       "mutex",
+      "mutexEvents",
       "access",
       "escape",
       "expRelation",

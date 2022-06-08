@@ -29,63 +29,8 @@ let reset_lazy () =
 module Var =
 struct
   include Var
+
   let equal x y = Var.compare x y = 0
-end
-
-module type VarMetadata =
-sig
-  type t
-  val var_name: t -> string
-end
-
-module VarMetadataTbl (VM: VarMetadata) =
-struct
-  module VH = Hashtbl.Make (Var)
-
-  let vh = VH.create 113
-
-  let make_var ?name metadata =
-    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-    let var = Var.of_string name in
-    VH.replace vh var metadata;
-    var
-
-  let find_metadata var =
-    VH.find_option vh var
-end
-
-module VM =
-struct
-  type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
-    | Return (** Var for function return value. *)
-    | Global of varinfo
-
-  let var_name = function
-    | Local -> failwith "var_name of Local"
-    | Arg -> failwith "var_name of Arg"
-    | Return -> "#ret"
-    | Global g -> g.vname
-end
-
-module V =
-struct
-  include VarMetadataTbl (VM)
-  open VM
-
-  let local x = make_var ~name:x.vname Local
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
-  let return = make_var Return
-  let global g = make_var (Global g)
-
-  let to_cil_varinfo fundec v =
-    match find_metadata v with
-    | Some (Global v) -> Some v
-    | Some (Local) ->
-      let vname = Var.to_string v in
-      List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals)
-    | _ -> None
 end
 
 module type Manager =
@@ -163,45 +108,14 @@ let get_manager (): (module Manager) =
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
-let int_of_scalar ?round (scalar: Scalar.t) =
-  if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
-    None
-  else
-    match scalar with
-    | Float f -> (* octD, boxD *)
-      (* bound_texpr on bottom also gives Float even with MPQ *)
-      let f_opt = match round with
-        | Some `Floor -> Some (Float.floor f)
-        | Some `Ceil -> Some (Float.ceil f)
-        | None when Stdlib.Float.is_integer f-> Some f
-        | None -> None
-      in
-      Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
-    | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
-      let n = Mpqf.get_num scalar in
-      let d = Mpqf.get_den scalar in
-      let z_opt =
-        if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
-          Some n
-        else
-          begin match round with
-            | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
-            | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
-            | None -> None
-          end
-      in
-      Option.map Z_mlgmpidl.z_of_mpzf z_opt
-    | _ ->
-      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
-
 module Bounds (Man: Manager) =
 struct
   type t = Man.mt A.t
 
   let bound_texpr d texpr1 =
     let bounds = A.bound_texpr Man.mgr d texpr1 in
-    let min = int_of_scalar ~round:`Ceil bounds.inf in
-    let max = int_of_scalar ~round:`Floor bounds.sup in
+    let min = SharedFunctions.int_of_scalar ~round:`Ceil bounds.inf in
+    let max = SharedFunctions.int_of_scalar ~round:`Floor bounds.sup in
     (min, max)
 
   let bound_texpr d texpr1 =
@@ -209,159 +123,6 @@ struct
     match res with
     | Some min, Some max ->  if M.tracing then M.tracel "bounds" "min: %s max: %s" (IntOps.BigIntOps.to_string min) (IntOps.BigIntOps.to_string max); res
     | _ -> res
-end
-
-(** Conversion from CIL expressions to Apron. *)
-module Convert (Tracked: Tracked) (Man: Manager)=
-struct
-  open Texpr1
-  open Tcons1
-  module Bounds = Bounds(Man)
-  exception Unsupported_CilExp
-  exception Unsupported_Linexpr1
-
-
-
-  let texpr1_expr_of_cil_exp d env =
-    (* recurse without env argument *)
-    let rec texpr1_expr_of_cil_exp = function
-      | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if not v.vglob then
-          let var = Var.of_string v.vname in
-          if Environment.mem_var env var then
-            Var var
-          else
-            raise Unsupported_CilExp
-        else
-          failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
-      | Const (CInt (i, _, _)) ->
-        Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
-      | exp ->
-        let expr =
-          match exp with
-          | UnOp (Neg, e, _) ->
-            Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
-          | BinOp (PlusA, e1, e2, _) ->
-            Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (MinusA, e1, e2, _) ->
-            Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (Mult, e1, e2, _) ->
-            Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (Div, e1, e2, _) ->
-            Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
-          | BinOp (Mod, e1, e2, _) ->
-            Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | CastE (TInt _ as t, e) when IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-            Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
-          | _ ->
-            raise Unsupported_CilExp
-        in
-        let ik = Cilfacade.get_ikind_exp exp in
-        if not (IntDomain.should_ignore_overflow ik) then (
-          let (type_min, type_max) = IntDomain.Size.range ik in
-          let texpr1 = Texpr1.of_expr env expr in
-          match Bounds.bound_texpr d texpr1 with
-          | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
-          | _ ->
-            (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
-            raise Unsupported_CilExp
-        );
-        expr
-    in
-    texpr1_expr_of_cil_exp
-
-  let texpr1_of_cil_exp d env e =
-    let e = Cil.constFold false e in
-    of_expr env (texpr1_expr_of_cil_exp d env e)
-
-  let tcons1_of_cil_exp d env e negate =
-    let e = Cil.constFold false e in
-    let (texpr1_plus, texpr1_minus, typ) =
-      match e with
-      | BinOp (r, e1, e2, _) ->
-        let texpr1_1 = texpr1_expr_of_cil_exp d env e1 in
-        let texpr1_2 = texpr1_expr_of_cil_exp d env e2 in
-        (* Apron constraints always compare with 0 and only have comparisons one way *)
-        begin match r with
-          | Lt -> (texpr1_2, texpr1_1, SUP)   (* e1 < e2   ==>  e2 - e1 > 0  *)
-          | Gt -> (texpr1_1, texpr1_2, SUP)   (* e1 > e2   ==>  e1 - e2 > 0  *)
-          | Le -> (texpr1_2, texpr1_1, SUPEQ) (* e1 <= e2  ==>  e2 - e1 >= 0 *)
-          | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
-          | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
-          | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
-          | _ -> raise Unsupported_CilExp
-        end
-      | _ -> raise Unsupported_CilExp
-    in
-    let inverse_typ = function
-      | EQ -> DISEQ
-      | DISEQ -> EQ
-      | SUPEQ -> SUP
-      | SUP -> SUPEQ
-      | EQMOD _ -> failwith "tcons1_of_cil_exp: cannot invert EQMOD"
-    in
-    let (texpr1_plus, texpr1_minus, typ) =
-      if negate then
-        (texpr1_minus, texpr1_plus, inverse_typ typ)
-      else
-        (texpr1_plus, texpr1_minus, typ)
-    in
-    let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
-    Tcons1.make (Texpr1.of_expr env texpr1') typ
-
-  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
-    let longlong = TInt(ILongLong,[]) in
-    let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
-      | Scalar c ->
-        (match int_of_scalar c with
-         | Some i ->
-           let ci,truncation = truncateCilint ILongLong i in
-           if truncation = NoTruncation then
-             if not consider_flip || Z.compare i Z.zero >= 0 then
-               Const (CInt(i,ILongLong,None)), false
-             else
-               (* attempt to negate if that does not cause an overflow *)
-               let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-               if truncation = NoTruncation then
-                 Const (CInt((Z.neg i),ILongLong,None)), true
-               else
-                 Const (CInt(i,ILongLong,None)), false
-           else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
-         | None -> raise Unsupported_Linexpr1)
-      | _ -> raise Unsupported_Linexpr1
-    in
-    let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
-    let append_summand (c:Coeff.union_5) v =
-      match V.to_cil_varinfo fundec v with
-      | Some vinfo ->
-        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
-        let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-        let coeff, flip = coeff_to_const true c in
-        let prod = BinOp(Mult, coeff, var, longlong) in
-        if flip then
-          expr := BinOp(MinusA,!expr,prod,longlong)
-        else
-          expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
-    in
-    Linexpr1.iter append_summand linexpr1;
-    !expr
-
-
-  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
-    let zero = Cil.kinteger ILongLong 0 in
-    try
-      let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-      let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
-      match Lincons1.get_typ lincons1 with
-      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
-      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
-      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
-      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
-      | EQMOD _ -> None
-    with
-      Unsupported_Linexpr1 -> None
 end
 
 
@@ -641,13 +402,14 @@ module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
 struct
   type t = Man.mt A.t
 
-  let name () = "apron"
+  let name () = "Apron"
 
   (* Functions for bot and top for particular environment. *)
   let top_env = A.top    Man.mgr
   let bot_env = A.bottom Man.mgr
   let is_top_env = A.is_top Man.mgr
   let is_bot_env = A.is_bottom Man.mgr
+
   let to_yojson x = failwith "TODO implement to_yojson"
   let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
@@ -680,20 +442,13 @@ end
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
+  module Bounds = Bounds (Man)
 
   module Tracked = SharedFunctions.Tracked
 
   include AOps (Tracked) (Man)
 
   include Tracked
-  module SBounds = Bounds(Man)
-
-  let rec exp_is_cons = function
-    (* constraint *)
-    | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
-    | UnOp (LNot,e,_) -> exp_is_cons e
-    (* expression *)
-    | _ -> false
 
   (** Assert a constraint expression. *)
   let rec assert_cons d e negate (ov: bool Lazy.t) =
@@ -717,49 +472,6 @@ struct
         | exception Convert.Unsupported_CilExp ->
           d
       end
-
-  (** Assert any expression. *)
-  let assert_inv d e negate no_ov =
-    let e' =
-      if exp_is_cons e then
-        e
-      else
-        (* convert non-constraint expression, such that we assert(e != 0) *)
-        BinOp (Ne, e, zero, intType)
-    in
-    assert_cons d e' negate no_ov
-
-  let check_assert d e =
-    if is_bot_env (assert_inv d e false false) then
-      `False
-    else if is_bot_env (assert_inv d e true false) then
-      `True
-    else
-      `Top
-
-  (** Evaluate non-constraint expression as interval. *)
-  let eval_interval_expr d e =
-    match Convert.texpr1_of_cil_exp d (A.env d) e false with
-    | texpr1 ->
-      SBounds.bound_texpr d texpr1
-    | exception Convert.Unsupported_CilExp ->
-      (None, None)
-
-  (** Evaluate constraint or non-constraint expression as integer. *)
-  let eval_int d e =
-    let module ID = Queries.ID in
-    let ik = Cilfacade.get_ikind_exp e in
-    if exp_is_cons e then
-      match check_assert d e with
-      | `True -> ID.of_bool ik true
-      | `False -> ID.of_bool ik false
-      | `Top -> ID.top_of ik
-    else
-      match eval_interval_expr d e with
-      | (Some min, Some max) -> ID.of_interval ik (min, max)
-      | (Some min, None) -> ID.starting ik min
-      | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top_of ik
 
   let invariant (ctx:Invariant.context) x =
     let r = A.to_lincons_array Man.mgr x in
@@ -1026,127 +738,6 @@ struct
   include DWithOps (Man) (DHetero (Man))
   module Man = Man
 end
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-module ApronComponents (D2: S2) (PrivD: Lattice.S):
-sig
-  module AD: S2 with type Man.mt = D2.Man.mt
-  include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
-end =
-struct
-  module AD = D2
-  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
-
-  include Printable.Std
-  open Pretty
-
-  let show r =
-    let first  = D2.show r.apr in
-    let third  = PrivD.show r.priv in
-    "(" ^ first ^ ", " ^ third  ^ ")"
-
-  let pretty () r =
-    text "(" ++
-    D2.pretty () r.apr
-    ++ text ", " ++
-    PrivD.pretty () r.priv
-    ++ text ")"
-
-  let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
-
-  let name () = D2.name () ^ " * " ^ PrivD.name ()
-
-  let invariant c {apr; priv} =
-    Invariant.(D2.invariant c apr && PrivD.invariant c priv)
-
-  let of_tuple(apr, priv):t = {apr; priv}
-  let to_tuple r = (r.apr, r.priv)
-
-  let arbitrary () =
-    let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
-    QCheck.map ~rev:to_tuple of_tuple tr
-
-  let bot () = {apr = D2.bot (); priv = PrivD.bot ()}
-  let is_bot {apr; priv} = D2.is_bot apr && PrivD.is_bot priv
-  let top () = {apr = D2.top (); priv = PrivD.bot ()}
-  let is_top {apr; priv} = D2.is_top apr && PrivD.is_top priv
-
-  let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
-    D2.leq x1 y1 && PrivD.leq x3 y3
-
-  let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
-    if not (D2.leq x1 y1) then
-      D2.pretty_diff () (x1,y1)
-    else
-      PrivD.pretty_diff () (x3,y3)
-
-  let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
-    {apr = op1 x1 y1; priv = op3 x3 y3 }
-  let join = op_scheme D2.join PrivD.join
-  let meet = op_scheme D2.meet PrivD.meet
-  let widen = op_scheme D2.widen PrivD.widen
-  let narrow = op_scheme D2.narrow PrivD.narrow
-end
-<<<<<<< HEAD
-=======
-
-
-module type VarMetadata =
-sig
-  type t
-  val var_name: t -> string
-end
-
-module VarMetadataTbl (VM: VarMetadata) =
-struct
-  module VH = Hashtbl.Make (Var)
-
-  let vh = VH.create 113
-
-  let make_var ?name metadata =
-    let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-    let var = Var.of_string name in
-    VH.replace vh var metadata;
-    var
-
-  let find_metadata var =
-    VH.find_option vh var
-end
-
-module VM =
-struct
-  type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
-    | Return (** Var for function return value. *)
-    | Global of varinfo
-
-  let var_name = function
-    | Local -> failwith "var_name of Local"
-    | Arg -> failwith "var_name of Arg"
-    | Return -> "#ret"
-    | Global g -> g.vname
-end
-
-module V =
-struct
-  include VarMetadataTbl (VM)
-  open VM
-
-  let local x = make_var ~name:x.vname Local
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
-  let return = make_var Return
-  let global g = make_var (Global g)
-end
-=======
-end
->>>>>>> Add common interface for apron + new domain
->>>>>>> 4da71d5e1 (Add common interface for apron + new domain)
-=======
->>>>>>> f0a0ae216 (Move convert module to new domain)
-=======
 
 module AD2Complete (Man: Manager) = (*ToDo Improve module structure...*)
 struct
@@ -1157,19 +748,5 @@ end
 
 module D2 (Man: Manager): (RelD2 with type var = Var.t) =
 struct
-<<<<<<< HEAD
-<<<<<<< HEAD
-include D2Complete(Man)
-end
->>>>>>> c1637e453 (Finish rebasing)
-=======
 include AD2Complete(Man)
 end
->>>>>>> 5c7f95219 (Move shared apron + affeq functions upwards)
-=======
-  include AD2Complete(Man)
-end
-<<<<<<< HEAD
->>>>>>> 5b36f7f4d (Fix dim_add, substitute_expr + change int_of_cst to mpqf_of_cst)
-=======
->>>>>>> 06c37a2d7 (Fix non-affine expr parsing + simplify constant detection + fix overflow handling + add new lines at end of files + revert indentation file settings + add comment for affeqmanager + update affeq tests)

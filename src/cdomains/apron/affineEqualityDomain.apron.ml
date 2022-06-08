@@ -173,9 +173,9 @@ struct
   let get_coeff_vec t texp = Stats.time "coeff_vec" (get_coeff_vec t) texp
 end
 
-module ExpressionBounds (V: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(V) (Mx).t) =
+module ExpressionBounds (Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.ConvBounds with type t = VarManagement(Vc) (Mx).t) =
 struct
-  include VarManagement (V) (Mx)
+  include VarManagement (Vc) (Mx)
 
   let bound_texpr t texpr =
     let texpr = Texpr1.to_expr texpr in
@@ -197,16 +197,17 @@ struct
   let bound_texpr d texpr1 = Stats.time "bounds calculation" (bound_texpr d) texpr1
 end
 
-module D2(V: AbstractVector) (Mx: AbstractMatrix): SharedFunctions.AssertionRelD2 with type var = SharedFunctions.Var.t =
+module D2(Vc: AbstractVector) (Mx: AbstractMatrix): (SharedFunctions.AssertionRelD2 with type var = SharedFunctions.V.t)=
 struct
   include ConvenienceOps (Mpqf)
-  include VarManagement (V) (Mx)
+  include VarManagement (Vc) (Mx)
 
-  module Bounds = ExpressionBounds (V) (Mx)
+  module Bounds = ExpressionBounds (Vc) (Mx)
+
   module Convert = SharedFunctions.Convert (Bounds)
 
-  type var = SharedFunctions.Var.t
-
+  type var = SharedFunctions.V.t
+  
   let tag t = failwith "No tag"
 
   let show t =
@@ -379,7 +380,7 @@ struct
 
   let forget_vars t vars = Stats.time "forget_vars" (forget_vars t) vars
 
-  let assign_texpr (t: VarManagement(V)(Mx).t) var texp =
+  let assign_texpr (t: VarManagement(Vc)(Mx).t) var texp =
     let assign_invertible_rels x var b env =
       let j0 = Environment.dim_of_var env var in
       let a_j0 = Matrix.get_col x j0  in (*Corresponds to Axj0*)
@@ -415,7 +416,7 @@ struct
 
   let assign_texpr t var texp = Stats.time "assign_texpr" (assign_texpr t var) texp
 
-  let assign_exp (t: VarManagement(V)(Mx).t) var exp (no_ov: bool Lazy.t) =
+  let assign_exp (t: VarManagement(Vc)(Mx).t) var exp (no_ov: bool Lazy.t) =
     let t = if not @@ Environment.mem_var t.env var then add_vars t [var] else t in
     match Convert.texpr1_expr_of_cil_exp t t.env (Lazy.force no_ov) exp with
     | exp -> assign_texpr t var exp
@@ -427,7 +428,7 @@ struct
     if M.tracing then M.tracel "ops" "assign_exp t:\n %s \n var: %s \n exp: %s\n no_ov: %b -> \n %s\n"
         (show t) (Var.to_string var) (Pretty.sprint ~width:1 (Cil.printExp Cil.defaultCilPrinter () exp)) (Lazy.force no_ov) (show res) ;
     res
-  let assign_var (t: VarManagement(V)(Mx).t) v v' =
+  let assign_var (t: VarManagement(Vc)(Mx).t) v v' =
     let t = add_vars t [v; v'] in
     let texpr1 = Texpr1.of_expr (t.env) (Var v') in
     assign_texpr t v (Apron.Texpr1.to_expr texpr1)

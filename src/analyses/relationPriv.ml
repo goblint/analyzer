@@ -9,6 +9,7 @@ module RelationComponents = RelationDomain.RelComponents
 
 open CommonPriv
 
+
 module type S =
   functor (RD: RelationDomain.RD) ->
   sig
@@ -43,7 +44,7 @@ module type S =
 
 
 module Dummy : S  =
-  functor (RD: RelationDomain.RD) ->
+  functor (RD: RelationDomain.RelD2) ->
   struct
     module D = Lattice.Unit
     module G = Lattice.Unit
@@ -100,7 +101,11 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
       let name () = "W"
     end
 
-  type apron_components_t = RelationComponents (RD.D2) (D).t
+  module D = Lattice.Prod (P) (W)
+  module G = RD
+  module V = Printable.UnitConf (struct let name = "global" end)
+
+  type relation_components_t = RelationComponents (RD) (D).t
 
   module VM =
   struct
@@ -117,7 +122,7 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
   module AV =
   struct
     include RelationDomain.VarMetadataTbl (VM)(RD.Var)
-    open VM
+    
 
     let local g = make_var (Local g)
     let unprot g = make_var (Unprot g)
@@ -127,19 +132,19 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
   let name () = "ProtectionBasedPriv"
 
   (** Restrict environment to global invariant variables. *)
-  let restrict_global apr =
-    RD.D2.remove_filter apr (fun var ->
+  let restrict_global rel =
+    RD.remove_filter rel (fun var ->
         match AV.find_metadata var with
         | Some (Unprot _ | Prot _) -> false
         | _ -> true
       )
 
   (** Restrict environment to local variables and still-protected global variables. *)
-  let restrict_local is_unprot apr w_remove =
+  let restrict_local is_unprot rel w_remove =
     let remove_local_vars = List.map AV.local (W.elements w_remove) in
-    let apr' = RD.D2.remove_vars apr remove_local_vars in
+    let rel' = RD.remove_vars rel remove_local_vars in
     (* remove global vars *)
-    RD.D2.remove_filter apr' (fun var ->
+    RD.remove_filter rel' (fun var ->
         match AV.find_metadata var with
         | Some (Unprot g | Prot g) -> is_unprot g
         | _ -> false
@@ -147,7 +152,7 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
 
   let startstate () = (P.empty (), W.empty ())
 
-  let should_join (st1: apron_components_t) (st2: apron_components_t) =
+  let should_join (st1: relation_components_t) (st2: relation_components_t) =
     if Param.path_sensitive then (
       let (p1, _) = st1.priv in
       let (p2, _) = st2.priv in
@@ -156,56 +161,56 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
     else
       true
 
-  let read_global ask getg (st: apron_components_t) g x =
-    let apr = st.apr in
+  let read_global ask getg (st: relation_components_t) g x =
+    let rel = st.rel in
     let (p, w) = st.priv in
     let g_local_var = AV.local g in
     let x_var = RD.Var.of_string x.vname in
-    let apr_local =
+    let rel_local =
       if W.mem g w then
-        RD.D2.assign_var apr x_var g_local_var
+        RD.assign_var rel x_var g_local_var
       else
-        RD.D2.bot ()
+        RD.bot ()
     in
-    let apr_local' =
+    let rel_local' =
       if P.mem g p then
-        apr_local
+        rel_local
       else if is_unprotected ask g then (
         let g_unprot_var = AV.unprot g in
-        let apr_unprot = RD.D2.add_vars apr [g_unprot_var] in
-        let apr_unprot = RD.D2.assign_var apr_unprot x_var g_unprot_var in
+        let rel_unprot = RD.add_vars rel [g_unprot_var] in
+        let rel_unprot = RD.assign_var rel_unprot x_var g_unprot_var in
         (* let oct_unprot' = RD.D2.join oct_local oct_unprot in
            (* unlock *)
            let oct_unprot' = RD.D2.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
            (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
            (* TODO: why removing g_unprot_var? *)
            oct_unprot' *)
-        RD.D2.join apr_local apr_unprot
+        RD.join rel_local rel_unprot
       )
       else (
         let g_prot_var = AV.prot g in
-        let apr_prot = RD.D2.add_vars apr [g_prot_var] in
-        let apr_prot = RD.D2.assign_var apr_prot x_var g_prot_var in
-        RD.D2.join apr_local apr_prot
+        let rel_prot = RD.add_vars rel [g_prot_var] in
+        let rel_prot = RD.assign_var rel_prot x_var g_prot_var in
+        RD.join rel_local rel_prot
       )
     in
-    let apr_local' = restrict_local (is_unprotected ask) apr_local' (W.empty ()) in
-    let apr_local' = RD.D2.meet apr_local' (getg ()) in
-    apr_local'
+    let rel_local' = restrict_local (is_unprotected ask) rel_local' (W.empty ()) in
+    let rel_local' = RD.meet rel_local' (getg ()) in
+    rel_local'
 
-  let write_global ?(invariant=false) ask getg sideg (st: apron_components_t) g x =
-    let apr = st.apr in
+  let write_global ?(invariant=false) ask getg sideg (st: relation_components_t) g x =
+    let rel = st.rel in
     let (p, w) = st.priv in
     let g_local_var = AV.local g in
     let g_unprot_var = AV.unprot g in
     let x_var = RD.Var.of_string x.vname in
-    let apr_local = RD.D2.add_vars apr [g_local_var] in
-    let apr_local = RD.D2.assign_var apr_local g_local_var x_var in
-    let apr_side = RD.D2.add_vars apr_local [g_unprot_var] in
-    let apr_side = RD.D2.assign_var apr_side g_unprot_var g_local_var in
-    let apr' = apr_side in
-    let apr_side = restrict_global apr_side in
-    sideg () apr_side;
+    let rel_local = RD.add_vars rel [g_local_var] in
+    let rel_local = RD.assign_var rel_local g_local_var x_var in
+    let rel_side = RD.add_vars rel_local [g_unprot_var] in
+    let rel_side = RD.assign_var rel_side g_unprot_var g_local_var in
+    let rel' = rel_side in
+    let rel_side = restrict_global rel_side in
+    sideg () rel_side;
     let st' =
       (* if is_unprotected ask g then
          st (* add, assign, remove gives original local state *)
@@ -213,20 +218,20 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
          (* restricting g#unprot-s out from oct' gives oct_local *)
          {oct = oct_local; priv = (P.add g p, W.add g w)} *)
       if is_unprotected ask g then
-        {st with apr = restrict_local (is_unprotected ask) apr' (W.singleton g)}
+        {st with rel = restrict_local (is_unprotected ask) rel' (W.singleton g)}
       else (
         let p' = P.add g p in
         let w' = W.add g w in
-        {apr = restrict_local (is_unprotected ask) apr' (W.empty ()); priv = (p', w')}
+        {rel = restrict_local (is_unprotected ask) rel' (W.empty ()); priv = (p', w')}
       )
     in
-    let apr_local' = RD.D2.meet st'.apr (getg ()) in
-    {st' with apr = apr_local'}
+    let rel_local' = RD.meet st'.rel (getg ()) in
+    {st' with rel = rel_local'}
 
-  let lock ask getg (st: apron_components_t) m = st
+  let lock ask getg (st: relation_components_t) m = st
 
-  let unlock ask getg sideg (st: apron_components_t) m: apron_components_t =
-    let apr = st.apr in
+  let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
+    let rel = st.rel in
     let (p, w) = st.priv in
     let (p_remove, p') = P.partition (fun g -> is_unprotected_without ask g m) p in
     let (w_remove, w') = W.partition (fun g -> is_unprotected_without ask g m) w in
@@ -248,26 +253,26 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
             ) certain choice omega
         )
     in
-    let apr_side = List.fold_left (fun acc omega ->
+    let rel_side = List.fold_left (fun acc omega ->
         let g_prot_vars = List.map AV.prot omega in
         let g_local_vars = List.map AV.local omega in
-        let apr_side1 = RD.D2.add_vars apr g_prot_vars in
-        let apr_side1 = RD.D2.assign_var_parallel' apr_side1 g_prot_vars g_local_vars in
-        RD.D2.join acc apr_side1
-      ) (RD.D2.bot ()) big_omega
+        let rel_side1 = RD.add_vars rel g_prot_vars in
+        let rel_side1 = RD.assign_var_parallel' rel_side1 g_prot_vars g_local_vars in
+        RD.join acc rel_side1
+      ) (RD.bot ()) big_omega
     in
-    let apr' = apr_side in
-    let apr_side = restrict_global apr_side in
-    sideg () apr_side;
-    let apr_local = restrict_local (fun g -> is_unprotected_without ask g m) apr' w_remove in
-    let apr_local' = RD.D2.meet apr_local (getg ()) in
-    {apr = apr_local'; priv = (p', w')}
+    let rel' = rel_side in
+    let rel_side = restrict_global rel_side in
+    sideg () rel_side;
+    let rel_local = restrict_local (fun g -> is_unprotected_without ask g m) rel' w_remove in
+    let rel_local' = RD.meet rel_local (getg ()) in
+    {rel = rel_local'; priv = (p', w')}
 
 
   let thread_join ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
-  let sync ask getg sideg (st: apron_components_t) reason =
+  let sync ask getg sideg (st: relation_components_t) reason =
     match reason with
     | `Return -> (* required for thread return *)
       (* TODO: implement? *)
@@ -282,9 +287,9 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
         st
       else
         (* must be like enter_multithreaded *)
-        let apr = st.apr in
+        let rel = st.rel in
         let (g_vars, gs) =
-          RD.D2.vars apr
+          RD.vars rel
           |> List.enum
           |> Enum.filter_map (fun var ->
               match RD.V.find_metadata var with
@@ -296,28 +301,28 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
         in
         let g_unprot_vars = List.map AV.unprot gs in
         let g_prot_vars = List.map AV.prot gs in
-        let apr_side = RD.D2.add_vars apr (g_unprot_vars @ g_prot_vars) in
-        let apr_side = RD.D2.assign_var_parallel' apr_side g_unprot_vars g_vars in
-        let apr_side = RD.D2.assign_var_parallel' apr_side g_prot_vars g_vars in
-        let apr_side = restrict_global apr_side in
-        sideg () apr_side;
+        let rel_side = RD.add_vars rel (g_unprot_vars @ g_prot_vars) in
+        let rel_side = RD.assign_var_parallel' rel_side g_unprot_vars g_vars in
+        let rel_side = RD.assign_var_parallel' rel_side g_prot_vars g_vars in
+        let rel_side = restrict_global rel_side in
+        sideg () rel_side;
         (* TODO: why not remove at all? should only remove unprotected? *)
-        (* let apr_local = AD.remove_vars apr g_vars in
-        let apr_local' = AD.meet apr_local (getg ()) in
-        {st with apr = apr_local'} *)
+        (* let rel_local = AD.remove_vars rel g_vars in
+        let rel_local' = AD.meet rel_local (getg ()) in
+        {st with rel = rel_local'} *)
         st
     | `Normal
     | `Init
     | `Thread ->
       st
 
-  let enter_multithreaded ask getg sideg (st: apron_components_t): apron_components_t =
-    let apr = st.apr in
+  let enter_multithreaded ask getg sideg (st: relation_components_t): relation_components_t =
+    let rel = st.rel in
     let (g_vars, gs) =
-      RD.D2.vars apr
+      RD.vars rel
       |> List.enum
       |> Enum.filter_map (fun var ->
-          match RelV.find_metadata var with
+          match RD.V.find_metadata var with
           | Some (Global g) -> Some (var, g)
           | _ -> None
         )
@@ -326,17 +331,17 @@ module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S =
     in
     let g_unprot_vars = List.map AV.unprot gs in
     let g_prot_vars = List.map AV.prot gs in
-    let apr_side = RD.D2.add_vars apr (g_unprot_vars @ g_prot_vars) in
-    let apr_side = RD.D2.assign_var_parallel' apr_side g_unprot_vars g_vars in
-    let apr_side = RD.D2.assign_var_parallel' apr_side g_prot_vars g_vars in
-    let apr_side = restrict_global apr_side in
-    sideg () apr_side;
-    let apr_local = RD.D2.remove_vars apr g_vars in
-    let apr_local' = RD.D2.meet apr_local (getg ()) in
-    {apr = apr_local'; priv = startstate ()}
+    let rel_side = RD.add_vars rel (g_unprot_vars @ g_prot_vars) in
+    let rel_side = RD.assign_var_parallel' rel_side g_unprot_vars g_vars in
+    let rel_side = RD.assign_var_parallel' rel_side g_prot_vars g_vars in
+    let rel_side = restrict_global rel_side in
+    sideg () rel_side;
+    let rel_local = RD.remove_vars rel g_vars in
+    let rel_local' = RD.meet rel_local (getg ()) in
+    {rel = rel_local'; priv = startstate ()}
 
-  let threadenter ask getg (st: apron_components_t): apron_components_t =
-    {apr = getg (); priv = startstate ()}
+  let threadenter ask getg (st: relation_components_t): relation_components_t =
+    {rel = getg (); priv = startstate ()}
 
   let finalize () = ()
 end
@@ -345,422 +350,6 @@ module CommonPerMutex = functor(RD: RelationDomain.RD) ->
   struct
     include Protection
     module V = RD.V
-
-  let remove_globals_unprotected_after_unlock ask m oct =
-    let newly_unprot var = match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g && is_unprotected_without ask g m
-      | _ -> false
-    in
-    AD.remove_filter oct newly_unprot
-
-  let keep_only_protected_globals ask m oct =
-    let protected var = match V.find_metadata var with
-      | Some (Global g) -> is_protected_by ask m g
-      | _ -> false
-    in
-    AD.keep_filter oct protected
-
-  let finalize () = ProtectionLogging.dump ()
-end
-
-(** Per-mutex meet. *)
-module PerMutexMeetPriv: S =
-struct
-  open CommonPerMutex(AD)
-  include MutexGlobals
-
-  module D = Lattice.Unit
-  module G = AD
-
-  type apron_components_t = ApronDomain.ApronComponents (AD) (D).t
-
-  module AV = ApronDomain.V
-
-  let name () = "PerMutexMeetPriv"
-
-  let startstate () = ()
-  let should_join _ _ = true
-  let get_m_with_mutex_inits ask getg m =
-    let get_m = getg (V.mutex m) in
-    let get_mutex_inits = getg V.mutex_inits in
-    let get_mutex_inits' = keep_only_protected_globals ask m get_mutex_inits in
-    AD.join get_m get_mutex_inits'
-  let get_mutex_global_g_with_mutex_inits ask getg g =
-    let get_mutex_global_g = getg (V.global g) in
-    let get_mutex_inits = getg V.mutex_inits in
-    let g_var = AV.global g in
-    let get_mutex_inits' = AD.keep_vars get_mutex_inits [g_var] in
-    AD.join get_mutex_global_g get_mutex_inits'
-  let read_global ask getg (st: ApronComponents (D).t) g x: AD.t =
-    let oct = st.oct in
-    (* lock *)
-    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
-    (* read *)
-    let g_var = AV.global g in
-    let x_var = Var.of_string x.vname in
-    let oct_local = AD.add_vars oct [g_var] in
-    let oct_local = AD.assign_var oct_local x_var g_var in
-    (* unlock *)
-    let oct_local' =
-      if is_unprotected ask g then
-        AD.remove_vars oct_local [g_var]
-      else
-        oct_local
-    in
-    oct_local'
-  let write_global ?(invariant=false) ask getg sideg (st: ApronComponents (D).t) g x: ApronComponents (D).t =
-    let oct = st.oct in
-    (* lock *)
-    let oct = AD.meet oct (get_mutex_global_g_with_mutex_inits ask getg g) in
-    (* write *)
-    let g_var = AV.global g in
-    let x_var = Var.of_string x.vname in
-    let oct_local = AD.add_vars oct [g_var] in
-    let oct_local = AD.assign_var oct_local g_var x_var in
-    (* unlock *)
-    let apr_side = AD.keep_vars apr_local [g_var] in
-    sideg (V.global g) apr_side;
-    let apr_local' =
-      if is_unprotected ask g then
-        AD.remove_vars oct_local [g_var]
-      else
-        oct_local
-    in
-    {st with apr = apr_local'}
-
-  let lock ask getg (st: apron_components_t) m =
-    (* TODO: somehow actually unneeded here? *)
-    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
-      let apr = st.apr in
-      let get_m = get_m_with_mutex_inits ask getg m in
-      (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-      let get_m = keep_only_protected_globals ask m get_m in
-      let apr' = AD.meet apr get_m in
-      {st with apr = apr'}
-    )
-    else
-      st (* sound w.r.t. recursive lock *)
-
-  let unlock ask getg sideg (st: apron_components_t) m: apron_components_t =
-    let apr = st.apr in
-    let apr_side = keep_only_protected_globals ask m apr in
-    sideg (V.mutex m) apr_side;
-    let apr_local = remove_globals_unprotected_after_unlock ask m apr in
-    {st with apr = apr_local}
-
-  let thread_join ask getg exp st = st
-  let thread_return ask getg sideg tid st = st
-
-  let sync ask getg sideg (st: apron_components_t) reason =
-    match reason with
-    | `Return -> (* required for thread return *)
-      (* TODO: implement? *)
-      begin match ThreadId.get_current ask with
-        | `Lifted x (* when CPA.mem x st.cpa *) ->
-          st
-        | _ ->
-          st
-      end
-    | `Join ->
-      if (ask.f Q.MustBeSingleThreaded) then
-        st
-      else
-        let oct = st.oct in
-        let g_vars = List.filter (fun var ->
-            match AV.find_metadata var with
-            | Some (Global _) -> true
-            | _ -> false
-          ) (AD.vars oct)
-        in
-        let apr_side = AD.keep_vars apr g_vars in
-        sideg V.mutex_inits apr_side;
-        let apr_local = AD.remove_filter apr (fun var ->
-            match AV.find_metadata var with
-            | Some (Global g) -> is_unprotected ask g
-            | _ -> false
-          )
-        in
-        {st with oct = oct_local}
-    | `Normal
-    | `Init
-    | `Thread ->
-      st
-  let enter_multithreaded ask getg sideg (st: ApronComponents (D).t): ApronComponents (D).t =
-    let oct = st.oct in
-    (* Don't use keep_filter & remove_filter because it would duplicate find_metadata-s. *)
-    let g_vars = List.filter (fun var ->
-        match AV.find_metadata var with
-        | Some (Global _) -> true
-        | _ -> false
-      in
-      RD.D2.remove_filter oct newly_unprot
-
-    let keep_only_protected_globals ask m oct =
-      let protected var = match V.find_metadata var with
-        | Some (Global g) -> is_protected_by ask m g
-        | _ -> false
-      in
-      RD.D2.keep_filter oct protected
-
-    let finalize () = ProtectionLogging.dump ()
-  end
-
-  (** Per-mutex meet. *)
-  module PerMutexMeetPriv : S = functor (RD: RelationDomain.RD) ->
-  struct
-    open CommonPerMutex(RD)
-    include MutexGlobals
-
-    module D = Lattice.Unit
-    module G = RD.D2
-    module RelV = RD.V
-    module V = Printable.UnitConf (struct let name = "global" end)
-
-    type relation_components_t = RelationComponents (RD) (D).t
-
-    module VM =
-    struct
-      type t =
-        | Local of varinfo
-        | Unprot of varinfo
-        | Prot of varinfo
-
-      let var_name = function
-        | Local g -> g.vname
-        | Unprot g -> g.vname ^ "#unprot"
-        | Prot g -> g.vname ^ "#prot"
-    end
-    module AV =
-    struct
-      include RelationDomain.VarMetadataTbl (VM)(RD.Var)
-      open VM
-
-      let local g = make_var (Local g)
-      let unprot g = make_var (Unprot g)
-      let prot g = make_var (Prot g)
-    end
-
-    let name () = "ProtectionBasedPriv"
-
-    (** Restrict environment to global invariant variables. *)
-    let restrict_global rel =
-      RD.remove_filter rel (fun var ->
-          match AV.find_metadata var with
-          | Some (Unprot _ | Prot _) -> false
-          | _ -> true
-        )
-
-    (** Restrict environment to local variables and still-protected global variables. *)
-    let restrict_local is_unprot rel w_remove =
-      let remove_local_vars = List.map AV.local (W.elements w_remove) in
-      let rel' = RD.remove_vars rel remove_local_vars in
-      (* remove global vars *)
-      RD.remove_filter rel' (fun var ->
-          match AV.find_metadata var with
-          | Some (Unprot g | Prot g) -> is_unprot g
-          | _ -> false
-        )
-
-    let startstate () = (P.empty (), W.empty ())
-
-    let should_join (st1: relation_components_t) (st2: relation_components_t) =
-      if Param.path_sensitive then (
-        let (p1, _) = st1.priv in
-        let (p2, _) = st2.priv in
-        P.equal p1 p2
-      )
-      else
-        true
-
-    let read_global ask getg (st: relation_components_t) g x =
-      let rel = st.rel in
-      let (p, w) = st.priv in
-      let g_local_var = AV.local g in
-      let x_var = RD.Var.of_string x.vname in
-      let rel_local =
-        if W.mem g w then
-          RD.assign_var rel x_var g_local_var
-        else
-          RD.bot ()
-      in
-      let rel_local' =
-        if P.mem g p then
-          rel_local
-        else if is_unprotected ask g then (
-          let g_unprot_var = AV.unprot g in
-          let rel_unprot = RD.add_vars rel [g_unprot_var] in
-          let rel_unprot = RD.assign_var rel_unprot x_var g_unprot_var in
-          (* let oct_unprot' = RD.join oct_local oct_unprot in
-             (* unlock *)
-             let oct_unprot' = RD.remove_vars oct_unprot' [g_unprot_var; g_local_var] in
-             (* add, assign from, remove is not equivalent to forget if g#unprot already existed and had some relations *)
-             (* TODO: why removing g_unprot_var? *)
-             oct_unprot' *)
-          RD.join rel_local rel_unprot
-        )
-        else (
-          let g_prot_var = AV.prot g in
-          let rel_prot = RD.add_vars rel [g_prot_var] in
-          let rel_prot = RD.assign_var rel_prot x_var g_prot_var in
-          RD.join rel_local rel_prot
-        )
-      in
-      let rel_local' = restrict_local (is_unprotected ask) rel_local' (W.empty ()) in
-      let rel_local' = RD.meet rel_local' (getg ()) in
-      rel_local'
-
-    let write_global ?(invariant=false) ask getg sideg (st: relation_components_t) g x =
-      let rel = st.rel in
-      let (p, w) = st.priv in
-      let g_local_var = AV.local g in
-      let g_unprot_var = AV.unprot g in
-      let x_var = RD.Var.of_string x.vname in
-      let rel_local = RD.add_vars rel [g_local_var] in
-      let rel_local = RD.assign_var rel_local g_local_var x_var in
-      let rel_side = RD.add_vars rel_local [g_unprot_var] in
-      let rel_side = RD.assign_var rel_side g_unprot_var g_local_var in
-      let rel' = rel_side in
-      let rel_side = restrict_global rel_side in
-      sideg () rel_side;
-      let st' =
-        (* if is_unprotected ask g then
-           st (* add, assign, remove gives original local state *)
-           else
-           (* restricting g#unprot-s out from oct' gives oct_local *)
-           {oct = oct_local; priv = (P.add g p, W.add g w)} *)
-        if is_unprotected ask g then
-          {st with rel = restrict_local (is_unprotected ask) rel' (W.singleton g)}
-        else (
-          let p' = P.add g p in
-          let w' = W.add g w in
-          {rel = restrict_local (is_unprotected ask) rel' (W.empty ()); priv = (p', w')}
-        )
-      in
-      let rel_local' = RD.meet st'.rel (getg ()) in
-      {st' with rel = rel_local'}
-
-    let lock ask getg (st: relation_components_t) m = st
-
-    let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
-      let rel = st.rel in
-      let (p, w) = st.priv in
-      let (p_remove, p') = P.partition (fun g -> is_unprotected_without ask g m) p in
-      let (w_remove, w') = W.partition (fun g -> is_unprotected_without ask g m) w in
-      let p_a = P.filter (is_protected_by ask m) p in
-      let w_a = W.filter (is_protected_by ask m) (W.diff w p) in
-      let big_omega =
-        let certain = P.elements p_a in
-        let choice = W.elements w_a in
-        choice
-        |> List.map (fun _ -> [true; false])
-        |> List.n_cartesian_product (* TODO: exponential! *)
-        |> List.map (fun omega ->
-            (* list globals where omega is true *)
-            List.fold_left2 (fun acc g omega_g ->
-                if omega_g then
-                  g :: acc
-                else
-                  acc
-              ) certain choice omega
-          )
-      in
-      let rel_side = List.fold_left (fun acc omega ->
-          let g_prot_vars = List.map AV.prot omega in
-          let g_local_vars = List.map AV.local omega in
-          let rel_side1 = RD.add_vars rel g_prot_vars in
-          let rel_side1 = RD.assign_var_parallel' rel_side1 g_prot_vars g_local_vars in
-          RD.join acc rel_side1
-        ) (RD.bot ()) big_omega
-      in
-      let rel' = rel_side in
-      let rel_side = restrict_global rel_side in
-      sideg () rel_side;
-      let rel_local = restrict_local (fun g -> is_unprotected_without ask g m) rel' w_remove in
-      let rel_local' = RD.meet rel_local (getg ()) in
-      {rel = rel_local'; priv = (p', w')}
-
-
-    let thread_join ask getg exp st = st
-    let thread_return ask getg sideg tid st = st
-
-    let sync ask getg sideg (st: relation_components_t) reason =
-      match reason with
-      | `Return -> (* required for thread return *)
-        (* TODO: implement? *)
-        begin match ThreadId.get_current ask with
-          | `Lifted x (* when CPA.mem x st.cpa *) ->
-            st
-          | _ ->
-            st
-        end
-      | `Join ->
-        if (ask.f Q.MustBeSingleThreaded) then
-          st
-        else
-          (* must be like enter_multithreaded *)
-          let rel = st.rel in
-          let (g_vars, gs) =
-            RD.vars rel
-            |> List.enum
-            |> Enum.filter_map (fun var ->
-                match RD.V.find_metadata var with
-                | Some (Global g) -> Some (var, g)
-                | _ -> None
-              )
-            |> Enum.uncombine
-            |> Tuple2.map List.of_enum List.of_enum
-          in
-          let g_unprot_vars = List.map AV.unprot gs in
-          let g_prot_vars = List.map AV.prot gs in
-          let rel_side = RD.add_vars rel (g_unprot_vars @ g_prot_vars) in
-          let rel_side = RD.assign_var_parallel' rel_side g_unprot_vars g_vars in
-          let rel_side = RD.assign_var_parallel' rel_side g_prot_vars g_vars in
-          let rel_side = restrict_global rel_side in
-          sideg () rel_side;
-          (* TODO: why not remove at all? should only remove unprotected? *)
-          (* let rel_local = AD.remove_vars rel g_vars in
-             let rel_local' = AD.meet rel_local (getg ()) in
-             {st with rel = rel_local'} *)
-          st
-      | `Normal
-      | `Init
-      | `Thread ->
-        st
-
-    let enter_multithreaded ask getg sideg (st: relation_components_t): relation_components_t =
-      let rel = st.rel in
-      let (g_vars, gs) =
-        RD.vars rel
-        |> List.enum
-        |> Enum.filter_map (fun var ->
-            match RelV.find_metadata var with
-            | Some (Global g) -> Some (var, g)
-            | _ -> None
-          )
-        |> Enum.uncombine
-        |> Tuple2.map List.of_enum List.of_enum
-      in
-      let g_unprot_vars = List.map AV.unprot gs in
-      let g_prot_vars = List.map AV.prot gs in
-      let rel_side = RD.add_vars rel (g_unprot_vars @ g_prot_vars) in
-      let rel_side = RD.assign_var_parallel' rel_side g_unprot_vars g_vars in
-      let rel_side = RD.assign_var_parallel' rel_side g_prot_vars g_vars in
-      let rel_side = restrict_global rel_side in
-      sideg () rel_side;
-      let rel_local = RD.remove_vars rel g_vars in
-      let rel_local' = RD.meet rel_local (getg ()) in
-      {rel = rel_local'; priv = startstate ()}
-
-    let threadenter ask getg (st: relation_components_t): relation_components_t =
-      {rel = getg (); priv = startstate ()}
-
-    let finalize () = ()
-  end
-
-module CommonPerMutex = functor(RD: RelationDomain.RD) ->
-struct
-  include Protection
-  module V = RD.V
 
   let remove_globals_unprotected_after_unlock ask m oct =
     let newly_unprot var = match V.find_metadata var with
@@ -849,13 +438,18 @@ struct
     in
     {st with rel = rel_local'}
 
-  let lock ask getg (st: relation_components_t) m =
-    let rel = st.rel in
-    let get_m = get_m_with_mutex_inits ask getg m in
-    (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
-    let get_m = keep_only_protected_globals ask m get_m in
-    let rel' = RD.meet rel get_m in
-    {st with rel = rel'}
+    let lock ask getg (st: relation_components_t) m =
+      (* TODO: somehow actually unneeded here? *)
+      if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+        let rel = st.rel in
+        let get_m = get_m_with_mutex_inits ask getg m in
+        (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
+        let get_m = keep_only_protected_globals ask m get_m in
+        let rel' = RD.meet rel get_m in
+        {st with rel = rel'}
+      )
+      else
+        st (* sound w.r.t. recursive lock *)
 
   let unlock ask getg sideg (st: relation_components_t) m: relation_components_t =
     let rel = st.rel in
@@ -1351,17 +945,17 @@ struct
     in
     {rel = rel_local'; priv = (W.add g w,LMust.add lm lmust,l')}
 
-  let lock ask getg (st: apron_components_t) m =
+  let lock ask getg (st: relation_components_t) m =
     if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
-      let apr = st.apr in
+      let rel = st.rel in
       let _,lmust,l = st.priv in
       let lm = LLock.mutex m in
       let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
       let local_m = BatOption.default (LAD.bot ()) (L.find_opt lm l) in
       (* Additionally filter get_m in case it contains variables it no longer protects. E.g. in 36/22. *)
       let local_m = Cluster.keep_only_protected_globals ask m local_m in
-      let apr = Cluster.lock apr local_m get_m in
-      {st with apr}
+      let rel = Cluster.lock rel local_m get_m in
+      {st with rel = rel}
     )
     else
       st (* sound w.r.t. recursive lock *)

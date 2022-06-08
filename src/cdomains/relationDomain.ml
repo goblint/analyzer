@@ -1,7 +1,7 @@
 open Prelude
 open Cil
 
-module type RelVar =
+module type Var =
 sig
   type t
   val compare : t -> t -> int
@@ -11,10 +11,89 @@ sig
   val equal : t -> t -> bool
 end
 
+module RelVM =
+struct
+  type t =
+    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
+    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
+    | Return (** Var for function return value. *)
+    | Global of varinfo
+
+  let var_name = function
+    | Local -> failwith "var_name of Local"
+    | Arg -> failwith "var_name of Arg"
+    | Return -> "#ret"
+    | Global g -> g.vname
+end
+
+module type VarMetadata =
+sig
+  type t
+  val var_name: t -> string
+end
+
+
+module VarMetadataTbl =
+functor (VM: VarMetadata) ->
+  functor (Var: Var) ->
+  struct
+    module VH = Hashtbl.Make (Var)
+
+    let vh = VH.create 113
+
+    let make_var ?name metadata =
+      let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
+      let var = Var.of_string name in
+      VH.replace vh var metadata;
+      var
+
+    let find_metadata (var: Var.t) =
+      VH.find_option vh var
+  end
+
+
+
+module type RV =
+sig
+  type t
+  type vartable
+
+  val vh: vartable
+  val make_var: ?name:string -> RelVM.t -> t
+  val find_metadata: t -> RelVM.t Option.t
+  val local: varinfo -> t
+  val arg: varinfo -> t
+  val return: t
+  val global: varinfo -> t
+  val to_cil_varinfo: fundec -> t -> varinfo Option.t
+end
+
+module V (Var: Var): (RV with type t = Var.t and type vartable = RelVM.t VarMetadataTbl (RelVM) (Var).VH.t) =
+struct
+   type t = Var.t
+  module VMT = VarMetadataTbl (RelVM) (Var)
+  include VMT
+  open RelVM
+
+  type vartable = RelVM.t VMT.VH.t
+
+  let local x = make_var ~name:x.vname Local
+  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
+  let return = make_var Return
+  let global g = make_var (Global g)
+  let to_cil_varinfo fundec v =
+    match find_metadata v with
+    | Some (Global v) -> Some v
+    | Some (Local) ->
+      let vname = Var.to_string v in
+      List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals)
+    | _ -> None
+end
+
 module type D2  =
 sig
-  type var
   type t
+  type var
   type marshal
 
   include Lattice.S with type t:= t
@@ -48,54 +127,7 @@ sig
   val eval_int : t -> exp -> bool Lazy.t -> Queries.ID.t
 end
 
-module RelVM =
-struct
-  type t =
-    | Local (** Var for function local variable (or formal argument). *) (* No varinfo because local Var with the same name may be in multiple functions. *)
-    | Arg (** Var for function formal argument entry value. *) (* No varinfo because argument Var with the same name may be in multiple functions. *)
-    | Return (** Var for function return value. *)
-    | Global of varinfo
 
-  let var_name = function
-    | Local -> failwith "var_name of Local"
-    | Arg -> failwith "var_name of Arg"
-    | Return -> "#ret"
-    | Global g -> g.vname
-end
-
-module type VarMetadata =
-sig
-  type t
-  val var_name: t -> string
-end
-
-
-module VarMetadataTbl (VM: VarMetadata) =
-  functor (Var: RelVar) ->
-  struct
-    module VH = Hashtbl.Make (Var)
-
-    let vh = VH.create 113
-
-    let make_var ?name metadata =
-      let name = Option.default_delayed (fun () -> VM.var_name metadata) name in
-      let var = Var.of_string name in
-      VH.replace vh var metadata;
-      var
-
-    let find_metadata var =
-      VH.find_option vh var
-  end
-
-module V (Var: RelVar)=
-struct
-  include VarMetadataTbl (RelVM) (Var)
-  open RelVM
-  let local x = make_var ~name:x.vname Local
-  let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
-  let return = make_var Return
-  let global g = make_var (Global g)
-end
 
 type ('a, 'b) relcomponents_t = {
   rel: 'b;
@@ -158,11 +190,11 @@ module RelComponents (D2: RelD2) =
     let meet = op_scheme D2.meet PrivD.meet
     let widen = op_scheme D2.widen PrivD.widen
     let narrow = op_scheme D2.narrow PrivD.narrow
-  end
+end
 
 module type RD =
 sig
-  module Var : RelVar
+  module Var : Var
   module V : module type of struct include V(Var) end
   include RelD2 with type var = Var.t
 end

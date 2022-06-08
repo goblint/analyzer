@@ -1,6 +1,7 @@
 open Cil
 open Prelude
 open Apron
+module M = Messages
 
 
 module BI = IntOps.BigIntOps
@@ -32,18 +33,45 @@ struct
     type_tracked vi.vtype && not vi.vaddrof
 end
 
+let int_of_scalar ?round (scalar: Scalar.t) =
+  if Scalar.is_infty scalar <> 0 then (* infinity means unbounded *)
+    None
+  else
+    match scalar with
+    | Float f -> (* octD, boxD *)
+      (* bound_texpr on bottom also gives Float even with MPQ *)
+      let f_opt = match round with
+        | Some `Floor -> Some (Float.floor f)
+        | Some `Ceil -> Some (Float.ceil f)
+        | None when Stdlib.Float.is_integer f-> Some f
+        | None -> None
+      in
+      Option.map (fun f -> BI.of_bigint (Z.of_float f)) f_opt
+    | Mpqf scalar -> (* octMPQ, boxMPQ, polkaMPQ *)
+      let n = Mpqf.get_num scalar in
+      let d = Mpqf.get_den scalar in
+      let z_opt =
+        if Mpzf.cmp_int d 1 = 0 then (* exact integer (denominator 1) *)
+          Some n
+        else
+          begin match round with
+            | Some `Floor -> Some (Mpzf.fdiv_q n d) (* floor division *)
+            | Some `Ceil -> Some (Mpzf.cdiv_q n d) (* ceiling division *)
+            | None -> None
+          end
+      in
+      Option.map Z_mlgmpidl.z_of_mpzf z_opt
+    | _ ->
+      failwith ("int_of_scalar: unsupported: " ^ Scalar.to_string scalar)
+
+module V: RelationDomain.RV with type t = Var.t = RelationDomain.V(Var)
+
 module Convert (Bounds: ConvBounds) =
 struct
   open Texpr1
   open Tcons1
-  (* module Bounds = Bounds(Man) *)
   exception Unsupported_CilExp
-
-  (* TODO: move this into some general place *)
-  let is_cast_injective from_type to_type =
-    let (from_min, from_max) = IntDomain.Size.range (Cilfacade.get_ikind from_type) in
-    let (to_min, to_max) = IntDomain.Size.range (Cilfacade.get_ikind to_type) in
-    BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
+  exception Unsupported_Linexpr1
 
   let texpr1_expr_of_cil_exp d env no_ov =
     (* recurse without env argument *)
@@ -74,7 +102,7 @@ struct
             Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
           | BinOp (Mod, e1, e2, _) ->
             Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | CastE (TInt _ as t, e) when is_cast_injective (Cilfacade.typeOf e) t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+          | CastE (TInt _ as t, e) when IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
             Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
           | _ ->
             raise Unsupported_CilExp
@@ -95,7 +123,7 @@ struct
 
   let texpr1_of_cil_exp d env e ov =
     let e = Cil.constFold false e in
-    of_expr env (texpr1_expr_of_cil_exp d env ov e)
+    Texpr1.of_expr env (texpr1_expr_of_cil_exp d env ov e)
 
   let rec determine_bounds_one_var expr =
     match expr with
@@ -146,8 +174,61 @@ struct
         (texpr1_plus, texpr1_minus, typ)
     in
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
-    make (of_expr env texpr1') typ
+    Tcons1.make (Texpr1.of_expr env texpr1') typ
 
+    let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+      let longlong = TInt(ILongLong,[]) in
+      let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
+        | Scalar c ->
+          (match int_of_scalar c with
+           | Some i ->
+             let ci,truncation = truncateCilint ILongLong i in
+             if truncation = NoTruncation then
+               if not consider_flip || Z.compare i Z.zero >= 0 then
+                 Const (CInt(i,ILongLong,None)), false
+               else
+                 (* attempt to negate if that does not cause an overflow *)
+                 let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+                 if truncation = NoTruncation then
+                   Const (CInt((Z.neg i),ILongLong,None)), true
+                 else
+                   Const (CInt(i,ILongLong,None)), false
+             else
+               (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+           | None -> raise Unsupported_Linexpr1)
+        | _ -> raise Unsupported_Linexpr1
+      in
+      let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
+      let append_summand (c:Coeff.union_5) v =
+        match V.to_cil_varinfo fundec v with
+        | Some vinfo ->
+          (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+          let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+          let coeff, flip = coeff_to_const true c in
+          let prod = BinOp(Mult, coeff, var, longlong) in
+          if flip then
+            expr := BinOp(MinusA,!expr,prod,longlong)
+          else
+            expr := BinOp(PlusA,!expr,prod,longlong)
+        | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+      in
+      Linexpr1.iter append_summand linexpr1;
+      !expr
+  
+  
+    let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
+      let zero = Cil.kinteger ILongLong 0 in
+      try
+        let linexpr1 = Lincons1.get_linexpr1 lincons1 in
+        let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
+        match Lincons1.get_typ lincons1 with
+        | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
+        | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
+        | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
+        | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
+        | EQMOD _ -> None
+      with
+        Unsupported_Linexpr1 -> None
 end
 
 module EnvOps =
@@ -209,9 +290,10 @@ struct
 
   include Tracked
 
-  let exp_is_cons = function
+  let rec exp_is_cons = function
     (* constraint *)
     | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+    | UnOp (LNot,e,_) -> exp_is_cons e
     (* expression *)
     | _ -> false
 
@@ -229,10 +311,12 @@ struct
 
   let eval_interval_expr d e =
     match Convert.texpr1_of_cil_exp d (env d) e false with
-    | texpr1 -> Bounds.bound_texpr d texpr1
-    | exception Convert.Unsupported_CilExp -> (None, None)
+    | texpr1 -> 
+      Bounds.bound_texpr d texpr1
+    | exception Convert.Unsupported_CilExp -> 
+      (None, None)
 
-  let check_asserts d e no_ov =
+  let check_assert d e no_ov =
     if is_bot_env (assert_inv d e false no_ov) then
       `False
     else if is_bot_env (assert_inv d e true no_ov) then
@@ -246,14 +330,14 @@ struct
     let module ID = Queries.ID in
     let ik = Cilfacade.get_ikind_exp e in
     if exp_is_cons e then
-      match check_asserts d e no_ov with
+      match check_assert d e no_ov with
       | `True -> ID.of_bool ik true
       | `False -> ID.of_bool ik false
-      | `Top -> ID.top ()
+      | `Top -> ID.top_of ik
     else
       match eval_interval_expr d e with
       | (Some min, Some max) -> ID.of_interval ik (min, max)
       | (Some min, None) -> ID.starting ik min
       | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top ()
+      | (None, None) -> ID.top_of ik
 end

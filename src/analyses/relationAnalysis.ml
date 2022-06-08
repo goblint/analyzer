@@ -16,7 +16,7 @@ struct
   module RV = RD.V
   module PCU = PCU(RD)
 
-  let results = PCU.RH.create 103
+  let results = PCU.RH.create 103 (*ToDO Remove this*)
 
   let should_join = Priv.should_join
 
@@ -299,7 +299,7 @@ struct
         | _ -> false (* remove everything else (globals, global privs) *)
       )
     in
-    let unify_rel = RD.unify new_rel new_fun_rel in
+    let unify_rel = RD.unify new_rel new_fun_rel in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "relation unifying %a %a = %a\n" RD.pretty new_rel RD.pretty new_fun_rel RD.pretty unify_rel;
     let unify_st = {fun_st with rel = unify_rel} in
     if RD.type_tracked (Cilfacade.fundec_return_type f) then (
@@ -351,6 +351,7 @@ struct
       let st' = match LibraryFunctions.get_invalidate_action f.vname with
         | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
         | None ->
+          (* nothing to do for args because only AddrOf arguments may be invalidated *)
           if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
             let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
                 match global with
@@ -434,10 +435,12 @@ struct
   let event ctx e relx =
     let st = ctx.local in
     match e with
-    | Events.Lock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
+    | Events.Lock (addr, _) when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
       Priv.lock (Analyses.ask_of_ctx relx) relx.global st addr
     | Events.Unlock addr when ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) -> (* TODO: is this condition sound? *)
-      Priv.unlock (Analyses.ask_of_ctx relx) relx.global relx.sideg st addr
+    if addr = UnknownPtr then
+      M.info ~category:Unsound "Unknown mutex unlocked, relation privatization unsound"; (* TODO: something more sound *)
+    Priv.unlock (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st addr
     (* No need to handle escape because escaped variables are always referenced but this analysis only considers unreferenced variables. *)
     | Events.EnterMultiThreaded ->
       Priv.enter_multithreaded (Analyses.ask_of_ctx relx) relx.global relx.sideg st
