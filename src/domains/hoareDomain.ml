@@ -48,6 +48,7 @@ struct
   let elements m = Map.values m |> List.of_enum |> List.flatten
 
   (* merge elements in x and y by f *)
+  (* TODO: unused, remove? *)
   let merge op f x y =
     let g = match op with
       | `Join -> B.join
@@ -93,8 +94,6 @@ struct
   (* Set *)
   let of_list_by f es = List.fold_left (flip (B.merge_element (B.join f))) Map.empty es
   let of_list es = of_list_by E.join es
-  let keep_apart x y = raise Lattice.Uncomparable
-  let of_list_apart es = of_list_by keep_apart es
   let singleton e = of_list [e]
   let exists p m = List.exists p (elements m)
   let for_all p m = List.for_all p (elements m)
@@ -105,7 +104,7 @@ struct
     (* Map.map (List.map f) m *)
     (* since hashes might change we need to rebuild: *)
     apply_list (List.map f) m
-  let filter f m = apply_list (List.filter f) m (* TODO do something better? *)
+  let filter f m = apply_list (List.filter f) m (* TODO do something better? unused *)
   let remove x m =
     let ngreq x y = not (E.leq y x) in
     B.merge_element (fun _ -> List.filter (ngreq x)) x m
@@ -203,7 +202,6 @@ struct
   let subset _ _ = unsupported "Set.subset"
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
-  let split x a = unsupported "Set.split"
   let apply_list f s = elements s |> f |> of_list
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
@@ -260,9 +258,7 @@ struct
   let filter' = filter
   let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
   let iter' = iter
-  let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
   let for_all' = for_all
-  let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
   let exists' = exists
   let exists (p: key -> bool) (s: t): bool = exists (fun x _ -> p x) s
   let fold' = fold

@@ -111,7 +111,11 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
         `Struct (s1, o1)
       | _ -> `Type t
     end
-  | _ -> `Type fb
+  | Const _
+  | Lval _
+  | Real _
+  | Imag _ ->
+    `Type fb (* TODO: is this right? *)
 
 let get_type fb e =
   (* printf "e = %a\n" d_plainexp e; *)
@@ -121,27 +125,6 @@ let get_type fb e =
   | `Type (TPtr (t,a)) -> `Type t
   | x -> x
 
-
-module Ht =
-struct
-  include Hashtbl
-
-  let find_def ht k z : 'b =
-    try
-      find ht k
-    with Not_found ->
-      let v = Lazy.force z in
-      add ht k v;
-      v
-
-  let modify_def ht k z f: unit =
-    let g = function
-      | None -> Some (f (Lazy.force z))
-      | Some b -> Some (f b)
-    in
-    modify_opt k g ht
-
-end
 
 
 type var_o = varinfo option
@@ -227,7 +210,7 @@ let add_propagate side e kind conf ty ls a =
       | _ -> failwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
-    let vars = Ht.find_all typeVar ts in
+    let vars = Hashtbl.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     let add_vars v = add_struct side e kind conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
     List.iter add_vars vars;
@@ -244,9 +227,9 @@ let add_propagate side e kind conf ty ls a =
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
-    let incl = Ht.find_all typeIncl (typeSig t) in
+    let incl = Hashtbl.find_all typeIncl (typeSig t) in
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset))) incl;
-    let vars = Ht.find_all typeVar (typeSig t) in
+    let vars = Hashtbl.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
 let rec distribute_access_lval f kind r c lv =
@@ -281,8 +264,12 @@ and distribute_access_exp f kind r c = function
     distribute_access_exp f kind r c arg1;
     distribute_access_exp f kind r c arg2
 
-  (* Unary operators *)
-  | UnOp (op,arg1,typ) -> distribute_access_exp f kind r c arg1
+  | UnOp (_,e,_)
+  | Real e
+  | Imag e
+  | SizeOfE e
+  | AlignOfE e ->
+    distribute_access_exp f kind r c e
 
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval ->
@@ -298,7 +285,12 @@ and distribute_access_exp f kind r c = function
     distribute_access_exp f `Read r c b;
     distribute_access_exp f kind r c t;
     distribute_access_exp f kind r c e
-  | _ -> ()
+  | Const _
+  | SizeOf _
+  | SizeOfStr _
+  | AlignOf _
+  | AddrOfLabel _ ->
+    ()
 
 let add side e kind conf vo oo a =
   let ty = get_val_type e vo oo in

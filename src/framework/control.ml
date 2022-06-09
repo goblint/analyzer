@@ -258,7 +258,6 @@ struct
         ; local   = Spec.D.top ()
         ; global  = getg
         ; presub  = (fun _ -> raise Not_found)
-        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Global initializers should never spawn threads. What is going on?")
         ; split   = (fun _ -> failwith "Global initializers trying to split paths.")
         ; sideg   = sideg
@@ -313,11 +312,11 @@ struct
 
     GU.global_initialization := true;
     GU.earlyglobs := get_bool "exp.earlyglobs";
-    let marshal =
+    let marshal: Spec.marshal option =
       if get_string "load_run" <> "" then
         Some (Serialize.unmarshal Fpath.(v (get_string "load_run") / "spec_marshal"))
       else if Serialize.results_exist () && get_bool "incremental.load" then
-        Some (Serialize.load_data Serialize.AnalysisData)
+        Some (Serialize.Cache.(get_data AnalysisData))
       else
         None
     in
@@ -359,7 +358,6 @@ struct
         ; local   = st
         ; global  = getg
         ; presub  = (fun _ -> raise Not_found)
-        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = sideg
@@ -393,7 +391,6 @@ struct
         ; local   = st
         ; global  = getg
         ; presub  = (fun _ -> raise Not_found)
-        ; postsub = (fun _ -> raise Not_found)
         ; spawn   = (fun _ -> failwith "Bug1: Using enter_func for toplevel functions with 'otherstate'.")
         ; split   = (fun _ -> failwith "Bug2: Using enter_func for toplevel functions with 'otherstate'.")
         ; sideg   = sideg
@@ -478,7 +475,7 @@ struct
           Goblintutil.should_warn := get_string "warn_at" = "early" || gobview;
           let (lh, gh), solver_data = Stats.time "solving" (Slvr.solve entrystates entrystates_global) startvars' in
           if GobConfig.get_bool "incremental.save" then
-            Serialize.store_data solver_data Serialize.SolverData;
+            Serialize.Cache.(update_data SolverData solver_data);
           if save_run_str <> "" then (
             let save_run = Fpath.v save_run_str in
             let analyses = Fpath.(save_run / "analyses.marshalled") in
@@ -495,7 +492,7 @@ struct
             GobConfig.write_file config;
             let module Meta = struct
                 type t = { command : string; version: string; timestamp : float; localtime : string } [@@deriving to_yojson]
-                let json = to_yojson { command = GU.command; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
+                let json = to_yojson { command = GU.command_line; version = Version.goblint; timestamp = Unix.time (); localtime = localtime () }
               end
             in
             (* Yojson.Safe.to_file meta Meta.json; *)
@@ -610,7 +607,6 @@ struct
                   ; local  = local
                   ; global = GHT.find gh
                   ; presub = (fun _ -> raise Not_found)
-                  ; postsub= (fun _ -> raise Not_found)
                   ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
                   ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
                   ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -665,7 +661,6 @@ struct
         ; local  = snd (List.hd startvars) (* bot and top both silently raise and catch Deadcode in DeadcodeLifter *)
         ; global = (fun v -> try GHT.find gh v with Not_found -> EQSys.G.bot ())
         ; presub = (fun _ -> raise Not_found)
-        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
@@ -678,6 +673,16 @@ struct
     if get_bool "ana.sv-comp.enabled" then
       WResult.write lh gh entrystates;
 
+    if get_bool "witness.yaml.enabled" then (
+      let module YWitness = YamlWitness.Make (struct let file = file end) (Cfg) (Spec) (EQSys) (LHT) (GHT) in
+      YWitness.write lh gh
+    );
+
+    if get_string "witness.yaml.validate" <> "" then (
+      let module YWitness = YamlWitness.Validator (Spec) (EQSys) (LHT) (GHT) in
+      YWitness.validate lh gh file
+    );
+
     let marshal = Spec.finalize () in
     (* copied from solve_and_postprocess *)
     let gobview = get_bool "gobview" in
@@ -686,8 +691,8 @@ struct
       Serialize.marshal marshal Fpath.(v save_run / "spec_marshal")
     );
     if get_bool "incremental.save" then (
-      Serialize.store_data marshal Serialize.AnalysisData;
-      Serialize.move_tmp_results_to_results ()
+      Serialize.Cache.(update_data AnalysisData marshal);
+      Serialize.Cache.store_data ()
     );
     if get_bool "dbg.verbose" && get_string "result" <> "none" then print_endline ("Generating output: " ^ get_string "result");
     Result.output (lazy local_xml) gh make_global_fast_xml file

@@ -2,9 +2,6 @@
 
 open Pretty
 
-type json = Yojson.Safe.t
-let json_to_yojson x = x
-
 module type S =
 sig
   type t
@@ -18,7 +15,7 @@ sig
   val printXml : 'a BatInnerIO.output -> t -> unit
   (* This is for debugging *)
   val name: unit -> string
-  val to_yojson : t -> json
+  val to_yojson : t -> Yojson.Safe.t
 
   val invariant: Invariant.context -> t -> Invariant.t
   val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
