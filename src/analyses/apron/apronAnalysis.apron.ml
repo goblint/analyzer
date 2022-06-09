@@ -150,7 +150,11 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
-              AD.assign_exp apr' (V.local v) e'
+              if M.tracing then M.traceli "apron" "assign inner %a = %a (%a)\n" d_varinfo v d_exp e' d_plainexp e';
+              if M.tracing then M.trace "apron" "st: %a\n" AD.pretty apr';
+              let r = AD.assign_exp apr' (V.local v) e' in
+              if M.tracing then M.traceu "apron" "-> %a\n" AD.pretty r;
+              r
             )
         )
       in

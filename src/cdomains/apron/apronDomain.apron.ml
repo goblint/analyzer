@@ -252,8 +252,8 @@ struct
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
-          | _ ->
-            (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
+          | min_opt, max_opt ->
+            if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
             raise Unsupported_CilExp
         );
         expr
@@ -484,8 +484,10 @@ struct
   let assign_exp_with nd v e =
     match Convert.texpr1_of_cil_exp nd (A.env nd) e with
     | texpr1 ->
+      if M.tracing then M.trace "apron" "assign_exp converted: %s\n" (Format.asprintf "%a" Texpr1.print texpr1);
       A.assign_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
+      if M.tracing then M.trace "apron" "assign_exp unsupported\n";
       forget_vars_with nd [v]
 
   let assign_exp d v e =
