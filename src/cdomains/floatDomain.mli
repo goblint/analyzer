@@ -41,6 +41,9 @@ module FloatInterval : sig (**Currently just for FloatDomainTest *)
   val is_top : t -> bool
 
   val of_const : float -> t
+  val of_interval : float*float -> t
+  val ending : float -> t
+  val starting : float -> t
 
   val show : t -> string
 
@@ -56,6 +59,15 @@ module type FloatDomainBase = sig
   include FloatArith with type t := t
 
   val of_const : float -> t
+  val of_interval : float*float -> t
+
+  val ending : float -> t
+  val starting : float -> t
+
+  val to_float : t -> float option
+  val maximal : t -> float option
+  val minimal : t -> float option
+
   val of_int : IntDomain.IntDomTuple.t -> t
   val cast_to : Cil.ikind -> t -> IntDomain.IntDomTuple.t
 end

@@ -36,13 +36,24 @@ module type FloatDomainBase = sig
   include FloatArith with type t := t
 
   val of_const : float -> t
-  val of_int: IntDomain.IntDomTuple.t -> t
-  val cast_to: Cil.ikind -> t -> IntDomain.IntDomTuple.t
+  val of_interval : float*float -> t 
+  val ending : float -> t
+  val starting : float -> t
+
+  val to_float : t -> float option
+  val maximal : t -> float option
+  val minimal : t -> float option
+
+  val of_int : IntDomain.IntDomTuple.t -> t
+  val cast_to : Cil.ikind -> t -> IntDomain.IntDomTuple.t
 end
 module FloatInterval = struct
   include Printable.Std (* for default invariant, tag and relift *)
   type t = (float * float) option [@@deriving eq, ord, to_yojson]
 
+  let show = function
+    | None -> "Float[Top]"
+    | Some (low, high) -> "Float [" ^ string_of_float low ^ "," ^ string_of_float high ^ "]"
 
   let big_int_of_float f =
     let x, n = Float.frexp f in
@@ -71,11 +82,19 @@ module FloatInterval = struct
         Some (l'', h'')
     | _, _ -> None
 
-  let hash = Hashtbl.hash
+  let maximal = function
+    | Some (_, h) -> Some h
+    | _ -> None
 
-  let show = function
-    | None -> "Float[Top]"
-    | Some (low, high) -> "Float [" ^ string_of_float low ^ "," ^ string_of_float high ^ "]"
+  let minimal = function
+    | Some (l, _) -> Some l
+    | _ -> None
+
+  let to_float = function
+    | Some (l, h) when l = h -> Some l
+    | _ -> None
+
+  let hash = Hashtbl.hash
 
   let pretty () x = text (show x)
 
@@ -123,7 +142,10 @@ module FloatInterval = struct
   (**for QCheck: should describe how to generate random values and shrink possilbe counter examples *)
   let arbitrary () = QCheck.map norm_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float)) 
 
-  let of_const f = norm @@ Some (f, f) 
+  let of_interval (l, h) = norm @@ Some (min l h, max l h)
+  let ending end_value = of_interval (-. max_float, end_value)
+  let starting start_value = of_interval (start_value, max_float)
+  let of_const f = of_interval (f, f)
 
   let leq v1 v2 = 
     match v1, v2 with
@@ -164,7 +186,7 @@ module FloatInterval = struct
   (** evaluation of the binary operations *)
   let eval_binop eval_operation op1 op2 =
     norm @@ match (op1, op2) with 
-    | Some v1, Some v2 -> eval_operation v1 v2 
+    | Some v1, Some v2 -> eval_operation v1 v2
     | _ -> None
 
   let eval_int_binop eval_operation op1 op2 =
@@ -320,6 +342,23 @@ module FloatDomTupleImpl = struct
 
   let of_const =
     create { fi= (fun (type a) (module F : FloatDomainBase with type t = a) -> F.of_const); }
+  let of_interval =
+    create { fi= (fun (type a) (module F : FloatDomainBase with type t = a) -> F.of_interval); }
+  let ending =
+    create { fi= (fun (type a) (module F : FloatDomainBase with type t = a) -> F.ending); }
+  let starting =
+    create { fi= (fun (type a) (module F : FloatDomainBase with type t = a) -> F.starting); }
+
+  let to_float = function
+    | Some (x) -> F1.to_float x
+    | _ -> None
+
+  let maximal = function
+    | Some (x) -> F1.maximal x
+    | _ -> None
+  let minimal = function
+    | Some (x) -> F1.minimal x
+    | _ -> None
 
   let top =
     create { fi= (fun (type a) (module F : FloatDomainBase with type t = a) -> F.top); }
