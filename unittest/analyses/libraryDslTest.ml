@@ -5,7 +5,7 @@ let memset_desc: LibraryDesc.t = LibraryDsl.(
 )
 
 let pthread_mutex_lock_desc: LibraryDesc.t = LibraryDsl.(
-  special [__' [r]] @@ fun e -> Lock { lock = e; try_ = false; write = true; return_on_success = false; } (* TODO: not right *)
+  special [__' [r]] @@ fun e -> Lock { lock = e; try_ = false; write = true; return_on_success = false; } (* actual description in LibraryFunctions has try_ depending on sem.lock.fail *)
 )
 
 let pthread_create_desc: LibraryDesc.t = LibraryDsl.(
