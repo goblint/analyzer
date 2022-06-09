@@ -338,14 +338,41 @@ struct
     else
       unify_st
 
+
+  let invalidate_one ask ctx st lv =
+    assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
+        let apr' = AD.forget_vars st.apr [V.local v] in
+        assert_type_bounds apr' v (* re-establish type bounds after forget *)
+      )
+
+
+  (* Give the set of reachables from argument. *)
+  let reachables (ask: Queries.ask) es =
+    let reachable e st =
+      match st with
+      | None -> None
+      | Some st ->
+        let vs = ask.f (Queries.ReachableFrom e) in
+        if Queries.LS.is_top vs then
+          None
+        else
+          Some (Queries.LS.join vs st)
+    in
+    List.fold_right reachable es (Some (Queries.LS.empty ()))
+
+
+  let forget_reachable ctx st es =
+    let ask = Analyses.ask_of_ctx ctx in
+    match reachables ask es with
+    | None -> D.top ()
+    | Some rs ->
+      Queries.LS.fold (fun lval st ->
+          invalidate_one ask ctx st (Lval.CilLval.to_lval lval)
+        ) rs st
+
+
   let special ctx r f args =
     let ask = Analyses.ask_of_ctx ctx in
-    let invalidate_one st lv =
-      assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-          let apr' = AD.forget_vars st.apr [V.local v] in
-          assert_type_bounds apr' v (* re-establish type bounds after forget *)
-        )
-    in
     let st = ctx.local in
     match LibraryFunctions.classify f.vname args with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
@@ -354,26 +381,20 @@ struct
     | `Unknown "__goblint_commit" -> st
     | `Unknown "__goblint_assert" -> st
     | `ThreadJoin (id,retvar) ->
-      (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
       (
-        let st' = Priv.thread_join ask ctx.global id st in
+        (* Forget value that thread return is assigned to *)
+        let st' = forget_reachable ctx st [retvar] in
+        let st' = Priv.thread_join ask ctx.global id st' in
         match r with
-        | Some lv -> invalidate_one st' lv
+        | Some lv -> invalidate_one ask ctx st' lv
         | None -> st'
       )
     | _ ->
       let ask = Analyses.ask_of_ctx ctx in
-      let invalidate_one st lv =
-        assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
-            let apr' = AD.forget_vars st.apr [V.local v] in
-            assert_type_bounds apr' v (* re-establish type bounds after forget *)
-          )
-      in
       let st' = match LibraryFunctions.get_invalidate_action f.vname with
-        | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
+        | Some fnc -> forget_reachable ctx st (fnc `Write args)
         | None ->
-          (* nothing to do for args because only AddrOf arguments may be invalidated *)
-          if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
+          let st' = if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
             let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
                 match global with
                 | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
@@ -382,14 +403,18 @@ struct
                 | _ -> acc
               ) []
             in
-            List.fold_left invalidate_one st globals
-          )
+            List.fold_left (invalidate_one ask ctx) st globals)
           else
             st
+          in
+          if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
+            forget_reachable ctx st' args
+          else
+            st'
       in
       (* invalidate lval if present *)
       match r with
-      | Some lv -> invalidate_one st' lv
+      | Some lv -> invalidate_one ask ctx st' lv
       | None -> st'
 
 
