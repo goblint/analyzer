@@ -1,5 +1,5 @@
-// SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.privatization mutex-meet-tid --set ana.path_sens[+] threadflag --set ana.apron.domain polyhedra
-// TODO: this requires "used >= capacity - used - 1" as widening threshold to succeed, otherwise that extra lazy downsize branch causes additional widening that loses the constraint
+// SKIP PARAM: --set ana.activated[+] apron --enable ana.sv-comp.functions --set ana.apron.privatization mutex-meet-tid --set ana.path_sens[+] threadflag --set ana.apron.domain polyhedra --enable ana.apron.threshold_widening
+// this requires "used >= capacity - used - 1" as widening threshold to succeed, otherwise that extra lazy downsize branch causes additional widening that loses the constraint
 #include <pthread.h>
 #include <assert.h>
 #include <limits.h>
@@ -22,9 +22,9 @@ void remove() {
     pthread_mutex_lock(&C);
     assert(used >= 0);
     assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY); // TODO
+    assert(capacity <= MAX_CAPACITY);
     assert(used <= capacity);
-    assert(used >= capacity - used - 1); // TODO: 2 * used >= capacity - 1, but without overflow in *
+    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
 
     if (amount <= used) {
       used -= amount;
@@ -42,9 +42,9 @@ void remove() {
 
     assert(used >= 0);
     assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY); // TODO
+    assert(capacity <= MAX_CAPACITY);
     assert(used <= capacity);
-    assert(used >= capacity - used - 1); // TODO: 2 * used >= capacity - 1, but without overflow in *
+    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
     pthread_mutex_unlock(&C);
     pthread_mutex_unlock(&U);
   }
@@ -58,9 +58,9 @@ void append() {
     pthread_mutex_lock(&C);
     assert(used >= 0);
     assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY); // TODO
+    assert(capacity <= MAX_CAPACITY);
     assert(used <= capacity);
-    assert(used >= capacity - used - 1); // TODO: 2 * used >= capacity - 1, but without overflow in *
+    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
 
     if (used <= MAX_CAPACITY - amount) { // used + amount <= MAX_CAPACITY, but without overflow in +
       int new_used = used + amount;
@@ -73,9 +73,9 @@ void append() {
 
     assert(used >= 0);
     assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY); // TODO
+    assert(capacity <= MAX_CAPACITY);
     assert(used <= capacity);
-    assert(used >= capacity - used - 1); // TODO: 2 * used >= capacity - 1, but without overflow in *
+    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
     pthread_mutex_unlock(&C);
     pthread_mutex_unlock(&U);
   }
@@ -108,9 +108,9 @@ int main() {
     pthread_mutex_lock(&C);
     assert(used >= 0);
     assert(capacity >= 1);
-    assert(capacity <= MAX_CAPACITY); // TODO
+    assert(capacity <= MAX_CAPACITY);
     assert(used <= capacity);
-    assert(used >= capacity - used - 1); // TODO: 2 * used >= capacity - 1, but without overflow in *
+    assert(used >= capacity - used - 1); // 2 * used >= capacity - 1, but without overflow in *
     pthread_mutex_unlock(&C);
     pthread_mutex_unlock(&U);
   }

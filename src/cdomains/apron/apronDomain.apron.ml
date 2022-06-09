@@ -196,8 +196,13 @@ struct
     (min, max)
 end
 
+module type ConvertArg =
+sig
+  val allow_global: bool
+end
+
 (** Conversion from CIL expressions to Apron. *)
-module Convert (Tracked: Tracked) (Man: Manager)=
+module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
 struct
   open Texpr1
   open Tcons1
@@ -211,7 +216,7 @@ struct
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if not v.vglob then
+        if not v.vglob || Arg.allow_global then
           let var = Var.of_string v.vname in
           if Environment.mem_var env var then
             Var var
@@ -353,7 +358,7 @@ end
 (** Convenience operations on A. *)
 module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = Convert (Tracked) (Man)
+  module Convert = Convert (struct let allow_global = false end) (Tracked) (Man)
 
   type t = Man.mt A.t
 
@@ -662,20 +667,20 @@ sig
   include Lattice.S with type t := t
 end
 
+module Tracked =
+struct
+  let type_tracked typ =
+    isIntegralType typ
+
+  let varinfo_tracked vi =
+    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+    type_tracked vi.vtype && not vi.vaddrof
+end
+
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
   module Bounds = Bounds (Man)
-
-  module Tracked =
-  struct
-    let type_tracked typ =
-      isIntegralType typ
-
-    let varinfo_tracked vi =
-      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-      type_tracked vi.vtype && not vi.vaddrof
-  end
 
   include AOps (Tracked) (Man)
 
@@ -970,16 +975,42 @@ struct
   let widen x y =
     let x_env = A.env x in
     let y_env = A.env y in
-    if Environment.equal x_env y_env  then
-      if GobConfig.get_bool "ana.apron.threshold_widening" && Oct.manager_is_oct Man.mgr then
-        let octmgr = Oct.manager_to_oct Man.mgr in
-        let ts = ResettableLazy.force widening_thresholds_apron in
-        let x_oct = Oct.Abstract1.to_oct x in
-        let y_oct = Oct.Abstract1.to_oct y in
-        let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
-        Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+    if Environment.equal x_env y_env then (
+      if GobConfig.get_bool "ana.apron.threshold_widening" then (
+        if Oct.manager_is_oct Man.mgr then (
+          let octmgr = Oct.manager_to_oct Man.mgr in
+          let ts = ResettableLazy.force widening_thresholds_apron in
+          let x_oct = Oct.Abstract1.to_oct x in
+          let y_oct = Oct.Abstract1.to_oct y in
+          let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+          Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+        )
+        else (
+          let exps = ResettableLazy.force WideningThresholds.exps in
+          let module Convert = Convert (struct let allow_global = true end) (Tracked) (Man) in
+          (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
+          let tcons1s = List.filter_map (fun e ->
+              match Convert.tcons1_of_cil_exp y y_env e false with
+              | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
+                Some tcons1
+              | _
+              | exception Convert.Unsupported_CilExp ->
+                None
+            ) exps
+          in
+          let tcons1_earray: Tcons1.earray = {
+            array_env = y_env;
+            tcons0_array = tcons1s |> List.enum |> Enum.map Tcons1.get_tcons0 |> Array.of_enum
+          }
+          in
+          let w = A.widening Man.mgr x y in
+          A.meet_tcons_array_with Man.mgr w tcons1_earray;
+          w
+        )
+      )
       else
         A.widening Man.mgr x y
+    )
     else
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
 
@@ -1016,6 +1047,7 @@ type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, 
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
   include DWithOps (Man) (DHetero (Man))
+  module Tracked = Tracked
   module Man = Man
 end
 
