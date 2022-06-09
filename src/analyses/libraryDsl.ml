@@ -27,13 +27,6 @@ struct
       let k = p2 x2 k in
       k
     | [] -> fail "^::"
-
-  let many (p: _ t): _ t = fun l k ->
-    let rec aux accu = function
-      | [] -> k (List.rev accu)
-      | x :: xs -> p x (fun x -> aux (x :: accu) xs)
-    in
-    aux [] l
 end
 
 type ('k, 'l, 'r) arg_desc = {
