@@ -151,7 +151,6 @@ class Tests
       ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
                     when /\(conf\. \d+\)/            then "race"
-                    when /lockset:/                  then "race" # osek races have their own legacy-like output
                     when /Deadlock/                  then "deadlock"
                     when /lock (before|after):/      then "deadlock"
                     when /Assertion .* will fail/    then "fail"

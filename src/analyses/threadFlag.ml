@@ -40,9 +40,6 @@ struct
     | "__goblint_dummy_init" ->
       (* TODO: is this necessary? *)
       Flag.join ctx.local (Flag.get_main ())
-    | "StartupHook" ->
-      (* TODO: is this necessary? *)
-      Flag.get_multi ()
     | _ ->
       ctx.local
 

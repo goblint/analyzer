@@ -1,12 +1,12 @@
 
 This is the API of the Goblint static analyzer framework, developed at the Technische Universität München ({b TUM})
-and the University of Tartu ({b UT}). 
+and the University of Tartu ({b UT}).
 
-The API is divided into four logical sections: 
+The API is divided into four logical sections:
 the framework, constraint solvers, domains, and analysis instances.
 
 {2 Framework}
-{!modules: 
+{!modules:
 Maingoblint
 Analyses
 Constraints
@@ -17,7 +17,7 @@ Config
 }
 
 {3 Util}
-{!modules: 
+{!modules:
 Cache
 Cilfacade
 Defaults
@@ -38,13 +38,13 @@ Xmldump
 }
 
 {3 CIL components}
-{!modules: 
+{!modules:
 Cil
 Pretty
 }
 
 {2 Solvers}
-{!modules: 
+{!modules:
 EffectWCon
 EffectWConEq
 Generic
@@ -57,7 +57,7 @@ TopDown
 
 {2 Domains}
 
-{!modules: 
+{!modules:
 
 ValueDomain
 Basetype
@@ -83,7 +83,6 @@ ConcDomain
 ContainDomain
 EscapeDomain
 FlagModeDomain
-Osektupel
 LockDomain
 StackDomain
 FileDomain
@@ -94,7 +93,7 @@ LvalMapDomain
 
 {3 General Lattice Functors}
 
-{!modules: 
+{!modules:
 Lattice
 Printable
 MapDomain
@@ -105,7 +104,7 @@ Glob
 }
 
 {2 Analyses}
-{!modules: 
+{!modules:
 MCP
 Base
 Spec
@@ -125,8 +124,6 @@ Malloc_null
 MayLocks
 MTFlag
 Mutex
-Osek
-Osektransactionality
 Region
 Shapes
 StackTrace

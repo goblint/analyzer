@@ -41,6 +41,10 @@ and eq_exp (a: exp) (b: exp) = match a,b with
   | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 &&  eq_exp exp1 exp2
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2
   | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2
+  | Real exp1, Real exp2 -> eq_exp exp1 exp2
+  | Imag exp1, Imag exp2 -> eq_exp exp1 exp2
+  | Question (b1, t1, f1, typ1), Question (b2, t2, f2, typ2) -> eq_exp b1 b2 && eq_exp t1 t2 && eq_exp f1 f2 && eq_typ typ1 typ2
+  | AddrOfLabel _, AddrOfLabel _ -> false (* TODO: what to do? *)
   | _, _ -> false
 
 and eq_lhost (a: lhost) (b: lhost) = match a, b with
@@ -196,19 +200,9 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   | Block block1, Block block2 -> eq_block' block1 block2
   | _, _ -> false
 
-and eq_stmt ?(cfg_comp = false) ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
+and eq_stmt ?cfg_comp ((a, af): stmt * fundec) ((b, bf): stmt * fundec) =
   GobList.equal eq_label a.labels b.labels &&
-  eq_stmtkind ~cfg_comp (a.skind, af) (b.skind, bf)
+  eq_stmtkind ?cfg_comp (a.skind, af) (b.skind, bf)
 
 and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) =
   a.battrs = b.battrs && GobList.equal (fun x y -> eq_stmt (x, af) (y, bf)) a.bstmts b.bstmts
-
-let rec eq_init (a: init) (b: init) = match a, b with
-  | SingleInit e1, SingleInit e2 -> eq_exp e1 e2
-  | CompoundInit (t1, l1), CompoundInit (t2, l2) -> eq_typ t1 t2 && GobList.equal (fun (o1, i1) (o2, i2) -> eq_offset o1 o2 && eq_init i1 i2) l1 l2
-  | _, _ -> false
-
-let eq_initinfo (a: initinfo) (b: initinfo) = match a.init, b.init with
-  | (Some init_a), (Some init_b) -> eq_init init_a init_b
-  | None, None -> true
-  | _, _ -> false

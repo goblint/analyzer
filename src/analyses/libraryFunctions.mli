@@ -11,7 +11,6 @@ val use_special : string -> bool
 (** This is for when we need to use special transfer function on functions calls that have definitions.
 *)
 
-val osek_renames : bool ref
 val is_safe_uncalled : string -> bool
 
 (** Find library function descriptor for function. *)

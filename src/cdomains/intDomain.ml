@@ -830,7 +830,7 @@ struct
   let invariant c x = failwith "unimplemented"
 
   let invariant_ikind c ik x =
-    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
       let x1 = Ints_t.to_bigint x1 in
@@ -930,7 +930,7 @@ struct
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
+  let show (x: Ints_t.t) = Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
@@ -1599,7 +1599,7 @@ struct
   let lognot ik = eq ik (of_int ik BigInt.zero)
 
   let invariant_ikind c ik (x:t) =
-    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
     match x with
     | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x, intType))
     | `Excluded (s, _) ->
@@ -2005,7 +2005,7 @@ module Enums : S with type int_t = BigInt.t = struct
   let ne ik x y = lognot ik (eq ik x y)
 
   let invariant_ikind c ik x =
-    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
     match x with
     | Inc ps ->
       List.fold_left (fun a x ->
@@ -2221,10 +2221,10 @@ struct
       | _ -> top ()
 
 
-  let cast_to ?torg ?(no_ov=false) (t : Cil.ikind) x =
+  let cast_to ?torg ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
-    let res = cast_to ?torg ~no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t pretty_bool no_ov pretty res;
+    let res = cast_to ?torg ?no_ov t x in
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
     res
 
   let widen = join
@@ -2448,7 +2448,7 @@ struct
     res
 
   let invariant_ikind ctxt ik x =
-    let l = Cil.(Lval (BatOption.get ctxt.Invariant.lval)) in
+    let l = Cil.(mkCast ~e:(Lval (BatOption.get ctxt.Invariant.lval)) ~newt:(TInt (ik, []))) in
     match x with
     | Some (c, m) when m =: Ints_t.zero ->
       let c = Ints_t.to_bigint c in
@@ -2894,7 +2894,7 @@ module IntDomTupleImpl = struct
     match to_int x with
     | Some v ->
       (* If definite, output single equality instead of every subdomain repeating same equality *)
-      let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
+      let c_exp = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
       Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik v, intType))
     | None ->
       let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind c ik } x)

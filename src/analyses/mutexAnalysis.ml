@@ -144,13 +144,6 @@ struct
       event ctx e octx (* delegate to must lockset analysis *)
 end
 
-module MyParam =
-struct
-  module G = LockDomain.Simple
-  let effect_fun ?write:(w=false) ls = Lockset.export_locks ls
-  let check_fun = effect_fun
-end
-
 module WriteBased =
 struct
   module GReadWrite =
@@ -164,12 +157,12 @@ struct
     let name () = "write"
   end
   module G = Lattice.Prod (GReadWrite) (GWrite)
-  let effect_fun ?write:(w=false) ls =
+  let effect_fun ?(write=false) ls =
     let locks = Lockset.export_locks ls in
-    (locks, if w then locks else Mutexes.top ())
-  let check_fun ?write:(w=false) ls =
+    (locks, if write then locks else Mutexes.top ())
+  let check_fun ?(write=false) ls =
     let locks = Lockset.export_locks ls in
-    if w then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
+    if write then (Mutexes.bot (), locks) else (locks, Mutexes.bot ())
 end
 
 module Spec = MakeSpec (WriteBased)
