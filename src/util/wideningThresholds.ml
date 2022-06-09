@@ -41,12 +41,12 @@ class extractInvariantsVisitor (exps) = object
     | Call (_, Lval (Var f, NoOffset), args, _, _) ->
       (* TODO: dependency cycle with LibraryFunctions somehow... *)
       (* begin match LibraryFunctions.classify f.vname args with
-        | `Assert e ->
-          EH.replace exps e ();
-          DoChildren
-        | _ ->
-          DoChildren
-      end *)
+           | `Assert e ->
+             EH.replace exps e ();
+             DoChildren
+           | _ ->
+             DoChildren
+         end *)
       begin match f.vname, args with
         | "assert", [e] ->
           EH.replace exps e ();
