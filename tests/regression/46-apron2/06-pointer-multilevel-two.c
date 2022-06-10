@@ -17,6 +17,6 @@ int main() {
     int *p = &a;
     change(p, a);
     assert(a == 5); //FAIL
-    assert(a - 6 == 0); // Apron currently finds \bot here (!)
+    assert(a - 6 == 0); // Apron used to find \bot here (!)
     return 0;
 }
