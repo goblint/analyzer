@@ -218,7 +218,12 @@ struct
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
         if not v.vglob || Arg.allow_global then
-          let var = V.local v in
+          let var =
+            if v.vglob then
+              V.global v
+            else
+              V.local v
+          in
           if Environment.mem_var env var then
             Var var
           else
