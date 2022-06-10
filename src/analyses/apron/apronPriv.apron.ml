@@ -98,7 +98,7 @@ sig
   val path_sensitive: bool
 end
 
-(** Protection-Based Reading. *)
+(** Protection-Based Reading. Is unsound w.r.t. to locals escaping and becoming public. *)
 module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S = functor (AD: ApronDomain.S2) ->
 struct
   include ConfCheck.RequireMutexActivatedInit
