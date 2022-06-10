@@ -16,7 +16,7 @@ let eq_edge x y =
   let empty_rename_mapping: rename_mapping = (Hashtbl.create 0, Hashtbl.create 0) in
   match x, y with
   | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 empty_rename_mapping && eq_exp rv1 rv2 empty_rename_mapping
-  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 empty_rename_mapping && GobList.equal (eq_exp2 empty_rename_mapping) ars1 ars2 
+  | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 empty_rename_mapping && GobList.equal (eq_exp2 empty_rename_mapping) ars1 ars2
   | Proc (Some r1,f1,ars1), Proc (Some r2,f2,ars2) ->
     eq_lval r1 r2 empty_rename_mapping && eq_exp f1 f2 empty_rename_mapping && GobList.equal (eq_exp2 empty_rename_mapping) ars1 ars2
   | Entry f1, Entry f2 -> eq_varinfo f1.svar f2.svar empty_rename_mapping
@@ -26,7 +26,6 @@ let eq_edge x y =
   | ASM _, ASM _ -> false
   | Skip, Skip -> true
   | VDecl v1, VDecl v2 -> eq_varinfo v1 v2 empty_rename_mapping
-  | SelfLoop, SelfLoop -> true
   | _ -> false
 
 (* The order of the edges in the list is relevant. Therefore compare them one to one without sorting first *)

@@ -8,8 +8,10 @@ open GobConfig
 open Constraints
 
 module type S2S = functor (X : Spec) -> Spec
-(* gets Spec for current options *)
-let get_spec () : (module Spec) =
+
+(* spec is lazy, so HConsed table in Hashcons lifters is preserved between analyses in server mode *)
+let spec_module: (module Spec) Lazy.t = lazy (
+  GobConfig.building_spec := true;
   let open Batteries in
   (* apply functor F on module X if opt is true *)
   let lift opt (module F : S2S) (module X : Spec) = (module (val if opt then (module F (X)) else (module X) : Spec) : Spec) in
@@ -28,7 +30,14 @@ let get_spec () : (module Spec) =
             |> lift (get_bool "ana.opt.equal" && not (get_bool "ana.opt.hashcons")) (module OptEqual)
             |> lift (get_bool "ana.opt.hashcons") (module HashconsLifter)
           ) in
+  GobConfig.building_spec := false;
   (module S1)
+)
+
+(** gets Spec for current options *)
+let get_spec (): (module Spec) =
+  Lazy.force spec_module
+
 
 (** Given a [Cfg], a [Spec], and an [Inc], computes the solution to [MCP.Path] *)
 module AnalyzeCFG (Cfg:CfgBidir) (Spec:Spec) (Inc:Increment) =
@@ -704,11 +713,6 @@ let rec analyze_loop (module CFG : CfgBidir) file fs change_info =
 
 let compute_cfg file =
   let cfgF, cfgB = CfgTools.getCFG file in
-  let cfgB' = function
-    | MyCFG.Statement s as n -> ([Cilfacade.get_stmtLoc s,MyCFG.SelfLoop], n) :: cfgB n
-    | n -> cfgB n
-  in
-  let cfgB = if (get_bool "ana.osek.intrpts") then cfgB' else cfgB in
   (module struct let prev = cfgB let next = cfgF end : CfgBidir)
 
 (** The main function to perform the selected analyses. *)

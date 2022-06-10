@@ -366,7 +366,6 @@ sig
   val branch: (D.t, G.t, C.t, V.t) ctx -> exp -> bool -> D.t
   val body  : (D.t, G.t, C.t, V.t) ctx -> fundec -> D.t
   val return: (D.t, G.t, C.t, V.t) ctx -> exp option  -> fundec -> D.t
-  val intrpt: (D.t, G.t, C.t, V.t) ctx -> D.t
   val asm   : (D.t, G.t, C.t, V.t) ctx -> D.t
   val skip  : (D.t, G.t, C.t, V.t) ctx -> D.t
 
@@ -404,12 +403,15 @@ type analyzed_data = {
 }
 
 type increment_data = {
+  server: bool;
+
   old_data: analyzed_data option;
   new_file: Cil.file;
   changes: CompareCIL.change_info
 }
 
-let empty_increment_data file = {
+let empty_increment_data ?(server=false) file = {
+  server;
   old_data = None;
   new_file = file;
   changes = CompareCIL.empty_change_info ()
@@ -546,9 +548,6 @@ struct
   let call_descr f _ = RenameMapping.show_varinfo f.svar
   (* prettier name for equation variables --- currently base can do this and
      MCP just forwards it to Base.*)
-
-  let intrpt x = x.local
-  (* Just ignore. *)
 
   let vdecl ctx _ = ctx.local
 

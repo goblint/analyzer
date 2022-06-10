@@ -43,7 +43,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
   in
   let reset_fun (f: fundec) (old_f: fundec) =
     f.svar.vid <- old_f.svar.vid;
-    List.iter2 (fun l o_l -> l.vid <- o_l.vid) f.slocals old_f.slocals;
+    List.iter2 (fun l o_l -> l.vid <- o_l.vid; o_l.vname <- l.vname) f.slocals old_f.slocals;
     List.iter2 (fun lo o_f -> lo.vid <- o_f.vid) f.sformals old_f.sformals;
     List.iter2 (fun s o_s -> s.sid <- o_s.sid) f.sallstmts old_f.sallstmts;
     List.iter (fun s -> store_node_location (Statement s) (Cilfacade.get_stmtLoc s)) f.sallstmts;

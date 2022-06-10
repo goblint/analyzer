@@ -360,7 +360,7 @@ struct
    *  which part of an array is involved.  *)
   let rec get ?(top=VD.top ()) ?(full=false) a (gs: glob_fun) (st: store) (addrs:address) (exp:exp option): value =
     let at = AD.get_type addrs in
-    let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> RenameMapping.show_varinfo x else "" in
+    let firstvar = if M.tracing then match AD.to_var_may addrs with [] -> "" | x :: _ -> x.vname else "" in
     if M.tracing then M.traceli "get" ~var:firstvar "Address: %a\nState: %a\n" AD.pretty addrs CPA.pretty st.cpa;
     (* Finding a single varinfo*offset pair *)
     let res =
@@ -590,7 +590,7 @@ struct
 
   (* The evaluation function as mutually recursive eval_lv & eval_rv *)
   let rec eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
-    if M.tracing then M.traceli "evalint" "base eval_rv %a\n" RenameMapping.d_exp exp;
+    if M.tracing then M.traceli "evalint" "base eval_rv %a\n" d_exp exp;
     let r =
       (* we have a special expression that should evaluate to top ... *)
       if exp = MyCFG.unknown_exp then
@@ -598,7 +598,7 @@ struct
       else
         eval_rv_ask_evalint a gs st exp
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" RenameMapping.d_exp exp VD.pretty r;
+    if M.tracing then M.traceu "evalint" "base eval_rv %a -> %a\n" d_exp exp VD.pretty r;
     r
 
   (** Evaluate expression using EvalInt query.
@@ -607,13 +607,13 @@ struct
       Non-integer expression just delegate to next eval_rv function. *)
   and eval_rv_ask_evalint a gs st exp =
     let eval_next () = eval_rv_no_ask_evalint a gs st exp in
-    if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" RenameMapping.d_exp exp;
+    if M.tracing then M.traceli "evalint" "base eval_rv_ask_evalint %a\n" d_exp exp;
     let r =
       match Cilfacade.typeOf exp with
       | typ when Cil.isIntegralType typ && not (Cil.isConstant exp) -> (* don't EvalInt integer constants, base can do them precisely itself *)
-        if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" RenameMapping.d_exp exp;
+        if M.tracing then M.traceli "evalint" "base ask EvalInt %a\n" d_exp exp;
         let a = a.f (Q.EvalInt exp) in (* through queries includes eval_next, so no (exponential) branching is necessary *)
-        if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" RenameMapping.d_exp exp Queries.ID.pretty a;
+        if M.tracing then M.traceu "evalint" "base ask EvalInt %a -> %a\n" d_exp exp Queries.ID.pretty a;
         begin match a with
           | `Bot -> eval_next () (* Base EvalInt returns bot on incorrect type (e.g. pthread_t); ignore and continue. *)
           (* | x -> Some (`Int x) *)
@@ -623,7 +623,7 @@ struct
       | exception Cilfacade.TypeOfError _ (* Bug: typeOffset: Field on a non-compound *)
       | _ -> eval_next ()
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv_ask_evalint %a -> %a\n" RenameMapping.d_exp exp VD.pretty r;
+    if M.tracing then M.traceu "evalint" "base eval_rv_ask_evalint %a -> %a\n" d_exp exp VD.pretty r;
     r
 
   (** Evaluate expression without EvalInt query on outermost expression.
@@ -636,11 +636,11 @@ struct
       Otherwise just delegate to next eval_rv function. *)
   and eval_rv_ask_mustbeequal a gs st exp =
     let eval_next () = eval_rv_base a gs st exp in
-    if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" RenameMapping.d_exp exp;
+    if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
     let binop op e1 e2 =
       let must_be_equal () =
         let r = a.f (Q.MustBeEqual (e1, e2)) in
-        if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" RenameMapping.d_exp e1 RenameMapping.d_exp e2 r;
+        if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
         r
       in
       match op with
@@ -664,18 +664,18 @@ struct
       | _ -> eval_next ()
     in
     let r =
-    match exp with
-    | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
-    | _ -> eval_next ()
+      match exp with
+      | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
+      | _ -> eval_next ()
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" RenameMapping.d_exp exp VD.pretty r;
+    if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
     r
 
   (** Evaluate expression structurally by base.
       This handles constants directly and variables using CPA.
       Subexpressions delegate to [eval_rv], which may use queries on them. *)
   and eval_rv_base (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
-    if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" RenameMapping.d_exp exp;
+    if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
@@ -761,7 +761,7 @@ struct
         let te2 = Cilfacade.typeOf e2 in
         let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
         let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
-        M.tracel "cast" "remove cast on both sides for %a? -> %b\n" RenameMapping.d_exp exp is_safe;
+        M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
         if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
           let e1 = if isArithmeticType te1 then c1 else e1 in
           let e2 = if isArithmeticType te2 then c2 else e2 in
@@ -799,7 +799,7 @@ struct
         VD.cast ~torg:(Cilfacade.typeOf exp) t v
       | _ -> VD.top ()
     in
-    if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" RenameMapping.d_exp exp VD.pretty r;
+    if M.tracing then M.traceu "evalint" "base eval_rv_base %a -> %a\n" d_exp exp VD.pretty r;
     r
   (* A hackish evaluation of expressions that should immediately yield an
    * address, e.g. when calling functions. *)
@@ -867,7 +867,7 @@ struct
           do_offs (AD.map (add_offset_varinfo (convert_offset a gs st ofs)) adr) ofs
         | `Bot -> AD.bot ()
         | _ ->
-          M.debug ~category:Analyzer "Failed evaluating %a to lvalue" RenameMapping.d_lval lval; do_offs AD.unknown_ptr ofs
+          M.debug ~category:Analyzer "Failed evaluating %a to lvalue" d_lval lval; do_offs AD.unknown_ptr ofs
       end
 
   (* run eval_rv from above and keep a result that is bottom *)
@@ -879,20 +879,20 @@ struct
   let eval_rv (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
     try
       let r = eval_rv a gs st exp in
-      if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" RenameMapping.d_exp exp VD.pretty r;
+      if M.tracing then M.tracel "eval" "eval_rv %a = %a\n" d_exp exp VD.pretty r;
       if VD.is_bot r then VD.top_value (Cilfacade.typeOf exp) else r
     with IntDomain.ArithmeticOnIntegerBot _ ->
-    ValueDomain.Compound.top_value (Cilfacade.typeOf exp)
+      ValueDomain.Compound.top_value (Cilfacade.typeOf exp)
 
   let query_evalint ask gs st e =
-    if M.tracing then M.traceli "evalint" "base query_evalint %a\n" RenameMapping.d_exp e;
+    if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
     let r = match eval_rv_no_ask_evalint ask gs st e with
       | `Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
       | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
       (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
-      | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" RenameMapping.d_exp e VD.pretty v; Queries.ID.bot ()
+      | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
     in
-    if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" RenameMapping.d_exp e Queries.ID.pretty r;
+    if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
     r
 
   (* Evaluate an expression containing only locals. This is needed for smart joining the partitioned arrays where ctx is not accessible. *)
@@ -914,12 +914,12 @@ struct
     try
       let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
       if AD.mem Addr.UnknownPtr fp then begin
-        M.warn "Function pointer %a may contain unknown functions." RenameMapping.d_exp fval;
+        M.warn "Function pointer %a may contain unknown functions." d_exp fval;
         dummyFunDec.svar :: AD.to_var_may fp
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ ->
-      M.warn "Unknown call to function %a." RenameMapping.d_exp fval;
+      M.warn "Unknown call to function %a." d_exp fval;
       [dummyFunDec.svar]
 
   (** Evaluate expression as address.
@@ -983,9 +983,9 @@ struct
         | _ -> Queries.Result.top q
       end
     | Q.EvalThread e -> begin
-      let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
-      (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
-      match v with
+        let v = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e in
+        (* ignore (Pretty.eprintf "evalthread %a (%a): %a" d_exp e d_plainexp e VD.pretty v); *)
+        match v with
         | `Thread a -> a
         | `Bot -> Queries.Result.bot q (* TODO: remove *)
         | _ -> Queries.Result.top q
@@ -1022,7 +1022,7 @@ struct
         (* check if we have an array of chars that form a string *)
         (* TODO return may-points-to-set of strings *)
         | `Address a when List.compare_length_with (AD.to_string a) 1 > 0 -> (* oh oh *)
-          M.debug "EvalStr (%a) returned %a" RenameMapping.d_exp e AD.pretty a;
+          M.debug "EvalStr (%a) returned %a" d_exp e AD.pretty a;
           Queries.Result.top q
         | `Address a when List.compare_length_with (AD.to_var_may a) 1 = 0 -> (* some other address *)
           (* Cil.varinfo * (AD.Addr.field, AD.Addr.idx) Lval.offs *)
@@ -1050,7 +1050,7 @@ struct
             match ID.to_int i1, ID.to_int i2 with
             | Some i1', Some i2' when Z.equal i1' i2' -> true
             | _ -> false
-            end
+          end
         | _ -> false
       end
     | Q.MayBeEqual (e1, e2) -> begin
@@ -1119,18 +1119,16 @@ struct
     | _ ->  st
 
   (** [set st addr val] returns a state where [addr] is set to [val]
-  * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
-  * precise information about arrays. *)
+   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
+   * precise information about arrays. *)
   let set (a: Q.ask) ?(ctx=None) ?(invariant=false) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
-      let x_vname = RenameMapping.show_varinfo x in
-
-      if M.tracing then M.tracel "setosek" ~var:x_vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x_vname VD.pretty y CPA.pretty z;
+      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
       let r = update_variable x t y z in (* refers to defintion that is outside of set *)
-      if M.tracing then M.tracel "setosek" ~var:x_vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x_vname VD.pretty y CPA.pretty z CPA.pretty r;
+      if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
-    let firstvar = if M.tracing then match AD.to_var_may lval with [] -> "" | x :: _ -> RenameMapping.show_varinfo x else "" in
+    let firstvar = if M.tracing then match AD.to_var_may lval with [] -> "" | x :: _ -> x.vname else "" in
     let lval_raw = (Option.map (fun x -> Lval x) lval_raw) in
     if M.tracing then M.tracel "set" ~var:firstvar "lval: %a\nvalue: %a\nstate: %a\n" AD.pretty lval VD.pretty value CPA.pretty st.cpa;
     (* Updating a single varinfo*offset pair. NB! This function's type does
@@ -1150,7 +1148,7 @@ struct
             with Cilfacade.TypeOfError _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-              M.warn "Cilfacade.typeOfLval failed Could not obtain the type of %a" RenameMapping.d_lval (Var x, cil_offset);
+              M.warn "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
               lval_type
       in
       let update_offset old_value =
@@ -1165,21 +1163,19 @@ struct
         else
           new_value
       in
-      if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype D.pretty st;
+      if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: start with '%a' (type '%a') \nstate:%a\n\n" AD.pretty (AD.from_var_offset (x,offs)) d_type x.vtype D.pretty st;
       if isFunctionType x.vtype then begin
-        if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
+        if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: returning: '%a' is a function type \n" d_type x.vtype;
         st
       end else
       if get_bool "exp.globs_are_top" then begin
-        if M.tracing then M.tracel "setosek" ~var:firstvar "update_one_addr: BAD? exp.globs_are_top is set \n";
+        if M.tracing then M.tracel "set" ~var:firstvar "update_one_addr: BAD? exp.globs_are_top is set \n";
         { st with cpa = CPA.add x `Top st.cpa }
       end else
-      let x_vname = RenameMapping.show_varinfo x in
-
         (* Check if we need to side-effect this one. We no longer generate
          * side-effects here, but the code still distinguishes these cases. *)
       if (!GU.earlyglobs || ThreadFlag.is_multi a) && is_global a x then begin
-        if M.tracing then M.tracel "setosek" ~var:x_vname "update_one_addr: update a global var '%s' ...\n" x_vname;
+        if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a global var '%s' ...\n" x.vname;
         let priv_getg = priv_getg gs in
         (* Optimization to avoid evaluating integer values when setting them.
            The case when invariant = true requires the old_value to be sound for the meet.
@@ -1191,10 +1187,10 @@ struct
         in
         let new_value = update_offset old_value in
         let r = Priv.write_global ~invariant a priv_getg (priv_sideg (Option.get ctx).sideg) st x new_value in
-        if M.tracing then M.tracel "setosek" ~var:x_vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x_vname D.pretty r;
+        if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: updated a global var '%s' \nstate:%a\n\n" x.vname D.pretty r;
         r
       end else begin
-        if M.tracing then M.tracel "setosek" ~var:x_vname "update_one_addr: update a local var '%s' ...\n" x_vname;
+        if M.tracing then M.tracel "set" ~var:x.vname "update_one_addr: update a local var '%s' ...\n" x.vname;
         (* Normal update of the local state *)
         let new_value = update_offset (CPA.find x st.cpa) in
         (* what effect does changing this local variable have on arrays -
@@ -1234,20 +1230,20 @@ struct
                   VD.affect_move a v x (fun x -> None)
               else
                 let patched_ask =
-                match ctx with
-                | Some ctx ->
-                  (* The usual recursion trick for ctx. *)
-                  (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
-                  (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
-                  let rec ctx' =
-                    { ctx with
-                      ask = (fun (type a) (q: a Queries.t) -> query ctx' q)
-                    ; local = st
-                    }
-                  in
-                  Analyses.ask_of_ctx ctx'
-                | _ ->
-                  a
+                  match ctx with
+                  | Some ctx ->
+                    (* The usual recursion trick for ctx. *)
+                    (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
+                    (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
+                    let rec ctx' =
+                      { ctx with
+                        ask = (fun (type a) (q: a Queries.t) -> query ctx' q)
+                      ; local = st
+                      }
+                    in
+                    Analyses.ask_of_ctx ctx'
+                  | _ ->
+                    a
                 in
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
                 VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
@@ -1270,16 +1266,16 @@ struct
       (* We start from the current state and an empty list of global deltas,
        * and we assign to all the the different possible places: *)
       let nst = AD.fold update_one lval st in
-      (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state1 %a\n" CPA.pretty nst; *)
+      (* if M.tracing then M.tracel "set" ~var:firstvar "new state1 %a\n" CPA.pretty nst; *)
       (* If the address was definite, then we just return it. If the address
        * was ambiguous, we have to join it with the initial state. *)
       let nst = if AD.cardinal lval > 1 then { nst with cpa = CPA.join st.cpa nst.cpa } else nst in
-      (* if M.tracing then M.tracel "setosek" ~var:firstvar "new state2 %a\n" CPA.pretty nst; *)
+      (* if M.tracing then M.tracel "set" ~var:firstvar "new state2 %a\n" CPA.pretty nst; *)
       nst
     with
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
-      (* if M.tracing then M.tracel "setosek" ~var:firstvar "set got an exception '%s'\n" x; *)
+      (* if M.tracing then M.tracel "set" ~var:firstvar "set got an exception '%s'\n" x; *)
       M.warn "Assignment to unknown address"; st
 
   let set_many ?ctx a (gs:glob_fun) (st: store) lval_value_list: store =
@@ -1313,9 +1309,9 @@ struct
     let f s v = rem_partitioning a s v in
     List.fold_left f st v_list
 
- (**************************************************************************
-   * Auxillary functions
-   **************************************************************************)
+  (**************************************************************************
+    * Auxillary functions
+    **************************************************************************)
 
   let is_some_bot x =
     match x with
@@ -1329,12 +1325,12 @@ struct
       match (op, lval, value, tv) with
       (* The true-branch where x == value: *)
       | Eq, x, value, true ->
-        if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" RenameMapping.d_lval x VD.pretty value;
+        if M.tracing then M.tracec "invariant" "Yes, %a equals %a\n" d_lval x VD.pretty value;
         (match value with
-        | `Int n ->
-          let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-          Some (x, `Int (ID.cast_to ikind n))
-        | _ -> Some(x, value))
+         | `Int n ->
+           let ikind = Cilfacade.get_ikind_exp (Lval lval) in
+           Some (x, `Int (ID.cast_to ikind n))
+         | _ -> Some(x, value))
       (* The false-branch for x == value: *)
       | Eq, x, value, false -> begin
           match value with
@@ -1342,13 +1338,13 @@ struct
               match ID.to_int n with
               | Some n ->
                 (* When x != n, we can return a singleton exclusion set *)
-                if M.tracing then M.tracec "invariant" "Yes, %a is not %s\n" RenameMapping.d_lval x (BI.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, %a is not %s\n" d_lval x (BI.to_string n);
                 let ikind = Cilfacade.get_ikind_exp (Lval lval) in
                 Some (x, `Int (ID.of_excl_list ikind [n]))
               | None -> None
             end
           | `Address n -> begin
-              if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" RenameMapping.d_lval x AD.pretty n;
+              if M.tracing then M.tracec "invariant" "Yes, %a is not %a\n" d_lval x AD.pretty n;
               match eval_rv_address a gs st (Lval x) with
               | `Address a when AD.is_definite n ->
                 Some (x, `Address (AD.diff a n))
@@ -1369,28 +1365,28 @@ struct
       | Lt, x, value, _ -> begin
           match value with
           | `Int n -> begin
-            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-            let n = ID.cast_to ikind n in
-            let range_from x = if tv then ID.ending ikind (BI.sub x BI.one) else ID.starting ikind x in
-            let limit_from = if tv then ID.maximal else ID.minimal in
-            match limit_from n with
-            | Some n ->
-              if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" RenameMapping.d_lval x (BI.to_string n);
-              Some (x, `Int (range_from n))
-            | None -> None
+              let ikind = Cilfacade.get_ikind_exp (Lval lval) in
+              let n = ID.cast_to ikind n in
+              let range_from x = if tv then ID.ending ikind (BI.sub x BI.one) else ID.starting ikind x in
+              let limit_from = if tv then ID.maximal else ID.minimal in
+              match limit_from n with
+              | Some n ->
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (BI.to_string n);
+                Some (x, `Int (range_from n))
+              | None -> None
             end
           | _ -> None
         end
       | Le, x, value, _ -> begin
           match value with
           | `Int n -> begin
-            let ikind = Cilfacade.get_ikind_exp (Lval lval) in
-            let n = ID.cast_to ikind n in
-            let range_from x = if tv then ID.ending ikind x else ID.starting ikind (BI.add x BI.one) in
-            let limit_from = if tv then ID.maximal else ID.minimal in
+              let ikind = Cilfacade.get_ikind_exp (Lval lval) in
+              let n = ID.cast_to ikind n in
+              let range_from x = if tv then ID.ending ikind x else ID.starting ikind (BI.add x BI.one) in
+              let limit_from = if tv then ID.maximal else ID.minimal in
               match limit_from n with
               | Some n ->
-                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" RenameMapping.d_lval x (BI.to_string n);
+                if M.tracing then M.tracec "invariant" "Yes, success! %a is not %s\n\n" d_lval x (BI.to_string n);
                 Some (x, `Int (range_from n))
               | None -> None
             end
@@ -1402,7 +1398,7 @@ struct
         if M.tracing then M.trace "invariant" "Failed! (operation not supported)\n\n";
         None
     in
-    if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" RenameMapping.d_exp exp tv;
+    if M.tracing then M.traceli "invariant" "assume expression %a is %B\n" d_exp exp tv;
     let null_val typ =
       match Cil.unrollType typ with
       | TPtr _                    -> `Address AD.null_ptr
@@ -1419,15 +1415,15 @@ struct
         -> derived_invariant (BinOp (op, c1, c2, t)) tv
       | BinOp(op, CastE (TInt (ik, _) as t1, Lval x), rval, typ) ->
         (match eval_rv a gs st (Lval x) with
-        | `Int v ->
-          (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
-           * If there is one domain that knows this to be true and the other does not, we
-           * should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
-          if VD.is_safe_cast t1 (Cilfacade.typeOfLval x) then
-            derived_invariant (BinOp (op, Lval x, rval, typ)) tv
-          else
-            None
-        | _ -> None)
+         | `Int v ->
+           (* This is tricky: It it is not sufficient to check that ID.cast_to_ik v = v
+            * If there is one domain that knows this to be true and the other does not, we
+            * should still impose the invariant. E.g. i -> ([1,5]; Not {0}[byte]) *)
+           if VD.is_safe_cast t1 (Cilfacade.typeOfLval x) then
+             derived_invariant (BinOp (op, Lval x, rval, typ)) tv
+           else
+             None
+         | _ -> None)
       | BinOp(op, rval, CastE (TInt (_, _) as ti, Lval x), typ) ->
         derived_invariant (BinOp (switchedOp op, CastE(ti, Lval x), rval, typ)) tv
       (* Cases like if (x) are treated like if (x != 0) *)
@@ -1450,12 +1446,12 @@ struct
     in
     match derived_invariant exp tv with
     | Some (lval, value) ->
-      if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" RenameMapping.d_lval lval VD.pretty value;
+      if M.tracing then M.tracec "invariant" "Restricting %a with %a\n" d_lval lval VD.pretty value;
       let addr = eval_lv a gs st lval in
       if (AD.is_top addr) then st
       else
         let oldval = get a gs st addr None in (* None is ok here, we could try to get more precise, but this is ok (reading at unknown position in array) *)
-        let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" RenameMapping.d_lval lval; VD.top ()) else oldval in
+        let oldval = if is_some_bot oldval then (M.tracec "invariant" "%a is bot! This should not happen. Will continue with top!" d_lval lval; VD.top ()) else oldval in
         let t_lval = Cilfacade.typeOfLval lval in
         let state_with_excluded = set a gs st addr t_lval value ~invariant:true ~ctx:(Some ctx) in
         let value =  get a gs state_with_excluded addr None in
@@ -1463,7 +1459,7 @@ struct
         if M.tracing then M.traceu "invariant" "New value is %a\n" VD.pretty new_val;
         (* make that address meet the invariant, i.e exclusion sets will be joined *)
         if is_some_bot new_val then (
-          if M.tracing then M.tracel "branchosek" "C The branch %B is dead!\n" tv;
+          if M.tracing then M.tracel "branch" "C The branch %B is dead!\n" tv;
           raise Analyses.Deadcode
         )
         else if VD.is_bot new_val
@@ -1485,7 +1481,7 @@ struct
       let warn_and_top_on_zero x =
         if GobOption.exists (BI.equal BI.zero) (ID.to_int x) then
           (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
-          ID.top_of ikind)
+           ID.top_of ikind)
         else
           x
       in
@@ -1505,9 +1501,9 @@ struct
         (* Only multiplication with odd numbers is an invertible operation in (mod 2^n) *)
         (* refine x by information about y, using x * y == c *)
         let refine_by x y = (match ID.to_int y with
-          | None -> x
-          | Some v when BI.equal (BI.rem v (BI.of_int 2)) BI.zero (* v % 2 = 0 *) -> x (* A refinement would still be possible here, but has to take non-injectivity into account. *)
-          | Some v (* when Int64.rem v 2L = 1L *) -> ID.meet x (ID.div c y)) (* Div is ok here, c must be divisible by a and b *)
+            | None -> x
+            | Some v when BI.equal (BI.rem v (BI.of_int 2)) BI.zero (* v % 2 = 0 *) -> x (* A refinement would still be possible here, but has to take non-injectivity into account. *)
+            | Some v (* when Int64.rem v 2L = 1L *) -> ID.meet x (ID.div c y)) (* Div is ok here, c must be divisible by a and b *)
         in
         (refine_by a b, refine_by b a)
       | MinusA -> meet_non ID.add ID.sub
@@ -1562,37 +1558,37 @@ struct
         let both x = x, x in
         let m = ID.meet a b in
         (match op, ID.to_bool c with
-        | Eq, Some true
-        | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
-        | Eq, Some false
-        | Ne, Some true -> (* def. unequal *)
-          (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
-           * e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2]
-           * Only if a is a definite value, we can exclude it from b: *)
-          let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
-          let a' = excl b a in
-          let b' = excl a b in
-          if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
-          meet_bin a' b'
-        | _, _ -> a, b
+         | Eq, Some true
+         | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
+         | Eq, Some false
+         | Ne, Some true -> (* def. unequal *)
+           (* Both values can not be in the meet together, but it's not sound to exclude the meet from both.
+            * e.g. a=[0,1], b=[1,2], meet a b = [1,1], but (a != b) does not imply a=[0,0], b=[2,2] since others are possible: a=[1,1], b=[2,2]
+            * Only if a is a definite value, we can exclude it from b: *)
+           let excl a b = match ID.to_int a with Some x -> ID.of_excl_list ikind [x] | None -> b in
+           let a' = excl b a in
+           let b' = excl a b in
+           if M.tracing then M.tracel "inv" "inv_bin_int: unequal: %a and %a; ikind: %a; a': %a, b': %a\n" ID.pretty a ID.pretty b d_ikind ikind ID.pretty a' ID.pretty b';
+           meet_bin a' b'
+         | _, _ -> a, b
         )
       | Lt | Le | Ge | Gt as op ->
         let pred x = BI.sub x BI.one in
         let succ x = BI.add x BI.one in
         (match ID.minimal a, ID.maximal a, ID.minimal b, ID.maximal b with
-        | Some l1, Some u1, Some l2, Some u2 ->
-          (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
-          (match op, ID.to_bool c with
-          | Le, Some true
-          | Gt, Some false -> meet_bin (ID.ending ikind u2) (ID.starting ikind l1)
-          | Ge, Some true
-          | Lt, Some false -> meet_bin (ID.starting ikind l2) (ID.ending ikind u1)
-          | Lt, Some true
-          | Ge, Some false -> meet_bin (ID.ending ikind (pred u2)) (ID.starting ikind (succ l1))
-          | Gt, Some true
-          | Le, Some false -> meet_bin (ID.starting ikind (succ l2)) (ID.ending ikind (pred u1))
-          | _, _ -> a, b)
-        | _ -> a, b)
+         | Some l1, Some u1, Some l2, Some u2 ->
+           (* if M.tracing then M.tracel "inv" "Op: %s, l1: %Ld, u1: %Ld, l2: %Ld, u2: %Ld\n" (show_binop op) l1 u1 l2 u2; *)
+           (match op, ID.to_bool c with
+            | Le, Some true
+            | Gt, Some false -> meet_bin (ID.ending ikind u2) (ID.starting ikind l1)
+            | Ge, Some true
+            | Lt, Some false -> meet_bin (ID.starting ikind l2) (ID.ending ikind u1)
+            | Lt, Some true
+            | Ge, Some false -> meet_bin (ID.ending ikind (pred u2)) (ID.starting ikind (succ l1))
+            | Gt, Some true
+            | Le, Some false -> meet_bin (ID.starting ikind (succ l2)) (ID.ending ikind (pred u1))
+            | _, _ -> a, b)
+         | _ -> a, b)
       | BOr | BXor as op->
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
@@ -1624,17 +1620,17 @@ struct
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t) when (op = Eq || op = Ne) && typeSig (Cilfacade.typeOf c1) = typeSig (Cilfacade.typeOf c2) && VD.is_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_safe_cast t2 (Cilfacade.typeOf c2) ->
         inv_exp c (BinOp (op, c1, c2, t)) st
       | BinOp (op, e1, e2, _) as e ->
-        if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" RenameMapping.d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) ID.pretty c;
+        if M.tracing then M.tracel "inv" "binop %a with %a %a %a == %a\n" d_exp e VD.pretty (eval e1 st) d_binop op VD.pretty (eval e2 st) ID.pretty c;
         (match eval e1 st, eval e2 st with
-        | `Int a, `Int b ->
-          let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
-          let a', b' = inv_bin_int (a, b) ikind c op in
-          if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" RenameMapping.d_exp e ID.pretty a' ID.pretty b';
-          let st' = inv_exp a' e1 st in
-          let st'' = inv_exp b' e2 st' in
-          st''
-        (* | `Address a, `Address b -> ... *)
-        | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
+         | `Int a, `Int b ->
+           let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
+           let a', b' = inv_bin_int (a, b) ikind c op in
+           if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
+           let st' = inv_exp a' e1 st in
+           let st'' = inv_exp b' e2 st' in
+           st''
+         (* | `Address a, `Address b -> ... *)
+         | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
       | Lval x -> (* meet x with c *)
         let t = Cil.unrollType (Cilfacade.typeOfLval x) in  (* unroll type to deal with TNamed *)
         let c' = match t with
@@ -1661,25 +1657,25 @@ struct
            let v = VD.meet oldv c' in
            if is_some_bot v then raise Deadcode
            else (
-             if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" RenameMapping.d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
+             if M.tracing then M.tracel "inv" "improve lval %a from %a to %a (c = %a, c' = %a)\n" d_lval x VD.pretty oldv VD.pretty v ID.pretty c VD.pretty c';
              set' x v st
            ))
       | Const _ -> st (* nothing to do *)
       | CastE ((TInt (ik, _)) as t, e)
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e) -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e st with
-        | `Int i ->
-          if ID.leq i (ID.cast_to ik i) then
+         | `Int i ->
+           if ID.leq i (ID.cast_to ik i) then
              match Cilfacade.typeOf e with
-              | TInt(ik_e, _)
-              | TEnum ({ekind = ik_e; _ }, _) ->
-                let c' = ID.cast_to ik_e c in
-                if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
-                inv_exp c' e st
-              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
-          else
-            fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
-        | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
+             | TInt(ik_e, _)
+             | TEnum ({ekind = ik_e; _ }, _) ->
+               let c' = ID.cast_to ik_e c in
+               if M.tracing then M.tracel "inv" "cast: %a from %a to %a: i = %a; cast c = %a to %a = %a\n" d_exp e d_ikind ik_e d_ikind ik ID.pretty i ID.pretty c d_ikind ik_e ID.pretty c';
+               inv_exp c' e st
+             | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
+           else
+             fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
+         | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
       | e -> fallback (sprint d_plainexp e ^ " not implemented") st
     in
     if eval_bool exp st = Some (not tv) then raise Deadcode (* we already know that the branch is dead *)
@@ -1754,7 +1750,7 @@ struct
     in
     match is_list_init () with
     | Some a when (get_bool "exp.list-type") ->
-        set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.singleton (Addr.from_var a)) lval_t (`List (ValueDomain.Lists.bot ()))
+      set ~ctx:(Some ctx) (Analyses.ask_of_ctx ctx) ctx.global ctx.local (AD.singleton (Addr.from_var a)) lval_t (`List (ValueDomain.Lists.bot ()))
     | _ ->
       let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
       let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
@@ -1769,16 +1765,16 @@ struct
         AD.is_top xs || AD.exists not_local xs
       in
       (match rval_val, lval_val with
-      | `Address adrs, lval
-        when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
-        let find_fps e xs = match Addr.to_var_must e with
-          | Some x -> x :: xs
-          | None -> xs
-        in
-        let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
-        let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-        List.iter (fun x -> ctx.spawn None x []) funs
-      | _ -> ()
+       | `Address adrs, lval
+         when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+         let find_fps e xs = match Addr.to_var_must e with
+           | Some x -> x :: xs
+           | None -> xs
+         in
+         let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
+         let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
+         List.iter (fun x -> ctx.spawn None x []) funs
+       | _ -> ()
       );
       match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
       | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
@@ -1814,29 +1810,28 @@ struct
     let valu = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
     let refine () =
       let res = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp tv in
-      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" RenameMapping.d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
-      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" RenameMapping.d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
+      if M.tracing then M.tracec "branch" "EqualSet result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.EqualSet exp));
+      if M.tracing then M.tracec "branch" "CondVars result for expression %a is %a\n" d_exp exp Queries.ES.pretty (ctx.ask (Queries.CondVars exp));
       if M.tracing then M.traceu "branch" "Invariant enforced!\n";
       match ctx.ask (Queries.CondVars exp) with
       | s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
-        M.debug "CondVars result for expression %a is %a" RenameMapping.d_exp exp RenameMapping.d_exp e;
+        M.debug "CondVars result for expression %a is %a" d_exp exp d_exp e;
         invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
       | _ -> res
     in
-    if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" RenameMapping.d_exp exp VD.pretty valu;
-    if M.tracing then M.tracel "branchosek" "Evaluating branch for expression %a with value %a\n" RenameMapping.d_exp exp VD.pretty valu;
+    if M.tracing then M.traceli "branch" ~subsys:["invariant"] "Evaluating branch for expression %a with value %a\n" d_exp exp VD.pretty valu;
     (* First we want to see, if we can determine a dead branch: *)
     match valu with
     (* For a boolean value: *)
     | `Int value when (ID.is_bool value) ->
-      if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" RenameMapping.d_exp exp ID.pretty value;
+      if M.tracing then M.traceu "branch" "Expression %a evaluated to %a\n" d_exp exp ID.pretty value;
       (* to suppress pattern matching warnings: *)
       let fromJust x = match x with Some x -> x | None -> assert false in
       let v = fromJust (ID.to_bool value) in
       (* Eliminate the dead branch and just propagate to the true branch *)
       if v = tv then refine () else begin
-        if M.tracing then M.tracel "branchosek" "A The branch %B is dead!\n" tv;
+        if M.tracing then M.tracel "branch" "A The branch %B is dead!\n" tv;
         raise Deadcode
       end
     (* for some reason refine () can refine these, but not raise Deadcode in struct *)
@@ -1846,7 +1841,6 @@ struct
       raise Deadcode
     | `Bot ->
       if M.tracing then M.traceu "branch" "The branch %B is dead!\n" tv;
-      if M.tracing then M.tracel "branchosek" "B The branch %B is dead!\n" tv;
       raise Deadcode
     (* Otherwise we try to impose an invariant: *)
     | _ ->
@@ -1864,8 +1858,7 @@ struct
   let return ctx exp fundec: store =
     let st: store = ctx.local in
     match fundec.svar.vname with
-    | "__goblint_dummy_init"
-    | "StartupHook" ->
+    | "__goblint_dummy_init" ->
       if M.tracing then M.trace "init" "dummy init: %a\n" D.pretty st;
       publish_all ctx `Init;
       (* otherfun uses __goblint_dummy_init, where we can properly side effect global initialization *)
@@ -1892,7 +1885,7 @@ struct
           | _ -> ()
         end;
         set ~ctx:(Some ctx) ~t_override (Analyses.ask_of_ctx ctx) ctx.global nst (return_var ()) t_override rv
-        (* lval_raw:None, and rval_raw:None is correct here *)
+  (* lval_raw:None, and rval_raw:None is correct here *)
 
   let vdecl ctx (v:varinfo) =
     if not (Cil.isArrayType v.vtype) then
@@ -2011,7 +2004,7 @@ struct
           in
           Some (lval, v, args)
         else (
-          M.debug ~category:Analyzer "Not creating a thread from %s because its type is %a" (RenameMapping.show_varinfo v) d_type v.vtype;
+          M.debug ~category:Analyzer "Not creating a thread from %s because its type is %a" v.vname d_type v.vtype;
           None
         )
     in
@@ -2057,7 +2050,7 @@ struct
       | `Bot -> `Bot
       | _ -> `Top
     in
-    let expr = sprint RenameMapping.d_exp e in
+    let expr = sprint d_exp e in
     let warn warn_fn ?annot msg = if should_warn then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
@@ -2096,7 +2089,7 @@ struct
       end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" (RenameMapping.show_varinfo f));
+    (if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (LF.use_special f.vname) then M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname);
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
     let addrs =
       if get_bool "sem.unknown_function.invalidate.args" then
@@ -2125,12 +2118,12 @@ struct
   let special ctx (lv:lval option) (f: varinfo) (args: exp list) =
     let invalidate_ret_lv st = match lv with
       | Some lv ->
-        if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv (RenameMapping.show_varinfo f);
+        if M.tracing then M.tracel "invalidate" "Invalidating lhs %a for function call %s\n" d_plainlval lv f.vname;
         invalidate ~ctx (Analyses.ask_of_ctx ctx) ctx.global st [Cil.mkAddrOrStartOf lv]
       | None -> st
     in
     let forks = forkfun ctx lv f args in
-    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" (RenameMapping.show_varinfo f) (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
+    if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
     List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
     let st: store = ctx.local in
     let gs = ctx.global in
@@ -2303,7 +2296,7 @@ struct
           in
           (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
           set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
-                                  (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address heap_var)]
+                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address heap_var)]
         | _ -> st
       end
     | `Calloc (n, size) ->
@@ -2316,7 +2309,7 @@ struct
             else addr in
           (* the memory that was allocated by calloc is set to bottom, but we keep track that it originated from calloc, so when bottom is read from memory allocated by calloc it is turned to zero *)
           set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(add_null (AD.from_var heap_var), TVoid [], `Array (CArrays.make (IdxDom.of_int (Cilfacade.ptrdiff_ikind ()) BI.one) (`Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, false))));
-                                  (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
+                                                         (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address (add_null (AD.from_var_offset (heap_var, `Index (IdxDom.of_int  (Cilfacade.ptrdiff_ikind ()) BI.zero, `NoOffset)))))]
         | _ -> st
       end
     | `Realloc (p, size) ->
@@ -2440,7 +2433,7 @@ struct
       | _, v -> VD.show v
     in
     let args_short = List.map short_fun f.sformals in
-    Printable.get_short_list (RenameMapping.show_varinfo f.svar ^ "(") ")" args_short
+    Printable.get_short_list (f.svar.vname ^ "(") ")" args_short
 
   let threadenter ctx (lval: lval option) (f: varinfo) (args: exp list): D.t list =
     match Cilfacade.find_varinfo_fundec f with

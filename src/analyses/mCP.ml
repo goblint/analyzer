@@ -406,22 +406,6 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let intrpt (ctx:(D.t, G.t, C.t, V.t) ctx) =
-    let spawns = ref [] in
-    let splits = ref [] in
-    let sides  = ref [] in
-    let emits = ref [] in
-    let ctx'' = outer_ctx "interpt" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "interpt" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.intrpt ctx'
-    in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
-    if q then raise Deadcode else d
 
   let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in

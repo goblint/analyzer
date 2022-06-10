@@ -204,12 +204,12 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
   let typeCheck = eq_typ a.vtype b.vtype typ_rename_mapping in
   let attrCheck = GobList.equal (eq_attribute rename_mapping) a.vattr b.vattr in
 
+    (*let _ = if isNamingOk then a.vname <- b.vname in*)
+
+  (*let _ = Printf.printf "Comparing vars: %s = %s\n" a.vname b.vname in *)
+  (*a.vname = b.vname*) 
   let result = isNamingOk && typeCheck && attrCheck &&
                         a.vstorage = b.vstorage && a.vglob = b.vglob && a.vaddrof = b.vaddrof in
-
-  (*Save rename mapping for future usage. If this function later turns out to actually being changed, the new varinfo id will be used anyway
-     and this mapping has no effect*)
-  if a.vname <> b.vname && result then RenameMapping.store_update_varinfo_name a b.vname;
 
   result
 (* Ignore the location, vid, vreferenced, vdescr, vdescrpure, vinline *)

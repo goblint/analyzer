@@ -16,9 +16,8 @@ type categories = [
   | `ThreadJoin   of exp * exp (* id * ret_var *)
   | `Unknown      of string ]
 
-let osek_renames = ref false
 
-let classify' fn exps =
+let classify fn exps =
   let strange_arguments () =
     M.warn "%s arguments are strange!" fn;
     `Unknown fn
@@ -74,8 +73,6 @@ let classify' fn exps =
     -> `Lock(true, true, true)
   | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
     -> `Lock (true, true, false)
-  | "GetSpinlock" -> `Lock (false, true, true)
-  | "ReleaseSpinlock" -> `Unlock
   | "LAP_Se_WaitSemaphore" (* TODO: only handle those when arinc analysis is enabled? *)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
@@ -91,14 +88,11 @@ let classify' fn exps =
   | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
   | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
-  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
+  | "mutex_unlock" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
   | "up"
     -> `Unlock
   | x -> `Unknown x
-
-let classify fn exps =
-  if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
 
 module Invalidate =
@@ -196,10 +190,6 @@ open Invalidate
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
 let invalidate_actions = [
-    "GetResource", readsAll;
-    "ReleaseResource", readsAll;
-    "GetSpinlock", readsAll;
-    "ReleaseSpinlock", readsAll;
     "atoi", readsAll;             (*safe*)
     "__builtin_ctz", readsAll;
     "__builtin_ctzl", readsAll;
@@ -382,6 +372,7 @@ let invalidate_actions = [
     "putc", readsAll;(*safe*)
     "putw", readsAll;(*safe*)
     "putchar", readsAll;(*safe*)
+    "getchar", readsAll;(*safe*)
     "feof", readsAll;(*safe*)
     "__getdelim", writes [3];(*keep [3]*)
     "vsyslog", readsAll;(*safe*)
