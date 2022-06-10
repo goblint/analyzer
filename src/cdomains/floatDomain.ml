@@ -17,6 +17,21 @@ module type FloatArith = sig
   val div : t -> t -> t
   (** Division: [x / y] *)
 
+  (** {unary functions} *)
+  val acos : t -> t
+  (** acos(x) *)
+  val asin : t -> t
+  (** asin(x) *)
+  val atan : t -> t
+  (** atan(x) *)
+  val cos : t -> t
+  (** cos(x) *)
+  val sin : t -> t
+  (** sin(x) *)
+  val tan : t -> t
+  (** tan(x) *)
+
+
   (** {b Comparison operators} *)
   val lt : t -> t -> IntDomain.IntDomTuple.t
   (** Less than: [x < y] *)
@@ -344,6 +359,50 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Some _ -> unknown_IInt (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
     | None -> unknown_IInt
 
+  (**This Constant overapproximates pi to use as bounds for the return values of trigonometric functions *)
+  let overapprox_pi = 3.1416 
+
+  let acos op =
+    match op with
+    | Some (l, _) when (is_exact op) && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
+    | Some (l, h) -> 
+      if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
+        Messages.warn ~category:Messages.Category.Float "Domain error will occur: acos argument is outside of [-1., 1.]";
+      of_interval (0., (overapprox_pi)) (**could be more exact *)
+    | None -> top ()
+
+  let asin op =
+    match op with
+    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
+    | Some (l, h) -> 
+      if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
+        Messages.warn ~category:Messages.Category.Float "Domain error will occur: asin argument is outside of [-1., 1.]";
+      div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
+    | None -> top ()
+
+  let atan op =
+    match op with
+    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
+    | Some _ -> div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
+    | None -> top ()
+
+  let cos op =
+    match op with 
+    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 1. (*cos(0) = 1*)
+    | Some _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for some intervals *)
+    | None -> top ()
+
+  let sin op =
+    match op with 
+    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*sin(0) = 0*)
+    | Some _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for some intervals *)
+    | None -> top ()
+
+  let tan op = 
+    match op with
+    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
+    | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
+
 end
 
 module F64Interval = FloatIntervalImpl(CDouble)
@@ -411,6 +470,12 @@ module FloatIntervalImplLifted = struct
       failwith "unsupported fkind" 
 
   let neg = lift (F1.neg, F2.neg)
+  let acos = lift (F1.acos, F2.acos)
+  let asin = lift (F1.asin, F2.asin)
+  let atan = lift (F1.atan, F2.atan)
+  let cos = lift (F1.cos, F2.cos)
+  let sin = lift (F1.sin, F2.sin)
+  let tan = lift (F1.tan, F2.tan)
   let add = lift2 (F1.add, F2.add)
   let sub = lift2 (F1.sub, F2.sub)
   let mul = lift2 (F1.mul, F2.mul)
@@ -605,6 +670,19 @@ module FloatDomTupleImpl = struct
   (* f1: one and only unary op *)
   let neg =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.neg); }
+  (* f1: unary functions *)
+  let acos =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.acos); }
+  let asin =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.asin); }
+  let atan =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.atan); }
+  let cos =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.cos); }
+  let sin =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.sin); }
+  let tan =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.tan); }
 
   (* f2: binary ops *)
   let join =

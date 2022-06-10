@@ -1,4 +1,4 @@
-// PARAM: --enable ana.float.interval --enable ana.int.interval
+// PARAM: --enable ana.float.interval --enable ana.int.interval --enable warn.float
 #include <assert.h>
 #include <math.h>
 #include <float.h>
@@ -44,8 +44,36 @@ int main() {
     assert(__builtin_signbit(- inf)); //UNKNOWN
     assert(__builtin_signbit(nan)); //UNKNOWN
 
+    double greater_than_pi = 3.142;
+    //acos(x):
+    assert((0. <= acos(0.1)) && (acos(0.1) <= greater_than_pi)); //SUCCESS!
+    assert(acos(1.) == 0.); //SUCCESS!
+    acos(2.0); //WARN: Domain error will occur: acos argument is outside of [-1., 1.]
+
+    //asin(x):
+    assert(((- greater_than_pi / 2.) <= asin(0.1)) && (asin(0.1) <= (greater_than_pi / 2.))); //SUCCESS!
+    assert(asin(0.) == 0.); //SUCCESS!
+    asin(2.0); //WARN: Domain error will occur: asin argument is outside of [-1., 1.]
+
+    //atan(x):
+    assert(((- greater_than_pi / 2.) <= atan(0.1)) && (atan(0.1) <= (greater_than_pi / 2.))); //SUCCESS!
+    assert(atan(0.) == 0.); //SUCCESS!
+
+    //atan2(y, x)
+    assert(((- greater_than_pi / 2.) <= atan2(0.1, 0.2)) && (atan2(0.1, 0.2) <= (greater_than_pi / 2.))); //SUCCESS!
+
+    //cos(x)
+    assert((-1. <= cos(0.1)) && (cos(0.1) <= 1.)); //SUCCESS!
+    assert(cos(0.) == 1.); //SUCCESS!
+
+    //sin(x)
+    assert((-1. <= sin(0.1)) && (sin(0.1) <= 1.)); //SUCCESS!
+    assert(sin(0.) == 0.); //SUCCESS!
+
+    //tan(x)
+    assert(tan(0.) == 0.); //SUCCESS!
+
     //unimplemented math.h function, should not invalidate globals:
-    cos(0.1); //NOWARN
     j0(0.1); //NOWARN
     ldexp(0.1, 1); //NOWARN
 }
