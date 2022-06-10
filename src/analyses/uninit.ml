@@ -49,8 +49,11 @@ struct
 
   let rec access_one_byval a rw (exp:exp) =
     match exp with
-    (* Integer literals *)
-    | Const _ -> []
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _ -> []
     (* Variables and address expressions *)
     | Lval lval -> access_address a rw lval @ (access_lv_byval a lval)
     (* Binary operators *)
@@ -58,14 +61,19 @@ struct
       let a1 = access_one_byval a rw arg1 in
       let a2 = access_one_byval a rw arg2 in
       a1 @ a2
-    (* Unary operators *)
-    | UnOp (op,arg1,typ) -> access_one_byval a rw arg1
+    | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e ->
+      access_one_byval a rw e
     (* The address operators, we just check the accesses under them *)
     | AddrOf lval -> access_lv_byval a lval
     | StartOf lval -> access_lv_byval a lval
     (* Most casts are currently just ignored, that's probably not a good idea! *)
     | CastE  (t, exp) -> access_one_byval a rw exp
-    | _ -> []
+    | Question (b, t, f, _) ->
+      access_one_byval a rw b @ access_one_byval a rw t @ access_one_byval a rw f
   (* Accesses during the evaluation of an lval, not the lval itself! *)
   and access_lv_byval a (lval:lval) =
     let rec access_offset (ofs: offset) =
@@ -77,23 +85,6 @@ struct
     match lval with
     | Var x, ofs -> access_offset ofs
     | Mem n, ofs -> access_one_byval a false n @ access_offset ofs
-
-  let access_byval a (rw: bool) (exps: exp list) =
-    List.concat_map (access_one_byval a rw) exps
-
-  (* TODO: unused? remove? *)
-  let access_byref ask (exps: exp list) =
-    (* Find the addresses reachable from some expression, and assume that these
-     * can all be written to. *)
-    let do_exp e =
-      match ask (Queries.ReachableFrom e) with
-      | a when not (Queries.LS.is_top a) ->
-        let to_extra (v,o) xs = (v, Base.Offs.from_offset (conv_offset o), true) :: xs  in
-        Queries.LS.fold to_extra (Queries.LS.remove (dummyFunDec.svar, `NoOffset) a) []
-      (* Ignore soundness warnings, as invalidation proper will raise them. *)
-      | _ -> []
-    in
-    List.concat_map do_exp exps
 
   (* list accessed addresses *)
   let varoffs a (rval:exp) =

@@ -1,7 +1,6 @@
 open Cil
 open Pretty
 open IntOps
-let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
 module M = Messages
@@ -41,7 +40,6 @@ struct
   let unknown_ptr    = singleton Addr.UnknownPtr
   let not_null       = unknown_ptr
   let top_ptr        = of_list Addr.([UnknownPtr; NullPtr])
-  let is_unknown x   = is_element Addr.UnknownPtr x
   let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
   let is_null x      = is_element Addr.NullPtr x
   let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
@@ -117,6 +115,7 @@ struct
       | false, false -> join x y
   *)
 
+  (* TODO: overrides is_top, but not top? *)
   let is_top a = mem Addr.UnknownPtr a
 
   let merge uop cop x y =

@@ -196,8 +196,13 @@ struct
     (min, max)
 end
 
+module type ConvertArg =
+sig
+  val allow_global: bool
+end
+
 (** Conversion from CIL expressions to Apron. *)
-module Convert (Tracked: Tracked) (Man: Manager)=
+module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
 struct
   open Texpr1
   open Tcons1
@@ -211,7 +216,7 @@ struct
     (* recurse without env argument *)
     let rec texpr1_expr_of_cil_exp = function
       | Lval (Var v, NoOffset) when Tracked.varinfo_tracked v ->
-        if not v.vglob then
+        if not v.vglob || Arg.allow_global then
           let var = Var.of_string v.vname in
           if Environment.mem_var env var then
             Var var
@@ -247,8 +252,8 @@ struct
           let texpr1 = Texpr1.of_expr env expr in
           match Bounds.bound_texpr d texpr1 with
           | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
-          | _ ->
-            (* ignore (Pretty.printf "apron may overflow %a\n" dn_exp exp); *)
+          | min_opt, max_opt ->
+            if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
             raise Unsupported_CilExp
         );
         expr
@@ -335,7 +340,7 @@ struct
 
 
   let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
-    let zero = Cil.zero in
+    let zero = Cil.kinteger ILongLong 0 in
     try
       let linexpr1 = Lincons1.get_linexpr1 lincons1 in
       let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
@@ -353,7 +358,7 @@ end
 (** Convenience operations on A. *)
 module AOps (Tracked: Tracked) (Man: Manager) =
 struct
-  module Convert = Convert (Tracked) (Man)
+  module Convert = Convert (struct let allow_global = false end) (Tracked) (Man)
 
   type t = Man.mt A.t
 
@@ -479,8 +484,10 @@ struct
   let assign_exp_with nd v e =
     match Convert.texpr1_of_cil_exp nd (A.env nd) e with
     | texpr1 ->
+      if M.tracing then M.trace "apron" "assign_exp converted: %s\n" (Format.asprintf "%a" Texpr1.print texpr1);
       A.assign_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
+      if M.tracing then M.trace "apron" "assign_exp unsupported\n";
       forget_vars_with nd [v]
 
   let assign_exp d v e =
@@ -662,20 +669,20 @@ sig
   include Lattice.S with type t := t
 end
 
+module Tracked =
+struct
+  let type_tracked typ =
+    isIntegralType typ
+
+  let varinfo_tracked vi =
+    (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
+    type_tracked vi.vtype && not vi.vaddrof
+end
+
 module DWithOps (Man: Manager) (D: SLattice with type t = Man.mt A.t) =
 struct
   include D
   module Bounds = Bounds (Man)
-
-  module Tracked =
-  struct
-    let type_tracked typ =
-      isIntegralType typ
-
-    let varinfo_tracked vi =
-      (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
-      type_tracked vi.vtype && not vi.vaddrof
-  end
 
   include AOps (Tracked) (Man)
 
@@ -970,18 +977,51 @@ struct
   let widen x y =
     let x_env = A.env x in
     let y_env = A.env y in
-    if Environment.equal x_env y_env  then
-      if GobConfig.get_bool "ana.apron.threshold_widening" && Oct.manager_is_oct Man.mgr then
-        let octmgr = Oct.manager_to_oct Man.mgr in
-        let ts = ResettableLazy.force widening_thresholds_apron in
-        let x_oct = Oct.Abstract1.to_oct x in
-        let y_oct = Oct.Abstract1.to_oct y in
-        let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
-        Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+    if Environment.equal x_env y_env then (
+      if GobConfig.get_bool "ana.apron.threshold_widening" then (
+        if Oct.manager_is_oct Man.mgr then (
+          let octmgr = Oct.manager_to_oct Man.mgr in
+          let ts = ResettableLazy.force widening_thresholds_apron in
+          let x_oct = Oct.Abstract1.to_oct x in
+          let y_oct = Oct.Abstract1.to_oct y in
+          let r = Oct.widening_thresholds octmgr (Abstract1.abstract0 x_oct) (Abstract1.abstract0 y_oct) ts in
+          Oct.Abstract1.of_oct {x_oct with abstract0 = r}
+        )
+        else (
+          let exps = ResettableLazy.force WideningThresholds.exps in
+          let module Convert = Convert (struct let allow_global = true end) (Tracked) (Man) in
+          (* this implements widening_threshold with Tcons1 instead of Lincons1 *)
+          let tcons1s = List.filter_map (fun e ->
+              match Convert.tcons1_of_cil_exp y y_env e false with
+              | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
+                Some tcons1
+              | _
+              | exception Convert.Unsupported_CilExp ->
+                None
+            ) exps
+          in
+          let tcons1_earray: Tcons1.earray = {
+            array_env = y_env;
+            tcons0_array = tcons1s |> List.enum |> Enum.map Tcons1.get_tcons0 |> Array.of_enum
+          }
+          in
+          let w = A.widening Man.mgr x y in
+          A.meet_tcons_array_with Man.mgr w tcons1_earray;
+          w
+        )
+      )
       else
         A.widening Man.mgr x y
+    )
     else
       y (* env increased, just use joined value in y, assuming env doesn't increase infinitely *)
+
+  let widen x y =
+    if M.tracing then M.traceli "apron" "widen %a %a\n" pretty x pretty y;
+    let w = widen x y in
+    if M.tracing then M.trace "apron" "widen same %B\n" (equal y w);
+    if M.tracing then M.traceu "apron" "-> %a\n" pretty w;
+    w
 
   (* TODO: better narrow *)
   let narrow x y = x
@@ -1000,11 +1040,7 @@ sig
   include SLattice with type t = Man.mt A.t
 
 
-  val exp_is_cons : exp -> bool
-  val assert_cons : t -> exp -> bool -> t
   val assert_inv : t -> exp -> bool -> t
-  val check_assert : t -> exp -> [> `False | `Top | `True ]
-  val eval_interval_expr : t -> exp -> Z.t option * Z.t option
   val eval_int : t -> exp -> Queries.ID.t
 end
 
@@ -1013,6 +1049,7 @@ type ('a, 'b) aproncomponents_t = { apr : 'a; priv : 'b; } [@@deriving eq, ord, 
 module D2 (Man: Manager) : S2 with module Man = Man =
 struct
   include DWithOps (Man) (DHetero (Man))
+  module Tracked = Tracked
   module Man = Man
 end
 
@@ -1020,7 +1057,6 @@ module ApronComponents (D2: S2) (PrivD: Lattice.S):
 sig
   module AD: S2 with type Man.mt = D2.Man.mt
   include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
-  val op_scheme: (D2.t -> D2.t -> D2.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
 end =
 struct
   module AD = D2

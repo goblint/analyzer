@@ -180,5 +180,5 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 
 (** Given an (optional) equality function between [Cil.global]s, an old and a new [Cil.file], this function computes a [change_info],
     which describes which [global]s are changed, unchanged, removed and added.  *)
-let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
-  Stats.time "compareCilFiles" (compareCilFiles ~eq oldAST) newAST
+let compareCilFiles ?eq (oldAST: file) (newAST: file) =
+  Stats.time "compareCilFiles" (compareCilFiles ?eq oldAST) newAST
