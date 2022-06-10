@@ -106,9 +106,6 @@ struct
 
   let rec assign_to_global_wrapper (ask:Queries.ask) getg sideg st lv f =
     match lv with
-    (* Lvals which are numbers, have no offset and their address wasn't taken *)
-    (* This means that variables of which multiple copies may be reachable via pointers are also also excluded (they have their address taken) *)
-    (* and no special handling for them is required (https://github.com/goblint/analyzer/pull/310) *)
     | (Var v, NoOffset) when AD.varinfo_tracked v ->
       if not v.vglob && not (ThreadEscape.has_escaped ask v) then
         (if ask.f (Queries.IsMultiple v) then
