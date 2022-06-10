@@ -425,9 +425,10 @@ struct
     let open Queries in
     let st = ctx.local in
     let eval_int e =
+      let esimple = replace_deref_exps ctx.ask e in
       read_from_globals_wrapper
         (Analyses.ask_of_ctx ctx)
-        ctx.global st e
+        ctx.global st esimple
         (fun apr' e' -> AD.eval_int apr' e')
     in
     match q with
