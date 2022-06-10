@@ -3,7 +3,6 @@ extern int __VERIFIER_nondet_int();
 
 void change(int *p) {
     (*p)++;
-    int* ptr = &p;
 }
 
 int g;
