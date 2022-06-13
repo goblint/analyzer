@@ -44,8 +44,9 @@ module type S =
     val finalize: unit -> unit
   end
 
-
-module Dummy: S = functor (AD: ApronDomain.S2) ->
+(** Top privatization, which doesn't track globals at all.
+    This is unlike base's "none" privatization. which does track globals, but doesn't privatize them. *)
+module Top: S = functor (AD: ApronDomain.S2) ->
 struct
   module D = Lattice.Unit
   module G = Lattice.Unit
@@ -55,7 +56,7 @@ struct
 
   module AV = ApronDomain.V
 
-  let name () = "Dummy"
+  let name () = "top"
   let startstate () = ()
   let should_join _ _ = true
 
@@ -1208,7 +1209,7 @@ let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
       (val match get_string "ana.apron.privatization" with
-         | "dummy" -> (module Dummy : S)
+         | "top" -> (module Top : S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)
