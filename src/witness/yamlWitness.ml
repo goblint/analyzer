@@ -210,7 +210,8 @@ struct
       ) lh;
 
     let global_vars = List.filter_map (function
-        | Cil.GVar (v, _, _) -> Some v
+        | Cil.GVar (v, _, _)
+        | Cil.GFun ({svar=v; _}, _) -> Some v
         | _ -> None
       ) file.globals
     in
