@@ -766,19 +766,20 @@ struct
       | (None, Some max) -> ID.ending ik max
       | (None, None) -> ID.top_of ik
 
-  let invariant (ctx:Invariant.context) x =
-    let r = A.to_lincons_array Man.mgr x in
-    let cons, env = r.lincons0_array, r.array_env in
-    let cons = Array.to_list cons in
+  let invariant (ctx: Invariant.context) x =
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
-    let convert_one (constr:Lincons0.t) =
-      if not one_var && Linexpr0.get_size (constr.linexpr0) < 2 then
-        None
-      else
-        Convert.cil_exp_of_lincons1 ctx.scope {lincons0=constr; env=env}
-    in
-    let cil_cons = List.filter_map convert_one cons in
-    List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None cil_cons
+    let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
+        if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
+          Convert.cil_exp_of_lincons1 ctx.scope lincons1
+        else
+          None
+      )
+    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 end
 
 
