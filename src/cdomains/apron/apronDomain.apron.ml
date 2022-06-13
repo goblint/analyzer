@@ -770,7 +770,7 @@ struct
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
     (* let x = A.copy Man.mgr x in
-    A.minimize Man.mgr x; *)
+       A.minimize Man.mgr x; *)
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
     let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
     Array.enum lincons0_array
