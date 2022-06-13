@@ -366,7 +366,8 @@ struct
     in
     match q with
     | EvalInt e ->
-      if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
+      if M.tracing then M.traceli "evalint" "apron query %a (%a)\n" d_exp e d_plainexp e;
+      if M.tracing then M.trace "evalint" "apron st: %a\n" D.pretty ctx.local;
       let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r

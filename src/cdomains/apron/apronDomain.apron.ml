@@ -712,8 +712,13 @@ struct
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate with
         | tcons1 ->
-          meet_tcons d tcons1
+          if M.tracing then M.trace "apron" "assert_cons %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_cons st: %a\n" D.pretty d;
+          let r = meet_tcons d tcons1 in
+          if M.tracing then M.trace "apron" "assert_cons r: %a\n" D.pretty r;
+          r
         | exception Convert.Unsupported_CilExp ->
+          if M.tracing then M.trace "apron" "assert_cons %a unsupported\n" d_exp e;
           d
       end
 
@@ -748,6 +753,7 @@ struct
   let eval_int d e =
     let module ID = Queries.ID in
     let ik = Cilfacade.get_ikind_exp e in
+    if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
     if exp_is_cons e then
       match check_assert d e with
       | `True -> ID.of_bool ik true
