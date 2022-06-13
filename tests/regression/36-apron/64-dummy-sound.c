@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization dummy
+// SKIP PARAM: --set ana.activated[+] apron --set ana.apron.privatization top
 #include <pthread.h>
 #include <assert.h>
 
