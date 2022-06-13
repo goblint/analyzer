@@ -770,9 +770,9 @@ struct
     let r = A.to_lincons_array Man.mgr x in
     let cons, env = r.lincons0_array, r.array_env in
     let cons = Array.to_list cons in
-    let filter_out_one_var_constraints = false in
+    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
     let convert_one (constr:Lincons0.t) =
-      if filter_out_one_var_constraints && Linexpr0.get_size (constr.linexpr0) < 2 then
+      if not one_var && Linexpr0.get_size (constr.linexpr0) < 2 then
         None
       else
         Convert.cil_exp_of_lincons1 ctx.scope {lincons0=constr; env=env}
