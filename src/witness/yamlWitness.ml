@@ -82,6 +82,14 @@ struct
     ]
 end
 
+let yaml_entries_to_file yaml_entries file =
+  let yaml = `A yaml_entries in
+  (* Yaml_unix.to_file_exn file yaml *)
+  (* to_file/to_string uses a fixed-size buffer... *)
+  (* estimate how big it should be *)
+  let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 2048) yaml in
+  Batteries.output_file ~filename:(Fpath.to_string file) ~text
+
 
 module Make
     (File: WitnessUtil.File)
@@ -151,8 +159,7 @@ struct
       ) nh []
     in
 
-    let yaml = `A yaml_entries in
-    Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.path")) yaml
+    yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 end
 
 
@@ -343,6 +350,5 @@ struct
       ) [] yaml_entries
     in
 
-    let yaml' = `A (List.rev yaml_entries') in
-    Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.certificate")) yaml'
+    yaml_entries_to_file (List.rev yaml_entries') (Fpath.v (GobConfig.get_string "witness.yaml.certificate"))
 end
