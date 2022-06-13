@@ -159,6 +159,10 @@ struct
       ) nh []
     in
 
+    M.msg_group Info ~category:Witness "witness generation summary" [
+      (Pretty.dprintf "total: %d" (List.length yaml_entries), None);
+    ];
+
     yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 end
 
@@ -237,6 +241,11 @@ struct
       | `A yaml_entries -> yaml_entries
       | _ -> failwith "invalid YAML"
     in
+
+    let cnt_confirmed = ref 0 in
+    let cnt_unconfirmed = ref 0 in
+    let cnt_refuted = ref 0 in
+    let cnt_error = ref 0 in
 
     let yaml_entries' = List.fold_left (fun yaml_entries' yaml_entry ->
         let yaml_metadata = Yaml.Util.(yaml_entry |> find_exn "metadata" |> Option.get) in
@@ -327,30 +336,44 @@ struct
 
               begin match Option.get (VR.result_of_enum result) with
                 | Confirmed ->
+                  incr cnt_confirmed;
                   M.success ~category:Witness ~loc "invariant confirmed: %s" inv;
                   let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict:true in
                   certificate_entry :: yaml_entry :: yaml_entries'
                 | Unconfirmed ->
+                  incr cnt_unconfirmed;
                   M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;yaml_entry :: yaml_entries'
                 | Refuted ->
+                  incr cnt_refuted;
                   M.error ~category:Witness ~loc "invariant refuted: %s" inv;let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict:false in
                   certificate_entry :: yaml_entry :: yaml_entries'
                 | ParseError ->
+                  incr cnt_error;
                   M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
                   M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv;
                   yaml_entry :: yaml_entries'
               end
             | None ->
+              incr cnt_error;
               M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
               yaml_entry :: yaml_entries'
           end
         | exception Frontc.ParseError _ ->
+          incr cnt_error;
           Errormsg.log "\n"; (* CIL prints garbage without \n before *)
           M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
           M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv;
           yaml_entry :: yaml_entries'
       ) [] yaml_entries
     in
+
+    M.msg_group Info ~category:Witness "witness validation summary" [
+      (Pretty.dprintf "confirmed: %d" !cnt_confirmed, None);
+      (Pretty.dprintf "unconfirmed: %d" !cnt_unconfirmed, None);
+      (Pretty.dprintf "refuted: %d" !cnt_refuted, None);
+      (Pretty.dprintf "error: %d" !cnt_error, None);
+      (Pretty.dprintf "total: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_error), None);
+    ];
 
     yaml_entries_to_file (List.rev yaml_entries') (Fpath.v (GobConfig.get_string "witness.yaml.certificate"))
 end
