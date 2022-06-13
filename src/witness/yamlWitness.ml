@@ -101,6 +101,14 @@ struct
   }
 end
 
+let yaml_entries_to_file yaml_entries file =
+  let yaml = `A yaml_entries in
+  (* Yaml_unix.to_file_exn file yaml *)
+  (* to_file/to_string uses a fixed-size buffer... *)
+  (* estimate how big it should be + extra in case empty *)
+  let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 2048 + 2048) yaml in
+  Batteries.output_file ~filename:(Fpath.to_string file) ~text
+
 
 module Make
     (File: WitnessUtil.File)
@@ -205,8 +213,13 @@ struct
       ) lh entries
     in
 
-    let yaml = `A (List.map YamlWitnessType.Entry.to_yaml entries) in
-    Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.path")) yaml
+    let yaml_entries = List.map YamlWitnessType.Entry.to_yaml entries in
+
+    M.msg_group Info ~category:Witness "witness generation summary" [
+      (Pretty.dprintf "total: %d" (List.length yaml_entries), None);
+    ];
+
+    yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 end
 
 
@@ -240,6 +253,7 @@ struct
   module Locator = WitnessUtil.Locator (EQSys.LVar)
   module LvarS = Locator.ES
   module InvariantParser = WitnessUtil.InvariantParser
+  module VR = ValidationResult
 
   let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
     file = location.file_name;
@@ -271,7 +285,7 @@ struct
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
-        ; global = GHT.find gh
+        ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
         ; presub = (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
@@ -284,6 +298,13 @@ struct
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
 
+    let cnt_confirmed = ref 0 in
+    let cnt_unconfirmed = ref 0 in
+    let cnt_refuted = ref 0 in
+    let cnt_unchecked = ref 0 in
+    let cnt_unsupported = ref 0 in
+    let cnt_error = ref 0 in
+
     let validate_entry (entry: YamlWitnessType.Entry.t): YamlWitnessType.Entry.t option =
       let uuid = entry.metadata.uuid in
       let target_type = YamlWitnessType.EntryType.entry_type entry.entry_type in
@@ -291,7 +312,6 @@ struct
       let validate_lvars_invariant ~entry_certificate ~loc ~lvars inv =
         match InvariantParser.parse_cabs inv with
         | Ok inv_cabs ->
-          let module VR = ValidationResult in
 
           let result = LvarS.fold (fun ((n, _) as lvar) (acc: VR.t) ->
               let d = LHT.find lh lvar in
@@ -299,16 +319,18 @@ struct
 
               let result: VR.result = match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
                 | Ok inv_exp ->
-                  begin match ask_local lvar d (Queries.EvalInt inv_exp) with
-                    | x when Queries.ID.is_bool x ->
-                      let verdict = Option.get (Queries.ID.to_bool x) in
-                      if verdict then
-                        Confirmed
-                      else
-                        Refuted
-                    | _ ->
-                      Unconfirmed
-                  end
+                  let x = ask_local lvar d (Queries.EvalInt inv_exp) in
+                  if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
+                    Option.get (VR.result_of_enum (VR.bot ()))
+                  else if Queries.ID.is_bool x then (
+                    let verdict = Option.get (Queries.ID.to_bool x) in
+                    if verdict then
+                      Confirmed
+                    else
+                      Refuted
+                  )
+                  else
+                    Unconfirmed
                 | Error e ->
                   ParseError
               in
@@ -318,25 +340,30 @@ struct
 
           begin match Option.get (VR.result_of_enum result) with
             | Confirmed ->
+              incr cnt_confirmed;
               M.success ~category:Witness ~loc "invariant confirmed: %s" inv;
               let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
               let certification = Entry.certification true in
               let certificate_entry = entry_certificate ~target ~certification in
               Some certificate_entry
             | Unconfirmed ->
+              incr cnt_unconfirmed;
               M.warn ~category:Witness ~loc "invariant unconfirmed: %s" inv;None
             | Refuted ->
+              incr cnt_refuted;
               M.error ~category:Witness ~loc "invariant refuted: %s" inv;
               let target = Entry.target ~uuid ~type_:target_type ~file_name:loc.file in
               let certification = Entry.certification false in
               let certificate_entry = entry_certificate ~target ~certification in
               Some certificate_entry
             | ParseError ->
+              incr cnt_error;
               M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
               M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv;
               None
           end
         | Error e ->
+          incr cnt_error;
           M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
           M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv;
           None
@@ -351,6 +378,7 @@ struct
         | Some lvars ->
           validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
         | None ->
+          incr cnt_error;
           M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
           None
       in
@@ -372,12 +400,13 @@ struct
 
                 match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
                 | Ok pre_exp ->
-                  begin match ask_local lvar pre_d (Queries.EvalInt pre_exp) with
-                    | x when Queries.ID.is_bool x ->
-                      Option.get (Queries.ID.to_bool x)
-                    | _ ->
-                      false (* unknown precondition is excluded from checking *)
-                  end
+                  let x = ask_local lvar pre_d (Queries.EvalInt pre_exp) in
+                  if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
+                    true
+                  else if Queries.ID.is_bool x then
+                    Option.get (Queries.ID.to_bool x)
+                  else
+                    false
                 | Error e ->
                   M.error ~category:Witness ~loc "CIL couldn't parse precondition: %s" inv;
                   M.info ~category:Witness ~loc "precondition has undefined variables or side effects: %s" inv;
@@ -386,17 +415,20 @@ struct
 
               let lvars = LvarS.filter precondition_holds lvars in
               if LvarS.is_empty lvars then (
+                incr cnt_unchecked;
                 M.warn ~category:Witness ~loc "precondition never definitely holds: %s" pre;
                 None
               )
               else
                 validate_lvars_invariant ~entry_certificate ~loc ~lvars inv
             | Error e ->
+              incr cnt_error;
               M.error ~category:Witness ~loc "Frontc couldn't parse precondition: %s" pre;
               M.info ~category:Witness ~loc "precondition has invalid syntax: %s" pre;
               None
           end
         | None ->
+          incr cnt_error;
           M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv;
           None
       in
@@ -407,6 +439,7 @@ struct
       | PreconditionLoopInvariant x ->
         validate_precondition_loop_invariant x
       | _ ->
+        incr cnt_unsupported;
         M.info_noloc ~category:Witness "cannot validate entry of type %s" target_type;
         None
     in
@@ -418,11 +451,21 @@ struct
           let yaml_certificate_entry = Option.map YamlWitnessType.Entry.to_yaml certificate_entry in
           Option.to_list yaml_certificate_entry @ yaml_entry :: yaml_entries'
         | Error (`Msg e) ->
+          incr cnt_error;
           M.info_noloc ~category:Witness "couldn't parse entry: %s" e;
           yaml_entry :: yaml_entries'
       ) [] yaml_entries
     in
 
-    let yaml' = `A (List.rev yaml_entries') in
-    Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.certificate")) yaml'
+    M.msg_group Info ~category:Witness "witness validation summary" [
+      (Pretty.dprintf "confirmed: %d" !cnt_confirmed, None);
+      (Pretty.dprintf "unconfirmed: %d" !cnt_unconfirmed, None);
+      (Pretty.dprintf "refuted: %d" !cnt_refuted, None);
+      (Pretty.dprintf "error: %d" !cnt_error, None);
+      (Pretty.dprintf "unchecked: %d" !cnt_unchecked, None);
+      (Pretty.dprintf "unsupported: %d" !cnt_unsupported, None);
+      (Pretty.dprintf "total: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_unchecked + !cnt_unsupported + !cnt_error), None);
+    ];
+
+    yaml_entries_to_file (List.rev yaml_entries') (Fpath.v (GobConfig.get_string "witness.yaml.certificate"))
 end

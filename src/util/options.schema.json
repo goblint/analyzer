@@ -772,6 +772,19 @@
                 }
               },
               "additionalProperties": false
+            },
+            "invariant": {
+              "title": "ana.apron.invariant",
+              "type": "object",
+              "properties": {
+                "one-var": {
+                  "title": "ana.apron.invariant.one-var",
+                  "description": "Generate invariants with only one variable",
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

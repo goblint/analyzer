@@ -1,8 +1,11 @@
-(** Symbolic lock-sets for use in per-element patterns. *)
+(** Symbolic lock-sets for use in per-element patterns.
+
+    See Section 5 and 6 in https://dl.acm.org/doi/10.1145/2970276.2970337 for more details. *)
 
 module LF = LibraryFunctions
 module LP = SymbLocksDomain.LockingPattern
 module Exp = SymbLocksDomain.Exp
+module ILock = SymbLocksDomain.ILock
 module VarEq = VarEq.Spec
 
 module PS = SetDomain.ToppedSet (LP) (struct let topname = "All" end)
@@ -106,22 +109,14 @@ struct
       ctx.local
 
 
-  let rec conv_const_offset x =
-    match x with
-    | NoOffset    -> `NoOffset
-
-    | Index (Const  (CInt (i,ikind,s)),o) -> `Index (IntDomain.of_const (i,ikind,s), conv_const_offset o)
-    | Index (_,o) -> `Index (ValueDomain.IndexDomain.top (), conv_const_offset o)
-    | Field (f,o) -> `Field (f, conv_const_offset o)
-
   module A =
   struct
     module E = struct
-      include Printable.Either (CilType.Offset) (ValueDomain.Addr)
+      include Printable.Either (CilType.Offset) (ILock)
 
       let pretty () = function
         | `Left o -> Pretty.dprintf "p-lock:%a" (d_offset (text "*")) o
-        | `Right addr -> Pretty.dprintf "i-lock:%a" ValueDomain.Addr.pretty addr
+        | `Right addr -> Pretty.dprintf "i-lock:%a" ILock.pretty addr
 
       include Printable.SimplePretty (
         struct
@@ -133,7 +128,7 @@ struct
     include SetDomain.Make (E)
 
     let name () = "symblock"
-    let may_race lp lp2 = is_empty @@ inter lp lp2
+    let may_race lp lp2 = disjoint lp lp2
     let should_print lp = not (is_empty lp)
   end
 
@@ -164,7 +159,7 @@ struct
     let one_lockstep (_,a,m) xs =
       match m with
       | AddrOf (Var v,o) ->
-        let lock = ValueDomain.Addr.from_var_offset (v, conv_const_offset o) in
+        let lock = ILock.from_var_offset (v, o) in
         A.add (`Right lock) xs
       | _ ->
         Messages.warn "Internal error: found a strange lockstep pattern.";
