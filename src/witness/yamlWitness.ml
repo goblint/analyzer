@@ -86,8 +86,8 @@ let yaml_entries_to_file yaml_entries file =
   let yaml = `A yaml_entries in
   (* Yaml_unix.to_file_exn file yaml *)
   (* to_file/to_string uses a fixed-size buffer... *)
-  (* estimate how big it should be *)
-  let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 2048) yaml in
+  (* estimate how big it should be + extra in case empty *)
+  let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 2048 + 2048) yaml in
   Batteries.output_file ~filename:(Fpath.to_string file) ~text
 
 
