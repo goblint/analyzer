@@ -769,6 +769,102 @@ struct
           let a1 = eval_rv a gs st c1 in
           let a2 = eval_rv a gs st c2 in
           evalbinop a st op t1 a1 t2 a2 typ
+      | BinOp (LOr, arg1, arg2, typ) as exp ->
+        let (let*) = Option.bind in
+        (* split nested LOr Eqs to equality pairs, if possible *)
+        let rec split = function
+          (* copied from above to support pointer equalities with implicit casts inserted *)
+          | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
+            let te1 = Cilfacade.typeOf e1 in
+            let te2 = Cilfacade.typeOf e2 in
+            let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
+            let is_safe = VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2 && not both_arith_type in
+            M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
+            if is_safe then ( (* we can ignore the casts if the casts can't change the value *)
+              let e1 = if isArithmeticType te1 then c1 else e1 in
+              let e2 = if isArithmeticType te2 then c2 else e2 in
+              Some [(e1, e2)]
+            )
+            else
+              Some [(c1, c2)]
+          | BinOp (Eq, arg1, arg2, _) ->
+            Some [(arg1, arg2)]
+          | BinOp (LOr, arg1, arg2, _) ->
+            let* s1 = split arg1 in
+            let* s2 = split arg2 in
+            Some (s1 @ s2)
+          | _ ->
+            None
+        in
+        (* find common exp from all equality pairs and list of other sides, if possible *)
+        let find_common = function
+          | [] -> assert false
+          | (e1, e2) :: eqs ->
+            let eqs_for_all_mem e = List.for_all (fun (e1, e2) -> CilType.Exp.(equal e1 e || equal e2 e)) eqs in
+            let eqs_map_remove e = List.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1) eqs in
+            if eqs_for_all_mem e1 then
+              Some (e1, e2 :: eqs_map_remove e1)
+            else if eqs_for_all_mem e2 then
+              Some (e2, e1 :: eqs_map_remove e2)
+            else
+              None
+        in
+        let eqs_value =
+          let* eqs = split exp in
+          let* (e, es) = find_common eqs in
+          let v = eval_rv a gs st e in (* value of common exp *)
+          let vs = List.map (eval_rv a gs st) es in (* values of other sides *)
+          let ik = Cilfacade.get_ikind typ in
+          match v with
+          | `Address a ->
+            (* get definite addrs from vs *)
+            let rec to_definite_ad = function
+              | [] -> AD.empty ()
+              | `Address a :: vs when AD.is_definite a ->
+                AD.union a (to_definite_ad vs)
+              | _ :: vs ->
+                to_definite_ad vs
+            in
+            let definite_ad = to_definite_ad vs in
+            if AD.leq a definite_ad then (* other sides cover common address *)
+              Some (`Int (ID.of_bool ik true))
+            else if AD.is_empty (AD.meet a definite_ad) then
+              Some (`Int (ID.of_bool ik false))
+            else
+              None
+          | `Int i ->
+            let module BISet = IntDomain.BISet in
+            (* get definite ints from vs *)
+            let rec to_int_set = function
+              | [] -> BISet.empty ()
+              | `Int i :: vs when ID.is_int i ->
+                let i' = Option.get (ID.to_int i) in
+                BISet.add i' (to_int_set vs)
+              | _ :: vs ->
+                to_int_set vs
+            in
+            let* incl_list = ID.to_incl_list i in
+            let incl_set = BISet.of_list incl_list in
+            let int_set = to_int_set vs in
+            if BISet.leq incl_set int_set then (* other sides cover common int *)
+              Some (`Int (ID.of_bool ik true))
+            else if BISet.disjoint incl_set int_set then
+              Some (`Int (ID.of_bool ik false))
+            else
+              None
+          | _ ->
+            None
+        in
+        begin match eqs_value with
+          | Some x -> x
+          | None ->
+            (* copied from next case *)
+            let a1 = eval_rv a gs st arg1 in
+            let a2 = eval_rv a gs st arg2 in
+            let t1 = Cilfacade.typeOf arg1 in
+            let t2 = Cilfacade.typeOf arg2 in
+            evalbinop a st LOr t1 a1 t2 a2 typ
+        end
       | BinOp (op,arg1,arg2,typ) ->
         let a1 = eval_rv a gs st arg1 in
         let a2 = eval_rv a gs st arg2 in
