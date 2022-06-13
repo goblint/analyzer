@@ -306,16 +306,18 @@ struct
 
                   let result: VR.result = match inv_exp_opt with
                     | Some inv_exp when Check.checkStandaloneExp ~vars inv_exp ->
-                      begin match ask_local lvar d (Queries.EvalInt inv_exp) with
-                        | x when Queries.ID.is_bool x ->
-                          let verdict = Option.get (Queries.ID.to_bool x) in
-                          if verdict then
-                            Confirmed
-                          else
-                            Refuted
-                        | _ ->
-                          Unconfirmed
-                      end
+                      let x = ask_local lvar d (Queries.EvalInt inv_exp) in
+                      if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
+                        Option.get (VR.result_of_enum (VR.bot ()))
+                      else if Queries.ID.is_bool x then (
+                        let verdict = Option.get (Queries.ID.to_bool x) in
+                        if verdict then
+                          Confirmed
+                        else
+                          Refuted
+                      )
+                      else
+                        Unconfirmed
                     | _ ->
                       ParseError
                   in
