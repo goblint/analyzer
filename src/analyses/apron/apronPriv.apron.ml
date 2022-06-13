@@ -51,12 +51,23 @@ struct
   module G = Lattice.Unit
   module V = EmptyV
 
+  type apron_components_t = ApronComponents (AD) (D).t
+
+  module AV = ApronDomain.V
+
   let name () = "Dummy"
   let startstate () = ()
   let should_join _ _ = true
 
-  let read_global ask getg st g x = st.ApronDomain.apr
-  let write_global ?(invariant=false) ask getg sideg st g x = st
+  let read_global ask getg (st: apron_components_t) g x =
+    let apr = st.apr in
+    assert (not (AD.mem_var apr (AV.global g)));
+    apr
+
+  let write_global ?(invariant=false) ask getg sideg (st: apron_components_t) g x: apron_components_t =
+    let apr = st.apr in
+    assert (not (AD.mem_var apr (AV.global g)));
+    st
 
   let lock ask getg st m = st
   let unlock ask getg sideg st m = st
@@ -64,10 +75,41 @@ struct
   let thread_join ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
-  let sync ask getg sideg st reason = st
+  let sync (ask: Q.ask) getg sideg (st: apron_components_t) reason =
+    match reason with
+    | `Join ->
+      if (ask.f Q.MustBeSingleThreaded) then
+        st
+      else
+        (* must be like enter_multithreaded *)
+        let apr = st.apr in
+        let apr_local = AD.remove_filter apr (fun var ->
+            match AV.find_metadata var with
+            | Some (Global _) -> true
+            | _ -> false
+          )
+        in
+        {st with apr = apr_local}
+    | `Normal
+    | `Init
+    | `Thread
+    | `Return ->
+      st
 
-  let enter_multithreaded ask getg sideg st = st
-  let threadenter ask getg st = st
+  let enter_multithreaded ask getg sideg (st: apron_components_t): apron_components_t =
+    let apr = st.apr in
+    let apr_local = AD.remove_filter apr (fun var ->
+        match AV.find_metadata var with
+        | Some (Global _) -> true
+        | _ -> false
+      )
+    in
+    {st with apr = apr_local}
+
+  let threadenter ask getg (st: apron_components_t): apron_components_t =
+    {apr = AD.bot (); priv = startstate ()}
+
+  (* TODO: remove escaped locals after PR #742 *)
 
   let init () = ()
   let finalize () = ()
