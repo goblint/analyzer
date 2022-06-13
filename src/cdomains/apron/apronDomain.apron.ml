@@ -779,7 +779,11 @@ struct
       )
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          Convert.cil_exp_of_lincons1 ctx.scope lincons1
+          match Convert.cil_exp_of_lincons1 ctx.scope lincons1 with
+          | Some exp when not (InvariantCil.exp_contains_tmp exp) ->
+            Some (InvariantCil.exp_replace_original_name exp)
+          | _ ->
+            None
         else
           None
       )
