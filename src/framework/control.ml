@@ -135,6 +135,7 @@ struct
           endLine = e;
           endColumn = -1; (* not shown *)
           endByte = 0; (* wrong, but not shown *)
+          synthetic = false;
         }
         in
         (doc, Some loc)
