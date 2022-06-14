@@ -915,10 +915,6 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
-
-    let invariant c s = fold (fun x a ->
-        Invariant.(a || Spec.D.invariant c x) (* TODO: || correct? *)
-      ) s Invariant.none
   end
 
   module G = Spec.G

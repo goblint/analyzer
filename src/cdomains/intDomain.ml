@@ -128,6 +128,7 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
+  val invariant: Invariant.context -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -182,6 +183,7 @@ sig
   val is_top_of: Cil.ikind -> t -> bool
 
   val project: precision -> t -> t
+  val invariant: Invariant.context -> t -> Invariant.t
 end
 
 module type Z = Y with type int_t = BI.t
@@ -979,6 +981,7 @@ struct
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 (* TODO: use ikind *)
+  let invariant _ _ = Invariant.none (* TODO *)
 end
 
 module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises Unknown/Error on join/meet *)
@@ -1070,6 +1073,10 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+
+  let invariant c = function
+    | `Lifted x -> Base.invariant c x
+    | `Top | `Bot -> Invariant.none
 end
 
 module Lift (Base: IkindUnawareS) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
@@ -1136,6 +1143,10 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+
+  let invariant c = function
+    | `Lifted x -> Base.invariant c x
+    | `Top | `Bot -> Invariant.none
 end
 
 module Flattened = Flat (Integers(IntOps.Int64Ops))
@@ -1703,6 +1714,7 @@ struct
   let logand = (&&)
   let logor  = (||)
   let arbitrary () = QCheck.bool
+  let invariant _ _ = Invariant.none (* TODO *)
 end
 
 module Booleans = MakeBooleans (

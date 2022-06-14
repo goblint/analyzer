@@ -403,7 +403,7 @@ struct
           deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
         }
       in
-      Spec.D.invariant context (get (n, c))
+      Queries.LiftedExp.to_invariant @@ ask_local (n, c) (get (n, c)) (Invariant context)
     in
 
     match Task.specification with

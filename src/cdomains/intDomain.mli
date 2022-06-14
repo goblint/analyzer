@@ -234,6 +234,7 @@ sig
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
+  val invariant: Invariant.context -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -304,6 +305,7 @@ sig
   val is_top_of: Cil.ikind -> t -> bool
 
   val project: PrecisionUtil.precision -> t -> t
+  val invariant: Invariant.context -> t -> Invariant.t
 end
 (** The signature of integral value domains keeping track of ikind information *)
 

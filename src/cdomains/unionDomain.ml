@@ -1,9 +1,21 @@
+module type Arg =
+sig
+  include Lattice.S
+  val invariant: Invariant.context -> t -> Invariant.t
+end
+
+module type S =
+sig
+  include Lattice.S
+  val invariant: Invariant.context -> t -> Invariant.t
+end
+
 module Field =  Lattice.Flat (CilType.Fieldinfo) (struct
     let top_name = "Unknown field"
     let bot_name = "If you see this, you are special!"
   end)
 
-module Simple (Values: Lattice.S) =
+module Simple (Values: Arg) =
 struct
   include Lattice.Prod (Field) (Values)
 

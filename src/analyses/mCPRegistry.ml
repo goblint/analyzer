@@ -158,10 +158,6 @@ struct
     in
     unop_fold print_one () xs
 
-  let invariant c = unop_fold (fun a n (module S : Printable.S) x ->
-      Invariant.(a && S.invariant c (obj x))
-    ) Invariant.none
-
   let arbitrary () =
     let arbs = map (fun (n, (module D: Printable.S)) -> QCheck.map ~rev:(fun (_, o) -> obj o) (fun x -> (n, repr x)) @@ D.arbitrary ()) @@ domain_list () in
     MyCheck.Arbitrary.sequence arbs
@@ -228,10 +224,6 @@ struct
       BatPrintf.fprintf f "<analysis name=\"%s\">\n" (find_spec_name n);
       S.printXml f (obj x);
       BatPrintf.fprintf f "</analysis>\n"
-    )
-
-  let invariant c = unop_map (fun n (module S: Printable.S) x ->
-      S.invariant c (obj x)
     )
 
   let arbitrary () =

@@ -626,6 +626,7 @@ sig
   val bot_env: Environment.t -> t
   val is_top_env: t -> bool
   val is_bot_env: t -> bool
+  val invariant: Invariant.context -> t -> Invariant.t
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
@@ -667,6 +668,7 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
+  val invariant: Invariant.context -> t -> Invariant.t
 end
 
 module Tracked =
@@ -1069,6 +1071,7 @@ module ApronComponents (D2: S2) (PrivD: Lattice.S):
 sig
   module AD: S2 with type Man.mt = D2.Man.mt
   include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
+  val invariant: Invariant.context -> t -> Invariant.t
 end =
 struct
   module AD = D2
@@ -1095,7 +1098,7 @@ struct
   let name () = D2.name () ^ " * " ^ PrivD.name ()
 
   let invariant c {apr; priv} =
-    Invariant.(D2.invariant c apr && PrivD.invariant c priv)
+    D2.invariant c apr
 
   let of_tuple(apr, priv):t = {apr; priv}
   let to_tuple r = (r.apr, r.priv)

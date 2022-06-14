@@ -7,6 +7,14 @@ open FlagHelper
  * This will be raised, when trying to iterate a set that has been set to Top *)
 exception Unsupported of string
 
+module type Arg =
+sig
+  include Lattice.S
+  val is_bot_value: t -> bool
+  val is_top_value: t -> typ -> bool
+  val invariant: Invariant.context -> t -> Invariant.t
+end
+
 module type S =
 sig
   include Lattice.S
@@ -21,16 +29,10 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
+  val invariant: Invariant.context -> t -> Invariant.t
 end
 
-module type LatticeWithIsTopBotValue =
-sig
-  include Lattice.S
-  val is_bot_value: t -> bool
-  val is_top_value: t -> typ -> bool
-end
-
-module Simple (Val: Lattice.S) =
+module Simple (Val: Arg) =
 struct
   include Printable.Std
   module M = MapDomain.MapTop_LiftBot (Basetype.CilField) (Val)
@@ -97,7 +99,7 @@ struct
       Invariant.none
 end
 
-module SetsCommon (Val:LatticeWithIsTopBotValue) =
+module SetsCommon (Val:Arg) =
 struct
   include Printable.Std
   module SS = Simple (Val)
@@ -129,7 +131,7 @@ struct
     else HS.map (SS.map f) s
 end
 
-module Sets (Val: LatticeWithIsTopBotValue) =
+module Sets (Val: Arg) =
 struct
   include SetsCommon(Val)
 
@@ -225,10 +227,11 @@ struct
 
   let join = join_with_fct Val.join
 
-  let invariant = HS.invariant
+  (* let invariant = HS.invariant *)
+  let invariant _ _ = Invariant.none (* TODO *)
 end
 
-module KeyedSets (Val: LatticeWithIsTopBotValue) =
+module KeyedSets (Val: Arg) =
 struct
   include SetsCommon(Val)
   module F = Basetype.CilField
@@ -432,11 +435,12 @@ struct
 
   let join = join_with_fct Val.join
 
-  let invariant c (x,_) = HS.invariant c x
+  (* let invariant c (x,_) = HS.invariant c x *)
+  let invariant _ _ = Invariant.none (* TODO *)
 end
 
 
-module FlagConfiguredStructDomain (Val: LatticeWithIsTopBotValue) =
+module FlagConfiguredStructDomain (Val: Arg) =
 struct
   include Printable.Std
   module S = Simple(Val)

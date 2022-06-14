@@ -87,6 +87,7 @@ module BaseComponents (PrivD: Lattice.S):
 sig
   include Lattice.S with type t = PrivD.t basecomponents_t
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
+  val invariant: Invariant.context -> t -> Invariant.t
 end =
 struct
   type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash]
@@ -126,7 +127,7 @@ struct
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ WeakUpdates.name ()  ^ " * " ^ PrivD.name ()
 
   let invariant c {cpa; deps; weak; priv} =
-    Invariant.(CPA.invariant c cpa && PartDeps.invariant c deps && WeakUpdates.invariant c weak && PrivD.invariant c priv)
+    CPA.invariant c cpa
 
   let of_tuple(cpa, deps, weak, priv):t = {cpa; deps; weak; priv}
   let to_tuple r = (r.cpa, r.deps, r.weak, r.priv)

@@ -46,6 +46,22 @@ struct
   let of_invariant = function
     | Some e -> `Lifted e
     | None -> `Top (* TODO: ??? *)
+
+  let join x y =
+    match (x,y) with
+    | (`Top, _) -> `Top
+    | (_, `Top) -> `Top
+    | (`Bot, x) -> x
+    | (x, `Bot) -> x
+    | (`Lifted x, `Lifted y) -> `Lifted (BinOp (LOr, x, y, intType))
+
+  let meet x y =
+    match (x,y) with
+    | (`Bot, _) -> `Bot
+    | (_, `Bot) -> `Bot
+    | (`Top, x) -> x
+    | (x, `Top) -> x
+    | (`Lifted x, `Lifted y) -> `Lifted (BinOp (LAnd, x, y, intType))
 end
 
 module VI = Lattice.Flat (Basetype.Variables) (struct

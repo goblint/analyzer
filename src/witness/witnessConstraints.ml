@@ -14,7 +14,6 @@ struct
   let pretty = Node.pretty_trace
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
-  let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"
   let arbitrary () = failwith "PrintableVar: no arbitrary"
 end
@@ -137,12 +136,6 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
-
-    let invariant c s =
-      (* TODO: optimize indexing, using inner hashcons somehow? *)
-      (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (elements s) in
-      Spec.D.invariant c d
   end
 
   (* Additional dependencies component between values before and after sync.
@@ -276,6 +269,11 @@ struct
           f (I.to_int x)
         ) (fst ctx.local);
       ()
+    | Queries.Invariant c ->
+      (* TODO: optimize indexing, using inner hashcons somehow? *)
+      (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (Dom.elements (fst ctx.local)) in
+      Spec.query (conv ctx d) (Invariant c)
     | _ ->
       (* join results so that they are sound for all paths *)
       let module Result = (val Queries.Result.lattice q) in
