@@ -4,6 +4,7 @@ open CompareGlobals
 include DetectRenamedFunctions
 include CompareAST
 include CompareCFG
+open CilMaps
 
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 

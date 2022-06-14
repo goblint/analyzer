@@ -226,8 +226,7 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
   let (locals_renames, method_rename_mappings, glob_vars) = rename_mapping in
 
   let compare_local_and_global_var =
-    let is_local = StringMap.mem a.vname locals_renames in
-    if not is_local then
+    if a.vglob then
       let present_mapping = VarinfoMap.find_opt a glob_vars in
 
       match present_mapping with
