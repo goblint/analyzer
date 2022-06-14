@@ -37,7 +37,16 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
-module LiftedExp = Lattice.Flat(CilType.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
+module LiftedExp =
+struct
+  include Lattice.Flat(CilType.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
+  let to_invariant = function
+    | `Lifted e -> Some e
+    | `Bot | `Top -> None
+  let of_invariant = function
+    | Some e -> `Lifted e
+    | None -> `Top (* TODO: ??? *)
+end
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"

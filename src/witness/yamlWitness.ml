@@ -130,10 +130,31 @@ struct
 
     let nh = join_contexts lh in
 
+    let ask_local_node (n: Node.t) local =
+      (* build a ctx for using the query system *)
+      let rec ctx =
+        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
+        ; node   = n
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
+        ; context = (fun () -> ctx_failwith "No context in witness context.")
+        ; edge    = MyCFG.Skip
+        ; local  = local
+        ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+        ; presub = (fun _ -> raise Not_found)
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+        }
+      in
+      Spec.query ctx
+    in
+
     let yaml_entries = NH.fold (fun n local acc ->
         match n with
         | Statement _ when WitnessInvariant.is_invariant_node n ->
-          let context: Invariant.context = {
+          let context: Queries.invariant_context = {
             scope=Node.find_fundec n;
             i = -1;
             lval=None;
@@ -141,7 +162,7 @@ struct
             deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
           }
           in
-          begin match Spec.D.invariant context local with
+          begin match Queries.LiftedExp.to_invariant @@ ask_local_node n local (Invariant context) with
             | Some inv ->
               let loc = Node.location n in
               let invs = WitnessUtil.InvariantExp.process_exp inv in

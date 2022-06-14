@@ -1098,6 +1098,8 @@ struct
         | _ -> true
       end
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
+    | Q.Invariant context ->
+      Q.LiftedExp.of_invariant @@ D.invariant context ctx.local
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

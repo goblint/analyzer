@@ -584,9 +584,7 @@ struct
               match q with
               | Queries.Invariant context ->
                 (* Directly handle the invariant query here *)
-                (match Spec.D.invariant context local with
-                 | Some e -> (`Lifted e)
-                 | None -> `Top)
+                Queries.LiftedExp.of_invariant @@ Spec.D.invariant context local
               | _ ->
                 (* build a ctx for using the query system for all other queries *)
                 let rec ctx =
