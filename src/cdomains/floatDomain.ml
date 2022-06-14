@@ -53,7 +53,7 @@ module FloatInterval = struct
 
   let show = function
     | None -> "Float[Top]"
-    | Some (low, high) -> "Float [" ^ string_of_float low ^ "," ^ string_of_float high ^ "]"
+    | Some (low, high) -> Printf.sprintf "Float [%.30f,%.30f]" low high
 
   let big_int_of_float f =
     let x, n = Float.frexp f in

@@ -33,6 +33,7 @@ end
 module FloatInterval : sig (**Currently just for FloatDomainTest *)
   type t = (float * float) option
   include FloatArith with type t := t
+  include Lattice.S  with type t := t
 
   val top : unit -> t
 
@@ -42,6 +43,9 @@ module FloatInterval : sig (**Currently just for FloatDomainTest *)
 
   val of_const : float -> t
   val of_interval : float*float -> t
+  val of_int : IntDomain.IntDomTuple.t -> t
+  val cast_to : Cil.ikind -> t -> IntDomain.IntDomTuple.t
+
   val ending : float -> t
   val starting : float -> t
 

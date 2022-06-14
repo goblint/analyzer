@@ -6,6 +6,10 @@ struct
   module FI = FloatDomain.FloatInterval
   module IT = IntDomain.IntDomTuple
 
+  let fmax = Float.max_float
+  let fmin = -. Float.max_float
+  let fsmall = Float.min_float
+
   let fi_zero = FI.of_const 0.
   let fi_one = FI.of_const 1.
   let fi_neg_one = FI.of_const (-.1.)
@@ -23,11 +27,201 @@ struct
   let test_FI_nan _ = 
     assert_equal (FI.top ()) (FI.of_const Float.nan)
 
-  let test_FI_add1 _ =
-    assert_equal fi_one (FI.add fi_zero fi_one)
+  let test_FI_add_specific _ =
+    let (+) = FI.add in
+    let (=) a b = assert_equal b a in
+    begin
+      (FI.of_const (-. 0.)) = fi_zero;
+      fi_zero + fi_one = fi_one;
+      fi_neg_one + fi_one = fi_zero;
+      fi_one + (FI.of_const fmax) = None;
+      fi_neg_one + (FI.of_const fmin) = None;
+      fi_neg_one + (FI.of_const fmax) = (FI.of_interval ((Float.pred fmax), fmax));
+      fi_one + (FI.of_const fmin) = (FI.of_interval (fmin, Float.succ fmin));
+      FI.top () + FI.top () = None;
+      (FI.of_const fmin) + (FI.of_const fmax) = fi_zero;
+      (FI.of_const fsmall) + (FI.of_const fsmall) = FI.of_const (fsmall +. fsmall);
+      (FI.of_const fsmall) + (FI.of_const 1.) = FI.of_interval (1., Float.succ (1. +. fsmall));
+      (FI.of_interval (1., 2.)) + (FI.of_interval (2., 3.)) = FI.of_interval (3., 5.);
+      (FI.of_interval (-. 2., 3.)) + (FI.of_interval (-. 100., 20.)) = FI.of_interval (-. 102., 23.);
+    end
 
-  let test_FI_add2 _ =
-    assert_equal fi_zero (FI.add fi_one fi_neg_one)
+  let test_FI_sub_specific _ =
+    let (-) = FI.sub in
+    let (=) a b = assert_equal b a in
+    begin
+      fi_zero - fi_one = fi_neg_one;
+      fi_neg_one - fi_one = FI.of_const (-. 2.);
+      fi_one - (FI.of_const fmin) = None;
+      fi_neg_one - (FI.of_const fmax) = None;
+      (FI.of_const fmax) - fi_one = (FI.of_interval ((Float.pred fmax), fmax));
+      (FI.of_const fmin) - fi_neg_one = (FI.of_interval (fmin, Float.succ fmin));
+      FI.top () - FI.top () = None;
+      (FI.of_const fmax) - (FI.of_const fmax) = fi_zero;
+      (FI.of_const fsmall) - (FI.of_const fsmall) = fi_zero;
+      (FI.of_const fsmall) - (FI.of_const 1.) = FI.of_interval (-. 1., Float.succ (-. 1.));
+      (FI.of_interval (-. 2., 3.)) - (FI.of_interval (-. 100., 20.)) = FI.of_interval (-. 22., 103.);
+      (FI.of_const (-. 0.)) - fi_zero = fi_zero
+    end
+
+  let test_FI_mul_specific _ = 
+    let ( * ) = FI.mul in
+    let (=) a b = assert_equal b a in
+    begin
+      fi_zero * fi_one = fi_zero;
+      (FI.of_const 2.) * (FI.of_const fmin) = None;
+      (FI.of_const 2.) * (FI.of_const fmax) = None;
+      (FI.of_const fsmall) * (FI.of_const fmax) = FI.of_const (fsmall *. fmax);
+      FI.top () * FI.top () = None;
+      (FI.of_const fmax) * fi_zero = fi_zero;
+      (FI.of_const fsmall) * fi_zero = fi_zero;
+      (FI.of_const fsmall) * fi_one = FI.of_const fsmall;
+      (FI.of_const fmax) * fi_one = FI.of_const fmax;
+      (FI.of_const 2.) * (FI.of_const 0.5) = fi_one;
+      (FI.of_interval (-. 2., 3.)) * (FI.of_interval (-. 100., 20.)) = FI.of_interval (-. 300., 200.);
+      (FI.of_const 1.00000000000000111) * (FI.of_const 1.00000000000000111) = FI.of_interval (1.00000000000000222 , Float.succ 1.00000000000000222);
+      (FI.of_const (-. 1.00000000000000111)) * (FI.of_const 1.00000000000000111) = FI.of_interval (Float.pred (-. 1.00000000000000222), -. 1.00000000000000222)
+    end
+
+  let test_FI_div_specific _ =
+    let (/) = FI.div in
+    let (=) a b = assert_equal b a in
+    begin
+      fi_zero / fi_one = fi_zero;
+      (FI.of_const 2.) / fi_zero = None;
+      fi_zero / fi_zero = None;
+      (FI.of_const fmax) / (FI.of_const fsmall) = None;
+      (FI.of_const fmin) / (FI.of_const fsmall) = None;
+      FI.top () / FI.top () = None;
+      fi_zero / fi_one = fi_zero;
+      (FI.of_const fsmall) / fi_one = FI.of_const fsmall;
+      (FI.of_const fsmall) / (FI.of_const fsmall) = fi_one;
+      (FI.of_const fmax) / (FI.of_const fmax) = fi_one;
+      (FI.of_const fmax) / fi_one = FI.of_const fmax;
+      (FI.of_const 2.) / (FI.of_const 0.5) = (FI.of_const 4.);
+      (FI.of_const 4.) / (FI.of_const 2.) = (FI.of_const 2.);
+      (FI.of_interval (-. 2., 3.)) / (FI.of_interval (-. 100., 20.)) = None;
+      (FI.of_interval (6., 10.)) / (FI.of_interval (2., 3.)) = (FI.of_interval (2., 5.));
+
+      (FI.of_const 1.00000000000000111) / (FI.of_const 1.00000000000000111) = fi_one;
+      (FI.of_const 1.) / (FI.of_const 3.) = (FI.of_interval (Float.pred 0.333333333333333370340767487505, 0.333333333333333370340767487505));
+      (FI.of_const (-. 1.)) / (FI.of_const 3.) = (FI.of_interval (-. 0.333333333333333370340767487505, Float.succ (-. 0.333333333333333370340767487505)))
+    end
+
+  let test_FI_casti2f_specific _ =
+    let cast_bool a b = 
+      assert_equal b (FI.of_int (IT.of_int IBool (Big_int_Z.big_int_of_int a))) in
+    begin
+      cast_bool 0 fi_zero;
+      cast_bool 1 fi_one
+    end;
+    let cast a b = assert_equal b (FI.of_int a) in
+    begin
+      GobConfig.set_bool "ana.int.interval" true;
+      cast (IT.top_of IInt) (FI.of_interval (-2147483648.,2147483647.));
+      cast (IT.top_of IBool) (FI.of_interval (0., 1.));
+      cast (IT.of_int IInt Big_int_Z.zero_big_int) fi_zero;
+      cast (IT.of_int IInt Big_int_Z.unit_big_int) fi_one;
+      cast (IT.of_interval IUChar (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 128)) (FI.of_interval (0., 128.));
+      cast (IT.of_interval IChar (Big_int_Z.big_int_of_int (-8), Big_int_Z.big_int_of_int (-1))) (FI.of_interval (-. 8., - 1.));
+      cast (IT.of_interval IUInt (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100)) (FI.of_interval (2., 100.));
+      cast (IT.of_interval IInt (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
+      cast (IT.of_interval IUShort (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100)) (FI.of_interval (2., 100.));
+      cast (IT.of_interval IShort (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
+
+      cast (IT.of_interval IULong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_int64 Int64.max_int)) (FI.of_interval (0., 9223372036854775807.));
+      cast (IT.of_interval IULong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_int64 (9223372036854775806L))) (FI.of_interval (0., 9223372036854775807.));
+      cast (IT.of_interval ILong (Big_int_Z.big_int_of_int64 Int64.min_int, Big_int_Z.zero_big_int)) (FI.of_interval (-. 9223372036854775808., 0.));
+      cast (IT.of_interval ILong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
+      cast (IT.of_interval IULongLong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_int64 Int64.max_int)) (FI.of_interval (0., 9223372036854775807.));
+      cast (IT.of_interval IULongLong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_int64 (9223372036854775806L))) (FI.of_interval (0., 9223372036854775807.));
+      cast (IT.of_interval ILongLong (Big_int_Z.big_int_of_int64 Int64.min_int, Big_int_Z.zero_big_int)) (FI.of_interval (-. 9223372036854775808., 0.));
+      cast (IT.of_interval ILongLong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100)) (FI.of_interval (-. 100., 100.));
+      GobConfig.set_bool "ana.int.interval" false;
+    end
+
+  let test_FI_castf2i_specific _ =
+    let cast ikind a b = 
+      OUnit2.assert_equal ~cmp:IT.equal ~printer:IT.show b (FI.cast_to ikind a) in
+    begin
+      GobConfig.set_bool "ana.int.interval" true;
+      cast IInt (FI.of_interval (-2147483648.,2147483647.)) (IT.top_of IInt);
+      cast IInt (FI.of_interval (-9999999999.,9999999999.)) (IT.top_of IInt);
+      cast IInt (FI.of_interval (-10.1,20.9)) (IT.of_interval IInt ( Big_int_Z.big_int_of_int (-10),  Big_int_Z.big_int_of_int 20));
+      cast IBool (FI.of_interval (0.,1.)) (IT.top_of IBool);
+      cast IBool (FI.of_interval (-9999999999.,9999999999.)) (IT.top_of IBool);
+      cast IBool fi_one (IT.of_bool IBool true);
+      cast IBool fi_zero (IT.of_bool IBool false);
+
+      cast IUChar (FI.of_interval (0.123, 128.999)) (IT.of_interval IUChar (Big_int_Z.big_int_of_int 0, Big_int_Z.big_int_of_int 128));
+      cast IChar (FI.of_interval (-. 8.0000000, 127.)) (IT.of_interval IChar (Big_int_Z.big_int_of_int (-8), Big_int_Z.big_int_of_int 127));
+      cast IUInt (FI.of_interval (2., 100.)) (IT.of_interval IUInt (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100));
+      cast IInt (FI.of_interval (-. 100.2, 100.1)) (IT.of_interval IInt (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
+      cast IUShort (FI.of_interval (2., 100.)) (IT.of_interval IUShort (Big_int_Z.big_int_of_int 2, Big_int_Z.big_int_of_int 100));
+      cast IShort (FI.of_interval (-. 100., 100.)) (IT.of_interval IShort (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
+
+      cast IULong (FI.of_interval (0., 9223372036854775808.)) (IT.of_interval IULong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_string "9223372036854775808"));
+      cast ILong (FI.of_interval (-. 9223372036854775808., 0.)) (IT.of_interval ILong (Big_int_Z.big_int_of_string "-9223372036854775808", Big_int_Z.zero_big_int));
+      cast ILong (FI.of_interval (-. 100.99999, 100.99999)) (IT.of_interval ILong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
+      cast IULongLong (FI.of_interval (0., 9223372036854775808.)) (IT.of_interval IULongLong (Big_int_Z.zero_big_int, Big_int_Z.big_int_of_string "9223372036854775808"));
+      cast ILongLong (FI.of_interval (-. 9223372036854775808., 0.)) (IT.of_interval ILongLong ((Big_int_Z.big_int_of_string "-9223372036854775808"), Big_int_Z.zero_big_int));
+      cast ILongLong  (FI.of_interval (-. 100., 100.)) (IT.of_interval ILongLong (Big_int_Z.big_int_of_int (- 100), Big_int_Z.big_int_of_int 100));
+      GobConfig.set_bool "ana.int.interval" false;
+    end
+
+  let test_FI_meet_specific _ = 
+    let check_meet a b c = 
+      assert_equal c (FI.meet a b) in
+    begin
+      check_meet (FI.top ()) (FI.top ()) (FI.top ());
+      check_meet (FI.top ()) fi_one fi_one;
+      assert_raises (Failure "meet results in empty Interval") (fun () -> (FI.meet fi_zero fi_one));
+      check_meet (FI.of_interval (0., 10.)) (FI.of_interval (5., 20.)) (FI.of_interval (5., 10.));
+    end
+
+  let test_FI_join_specific _ =
+    let check_join a b c = 
+      assert_equal c (FI.join a b) in
+    begin
+      check_join (FI.top ()) (FI.top ()) (FI.top ());
+      check_join (FI.top ()) fi_one (FI.top ());
+      check_join (FI.of_interval (0., 10.)) (FI.of_interval (5., 20.)) (FI.of_interval (0., 20.));
+    end
+
+  let test_FI_leq_specific _ =
+    let check_leq flag a b = 
+      OUnit2.assert_equal flag (FI.leq a b) in
+    begin
+      check_leq true (FI.top ()) (FI.top ());
+      check_leq true fi_one fi_one;
+      check_leq false fi_one fi_zero;
+      check_leq true (FI.of_interval (5., 20.)) (FI.of_interval (0., 20.));
+      check_leq false (FI.of_interval (0., 20.)) (FI.of_interval (5., 20.));
+      check_leq true (FI.of_interval (1., 19.)) (FI.of_interval (0., 20.));
+      check_leq false (FI.of_interval (0., 20.)) (FI.of_interval (20.0001, 20.0002));
+    end
+
+  let test_FI_widen_specific _ =
+    let check_widen a b c = 
+      assert_equal c (FI.widen a b) in
+    begin
+      check_widen (FI.top ()) (FI.top ()) (FI.top ());
+      check_widen fi_zero (FI.top ()) (FI.top ());
+      check_widen (FI.top ()) fi_one (FI.top ());
+      check_widen fi_zero fi_one (FI.of_interval (0., Float.max_float));
+      check_widen fi_one fi_zero (FI.of_interval (-. Float.max_float, 1.));
+      check_widen fi_one (FI.of_interval (0., 2.)) (FI.of_interval (-. Float.max_float, Float.max_float));
+    end
+
+  let test_FI_narrow_specific _ =
+    let check_narrow a b c = 
+      assert_equal c (FI.narrow a b) in
+    begin
+      check_narrow (FI.top ()) (FI.top ()) (FI.top ());
+      check_narrow fi_zero (FI.top ()) fi_zero;
+      check_narrow (FI.top ()) fi_zero fi_zero;
+      check_narrow fi_zero fi_one fi_zero;
+    end
 
   (**TODO: add tests for specific edge cases (eg. overflow to infinity when dbl.max + 1) *)
 
@@ -82,8 +276,18 @@ struct
 
   let test () = [
     "test_FI_nan" >:: test_FI_nan;
-    "test_FI_add1" >:: test_FI_add1;
-    "test_FI_add2" >:: test_FI_add2;
+    "test_FI_add_specific" >:: test_FI_add_specific;
+    "test_FI_sub_specific" >:: test_FI_sub_specific;
+    "test_FI_mul_specific" >:: test_FI_mul_specific;
+    "test_FI_div_specific" >:: test_FI_div_specific;
+    "test_FI_casti2f_specific" >:: test_FI_casti2f_specific;
+    "test_FI_castf2i_specific" >:: test_FI_castf2i_specific;
+    (* "test_FI_castf2f_specific" >::  *)
+    "test_FI_join_specific" >:: test_FI_meet_specific;
+    "test_FI_meet_specific" >:: test_FI_join_specific;
+    "test_FI_meet_specific" >:: test_FI_leq_specific;
+    "test_FI_widen_specific" >:: test_FI_widen_specific;
+    "test_FI_narrow_specific" >:: test_FI_narrow_specific;
   ]
 
   let test_qcheck () = QCheck_ounit.to_ounit2_test_list [
@@ -101,8 +305,9 @@ struct
     ]
 end
 
-let test () = "floatDomainTest" >:::
-              [ 
-                "float_interval" >::: FloatInterval.test ();
-                "float_interval_qcheck" >::: FloatInterval.test_qcheck ();
-              ]
+let test () = 
+  "floatDomainTest" >:::
+  [ 
+    "float_interval" >::: FloatInterval.test ();
+    "float_interval_qcheck" >::: FloatInterval.test_qcheck ();
+  ]
