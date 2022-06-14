@@ -588,6 +588,8 @@ struct
       let r = eq_set_clos e ctx.local in
       (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
       r
+    | Queries.Invariant context ->
+      Queries.LiftedExp.of_invariant @@ D.invariant context ctx.local
     | _ -> Queries.Result.top x
 
 end

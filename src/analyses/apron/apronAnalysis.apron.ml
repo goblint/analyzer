@@ -383,6 +383,8 @@ struct
       let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
       let is_lt = eval_int exp in
       Option.default true (ID.to_bool is_lt)
+    | Queries.Invariant context ->
+      Queries.LiftedExp.of_invariant @@ D.invariant context ctx.local
     | _ -> Result.top q
 
 
