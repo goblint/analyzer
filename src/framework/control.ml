@@ -584,14 +584,7 @@ struct
               match q with
               | Queries.Invariant context ->
                 (* Directly handle the invariant query here *)
-                (let context: Invariant.context = {
-                    scope=context.scope;
-                    i= -1; (* Not used here *)
-                    lval=context.lval;
-                    offset=context.offset;
-                    deref_invariant=(fun _ _ _ -> Invariant.none)
-                  } in
-                 match Spec.D.invariant context local with
+                (match Spec.D.invariant context local with
                  | Some e -> (`Lifted e)
                  | None -> `Top)
               | _ ->

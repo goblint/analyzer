@@ -65,10 +65,12 @@ type access =
   | Memory of memory_access (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
-type invariant_context = {
+type invariant_context = Invariant.context = {
   scope: CilType.Fundec.t;
+  i: int;
   lval: CilType.Lval.t option;
   offset: CilType.Offset.t;
+  deref_invariant: (varinfo -> offset -> lval -> Invariant.t [@compare fun _ _ -> 0] [@hash fun _ -> 0])
 }
 [@@deriving ord, hash]
 

@@ -49,11 +49,14 @@ module EvalAssert = struct
       in
 
       let make_assert loc lval =
-        let context:Queries.invariant_context = {
+        let context: Queries.invariant_context = {
           scope=Cilfacade.find_stmt_fundec s;
+          i = -1; (* Not used here *)
           lval=lval;
           offset=Cil.NoOffset;
-        } in
+          deref_invariant=(fun _ _ _ -> Invariant.none);
+        }
+        in
         match (ask loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = WitnessUtil.InvariantExp.process_exp e in
