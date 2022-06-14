@@ -159,6 +159,8 @@ struct
       ) nh []
     in
 
+    let yaml_entries = List.rev yaml_entries in (* reverse to make entries in file in the same order as generation messages *)
+
     M.msg_group Info ~category:Witness "witness generation summary" [
       (Pretty.dprintf "total: %d" (List.length yaml_entries), None);
     ];
