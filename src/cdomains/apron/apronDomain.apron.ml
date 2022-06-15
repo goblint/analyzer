@@ -201,6 +201,68 @@ sig
   val allow_global: bool
 end
 
+
+exception Unsupported_CilExp
+exception Unsupported_Linexpr1
+
+(* TODO: clean up *)
+module X =
+struct
+let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+  let longlong = TInt(ILongLong,[]) in
+  let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
+    | Scalar c ->
+      (match int_of_scalar c with
+       | Some i ->
+         let ci,truncation = truncateCilint ILongLong i in
+         if truncation = NoTruncation then
+           if not consider_flip || Z.compare i Z.zero >= 0 then
+             Const (CInt(i,ILongLong,None)), false
+           else
+             (* attempt to negate if that does not cause an overflow *)
+             let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+             if truncation = NoTruncation then
+               Const (CInt((Z.neg i),ILongLong,None)), true
+             else
+               Const (CInt(i,ILongLong,None)), false
+         else
+           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+       | None -> raise Unsupported_Linexpr1)
+    | _ -> raise Unsupported_Linexpr1
+  in
+  let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
+  let append_summand (c:Coeff.union_5) v =
+    match V.to_cil_varinfo fundec v with
+    | Some vinfo ->
+      (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+      let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+      let coeff, flip = coeff_to_const true c in
+      let prod = BinOp(Mult, coeff, var, longlong) in
+      if flip then
+        expr := BinOp(MinusA,!expr,prod,longlong)
+      else
+        expr := BinOp(PlusA,!expr,prod,longlong)
+    | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+  in
+  Linexpr1.iter append_summand linexpr1;
+  !expr
+
+
+let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
+  let zero = Cil.kinteger ILongLong 0 in
+  try
+    let linexpr1 = Lincons1.get_linexpr1 lincons1 in
+    let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
+    match Lincons1.get_typ lincons1 with
+    | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
+    | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
+    | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
+    | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
+    | EQMOD _ -> None
+  with
+    Unsupported_Linexpr1 -> None
+end
+
 (** Conversion from CIL expressions to Apron. *)
 module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
 struct
@@ -299,59 +361,7 @@ struct
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
 
-  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
-    let longlong = TInt(ILongLong,[]) in
-    let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
-      | Scalar c ->
-        (match int_of_scalar c with
-         | Some i ->
-           let ci,truncation = truncateCilint ILongLong i in
-           if truncation = NoTruncation then
-             if not consider_flip || Z.compare i Z.zero >= 0 then
-               Const (CInt(i,ILongLong,None)), false
-             else
-               (* attempt to negate if that does not cause an overflow *)
-               let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-               if truncation = NoTruncation then
-                 Const (CInt((Z.neg i),ILongLong,None)), true
-               else
-                 Const (CInt(i,ILongLong,None)), false
-           else
-             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
-         | None -> raise Unsupported_Linexpr1)
-      | _ -> raise Unsupported_Linexpr1
-    in
-    let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
-    let append_summand (c:Coeff.union_5) v =
-      match V.to_cil_varinfo fundec v with
-      | Some vinfo ->
-        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
-        let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-        let coeff, flip = coeff_to_const true c in
-        let prod = BinOp(Mult, coeff, var, longlong) in
-        if flip then
-          expr := BinOp(MinusA,!expr,prod,longlong)
-        else
-          expr := BinOp(PlusA,!expr,prod,longlong)
-      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
-    in
-    Linexpr1.iter append_summand linexpr1;
-    !expr
-
-
-  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
-    let zero = Cil.kinteger ILongLong 0 in
-    try
-      let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-      let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
-      match Lincons1.get_typ lincons1 with
-      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
-      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
-      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
-      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
-      | EQMOD _ -> None
-    with
-      Unsupported_Linexpr1 -> None
+  include X
 end
 
 
@@ -1077,25 +1087,6 @@ module type S3 =
 sig
   include SLattice
 
-  module Convert :
-    sig
-      module Bounds :
-        sig
-          val bound_texpr :
-            t -> Texpr1.t -> Z.t option * Z.t option
-        end
-      exception Unsupported_CilExp
-      exception Unsupported_Linexpr1
-      val texpr1_expr_of_cil_exp :
-        t -> Environment.t -> exp -> Texpr1.expr
-      val texpr1_of_cil_exp :
-        t -> Environment.t -> exp -> Texpr1.t
-      val tcons1_of_cil_exp :
-        t -> Environment.t -> exp -> bool -> Tcons1.t
-      val cil_exp_of_linexpr1 : fundec -> Linexpr1.t -> exp
-      val cil_exp_of_lincons1 : fundec -> Lincons1.t -> exp option
-    end
-
   val copy : t -> t
   val vars_as_array : t -> Var.t array
   val vars : t -> Var.t list
@@ -1149,6 +1140,165 @@ struct
     else
       let generator = to_lincons_array a in
       OctagonD2.of_lincons_array generator
+end
+
+module BoxProd (D: S3): S3 =
+struct
+  module BoxD = D3 (IntervalManager)
+
+  include Printable.Prod (BoxD) (D)
+
+  let equal (_, d1) (_, d2) = D.equal d1 d2
+  let hash (_, d) = D.hash d
+  let compare (_, d1) (_, d2) = D.compare d1 d2
+
+  let leq (_, d1) (_, d2) = D.leq d1 d2
+  let join (b1, d1) (b2, d2) = (BoxD.join b1 b2, D.join d1 d2)
+  let meet (b1, d1) (b2, d2) = (BoxD.meet b1 b2, D.meet d1 d2)
+  let widen (b1, d1) (b2, d2) = (BoxD.widen b1 b2, D.widen d1 d2)
+  let narrow (b1, d1) (b2, d2) = (BoxD.narrow b1 b2, D.narrow d1 d2)
+
+  let top () = (BoxD.top (), D.top ())
+  let bot () = (BoxD.bot (), D.bot ())
+  let is_top (_, d) = D.is_top d
+  let is_bot (_, d) = D.is_bot d
+  let top_env env = (BoxD.top_env env, D.top_env env)
+  let bot_env env = (BoxD.bot_env env, D.bot_env env)
+  let is_top_env (_, d) = D.is_top_env d
+  let is_bot_env (_, d) = D.is_bot_env d
+  let unify (b1, d1) (b2, d2) = (BoxD.unify b1 b2, D.unify d1 d2)
+  let copy (b, d) = (BoxD.copy b, D.copy d)
+
+  type marshal = BoxD.marshal * D.marshal
+
+  let marshal (b, d) = (BoxD.marshal b, D.marshal d)
+  let unmarshal (b, d) = (BoxD.unmarshal b, D.unmarshal d)
+
+  let mem_var (_, d) v = D.mem_var d v
+  let vars_as_array (_, d) = D.vars_as_array d
+  let vars (_, d) = D.vars d
+
+  let pretty_diff () ((_, d1), (_, d2)) = D.pretty_diff () (d1, d2)
+
+  let add_vars_with (b, d) vs =
+    BoxD.add_vars_with b vs;
+    D.add_vars_with d vs
+  let add_vars d vs =
+    let nd = copy d in
+    add_vars_with nd vs;
+    nd
+  let remove_vars_with (b, d) vs =
+    BoxD.remove_vars_with b vs;
+    D.remove_vars_with d vs
+  let remove_vars d vs =
+    let nd = copy d in
+    remove_vars_with nd vs;
+    nd
+  let remove_filter_with (b, d) f =
+    BoxD.remove_filter_with b f;
+    D.remove_filter_with d f
+  let remove_filter d f =
+    let nd = copy d in
+    remove_filter_with nd f;
+    nd
+  let keep_filter_with (b, d) f =
+    BoxD.keep_filter_with b f;
+    D.keep_filter_with d f
+  let keep_filter d f =
+    let nd = copy d in
+    keep_filter_with nd f;
+    nd
+  let keep_vars_with (b, d) vs =
+    BoxD.keep_vars_with b vs;
+    D.keep_vars_with d vs
+  let keep_vars d vs =
+    let nd = copy d in
+    keep_vars_with nd vs;
+    nd
+  let forget_vars_with (b, d) vs =
+    BoxD.forget_vars_with b vs;
+    D.forget_vars_with d vs
+  let forget_vars d vs =
+    let nd = copy d in
+    forget_vars_with nd vs;
+    nd
+  let assign_exp_with (b, d) v e =
+    BoxD.assign_exp_with b v e;
+    D.assign_exp_with d v e
+  let assign_exp d v e =
+    let nd = copy d in
+    assign_exp_with nd v e;
+    nd
+  let assign_exp_parallel_with (b, d) ves =
+    BoxD.assign_exp_parallel_with b ves;
+    D.assign_exp_parallel_with d ves
+  let assign_var_with (b, d) v e =
+    BoxD.assign_var_with b v e;
+    D.assign_var_with d v e
+  let assign_var d v v' =
+    let nd = copy d in
+    assign_var_with nd v v';
+    nd
+  let assign_var_parallel_with (b, d) vvs =
+    BoxD.assign_var_parallel_with b vvs;
+    D.assign_var_parallel_with d vvs
+  let assign_var_parallel' (b, d) vs v's =
+    (BoxD.assign_var_parallel' b vs v's, D.assign_var_parallel' d vs v's)
+  let substitute_exp_with (b, d) v e =
+    BoxD.substitute_exp_with b v e;
+    D.substitute_exp_with d v e
+  let substitute_exp d v e =
+    let nd = copy d in
+    substitute_exp_with nd v e;
+    nd
+  let substitute_exp_parallel_with (b, d) ves =
+    BoxD.substitute_exp_parallel_with b ves;
+    D.substitute_exp_parallel_with d ves
+  let substitute_var_with (b, d) v1 v2 =
+    BoxD.substitute_var_with b v1 v2;
+    D.substitute_var_with d v1 v2
+  let meet_tcons (b, d) c = (BoxD.meet_tcons b c, D.meet_tcons d c)
+  let to_lincons_array (_, d) = D.to_lincons_array d
+  let of_lincons_array a = (BoxD.of_lincons_array a, D.of_lincons_array a)
+
+  let assert_inv (b, d) e n = (BoxD.assert_inv b e n, D.assert_inv d e n)
+  let eval_int (_, d) = D.eval_int d
+
+  let invariant (ctx: Invariant.context) (b, d) =
+    (* TODO: clean up *)
+    let f v =
+        match V.find_metadata v with
+        | Some (Global _) -> true
+        | _ -> false
+    in
+    let b = BoxD.keep_filter b f in
+    let d = D.keep_filter d f in
+    let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in
+    let lcd = D.to_lincons_array d in
+    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
+    let {lincons0_array; array_env}: Lincons1.earray = lcd in
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> Enum.filter (fun (lincons1: Lincons1.t) ->
+       let s2 = Format.asprintf "%a" Lincons1.print lincons1 in
+        not (Array.exists (fun (lincons0: Lincons0.t) ->
+            let s1 = Format.asprintf "%a" (Lincons0.print (fun i -> Environment.var_of_dim lcb.array_env i |> Var.to_string)) lincons0 in
+            (* Format.printf "%s vs %s\n" s1 s2; *)
+            s1 = s2
+          ) lcb.lincons0_array)
+      )
+    |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
+        if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
+          X.cil_exp_of_lincons1 ctx.scope lincons1
+          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)
+        else
+          None
+      )
+    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+
+  let to_oct (b, d) = D.to_oct d
 end
 
 module ApronComponents (D3: S3) (PrivD: Lattice.S):
