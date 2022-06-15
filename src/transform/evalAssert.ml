@@ -54,7 +54,6 @@ module EvalAssert = struct
           path=None;
           lval=lval;
           offset=Cil.NoOffset;
-          deref_invariant=(fun _ _ _ -> Invariant.none);
         }
         in
         match (ask loc).f (Queries.Invariant context) with

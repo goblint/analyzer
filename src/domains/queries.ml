@@ -95,7 +95,6 @@ type invariant_context = Invariant.context = {
   path: int option;
   lval: CilType.Lval.t option;
   offset: CilType.Offset.t;
-  deref_invariant: (varinfo -> offset -> lval -> Invariant.t [@compare fun _ _ -> 0] [@hash fun _ -> 0])
 }
 [@@deriving ord, hash]
 

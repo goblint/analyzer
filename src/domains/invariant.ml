@@ -7,7 +7,6 @@ type context = {
   path: int option;
   lval: lval option;
   offset: offset;
-  deref_invariant: varinfo -> offset -> lval -> t
 }
 
 let none: t = None

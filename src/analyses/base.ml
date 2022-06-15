@@ -943,7 +943,12 @@ struct
   (* interpreter end *)
 
   let query_invariant ctx context =
-    let ad_invariant c x =
+    let cpa = ctx.local.BaseDomain.cpa in
+
+    (* VS is used to detect and break cycles in deref_invariant calls *)
+    let module VS = Set.Make (Basetype.Variables) in
+
+    let rec ad_invariant ~vs c x =
       let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
       let i_opt = AD.fold (fun addr acc_opt ->
           BatOption.bind acc_opt (fun acc ->
@@ -969,9 +974,7 @@ struct
                   else
                     Invariant.none
                 in
-                let i_deref =
-                  c.Invariant.deref_invariant vi offset (Mem c_exp, NoOffset)
-                in
+                let i_deref = deref_invariant ~vs c vi offset (Mem c_exp, NoOffset) in
 
                 Some (Invariant.(acc || (i && i_deref)))
               | Addr.NullPtr ->
@@ -992,45 +995,39 @@ struct
       match i_opt with
       | Some i -> i
       | None -> Invariant.none
-    in
 
-    let rec blob_invariant c (v, _, _) =
-      vd_invariant c v
+    and blob_invariant ~vs c (v, _, _) =
+      vd_invariant ~vs c v
 
-    and vd_invariant c = function
+    and vd_invariant ~vs c = function
       | `Int n ->
         let e = Lval (BatOption.get c.Invariant.lval) in
         if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope c.scope e) then
           ID.invariant e n
         else
           Invariant.none
-      | `Address n -> ad_invariant c n
-      | `Blob n -> blob_invariant c n
-      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:vd_invariant c n
-      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:vd_invariant c n
+      | `Address n -> ad_invariant ~vs c n
+      | `Blob n -> blob_invariant ~vs c n
+      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) c n
+      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) c n
       | _ -> None (* TODO *)
+
+    and deref_invariant ~vs c vi offset lval =
+      let v = CPA.find vi cpa in
+      key_invariant_lval ~vs c vi offset lval v
+
+    and key_invariant_lval ~vs c k offset lval v =
+      if not (VS.mem k vs) then
+        let vs' = VS.add k vs in
+        let key_context: Invariant.context = {c with offset; lval=Some lval} in
+        vd_invariant ~vs:vs' key_context v
+      else
+        Invariant.none
     in
 
-    let cpa_invariant (c:Invariant.context) (m:CPA.t) =
-      (* VS is used to detect and break cycles in deref_invariant calls *)
-      let module VS = Set.Make (Basetype.Variables) in
-      let rec context vs = {c with
-          deref_invariant=(fun vi offset lval ->
-                            let v = CPA.find vi m in
-                            key_invariant_lval vi offset lval v vs
-          )
-        }
-      and key_invariant_lval k offset lval v vs =
-        if not (VS.mem k vs) then
-          let vs' = VS.add k vs in
-          let key_context = {(context vs') with offset; lval=Some lval} in
-          vd_invariant key_context v
-        else
-          Invariant.none
-      in
-
-      let key_invariant k v = key_invariant_lval k NoOffset (var k) v VS.empty in
-      match c.lval with
+    let cpa_invariant =
+      let key_invariant k v = key_invariant_lval ~vs:VS.empty context k NoOffset (var k) v in
+      match context.lval with
       | None ->
         CPA.fold (fun k v a ->
           let i =
@@ -1040,15 +1037,13 @@ struct
               Invariant.none
           in
           Invariant.(a && i)
-        ) m Invariant.none
+        ) cpa Invariant.none
       | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
-        (try key_invariant k (CPA.find k m) with Not_found -> Invariant.none)
+        (try key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
       | _ -> Invariant.none
     in
 
-    let inv = cpa_invariant context ctx.local.BaseDomain.cpa in
-
-    Q.LiftedExp.of_invariant inv
+    Q.LiftedExp.of_invariant cpa_invariant
 
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with

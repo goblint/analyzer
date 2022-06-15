@@ -400,7 +400,6 @@ struct
           path=Some i;
           lval=None;
           offset=Cil.NoOffset;
-          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
         }
       in
       Queries.LiftedExp.to_invariant @@ ask_local (n, c) (get (n, c)) (Invariant context)
