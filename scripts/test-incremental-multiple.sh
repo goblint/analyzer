@@ -1,3 +1,4 @@
+#This file runs 3 incremental tests in total. As such it is similar to test-incremental.sh but performs an additional incremental run on top of it.
 test=$1
 
 base=./tests/incremental
