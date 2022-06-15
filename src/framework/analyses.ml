@@ -8,8 +8,6 @@ open GobConfig
 module GU = Goblintutil
 module M  = Messages
 
-let currentFunctionName: string ref = ref ""
-
 (** Analysis starts from lists of functions: start functions, exit functions, and
   * other functions. *)
 type fundecs = fundec list * fundec list * fundec list
