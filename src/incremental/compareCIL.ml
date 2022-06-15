@@ -159,7 +159,7 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
 
   let global_rename_mapping: method_rename_assumptions = Cil.foldGlobals newAST (fun (current_global_rename_mapping: method_rename_assumption list) global ->
       match generate_global_rename_mapping oldMap global with
-      | Some rename_mapping -> current_global_rename_mapping @ [rename_mapping]
+      | Some rename_mapping -> rename_mapping::current_global_rename_mapping
       | None -> current_global_rename_mapping
     ) [] |>
                                                          (fun mappings ->
