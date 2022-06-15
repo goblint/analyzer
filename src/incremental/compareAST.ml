@@ -26,17 +26,13 @@ let rename_mapping_aware_name_comparison (name1: string) (name2: string) (rename
     (*Printf.printf "No assumption when %s, %s, %b\n" name1 name2 (name1 = name2);*)
     name1 = name2 (*Var names differ, but there is no assumption, so this can't be good*)
 
-let string_tuple_to_string (tuple: (string * string) list) = "[" ^ (tuple |>
-  List.map (fun x -> match x with (first, second) -> "(" ^ first ^ " -> " ^ second ^ ")") |>
-  String.concat ", ") ^ "]"
-
 let rename_mapping_to_string (rename_mapping: rename_mapping) =
   let (local, methods) = rename_mapping in
-  let local_string = string_tuple_to_string (List.of_seq (Hashtbl.to_seq local)) in
+  let local_string = [%show: (string * string) list] (List.of_seq (Hashtbl.to_seq local)) in
   let methods_string: string = List.of_seq (Hashtbl.to_seq_values methods) |>
     List.map (fun x -> match x with {original_method_name; new_method_name; parameter_renames} ->
       "(methodName: " ^ original_method_name ^ " -> " ^ new_method_name ^
-      "; renamed_params=" ^ string_tuple_to_string (List.of_seq (Hashtbl.to_seq parameter_renames)) ^ ")") |>
+      "; renamed_params=" ^ [%show: (string * string) list] (List.of_seq (Hashtbl.to_seq parameter_renames)) ^ ")") |>
     String.concat ", " in
   "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "])"
 
