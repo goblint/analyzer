@@ -1,8 +1,0 @@
---- tests/incremental/04-var-rename/00-unused_rename.c
-+++ tests/incremental/04-var-rename/00-unused_rename.c
-@@ -1,4 +1,4 @@
- int main() {
--    int a = 0;
-+    int b = 0;
-     return 0;
- }
