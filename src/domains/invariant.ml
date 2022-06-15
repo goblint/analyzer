@@ -4,7 +4,7 @@ type t = exp option
 
 type context = {
   scope: fundec;
-  i: int;
+  path: int option;
   lval: lval option;
   offset: offset;
   deref_invariant: varinfo -> offset -> lval -> t

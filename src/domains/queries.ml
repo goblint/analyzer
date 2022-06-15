@@ -92,7 +92,7 @@ type access =
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
 type invariant_context = Invariant.context = {
   scope: CilType.Fundec.t;
-  i: int;
+  path: int option;
   lval: CilType.Lval.t option;
   offset: CilType.Offset.t;
   deref_invariant: (varinfo -> offset -> lval -> Invariant.t [@compare fun _ _ -> 0] [@hash fun _ -> 0])

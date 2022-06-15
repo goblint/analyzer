@@ -156,7 +156,7 @@ struct
         | Statement _ when WitnessInvariant.is_invariant_node n ->
           let context: Queries.invariant_context = {
             scope=Node.find_fundec n;
-            i = -1;
+            path=None;
             lval=None;
             offset=Cil.NoOffset;
             deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)

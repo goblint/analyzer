@@ -397,7 +397,7 @@ struct
     let find_invariant (n, c, i) =
       let context: Invariant.context = {
           scope=CfgNode.find_fundec n;
-          i;
+          path=Some i;
           lval=None;
           offset=Cil.NoOffset;
           deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)

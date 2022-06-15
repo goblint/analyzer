@@ -269,10 +269,10 @@ struct
           f (I.to_int x)
         ) (fst ctx.local);
       ()
-    | Queries.Invariant c ->
+    | Queries.Invariant ({path=Some i; _} as c) ->
       (* TODO: optimize indexing, using inner hashcons somehow? *)
-      (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (Dom.elements (fst ctx.local)) in
+      (* let (d, _) = List.at (S.elements s) i in *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.elements (fst ctx.local)) in
       Spec.query (conv ctx d) (Invariant c)
     | _ ->
       (* join results so that they are sound for all paths *)

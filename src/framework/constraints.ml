@@ -982,6 +982,7 @@ struct
     let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
+    (* TODO: handle Invariant path like PathSensitive3? *)
     (* join results so that they are sound for all paths *)
     let module Result = (val Queries.Result.lattice q) in
     fold' ctx Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())
