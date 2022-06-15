@@ -6,7 +6,6 @@ type context = {
   scope: fundec;
   path: int option;
   lval: lval option;
-  offset: offset;
 }
 
 let none: t = None

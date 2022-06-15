@@ -94,7 +94,6 @@ type invariant_context = Invariant.context = {
   scope: CilType.Fundec.t;
   path: int option;
   lval: CilType.Lval.t option;
-  offset: CilType.Offset.t;
 }
 [@@deriving ord, hash]
 

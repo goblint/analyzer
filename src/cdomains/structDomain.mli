@@ -27,7 +27,7 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
-  val invariant: value_invariant:(Invariant.context -> value -> Invariant.t) -> Invariant.context -> t -> Invariant.t
+  val invariant: value_invariant:(offset:Cil.offset -> Invariant.context -> value -> Invariant.t) -> offset:Cil.offset -> Invariant.context -> t -> Invariant.t
 end
 
 module Simple (Val: Arg): S with type value = Val.t and type field = fieldinfo

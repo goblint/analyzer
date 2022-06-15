@@ -53,7 +53,6 @@ module EvalAssert = struct
           scope=Cilfacade.find_stmt_fundec s;
           path=None;
           lval=lval;
-          offset=Cil.NoOffset;
         }
         in
         match (ask loc).f (Queries.Invariant context) with

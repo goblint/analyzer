@@ -948,7 +948,7 @@ struct
     (* VS is used to detect and break cycles in deref_invariant calls *)
     let module VS = Set.Make (Basetype.Variables) in
 
-    let rec ad_invariant ~vs c x =
+    let rec ad_invariant ~vs ~offset c x =
       let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
       let i_opt = AD.fold (fun addr acc_opt ->
           BatOption.bind acc_opt (fun acc ->
@@ -996,20 +996,20 @@ struct
       | Some i -> i
       | None -> Invariant.none
 
-    and blob_invariant ~vs c (v, _, _) =
-      vd_invariant ~vs c v
+    and blob_invariant ~vs ~offset c (v, _, _) =
+      vd_invariant ~vs ~offset c v
 
-    and vd_invariant ~vs c = function
+    and vd_invariant ~vs ~offset c = function
       | `Int n ->
         let e = Lval (BatOption.get c.Invariant.lval) in
         if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope c.scope e) then
           ID.invariant e n
         else
           Invariant.none
-      | `Address n -> ad_invariant ~vs c n
-      | `Blob n -> blob_invariant ~vs c n
-      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) c n
-      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) c n
+      | `Address n -> ad_invariant ~vs ~offset c n
+      | `Blob n -> blob_invariant ~vs ~offset c n
+      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
+      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
       | _ -> None (* TODO *)
 
     and deref_invariant ~vs c vi offset lval =
@@ -1019,8 +1019,8 @@ struct
     and key_invariant_lval ~vs c k offset lval v =
       if not (VS.mem k vs) then
         let vs' = VS.add k vs in
-        let key_context: Invariant.context = {c with offset; lval=Some lval} in
-        vd_invariant ~vs:vs' key_context v
+        let key_context: Invariant.context = {c with lval=Some lval} in
+        vd_invariant ~vs:vs' ~offset key_context v
       else
         Invariant.none
     in

@@ -158,7 +158,6 @@ struct
             scope=Node.find_fundec n;
             path=None;
             lval=None;
-            offset=Cil.NoOffset;
           }
           in
           begin match Queries.LiftedExp.to_invariant @@ ask_local_node n local (Invariant context) with
