@@ -433,7 +433,13 @@ struct
     (* After the solver is finished, store the results (for later comparison) *)
     if !GU.postsolving then begin
       let old_value = RH.find_default results ctx.node (AD.bot ()) in
-      let new_value = AD.join old_value ctx.local.apr in
+      let st = AD.keep_filter ctx.local.apr (fun v ->
+          match V.find_metadata v with
+          | Some (Global _) -> true
+          | _ -> false
+        )
+      in
+      let new_value = AD.join old_value st in
       RH.replace results ctx.node new_value;
     end;
     Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
