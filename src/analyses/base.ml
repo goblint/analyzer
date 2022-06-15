@@ -998,7 +998,12 @@ struct
       vd_invariant c v
 
     and vd_invariant c = function
-      | `Int n -> ID.invariant c n
+      | `Int n ->
+        let e = Lval (BatOption.get c.Invariant.lval) in
+        if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope c.scope e) then
+          ID.invariant e n
+        else
+          Invariant.none
       | `Address n -> ad_invariant c n
       | `Blob n -> blob_invariant c n
       | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:vd_invariant c n
