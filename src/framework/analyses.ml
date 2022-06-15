@@ -151,9 +151,6 @@ struct
          See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
       let loc = UpdateCil.getLoc n in
 
-      let parentNode = Node.find_fundec n in
-      currentFunctionName.contents <- parentNode.svar.vname;
-
       BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) loc.file loc.line loc.byte loc.column;
       BatPrintf.fprintf f "%a</call>\n" Range.printXml v
     in
