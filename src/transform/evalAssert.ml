@@ -50,7 +50,6 @@ module EvalAssert = struct
 
       let make_assert loc lval =
         let context: Queries.invariant_context = {
-          scope=Cilfacade.find_stmt_fundec s;
           path=None;
           lval=lval;
         }

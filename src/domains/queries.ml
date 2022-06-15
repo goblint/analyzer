@@ -91,7 +91,6 @@ type access =
   | Point (** Program point and state access (MHP), independent of memory location. *)
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
 type invariant_context = Invariant.context = {
-  scope: CilType.Fundec.t;
   path: int option;
   lval: CilType.Lval.t option;
 }

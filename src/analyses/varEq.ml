@@ -19,7 +19,7 @@ struct
   struct
     include PartitionDomain.ExpPartitions
 
-    let invariant c ss =
+    let invariant ~scope ss =
       fold (fun s a ->
           if B.mem MyCFG.unknown_exp s then
             a
@@ -27,7 +27,7 @@ struct
             let module B_prod = BatSet.Make2 (Exp) (Exp) in
             let s_prod = B_prod.cartesian_product s s in
             let i = B_prod.Product.fold (fun (x, y) a ->
-                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope c.Invariant.scope x && InvariantCil.exp_is_in_scope c.Invariant.scope y then (* each equality only one way, no self-equalities *)
+                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope scope x && InvariantCil.exp_is_in_scope scope y then (* each equality only one way, no self-equalities *)
                   let eq = BinOp (Eq, x, y, intType) in
                   Invariant.(a && of_exp eq)
                 else
@@ -589,7 +589,8 @@ struct
       (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
       r
     | Queries.Invariant context ->
-      Queries.LiftedExp.of_invariant @@ D.invariant context ctx.local
+      let scope = Node.find_fundec ctx.node in
+      Queries.LiftedExp.of_invariant @@ D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x
 
 end

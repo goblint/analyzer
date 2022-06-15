@@ -155,7 +155,6 @@ struct
         match n with
         | Statement _ when WitnessInvariant.is_invariant_node n ->
           let context: Queries.invariant_context = {
-            scope=Node.find_fundec n;
             path=None;
             lval=None;
           }

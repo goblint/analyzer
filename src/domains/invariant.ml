@@ -3,7 +3,6 @@ open Cil
 type t = exp option
 
 type context = {
-  scope: fundec;
   path: int option;
   lval: lval option;
 }

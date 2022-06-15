@@ -944,6 +944,7 @@ struct
 
   let query_invariant ctx context =
     let cpa = ctx.local.BaseDomain.cpa in
+    let scope = Node.find_fundec ctx.node in
 
     (* VS is used to detect and break cycles in deref_invariant calls *)
     let module VS = Set.Make (Basetype.Variables) in
@@ -968,7 +969,7 @@ struct
                 let offset = offs_to_offset offs in
 
                 let i =
-                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp && not (var_is_tmp vi) && var_is_in_scope c.scope vi && not (var_is_heap vi)) then
+                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
                     let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
                     Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
                   else
@@ -980,7 +981,7 @@ struct
               | Addr.NullPtr ->
                 let i =
                   let addr_exp = integer 0 in
-                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp) then
+                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
                     Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
                   else
                     Invariant.none
@@ -1002,7 +1003,7 @@ struct
     and vd_invariant ~vs ~offset c = function
       | `Int n ->
         let e = Lval (BatOption.get c.Invariant.lval) in
-        if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope c.scope e) then
+        if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
           ID.invariant e n
         else
           Invariant.none

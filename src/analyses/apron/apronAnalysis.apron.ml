@@ -384,7 +384,8 @@ struct
       let is_lt = eval_int exp in
       Option.default true (ID.to_bool is_lt)
     | Queries.Invariant context ->
-      Queries.LiftedExp.of_invariant @@ D.invariant context ctx.local
+      let scope = Node.find_fundec ctx.node in
+      Queries.LiftedExp.of_invariant @@ D.invariant ~scope ctx.local
     | _ -> Result.top q
 
 
