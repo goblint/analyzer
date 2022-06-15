@@ -7,6 +7,11 @@ type context = {
   lval: lval option;
 }
 
+let default_context = {
+  path = None;
+  lval = None;
+}
+
 let none: t = None
 let of_exp s: t = Some s
 

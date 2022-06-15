@@ -395,11 +395,7 @@ struct
     in
 
     let find_invariant (n, c, i) =
-      let context: Invariant.context = {
-          path=Some i;
-          lval=None;
-        }
-      in
+      let context = {Invariant.default_context with path = Some i} in
       Queries.LiftedExp.to_invariant @@ ask_local (n, c) (get (n, c)) (Invariant context)
     in
 

@@ -154,12 +154,7 @@ struct
     let yaml_entries = NH.fold (fun n local acc ->
         match n with
         | Statement _ when WitnessInvariant.is_invariant_node n ->
-          let context: Queries.invariant_context = {
-            path=None;
-            lval=None;
-          }
-          in
-          begin match Queries.LiftedExp.to_invariant @@ ask_local_node n local (Invariant context) with
+          begin match Queries.LiftedExp.to_invariant @@ ask_local_node n local (Invariant Invariant.default_context) with
             | Some inv ->
               let loc = Node.location n in
               let invs = WitnessUtil.InvariantExp.process_exp inv in
