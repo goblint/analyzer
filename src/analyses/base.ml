@@ -132,7 +132,7 @@ struct
   let unop_FD = function
     | Neg  -> FD.neg
     (* other unary operators are not implemented on float values *)
-    | _ -> (fun _ -> FD.top ())
+    | _ -> (fun c -> FD.top_of (FD.precision c))
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ = function
@@ -169,12 +169,12 @@ struct
     | LOr -> ID.logor
     | b -> (fun x y -> (ID.top_of result_ik))
 
-  let binop_FD = function
+  let binop_FD (result_fk: Cil.fkind) = function
     | PlusA -> FD.add
     | MinusA -> FD.sub
     | Mult -> FD.mul
     | Div -> FD.div
-    | _ -> (fun _ _ -> FD.top ())
+    | _ -> (fun _ _ -> FD.top_of result_fk)
 
   let int_returning_binop_FD = function 
     | Lt -> FD.lt
@@ -262,7 +262,7 @@ struct
     | `Float v1, `Float v2 when is_int_returning_binop_FD op -> 
       let result_ik = Cilfacade.get_ikind t in
       `Int (ID.cast_to result_ik (int_returning_binop_FD op v1 v2))
-    | `Float v1, `Float v2 -> `Float (binop_FD op v1 v2)
+    | `Float v1, `Float v2 -> `Float (binop_FD (Cilfacade.get_fkind t) op v1 v2)
     (* For address +/- value, we try to do some elementary ptr arithmetic *)
     | `Address p, `Int n
     | `Int n, `Address p when op=Eq || op=Ne ->
@@ -727,7 +727,11 @@ struct
       | Const (CInt (num,ikind,str)) ->
         (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
-      | Const (CReal (num, FDouble, _)) -> `Float (FD.of_const num) (* TODO(Practical(2022): use string representation instead, extend to other floating point types *)
+      | Const (CReal (_, (FFloat | FDouble as fkind), Some str)) -> `Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
+      | Const (CReal (num, (FFloat | FDouble as fkind), None)) -> `Float (FD.of_const fkind num)
+      (* this is so far only for DBL_MIN/DBL_MAX as it is represented as LongDouble although it would fit into a double as well *)
+      | Const (CReal (_, (FLongDouble), Some str)) when str = "2.2250738585072014e-308L" -> `Float (FD.of_string FDouble str)
+      | Const (CReal (_, (FLongDouble), Some str)) when str = "1.7976931348623157e+308L" -> `Float (FD.of_string FDouble str)
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
@@ -1641,9 +1645,7 @@ struct
       | PlusA  -> meet_com FD.sub
       | Mult   ->
         (* refine x by information about y, using x * y == c *)
-        let refine_by x y = (match FD.to_float y with
-            | None -> x
-            | Some _ -> FD.meet x (FD.div c y))
+        let refine_by x y = if FD.is_exact y then FD.meet x (FD.div c y) else x
         in
         (refine_by a b, refine_by b a)
       | MinusA -> meet_non FD.add FD.sub
@@ -1653,7 +1655,7 @@ struct
       | Eq | Ne as op ->
         let both x = x, x in
         let m = FD.meet a b in
-        let result = FD.ne c (FD.of_const 0.) in
+        let result = FD.ne c (FD.of_const (FD.precision c) 0.) in
         (match op, ID.to_bool(result) with
          | Eq, Some true
          | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
@@ -1666,15 +1668,15 @@ struct
       | Lt | Le | Ge | Gt as op ->
         (match FD.minimal a, FD.maximal a, FD.minimal b, FD.maximal b with
          | Some l1, Some u1, Some l2, Some u2 ->
-           (match op, ID.to_bool(FD.ne c (FD.of_const 0.)) with
+           (match op, ID.to_bool(FD.ne c (FD.of_const (FD.precision c) 0.)) with
             | Le, Some true
-            | Gt, Some false -> meet_bin (FD.ending u2) (FD.starting l1)
+            | Gt, Some false -> meet_bin (FD.ending (FD.precision a) u2) (FD.starting (FD.precision b) l1)
             | Ge, Some true
-            | Lt, Some false -> meet_bin (FD.starting l2) (FD.ending u1)
+            | Lt, Some false -> meet_bin (FD.starting (FD.precision a) l2) (FD.ending (FD.precision b) u1)
             | Lt, Some true
-            | Ge, Some false -> meet_bin (FD.ending (Float.pred u2)) (FD.starting (Float.succ l1))
+            | Ge, Some false -> meet_bin (FD.ending (FD.precision a) (Float.pred u2)) (FD.starting (FD.precision b) (Float.succ l1))
             | Gt, Some true
-            | Le, Some false -> meet_bin (FD.starting (Float.succ l2)) (FD.ending (Float.pred u1))
+            | Le, Some false -> meet_bin (FD.starting (FD.precision a) (Float.succ l2)) (FD.ending (FD.precision b) (Float.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
       | op ->
@@ -1707,7 +1709,7 @@ struct
         inv_exp (`Int c') e st
       | UnOp (Neg, e, _), `Float c -> inv_exp (`Float (unop_FD Neg c)) e st
       | UnOp ((BNot|Neg) as op, e, _), `Int c -> inv_exp (`Int (unop_ID op c)) e st
-      (* no equivalent for `Float so far, as VD.is_safe_cast fails for all float types anyways *)
+      (* no equivalent for `Float, as VD.is_safe_cast fails for all float types anyways *)
       | BinOp(op, CastE (t1, c1), CastE (t2, c2), t), `Int c when (op = Eq || op = Ne) && typeSig (Cilfacade.typeOf c1) = typeSig (Cilfacade.typeOf c2) && VD.is_safe_cast t1 (Cilfacade.typeOf c1) && VD.is_safe_cast t2 (Cilfacade.typeOf c2) ->
         inv_exp (`Int c) (BinOp (op, c1, c2, t)) st
       | (BinOp (op, e1, e2, _) as e, `Float _)
@@ -1723,21 +1725,21 @@ struct
            let st'' = inv_exp (`Int b') e2 st' in
            st''
          | `Float a, `Float b ->
-           let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
+           let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
            let a', b' = inv_bin_float (a, b) fkind (c_float fkind) op in
            if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e FD.pretty a' FD.pretty b';
            let st' = inv_exp (`Float a') e1 st in
            let st'' = inv_exp (`Float b') e2 st' in
            st''
-         (* Mixed `Float and `Int cases should never happen, TODO: make this sure ?!*)
-         | `Int _, `Float _ | `Float _, `Int _ -> failwith "todo - probably ill-typed program";
+         (* Mixed `Float and `Int cases should never happen, as there are no binary operators with one float and one int parameter ?!*)
+         | `Int _, `Float _ | `Float _, `Int _ -> failwith "ill-typed program";
          (* | `Address a, `Address b -> ... *)
          | a1, a2 -> fallback ("binop: got abstract values that are not `Int: " ^ sprint VD.pretty a1 ^ " and " ^ sprint VD.pretty a2) st)
          (* use closures to avoid unused casts *)
          in (match c_typed with 
-         | `Int c -> invert_binary_op c ID.pretty (fun _ -> c) (fun _ -> FD.of_int c) 
-         | `Float c -> invert_binary_op c FD.pretty (fun ikind -> FD.cast_to ikind c) (fun _ -> c)
-         | _ -> failwith "unreachable")
+            | `Int c -> invert_binary_op c ID.pretty (fun ik -> ID.cast_to ik c) (fun fk -> FD.of_int fk c) 
+            | `Float c -> invert_binary_op c FD.pretty (fun ik -> FD.to_int ik c) (fun fk -> FD.cast_to fk c)
+            | _ -> failwith "unreachable")
       | Lval x, `Int _(* meet x with c *)
       | Lval x, `Float _ -> (* meet x with c *)
         let update_lval c x c' pretty = (match x with
@@ -1767,19 +1769,24 @@ struct
              | TPtr _ -> `Address (AD.of_int (module ID) c)
              | TInt (ik, _)
              | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
-             | TFloat (fk, _) -> `Float (FD.of_int c)
+             | TFloat (fk, _) -> `Float (FD.of_int fk c)
              | _ -> `Int c) ID.pretty
          | `Float c -> update_lval c x (match t with
              (* | TPtr _ -> ..., pointer conversion from/to float is not supported *)
-             | TInt (ik, _) -> `Int (FD.cast_to ik c)
+             | TInt (ik, _) -> `Int (FD.to_int ik c)
              (* this is theoretically possible and should be handled correctly, however i can't imagine an actual piece of c code producing this?! *)
-             | TEnum ({ekind = ik; _}, _) -> `Int (FD.cast_to ik c)
-             | TFloat (fk, _) -> `Float c
+             | TEnum ({ekind = ik; _}, _) -> `Int (FD.to_int ik c)
+             | TFloat (fk, _) -> `Float (FD.cast_to fk c)
              | _ -> `Float c) FD.pretty
          | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
-      | CastE ((TFloat (FDouble, _)), e), `Float c -> inv_exp (`Float c) e st
-      | CastE ((TFloat (fk, _)), e), `Float c -> failwith "todo - f2f casts" (* TODO(Practical2022): extend to other floating point types *)
+      | CastE ((TFloat (_, _)), e), `Float c ->
+        (match Cilfacade.typeOf e, FD.precision c with
+         | TFloat (FDouble as fk, _), FFloat
+         | TFloat (FDouble as fk, _), FDouble
+         | TFloat (FFloat as fk, _), FFloat -> inv_exp (`Float (FD.cast_to fk c)) e st
+         | TFloat (FFloat, _), FDouble -> fallback ("CastE: e evaluates to FFloat which can not be used as FDouble") st
+         | _ -> fallback ("CastE: e has not type TFloat") st)
       | CastE ((TInt (ik, _)) as t, e), `Int c
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), `Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e st with
@@ -1794,7 +1801,6 @@ struct
              | x -> fallback ("CastE: e did evaluate to `Int, but the type did not match" ^ sprint d_type t) st
            else
              fallback ("CastE: " ^ sprint d_plainexp e ^ " evaluates to " ^ sprint ID.pretty i ^ " which is bigger than the type it is cast to which is " ^ sprint d_type t) st
-         | `Float f -> inv_exp (`Float (FD.of_int c)) e st
          | v -> fallback ("CastE: e did not evaluate to `Int, but " ^ sprint VD.pretty v) st)
       | e, _ -> fallback (sprint d_plainexp e ^ " not implemented") st
     in

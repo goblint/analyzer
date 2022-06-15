@@ -6,20 +6,27 @@
 
 int main()
 {
-    double middle;
-    double a = 2.;
-    double b = 4.;
+    double x, a = 2., b = 3. + 1;
+    float y, c = 2.f, d = 3.f + 1;
 
-    assert(middle == 2.); // UNKNOWN!
+    assert(x == 2.);  // UNKNOWN!
+    assert(y == 2.f); // UNKNOWN!
 
     assert(a == 2.); // SUCCESS!
     assert(a < 10.); // SUCCESS!
     assert(a > 10.); // FAIL!
 
-    middle = (a + b) / 2.; // naive way of computing the middle
+    assert(c == 2.f); // SUCCESS!
+    assert(c < 10.f); // SUCCESS!
+    assert(c > 10.f); // FAIL!
 
-    assert(middle == 3.); // SUCCESS!
+    x = (a + b) / 2.;  // naive way of computing the middle
+    y = (c + d) / 2.; // naive way of computing the middle
 
-    assert(-97. == middle - 100.);
+    assert(x == 3.);  // SUCCESS!
+    assert(y == 3.f); // SUCCESS!
+
+    assert(-97. == x - 100.);
+    assert(-97.f == y - 100.f);
     return 0;
 }

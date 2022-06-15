@@ -30,52 +30,55 @@ module type FloatArith = sig
   (** Not equal to: [x != y] *)
 end
 
-module FloatInterval : sig (**Currently just for FloatDomainTest *)
-  type t = (float * float) option
-  include FloatArith with type t := t
-  include Lattice.S  with type t := t
-
-  val top : unit -> t
-
-  val is_bot : t -> bool
-
-  val is_top : t -> bool
-
-  val of_const : float -> t
-  val of_interval : float*float -> t
-  val of_int : IntDomain.IntDomTuple.t -> t
-  val cast_to : Cil.ikind -> t -> IntDomain.IntDomTuple.t
-
-  val ending : float -> t
-  val starting : float -> t
-
-  val show : t -> string
-
-  val equal : t -> t -> bool
-
-  val leq : t -> t -> bool
-
-  val arbitrary : unit -> t QCheck.arbitrary
-end
-
 module type FloatDomainBase = sig
   include Lattice.S
   include FloatArith with type t := t
 
+  val to_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t
+
   val of_const : float -> t
-  val of_interval : float*float -> t
+  val of_interval : float * float -> t
+  val of_string : string -> t
+  val of_int: IntDomain.IntDomTuple.t -> t
 
   val ending : float -> t
   val starting : float -> t
 
-  val to_float : t -> float option
-  val maximal : t -> float option
-  val minimal : t -> float option
+  val minimal: t -> float option
+  val maximal: t -> float option
 
-  val of_int : IntDomain.IntDomTuple.t -> t
-  val cast_to : Cil.ikind -> t -> IntDomain.IntDomTuple.t
+  val is_exact : t -> bool
+end
+
+(* Only required for testing *)
+module F64Interval : FloatDomainBase
+module F32Interval : FloatDomainBase
+
+module type FloatDomain = sig
+  include Lattice.S
+  include FloatArith with type t := t
+
+  val to_int : Cil.ikind -> t -> IntDomain.IntDomTuple.t
+  val cast_to : Cil.fkind -> t -> t
+
+  val of_const : Cil.fkind -> float -> t
+  val of_interval : Cil.fkind -> float*float -> t
+  val of_string : Cil.fkind -> string -> t
+  val of_int: Cil.fkind -> IntDomain.IntDomTuple.t -> t
+
+  val top_of: Cil.fkind -> t
+  val bot_of: Cil.fkind -> t
+
+  val ending : Cil.fkind -> float -> t
+  val starting : Cil.fkind -> float -> t
+
+  val minimal: t -> float option
+  val maximal: t -> float option
+
+  val is_exact : t -> bool
+  val precision : t -> Cil.fkind
 end
 
 module FloatDomTupleImpl : sig
-  include FloatDomainBase
+  include FloatDomain
 end

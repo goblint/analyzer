@@ -5,26 +5,20 @@
 int main()
 {
     double a;
-    int b;
+    float b;
+    int c, d;
 
     // make a definitly finite!
-    if (b)
+    if (c)
     {
         a = 100.;
+        b = 100.;
     }
     else
     {
         a = -100.;
+        b = -100.;
     };
-
-    if (b != 1)
-    {
-        assert(b != 1); // SUCCESS!
-    }
-    else
-    {
-        assert(b == 1); // SUCCESS!
-    }
 
     if (a != 1.)
     {
@@ -37,52 +31,63 @@ int main()
         assert(a == 1.); // SUCCESS!
     }
 
-    if ((int)a)
+    if (b == 1.f)
     {
-        assert(a != 0.); // UNKNOWN!
-    }
-    if (a) // here a explicit cast to (int) should be inserted
-    {
-        assert(a != 0.); // UNKNOWN!
+        assert(b == 1.f); // SUCCESS!
     }
 
     if (a <= 5.)
     {
         assert(a <= 5.); // SUCCESS!
     }
+    if (b <= 5.f)
+    {
+        assert(b <= 5.f); // SUCCESS!
+    }
 
     if (a <= 5. && a >= -5.)
     {
         assert(a <= 5. && a >= -5.); // SUCCESS!
     }
+    if (b <= 5.f && b >= -5.f)
+    {
+        assert(b <= 5. && b >= -5.); // SUCCESS!
+    }
 
-    if (a + 5. < 10.)
+    if (a + 5.f < 10.f)
     {
         assert(a < 5.); // SUCCESS!
     }
+    if (b + 5.f < 10.f)
+    {
+        assert(b < 5.f); // SUCCESS!
+    }
 
-    if (a * 2. < 6.)
+    if (a * 2. < 6.f)
     {
         assert(a < 3.); // SUCCESS!
+    }
+    if (b * 2.f < 6.f)
+    {
+        assert(b < 3.f); // SUCCESS!
     }
 
     if (a / 3. > 10.)
     {
         assert(a > 30.); // SUCCESS!
     }
+    if (b / 3.f > 10.f)
+    {
+        assert(b > 30.); // SUCCESS!
+    }
 
-    if (((int)a) < 10)
+    if (a < 10)
     {
         assert(a < 10.); // SUCCESS!
     }
-
-    int c;
-
-    if (0.5 < (double)c)
+    if (b < 10)
     {
-        assert(0 < c);  // SUCCESS!
-        assert(1 < c);  // UNKNOWN!
-        assert(1 <= c); // SUCCESS!
+        assert(b < 10.f); // SUCCESS!
     }
 
     if (a > 1.)
