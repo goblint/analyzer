@@ -1,13 +1,10 @@
-module type Arg =
-sig
-  include Lattice.S
-  val invariant: Invariant.context -> t -> Invariant.t
-end
+module type Arg = Lattice.S
 
 module type S =
 sig
   include Lattice.S
-  val invariant: Invariant.context -> t -> Invariant.t
+  type value
+  val invariant: value_invariant:(Invariant.context -> value -> Invariant.t) -> Invariant.context -> t -> Invariant.t
 end
 
 module Field =  Lattice.Flat (CilType.Fieldinfo) (struct
@@ -18,8 +15,9 @@ module Field =  Lattice.Flat (CilType.Fieldinfo) (struct
 module Simple (Values: Arg) =
 struct
   include Lattice.Prod (Field) (Values)
+  type value = Values.t
 
-  let invariant c (lift_f, v) =
+  let invariant ~value_invariant c (lift_f, v) =
     match c.Invariant.offset with
     (* invariants for all fields *)
     | NoOffset ->
@@ -28,7 +26,7 @@ struct
       | `Lifted f ->
         let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
         let f_c = {c with lval=Some f_lval} in
-        Values.invariant f_c v
+        value_invariant f_c v
       | `Top
       | `Bot ->
         Invariant.none
@@ -37,7 +35,7 @@ struct
     | Field (f, offset) ->
       (* ignores lift_f and f because all fields are considered to have same value anyway *)
       let f_c = {c with offset} in
-      Values.invariant f_c v
+      value_invariant f_c v
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none

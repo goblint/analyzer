@@ -12,7 +12,6 @@ sig
   include Lattice.S
   val is_bot_value: t -> bool
   val is_top_value: t -> typ -> bool
-  val invariant: Invariant.context -> t -> Invariant.t
 end
 
 module type S =
@@ -29,7 +28,7 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
-  val invariant: Invariant.context -> t -> Invariant.t
+  val invariant: value_invariant:(Invariant.context -> value -> Invariant.t) -> Invariant.context -> t -> Invariant.t
 end
 
 module Simple (Val: Arg) =
@@ -78,7 +77,7 @@ struct
 
   let for_all_fields f = M.for_all f
 
-  let invariant c x =
+  let invariant ~value_invariant c x =
     match c.Invariant.offset with
     (* invariants for all fields *)
     | NoOffset ->
@@ -86,14 +85,14 @@ struct
       fold (fun f v acc ->
           let f_lval = Cil.addOffsetLval (Field (f, NoOffset)) c_lval in
           let f_c = {c with lval=Some f_lval} in
-          let i = Val.invariant f_c v in
+          let i = value_invariant f_c v in
           Invariant.(acc && i)
         ) x Invariant.none
     (* invariant for one field *)
     | Field (f, offset) ->
       let f_c = {c with offset} in
       let v = get x f in
-      Val.invariant f_c v
+      value_invariant f_c v
     (* invariant for one index *)
     | Index (i, offset) ->
       Invariant.none
@@ -228,7 +227,7 @@ struct
   let join = join_with_fct Val.join
 
   (* let invariant = HS.invariant *)
-  let invariant _ _ = Invariant.none (* TODO *)
+  let invariant ~value_invariant _ _ = Invariant.none (* TODO *)
 end
 
 module KeyedSets (Val: Arg) =
@@ -436,7 +435,7 @@ struct
   let join = join_with_fct Val.join
 
   (* let invariant c (x,_) = HS.invariant c x *)
-  let invariant _ _ = Invariant.none (* TODO *)
+  let invariant ~value_invariant _ _ = Invariant.none (* TODO *)
 end
 
 
@@ -470,7 +469,7 @@ struct
   module I = struct include LatticeFlagHelper (HS) (KS) (P) let name () = "" end
   include LatticeFlagHelper (S) (I) (P)
 
-  let invariant c = unop (S.invariant c) (I.unop (HS.invariant c) (KS.invariant c))
+  let invariant ~value_invariant c = unop (S.invariant ~value_invariant c) (I.unop (HS.invariant ~value_invariant c) (KS.invariant ~value_invariant c))
 
   let twoaccop_to_t ops ophs opks (s,r) a1 a2 = to_t @@ match of_t (s,r) with
     | (Some s, None, None) -> (Some (ops s a1 a2), None, None)

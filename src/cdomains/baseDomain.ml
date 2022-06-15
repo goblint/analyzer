@@ -13,41 +13,6 @@ struct
   end
 
   include M
-
-  let invariant (c:Invariant.context) (m:t) =
-    (* VS is used to detect and break cycles in deref_invariant calls *)
-    let module VS = Set.Make (Basetype.Variables) in
-    let rec context vs = {c with
-        deref_invariant=(fun vi offset lval ->
-                          let v = find vi m in
-                          key_invariant_lval vi offset lval v vs
-        )
-      }
-    and key_invariant_lval k offset lval v vs =
-      if not (VS.mem k vs) then
-        let vs' = VS.add k vs in
-        let key_context = {(context vs') with offset; lval=Some lval} in
-        VD.invariant key_context v
-      else
-        Invariant.none
-    in
-
-    let key_invariant k v = key_invariant_lval k NoOffset (var k) v VS.empty in
-    match c.lval with
-    | None ->
-      fold (fun k v a ->
-        let i =
-          if not (InvariantCil.var_is_heap k) then
-            key_invariant k v
-          else
-            Invariant.none
-        in
-        Invariant.(a && i)
-      ) m Invariant.none
-    | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
-      (try key_invariant k (find k m) with Not_found -> Invariant.none)
-    | _ -> Invariant.none
-
 end
 
 
@@ -87,7 +52,6 @@ module BaseComponents (PrivD: Lattice.S):
 sig
   include Lattice.S with type t = PrivD.t basecomponents_t
   val op_scheme: (CPA.t -> CPA.t -> CPA.t) -> (PartDeps.t -> PartDeps.t -> PartDeps.t) -> (WeakUpdates.t -> WeakUpdates.t -> WeakUpdates.t) -> (PrivD.t -> PrivD.t -> PrivD.t) -> t -> t -> t
-  val invariant: Invariant.context -> t -> Invariant.t
 end =
 struct
   type t = PrivD.t basecomponents_t [@@deriving eq, ord, hash]
@@ -125,9 +89,6 @@ struct
     `Assoc [ (CPA.name (), CPA.to_yojson r.cpa); (PartDeps.name (), PartDeps.to_yojson r.deps); (WeakUpdates.name (), WeakUpdates.to_yojson r.weak); (PrivD.name (), PrivD.to_yojson r.priv) ]
 
   let name () = CPA.name () ^ " * " ^ PartDeps.name () ^ " * " ^ WeakUpdates.name ()  ^ " * " ^ PrivD.name ()
-
-  let invariant c {cpa; deps; weak; priv} =
-    CPA.invariant c cpa
 
   let of_tuple(cpa, deps, weak, priv):t = {cpa; deps; weak; priv}
   let to_tuple r = (r.cpa, r.deps, r.weak, r.priv)

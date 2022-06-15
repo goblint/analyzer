@@ -942,6 +942,109 @@ struct
 
   (* interpreter end *)
 
+  let query_invariant ctx context =
+    let ad_invariant c x =
+      let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+      let i_opt = AD.fold (fun addr acc_opt ->
+          BatOption.bind acc_opt (fun acc ->
+              match addr with
+              | Addr.UnknownPtr ->
+                None
+              | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+                let rec offs_to_offset = function
+                  | `NoOffset -> NoOffset
+                  | `Field (f, offs) -> Field (f, offs_to_offset offs)
+                  | `Index (i, offs) ->
+                    (* Addr.Offs.is_definite implies Idx.is_int *)
+                    let i_definite = BatOption.get (ValueDomain.IndexDomain.to_int i) in
+                    let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
+                    Index (i_exp, offs_to_offset offs)
+                in
+                let offset = offs_to_offset offs in
+
+                let i =
+                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp && not (var_is_tmp vi) && var_is_in_scope c.scope vi && not (var_is_heap vi)) then
+                    let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                  else
+                    Invariant.none
+                in
+                let i_deref =
+                  c.Invariant.deref_invariant vi offset (Mem c_exp, NoOffset)
+                in
+
+                Some (Invariant.(acc || (i && i_deref)))
+              | Addr.NullPtr ->
+                let i =
+                  let addr_exp = integer 0 in
+                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp) then
+                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                  else
+                    Invariant.none
+                in
+                Some (Invariant.(acc || i))
+              (* TODO: handle Addr.StrPtr? *)
+              | _ ->
+                None
+            )
+        ) x (Some Invariant.none)
+      in
+      match i_opt with
+      | Some i -> i
+      | None -> Invariant.none
+    in
+
+    let rec blob_invariant c (v, _, _) =
+      vd_invariant c v
+
+    and vd_invariant c = function
+      | `Int n -> ID.invariant c n
+      | `Address n -> ad_invariant c n
+      | `Blob n -> blob_invariant c n
+      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:vd_invariant c n
+      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:vd_invariant c n
+      | _ -> None (* TODO *)
+    in
+
+    let cpa_invariant (c:Invariant.context) (m:CPA.t) =
+      (* VS is used to detect and break cycles in deref_invariant calls *)
+      let module VS = Set.Make (Basetype.Variables) in
+      let rec context vs = {c with
+          deref_invariant=(fun vi offset lval ->
+                            let v = CPA.find vi m in
+                            key_invariant_lval vi offset lval v vs
+          )
+        }
+      and key_invariant_lval k offset lval v vs =
+        if not (VS.mem k vs) then
+          let vs' = VS.add k vs in
+          let key_context = {(context vs') with offset; lval=Some lval} in
+          vd_invariant key_context v
+        else
+          Invariant.none
+      in
+
+      let key_invariant k v = key_invariant_lval k NoOffset (var k) v VS.empty in
+      match c.lval with
+      | None ->
+        CPA.fold (fun k v a ->
+          let i =
+            if not (InvariantCil.var_is_heap k) then
+              key_invariant k v
+            else
+              Invariant.none
+          in
+          Invariant.(a && i)
+        ) m Invariant.none
+      | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
+        (try key_invariant k (CPA.find k m) with Not_found -> Invariant.none)
+      | _ -> Invariant.none
+    in
+
+    let inv = cpa_invariant context ctx.local.BaseDomain.cpa in
+
+    Q.LiftedExp.of_invariant inv
+
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
@@ -1098,8 +1201,7 @@ struct
         | _ -> true
       end
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
-    | Q.Invariant context ->
-      Q.LiftedExp.of_invariant @@ D.invariant context ctx.local
+    | Q.Invariant context -> query_invariant ctx context
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

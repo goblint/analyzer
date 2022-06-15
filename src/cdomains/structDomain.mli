@@ -7,7 +7,6 @@ sig
   include Lattice.S
   val is_bot_value: t -> bool
   val is_top_value: t -> typ -> bool
-  val invariant: Invariant.context -> t -> Invariant.t
 end
 
 module type S =
@@ -28,7 +27,7 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
-  val invariant: Invariant.context -> t -> Invariant.t
+  val invariant: value_invariant:(Invariant.context -> value -> Invariant.t) -> Invariant.context -> t -> Invariant.t
 end
 
 module Simple (Val: Arg): S with type value = Val.t and type field = fieldinfo
