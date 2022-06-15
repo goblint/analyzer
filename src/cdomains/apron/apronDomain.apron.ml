@@ -626,6 +626,8 @@ sig
   val bot_env: Environment.t -> t
   val is_top_env: t -> bool
   val is_bot_env: t -> bool
+
+  val unify: t -> t -> t
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
@@ -660,6 +662,9 @@ struct
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
+
+  let unify x y =
+    A.unify Man.mgr x y
 end
 
 
@@ -1065,63 +1070,144 @@ struct
   module Man = Man
 end
 
-module ApronComponents (D2: S2) (PrivD: Lattice.S):
+
+module OctagonD2 = D2 (OctagonManager)
+
+module type S3 =
 sig
-  module AD: S2 with type Man.mt = D2.Man.mt
-  include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
+  include SLattice
+
+  module Convert :
+    sig
+      module Bounds :
+        sig
+          val bound_texpr :
+            t -> Texpr1.t -> Z.t option * Z.t option
+        end
+      exception Unsupported_CilExp
+      exception Unsupported_Linexpr1
+      val texpr1_expr_of_cil_exp :
+        t -> Environment.t -> exp -> Texpr1.expr
+      val texpr1_of_cil_exp :
+        t -> Environment.t -> exp -> Texpr1.t
+      val tcons1_of_cil_exp :
+        t -> Environment.t -> exp -> bool -> Tcons1.t
+      val cil_exp_of_linexpr1 : fundec -> Linexpr1.t -> exp
+      val cil_exp_of_lincons1 : fundec -> Lincons1.t -> exp option
+    end
+
+  val copy : t -> t
+  val vars_as_array : t -> Var.t array
+  val vars : t -> Var.t list
+  type marshal
+  val unmarshal : marshal -> t
+  val marshal : t -> marshal
+  val mem_var : t -> Var.t -> bool
+  val add_vars_with : t -> Var.t list -> unit
+  val add_vars : t -> Var.t list -> t
+  val remove_vars_with : t -> Var.t list -> unit
+  val remove_vars : t -> Var.t list -> t
+  val remove_filter_with : t -> (Var.t -> bool) -> unit
+  val remove_filter : t -> (Var.t -> bool) -> t
+  val keep_vars_with : t -> Var.t list -> unit
+  val keep_vars : t -> Var.t list -> t
+  val keep_filter_with : t -> (Var.t -> bool) -> unit
+  val keep_filter : t -> (Var.t -> bool) -> t
+  val forget_vars_with : t -> Var.t list -> unit
+  val forget_vars : t -> Var.t list -> t
+  val assign_exp_with : t -> Var.t -> exp -> unit
+  val assign_exp : t -> Var.t -> exp -> t
+  val assign_exp_parallel_with : t -> (Var.t * exp) list -> unit
+  val assign_var_with : t -> Var.t -> Var.t -> unit
+  val assign_var : t -> Var.t -> Var.t -> t
+  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
+  val assign_var_parallel' :
+    t -> Var.t list -> Var.t list -> t
+  val substitute_exp_with : t -> Var.t -> exp -> unit
+  val substitute_exp : t -> Var.t -> exp -> t
+  val substitute_exp_parallel_with :
+    t -> (Var.t * exp) list -> unit
+  val substitute_var_with : t -> Var.t -> Var.t -> unit
+  val meet_tcons : t -> Tcons1.t -> t
+  val to_lincons_array : t -> Lincons1.earray
+  val of_lincons_array : Lincons1.earray -> t
+
+  val assert_inv : t -> exp -> bool -> t
+  val eval_int : t -> exp -> Queries.ID.t
+
+  val to_oct: t -> OctagonD2.t
+end
+
+
+module D3 (Man: Manager) : S3 =
+struct
+  include D2 (Man)
+
+  let to_oct (a: t): OctagonD2.t =
+    if Oct.manager_is_oct Man.mgr then
+      Oct.Abstract1.to_oct a
+    else
+      let generator = to_lincons_array a in
+      OctagonD2.of_lincons_array generator
+end
+
+module ApronComponents (D3: S3) (PrivD: Lattice.S):
+sig
+  module AD: S3
+  include Lattice.S with type t = (D3.t, PrivD.t) aproncomponents_t
 end =
 struct
-  module AD = D2
-  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
+  module AD = D3
+  type t = (AD.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
 
   include Printable.Std
   open Pretty
 
   let show r =
-    let first  = D2.show r.apr in
+    let first  = AD.show r.apr in
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
-    D2.pretty () r.apr
+    AD.pretty () r.apr
     ++ text ", " ++
     PrivD.pretty () r.priv
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (AD.name ())) AD.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-  let name () = D2.name () ^ " * " ^ PrivD.name ()
+  let name () = AD.name () ^ " * " ^ PrivD.name ()
 
   let invariant c {apr; priv} =
-    Invariant.(D2.invariant c apr && PrivD.invariant c priv)
+    Invariant.(AD.invariant c apr && PrivD.invariant c priv)
 
   let of_tuple(apr, priv):t = {apr; priv}
   let to_tuple r = (r.apr, r.priv)
 
   let arbitrary () =
-    let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
+    let tr = QCheck.pair (AD.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = {apr = D2.bot (); priv = PrivD.bot ()}
-  let is_bot {apr; priv} = D2.is_bot apr && PrivD.is_bot priv
-  let top () = {apr = D2.top (); priv = PrivD.bot ()}
-  let is_top {apr; priv} = D2.is_top apr && PrivD.is_top priv
+  let bot () = {apr = AD.bot (); priv = PrivD.bot ()}
+  let is_bot {apr; priv} = AD.is_bot apr && PrivD.is_bot priv
+  let top () = {apr = AD.top (); priv = PrivD.bot ()}
+  let is_top {apr; priv} = AD.is_top apr && PrivD.is_top priv
 
   let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
-    D2.leq x1 y1 && PrivD.leq x3 y3
+    AD.leq x1 y1 && PrivD.leq x3 y3
 
   let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
-    if not (D2.leq x1 y1) then
-      D2.pretty_diff () (x1,y1)
+    if not (AD.leq x1 y1) then
+      AD.pretty_diff () (x1,y1)
     else
       PrivD.pretty_diff () (x3,y3)
 
   let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
     {apr = op1 x1 y1; priv = op3 x3 y3 }
-  let join = op_scheme D2.join PrivD.join
-  let meet = op_scheme D2.meet PrivD.meet
-  let widen = op_scheme D2.widen PrivD.widen
-  let narrow = op_scheme D2.narrow PrivD.narrow
+  let join = op_scheme AD.join PrivD.join
+  let meet = op_scheme AD.meet PrivD.meet
+  let widen = op_scheme AD.widen PrivD.widen
+  let narrow = op_scheme AD.narrow PrivD.narrow
 end

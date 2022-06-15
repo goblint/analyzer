@@ -12,7 +12,7 @@ open CommonPriv
 
 
 module type S =
-  functor (AD: ApronDomain.S2) ->
+  functor (AD: ApronDomain.S3) ->
   sig
     module D: Lattice.S
     module G: Lattice.S
@@ -45,7 +45,7 @@ module type S =
   end
 
 
-module Dummy: S = functor (AD: ApronDomain.S2) ->
+module Dummy: S = functor (AD: ApronDomain.S3) ->
 struct
   module D = Lattice.Unit
   module G = Lattice.Unit
@@ -80,7 +80,7 @@ sig
 end
 
 (** Protection-Based Reading. *)
-module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S = functor (AD: ApronDomain.S2) ->
+module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S = functor (AD: ApronDomain.S3) ->
 struct
   include ConfCheck.RequireMutexActivatedInit
   open Protection
@@ -345,7 +345,7 @@ struct
   let finalize () = ()
 end
 
-module CommonPerMutex = functor(AD: ApronDomain.S2) ->
+module CommonPerMutex = functor(AD: ApronDomain.S3) ->
 struct
   include Protection
   module V = ApronDomain.V
@@ -368,7 +368,7 @@ struct
 end
 
 (** Per-mutex meet. *)
-module PerMutexMeetPriv : S = functor (AD: ApronDomain.S2) ->
+module PerMutexMeetPriv : S = functor (AD: ApronDomain.S3) ->
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
@@ -523,7 +523,7 @@ struct
   let name () = "W"
 end
 
-module type ClusterArg = functor (AD: ApronDomain.S2) ->
+module type ClusterArg = functor (AD: ApronDomain.S3) ->
 sig
   module LAD: Lattice.S
 
@@ -537,7 +537,7 @@ sig
 end
 
 (** No clustering. *)
-module NoCluster:ClusterArg = functor (AD: ApronDomain.S2) ->
+module NoCluster:ClusterArg = functor (AD: ApronDomain.S3) ->
 struct
   module AD = AD
   open CommonPerMutex(AD)
@@ -620,7 +620,7 @@ end
 
 
 (** Clusters when clustering is downward-closed. *)
-module DownwardClosedCluster (ClusteringArg: ClusteringArg) =  functor (AD: ApronDomain.S2) ->
+module DownwardClosedCluster (ClusteringArg: ClusteringArg) =  functor (AD: ApronDomain.S3) ->
 struct
   module AD = AD
   open CommonPerMutex(AD)
@@ -685,7 +685,7 @@ struct
 end
 
 (** Clusters when clustering is arbitrary (not necessarily downward-closed). *)
-module ArbitraryCluster (ClusteringArg: ClusteringArg): ClusterArg = functor (AD: ApronDomain.S2) ->
+module ArbitraryCluster (ClusteringArg: ClusteringArg): ClusterArg = functor (AD: ApronDomain.S3) ->
 struct
   module AD = AD
   module DCCluster = (DownwardClosedCluster(ClusteringArg))(AD)
@@ -761,7 +761,7 @@ struct
 end
 
 (** Per-mutex meet with TIDs. *)
-module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.S2) ->
+module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.S3) ->
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
@@ -1052,7 +1052,7 @@ struct
   let finalize () = finalize ()
 end
 
-module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
+module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S3) ->
 struct
   module Priv = Priv (AD)
   include Priv

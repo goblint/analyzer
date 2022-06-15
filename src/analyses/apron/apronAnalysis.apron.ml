@@ -6,11 +6,17 @@ open ApronDomain
 
 module M = Messages
 
-module SpecFunctor (AD: ApronDomain.S2) (Priv: ApronPriv.S) : Analyses.MCPSpec =
+module SpecFunctor (AD: ApronDomain.S3) (Priv: ApronPriv.S) : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
   let name () = "apron"
+
+  module AD =
+  struct
+    include AD
+    include ApronDomain.Tracked
+  end
 
   module Priv = Priv(AD)
   module D = ApronComponents (AD) (Priv.D)
@@ -282,7 +288,7 @@ struct
         | _ -> false (* remove everything else (globals, global privs) *)
       )
     in
-    let unify_apr = ApronDomain.A.unify Man.mgr new_apr new_fun_apr in (* TODO: unify_with *)
+    let unify_apr = AD.unify new_apr new_fun_apr in (* TODO: unify_with *)
     if M.tracing then M.tracel "combine" "apron unifying %a %a = %a\n" AD.pretty new_apr AD.pretty new_fun_apr AD.pretty unify_apr;
     let unify_st = {fun_st with apr = unify_apr} in
     if AD.type_tracked (Cilfacade.fundec_return_type f) then (
@@ -450,21 +456,14 @@ struct
   module OctApron = ApronPrecCompareUtil.OctagonD
   let store_data file =
     let convert (m: AD.t RH.t): OctApron.t RH.t =
-      let convert_single (a: AD.t): OctApron.t =
-        if Oct.manager_is_oct AD.Man.mgr then
-          Oct.Abstract1.to_oct a
-        else
-          let generator = AD.to_lincons_array a in
-          OctApron.of_lincons_array generator
-      in
-      RH.map (fun _ -> convert_single) m
+      RH.map (fun _ -> AD.to_oct) m
     in
     let post_process m =
       let m = Stats.time "convert" convert m in
       RH.map (fun _ v -> OctApron.marshal v) m
     in
     let results = post_process results in
-    let name = name () ^ "(domain: " ^ (AD.Man.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ (if GobConfig.get_bool "ana.apron.threshold_widening" then ", th" else "" ) ^ ")" in
+    let name = name () ^ "(domain: " ^ (AD.name ()) ^ ", privatization: " ^ (Priv.name ()) ^ (if GobConfig.get_bool "ana.apron.threshold_widening" then ", th" else "" ) ^ ")" in
     let results: ApronPrecCompareUtil.dump = {marshalled = results; name } in
     Serialize.marshal results file
 
@@ -481,7 +480,7 @@ end
 let spec_module: (module MCPSpec) Lazy.t =
   lazy (
     let module Man = (val ApronDomain.get_manager ()) in
-    let module AD = ApronDomain.D2 (Man) in
+    let module AD = ApronDomain.D3 (Man) in
     let module Priv = (val ApronPriv.get_priv ()) in
     let module Spec = SpecFunctor (AD) (Priv) in
     (module Spec)
