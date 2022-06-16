@@ -57,7 +57,6 @@ let rules = [
     helpUri="https://goblint.in.tum.de/home";
     longDescription="";
   };
-  (* TODO: We'll want to add something like this "Integer Overflow" here also for our float! *)
   {
     name="Overflow";
     ruleId="GO0006";
