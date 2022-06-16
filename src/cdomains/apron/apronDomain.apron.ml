@@ -385,6 +385,7 @@ struct
   include CilOfApron
 end
 
+(** Pure environment and transfer functions. *)
 module type AOpsPure =
 sig
   type t
@@ -399,6 +400,7 @@ sig
   val substitute_exp : t -> Var.t -> exp -> t
 end
 
+(** Imperative in-place environment and transfer functions. *)
 module type AOpsImperative =
 sig
   type t
@@ -424,6 +426,7 @@ sig
   val copy : t -> t
 end
 
+(** Default implementations of pure functions from [copy] and imperative functions. *)
 module AOpsPureOfImperative (AOpsImperative: AOpsImperativeCopy): AOpsPure with type t = AOpsImperative.t =
 struct
   open AOpsImperative
@@ -467,6 +470,7 @@ struct
     nd
 end
 
+(** Extra functions that don't have the pure-imperative correspondence. *)
 module type AOpsExtra =
 sig
   type t
@@ -1194,6 +1198,9 @@ struct
       OctagonD2.of_lincons_array generator
 end
 
+(** Lift [D] to a non-reduced product with box.
+    Both are updated in parallel, but [D] answers to queries.
+    Box domain is used to filter out non-relational invariants for output. *)
 module BoxProd0 (D: S3) =
 struct
   module BoxD = D3 (IntervalManager)
