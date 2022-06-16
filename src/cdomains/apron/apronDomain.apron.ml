@@ -385,9 +385,114 @@ struct
   include CilOfApron
 end
 
+module type AOpsPure =
+sig
+  type t
+  val add_vars : t -> Var.t list -> t
+  val remove_vars : t -> Var.t list -> t
+  val remove_filter : t -> (Var.t -> bool) -> t
+  val keep_vars : t -> Var.t list -> t
+  val keep_filter : t -> (Var.t -> bool) -> t
+  val forget_vars : t -> Var.t list -> t
+  val assign_exp : t -> Var.t -> exp -> t
+  val assign_var : t -> Var.t -> Var.t -> t
+  val substitute_exp : t -> Var.t -> exp -> t
+end
+
+module type AOpsImperative =
+sig
+  type t
+  val add_vars_with : t -> Var.t list -> unit
+  val remove_vars_with : t -> Var.t list -> unit
+  val remove_filter_with : t -> (Var.t -> bool) -> unit
+  val keep_vars_with : t -> Var.t list -> unit
+  val keep_filter_with : t -> (Var.t -> bool) -> unit
+  val forget_vars_with : t -> Var.t list -> unit
+  val assign_exp_with : t -> Var.t -> exp -> unit
+  val assign_exp_parallel_with : t -> (Var.t * exp) list -> unit
+  val assign_var_with : t -> Var.t -> Var.t -> unit
+  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
+  val substitute_exp_with : t -> Var.t -> exp -> unit
+  val substitute_exp_parallel_with :
+    t -> (Var.t * exp) list -> unit
+  val substitute_var_with : t -> Var.t -> Var.t -> unit
+end
+
+module type AOpsImperativeCopy =
+sig
+  include AOpsImperative
+  val copy : t -> t
+end
+
+module AOpsPureOfImperative (AOpsImperative: AOpsImperativeCopy): AOpsPure with type t = AOpsImperative.t =
+struct
+  open AOpsImperative
+  type nonrec t = t
+
+  let add_vars d vs =
+    let nd = copy d in
+    add_vars_with nd vs;
+    nd
+  let remove_vars d vs =
+    let nd = copy d in
+    remove_vars_with nd vs;
+    nd
+  let remove_filter d f =
+    let nd = copy d in
+    remove_filter_with nd f;
+    nd
+  let keep_vars d vs =
+    let nd = copy d in
+    keep_vars_with nd vs;
+    nd
+  let keep_filter d f =
+    let nd = copy d in
+    keep_filter_with nd f;
+    nd
+  let forget_vars d vs =
+    let nd = copy d in
+    forget_vars_with nd vs;
+    nd
+  let assign_exp d v e =
+    let nd = copy d in
+    assign_exp_with nd v e;
+    nd
+  let assign_var d v v' =
+    let nd = copy d in
+    assign_var_with nd v v';
+    nd
+  let substitute_exp d v e =
+    let nd = copy d in
+    substitute_exp_with nd v e;
+    nd
+end
+
+module type AOpsExtra =
+sig
+  type t
+  val copy : t -> t
+  val vars_as_array : t -> Var.t array
+  val vars : t -> Var.t list
+  type marshal
+  val unmarshal : marshal -> t
+  val marshal : t -> marshal
+  val mem_var : t -> Var.t -> bool
+  val assign_var_parallel' :
+    t -> Var.t list -> Var.t list -> t
+  val meet_tcons : t -> Tcons1.t -> t
+  val to_lincons_array : t -> Lincons1.earray
+  val of_lincons_array : Lincons1.earray -> t
+end
+
+module type AOps =
+sig
+  include AOpsExtra
+  include AOpsImperative with type t := t
+  include AOpsPure with type t := t
+end
 
 (** Convenience operations on A. *)
-module AOps (Tracked: Tracked) (Man: Manager) =
+module AOps0 (Tracked: Tracked) (Man: Manager) =
 struct
   module Convert = Convert (struct let allow_global = false end) (Tracked) (Man)
 
@@ -430,11 +535,6 @@ struct
     let env' = Environment.add env vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let add_vars d vs =
-    let nd = copy d in
-    add_vars_with nd vs;
-    nd
-
   let remove_vars_with nd vs =
     let env = A.env nd in
     let vs' =
@@ -446,11 +546,6 @@ struct
     let env' = Environment.remove env vs' in
     A.change_environment_with Man.mgr nd env' false
 
-  let remove_vars d vs =
-    let nd = copy d in
-    remove_vars_with nd vs;
-    nd
-
   let remove_filter_with nd f =
     let env = A.env nd in
     let vs' =
@@ -461,11 +556,6 @@ struct
     in
     let env' = Environment.remove env vs' in
     A.change_environment_with Man.mgr nd env' false
-
-  let remove_filter d f =
-    let nd = copy d in
-    remove_filter_with nd f;
-    nd
 
   let keep_vars_with nd vs =
     let env = A.env nd in
@@ -480,11 +570,6 @@ struct
     let env' = Environment.make vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let keep_vars d vs =
-    let nd = copy d in
-    keep_vars_with nd vs;
-    nd
-
   let keep_filter_with nd f =
     (* Instead of removing undesired vars,
        make a new env with just the desired vars. *)
@@ -497,20 +582,10 @@ struct
     let env' = Environment.make vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let keep_filter d f =
-    let nd = copy d in
-    keep_filter_with nd f;
-    nd
-
   let forget_vars_with nd vs =
     (* Unlike keep_vars_with, this doesn't check mem_var, but assumes valid vars, like assigns *)
     let vs' = Array.of_list vs in
     A.forget_array_with Man.mgr nd vs' false
-
-  let forget_vars d vs =
-    let nd = copy d in
-    forget_vars_with nd vs;
-    nd
 
   let assign_exp_with nd v e =
     match Convert.texpr1_of_cil_exp nd (A.env nd) e with
@@ -520,11 +595,6 @@ struct
     | exception Convert.Unsupported_CilExp ->
       if M.tracing then M.trace "apron" "assign_exp unsupported\n";
       forget_vars_with nd [v]
-
-  let assign_exp d v e =
-    let nd = copy d in
-    assign_exp_with nd v e;
-    nd
 
   let assign_exp_parallel_with nd ves =
     (* TODO: non-_with version? *)
@@ -560,11 +630,6 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.assign_texpr_with Man.mgr nd v texpr1 None
 
-  let assign_var d v v' =
-    let nd = copy d in
-    assign_var_with nd v v';
-    nd
-
   let assign_var_parallel_with nd vv's =
     (* TODO: non-_with version? *)
     let env = A.env nd in
@@ -595,11 +660,6 @@ struct
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
       forget_vars_with nd [v]
-
-  let substitute_exp d v e =
-    let nd = copy d in
-    substitute_exp_with nd v e;
-    nd
 
   let substitute_exp_parallel_with nd ves =
     (* TODO: non-_with version? *)
@@ -648,6 +708,12 @@ struct
     A.of_lincons_array Man.mgr a.array_env a
 end
 
+module AOps (Tracked: Tracked) (Man: Manager) =
+struct
+  module AO0 = AOps0 (Tracked) (Man)
+  include AO0
+  include AOpsPureOfImperative (AO0)
+end
 
 module type SPrintable =
 sig
@@ -1107,42 +1173,7 @@ module OctagonD2 = D2 (OctagonManager)
 module type S3 =
 sig
   include SLattice
-
-  val copy : t -> t
-  val vars_as_array : t -> Var.t array
-  val vars : t -> Var.t list
-  type marshal
-  val unmarshal : marshal -> t
-  val marshal : t -> marshal
-  val mem_var : t -> Var.t -> bool
-  val add_vars_with : t -> Var.t list -> unit
-  val add_vars : t -> Var.t list -> t
-  val remove_vars_with : t -> Var.t list -> unit
-  val remove_vars : t -> Var.t list -> t
-  val remove_filter_with : t -> (Var.t -> bool) -> unit
-  val remove_filter : t -> (Var.t -> bool) -> t
-  val keep_vars_with : t -> Var.t list -> unit
-  val keep_vars : t -> Var.t list -> t
-  val keep_filter_with : t -> (Var.t -> bool) -> unit
-  val keep_filter : t -> (Var.t -> bool) -> t
-  val forget_vars_with : t -> Var.t list -> unit
-  val forget_vars : t -> Var.t list -> t
-  val assign_exp_with : t -> Var.t -> exp -> unit
-  val assign_exp : t -> Var.t -> exp -> t
-  val assign_exp_parallel_with : t -> (Var.t * exp) list -> unit
-  val assign_var_with : t -> Var.t -> Var.t -> unit
-  val assign_var : t -> Var.t -> Var.t -> t
-  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
-  val assign_var_parallel' :
-    t -> Var.t list -> Var.t list -> t
-  val substitute_exp_with : t -> Var.t -> exp -> unit
-  val substitute_exp : t -> Var.t -> exp -> t
-  val substitute_exp_parallel_with :
-    t -> (Var.t * exp) list -> unit
-  val substitute_var_with : t -> Var.t -> Var.t -> unit
-  val meet_tcons : t -> Tcons1.t -> t
-  val to_lincons_array : t -> Lincons1.earray
-  val of_lincons_array : Lincons1.earray -> t
+  include AOps with type t := t
 
   val assert_inv : t -> exp -> bool -> t
   val eval_int : t -> exp -> Queries.ID.t
@@ -1163,7 +1194,7 @@ struct
       OctagonD2.of_lincons_array generator
 end
 
-module BoxProd (D: S3): S3 =
+module BoxProd0 (D: S3) =
 struct
   module BoxD = D3 (IntervalManager)
 
@@ -1204,62 +1235,30 @@ struct
   let add_vars_with (b, d) vs =
     BoxD.add_vars_with b vs;
     D.add_vars_with d vs
-  let add_vars d vs =
-    let nd = copy d in
-    add_vars_with nd vs;
-    nd
   let remove_vars_with (b, d) vs =
     BoxD.remove_vars_with b vs;
     D.remove_vars_with d vs
-  let remove_vars d vs =
-    let nd = copy d in
-    remove_vars_with nd vs;
-    nd
   let remove_filter_with (b, d) f =
     BoxD.remove_filter_with b f;
     D.remove_filter_with d f
-  let remove_filter d f =
-    let nd = copy d in
-    remove_filter_with nd f;
-    nd
   let keep_filter_with (b, d) f =
     BoxD.keep_filter_with b f;
     D.keep_filter_with d f
-  let keep_filter d f =
-    let nd = copy d in
-    keep_filter_with nd f;
-    nd
   let keep_vars_with (b, d) vs =
     BoxD.keep_vars_with b vs;
     D.keep_vars_with d vs
-  let keep_vars d vs =
-    let nd = copy d in
-    keep_vars_with nd vs;
-    nd
   let forget_vars_with (b, d) vs =
     BoxD.forget_vars_with b vs;
     D.forget_vars_with d vs
-  let forget_vars d vs =
-    let nd = copy d in
-    forget_vars_with nd vs;
-    nd
   let assign_exp_with (b, d) v e =
     BoxD.assign_exp_with b v e;
     D.assign_exp_with d v e
-  let assign_exp d v e =
-    let nd = copy d in
-    assign_exp_with nd v e;
-    nd
   let assign_exp_parallel_with (b, d) ves =
     BoxD.assign_exp_parallel_with b ves;
     D.assign_exp_parallel_with d ves
   let assign_var_with (b, d) v e =
     BoxD.assign_var_with b v e;
     D.assign_var_with d v e
-  let assign_var d v v' =
-    let nd = copy d in
-    assign_var_with nd v v';
-    nd
   let assign_var_parallel_with (b, d) vvs =
     BoxD.assign_var_parallel_with b vvs;
     D.assign_var_parallel_with d vvs
@@ -1268,10 +1267,6 @@ struct
   let substitute_exp_with (b, d) v e =
     BoxD.substitute_exp_with b v e;
     D.substitute_exp_with d v e
-  let substitute_exp d v e =
-    let nd = copy d in
-    substitute_exp_with nd v e;
-    nd
   let substitute_exp_parallel_with (b, d) ves =
     BoxD.substitute_exp_parallel_with b ves;
     D.substitute_exp_parallel_with d ves
@@ -1315,6 +1310,13 @@ struct
     |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let to_oct (b, d) = D.to_oct d
+end
+
+module BoxProd (D: S3): S3 =
+struct
+  module BP0 = BoxProd0 (D)
+  include BP0
+  include AOpsPureOfImperative (BP0)
 end
 
 module ApronComponents (D3: S3) (PrivD: Lattice.S):
