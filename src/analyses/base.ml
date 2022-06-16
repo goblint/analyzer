@@ -828,8 +828,7 @@ struct
             let definite_ad = to_definite_ad vs in
             if AD.leq a definite_ad then (* other sides cover common address *)
               Some (`Int (ID.of_bool ik true))
-            else if AD.is_empty (AD.meet a definite_ad) then
-              Some (`Int (ID.of_bool ik false))
+            (* TODO: detect disjoint cases using may *)
             else
               None
           | `Int i ->
@@ -848,8 +847,7 @@ struct
             let int_set = to_int_set vs in
             if BISet.leq incl_set int_set then (* other sides cover common int *)
               Some (`Int (ID.of_bool ik true))
-            else if BISet.disjoint incl_set int_set then
-              Some (`Int (ID.of_bool ik false))
+            (* TODO: detect disjoint cases using may *)
             else
               None
           | _ ->
