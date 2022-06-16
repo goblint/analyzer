@@ -437,13 +437,18 @@ struct
   let sync ctx reason =
     (* After the solver is finished, store the results (for later comparison) *)
     if !GU.postsolving then begin
-      let old_value = RH.find_default results ctx.node (AD.bot ()) in
-      let st = AD.keep_filter ctx.local.apr (fun v ->
-          match V.find_metadata v with
-          | Some (Global _) -> true
-          | _ -> false
-        )
+      let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
+      let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
+
+      (* filter variables *)
+      let var_filter v = match V.find_metadata v with
+        | Some (Global _) -> keep_global
+        | Some Local -> keep_local
+        | _ -> false
       in
+      let st = keep_filter ctx.local.apr var_filter in
+
+      let old_value = RH.find_default results ctx.node (AD.bot ()) in
       let new_value = AD.join old_value st in
       RH.replace results ctx.node new_value;
     end;

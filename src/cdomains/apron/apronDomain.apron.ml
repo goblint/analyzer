@@ -873,17 +873,30 @@ struct
       | (None, None) -> ID.top_of ik
 
   let invariant (ctx: Invariant.context) x =
+    (* TODO: deduplicate in Invariant query *)
+    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
+    let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
+    let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
+
+    (* filter variables *)
+    let var_filter v = match V.find_metadata v with
+      | Some (Global _) -> keep_global
+      | Some Local -> keep_local
+      | _ -> false
+    in
+    let x = keep_filter x var_filter in
+
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
     (* let x = A.copy Man.mgr x in
        A.minimize Man.mgr x; *)
-    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
     let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
     Array.enum lincons0_array
     |> Enum.map (fun (lincons0: Lincons0.t) ->
         Lincons1.{lincons0; env = array_env}
       )
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
+        (* filter one-vars *)
         if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
           Convert.cil_exp_of_lincons1 ctx.scope lincons1
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)
