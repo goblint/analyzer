@@ -1286,20 +1286,26 @@ struct
   let eval_int (_, d) = D.eval_int d
 
   let invariant (ctx: Invariant.context) (b, d) =
-    (* TODO: clean up *)
-    let f v =
-        match V.find_metadata v with
-        | Some (Global _) -> true
-        | _ -> false
-    in
-    let b = BoxD.keep_filter b f in
-    let d = D.keep_filter d f in
-    let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in
-    let lcd = D.to_lincons_array d in
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
+    let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
+    let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
+
+    (* filter variables *)
+    let var_filter v = match V.find_metadata v with
+      | Some (Global _) -> keep_global
+      | Some Local -> keep_local
+      | _ -> false
+    in
+    let b = BoxD.keep_filter b var_filter in
+    let d = D.keep_filter d var_filter in
+
+    (* diff via lincons *)
+    let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
+    let lcd = D.to_lincons_array d in
     Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
     |> Lincons1Set.enum
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
+        (* filter one-vars *)
         if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
           CilOfApron.cil_exp_of_lincons1 ctx.scope lincons1
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)

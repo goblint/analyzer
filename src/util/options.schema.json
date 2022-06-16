@@ -782,6 +782,18 @@
                   "description": "Generate invariants with only one variable",
                   "type": "boolean",
                   "default": false
+                },
+                "local": {
+                  "title": "ana.apron.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.apron.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
                 }
               },
               "additionalProperties": false
