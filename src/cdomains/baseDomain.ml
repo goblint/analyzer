@@ -196,7 +196,7 @@ module DomWithTrivialExpEval (PrivD: Lattice.S) = DomFunctor (PrivD) (struct
       begin
         match CPA.find v r.cpa with
         | `Int i -> ValueDomain.ID.to_int i
-        | `Float f -> failwith "todo, change actually required here?"
+        | `Float f -> failwith "unreachable"
         | _ -> None
       end
     | _ -> None

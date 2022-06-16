@@ -237,8 +237,6 @@ struct
       check_narrow fi_zero fi_one fi_zero;
     end
 
-  (**TODO: add tests for specific edge cases (eg. overflow to infinity when dbl.max + 1) *)
-
   (**interval tests using QCheck arbitraries *)
   let test_FI_not_bot =
     QCheck.Test.make ~name:"test_FI_not_bot" (FI.arbitrary ()) (fun arg -> 
