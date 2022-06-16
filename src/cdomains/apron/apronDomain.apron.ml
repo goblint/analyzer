@@ -786,7 +786,7 @@ struct
         else
           None
       )
-    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) (Invariant.top ())
 end
 
 

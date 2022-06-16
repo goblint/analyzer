@@ -991,7 +991,7 @@ struct
               | _ ->
                 None
             )
-        ) x (Some Invariant.none)
+        ) x (Some (Invariant.bot ()))
       in
       match i_opt with
       | Some i -> i

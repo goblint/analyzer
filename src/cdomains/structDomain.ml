@@ -87,7 +87,7 @@ struct
           let f_c = {c with lval=Some f_lval} in
           let i = value_invariant ~offset f_c v in
           Invariant.(acc && i)
-        ) x Invariant.none
+        ) x (Invariant.top ())
     (* invariant for one field *)
     | Field (f, offset) ->
       let v = get x f in

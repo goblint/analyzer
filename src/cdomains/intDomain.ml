@@ -1615,7 +1615,7 @@ struct
       S.fold (fun x a ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) s Invariant.none
+        ) s (Invariant.top ())
     | `Bot -> Invariant.none
 
   let arbitrary ik =
@@ -2020,12 +2020,12 @@ module Enums : S with type int_t = BigInt.t = struct
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
           Invariant.(a || i)
-        ) Invariant.none (BISet.elements ps)
+        ) (Invariant.bot ()) (BISet.elements ps)
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
           let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) Invariant.none (BISet.elements ns)
+        ) (Invariant.top ()) (BISet.elements ns)
 
 
   let arbitrary ik =
@@ -2905,7 +2905,7 @@ module IntDomTupleImpl = struct
       let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind e ik } x)
       in List.fold_left (fun a i ->
           Invariant.(a && i)
-        ) Invariant.none is
+        ) (Invariant.top ()) is
 
   let arbitrary ik = QCheck.(set_print show @@ quad (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)))
 end

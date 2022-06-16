@@ -32,10 +32,10 @@ struct
                   Invariant.(a && of_exp eq)
                 else
                   a
-              ) s_prod Invariant.none
+              ) s_prod (Invariant.top ())
             in
             Invariant.(a && i)
-        ) ss Invariant.none
+        ) ss (Invariant.top ())
   end
 
   module C = D
