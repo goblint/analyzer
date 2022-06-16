@@ -682,6 +682,27 @@ struct
       | Index (_, offs) -> do_offs def offs
       | NoOffset -> def
     in
+    let binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 =
+      let te1 = Cilfacade.typeOf e1 in
+      let te2 = Cilfacade.typeOf e2 in
+      let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
+      let is_safe = (extra_is_safe || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
+      M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
+      if is_safe then ( (* we can ignore the casts if the casts can't change the value *)
+        let e1 = if isArithmeticType te1 then c1 else e1 in
+        let e2 = if isArithmeticType te2 then c2 else e2 in
+        (e1, e2)
+      )
+      else
+        (c1, c2)
+    in
+    let binop_case ~arg1 ~arg2 ~op ~typ =
+      let a1 = eval_rv a gs st arg1 in
+      let a2 = eval_rv a gs st arg2 in
+      let t1 = Cilfacade.typeOf arg1 in
+      let t2 = Cilfacade.typeOf arg2 in
+      evalbinop a st op t1 a1 t2 a2 typ
+    in
     let r =
       (* query functions were no help ... now try with values*)
       match constFold true exp with
@@ -755,38 +776,17 @@ struct
       | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
-        let te1 = Cilfacade.typeOf e1 in
-        let te2 = Cilfacade.typeOf e2 in
-        let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
-        let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
-        M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
-        if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
-          let e1 = if isArithmeticType te1 then c1 else e1 in
-          let e2 = if isArithmeticType te2 then c2 else e2 in
-          eval_rv a gs st (BinOp (op, e1, e2, typ))
-        )
-        else
-          let a1 = eval_rv a gs st c1 in
-          let a2 = eval_rv a gs st c2 in
-          evalbinop a st op t1 a1 t2 a2 typ
+        let (e1, e2) = binop_remove_same_casts ~extra_is_safe:(VD.equal a1 a2) ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
+        let a1 = eval_rv a gs st e1 in (* re-evaluate because might be with cast *)
+        let a2 = eval_rv a gs st e2 in
+        evalbinop a st op t1 a1 t2 a2 typ
       | BinOp (LOr, arg1, arg2, typ) as exp ->
         let (let*) = Option.bind in
         (* split nested LOr Eqs to equality pairs, if possible *)
         let rec split = function
           (* copied from above to support pointer equalities with implicit casts inserted *)
           | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
-            let te1 = Cilfacade.typeOf e1 in
-            let te2 = Cilfacade.typeOf e2 in
-            let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
-            let is_safe = VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2 && not both_arith_type in
-            M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
-            if is_safe then ( (* we can ignore the casts if the casts can't change the value *)
-              let e1 = if isArithmeticType te1 then c1 else e1 in
-              let e2 = if isArithmeticType te2 then c2 else e2 in
-              Some [(e1, e2)]
-            )
-            else
-              Some [(c1, c2)]
+            Some [binop_remove_same_casts ~extra_is_safe:false ~e1 ~e2 ~t1 ~t2 ~c1 ~c2]
           | BinOp (Eq, arg1, arg2, _) ->
             Some [(arg1, arg2)]
           | BinOp (LOr, arg1, arg2, _) ->
@@ -855,20 +855,10 @@ struct
         in
         begin match eqs_value with
           | Some x -> x
-          | None ->
-            (* copied from next case *)
-            let a1 = eval_rv a gs st arg1 in
-            let a2 = eval_rv a gs st arg2 in
-            let t1 = Cilfacade.typeOf arg1 in
-            let t2 = Cilfacade.typeOf arg2 in
-            evalbinop a st LOr t1 a1 t2 a2 typ
+          | None -> binop_case ~arg1 ~arg2 ~op:LOr ~typ (* fallback to general case *)
         end
       | BinOp (op,arg1,arg2,typ) ->
-        let a1 = eval_rv a gs st arg1 in
-        let a2 = eval_rv a gs st arg2 in
-        let t1 = Cilfacade.typeOf arg1 in
-        let t2 = Cilfacade.typeOf arg2 in
-        evalbinop a st op t1 a1 t2 a2 typ
+        binop_case ~arg1 ~arg2 ~op ~typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
