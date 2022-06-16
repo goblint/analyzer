@@ -28,6 +28,18 @@ module type FloatArith = sig
   (** Equal to: [x == y] *)
   val ne : t -> t -> IntDomain.IntDomTuple.t
   (** Not equal to: [x != y] *)
+
+  (** {unary functions returning int} *)
+  val isfinite : t -> IntDomain.IntDomTuple.t
+  (** __builtin_isfinite(x) *)
+  val isinf : t -> IntDomain.IntDomTuple.t
+  (** __builtin_isinf(x) *)
+  val isnan : t -> IntDomain.IntDomTuple.t
+  (** __builtin_isnan(x) *)
+  val isnormal : t -> IntDomain.IntDomTuple.t
+  (** __builtin_isnormal(x) *)
+  val signbit : t -> IntDomain.IntDomTuple.t
+  (** __builtin_signbit(x) *)
 end
 
 module type FloatDomainBase = sig

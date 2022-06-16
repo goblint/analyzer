@@ -30,6 +30,18 @@ module type FloatArith = sig
   (** Equal to: [x == y] *)
   val ne : t -> t -> IntDomain.IntDomTuple.t
   (** Not equal to: [x != y] *)
+
+  (** {unary functions returning int} *)
+  val isfinite : t -> IntDomain.IntDomTuple.t
+  (** __builtin_isfinite(x) *)
+  val isinf : t -> IntDomain.IntDomTuple.t
+  (** __builtin_isinf(x) *)
+  val isnan : t -> IntDomain.IntDomTuple.t
+  (** __builtin_isnan(x) *)
+  val isnormal : t -> IntDomain.IntDomTuple.t
+  (** __builtin_isnormal(x) *)
+  val signbit : t -> IntDomain.IntDomTuple.t
+  (** __builtin_signbit(x) *)
 end
 
 module type FloatDomainBase = sig
@@ -277,6 +289,42 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let ne = eval_int_binop eval_ne
 
+  let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
+  let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)
+  let unknown_IInt = IntDomain.IntDomTuple.top_of IInt
+
+  let isfinite op =
+    match op with 
+    | Some v -> true_nonZero_IInt
+    | None -> unknown_IInt
+
+  let isinf op =
+    match op with 
+    | Some v -> false_zero_IInt
+    | None -> unknown_IInt
+
+  let isnan = isinf (**currently we cannot decide if we are NaN or +-inf; both are only in Top*)
+
+  let isnormal op =
+    match op with 
+    | Some (l, h) -> 
+      if l >= Float_t.smallest || h <= (Float_t.neg (Float_t.smallest)) then
+        true_nonZero_IInt
+      else if l > (Float_t.neg (Float_t.smallest)) && h < Float_t.smallest then
+        false_zero_IInt
+      else 
+        unknown_IInt
+    | None -> unknown_IInt
+
+  (**it seems strange not to return a explicit 1 for negative numbers, but in c99 signbit is defined as: *)
+  (**<<The signbit macro returns a nonzero value if and only if the sign of its argument value is negative.>> *)
+  let signbit op = 
+    match op with
+    | Some (_, h) when h < Float_t.zero -> true_nonZero_IInt
+    | Some (l, _) when l > Float_t.zero -> false_zero_IInt
+    | Some _ -> unknown_IInt (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
+    | None -> unknown_IInt
+
 end
 
 module F64Interval = FloatIntervalImpl(CDouble)
@@ -342,9 +390,7 @@ module FloatIntervalImplLifted = struct
          however we could instead of crashing also return top_of some fkind to vaid this and nonetheless have no actual information about anything*)
       failwith "unsupported fkind" 
 
-  let neg = function 
-    | F32 x -> F32 (F1.neg x)
-    | F64 x -> F64 (F2.neg x)
+  let neg = lift (F1.neg, F2.neg)
   let add = lift2 (F1.add, F2.add)
   let sub = lift2 (F1.sub, F2.sub)
   let mul = lift2 (F1.mul, F2.mul)
@@ -355,6 +401,11 @@ module FloatIntervalImplLifted = struct
   let ge = lift2_cmp (F1.ge, F2.ge)
   let eq = lift2_cmp (F1.eq, F2.eq)
   let ne = lift2_cmp (F1.ne, F2.ne)
+  let isfinite = dispatch (F1.isfinite, F2.isfinite)
+  let isinf = dispatch (F1.isinf, F2.isinf)
+  let isnan = dispatch (F1.isnan, F2.isnan)
+  let isnormal = dispatch (F1.isnormal, F2.isnormal)
+  let signbit = dispatch (F1.signbit, F2.signbit)
 
   let bot_of fkind = dispatch_fkind fkind (F1.bot, F2.bot)
   let bot () = failwith "bot () is not implemented for FloatIntervalImplLifted."
@@ -441,13 +492,17 @@ module FloatDomTupleImpl = struct
 
   let mapp r = BatOption.map (r.fp (module F1))
 
-  let map r a = BatOption.(map (r.f1 (module F1)) a)
+  let map r a = BatOption.map (r.f1 (module F1)) a
   let map2 r xa ya = opt_map2 (r.f2 (module F1)) xa ya
   let map2p r xa ya = opt_map2 (r.f2p (module F1)) xa ya
 
   let map2int r xa ya =
     Option.map_default identity
       (IntDomain.IntDomTuple.top_of IBool) (opt_map2 (r.f2p (module F1)) xa ya)
+
+  let map1int r xa =
+    Option.map_default identity
+      (IntDomain.IntDomTuple.top_of IInt) (BatOption.map (r.fp (module F1)) xa)
 
   let ( %% ) f g x = f % g x
 
@@ -537,7 +592,7 @@ module FloatDomTupleImpl = struct
   let div =
     map2 { f2= (fun (type a) (module F : FloatDomain with type t = a) -> F.div); }
 
-  (* f2: binary ops which return an integer *)
+  (* f2p: binary ops which return an integer *)
   let lt =
     map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.lt); }
   let gt =
@@ -550,6 +605,18 @@ module FloatDomTupleImpl = struct
     map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.eq); }
   let ne =
     map2int { f2p= (fun (type a) (module F : FloatDomain with type t = a) -> F.ne); }
+
+  (* fp: unary functions which return an integer *)
+  let isfinite =
+    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isfinite); }
+  let isinf =
+    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isinf); }
+  let isnan =
+    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isnan); }
+  let isnormal =
+    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.isnormal); }
+  let signbit =
+    map1int { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.signbit); }
 
   let pretty_diff () (x, y) = dprintf "%a instead of %a" pretty x pretty y
 
