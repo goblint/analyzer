@@ -26,7 +26,18 @@
       ]
     },
     "base" : {
-      "privatization": "mutex-meet"
+      "privatization": "mutex-meet",
+      "invariant": {
+        "enabled": false
+      }
+    },
+    "apron": {
+      "invariant": {
+        "one-var": false,
+        "local": false,
+        "global": true,
+        "diff-box": true
+      }
     }
   },
   "sem": {
@@ -38,6 +49,9 @@
     },
     "builtin_unreachable": {
       "dead_code": true
+    },
+    "int": {
+      "signed_overflow": "assume_none"
     }
   },
   "exp": {
@@ -52,5 +66,12 @@
     "print_tids" : true,
     "print_wpoints" : true,
     "print_protection": true
+  },
+  "witness": {
+    "invariant": {
+      "other": false,
+      "loop-head": false,
+      "after-lock": true
+    }
   }
 }
