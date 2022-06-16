@@ -153,6 +153,26 @@ sig
   val varinfo_tracked: varinfo -> bool
 end
 
+module Lincons1 =
+struct
+  include Lincons1
+
+  let show = Format.asprintf "%a" print
+  let compare x y = String.compare (show x) (show y) (* HACK *)
+end
+
+module Lincons1Set =
+struct
+  include Set.Make (Lincons1)
+
+  let of_earray ({lincons0_array; array_env}: Lincons1.earray): t =
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> of_enum
+end
+
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
@@ -1277,19 +1297,8 @@ struct
     let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in
     let lcd = D.to_lincons_array d in
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
-    let {lincons0_array; array_env}: Lincons1.earray = lcd in
-    Array.enum lincons0_array
-    |> Enum.map (fun (lincons0: Lincons0.t) ->
-        Lincons1.{lincons0; env = array_env}
-      )
-    |> Enum.filter (fun (lincons1: Lincons1.t) ->
-       let s2 = Format.asprintf "%a" Lincons1.print lincons1 in
-        not (Array.exists (fun (lincons0: Lincons0.t) ->
-            let s1 = Format.asprintf "%a" (Lincons0.print (fun i -> Environment.var_of_dim lcb.array_env i |> Var.to_string)) lincons0 in
-            (* Format.printf "%s vs %s\n" s1 s2; *)
-            s1 = s2
-          ) lcb.lincons0_array)
-      )
+    Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
+    |> Lincons1Set.enum
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
           CilOfApron.cil_exp_of_lincons1 ctx.scope lincons1
