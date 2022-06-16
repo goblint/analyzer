@@ -78,35 +78,26 @@ struct
     | _ -> PS.empty ()
 
   let special ctx lval f arglist =
-    match LF.classify f.vname arglist with
-    | `Lock _ ->
+    let desc = LF.find f in
+    match desc.special arglist, f.vname with
+    | Lock _, _ ->
       D.add (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | `Unlock ->
+    | Unlock _, _ ->
       D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
-    | `Unknown "ZSTD_customFree" -> (* only used with extraspecials *)
-      ctx.local
-    | `Unknown fn when VarEq.safe_fn fn ->
+    | Unknown, fn when VarEq.safe_fn fn ->
       Messages.warn "Assume that %s does not change lockset." fn;
       ctx.local
-    | `Unknown x -> begin (* TODO: _ ? *)
-        let st =
-          match lval with
-          | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
-          | None -> ctx.local
-        in
-        let write_args =
-          match LF.get_invalidate_action f.vname with
-          | Some fnc -> fnc `Write arglist
-          | None ->
-            if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
-              arglist
-            else
-              []
-        in
-        List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
-      end
-    | _ ->
-      ctx.local
+    | _, _ ->
+      let st =
+        match lval with
+        | Some lv -> invalidate_lval (Analyses.ask_of_ctx ctx) lv ctx.local
+        | None -> ctx.local
+      in
+      let write_args =
+        LibraryDesc.Accesses.find_kind desc.accs Write arglist
+      in
+      (* TODO: why doesn't invalidate_exp involve any reachable for deep write? *)
+      List.fold_left (fun st e -> invalidate_exp (Analyses.ask_of_ctx ctx) e st) st write_args
 
 
   module A =
