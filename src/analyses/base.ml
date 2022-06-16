@@ -828,8 +828,7 @@ struct
             let definite_ad = to_definite_ad vs in
             if AD.leq a definite_ad then (* other sides cover common address *)
               Some (`Int (ID.of_bool ik true))
-            (* TODO: detect disjoint cases using may *)
-            else
+            else (* TODO: detect disjoint cases using may: https://github.com/goblint/analyzer/pull/757#discussion_r898105918 *)
               None
           | `Int i ->
             let module BISet = IntDomain.BISet in
@@ -847,8 +846,7 @@ struct
             let int_set = to_int_set vs in
             if BISet.leq incl_set int_set then (* other sides cover common int *)
               Some (`Int (ID.of_bool ik true))
-            (* TODO: detect disjoint cases using may *)
-            else
+            else (* TODO: detect disjoint cases using may: https://github.com/goblint/analyzer/pull/757#discussion_r898105918 *)
               None
           | _ ->
             None
