@@ -201,78 +201,14 @@ sig
   val allow_global: bool
 end
 
-
-exception Unsupported_CilExp
-exception Unsupported_Linexpr1
-
-(* TODO: clean up *)
-module X =
-struct
-let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
-  let longlong = TInt(ILongLong,[]) in
-  let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
-    | Scalar c ->
-      (match int_of_scalar c with
-       | Some i ->
-         let ci,truncation = truncateCilint ILongLong i in
-         if truncation = NoTruncation then
-           if not consider_flip || Z.compare i Z.zero >= 0 then
-             Const (CInt(i,ILongLong,None)), false
-           else
-             (* attempt to negate if that does not cause an overflow *)
-             let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-             if truncation = NoTruncation then
-               Const (CInt((Z.neg i),ILongLong,None)), true
-             else
-               Const (CInt(i,ILongLong,None)), false
-         else
-           (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
-       | None -> raise Unsupported_Linexpr1)
-    | _ -> raise Unsupported_Linexpr1
-  in
-  let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
-  let append_summand (c:Coeff.union_5) v =
-    match V.to_cil_varinfo fundec v with
-    | Some vinfo ->
-      (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
-      let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
-      let coeff, flip = coeff_to_const true c in
-      let prod = BinOp(Mult, coeff, var, longlong) in
-      if flip then
-        expr := BinOp(MinusA,!expr,prod,longlong)
-      else
-        expr := BinOp(PlusA,!expr,prod,longlong)
-    | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
-  in
-  Linexpr1.iter append_summand linexpr1;
-  !expr
-
-
-let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
-  let zero = Cil.kinteger ILongLong 0 in
-  try
-    let linexpr1 = Lincons1.get_linexpr1 lincons1 in
-    let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
-    match Lincons1.get_typ lincons1 with
-    | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
-    | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
-    | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
-    | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
-    | EQMOD _ -> None
-  with
-    Unsupported_Linexpr1 -> None
-end
-
 (** Conversion from CIL expressions to Apron. *)
-module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
+module ApronOfCil (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager) =
 struct
   open Texpr1
   open Tcons1
   module Bounds = Bounds(Man)
+
   exception Unsupported_CilExp
-  exception Unsupported_Linexpr1
-
-
 
   let texpr1_expr_of_cil_exp d env =
     (* recurse without env argument *)
@@ -360,8 +296,73 @@ struct
     in
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
+end
 
-  include X
+(** Conversion from Apron to CIL expressions. *)
+module CilOfApron =
+struct
+  exception Unsupported_Linexpr1
+
+  let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
+    let longlong = TInt(ILongLong,[]) in
+    let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
+      | Scalar c ->
+        (match int_of_scalar c with
+        | Some i ->
+          let ci,truncation = truncateCilint ILongLong i in
+          if truncation = NoTruncation then
+            if not consider_flip || Z.compare i Z.zero >= 0 then
+              Const (CInt(i,ILongLong,None)), false
+            else
+              (* attempt to negate if that does not cause an overflow *)
+              let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+              if truncation = NoTruncation then
+                Const (CInt((Z.neg i),ILongLong,None)), true
+              else
+                Const (CInt(i,ILongLong,None)), false
+          else
+            (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+        | None -> raise Unsupported_Linexpr1)
+      | _ -> raise Unsupported_Linexpr1
+    in
+    let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
+    let append_summand (c:Coeff.union_5) v =
+      match V.to_cil_varinfo fundec v with
+      | Some vinfo ->
+        (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
+        let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+        let coeff, flip = coeff_to_const true c in
+        let prod = BinOp(Mult, coeff, var, longlong) in
+        if flip then
+          expr := BinOp(MinusA,!expr,prod,longlong)
+        else
+          expr := BinOp(PlusA,!expr,prod,longlong)
+      | None -> M.warn ~category:Analyzer "Invariant Apron: cannot convert to cil var: %s"  (Var.to_string v); raise Unsupported_Linexpr1
+    in
+    Linexpr1.iter append_summand linexpr1;
+    !expr
+
+
+  let cil_exp_of_lincons1 fundec (lincons1:Lincons1.t) =
+    let zero = Cil.kinteger ILongLong 0 in
+    try
+      let linexpr1 = Lincons1.get_linexpr1 lincons1 in
+      let cilexp = cil_exp_of_linexpr1 fundec linexpr1 in
+      match Lincons1.get_typ lincons1 with
+      | EQ -> Some (Cil.constFold false @@ BinOp(Eq, cilexp, zero, TInt(IInt,[])))
+      | SUPEQ -> Some (Cil.constFold false @@ BinOp(Ge, cilexp, zero, TInt(IInt,[])))
+      | SUP -> Some (Cil.constFold false @@ BinOp(Gt, cilexp, zero, TInt(IInt,[])))
+      | DISEQ -> Some (Cil.constFold false @@ BinOp(Ne, cilexp, zero, TInt(IInt,[])))
+      | EQMOD _ -> None
+    with
+      Unsupported_Linexpr1 -> None
+end
+
+(** Conversion between CIL expressions and Apron. *)
+module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
+struct
+  include ApronOfCil (Arg) (Tracked) (Man)
+  include CilOfApron
 end
 
 
@@ -1291,7 +1292,7 @@ struct
       )
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          X.cil_exp_of_lincons1 ctx.scope lincons1
+          CilOfApron.cil_exp_of_lincons1 ctx.scope lincons1
           |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)
         else
           None
