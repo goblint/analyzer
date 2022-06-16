@@ -37,32 +37,6 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
-module LiftedExp =
-struct
-  include Lattice.Flat(CilType.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
-  let to_invariant = function
-    | `Lifted e -> Some e
-    | `Bot | `Top -> None
-  let of_invariant = function
-    | Some e -> `Lifted e
-    | None -> `Top (* TODO: ??? *)
-
-  let join x y =
-    match (x,y) with
-    | (`Top, _) -> `Top
-    | (_, `Top) -> `Top
-    | (`Bot, x) -> x
-    | (x, `Bot) -> x
-    | (`Lifted x, `Lifted y) -> `Lifted (BinOp (LOr, x, y, intType))
-
-  let meet x y =
-    match (x,y) with
-    | (`Bot, _) -> `Bot
-    | (_, `Bot) -> `Bot
-    | (`Top, x) -> x
-    | (x, `Top) -> x
-    | (`Lifted x, `Lifted y) -> `Lifted (BinOp (LAnd, x, y, intType))
-end
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -132,7 +106,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
-  | Invariant: invariant_context -> LiftedExp.t t
+  | Invariant: invariant_context -> Invariant.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
 
 type 'a result = 'a
@@ -183,7 +157,7 @@ struct
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
-    | Invariant _ -> (module LiftedExp)
+    | Invariant _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
 
   (** Get bottom result for query. *)
@@ -233,7 +207,7 @@ struct
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
-    | Invariant _ -> LiftedExp.top ()
+    | Invariant _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
 end
 

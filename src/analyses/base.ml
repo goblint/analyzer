@@ -1011,7 +1011,7 @@ struct
       | `Blob n -> blob_invariant ~vs ~offset c n
       | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
       | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
-      | _ -> None (* TODO *)
+      | _ -> Invariant.none (* TODO *)
 
     and deref_invariant ~vs c vi offset lval =
       let v = CPA.find vi cpa in
@@ -1044,7 +1044,7 @@ struct
       | _ -> Invariant.none
     in
 
-    Q.LiftedExp.of_invariant cpa_invariant
+    cpa_invariant
 
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with

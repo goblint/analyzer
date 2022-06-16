@@ -1,6 +1,38 @@
 open Cil
 
-type t = exp option
+module ExpLat =
+struct
+  include CilType.Exp
+
+  let bot () = zero (* false *)
+  let top () = one (* true *)
+  let is_bot _ = failwith "ExpLat: is_bot"
+  let is_top _ = failwith "ExpLat: is_top"
+
+  let leq _ _ = failwith "ExpLat: leq"
+  let pretty_diff () _ = failwith "ExpLat: pretty_diff"
+
+  let join x y = BinOp (LOr, x, y, intType)
+  let meet x y = BinOp (LAnd, x, y, intType)
+  let widen x y = y
+  let narrow = meet
+end
+
+module N =
+struct
+  let bot_name = "false"
+  let top_name = "true"
+end
+
+include Lattice.Lift (ExpLat) (N)
+
+let none = top ()
+let of_exp = lift
+
+let ( && ) = meet
+let ( || ) = join
+
+
 
 type context = {
   path: int option;
@@ -11,15 +43,3 @@ let default_context = {
   path = None;
   lval = None;
 }
-
-let none: t = None
-let of_exp s: t = Some s
-
-let combine op (i1:t) (i2:t): t =
-  match i1, i2 with
-  | Some i1, Some i2 -> Some (BinOp (op, i1, i2, intType))
-  | Some i, None | None, Some i -> Some i
-  | None, None -> None
-
-let ( && ) = combine LAnd
-let ( || ) = combine LOr

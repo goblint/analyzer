@@ -385,7 +385,7 @@ struct
       Option.default true (ID.to_bool is_lt)
     | Queries.Invariant context ->
       let scope = Node.find_fundec ctx.node in
-      Queries.LiftedExp.of_invariant @@ D.invariant ~scope ctx.local
+      D.invariant ~scope ctx.local
     | _ -> Result.top q
 
 

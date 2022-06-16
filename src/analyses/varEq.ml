@@ -590,7 +590,7 @@ struct
       r
     | Queries.Invariant context ->
       let scope = Node.find_fundec ctx.node in
-      Queries.LiftedExp.of_invariant @@ D.invariant ~scope ctx.local
+      D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x
 
 end

@@ -154,8 +154,8 @@ struct
     let yaml_entries = NH.fold (fun n local acc ->
         match n with
         | Statement _ when WitnessInvariant.is_invariant_node n ->
-          begin match Queries.LiftedExp.to_invariant @@ ask_local_node n local (Invariant Invariant.default_context) with
-            | Some inv ->
+          begin match ask_local_node n local (Invariant Invariant.default_context) with
+            | `Lifted inv ->
               let loc = Node.location n in
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
@@ -164,7 +164,7 @@ struct
                   let entry = Entry.yaml_loop_invariant ~yaml_task ~location:loc ~location_function ~invariant in
                   entry :: acc
                 ) acc invs
-            | None ->
+            | `Bot | `Top -> (* TODO: 0 for bot? *)
               acc
           end
         | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)

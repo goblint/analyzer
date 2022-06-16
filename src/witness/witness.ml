@@ -36,7 +36,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         | _ -> false
       end || begin if Invariant.is_invariant_node to_cfgnode then
             match to_cfgnode, TaskResult.invariant to_node with
-            | Statement _, Some _ -> true
+            | Statement _, `Lifted _ -> true
             | _, _ -> false
           else
             false
@@ -135,7 +135,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         begin
           if Invariant.is_invariant_node cfgnode then
             match cfgnode, TaskResult.invariant node with
-            | Statement _, Some i ->
+            | Statement _, `Lifted i ->
               let i = InvariantCil.exp_replace_original_name i in
               [("invariant", CilType.Exp.show i);
               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
@@ -396,7 +396,7 @@ struct
 
     let find_invariant (n, c, i) =
       let context = {Invariant.default_context with path = Some i} in
-      Queries.LiftedExp.to_invariant @@ ask_local (n, c) (get (n, c)) (Invariant context)
+      ask_local (n, c) (get (n, c)) (Invariant context)
     in
 
     match Task.specification with
