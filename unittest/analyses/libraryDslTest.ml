@@ -28,6 +28,8 @@ let rand_desc: LibraryDesc.t = LibraryDsl.(
   unknown ~attrs:[ThreadUnsafe] []
 )
 
+(* this file currently only tests that the above DSL usage compiles *)
+(* TODO: runtime tests *)
 let tests =
   "libraryDslTest" >::: [
 
