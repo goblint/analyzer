@@ -965,7 +965,10 @@ struct
     )
 
   let pretty_diff () (x, y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    let lcx = A.to_lincons_array Man.mgr x in
+    let lcy = A.to_lincons_array Man.mgr y in
+    let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
+    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) () (Lincons1Set.elements diff)
 end
 
 module D (Man: Manager) = DWithOps (Man) (DLift (Man))
@@ -1158,7 +1161,11 @@ struct
   let narrow x y = x
 
   let pretty_diff () (x, y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+    (* TODO: deduplicate *)
+    let lcx = A.to_lincons_array Man.mgr x in
+    let lcy = A.to_lincons_array Man.mgr y in
+    let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
+    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) () (Lincons1Set.elements diff)
 end
 
 module type S2 =
