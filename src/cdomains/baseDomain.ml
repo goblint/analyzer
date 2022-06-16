@@ -48,6 +48,11 @@ struct
       (try key_invariant k (find k m) with Not_found -> Invariant.none)
     | _ -> Invariant.none
 
+  let invariant c m =
+    if GobConfig.get_bool "ana.base.invariant.enabled" then
+      invariant c m
+    else
+      Invariant.none
 end
 
 
