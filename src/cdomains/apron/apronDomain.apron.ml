@@ -735,7 +735,7 @@ module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
 struct
   type t = Man.mt A.t
 
-  let name () = "Apron"
+  let name () = "Apron " ^ Man.name ()
 
   (* Functions for bot and top for particular environment. *)
   let top_env = A.top    Man.mgr
