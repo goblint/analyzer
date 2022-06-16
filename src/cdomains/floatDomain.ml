@@ -192,7 +192,20 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   (** evaluation of the binary operations *)
   let eval_binop eval_operation op1 op2 =
     norm @@ match (op1, op2) with 
-    | Some v1, Some v2 -> eval_operation v1 v2
+    | Some v1, Some v2 -> 
+      let is_exact (lower, upper) = (lower = upper) in
+      let is_exact_before = is_exact v1 && is_exact v2 in
+      let result = eval_operation v1 v2 in
+      (match result with
+       | Some (r1, r2) ->
+         let is_exact_after = is_exact (r1, r2)
+         in if not is_exact_after && is_exact_before then 
+           Messages.warn
+             ~category:Messages.Category.FloatMessage 
+             ~tags:[CWE 197; CWE 681; CWE 1339]
+             "The result of this operation is not exact, even though the inputs were exact."; 
+         result
+       | _ -> None)
     | _ -> None
 
   let eval_int_binop eval_operation (op1: t) op2 =
@@ -260,11 +273,19 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     else (0, 1)
 
   let eval_eq (l1, h1) (l2, h2) =
+    Messages.warn 
+      ~category:Messages.Category.FloatMessage 
+      ~tags:[CWE 1077]
+      "Equality between `double` is dangerous!";
     if h1 < l2 || h2 < l1 then (0, 0)
     else if h1 = l1 && h2 = l2 && l1 = l2 then (1, 1)
     else (0, 1)
 
   let eval_ne (l1, h1) (l2, h2) =
+    Messages.warn 
+      ~category:Messages.Category.FloatMessage 
+      ~tags:[CWE 1077]
+      "Equality/Inequality between `double` is dangerous!";
     if h1 < l2 || h2 < l1 then (1, 1)
     else if h1 = l1 && h2 = l2 && l1 = l2 then (0, 0)
     else (0, 1)
