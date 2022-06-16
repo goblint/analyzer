@@ -328,21 +328,21 @@ struct
     let coeff_to_const consider_flip (c:Coeff.union_5) = match c with
       | Scalar c ->
         (match int_of_scalar c with
-        | Some i ->
-          let ci,truncation = truncateCilint ILongLong i in
-          if truncation = NoTruncation then
-            if not consider_flip || Z.compare i Z.zero >= 0 then
-              Const (CInt(i,ILongLong,None)), false
-            else
-              (* attempt to negate if that does not cause an overflow *)
-              let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
-              if truncation = NoTruncation then
-                Const (CInt((Z.neg i),ILongLong,None)), true
-              else
-                Const (CInt(i,ILongLong,None)), false
-          else
-            (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
-        | None -> raise Unsupported_Linexpr1)
+         | Some i ->
+           let ci,truncation = truncateCilint ILongLong i in
+           if truncation = NoTruncation then
+             if not consider_flip || Z.compare i Z.zero >= 0 then
+               Const (CInt(i,ILongLong,None)), false
+             else
+               (* attempt to negate if that does not cause an overflow *)
+               let cneg, truncation = truncateCilint ILongLong (Z.neg i) in
+               if truncation = NoTruncation then
+                 Const (CInt((Z.neg i),ILongLong,None)), true
+               else
+                 Const (CInt(i,ILongLong,None)), false
+           else
+             (M.warn ~category:Analyzer "Invariant Apron: coefficient is not int: %s" (Scalar.to_string c); raise Unsupported_Linexpr1)
+         | None -> raise Unsupported_Linexpr1)
       | _ -> raise Unsupported_Linexpr1
     in
     let expr = ref (fst @@ coeff_to_const false (Linexpr1.get_cst linexpr1)) in
