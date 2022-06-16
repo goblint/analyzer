@@ -794,6 +794,12 @@
                   "description": "Keep global variables in invariants",
                   "type": "boolean",
                   "default": true
+                },
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
