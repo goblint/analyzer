@@ -50,6 +50,7 @@ struct
     ctx.sideg (lv_opt, ty) d
 
   let do_access (ctx: (D.t, G.t, C.t, V.t) ctx) (kind:AccessKind.t) (reach:bool) (conf:int) (e:exp) =
+    if M.tracing then M.trace "access" "do_access %a %a %B\n" d_exp e AccessKind.pretty kind reach;
     let open Queries in
     let part_access ctx (e:exp) (vo:varinfo option) (kind: AccessKind.t): MCPAccess.A.t =
       ctx.emit (Access {var_opt=vo; kind});
@@ -106,17 +107,18 @@ struct
     | _ ->
       add_access (conf - 60) None None
 
-  let access_one_top ?(force=false) ctx kind reach exp =
-    (* ignore (Pretty.printf "access_one_top %b %b %a:\n" write reach d_exp exp); *)
+  (** Three access levels:
+      + [deref=false], [reach=false] - Access [exp] without dereferencing, used for all normal reads and all function call arguments.
+      + [deref=true], [reach=false] - Access [exp] by dereferencing once (may-point-to), used for lval writes and shallow special accesses.
+      + [deref=true], [reach=true] - Access [exp] by dereferencing transitively (reachable), used for deep special accesses. *)
+  let access_one_top ?(force=false) ?(deref=false) ctx (kind: AccessKind.t) reach exp =
+    if M.tracing then M.traceli "access" "access_one_top %a %b %a:\n" AccessKind.pretty kind reach d_exp exp;
     if force || ThreadFlag.is_multi (Analyses.ask_of_ctx ctx) then (
       let conf = 110 in
-      let write = match kind with
-        | `Write | `Free -> true
-        | `Read -> false
-      in
-      if reach || write then do_access ctx kind reach conf exp;
-      Access.distribute_access_exp (do_access ctx) `Read false conf exp;
-    )
+      if deref then do_access ctx kind reach conf exp;
+      Access.distribute_access_exp (do_access ctx Read false) conf exp;
+    );
+    if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
   let startstate v = ()
@@ -129,18 +131,18 @@ struct
   let assign ctx lval rval : D.t =
     (* ignore global inits *)
     if !GU.global_initialization then ctx.local else begin
-      access_one_top ctx `Write false (AddrOf lval);
-      access_one_top ctx `Read false rval;
+      access_one_top ~deref:true ctx Write false (AddrOf lval);
+      access_one_top ctx Read false rval;
       ctx.local
     end
 
   let branch ctx exp tv : D.t =
-    access_one_top ctx `Read false exp;
+    access_one_top ctx Read false exp;
     ctx.local
 
   let return ctx exp fundec : D.t =
     begin match exp with
-      | Some exp -> access_one_top ctx `Read false exp
+      | Some exp -> access_one_top ctx Read false exp
       | None -> ()
     end;
     ctx.local
@@ -149,18 +151,19 @@ struct
     ctx.local
 
   let special ctx lv f arglist : D.t =
-    match (LF.classify f.vname arglist, f.vname) with
+    let desc = LF.find f in
+    match desc.special arglist, f.vname with
     (* TODO: remove cases *)
     | _, "_lock_kernel" ->
       ctx.local
     | _, "_unlock_kernel" ->
       ctx.local
-    | `Lock (failing, rw, nonzero_return_when_aquired), _
+    | Lock { try_ = failing; write = rw; return_on_success = nonzero_return_when_aquired; _ }, _
       -> ctx.local
-    | `Unlock, "__raw_read_unlock"
-    | `Unlock, "__raw_write_unlock"  ->
+    | Unlock _, "__raw_read_unlock"
+    | Unlock _, "__raw_write_unlock"  ->
       ctx.local
-    | `Unlock, _ ->
+    | Unlock _, _ ->
       ctx.local
     | _, "spinlock_check" -> ctx.local
     | _, "acquire_console_sem" when get_bool "kernel" ->
@@ -176,43 +179,26 @@ struct
     | _, "pthread_cond_wait"
     | _, "pthread_cond_timedwait" ->
       ctx.local
-    | _, x ->
-      let arg_acc act =
-        match act, LF.get_threadsafe_inv_ac x with
-        | _, Some fnc -> (fnc act arglist)
-        | `Read, None -> arglist
-        | (`Write | `Free), None ->
-          if get_bool "sem.unknown_function.invalidate.args" then
-            arglist
-          else
-            []
-      in
-      (* TODO: per-argument reach *)
-      let reach =
-        match f.vname with
-        | "memset" | "__builtin_memset" | "__builtin___memset_chk" -> false
-        | "bzero" | "__builtin_bzero" | "explicit_bzero" | "__explicit_bzero_chk" -> false
-        | "__builtin_object_size" -> false
-        | _ -> true
-      in
-      List.iter (access_one_top ctx `Read reach) (arg_acc `Read);
-      List.iter (access_one_top ctx `Write reach) (arg_acc `Write);
-      List.iter (access_one_top ctx `Free reach) (arg_acc `Free);
+    | _, _ ->
+      LibraryDesc.Accesses.iter desc.accs (fun {kind; deep = reach} exp ->
+          access_one_top ~deref:true ctx kind reach exp (* access dereferenced using special accesses *)
+        ) arglist;
       (match lv with
-       | Some x -> access_one_top ctx `Write false (AddrOf x)
+       | Some x -> access_one_top ~deref:true ctx Write false (AddrOf x)
        | None -> ());
+      List.iter (access_one_top ctx Read false) arglist; (* always read all argument expressions without dereferencing *)
       ctx.local
 
   let enter ctx lv f args : (D.t * D.t) list =
     [(ctx.local,ctx.local)]
 
   let combine ctx lv fexp f args fc al =
-    access_one_top ctx `Read false fexp;
+    access_one_top ctx Read false fexp;
     begin match lv with
       | None      -> ()
-      | Some lval -> access_one_top ctx `Write false (AddrOf lval)
+      | Some lval -> access_one_top ~deref:true ctx Write false (AddrOf lval)
     end;
-    List.iter (access_one_top ctx `Read false) args;
+    List.iter (access_one_top ctx Read false) args;
     al
 
 
@@ -220,7 +206,7 @@ struct
     (* must explicitly access thread ID lval because special to pthread_create doesn't if singlethreaded before *)
     begin match lval with
       | None -> ()
-      | Some lval -> access_one_top ~force:true ctx `Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
+      | Some lval -> access_one_top ~force:true ~deref:true ctx Write false (AddrOf lval) (* must force because otherwise doesn't if singlethreaded before *)
     end;
     ctx.local
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<!DOCTYPE table PUBLIC "+//IDN sosy-lab.org//DTD BenchExec table 1.10//EN" "https://www.sosy-lab.org/benchexec/table-1.10.dtd">
+<table>
+
+  <result filename="goblint.*.results.*no-overflow.xml.bz2.merged.xml.bz2">
+    <column title="status"/>
+    <column title="score"/>
+    <!-- <column title="witness" href="./LOGDIR/${rundefinition_name}/${taskdef_name}/witness.graphml"/> -->
+    <column title="witness" href="./LOGDIR/SV-COMP21_no-overflow/${taskdef_name}/witness.graphml">witness</column>
+    <column title="cputime"/>
+    <column title="walltime"/>
+    <column title="memory" sourceUnit="B" displayUnit="MB"/>
+  </result>
+
+  <!-- <result filename="cpa-validate-correctness-tmp.*.results.*.xml.bz2"/> -->
+  <!-- <result filename="cpa-validate-violation-tmp.*.results.*.xml.bz2"/> -->
+  <result filename="uautomizer-validate-correctness-tmp.*.results.*no-overflow.xml.bz2"/>
+  <result filename="uautomizer-validate-violation-tmp.*.results.*no-overflow.xml.bz2"/>
+  <result filename="witnesslint-validate2-tmp.*.results.*no-overflow.xml.bz2"/>
+</table>

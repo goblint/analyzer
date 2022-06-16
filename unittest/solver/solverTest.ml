@@ -9,11 +9,8 @@ struct
   let pretty_trace () x = text x
   let compare = compare
   let hash (x:t) = Hashtbl.hash x
-  let category _ = 1
   let printXml _ _ = ()
   let var_id x = x
-  let file_name x = x
-  let line_nr _ = 1
   let node _ = failwith "no node"
   let relift x = x
 end
@@ -29,7 +26,7 @@ module ConstrSys = struct
   module D = Int
   module G = IntR
 
-  let increment = Analyses.empty_increment_data Cil.dummyFile
+  let increment = Analyses.empty_increment_data ()
 
   (*
     1. x := g

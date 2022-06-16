@@ -61,9 +61,6 @@ struct
     let r = is_protected_by ask m x in
     if r then ProtectionLogging.record m x;
     r
-
-  let is_atomic ask: bool =
-    ask Q.MustBeAtomic
 end
 
 module MutexGlobals =
@@ -111,7 +108,6 @@ struct
   struct
     include Printable.Std (* To make it Groupable *)
     include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
-    let disjoint s t = is_empty (inter s t)
   end
 
   module MustLockset = SetDomain.Reverse (Lockset)
