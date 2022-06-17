@@ -15,7 +15,7 @@ int main() {
       break;
   }
   ; // SUCCESS (witness)
-  ; // UNKNOWN (witness)
+  ; // UNKNOWN! (witness)
 
   int y;
   switch (r) {
@@ -28,6 +28,6 @@ int main() {
   }
   ; // UNKNOWN (witness)
   ; // SUCCESS (witness)
-  ; // UNKNOWN (witness)
+  ; // UNKNOWN! (witness)
   return 0;
 }
