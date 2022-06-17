@@ -152,11 +152,11 @@ struct
     in
 
     let yaml_entries = NH.fold (fun n local acc ->
+        let loc = Node.location n in
         match n with
-        | Statement _ when WitnessInvariant.is_invariant_node n ->
+        | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
           begin match ask_local_node n local (Invariant Invariant.default_context) with
             | `Lifted inv ->
-              let loc = Node.location n in
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
                   let location_function = (Node.find_fundec n).svar.vname in
@@ -219,9 +219,11 @@ struct
     let file_loc_lvars: LvarS.t LocM.t FileH.t = FileH.create 100 in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
-        FileH.modify_def LocM.empty loc.file (
-          LocM.modify_def LvarS.empty loc (LvarS.add lvar)
-        ) file_loc_lvars
+        if not loc.synthetic then (
+          FileH.modify_def LocM.empty loc.file (
+            LocM.modify_def LvarS.empty loc (LvarS.add lvar)
+          ) file_loc_lvars
+        )
       ) lh;
 
     let global_vars = List.filter_map (function
@@ -279,6 +281,7 @@ struct
           endLine = -1;
           endColumn = -1;
           endByte = -1;
+          synthetic = false;
         }
         in
 
