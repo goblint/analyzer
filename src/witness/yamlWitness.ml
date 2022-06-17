@@ -150,8 +150,9 @@ struct
     let nh = join_contexts lh in
 
     let entries = NH.fold (fun n local acc ->
+        let loc = Node.location n in
         match n with
-        | Statement _ when WitnessInvariant.is_invariant_node n ->
+        | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
           let context: Invariant.context = {
             scope=Node.find_fundec n;
             i = -1;
@@ -162,7 +163,6 @@ struct
           in
           begin match Spec.D.invariant context local with
             | Some inv ->
-              let loc = Node.location n in
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
                   let location_function = (Node.find_fundec n).svar.vname in
@@ -181,8 +181,9 @@ struct
 
     (* TODO: deduplicate *)
     let entries = LHT.fold (fun (n, c) local acc ->
+        let loc = Node.location n in
         match n with
-        | Statement _ when WitnessInvariant.is_invariant_node n ->
+        | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
           let context: Invariant.context = {
             scope=Node.find_fundec n;
             i = -1;
@@ -213,7 +214,7 @@ struct
       ) lh entries
     in
 
-    let yaml_entries = List.map YamlWitnessType.Entry.to_yaml entries in
+    let yaml_entries = List.rev_map YamlWitnessType.Entry.to_yaml entries in (* reverse to make entries in file in the same order as generation messages *)
 
     M.msg_group Info ~category:Witness "witness generation summary" [
       (Pretty.dprintf "total: %d" (List.length yaml_entries), None);
@@ -263,13 +264,15 @@ struct
     endLine = -1;
     endColumn = -1;
     endByte = -1;
+    synthetic = false;
   }
 
   let validate lh gh (file: Cil.file) =
     let locator = Locator.create () in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
-        Locator.add locator loc lvar
+        if not loc.synthetic then
+          Locator.add locator loc lvar
       ) lh;
 
     let inv_parser = InvariantParser.create file in

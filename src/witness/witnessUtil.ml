@@ -63,8 +63,9 @@ struct
         List.exists (fun (_, edge) ->
             match edge with
             | Proc (_, Lval (Var fv, NoOffset), args) ->
-              begin match LibraryFunctions.classify fv.vname args with
-                | `Lock _ -> true
+              let desc = LibraryFunctions.find fv in
+              begin match desc.special args with
+                | Lock _ -> true
                 | _ -> false
               end
             | _ -> false
