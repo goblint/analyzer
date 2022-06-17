@@ -56,18 +56,18 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
   in
 
   let headerSizeEqual, headerRenameMapping = rename_mapping_aware_compare a.sformals b.sformals (StringMap.empty) in
-  let actHeaderRenameMapping = (headerRenameMapping, global_function_rename_mapping, global_var_rename_mapping) in
+  let actHeaderRenameMapping: rename_mapping = (headerRenameMapping, global_function_rename_mapping, global_var_rename_mapping, ([], [])) in
 
-  let unchangedHeader = eq_varinfo a.svar b.svar actHeaderRenameMapping &&>> forward_list_equal eq_varinfo a.sformals b.sformals in
-  let identical, diffOpt, (_, renamed_method_dependencies, renamed_global_vars_dependencies) =
+  let (unchangedHeader, (_, _, _, renamesOnSuccessHeader)) = eq_varinfo a.svar b.svar actHeaderRenameMapping &&>> forward_list_equal eq_varinfo a.sformals b.sformals in
+  let identical, diffOpt, (_, renamed_method_dependencies, renamed_global_vars_dependencies, renamesOnSuccess) =
     if should_reanalyze a then
       false, None, emptyRenameMapping
     else
       (* Here the local variables are checked to be equal *)
       let sizeEqual, local_rename = rename_mapping_aware_compare a.slocals b.slocals headerRenameMapping in
-      let rename_mapping: rename_mapping = (local_rename, global_function_rename_mapping, global_var_rename_mapping) in
+      let rename_mapping: rename_mapping = (local_rename, global_function_rename_mapping, global_var_rename_mapping, renamesOnSuccessHeader) in
 
-      let sameDef = unchangedHeader &&> sizeEqual |> fst in
+      let sameDef = unchangedHeader && sizeEqual in
       if not sameDef then
         (false, None, emptyRenameMapping)
       else
@@ -82,4 +82,4 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
           if diffNodes1 = [] then (true, None, emptyRenameMapping)
           else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1}, emptyRenameMapping)
   in
-  identical, unchangedHeader |> fst, diffOpt, renamed_method_dependencies, renamed_global_vars_dependencies
+  identical, unchangedHeader, diffOpt, renamed_method_dependencies, renamed_global_vars_dependencies, renamesOnSuccess

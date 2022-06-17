@@ -42,6 +42,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
     target.svar <- src.svar;
   in
   let reset_fun (f: fundec) (old_f: fundec) =
+    old_f.svar.vname <- f.svar.vname;
     f.svar.vid <- old_f.svar.vid;
     List.iter2 (fun l o_l -> l.vid <- o_l.vid; o_l.vname <- l.vname) f.slocals old_f.slocals;
     List.iter2 (fun lo o_f -> lo.vid <- o_f.vid) f.sformals old_f.sformals;
@@ -58,6 +59,7 @@ let update_ids (old_file: file) (ids: max_ids) (new_file: file) (changes: change
   in
   let reset_var (v: varinfo) (old_v: varinfo)=
     v.vid <- old_v.vid;
+    old_v.vname <- v.vname;
     update_vid_max v.vid;
   in
   let reset_globals (glob: unchanged_global) =
