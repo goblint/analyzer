@@ -1,6 +1,7 @@
 open Cil
 include CompareAST
 include CompareCFG
+open CilMaps
 
 module StringSet = Set.Make(String)
 
@@ -19,19 +20,10 @@ module GlobalElemForMap = struct
   let compare x y = String.compare (globalElemName x) (globalElemName y)
 end
 
-module FundecForMap = struct
-  type t = Cil.fundec
-
-  (*x.svar.uid cannot be used, as they may overlap between old and now AST*)
-  let compare x y = String.compare x.svar.vname y.svar.vname
-end
-
-module FundecMap = Map.Make(FundecForMap)
-
 module GlobalElemMap = Map.Make(GlobalElemForMap)
 
 (*A dependency maps the function it depends on to the name the function has to be changed to*)
-type functionDependencies = string StringMap.t
+type functionDependencies = string VarinfoMap.t
 
 
 (*Renamed: newName * dependencies; Modified=now*unchangedHeader*)
@@ -71,7 +63,7 @@ let performRenames (renamesOnSuccess: renamesOnSuccess) =
   List.iter (fun (enum2, enum1) -> enum2.ename <- enum1.ename) enumRenames;
   end
 
-let getDependencies fromEq = StringMap.map (fun assumption -> assumption.new_method_name) fromEq
+let getDependencies fromEq = VarinfoMap.map (fun assumption -> assumption.new_method_name) fromEq
 
 (*Data type that holds the important data while checking for renames.
    statusForOldElem: Status we have already figured out for a fundec from oldAST;
@@ -154,7 +146,7 @@ let doAllDependenciesMatch (dependencies: functionDependencies)
           let compare = fun old now ->
             match (old, now) with
             | Fundec(oF), Fundec(nF) ->
-              let doMatch, _, _, function_dependencies, global_var_dependencies, renamesOnSuccess = CompareGlobals.eqF oF nF None StringMap.empty VarinfoMap.empty in
+              let doMatch, _, _, function_dependencies, global_var_dependencies, renamesOnSuccess = CompareGlobals.eqF oF nF None VarinfoMap.empty VarinfoMap.empty in
               doMatch, function_dependencies, global_var_dependencies, renamesOnSuccess
             | GlobalVar(oV), GlobalVar(nV) ->
               let (equal, (_, function_dependencies, global_var_dependencies, renamesOnSuccess)) = eq_varinfo oV nV emptyRenameMapping in
@@ -170,7 +162,7 @@ let doAllDependenciesMatch (dependencies: functionDependencies)
 
             let _ = Printf.printf "%s\n" (rename_mapping_to_string (StringMap.empty, function_dependencies, global_var_dependencies)) in
           *)
-          if doMatch && StringMap.is_empty function_dependencies && VarinfoMap.is_empty global_var_dependencies then
+          if doMatch && VarinfoMap.is_empty function_dependencies && VarinfoMap.is_empty global_var_dependencies then
             let _ = performRenames renamesOnSuccess in
             true, registerMapping globalElem nowElem data
           else false, data
@@ -180,8 +172,8 @@ let doAllDependenciesMatch (dependencies: functionDependencies)
     else false, data
   in
 
-  StringMap.fold (fun oldName nowName (allEqual, data) ->
-      let (old, _) = StringMap.find oldName oldFunctionMap in
+  VarinfoMap.fold (fun old nowName (allEqual, data) ->
+      let (old, _) = StringMap.find old.vname oldFunctionMap in
       isConsistent
         old
         nowName
@@ -241,7 +233,7 @@ let detectRenamedFunctions (oldAST: file) (newAST: file) : output GlobalElemMap.
         | Some (newFun, _) ->
           (*Compare if they are similar*)
           let doMatch, unchangedHeader, _, function_dependencies, global_var_dependencies, renamesOnSuccess =
-            CompareGlobals.eqF f newFun None StringMap.empty VarinfoMap.empty in
+            CompareGlobals.eqF f newFun None VarinfoMap.empty VarinfoMap.empty in
 
           (*Before renamesOnSuccess, functions with the same name have always been compared. 
             In this comparison, the renaming on compinfo and enum was always performed, no matter if the comparison

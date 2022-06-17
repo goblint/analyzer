@@ -4,12 +4,13 @@ open CompareGlobals
 include DetectRenamedFunctions
 include CompareAST
 include CompareCFG
+open CilMaps
 
 let empty_change_info () : change_info = {added = []; removed = []; changed = []; unchanged = []}
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * (cfg * cfg)) option) = match a, b with
   | GFun (f,_), GFun (g,_) ->
-    let identical, unchangedHeader, diffOpt, _, _, renamesOnSuccess = CompareGlobals.eqF f g cfgs StringMap.empty VarinfoMap.empty in
+    let identical, unchangedHeader, diffOpt, _, _, renamesOnSuccess = CompareGlobals.eqF f g cfgs VarinfoMap.empty VarinfoMap.empty in
     (*Perform renames no matter what.*)
     let _ = performRenames renamesOnSuccess in
 
