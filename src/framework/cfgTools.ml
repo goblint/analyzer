@@ -676,7 +676,7 @@ let getGlobalInits (file: file) : edges  =
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1;}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
 
 
 let numGlobals file =
