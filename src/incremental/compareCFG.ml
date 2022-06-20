@@ -1,10 +1,11 @@
 open MyCFG
 open Queue
 open Cil
+open CilMaps
 include CompareAST
 
 let eq_node (x, fun1) (y, fun2) =
-  let empty_rename_mapping: rename_mapping = (Hashtbl.create 0, Hashtbl.create 0) in
+  let empty_rename_mapping: rename_mapping = (StringMap.empty, VarinfoMap.empty) in
   match x,y with
   | Statement s1, Statement s2 -> eq_stmt ~cfg_comp:true (s1, fun1) (s2, fun2) empty_rename_mapping
   | Function f1, Function f2 -> eq_varinfo f1.svar f2.svar empty_rename_mapping
@@ -12,8 +13,8 @@ let eq_node (x, fun1) (y, fun2) =
   | _ -> false
 
 (* TODO: compare ASMs properly instead of simply always assuming that they are not the same *)
-let eq_edge x y = 
-  let empty_rename_mapping: rename_mapping = (Hashtbl.create 0, Hashtbl.create 0) in
+let eq_edge x y =
+  let empty_rename_mapping: rename_mapping = (StringMap.empty, VarinfoMap.empty) in
   match x, y with
   | Assign (lv1, rv1), Assign (lv2, rv2) -> eq_lval lv1 lv2 empty_rename_mapping && eq_exp rv1 rv2 empty_rename_mapping
   | Proc (None,f1,ars1), Proc (None,f2,ars2) -> eq_exp f1 f2 empty_rename_mapping && GobList.equal (eq_exp2 empty_rename_mapping) ars1 ars2
