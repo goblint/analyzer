@@ -16,6 +16,11 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
     ("assert", special [__ "cond" [r]] @@ fun cond -> Assert cond);
+
+    ("setjmp", special [__ "env" []] @@ fun env -> Setjmp { env } );
+    ("_setjmp", special [__ "env" []] @@ fun env -> Setjmp { env } );
+    ("longjmp", special [__ "env" []; __ "value" [r]] @@ fun env value -> Longjmp { env; value } );
+    ("_longjmp", special [__ "env" []; __ "value" [r]] @@ fun env value -> Longjmp { env; value } );
   ]
 
 (** C POSIX library functions.

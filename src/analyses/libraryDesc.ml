@@ -25,6 +25,8 @@ type special =
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Abort
+  | Setjmp of { env: Cil.exp }
+  | Longjmp of { env: Cil.exp; value: Cil.exp; }
   | Unknown (** Anything not belonging to other types. *) (* TODO: rename to Other? *)
 
 
