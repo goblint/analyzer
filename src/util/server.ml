@@ -46,6 +46,19 @@ module ParamParser (R : Request) = struct
       | _ -> Error err
 end
 
+module Function = struct
+  type t = {
+    funName: string;
+    location: CilType.Location.t option;
+  } [@@deriving eq, ord, hash, yojson]
+
+  let filterFunctions = function
+    | Cil.GFun (fd, loc) -> Some {funName = fd.svar.vname; location = Some loc}
+    | _ -> None
+
+  let getFunctionsList files = List.filter_map filterFunctions files
+end
+
 let handle_request (serv: t) (message: Message.either) (id: Id.t) =
   let req = Hashtbl.find_option registry message.method_ in
   let response = match req with
@@ -210,6 +223,13 @@ let () =
     type params = unit [@@deriving of_yojson]
     type response = Yojson.Safe.t [@@deriving to_yojson]
     let process () _ = Preprocessor.dependencies_to_yojson ()
+  end);
+
+  register (module struct
+    let name = "functions"
+    type params = unit [@@deriving of_yojson]
+    type response = Function.t list [@@deriving to_yojson]
+    let process () serve = Function.getFunctionsList serve.file.globals
   end);
 
   register (module struct
