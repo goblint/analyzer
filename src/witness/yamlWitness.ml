@@ -82,6 +82,14 @@ struct
     ]
 end
 
+let yaml_entries_to_file yaml_entries file =
+  let yaml = `A yaml_entries in
+  (* Yaml_unix.to_file_exn file yaml *)
+  (* to_file/to_string uses a fixed-size buffer... *)
+  (* estimate how big it should be + extra in case empty *)
+  let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 2048 + 2048) yaml in
+  Batteries.output_file ~filename:(Fpath.to_string file) ~text
+
 
 module Make
     (File: WitnessUtil.File)
@@ -123,8 +131,9 @@ struct
     let nh = join_contexts lh in
 
     let yaml_entries = NH.fold (fun n local acc ->
+        let loc = Node.location n in
         match n with
-        | Statement _ when WitnessInvariant.is_invariant_node n ->
+        | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
           let context: Invariant.context = {
             scope=Node.find_fundec n;
             i = -1;
@@ -135,7 +144,6 @@ struct
           in
           begin match Spec.D.invariant context local with
             | Some inv ->
-              let loc = Node.location n in
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
                   let location_function = (Node.find_fundec n).svar.vname in
@@ -151,8 +159,13 @@ struct
       ) nh []
     in
 
-    let yaml = `A yaml_entries in
-    Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.path")) yaml
+    let yaml_entries = List.rev yaml_entries in (* reverse to make entries in file in the same order as generation messages *)
+
+    M.msg_group Info ~category:Witness "witness generation summary" [
+      (Pretty.dprintf "total: %d" (List.length yaml_entries), None);
+    ];
+
+    yaml_entries_to_file yaml_entries (Fpath.v (GobConfig.get_string "witness.yaml.path"))
 end
 
 
@@ -193,13 +206,16 @@ struct
     let file_loc_lvars: LvarS.t LocM.t FileH.t = FileH.create 100 in
     LHT.iter (fun ((n, _) as lvar) _ ->
         let loc = Node.location n in
-        FileH.modify_def LocM.empty loc.file (
-          LocM.modify_def LvarS.empty loc (LvarS.add lvar)
-        ) file_loc_lvars
+        if not loc.synthetic then (
+          FileH.modify_def LocM.empty loc.file (
+            LocM.modify_def LvarS.empty loc (LvarS.add lvar)
+          ) file_loc_lvars
+        )
       ) lh;
 
     let global_vars = List.filter_map (function
-        | Cil.GVar (v, _, _) -> Some v
+        | Cil.GVar (v, _, _)
+        | Cil.GFun ({svar=v; _}, _) -> Some v
         | _ -> None
       ) file.globals
     in
@@ -215,7 +231,7 @@ struct
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
-        ; global = (fun g -> EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)))
+        ; global = (fun g -> try EQSys.G.spec (GHT.find gh (EQSys.GVar.spec g)) with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
         ; presub = (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
@@ -230,6 +246,11 @@ struct
       | `A yaml_entries -> yaml_entries
       | _ -> failwith "invalid YAML"
     in
+
+    let cnt_confirmed = ref 0 in
+    let cnt_unconfirmed = ref 0 in
+    let cnt_refuted = ref 0 in
+    let cnt_error = ref 0 in
 
     let yaml_entries' = List.fold_left (fun yaml_entries' yaml_entry ->
         let yaml_metadata = Yaml.Util.(yaml_entry |> find_exn "metadata" |> Option.get) in
@@ -247,6 +268,7 @@ struct
           endLine = -1;
           endColumn = -1;
           endByte = -1;
+          synthetic = false;
         }
         in
         let msgLoc: M.Location.t = CilLocation loc in
@@ -300,16 +322,18 @@ struct
 
                   let result: VR.result = match inv_exp_opt with
                     | Some inv_exp when Check.checkStandaloneExp ~vars inv_exp ->
-                      begin match ask_local lvar d (Queries.EvalInt inv_exp) with
-                        | x when Queries.ID.is_bool x ->
-                          let verdict = Option.get (Queries.ID.to_bool x) in
-                          if verdict then
-                            Confirmed
-                          else
-                            Refuted
-                        | _ ->
-                          Unconfirmed
-                      end
+                      let x = ask_local lvar d (Queries.EvalInt inv_exp) in
+                      if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
+                        Option.get (VR.result_of_enum (VR.bot ()))
+                      else if Queries.ID.is_bool x then (
+                        let verdict = Option.get (Queries.ID.to_bool x) in
+                        if verdict then
+                          Confirmed
+                        else
+                          Refuted
+                      )
+                      else
+                        Unconfirmed
                     | _ ->
                       ParseError
                   in
@@ -319,24 +343,30 @@ struct
 
               begin match Option.get (VR.result_of_enum result) with
                 | Confirmed ->
+                  incr cnt_confirmed;
                   M.success ~category:Witness ~loc:msgLoc "invariant confirmed: %s" inv;
                   let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict:true in
                   certificate_entry :: yaml_entry :: yaml_entries'
                 | Unconfirmed ->
+                  incr cnt_unconfirmed;
                   M.warn ~category:Witness ~loc:msgLoc "invariant unconfirmed: %s" inv;yaml_entry :: yaml_entries'
                 | Refuted ->
+                  incr cnt_refuted;
                   M.error ~category:Witness ~loc:msgLoc "invariant refuted: %s" inv;let certificate_entry = Entry.yaml_loop_invariant_certificate ~target_uuid:uuid ~target_file_name:loc.file ~verdict:false in
                   certificate_entry :: yaml_entry :: yaml_entries'
                 | ParseError ->
+                  incr cnt_error;
                   M.error ~category:Witness ~loc:msgLoc "CIL couldn't parse invariant: %s" inv;
                   M.info ~category:Witness ~loc:msgLoc "invariant has undefined variables or side effects: %s" inv;
                   yaml_entry :: yaml_entries'
               end
             | None ->
+              incr cnt_error;
               M.warn ~category:Witness ~loc:msgLoc "couldn't locate invariant: %s" inv;
               yaml_entry :: yaml_entries'
           end
         | exception Frontc.ParseError _ ->
+          incr cnt_error;
           Errormsg.log "\n"; (* CIL prints garbage without \n before *)
           M.error ~category:Witness ~loc:msgLoc "Frontc couldn't parse invariant: %s" inv;
           M.info ~category:Witness ~loc:msgLoc "invariant has invalid syntax: %s" inv;
@@ -344,6 +374,13 @@ struct
       ) [] yaml_entries
     in
 
-    let yaml' = `A (List.rev yaml_entries') in
-    Yaml_unix.to_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.certificate")) yaml'
+    M.msg_group Info ~category:Witness "witness validation summary" [
+      (Pretty.dprintf "confirmed: %d" !cnt_confirmed, None);
+      (Pretty.dprintf "unconfirmed: %d" !cnt_unconfirmed, None);
+      (Pretty.dprintf "refuted: %d" !cnt_refuted, None);
+      (Pretty.dprintf "error: %d" !cnt_error, None);
+      (Pretty.dprintf "total: %d" (!cnt_confirmed + !cnt_unconfirmed + !cnt_refuted + !cnt_error), None);
+    ];
+
+    yaml_entries_to_file (List.rev yaml_entries') (Fpath.v (GobConfig.get_string "witness.yaml.certificate"))
 end

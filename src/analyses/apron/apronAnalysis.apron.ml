@@ -154,7 +154,11 @@ struct
       let ask = Analyses.ask_of_ctx ctx in
       let r = assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
           assign_from_globals_wrapper ask ctx.global st e (fun apr' e' ->
-              AD.assign_exp apr' (V.local v) e'
+              if M.tracing then M.traceli "apron" "assign inner %a = %a (%a)\n" d_varinfo v d_exp e' d_plainexp e';
+              if M.tracing then M.trace "apron" "st: %a\n" AD.pretty apr';
+              let r = AD.assign_exp apr' (V.local v) e' in
+              if M.tracing then M.traceu "apron" "-> %a\n" AD.pretty r;
+              r
             )
         )
       in
@@ -309,13 +313,14 @@ struct
         )
     in
     let st = ctx.local in
-    match LibraryFunctions.classify f.vname args with
+    let desc = LibraryFunctions.find f in
+    match desc.special args, f.vname with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | `Assert expression -> st
-    | `Unknown "__goblint_check" -> st
-    | `Unknown "__goblint_commit" -> st
-    | `Unknown "__goblint_assert" -> st
-    | `ThreadJoin (id,retvar) ->
+    | Assert expression, _ -> st
+    | Unknown, "__goblint_check" -> st
+    | Unknown, "__goblint_commit" -> st
+    | Unknown, "__goblint_assert" -> st
+    | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
       (
         let st' = Priv.thread_join ask ctx.global id st in
@@ -323,10 +328,10 @@ struct
         | Some lv -> invalidate_one st' lv
         | None -> st'
       )
-    | `Unknown "__goblint_assume_join" ->
+    | Unknown, "__goblint_assume_join" ->
       let id = List.hd args in
       Priv.thread_join ~force:true ask ctx.global id st
-    | _ ->
+    | _, _ ->
       let ask = Analyses.ask_of_ctx ctx in
       let invalidate_one st lv =
         assign_to_global_wrapper ask ctx.global ctx.sideg st lv (fun st v ->
@@ -334,23 +339,21 @@ struct
             assert_type_bounds apr' v (* re-establish type bounds after forget *)
           )
       in
-      let st' = match LibraryFunctions.get_invalidate_action f.vname with
-        | Some fnc -> st (* nothing to do because only AddrOf arguments may be invalidated *)
-        | None ->
-          (* nothing to do for args because only AddrOf arguments may be invalidated *)
-          if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
-            let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
-                match global with
-                | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                  (Var vi, NoOffset) :: acc
-                (* TODO: what about GVarDecl? *)
-                | _ -> acc
-              ) []
-            in
-            List.fold_left invalidate_one st globals
-          )
-          else
-            st
+      (* nothing to do for args because only AddrOf arguments may be invalidated *)
+      let st' =
+        if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
+          let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
+              match global with
+              | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+                (Var vi, NoOffset) :: acc
+              (* TODO: what about GVarDecl? *)
+              | _ -> acc
+            ) []
+          in
+          List.fold_left invalidate_one st globals
+        )
+        else
+          st
       in
       (* invalidate lval if present *)
       match r with
@@ -369,7 +372,8 @@ struct
     in
     match q with
     | EvalInt e ->
-      if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
+      if M.tracing then M.traceli "evalint" "apron query %a (%a)\n" d_exp e d_plainexp e;
+      if M.tracing then M.trace "evalint" "apron st: %a\n" D.pretty ctx.local;
       let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r

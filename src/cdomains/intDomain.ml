@@ -830,18 +830,22 @@ struct
   let invariant c x = failwith "unimplemented"
 
   let invariant_ikind c ik x =
-    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
-    match x with
-    | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
-      let x1 = Ints_t.to_bigint x1 in
-      Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x1, intType))
-    | Some (x1, x2) ->
-      let open Invariant in
-      let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c, intType)) else none in
-      let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kintegerCilint ik x2', intType)) else none in
-      i1 && i2
-    | None -> None
+    let c_exp = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
+    if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp) then (
+      match x with
+      | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
+        let x1 = Ints_t.to_bigint x1 in
+        Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik x1, intType))
+      | Some (x1, x2) ->
+        let open Invariant in
+        let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
+        let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c_exp, intType)) else none in
+        let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c_exp, kintegerCilint ik x2', intType)) else none in
+        i1 && i2
+      | None -> Invariant.none
+    )
+    else
+      Invariant.none
 
   let arbitrary ik =
     let open QCheck.Iter in
@@ -930,7 +934,7 @@ struct
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
+  let show (x: Ints_t.t) = Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
@@ -1599,15 +1603,19 @@ struct
   let lognot ik = eq ik (of_int ik BigInt.zero)
 
   let invariant_ikind c ik (x:t) =
-    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
-    match x with
-    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x, intType))
-    | `Excluded (s, _) ->
-      S.fold (fun x a ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik x, intType)) in
-          Invariant.(a && i)
-        ) s Invariant.none
-    | `Bot -> Invariant.none
+    let c_exp = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
+    if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp) then (
+      match x with
+      | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik x, intType))
+      | `Excluded (s, _) ->
+        S.fold (fun x a ->
+            let i = Invariant.of_exp Cil.(BinOp (Ne, c_exp, kintegerCilint ik x, intType)) in
+            Invariant.(a && i)
+          ) s Invariant.none
+      | `Bot -> Invariant.none
+    )
+    else
+      Invariant.none
 
   let arbitrary ik =
     let open QCheck.Iter in
@@ -2005,18 +2013,22 @@ module Enums : S with type int_t = BigInt.t = struct
   let ne ik x y = lognot ik (eq ik x y)
 
   let invariant_ikind c ik x =
-    let c = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
-    match x with
-    | Inc ps ->
-      List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x, intType)) in
-          Invariant.(a || i)
-        ) Invariant.none (BISet.elements ps)
-    | Exc (ns, _) ->
-      List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik x, intType)) in
-          Invariant.(a && i)
-        ) Invariant.none (BISet.elements ns)
+    let c_exp = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
+    if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp) then (
+      match x with
+      | Inc ps ->
+        List.fold_left (fun a x ->
+            let i = Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik x, intType)) in
+            Invariant.(a || i)
+          ) Invariant.none (BISet.elements ps)
+      | Exc (ns, _) ->
+        List.fold_left (fun a x ->
+            let i = Invariant.of_exp Cil.(BinOp (Ne, c_exp, kintegerCilint ik x, intType)) in
+            Invariant.(a && i)
+          ) Invariant.none (BISet.elements ns)
+    )
+    else
+      Invariant.none
 
 
   let arbitrary ik =
@@ -2448,16 +2460,20 @@ struct
     res
 
   let invariant_ikind ctxt ik x =
-    let l = Cil.(mkCast ~e:(Lval (BatOption.get ctxt.Invariant.lval)) ~newt:(TInt (ik, []))) in
-    match x with
-    | Some (c, m) when m =: Ints_t.zero ->
-      let c = Ints_t.to_bigint c in
-      Invariant.of_exp Cil.(BinOp (Eq, l, Cil.kintegerCilint ik c, intType))
-    | Some (c, m) ->
-      let open Cil in
-      let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
-      Invariant.of_exp (BinOp (Eq, (BinOp (Mod, l, m, TInt(ik,[]))), c, intType))
-    | None -> None
+    let ctxt_exp = Cil.(mkCast ~e:(Lval (BatOption.get ctxt.Invariant.lval)) ~newt:(TInt (ik, []))) in
+    if InvariantCil.(not (exp_contains_tmp ctxt_exp) && exp_is_in_scope ctxt.scope ctxt_exp) then (
+      match x with
+      | Some (c, m) when m =: Ints_t.zero ->
+        let c = Ints_t.to_bigint c in
+        Invariant.of_exp Cil.(BinOp (Eq, ctxt_exp, Cil.kintegerCilint ik c, intType))
+      | Some (c, m) ->
+        let open Cil in
+        let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
+        Invariant.of_exp (BinOp (Eq, (BinOp (Mod, ctxt_exp, m, TInt(ik,[]))), c, intType))
+      | None -> Invariant.none
+    )
+    else
+      Invariant.none
 
   let arbitrary ik =
     let open QCheck in
@@ -2895,7 +2911,10 @@ module IntDomTupleImpl = struct
     | Some v ->
       (* If definite, output single equality instead of every subdomain repeating same equality *)
       let c_exp = Cil.(mkCast ~e:(Lval (BatOption.get c.Invariant.lval)) ~newt:(TInt (ik, []))) in
-      Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik v, intType))
+      if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp) then
+        Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik v, intType))
+      else
+        Invariant.none
     | None ->
       let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind c ik } x)
       in List.fold_left (fun a i ->

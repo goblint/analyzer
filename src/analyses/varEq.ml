@@ -442,12 +442,13 @@ struct
         | _ -> st
   *)
   (* Give the set of reachables from argument. *)
-  let reachables (ask: Queries.ask) es =
+  let reachables ~deep (ask: Queries.ask) es =
     let reachable e st =
       match st with
       | None -> None
       | Some st ->
-        let vs = ask.f (Queries.ReachableFrom e) in
+        let q = if deep then Queries.ReachableFrom e else Queries.MayPointTo e in
+        let vs = ask.f q in
         if Queries.LS.is_top vs then
           None
         else
@@ -500,36 +501,33 @@ struct
       | Some lval -> remove (Analyses.ask_of_ctx ctx) lval st2
       | None -> st2
 
-  let remove_reachable ctx es =
-    let ask = Analyses.ask_of_ctx ctx in
-    match reachables ask es with
+  let remove_reachable ~deep ask es st =
+    match reachables ~deep ask es with
     | None -> D.top ()
     | Some rs ->
       (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
-         each expression in ctx.local was checked for reachability from es/rs using very conservative but also unsound reachable_from.
+         each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
          It is unknown, why that was necessary. *)
       Queries.LS.fold (fun lval st ->
           remove ask (Lval.CilLval.to_lval lval) st
-        ) rs ctx.local
+        ) rs st
 
   let unknown_fn ctx lval f args =
-    let args =
-      match LF.get_invalidate_action f.vname with
-      | Some fnc -> fnc `Write args
-      | None ->
-        if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
-          args
-        else
-          []
-    in
-    let es =
+    let desc = LF.find f in
+    let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+    let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let shallow_args =
       match lval with
-      | Some l -> mkAddrOf l :: args
-      | None -> args
+      | Some l -> mkAddrOf l :: shallow_args
+      | None -> shallow_args
     in
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
-    | false -> remove_reachable ctx es
+    | false ->
+      let ask = Analyses.ask_of_ctx ctx in
+      ctx.local
+      |> remove_reachable ~deep:false ask shallow_args
+      |> remove_reachable ~deep:true ask deep_args
 
   let safe_fn = function
     | "memcpy" -> true
@@ -538,19 +536,20 @@ struct
 
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
-    match LibraryFunctions.classify f.vname args with
-    | `Unknown "spinlock_check" ->
+    let desc = LibraryFunctions.find f in
+    match desc.special args, f.vname with
+    | Unknown, "spinlock_check" ->
       begin match lval with
         | Some x -> assign ctx x (List.hd args)
         | None -> unknown_fn ctx lval f args
       end
-    | `Unknown x when safe_fn x -> ctx.local
-    | `ThreadCreate (_,_, arg) ->
+    | Unknown, x when safe_fn x -> ctx.local
+    | ThreadCreate { arg; _ }, _ ->
       begin match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
-      | false -> remove_reachable ctx [arg]
+      | false -> remove_reachable ~deep:true (Analyses.ask_of_ctx ctx) [arg] ctx.local
       end
-    | _ -> unknown_fn ctx lval f args
+    | _, _ -> unknown_fn ctx lval f args
   (* query stuff *)
 
   let eq_set (e:exp) s =

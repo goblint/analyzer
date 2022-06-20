@@ -30,8 +30,9 @@ struct
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `ThreadJoin (id, ret_var) ->
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist, f.vname with
+    | ThreadJoin { thread = id; ret_var }, _ ->
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then
         ctx.local
@@ -45,7 +46,7 @@ struct
         | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
-    | `Unknown "__goblint_assume_join" ->
+    | Unknown, "__goblint_assume_join" ->
       let id = List.hd arglist in
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then (
@@ -60,7 +61,7 @@ struct
             D.union (D.add tid acc) joined
           ) ctx.local threads
       )
-    | _ -> ctx.local
+    | _, _ -> ctx.local
 
   let threadspawn ctx lval f args fctx =
     if D.is_bot ctx.local then ( (* bot is All threads *)

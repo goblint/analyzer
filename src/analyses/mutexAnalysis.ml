@@ -133,8 +133,9 @@ struct
           if not (Lockset.is_bot ctx.local) then
             let ls = Lockset.filter snd ctx.local in
             let write = match kind with
-              | `Write | `Free -> true
-              | `Read -> false
+              | Write | Free -> true
+              | Read -> false
+              | Spawn -> false (* TODO: nonsense? *)
             in
             let el = P.effect_fun ~write ls in
             ctx.sideg v el

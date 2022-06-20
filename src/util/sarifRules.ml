@@ -52,10 +52,10 @@ let rules = [
   {
     name="Race";
     ruleId="GO0005";
-    helpText="A race condition";
-    shortDescription="The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently. ";
+    helpText="Concurrent Execution using Shared Resource with Improper Synchronization";
+    shortDescription="Race Condition";
     helpUri="https://goblint.in.tum.de/home";
-    longDescription="";
+    longDescription="The program contains a code sequence that can run concurrently with other code, and the code sequence requires temporary, exclusive access to a shared resource, but a timing window exists in which the shared resource can be modified by another code sequence that is operating concurrently.";
   };
   {
     name="Overflow";

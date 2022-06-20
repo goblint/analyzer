@@ -113,7 +113,6 @@ struct
   struct
     include Printable.Std (* To make it Groupable *)
     include SetDomain.ToppedSet (Lock) (struct let topname = "All locks" end)
-    let disjoint s t = is_empty (inter s t)
   end
 
   module MustLockset = SetDomain.Reverse (Lockset)

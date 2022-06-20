@@ -23,6 +23,7 @@ sig
   val inter: t -> t -> t
   val diff: t -> t -> t
   val subset: t -> t -> bool
+  val disjoint: t -> t -> bool
   val iter: (elt -> unit) -> t -> unit
   val map: (elt -> elt) -> t -> t
   val fold: (elt -> 'a -> 'a) -> t -> 'a -> 'a
@@ -217,6 +218,12 @@ struct
     | _, `Top -> true
     | `Top, _ -> false
     | `Lifted x, `Lifted y -> S.subset x y
+  let disjoint x y =
+    match x, y with
+    | `Top, `Top -> false
+    | `Lifted x, `Top
+    | `Top, `Lifted x -> S.is_empty x
+    | `Lifted x, `Lifted y -> S.disjoint x y
 
   let schema normal abnormal x =
     match x with

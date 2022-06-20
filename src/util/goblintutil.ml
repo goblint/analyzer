@@ -14,9 +14,6 @@ let should_warn = ref false
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 
-(** hack to use a special integer to denote synchronized array-based locking *)
-let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
-
 (** The file where everything is output *)
 let out = ref stdout
 
