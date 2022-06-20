@@ -373,17 +373,18 @@ struct
           invalidate_one ask ctx st (Lval.CilLval.to_lval lval)
         ) rs st
 
-
   let special ctx r f args =
     let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
-    match LibraryFunctions.classify f.vname args with
+    let desc = LibraryFunctions.find f in
+    match desc.special args, f.vname with
     (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | `Assert expression -> st
-    | `Unknown "__goblint_check" -> st
-    | `Unknown "__goblint_commit" -> st
-    | `Unknown "__goblint_assert" -> st
-    | `ThreadJoin (id,retvar) ->
+    | Assert expression, _ -> st
+    | Unknown, "__goblint_check" -> st
+    | Unknown, "__goblint_commit" -> st
+    | Unknown, "__goblint_assert" -> st
+    | ThreadJoin { thread = id; ret_var = retvar }, _ ->
+      (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
       (
         (* Forget value that thread return is assigned to *)
         let st' = forget_reachable ctx st [retvar] in
@@ -392,29 +393,33 @@ struct
         | Some lv -> invalidate_one ask ctx st' lv
         | None -> st'
       )
-    | _ ->
-      let ask = Analyses.ask_of_ctx ctx in
-      let st' = match LibraryFunctions.get_invalidate_action f.vname with
-        | Some fnc -> forget_reachable ctx st (fnc `Write args)
-        | None ->
-          let st' = if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then (
-            let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
-                match global with
-                | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                  (Var vi, NoOffset) :: acc
-                (* TODO: what about GVarDecl? *)
-                | _ -> acc
-              ) []
-            in
-            List.fold_left (invalidate_one ask ctx) st globals)
-          else
-            st
-          in
-          if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
-            forget_reachable ctx st' args
-          else
-            st'
+    | _, _ ->
+      let lvallist e =
+        let s = ask.f (Queries.MayPointTo e) in
+        match s with
+        | `Top -> []
+        | `Lifted _ -> List.map (Lval.CilLval.to_lval) (Queries.LS.elements s)
       in
+      let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+      let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+      let st' =
+        if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
+          let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
+              match global with
+              | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
+                (Var vi, NoOffset) :: acc
+              (* TODO: what about GVarDecl? *)
+              | _ -> acc
+            ) []
+          in
+          List.fold_left (invalidate_one ask ctx) st globals
+        )
+        else
+          st
+      in
+      let st' = forget_reachable ctx st' deep_addrs in
+      let shallow_lvals = List.concat_map lvallist shallow_addrs in
+      let st' = List.fold_left (invalidate_one ask ctx) st' shallow_lvals in
       (* invalidate lval if present *)
       match r with
       | Some lv -> invalidate_one ask ctx st' lv
@@ -433,7 +438,8 @@ struct
     in
     match q with
     | EvalInt e ->
-      if M.tracing then M.traceli "evalint" "apron query %a\n" d_exp e;
+      if M.tracing then M.traceli "evalint" "apron query %a (%a)\n" d_exp e d_plainexp e;
+      if M.tracing then M.trace "evalint" "apron st: %a\n" D.pretty ctx.local;
       let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r

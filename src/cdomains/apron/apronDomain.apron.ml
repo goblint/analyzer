@@ -718,8 +718,13 @@ struct
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate with
         | tcons1 ->
-          meet_tcons d tcons1
+          if M.tracing then M.trace "apron" "assert_cons %a %s\n" d_exp e (Format.asprintf "%a" Tcons1.print tcons1);
+          if M.tracing then M.trace "apron" "assert_cons st: %a\n" D.pretty d;
+          let r = meet_tcons d tcons1 in
+          if M.tracing then M.trace "apron" "assert_cons r: %a\n" D.pretty r;
+          r
         | exception Convert.Unsupported_CilExp ->
+          if M.tracing then M.trace "apron" "assert_cons %a unsupported\n" d_exp e;
           d
       end
 
@@ -754,6 +759,7 @@ struct
   let eval_int d e =
     let module ID = Queries.ID in
     let ik = Cilfacade.get_ikind_exp e in
+    if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
     if exp_is_cons e then
       match check_assert d e with
       | `True -> ID.of_bool ik true
@@ -766,19 +772,25 @@ struct
       | (None, Some max) -> ID.ending ik max
       | (None, None) -> ID.top_of ik
 
-  let invariant (ctx:Invariant.context) x =
-    let r = A.to_lincons_array Man.mgr x in
-    let cons, env = r.lincons0_array, r.array_env in
-    let cons = Array.to_list cons in
-    let filter_out_one_var_constraints = false in
-    let convert_one (constr:Lincons0.t) =
-      if filter_out_one_var_constraints && Linexpr0.get_size (constr.linexpr0) < 2 then
-        None
-      else
-        Convert.cil_exp_of_lincons1 ctx.scope {lincons0=constr; env=env}
-    in
-    let cil_cons = List.filter_map convert_one cons in
-    List.fold_left (fun acc x -> Invariant.((&&) acc (of_exp x))) None cil_cons
+  let invariant (ctx: Invariant.context) x =
+    (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
+       but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
+    (* let x = A.copy Man.mgr x in
+       A.minimize Man.mgr x; *)
+    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
+    let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
+        if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
+          Convert.cil_exp_of_lincons1 ctx.scope lincons1
+          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)
+        else
+          None
+      )
+    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 end
 
 
