@@ -18,6 +18,7 @@ module LF = LibraryFunctions
 module CArrays = ValueDomain.CArrays
 module BI = IntOps.BigIntOps
 module PU = PrecisionUtil
+module HM = MapDomainHeterogeneous.MapSetJmp
 
 module VD     = BaseDomain.VD
 module CPA    = BaseDomain.CPA
@@ -74,6 +75,10 @@ struct
   let name () = "base"
   let startstate v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
   let exitstate  v: store = { cpa = CPA.bot (); deps = Dep.bot (); weak = WeakUpdates.bot (); priv = Priv.startstate ()}
+
+  let setjmp_return_token = HM.token (module VD) (VD.zero_init_value (TInt (IInt, []))) "base: return"
+  let setjmp_globals_token = HM.token (module D) (D.bot ()) "base: globals"
+  let setjmp_volatiles_token = HM.token (module D) (D.bot ()) "base: volatiles"
 
   (**************************************************************************
    * Helpers
@@ -1180,6 +1185,11 @@ struct
         | _ -> true
       end
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
+    | Q.Longjmp exp ->
+      HM.singleton setjmp_return_token (eval_rv (ask_of_ctx ctx) ctx.global ctx.local exp)
+      |> HM.add setjmp_globals_token { ctx.local with cpa = CPA.filter (fun k v -> Basetype.Variables.is_global k) ctx.local.cpa }
+    | Q.VolatileLocals ->
+      HM.singleton setjmp_volatiles_token { ctx.local with cpa = CPA.filter (fun k v -> (not (Basetype.Variables.is_global k)) && Ciltools.is_volatile_tp k.vtype) ctx.local.cpa }
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
@@ -2495,6 +2505,11 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
+    | Events.Setjmp (lval, data) ->
+      ctx.local
+      |> D.join (HM.find setjmp_globals_token data)
+      |> D.join (HM.find setjmp_volatiles_token data)
+      |> (Option.map_default (fun lval local -> set (ask_of_ctx ctx) ~ctx ctx.global local (eval_lv (ask_of_ctx ctx) ctx.global local lval) (typeOfLval lval) (HM.find setjmp_return_token data)) Fun.id lval)
     | _ ->
       ctx.local
 end
