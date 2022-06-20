@@ -110,6 +110,8 @@ type _ t =
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | Invariant: invariant_context -> LiftedExp.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
+  | Longjmp: exp -> MapDomainHeterogeneous.MapSetJmp.t t (** should store the local value of [exp] and of any privatized globals *)
+  | VolatileLocals: MapDomainHeterogeneous.MapSetJmp.t t (** should store the value of all volatile locals *)
 
 type 'a result = 'a
 
@@ -161,6 +163,8 @@ struct
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | Invariant _ -> (module LiftedExp)
     | WarnGlobal _ -> (module Unit)
+    | Longjmp _ -> (module MapDomainHeterogeneous.MapSetJmp)
+    | VolatileLocals -> (module MapDomainHeterogeneous.MapSetJmp)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -211,6 +215,8 @@ struct
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | Invariant _ -> LiftedExp.top ()
     | WarnGlobal _ -> Unit.top ()
+    | Longjmp _ -> MapDomainHeterogeneous.MapSetJmp.top ()
+    | VolatileLocals -> MapDomainHeterogeneous.MapSetJmp.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -258,6 +264,8 @@ struct
     | Any MustJoinedThreads -> 34
     | Any (WarnGlobal _) -> 35
     | Any (Invariant _) -> 36
+    | Any (Longjmp _) -> 37
+    | Any VolatileLocals -> 38
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -294,6 +302,7 @@ struct
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)
       | Any (Invariant i1), Any (Invariant i2) -> compare_invariant_context i1 i2
+      | Any (Longjmp e1), Any (Longjmp e2) -> CilType.Exp.compare e1 e2
       (* only argumentless queries should remain *)
       | _, _ -> Stdlib.compare (order a) (order b)
 
