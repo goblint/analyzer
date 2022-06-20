@@ -256,7 +256,7 @@ struct
       D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";
       (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
     | _ -> (* no change in D for other things *)
-      M.debug "assign (none in D): %a = %a [%a]" RenameMapping.d_lval lval d_exp rval d_plainexp rval;
+      M.debug "assign (none in D): %a = %a [%a]" d_lval lval d_exp rval d_plainexp rval;
       m
 
   (*

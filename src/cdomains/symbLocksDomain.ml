@@ -184,7 +184,7 @@ struct
 
   let ee_to_str x =
     match x with
-    | EVar v -> RenameMapping.show_varinfo v
+    | EVar v -> v.vname
     | EAddr -> "&"
     | EDeref -> "*"
     | EField f -> f.fname

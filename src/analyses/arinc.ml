@@ -137,7 +137,7 @@ struct
   let return_code_is_success z = Cilint.is_zero_cilint z || Cilint.compare_cilint z Cilint.one_cilint = 0
   let str_return_code i = if return_code_is_success i then "SUCCESS" else "ERROR"
   let str_return_dlval (v,o as dlval) =
-    sprint RenameMapping.d_lval (Lval.CilLval.to_lval dlval) ^ "_" ^ string_of_int v.vdecl.line |>
+    sprint d_lval (Lval.CilLval.to_lval dlval) ^ "_" ^ string_of_int v.vdecl.line |>
     Str.global_replace (Str.regexp "[^a-zA-Z0-9]") "_"
   let add_return_dlval env kind dlval =
     ArincUtil.add_return_var env.procid kind (str_return_dlval dlval)
@@ -152,17 +152,17 @@ struct
     | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
-          M.debug "mayPointTo: query result for %a contains TOP!" RenameMapping.d_exp exp; (* UNSOUND *)
+          M.debug "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
           Queries.LS.remove top_elt a
         ) else a
       in
       Queries.LS.elements a'
     | v ->
-      M.debug "mayPointTo: query result for %a is %a" RenameMapping.d_exp exp Queries.LS.pretty v;
+      M.debug "mayPointTo: query result for %a is %a" d_exp exp Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
-  let debugMayPointTo ctx exp = M.debug "%a mayPointTo %a" RenameMapping.d_exp exp (Pretty.d_list ", " Lval.CilLval.pretty) (mayPointTo ctx exp)
+  let debugMayPointTo ctx exp = M.debug "%a mayPointTo %a" d_exp exp (Pretty.d_list ", " Lval.CilLval.pretty) (mayPointTo ctx exp)
 
 
   (* transfer functions *)
@@ -184,7 +184,7 @@ struct
           let edges_added = ref false in
           let f dlval =
             (* M.debug @@ "assign: MayPointTo " ^ sprint d_plainlval lval ^ ": " ^ sprint d_plainexp (Lval.CilLval.to_exp dlval); *)
-            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with Cilfacade.TypeOfError Index_NonArray -> M.debug "assign: Cilfacade.typeOf %a threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound." RenameMapping.d_exp (Lval.CilLval.to_exp dlval); true in
+            let is_ret_type = try is_return_code_type @@ Lval.CilLval.to_exp dlval with Cilfacade.TypeOfError Index_NonArray -> M.debug "assign: Cilfacade.typeOf %a threw exception Errormsg.Error \"Bug: typeOffset: Index on a non-array\". Will assume this is a return type to remain sound." d_exp (Lval.CilLval.to_exp dlval); true in
             if (not is_ret_type) || Lval.CilLval.has_index dlval then () else
               let dlval = global_dlval dlval "assign" in
               edges_added := true;
@@ -320,7 +320,7 @@ struct
       let is_creating_fun = startsWith (Functions.prefix^"Create") f.vname in
       if M.tracing && is_arinc_fun then (
         (* M.tracel "arinc" "found %s(%s)\n" f.vname args_str *)
-        M.debug "found %s(%a) in %s" f.vname (Pretty.d_list ", " RenameMapping.d_exp) arglist env.fundec.svar.vname
+        M.debug "found %s(%a) in %s" f.vname (Pretty.d_list ", " d_exp) arglist env.fundec.svar.vname
       );
       let is_error_handler = env.pname = pname_ErrorHandler in
       let eval_int exp =
@@ -339,7 +339,7 @@ struct
         (* call assign for all analyses (we only need base)! *)
         | AddrOf lval -> ctx.emit (Assign {lval; exp = mkAddrOf @@ var id})
         (* TODO not needed for the given code, but we could use Queries.MayPointTo exp in this case *)
-        | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint RenameMapping.d_exp exp
+        | _ -> failwith @@ "Could not assign id. Expected &id. Found "^sprint d_exp exp
       in
       let assign_id_by_name resource_type name id =
         assign_id id (get_id (resource_type, eval_str name))

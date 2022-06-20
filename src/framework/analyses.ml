@@ -31,7 +31,7 @@ struct
 
   let printXml f n =
     let l = Node.location n in
-    BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) l.file (RenameMapping.show_varinfo (Node.find_fundec n).svar) l.line l.byte l.column
+    BatPrintf.fprintf f "<call id=\"%s\" file=\"%s\" fun=\"%s\" line=\"%d\" order=\"%d\" column=\"%d\">\n" (Node.show_id n) l.file (Node.find_fundec n).svar.vname l.line l.byte l.column
 
   let var_id = Node.show_id
 end
@@ -105,7 +105,7 @@ struct
        See: https://github.com/goblint/analyzer/issues/290#issuecomment-881258091. *)
     let x = UpdateCil.getLoc a in
     let f = Node.find_fundec a in
-    CilType.Location.show x ^ "(" ^ RenameMapping.show_varinfo f.svar ^ ")"
+    CilType.Location.show x ^ "(" ^ f.svar.vname ^ ")"
 
   include Printable.SimpleShow (
     struct
@@ -179,9 +179,9 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node (RenameMapping.show_varinfo (Node.find_fundec n).svar) n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
-          | GFun (fd,loc) -> SH.add file2funs loc.file (RenameMapping.show_varinfo fd.svar)
+          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
         );
       let p_node f n = BatPrintf.fprintf f "%s" (Node.show_id n) in
@@ -227,9 +227,9 @@ struct
       let module SH = BatHashtbl.Make (Basetype.RawStrings) in
       let file2funs = SH.create 100 in
       let funs2node = SH.create 100 in
-      iter (fun n _ -> SH.add funs2node (RenameMapping.show_varinfo (Node.find_fundec n).svar) n) (Lazy.force table);
+      iter (fun n _ -> SH.add funs2node (Node.find_fundec n).svar.vname n) (Lazy.force table);
       iterGlobals file (function
-          | GFun (fd,loc) -> SH.add file2funs loc.file (RenameMapping.show_varinfo fd.svar)
+          | GFun (fd,loc) -> SH.add file2funs loc.file fd.svar.vname
           | _ -> ()
         );
       let p_enum p f xs = BatEnum.print ~first:"[\n  " ~last:"\n]" ~sep:",\n  " p f xs in
@@ -519,7 +519,7 @@ struct
     your analysis to be path sensitive, do override this. To obtain a behavior
     where all paths are kept apart, set this to D.equal x y                    *)
 
-  let call_descr f _ = RenameMapping.show_varinfo f.svar
+  let call_descr f _ = f.svar.vname
   (* prettier name for equation variables --- currently base can do this and
      MCP just forwards it to Base.*)
 

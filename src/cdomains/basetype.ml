@@ -26,8 +26,8 @@ struct
   let show x =
     if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
       let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
-      "(" ^ RenameMapping.show_varinfo x ^ ", " ^ description ^ ")"
-    else RenameMapping.show_varinfo x
+      "(" ^ x.vname ^ ", " ^ description ^ ")"
+    else x.vname
   let pretty () x = Pretty.text (show x)
   type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)

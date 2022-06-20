@@ -22,21 +22,21 @@ let name () = "node"
 (** Pretty node plainly with entire stmt. *)
 let pretty_plain () = function
   | Statement s -> text "Statement " ++ dn_stmt () s
-  | Function f -> text "Function " ++ text (RenameMapping.show_varinfo f.svar)
-  | FunctionEntry f -> text "FunctionEntry " ++ text (RenameMapping.show_varinfo f.svar)
+  | Function f -> text "Function " ++ text (f.svar.vname)
+  | FunctionEntry f -> text "FunctionEntry " ++ text (f.svar.vname)
 
 (* TODO: remove this? *)
 (** Pretty node plainly with stmt location. *)
 let pretty_plain_short () = function
   | Statement s -> text "Statement @ " ++ CilType.Location.pretty () (Cilfacade.get_stmtLoc s)
-  | Function f -> text "Function " ++ text (RenameMapping.show_varinfo f.svar)
-  | FunctionEntry f -> text "FunctionEntry " ++ text (RenameMapping.show_varinfo f.svar)
+  | Function f -> text "Function " ++ text (f.svar.vname)
+  | FunctionEntry f -> text "FunctionEntry " ++ text (f.svar.vname)
 
 (** Pretty node for solver variable tracing with short stmt. *)
 let pretty_trace () = function
   | Statement stmt   -> dprintf "node %d \"%a\"" stmt.sid Cilfacade.stmt_pretty_short stmt
-  | Function      fd -> dprintf "call of %s" (RenameMapping.show_varinfo fd.svar)
-  | FunctionEntry fd -> dprintf "entry state of %s" (RenameMapping.show_varinfo fd.svar)
+  | Function      fd -> dprintf "call of %s" (fd.svar.vname)
+  | FunctionEntry fd -> dprintf "entry state of %s" (fd.svar.vname)
 
 (** Output functions for Printable interface *)
 let pretty () x = pretty_trace () x
@@ -56,8 +56,8 @@ let show_id = function
 (** Show node label for CFG. *)
 let show_cfg = function
   | Statement stmt   -> string_of_int stmt.sid (* doesn't use this but defaults to no label and uses ID from show_id instead *)
-  | Function fd      -> "return of " ^ (RenameMapping.show_varinfo fd.svar) ^ "()"
-  | FunctionEntry fd -> (RenameMapping.show_varinfo fd.svar) ^ "()"
+  | Function fd      -> "return of " ^ (fd.svar.vname) ^ "()"
+  | FunctionEntry fd -> (fd.svar.vname) ^ "()"
 
 
 let location (node: t) =
