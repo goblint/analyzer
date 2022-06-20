@@ -338,6 +338,8 @@ module Size : sig
   val bits            : Cil.ikind -> int * int
 end
 
+module BISet: SetDomain.S with type elt = Z.t
+
 exception ArithmeticOnIntegerBot of string
 
 exception Unknown
