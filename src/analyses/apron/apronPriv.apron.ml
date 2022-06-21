@@ -173,7 +173,7 @@ struct
       | Prot of varinfo
 
     let var_name = function
-      | Local g -> g.vname
+      | Local x -> x.vname ^ "#" ^ string_of_int(x.vid)
       | Unprot g -> g.vname ^ "#unprot"
       | Prot g -> g.vname ^ "#prot"
   end
@@ -182,9 +182,7 @@ struct
     include ApronDomain.VarMetadataTbl (VM)
     open VM
 
-    let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
-
-    let local g = make_var ~name:(local_name g) (Local g)
+    let local g = make_var (Local g)
     let unprot g = make_var (Unprot g)
     let prot g = make_var (Prot g)
   end
