@@ -229,7 +229,7 @@ let () =
     let name = "functions"
     type params = unit [@@deriving of_yojson]
     type response = Function.t list [@@deriving to_yojson]
-    let process () serve = Function.getFunctionsList serve.file.globals
+    let process () serv = Function.getFunctionsList serv.file.globals
   end);
 
   register (module struct
