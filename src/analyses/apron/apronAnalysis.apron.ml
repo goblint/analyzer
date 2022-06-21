@@ -413,22 +413,20 @@ struct
       in
       let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
       let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
-      let st' =
+      let deep_addrs =
         if List.mem LibraryDesc.InvalidateGlobals desc.attrs then (
-          let globals = foldGlobals !Cilfacade.current_file (fun acc global ->
+          foldGlobals !Cilfacade.current_file (fun acc global ->
               match global with
               | GVar (vi, _, _) when not (BaseUtil.is_static vi) ->
-                (Var vi, NoOffset) :: acc
+                mkAddrOf (Var vi, NoOffset) :: acc
               (* TODO: what about GVarDecl? *)
               | _ -> acc
-            ) []
-          in
-          List.fold_left (invalidate_one ask ctx) st globals
+            ) deep_addrs
         )
         else
-          st
+          deep_addrs
       in
-      let st' = forget_reachable ctx st' deep_addrs in
+      let st' = forget_reachable ctx st deep_addrs in
       let shallow_lvals = List.concat_map lvallist shallow_addrs in
       let st' = List.fold_left (invalidate_one ask ctx) st' shallow_lvals in
       (* invalidate lval if present *)
