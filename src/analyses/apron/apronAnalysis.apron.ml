@@ -164,7 +164,7 @@ struct
          (* It would be possible to do better here, exploiting e.g. that the things pointed to are known to be equal *)
          (* see: https://github.com/goblint/analyzer/pull/742#discussion_r879099745 *)
          | _ -> Lval (Mem e, NoOffset))
-      | e -> e
+      | e -> e (* TODO: Potentially recurse further? *)
     in
     inner e
 
