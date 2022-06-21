@@ -233,6 +233,21 @@ let () =
   end);
 
   register (module struct
+    let name = "cfgs"
+    type params = { fname: string }  [@@deriving of_yojson]
+    type response = { cfg : string } [@@deriving to_yojson]
+    let process { fname } serv = 
+      let (module CFG) = Control.compute_cfg serv.file in 
+      let fundec = Cilfacade.find_name_fundec fname in
+      let live _ = true in (* TODO: fix this *)
+      let output = BatBuffer.output_buffer (BatBuffer.create 113) in
+      let cfg = CfgTools.fprint_fundec_html_dot (module CFG) live fundec output in
+      { cfg }
+      (* TODO: also filter and include states info (as json) in the response for the requested function *)
+  end);
+
+
+  register (module struct
     let name = "exp_eval"
     type params = ExpressionEvaluation.query [@@deriving of_yojson]
     type response =
