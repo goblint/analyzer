@@ -205,11 +205,20 @@ struct
 
   (* Function call transfer functions. *)
 
-  let pass_to_callee fundec reachable_from_args var =
+  let any_local_reachable fundec reachable_from_args =
+    let locals = fundec.sformals @ fundec.slocals in
+    let locals_id = List.map (fun v -> v.vid) locals in
+    Queries.LS.exists (fun (v',_) -> List.mem v'.vid locals_id && AD.varinfo_tracked v') reachable_from_args
+
+  let pass_to_callee fundec any_local_reachable var =
+    (* TODO: currently, we pass all locals of the caller to the callee, provided one of them is reachbale to preserve relationality *)
+    (* there should be smarter ways to do this, e.g. by keeping track of which values are written etc. ... *)
+    (* Also, a local *)
     let vname = Var.to_string var in
-    match List.find_opt (fun v -> v.vname = vname) (fundec.sformals @ fundec.slocals) with
+    let locals = fundec.sformals @ fundec.slocals in
+    match List.find_opt (fun v -> V.local_name v = vname) locals with
     | None -> true
-    | Some v -> Queries.LS.exists (fun (v',_) -> v'.vid = v.vid) reachable_from_args
+    | Some v -> any_local_reachable
 
   let enter ctx r f args =
     let fundec = Node.find_fundec ctx.node in
@@ -234,9 +243,10 @@ struct
           )
       ) new_apr arg_assigns
     in
+    let any_local_reachable = any_local_reachable fundec reachable_from_args in
     AD.remove_filter_with new_apr (fun var ->
         match V.find_metadata var with
-        | Some Local when not (pass_to_callee fundec reachable_from_args var) -> true (* remove caller locals provided they are unreachable *)
+        | Some Local when not (pass_to_callee fundec any_local_reachable var) -> true (* remove caller locals provided they are unreachable *)
         | Some Arg when not (List.mem_cmp Var.compare var arg_vars) -> true (* remove caller args, but keep just added args *)
         | _ -> false (* keep everything else (just added args, globals, global privs) *)
       );
@@ -313,12 +323,13 @@ struct
           )
       ) new_fun_apr arg_substitutes
     in
+    let any_local_reachable = any_local_reachable fundec reachable_from_args in
     let arg_vars = f.sformals |> List.filter (AD.varinfo_tracked) |> List.map V.arg in
     if M.tracing then M.tracel "combine" "apron remove vars: %a\n" (docList (fun v -> Pretty.text (Var.to_string v))) arg_vars;
     AD.remove_vars_with new_fun_apr arg_vars; (* fine to remove arg vars that also exist in caller because unify from new_apr adds them back with proper constraints *)
     let new_apr = AD.keep_filter st.apr (fun var ->
         match V.find_metadata var with
-        | Some Local when not (pass_to_callee fundec reachable_from_args var) -> true (* keep caller locals, provided they were not passed to the function *)
+        | Some Local when not (pass_to_callee fundec any_local_reachable var) -> true (* keep caller locals, provided they were not passed to the function *)
         | Some Arg -> true (* keep caller args *)
         | _ -> false (* remove everything else (globals, global privs, reachable things from the caller) *)
       )

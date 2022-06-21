@@ -73,6 +73,7 @@ struct
   include VarMetadataTbl (VM)
   open VM
 
+  (* Used to distinguish locals of different functions that share the same name, not needed for base, as we use varinfos directly there *)
   let local_name x = x.vname ^ "#" ^ string_of_int(x.vid)
   let local x = make_var ~name:(local_name x) Local
   let arg x = make_var ~name:(x.vname ^ "'") Arg (* TODO: better suffix, like #arg *)
