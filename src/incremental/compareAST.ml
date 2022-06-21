@@ -88,7 +88,9 @@ let (&&>) (prev_result: bool * rename_mapping) (b: bool) : bool * rename_mapping
 
 (*Same as Goblist.eq but propagates the rename_mapping*)
 let forward_list_equal f l1 l2 (prev_result: rename_mapping) : bool * rename_mapping =
-  List.fold_left2 (fun (b, r) x y -> if b then f x y r else (b, r)) (true, prev_result) l1 l2
+  if ((List.compare_lengths l1 l2) = 0) then
+    List.fold_left2 (fun (b, r) x y -> if b then f x y r else (b, r)) (true, prev_result) l1 l2
+  else false, prev_result
 
 (* hack: CIL generates new type names for anonymous types - we want to ignore these *)
 let compare_name (a: string) (b: string) =
@@ -181,7 +183,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename
           (*compinfo2.cname <- compinfo1.cname;*)
 
           register_rename_on_success rm (Some((compinfo2, compinfo1))) None
-        else rm 
+        else rm
         in
         if res then
           global_typ_acc := (a, b) :: !global_typ_acc;
