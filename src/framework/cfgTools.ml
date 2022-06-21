@@ -488,8 +488,8 @@ let minimizeCFG (fw,bw) =
 module type CfgPrinters =
 sig
   val defaultNodeStyles: string list
-  val printNodeStyle: out_channel -> node -> unit
-  val printEdgeStyle: out_channel -> node -> (edges * node) -> unit
+  val printNodeStyle: 'a BatIO.output -> node -> unit
+  val printEdgeStyle: 'a BatIO.output -> node -> (edges * node) -> unit
 end
 
 module type NodeStyles =
@@ -502,18 +502,18 @@ module CfgPrinters (NodeStyles: NodeStyles) =
 struct
   include NodeStyles
 
-  let p_node () n = text (Node.show_id n)
+  let p_node out n = BatPrintf.fprintf out "%s" (Node.show_id n)
 
   (* escape string in label, otherwise dot might fail *)
-  let p_edge () x = Pretty.text (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
+  let p_edge (out: 'a BatIO.output) x = BatPrintf.fprintf out "%s" (String.escaped (Pretty.sprint ~width:max_int (Edge.pretty () x)))
 
-  let rec p_edges () = function
-    | [] -> Pretty.dprintf ""
-    | [(_, x)] -> p_edge () x
-    | (_,x)::xs -> Pretty.dprintf "%a\n%a" p_edge x p_edges xs
+  let rec p_edges out = function
+    | [] -> BatPrintf.fprintf out ""
+    | [(_, x)] -> BatPrintf.fprintf out "%a" p_edge x
+    | (_,x)::xs -> BatPrintf.fprintf out "%a\n%a" p_edge x p_edges xs
 
   let printEdgeStyle out (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
-    ignore (Pretty.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges)
+    ignore (BatPrintf.fprintf out "\t%a -> %a [label = \"%a\"] ;\n" p_node fromNode p_node toNode p_edges edges)
 
   let printNodeStyle out (n:node) =
     let label = match n with
@@ -527,13 +527,13 @@ struct
       | FunctionEntry _ -> ["shape=box"]
     in
     let styles = String.concat "," (label @ shape @ extraNodeStyles n) in
-    ignore (Pretty.fprintf out ("\t%a [%s];\n") p_node n styles)
+    ignore (BatPrintf.fprintf out ("\t%a [%s];\n") p_node n styles)
 end
 
 let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
   let node_table = NH.create 113 in
-  Printf.fprintf out "digraph cfg {\n";
-  Printf.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
+  BatPrintf.fprintf out "digraph cfg {\n";
+  BatPrintf.fprintf out "\tnode [%s];\n" (String.concat "," CfgPrinters.defaultNodeStyles);
   let printEdge (toNode: node) ((edges:(location * edge) list), (fromNode: node)) =
     CfgPrinters.printEdgeStyle out toNode (edges, fromNode);
     NH.replace node_table toNode ();
@@ -548,20 +548,20 @@ let fprint_dot (module CfgPrinters: CfgPrinters) iter_edges out =
         if not (NH.mem node_scc_done node) then (
           match NH.find_option node_scc_global node with
           | Some scc when NH.length scc.nodes > 1 ->
-            Printf.fprintf out "\tsubgraph cluster {\n\t\t";
+            BatPrintf.fprintf out "\tsubgraph cluster {\n\t\t";
             NH.iter (fun node _ ->
                 NH.replace node_scc_done node ();
-                Printf.fprintf out ("%s; ") (Node.show_id node)
+                BatPrintf.fprintf out ("%s; ") (Node.show_id node)
               ) scc.nodes;
-            Printf.fprintf out "\n\t}\n";
+            BatPrintf.fprintf out "\n\t}\n";
           | _ -> ()
         )
       ) node_table
   );
 
-  Printf.fprintf out "}\n";
-  flush out;
-  close_out_noerr out
+  BatPrintf.fprintf out "}\n";
+  BatIO.flush out;
+  BatIO.close_out out
 
 let fprint_hash_dot cfg  =
   let module NoExtraNodeStyles =
@@ -570,7 +570,7 @@ let fprint_hash_dot cfg  =
     let extraNodeStyles node = []
   end
   in
-  let out = open_out "cfg.dot" in
+  let out = BatFile.open_out "cfg.dot" in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
   fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges out
 
@@ -624,7 +624,7 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = Goblintutil.create_dir Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
-        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd (open_out (Fpath.to_string fname))
+        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd (BatFile.open_out (Fpath.to_string fname))
       | _ -> ()
     )
 
