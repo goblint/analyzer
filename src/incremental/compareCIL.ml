@@ -61,21 +61,23 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
 
   let renameDetectionResults = detectRenamedFunctions oldAST newAST in
-  GlobalElemMap.to_seq renameDetectionResults |>
-  Seq.iter
-    (fun (gT, (functionGlobal, status)) ->
-       Printf.printf "Function status of %s is=" (globalElemName gT);
-       match status with
-       | Unchanged _ -> Printf.printf "Same Name\n";
-       | Added -> Printf.printf "Added\n";
-       | Removed -> Printf.printf "Removed\n";
-       | Changed _ -> Printf.printf "Changed\n";
-       | UnchangedButRenamed toFrom ->
-         match toFrom with
-         | GFun (f, _) -> Printf.printf "Renamed to %s\n" f.svar.vname;
-         | GVar(v, _, _) -> Printf.printf "Renamed to %s\n" v.vname;
-         | _ -> Printf.printf "TODO";
-    );
+
+  if Messages.tracing then
+    GlobalElemMap.to_seq renameDetectionResults |>
+    Seq.iter
+      (fun (gT, (functionGlobal, status)) ->
+        Messages.trace "compareCIL" "Function status of %s is=" (globalElemName gT);
+        match status with
+        | Unchanged _ ->  Messages.trace "compareCIL" "Same Name\n";
+        | Added ->  Messages.trace "compareCIL" "Added\n";
+        | Removed ->  Messages.trace "compareCIL" "Removed\n";
+        | Changed _ ->  Messages.trace "compareCIL" "Changed\n";
+        | UnchangedButRenamed toFrom ->
+          match toFrom with
+          | GFun (f, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" f.svar.vname;
+          | GVar(v, _, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" v.vname;
+          | _ -> ();
+      );
 
   (*  For each function in the new file, check whether a function with the same name
       already existed in the old version, and whether it is the same function. *)
