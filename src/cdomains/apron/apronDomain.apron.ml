@@ -234,36 +234,45 @@ struct
       | Const (CInt (i, _, _)) ->
         Cst (Coeff.s_of_mpqf (Mpqf.of_mpz (Z_mlgmpidl.mpz_of_z i)))
       | exp ->
-        let expr =
-          match exp with
-          | UnOp (Neg, e, _) ->
-            Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
-          | BinOp (PlusA, e1, e2, _) ->
-            Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (MinusA, e1, e2, _) ->
-            Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (Mult, e1, e2, _) ->
-            Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | BinOp (Div, e1, e2, _) ->
-            Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
-          | BinOp (Mod, e1, e2, _) ->
-            Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
-          | CastE (TInt _ as t, e) when IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
-            Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
-          | _ ->
-            raise Unsupported_CilExp
-        in
-        let ik = Cilfacade.get_ikind_exp exp in
-        if not (IntDomain.should_ignore_overflow ik) then (
-          let (type_min, type_max) = IntDomain.Size.range ik in
-          let texpr1 = Texpr1.of_expr env expr in
-          match Bounds.bound_texpr d texpr1 with
-          | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
-          | min_opt, max_opt ->
-            if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
-            raise Unsupported_CilExp
-        );
-        expr
+        match Cilfacade.get_ikind_exp exp with
+        | ik ->
+          let expr =
+            match exp with
+            | UnOp (Neg, e, _) ->
+              Unop (Neg, texpr1_expr_of_cil_exp e, Int, Near)
+            | BinOp (PlusA, e1, e2, _) ->
+              Binop (Add, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+            | BinOp (MinusA, e1, e2, _) ->
+              Binop (Sub, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+            | BinOp (Mult, e1, e2, _) ->
+              Binop (Mul, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+            | BinOp (Div, e1, e2, _) ->
+              Binop (Div, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Zero)
+            | BinOp (Mod, e1, e2, _) ->
+              Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
+            | CastE (TInt _ as t, e) ->
+              begin match Cilfacade.typeOf e with
+                | e_typ when IntDomain.Size.is_cast_injective ~from_type:e_typ ~to_type:t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+                  Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
+                | _
+                | exception Cilfacade.TypeOfError _ -> (* typeOf inner e, not outer exp *)
+                  raise Unsupported_CilExp
+              end
+            | _ ->
+              raise Unsupported_CilExp
+          in
+          if not (IntDomain.should_ignore_overflow ik) then (
+            let (type_min, type_max) = IntDomain.Size.range ik in
+            let texpr1 = Texpr1.of_expr env expr in
+            match Bounds.bound_texpr d texpr1 with
+            | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
+            | min_opt, max_opt ->
+              if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
+              raise Unsupported_CilExp
+          );
+          expr
+        | exception Cilfacade.TypeOfError _ ->
+          raise Unsupported_CilExp
     in
     texpr1_expr_of_cil_exp
 
@@ -759,19 +768,22 @@ struct
   (** Evaluate constraint or non-constraint expression as integer. *)
   let eval_int d e =
     let module ID = Queries.ID in
-    let ik = Cilfacade.get_ikind_exp e in
-    if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
-    if exp_is_cons e then
-      match check_assert d e with
-      | `True -> ID.of_bool ik true
-      | `False -> ID.of_bool ik false
-      | `Top -> ID.top_of ik
-    else
-      match eval_interval_expr d e with
-      | (Some min, Some max) -> ID.of_interval ik (min, max)
-      | (Some min, None) -> ID.starting ik min
-      | (None, Some max) -> ID.ending ik max
-      | (None, None) -> ID.top_of ik
+    match Cilfacade.get_ikind_exp e with
+    | exception Cilfacade.TypeOfError _ ->
+      ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
+    | ik ->
+      if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
+      if exp_is_cons e then
+        match check_assert d e with
+        | `True -> ID.of_bool ik true
+        | `False -> ID.of_bool ik false
+        | `Top -> ID.top_of ik
+      else
+        match eval_interval_expr d e with
+        | (Some min, Some max) -> ID.of_interval ik (min, max)
+        | (Some min, None) -> ID.starting ik min
+        | (None, Some max) -> ID.ending ik max
+        | (None, None) -> ID.top_of ik
 
   let invariant (ctx: Invariant.context) x =
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
