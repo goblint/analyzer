@@ -395,7 +395,6 @@ struct
     | Unknown, "__goblint_commit" -> st
     | Unknown, "__goblint_assert" -> st
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
-      (* nothing to invalidate as only arguments that have their AddrOf taken may be invalidated *)
       (
         (* Forget value that thread return is assigned to *)
         let st' = forget_reachable ctx st [retvar] in
