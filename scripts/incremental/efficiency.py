@@ -84,10 +84,10 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
             utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchild, conf_base, add_options)
 
             #print('And again incremental, this time with incremental postsolver')
-            outchildrel = os.path.join(outtry, 'child-rel')
-            os.makedirs(outchildrel)
+            outchildincrpost = os.path.join(outtry, 'child-incr-post')
+            os.makedirs(outchildincrpost)
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save']
-            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchildrel, conf_incrpost, add_options)
+            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchildincrpost, conf_incrpost, add_options)
 
             #print('And again incremental, this time with incremental postsolver and reluctant')
             outchildrel = os.path.join(outtry, 'child-rel')
