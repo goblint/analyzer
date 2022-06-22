@@ -156,7 +156,7 @@ def analyze_series_in_repo(series):
                 out_incr = os.path.join(out_commit, 'incr')
                 os.makedirs(out_incr)
                 file_incremental_run = os.path.join(out_incr, "compare-data-incr")
-                add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.reluctant.on', '--set', 'save_run', file_incremental_run]
+                add_options = ['--enable', 'incremental.load', '--enable', 'incremental.save', '--enable', 'incremental.reluctant.enabled', '--set', 'save_run', file_incremental_run]
                 utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, out_incr, conf, add_options)
 
                 if commit_num in compare_commits or commit_num == len(series) - 1:

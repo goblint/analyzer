@@ -92,7 +92,7 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
             #print('And again incremental, this time with incremental postsolver and reluctant')
             outchildrel = os.path.join(outtry, 'child-rel')
             os.makedirs(outchildrel)
-            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.on']
+            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.enabled']
             utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchildrel, conf_incrpost, add_options)
 
             count_analyzed+=1
@@ -177,7 +177,7 @@ def analyze_chunks_of_commits_in_parallel():
     num_commits = sum(1 for _ in Repository(url, since=begin, to=to, only_no_merge=True).traverse_commits())
     print("Number of potentially interesting commits:", num_commits)
     perprocess = num_commits // numcores if num_commits % numcores == 0 else num_commits // numcores + 1
-    print("Per process:" + str(perprocess))
+    print("Per process: " + str(perprocess))
 
     for i in range(numcores):
         dir = "process" + str(i)
