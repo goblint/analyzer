@@ -444,6 +444,16 @@ and typeOffset basetyp =
     | _ -> raise (TypeOfError Field_NonCompound)
 
 
+(** {!Cil.mkCast} using our {!typeOf}. *)
+let mkCast ~(e: exp) ~(newt: typ) =
+  let oldt =
+    try
+      typeOf e
+    with TypeOfError _ -> (* e might involve alloc variables, weird offsets, etc *)
+      Cil.voidType (* oldt is only used for avoiding duplicate cast, so this falls back to adding cast *)
+  in
+  Cil.mkCastT ~e:e ~oldt ~newt:newt
+
 let get_ikind_exp e = get_ikind (typeOf e)
 
 
