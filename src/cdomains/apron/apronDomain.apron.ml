@@ -368,7 +368,7 @@ struct
       match V.to_cil_varinfo fundec v with
       | Some vinfo ->
         (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
-        let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+        let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
         let coeff, flip = coeff_to_const true c in
         let prod = BinOp(Mult, coeff, var, longlong) in
         if flip then

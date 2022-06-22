@@ -511,7 +511,7 @@ struct
       let toInt i =
         match IdxDom.to_int @@ ID.cast_to ik i with
         | Some x -> Const (CInt (x,ik, None))
-        | _ -> mkCast ~e:(Const (CStr ("unknown",No_encoding))) ~newt:intType
+        | _ -> Cilfacade.mkCast ~e:(Const (CStr ("unknown",No_encoding))) ~newt:intType
 
       in
       match o with
