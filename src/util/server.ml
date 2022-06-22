@@ -240,8 +240,7 @@ let () =
       let (module CFG) = Control.compute_cfg serv.file in 
       let fundec = Cilfacade.find_name_fundec fname in
       let live _ = true in (* TODO: fix this *)
-      let output = BatBuffer.output_buffer (BatBuffer.create 113) in
-      let cfg = CfgTools.fprint_fundec_html_dot (module CFG) live fundec output in
+      let cfg = CfgTools.sprint_fundec_html_dot (module CFG) live fundec in
       { cfg }
       (* TODO: also filter and include states info (as json) in the response for the requested function *)
   end);

@@ -599,7 +599,8 @@ let iter_fd_edges (module Cfg : CfgBackward) fd =
   in
   printNode (Function fd)
 
-let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
+(* TODO: Temporarily renamed to allow gobview to depend on old for now.*)
+let fprint_fundec_html_dot' (module Cfg : CfgBidir) live fd out =
   let module HtmlExtraNodeStyles =
   struct
     let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* \N is graphviz special for node ID *)
@@ -614,6 +615,13 @@ let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let iter_edges = iter_fd_edges (module Cfg) fd in
   fprint_dot (module CfgPrinters (HtmlExtraNodeStyles)) iter_edges out
 
+let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out = 
+  fprint_fundec_html_dot' (module Cfg) live fd (BatIO.output_channel out)
+
+let sprint_fundec_html_dot (module Cfg : CfgBidir) live fd =
+  let buffer = BatBuffer.output_buffer (BatBuffer.create 113) in
+  fprint_fundec_html_dot' (module Cfg) live fd buffer
+
 let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
   iterGlobals file (fun glob ->
       match glob with
@@ -624,7 +632,7 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
         let dot_file_name = fd.svar.vname^".dot" in
         let file_dir = Goblintutil.create_dir Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
-        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd (BatFile.open_out (Fpath.to_string fname))
+        fprint_fundec_html_dot' (module Cfg : CfgBidir) live fd (BatFile.open_out (Fpath.to_string fname))
       | _ -> ()
     )
 
