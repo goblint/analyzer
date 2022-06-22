@@ -377,12 +377,21 @@ struct
 
   let forget_reachable ctx st es =
     let ask = Analyses.ask_of_ctx ctx in
-    match reachables ask es with
-    | None -> D.top ()
-    | Some rs ->
-      Queries.LS.fold (fun lval st ->
-          invalidate_one ask ctx st (Lval.CilLval.to_lval lval)
-        ) rs st
+    let rs =
+      match reachables ask es with
+      | None ->
+        (* top reachable, so try to invalidate everything *)
+        let fd = Node.find_fundec ctx.node in
+        AD.vars st.apr
+        |> List.filter_map (V.to_cil_varinfo fd)
+        |> List.map Cil.var
+      | Some rs ->
+        Queries.LS.elements rs
+        |> List.map Lval.CilLval.to_lval
+    in
+    List.fold_left (fun st lval ->
+        invalidate_one ask ctx st lval
+      ) st rs
 
   let special ctx r f args =
     let ask = Analyses.ask_of_ctx ctx in
