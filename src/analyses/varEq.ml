@@ -3,7 +3,7 @@
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module AD = ValueDomain.AD
-module Exp = Exp.Exp
+module Exp = CilType.Exp
 module LF = LibraryFunctions
 open Prelude.Ana
 open Analyses
@@ -109,6 +109,31 @@ struct
     |	CastE (t1,e1),	CastE (t2,e2) -> typ_equal t1 t2 && exp_equal e1 e2
     | _ -> false
 
+  (* TODO: what does interesting mean? *)
+  let rec interesting x =
+    match x with
+    | AddrOf (Mem (BinOp (IndexPI, a, _i, _)), _os) ->
+      interesting a
+    | SizeOf _
+    | SizeOfE _
+    | SizeOfStr _
+    | AlignOf _
+    | AlignOfE _
+    | UnOp  _
+    | BinOp _
+    | Question _
+    | Real _
+    | Imag _
+    | AddrOfLabel _ -> false
+    | Const _ -> true
+    | AddrOf  (Var v2,_)
+    | StartOf (Var v2,_)
+    | Lval    (Var v2,_) -> true
+    | AddrOf  (Mem e,_)
+    | StartOf (Mem e,_)
+    | Lval    (Mem e,_)
+    | CastE (_,e)           -> interesting e
+
   (* helper to decide equality *)
   let query_exp_equal ask e1 e2 g s =
     let e1 = constFold false (stripCasts e1) in
@@ -119,6 +144,7 @@ struct
       | _ -> false
 
   (* kill predicate for must-equality kind of analyses*)
+  (* TODO: why unused? how different from below? *)
   let may_change_t (b:exp) (a:exp) : bool =
     let rec type_may_change_t a bt =
       let rec may_change_t_offset o =
@@ -135,8 +161,11 @@ struct
       | SizeOfE _
       | SizeOfStr _
       | AlignOf _
-      | AlignOfE _ -> false
-      | UnOp (_,e,_) -> type_may_change_t e bt
+      | AlignOfE _
+      | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+      | UnOp (_,e,_)
+      | Real e
+      | Imag e -> type_may_change_t e bt
       | BinOp (_,e1,e2,_) -> type_may_change_t e1 bt || type_may_change_t e2 bt
       | Lval (Var _,o)
       | AddrOf (Var _,o)
@@ -145,12 +174,12 @@ struct
       | AddrOf (Mem e,o)
       | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t e bt
       | CastE (t,e) -> type_may_change_t e bt
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
+      | Question (b, t, f, _) -> type_may_change_t b bt || type_may_change_t t bt || type_may_change_t f bt
     in
     let bt =  unrollTypeDeep (Cilfacade.typeOf b) in
     type_may_change_t a bt
 
+  (* TODO: why unused? how different from below? *)
   let may_change_pt ask (b:exp) (a:exp) : bool =
     let pt e = ask (Queries.MayPointTo e) in
     let rec lval_may_change_pt a bl : bool =
@@ -168,8 +197,11 @@ struct
       | SizeOfE _
       | SizeOfStr _
       | AlignOf _
-      | AlignOfE _ -> false
-      | UnOp (_,e,_) -> lval_may_change_pt e bl
+      | AlignOfE _
+      | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+      | UnOp (_,e,_)
+      | Real e
+      | Imag e -> lval_may_change_pt e bl
       | BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
       | Lval (Var _,o)
       | AddrOf (Var _,o)
@@ -178,8 +210,7 @@ struct
       | AddrOf (Mem e,o)
       | StartOf (Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl
       | CastE (t,e) -> lval_may_change_pt e bl
-      | Question _ -> failwith "Logical operations should be compiled away by CIL."
-      | _ -> failwith "Unmatched pattern."
+      | Question (b, t, f, _) -> lval_may_change_pt t bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let bls = pt b in
     if Queries.LS.is_top bls
@@ -235,8 +266,11 @@ struct
               | SizeOfE _
               | SizeOfStr _
               | AlignOf _
-              | AlignOfE _ -> false
-              | UnOp (_,e,_) -> type_may_change_t deref e
+              | AlignOfE _
+              | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+              | UnOp (_,e,_)
+              | Real e
+              | Imag e -> type_may_change_t deref e
               | BinOp (_,e1,e2,_) -> type_may_change_t deref e1 || type_may_change_t deref e2
               | Lval (Var _,o)
               | AddrOf (Var _,o)
@@ -245,8 +279,7 @@ struct
               | AddrOf (Mem e,o)  -> (*Messages.warn "Addr" ;*) may_change_t_offset o || type_may_change_t false e
               | StartOf (Mem e,o) -> (*Messages.warn "Start";*) may_change_t_offset o || type_may_change_t false e
               | CastE (t,e) -> type_may_change_t deref e
-              | Question _ -> failwith "Logical operations should be compiled away by CIL."
-              | _ -> failwith "Unmatched pattern."
+              | Question (b, t, f, _) -> type_may_change_t deref b || type_may_change_t deref t || type_may_change_t deref f
 
     and lval_may_change_pt a bl : bool =
       let rec may_change_pt_offset o =
@@ -301,8 +334,11 @@ struct
            | SizeOfE _
            | SizeOfStr _
            | AlignOf _
-           | AlignOfE _ -> false
-           | UnOp (_,e,_) -> lval_may_change_pt e bl
+           | AlignOfE _
+           | AddrOfLabel _ -> false (* TODO: some may contain exps? *)
+           | UnOp (_,e,_)
+           | Real e
+           | Imag e -> lval_may_change_pt e bl
            | BinOp (_,e1,e2,_) -> lval_may_change_pt e1 bl || lval_may_change_pt e2 bl
            | Lval (Var _,o)
            | AddrOf (Var _,o)
@@ -311,11 +347,11 @@ struct
            | AddrOf (Mem e,o)
            | StartOf (Mem e,o) -> may_change_pt_offset o || lval_may_change_pt e bl
            | CastE (t,e) -> lval_may_change_pt e bl
-           | Question _ -> failwith "Logical operations should be compiled away by CIL."
-           | _ -> failwith "Unmatched pattern."
+           | Question (b, t, f, _) -> lval_may_change_pt b bl || lval_may_change_pt t bl || lval_may_change_pt f bl
     in
     let r =
-      if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
+      if Cil.isConstant b then false
+      else if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
       then ((*Messages.warn "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
@@ -323,7 +359,9 @@ struct
           then (Messages.warn ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           else (Messages.warn ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
           Messages.warn ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
-    *)    r
+    *)
+    if M.tracing then M.tracel "var_eq" "may_change %a %a = %B\n" CilType.Exp.pretty b CilType.Exp.pretty a r;
+    r
 
   (* Remove elements, that would change if the given lval would change.*)
   let remove_exp ask (e:exp) (st:D.t) : D.t =
@@ -350,7 +388,11 @@ struct
     | AlignOf _
     | AlignOfE _
     | UnOp _
-    | BinOp _ -> None
+    | BinOp _
+    | Question _
+    | AddrOfLabel _
+    | Real _
+    | Imag _ -> None
     | Const _ -> Some false
     | Lval (Var v,_) ->
       Some (v.vglob || (ask.f (Queries.IsMultiple v)))
@@ -365,8 +407,6 @@ struct
     | AddrOf lv -> Some false (* TODO: sound?! *)
     | StartOf (Var v,_) ->  Some (ask.f (Queries.IsMultiple v)) (* Taking an address of a global is fine*)
     | StartOf lv -> Some false (* TODO: sound?! *)
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
 
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
@@ -376,8 +416,14 @@ struct
           let st =
     *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     (*     Messages.warn ~msg:(sprint 80 (d_type () lvt)) (); *)
+    if M.tracing then (
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainlval lv (is_global_var ask (Lval lv) = Some false);
+      M.tracel "var_eq" "add_eq interesting %a = %B\n" d_plainexp rv (interesting rv);
+      M.tracel "var_eq" "add_eq is_global_var %a = %B\n" d_plainexp rv (is_global_var ask rv = Some false);
+      M.tracel "var_eq" "add_eq type %a = %B\n" d_plainlval lv ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt);
+    );
     if is_global_var ask (Lval lv) = Some false
-    && Exp.interesting rv
+    && interesting rv
     && is_global_var ask rv = Some false
     && ((isArithmeticType lvt && match lvt with | TFloat _ -> false | _ -> true ) || isPointerType lvt)
     then D.add_eq (rv,Lval lv) (remove ask lv st)
@@ -387,7 +433,7 @@ struct
         | Lval rlval -> begin
             match ask (Queries.MayPointTo (mkAddrOf rlval)) with
               | rv when not (Queries.LS.is_top rv) && Queries.LS.cardinal rv = 1 ->
-                  let rv = Exp.of_clval (Queries.LS.choose rv) in
+                  let rv = Lval.CilLval.to_exp (Queries.LS.choose rv) in
                   if is_local lv && Exp.is_global_var rv = Some false
                   then D.add_eq (rv,Lval lv) st
                   else st
@@ -396,12 +442,13 @@ struct
         | _ -> st
   *)
   (* Give the set of reachables from argument. *)
-  let reachables (ask: Queries.ask) es =
+  let reachables ~deep (ask: Queries.ask) es =
     let reachable e st =
       match st with
       | None -> None
       | Some st ->
-        let vs = ask.f (Queries.ReachableFrom e) in
+        let q = if deep then Queries.ReachableFrom e else Queries.MayPointTo e in
+        let vs = ask.f q in
         if Queries.LS.is_top vs then
           None
         else
@@ -454,36 +501,33 @@ struct
       | Some lval -> remove (Analyses.ask_of_ctx ctx) lval st2
       | None -> st2
 
-  let remove_reachable ctx es =
-    let ask = Analyses.ask_of_ctx ctx in
-    match reachables ask es with
+  let remove_reachable ~deep ask es st =
+    match reachables ~deep ask es with
     | None -> D.top ()
     | Some rs ->
       (* Prior to https://github.com/goblint/analyzer/pull/694 checks were done "in the other direction":
-         each expression in ctx.local was checked for reachability from es/rs using very conservative but also unsound reachable_from.
+         each expression in st was checked for reachability from es/rs using very conservative but also unsound reachable_from.
          It is unknown, why that was necessary. *)
       Queries.LS.fold (fun lval st ->
           remove ask (Lval.CilLval.to_lval lval) st
-        ) rs ctx.local
+        ) rs st
 
   let unknown_fn ctx lval f args =
-    let args =
-      match LF.get_invalidate_action f.vname with
-      | Some fnc -> fnc `Write args
-      | None ->
-        if GobConfig.get_bool "sem.unknown_function.invalidate.args" then
-          args
-        else
-          []
-    in
-    let es =
+    let desc = LF.find f in
+    let shallow_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
+    let deep_args = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
+    let shallow_args =
       match lval with
-      | Some l -> mkAddrOf l :: args
-      | None -> args
+      | Some l -> mkAddrOf l :: shallow_args
+      | None -> shallow_args
     in
     match D.is_bot ctx.local with
     | true -> raise Analyses.Deadcode
-    | false -> remove_reachable ctx es
+    | false ->
+      let ask = Analyses.ask_of_ctx ctx in
+      ctx.local
+      |> remove_reachable ~deep:false ask shallow_args
+      |> remove_reachable ~deep:true ask deep_args
 
   let safe_fn = function
     | "memcpy" -> true
@@ -492,19 +536,20 @@ struct
 
   (* remove all variables that are reachable from arguments *)
   let special ctx lval f args =
-    match LibraryFunctions.classify f.vname args with
-    | `Unknown "spinlock_check" ->
+    let desc = LibraryFunctions.find f in
+    match desc.special args, f.vname with
+    | Unknown, "spinlock_check" ->
       begin match lval with
         | Some x -> assign ctx x (List.hd args)
         | None -> unknown_fn ctx lval f args
       end
-    | `Unknown x when safe_fn x -> ctx.local
-    | `ThreadCreate (_,_, arg) ->
+    | Unknown, x when safe_fn x -> ctx.local
+    | ThreadCreate { arg; _ }, _ ->
       begin match D.is_bot ctx.local with
       | true -> raise Analyses.Deadcode
-      | false -> remove_reachable ctx [arg]
+      | false -> remove_reachable ~deep:true (Analyses.ask_of_ctx ctx) [arg] ctx.local
       end
-    | _ -> unknown_fn ctx lval f args
+    | _, _ -> unknown_fn ctx lval f args
   (* query stuff *)
 
   let eq_set (e:exp) s =
@@ -519,28 +564,44 @@ struct
       D.B.fold add es (Queries.ES.empty ())
 
   let rec eq_set_clos e s =
-    match e with
-    | SizeOf _
-    | SizeOfE _
-    | SizeOfStr _
-    | AlignOf _
-    | Const _
-    | AlignOfE _
-    | UnOp _
-    | BinOp _
-    | AddrOf  (Var _,_)
-    | StartOf (Var _,_)
-    | Lval    (Var _,_) -> eq_set e s
-    | AddrOf  (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | StartOf (Mem e,ofs) ->
-      Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | Lval    (Mem e,ofs) ->
-      Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
-    | CastE (t,e) ->
-      Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
-    | Question _ -> failwith "Logical operations should be compiled away by CIL."
-    | _ -> failwith "Unmatched pattern."
+    if M.tracing then M.traceli "var_eq" "eq_set_clos %a\n" d_plainexp e;
+    let r = match e with
+      | AddrOf (Mem (BinOp (IndexPI, a, i, _)), os) ->
+        (* convert IndexPI to Index offset *)
+        (* TODO: this applies eq_set_clos under the offset, unlike cases below; should generalize? *)
+        Queries.ES.fold (fun e acc -> (* filter_map *)
+            match e with
+            | CastE (_, StartOf a') -> (* eq_set adds casts *)
+              let e' = AddrOf (Cil.addOffsetLval (Index (i, os)) a') in (* TODO: re-add cast? *)
+              Queries.ES.add e' acc
+            | _ -> acc
+          ) (eq_set_clos a s) (Queries.ES.empty ())
+      | SizeOf _
+      | SizeOfE _
+      | SizeOfStr _
+      | AlignOf _
+      | Const _
+      | AlignOfE _
+      | UnOp _
+      | BinOp _
+      | Question _
+      | AddrOfLabel _
+      | Real _
+      | Imag _
+      | AddrOf  (Var _,_)
+      | StartOf (Var _,_)
+      | Lval    (Var _,_) -> eq_set e s
+      | AddrOf  (Mem e,ofs) ->
+        Queries.ES.map (fun e -> mkAddrOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | StartOf (Mem e,ofs) ->
+        Queries.ES.map (fun e -> mkAddrOrStartOf (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | Lval    (Mem e,ofs) ->
+        Queries.ES.map (fun e -> Lval (mkMem ~addr:e ~off:ofs)) (eq_set_clos e s)
+      | CastE (t,e) ->
+        Queries.ES.map (fun e -> CastE (t,e)) (eq_set_clos e s)
+    in
+    if M.tracing then M.traceu "var_eq" "eq_set_clos %a = %a\n" d_plainexp e Queries.ES.pretty r;
+    r
 
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
@@ -550,6 +611,7 @@ struct
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
       (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
+      if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
       r
     | _ -> Queries.Result.top x
 

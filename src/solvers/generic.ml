@@ -78,9 +78,6 @@ struct
     incr Goblintutil.evals;
     if (get_bool "dbg.solver-progress") then (incr stack_d; print_int !stack_d; flush stdout)
 
-  let abort_rhs_event x =
-    incr Goblintutil.aborts
-
   let update_var_event x o n =
     if tracing then increase x;
     if full_trace || ((not (Dom.is_bot o)) && Option.is_some !max_var && Var.equal (Option.get !max_var) x) then begin
@@ -302,7 +299,7 @@ module SoundBoxSolverImpl =
           H.remove infl x;
           H.replace infl x [x];
           if full_trace
-          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: semgrep.trace-not-in-tracing *)
+          then Messages.trace "sol" "Need to review %d deps.\n" (List.length deps); (* nosemgrep: trace-not-in-tracing *)
           (* solve all dependencies *)
           solve_all deps
         end

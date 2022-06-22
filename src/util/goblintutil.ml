@@ -14,9 +14,6 @@ let should_warn = ref false
 (** Whether signed overflow or underflow happened *)
 let svcomp_may_overflow = ref false
 
-(** hack to use a special integer to denote synchronized array-based locking *)
-let inthack = Int64.of_int (-19012009) (* TODO do we still need this? *)
-
 (** The file where everything is output *)
 let out = ref stdout
 
@@ -101,7 +98,6 @@ let seconds_of_duration_string =
 let vars = ref 0
 let evals = ref 0
 let narrow_reuses = ref 0
-let aborts = ref 0
 
 (* print GC statistics; taken from Cil.Stats.print which also includes timing; there's also Gc.print_stat, but it's in words instead of MB and more info than we want (also slower than quick_stat since it goes through the heap) *)
 let print_gc_quick_stat chn =
@@ -140,7 +136,9 @@ let arinc_period        = if scrambled then "M165" else "PERIOD"
 let arinc_time_capacity = if scrambled then "M166" else "TIME_CAPACITY"
 
 let exe_dir = Fpath.(parent (v Sys.executable_name))
-let command = String.concat " " (Array.to_list Sys.argv)
+let command_line = match Array.to_list Sys.argv with
+  | command :: arguments -> Filename.quote_command command arguments
+  | [] -> assert false
 
 (* https://ocaml.org/api/Sys.html#2_SignalnumbersforthestandardPOSIXsignals *)
 (* https://ocaml.github.io/ocamlunix/signals.html *)

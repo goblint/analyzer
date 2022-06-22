@@ -37,7 +37,7 @@ module type S =
     val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> apron_components_t -> apron_components_t
     val threadenter: Q.ask -> (V.t -> G.t) -> apron_components_t -> apron_components_t
 
-    val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
+    val thread_join: ?force:bool -> Q.ask -> (V.t -> G.t) -> Cil.exp -> apron_components_t -> apron_components_t
     val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> apron_components_t -> apron_components_t
     val iter_sys_vars: (V.t -> G.t) -> VarQuery.t -> V.t VarQuery.f -> unit (** [Queries.IterSysVars] for apron. *)
 
@@ -45,30 +45,74 @@ module type S =
     val finalize: unit -> unit
   end
 
-
-module Dummy: S = functor (AD: ApronDomain.S2) ->
+(** Top privatization, which doesn't track globals at all.
+    This is unlike base's "none" privatization. which does track globals, but doesn't privatize them. *)
+module Top: S = functor (AD: ApronDomain.S2) ->
 struct
   module D = Lattice.Unit
   module G = Lattice.Unit
   module V = EmptyV
 
-  let name () = "Dummy"
+  type apron_components_t = ApronComponents (AD) (D).t
+
+  module AV = ApronDomain.V
+
+  let name () = "top"
   let startstate () = ()
   let should_join _ _ = true
 
-  let read_global ask getg st g x = st.ApronDomain.apr
-  let write_global ?(invariant=false) ask getg sideg st g x = st
+  let read_global ask getg (st: apron_components_t) g x =
+    let apr = st.apr in
+    assert (not (AD.mem_var apr (AV.global g)));
+    apr
+
+  let write_global ?(invariant=false) ask getg sideg (st: apron_components_t) g x: apron_components_t =
+    let apr = st.apr in
+    assert (not (AD.mem_var apr (AV.global g)));
+    st
 
   let lock ask getg st m = st
   let unlock ask getg sideg st m = st
 
-  let thread_join ask getg exp st = st
+  let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
-  let sync ask getg sideg st reason = st
+  let sync (ask: Q.ask) getg sideg (st: apron_components_t) reason =
+    match reason with
+    | `Join ->
+      if (ask.f Q.MustBeSingleThreaded) then
+        st
+      else
+        (* must be like enter_multithreaded *)
+        let apr = st.apr in
+        let apr_local = AD.remove_filter apr (fun var ->
+            match AV.find_metadata var with
+            | Some (Global _) -> true
+            | _ -> false
+          )
+        in
+        {st with apr = apr_local}
+    | `Normal
+    | `Init
+    | `Thread
+    | `Return ->
+      st
 
-  let enter_multithreaded ask getg sideg st = st
-  let threadenter ask getg st = st
+  let enter_multithreaded ask getg sideg (st: apron_components_t): apron_components_t =
+    let apr = st.apr in
+    let apr_local = AD.remove_filter apr (fun var ->
+        match AV.find_metadata var with
+        | Some (Global _) -> true
+        | _ -> false
+      )
+    in
+    {st with apr = apr_local}
+
+  let threadenter ask getg (st: apron_components_t): apron_components_t =
+    {apr = AD.bot (); priv = startstate ()}
+
+  (* TODO: remove escaped locals after PR #742 *)
+
   let iter_sys_vars getg vq vf = ()
 
   let init () = ()
@@ -270,7 +314,7 @@ struct
     {apr = apr_local'; priv = (p', w')}
 
 
-  let thread_join ask getg exp st = st
+  let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: apron_components_t) reason =
@@ -461,7 +505,7 @@ struct
     let apr_local = remove_globals_unprotected_after_unlock ask m apr in
     {st with apr = apr_local}
 
-  let thread_join ask getg exp st = st
+  let thread_join ?(force=false) ask getg exp st = st
   let thread_return ask getg sideg tid st = st
 
   let sync ask getg sideg (st: apron_components_t) reason =
@@ -983,22 +1027,40 @@ struct
       let l' = L.add lm apr_side l in
       {apr = apr_local; priv = (w',LMust.add lm lmust,l')}
 
-  let thread_join (ask:Q.ask) getg exp (st: apron_components_t) =
+  let thread_join ?(force=false) (ask:Q.ask) getg exp (st: apron_components_t) =
     let w,lmust,l = st.priv in
     let tids = ask.f (Q.EvalThread exp) in
-    if ConcDomain.ThreadSet.is_top tids then
-      st (* TODO: why needed? *)
+    if force then (
+      if ConcDomain.ThreadSet.is_top tids then (
+        M.info ~category:Unsound "Unknown thread ID assume-joined, Apron privatization unsound"; (* TODO: something more sound *)
+        st (* cannot find all thread IDs to join them all *)
+      )
+      else (
+        (* fold throws if the thread set is top *)
+        let tids' = ConcDomain.ThreadSet.diff tids (ask.f Q.MustJoinedThreads) in (* avoid unnecessary imprecision by force joining already must-joined threads, e.g. 46-apron2/04-other-assume-inprec *)
+        let (lmust', l') = ConcDomain.ThreadSet.fold (fun tid (lmust, l) ->
+            let lmust',l' = G.thread (getg (V.thread tid)) in
+            (LMust.union lmust' lmust, L.join l l')
+          ) tids' (lmust, l)
+        in
+        {st with priv = (w, lmust', l')}
+      )
+    )
     else (
-      (* elements throws if the thread set is top *)
-      let tids = ConcDomain.ThreadSet.elements tids in
-      match tids with
-      | [tid] ->
-        let lmust',l' = G.thread (getg (V.thread tid)) in
-        {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
-      | _ ->
-        (* To match the paper more closely, one would have to join in the non-definite case too *)
-        (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
-        st
+      if ConcDomain.ThreadSet.is_top tids then
+        st (* TODO: why needed? *)
+      else (
+        (* elements throws if the thread set is top *)
+        let tids = ConcDomain.ThreadSet.elements tids in
+        match tids with
+        | [tid] ->
+          let lmust',l' = G.thread (getg (V.thread tid)) in
+          {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+        | _ ->
+          (* To match the paper more closely, one would have to join in the non-definite case too *)
+          (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+          st
+      )
     )
 
   let thread_return ask getg sideg tid (st: apron_components_t) =
@@ -1175,7 +1237,7 @@ let priv_module: (module S) Lazy.t =
   lazy (
     let module Priv: S =
       (val match get_string "ana.apron.privatization" with
-         | "dummy" -> (module Dummy : S)
+         | "top" -> (module Top : S)
          | "protection" -> (module ProtectionBasedPriv (struct let path_sensitive = false end))
          | "protection-path" -> (module ProtectionBasedPriv (struct let path_sensitive = true end))
          | "mutex-meet" -> (module PerMutexMeetPriv)

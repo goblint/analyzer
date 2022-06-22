@@ -46,9 +46,7 @@ sig
   type origin
   include Lattice.S with type t = value * size * origin
 
-  val make: value -> size -> t
   val value: t -> value
-  val size: t -> size
   val invalidate_value: Q.ask -> typ -> t -> t
 end
 
@@ -65,9 +63,7 @@ struct
   let printXml f (x, y, z) =
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\nsize\n</key>\n%a<key>\norigin\n</key>\n%a</map>\n</value>\n" (XmlUtil.escape (Value.name ())) Value.printXml x Size.printXml y ZeroInit.printXml z
 
-  let make v s = v, s, true
   let value (a, b, c) = a
-  let size (a, b, c) = b
   let invalidate_value ask t (v, s, o) = Value.invalidate_value ask t v, s, o
 
   let invariant c (v, _, _) = Value.invariant c v
@@ -83,7 +79,6 @@ module rec Compound: S with type t = [
     | `Union of Unions.t
     | `Array of CArrays.t
     | `Blob of Blobs.t
-    | `List of Lists.t
     | `Thread of Threads.t
     | `Bot
   ] and type offs = (fieldinfo,IndexDomain.t) Lval.offs =
@@ -96,7 +91,6 @@ struct
     | `Union of Unions.t
     | `Array of CArrays.t
     | `Blob of Blobs.t
-    | `List of Lists.t
     | `Thread of Threads.t
     | `Bot
   ] [@@deriving eq, ord, hash]
@@ -134,7 +128,6 @@ struct
     | `Struct x -> Structs.is_bot x
     | `Union x -> Unions.is_bot x
     | `Array x -> CArrays.is_bot x
-    | `List x -> Lists.is_bot x
     | `Blob x -> Blobs.is_bot x
     | `Thread x -> Threads.is_bot x
     | `Bot -> true
@@ -177,7 +170,6 @@ struct
     | `Struct x -> Structs.is_top x
     | `Union x -> Unions.is_top x
     | `Array x -> CArrays.is_top x
-    | `List x -> Lists.is_top x
     | `Blob x -> Blobs.is_top x
     | `Thread x -> Threads.is_top x
     | `Top -> true
@@ -208,7 +200,7 @@ struct
       | _ -> `Top
 
   let tag_name : t -> string = function
-    | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `List _ -> "List" | `Thread _ -> "Thread" | `Bot -> "Bot"
+    | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Bot -> "Bot"
 
   include Printable.Std
   let name () = "compound"
@@ -231,7 +223,6 @@ struct
     | `Union n ->  Unions.pretty () n
     | `Array n ->  CArrays.pretty () n
     | `Blob n ->  Blobs.pretty () n
-    | `List n ->  Lists.pretty () n
     | `Thread n -> Threads.pretty () n
     | `Bot -> text bot_name
     | `Top -> text top_name
@@ -244,7 +235,6 @@ struct
     | `Union n ->  Unions.show n
     | `Array n ->  CArrays.show n
     | `Blob n ->  Blobs.show n
-    | `List n ->  Lists.show n
     | `Thread n -> Threads.show n
     | `Bot -> bot_name
     | `Top -> top_name
@@ -256,7 +246,6 @@ struct
     | (`Struct x, `Struct y) -> Structs.pretty_diff () (x,y)
     | (`Union x, `Union y) -> Unions.pretty_diff () (x,y)
     | (`Array x, `Array y) -> CArrays.pretty_diff () (x,y)
-    | (`List x, `List y) -> Lists.pretty_diff () (x,y)
     | (`Blob x, `Blob y) -> Blobs.pretty_diff () (x,y)
     | (`Thread x, `Thread y) -> Threads.pretty_diff () (x, y)
     | _ -> dprintf "%s: %a not same type as %a" (name ()) pretty x pretty y
@@ -329,8 +318,8 @@ struct
           end
     in
     let one_addr = let open Addr in function
-        | Addr ({ vtype = TVoid _; _} as v, offs) -> (* we had no information about the type (e.g. malloc), so we add it *)
-          Addr ({ v with vtype = t }, offs)
+        | Addr ({ vtype = TVoid _; _} as v, offs) when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
+          Addr ({ v with vtype = t }, offs) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
         | Addr (v, o) as a ->
           begin try Addr (v, (adjust_offs v o None)) (* cast of one address by adjusting the abstract offset *)
             with CastError s -> (* don't know how to handle this cast :( *)
@@ -451,7 +440,6 @@ struct
     | (`Struct x, `Struct y) -> Structs.leq x y
     | (`Union x, `Union y) -> Unions.leq x y
     | (`Array x, `Array y) -> CArrays.leq x y
-    | (`List x, `List y) -> Lists.leq x y
     | (`Blob x, `Blob y) -> Blobs.leq x y
     | `Blob (x,s,o), y -> leq (x:t) y
     | x, `Blob (y,s,o) -> leq x (y:t)
@@ -478,7 +466,6 @@ struct
         | `Lifted f -> (`Lifted f, join x y) (* f = g *)
         | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.join x y)
-    | (`List x, `List y) -> `List (Lists.join x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.join x y)
     | `Blob (x,s,o), y
     | y, `Blob (x,s,o) -> `Blob (join (x:t) y, s, o)
@@ -512,8 +499,7 @@ struct
         | `Lifted f -> (`Lifted f, join_elem x y) (* f = g *)
         | x -> (x, `Top)) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_join x_eval_int y_eval_int x y)
-    | (`List x, `List y) -> `List (Lists.join x y) (* `List can not contain array -> normal join  *)
-    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `List can not contain array -> normal join  *)
+    | (`Blob x, `Blob y) -> `Blob (Blobs.join x y) (* `Blob can not contain array -> normal join  *)
     | `Blob (x,s,o), y
     | y, `Blob (x,s,o) ->
       `Blob (join (x:t) y, s, o)
@@ -547,7 +533,6 @@ struct
         | `Lifted f -> `Lifted f, widen_elem x y  (* f = g *)
         | x -> x, `Top) (* f <> g *)
     | (`Array x, `Array y) -> `Array (CArrays.smart_widen x_eval_int y_eval_int x y)
-    | (`List x, `List y) -> `List (Lists.widen x y) (* `List can not contain array -> normal widen  *)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y) (* `Blob can not contain array -> normal widen  *)
     | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
     | (`Int x, `Thread y)
@@ -578,7 +563,6 @@ struct
     | (`Union (f, x), `Union (g, y)) ->
         UnionDomain.Field.leq f g && leq_elem x y
     | (`Array x, `Array y) -> CArrays.smart_leq x_eval_int y_eval_int x y
-    | (`List x, `List y) -> Lists.leq x y (* `List can not contain array -> normal leq  *)
     | (`Blob x, `Blob y) -> Blobs.leq x y (* `Blob can not contain array -> normal leq  *)
     | (`Thread x, `Thread y) -> Threads.leq x y
     | (`Int x, `Thread y) -> true
@@ -598,7 +582,6 @@ struct
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
     | (`Union x, `Union y) -> `Union (Unions.meet x y)
     | (`Array x, `Array y) -> `Array (CArrays.meet x y)
-    | (`List x, `List y) -> `List (Lists.meet x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.meet x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.meet x y)
     | (`Int x, `Thread y)
@@ -629,7 +612,6 @@ struct
         | `Lifted f -> (`Lifted f, widen x y) (* f = g *)
         | x -> (x, `Top))
     | (`Array x, `Array y) -> `Array (CArrays.widen x y)
-    | (`List x, `List y) -> `List (Lists.widen x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.widen x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.widen x y)
     | (`Int x, `Thread y)
@@ -651,7 +633,6 @@ struct
     | (`Struct x, `Struct y) -> `Struct (Structs.narrow x y)
     | (`Union x, `Union y) -> `Union (Unions.narrow x y)
     | (`Array x, `Array y) -> `Array (CArrays.narrow x y)
-    | (`List x, `List y) -> `List (Lists.narrow x y)
     | (`Blob x, `Blob y) -> `Blob (Blobs.narrow x y)
     | (`Thread x, `Thread y) -> `Thread (Threads.narrow x y)
     | (`Int x, `Thread y)
@@ -688,8 +669,8 @@ struct
       let v = invalidate_value ask voidType (CArrays.get ask n (array_idx_top)) in
       `Array (CArrays.set ask n (array_idx_top) v)
     |                 t , `Blob n       -> `Blob (Blobs.invalidate_value ask t n)
-    |                 _ , `List n       -> `Top
     |                 _ , `Thread _     -> state (* TODO: no top thread ID set! *)
+    | _, `Bot -> `Bot (* Leave uninitialized value (from malloc) alone in free to avoid trashing everything. TODO: sound? *)
     |                 t , _             -> top_value t
 
 
@@ -830,14 +811,6 @@ struct
         | `NoOffset -> x
         | `Field (fld, offs) when fld.fcomp.cstruct -> begin
             match x with
-            | `List ls when fld.fname = "next" || fld.fname = "prev" ->
-              `Address (Lists.entry_rand ls)
-            | `Address ad when fld.fcomp.cname = "list_head" || fld.fname = "next" || fld.fname = "prev" ->
-              (*hack for lists*)
-              begin match f ad with
-                | `List l -> `Address (Lists.entry_rand l)
-                | _ -> M.warn "Trying to read a field, but was not given a struct"; top ()
-              end
             | `Struct str ->
               let x = Structs.get str fld in
               let l', o' = shift_one_over l o in
@@ -1030,7 +1003,7 @@ struct
       end
     | `Struct s -> `Struct (Structs.map (move_fun) s)
     | `Union (f, v) -> `Union(f, move_fun v)
-    (* `Blob / `List can not contain Array *)
+    (* `Blob can not contain Array *)
     | x -> x
 
   let rec affecting_vars (x:t) =
@@ -1047,7 +1020,7 @@ struct
         Structs.fold (fun x value acc -> add_affecting_one_level acc value) s []
     | `Union (f, v) ->
         affecting_vars v
-    (* `Blob / `List can not contain Array *)
+    (* `Blob can not contain Array *)
     | _ -> []
 
   (* Won't compile without the final :t annotation *)
@@ -1081,7 +1054,6 @@ struct
     | `Union n ->  Unions.printXml f n
     | `Array n ->  CArrays.printXml f n
     | `Blob n ->  Blobs.printXml f n
-    | `List n ->  Lists.printXml f n
     | `Thread n -> Threads.printXml f n
     | `Bot -> BatPrintf.fprintf f "<value>\n<data>\nbottom\n</data>\n</value>\n"
     | `Top -> BatPrintf.fprintf f "<value>\n<data>\ntop\n</data>\n</value>\n"
@@ -1093,7 +1065,6 @@ struct
     | `Union n -> Unions.to_yojson n
     | `Array n -> CArrays.to_yojson n
     | `Blob n -> Blobs.to_yojson n
-    | `List n -> Lists.to_yojson n
     | `Thread n -> Threads.to_yojson n
     | `Bot -> `String "⊥"
     | `Top -> `String "⊤"
@@ -1116,7 +1087,6 @@ struct
     | `Union (f, v) -> `Union (f, project p v)
     | `Array n -> `Array (project_arr p n)
     | `Blob (v, s, z) -> `Blob (project p v, ID.project p s, z)
-    | `List n -> `List (project_list p n (Lists.bot ()))
     | `Thread n -> `Thread n
     | `Bot -> `Bot
     | `Top -> `Top
@@ -1135,16 +1105,6 @@ struct
     match CArrays.length n with
     | None -> n'
     | Some l -> CArrays.update_length (ID.project p l) n'
-  and project_list p (acc: Lists.t) (l: Lists.t) =
-    match Lists.list_empty l with
-    | Some true -> acc
-    | _ ->
-      begin
-        let e = Lists.entry l in
-        let acc' = Lists.add (project_addr p e) acc in
-        let l' = Lists.del e l in
-        project_list p acc' l'
-      end
 end
 
 and Structs: StructDomain.S with type field = fieldinfo and type value = Compound.t =
@@ -1157,4 +1117,3 @@ and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDom
   ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
-and Lists: ListDomain.S with type elem = AD.t = ListDomain.SimpleList (AD)

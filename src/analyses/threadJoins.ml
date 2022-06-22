@@ -30,8 +30,9 @@ struct
     ctx.local
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `ThreadJoin (id, ret_var) ->
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist, f.vname with
+    | ThreadJoin { thread = id; ret_var }, _ ->
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then
         ctx.local
@@ -45,7 +46,34 @@ struct
         | _ -> ctx.local (* if multiple possible thread ids are joined, none of them is must joined*)
         (* Possible improvement: Do the intersection first, things that are must joined in all possibly joined threads are must-joined *)
       )
-    | _ -> ctx.local
+    | Unknown, "__goblint_assume_join" ->
+      let id = List.hd arglist in
+      let threads = ctx.ask (Queries.EvalThread id) in
+      if TIDs.is_top threads then (
+        M.info ~category:Unsound "Unknown thread ID assume-joined, assuming ALL threads must-joined.";
+        D.bot () (* consider everything joined, D is reversed so bot is All threads *)
+      )
+      else (
+        (* elements throws if the thread set is top *)
+        let threads = TIDs.elements threads in
+        List.fold_left (fun acc tid ->
+            let joined = ctx.global tid in
+            D.union (D.add tid acc) joined
+          ) ctx.local threads
+      )
+    | _, _ -> ctx.local
+
+  let threadspawn ctx lval f args fctx =
+    if D.is_bot ctx.local then ( (* bot is All threads *)
+      M.info ~category:Imprecise "Thread created while ALL threads must-joined, continuing with no threads joined.";
+      D.top () (* top is no threads *)
+    )
+    else
+      match ThreadId.get_current (Analyses.ask_of_ctx fctx) with
+      | `Lifted tid ->
+        D.remove tid ctx.local
+      | _ ->
+        ctx.local
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     match q with

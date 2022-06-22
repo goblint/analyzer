@@ -68,14 +68,7 @@ debug Goblint.
 
 Install the [`hackwaly.ocamlearlybird` extension](https://marketplace.visualstudio.com/items?itemName=hackwaly.ocamlearlybird) in your installation of Visual Studio Code.
 To be able to use this extension, you additionally need to install `ocamlearlybird` on the opam switch you use for Goblint.
-Running:
-
-```console
-make dev
-```
-
-will install `ocamlearlybird` along with some other useful development tools.
-In case you do not want to install all of these and only want to install `ocamlearlybird` by itself, run the following command in the `analyzer` directory:
+To do so, run the following command in the `analyzer` directory:
 
 ```console
 opam install earlybird

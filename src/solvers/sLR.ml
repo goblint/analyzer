@@ -290,7 +290,6 @@ module Make =
       include S.Dom
       let eq = equal
       let cup = join
-      let cap = meet
     end
 
     let infl   = HM.create 1024
@@ -461,7 +460,6 @@ module type MyGenericEqBoxSolver =
     val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
     val wpoint : unit H.t
     val infl :  S.v list H.t
-    val h_find_default : 'a H.t -> S.v -> 'a -> 'a
     module X :
     sig
       val keys : int H.t

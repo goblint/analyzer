@@ -79,7 +79,7 @@ struct
     | `Assoc l ->
       begin match List.assoc_opt "file" l, List.assoc_opt "line" l, List.assoc_opt "column" l, List.assoc_opt "byte" l with
         | Some (`String file), Some (`Int line), Some (`Int column), Some (`Int byte) ->
-          let loc = {file; line; column; byte; endLine = -1; endColumn = -1; endByte = -1} in
+          let loc = {file; line; column; byte; endLine = -1; endColumn = -1; endByte = -1; synthetic = false} in
           begin match List.assoc_opt "endLine" l, List.assoc_opt "endColumn" l, List.assoc_opt "endByte" l with
             | Some (`Int endLine), Some (`Int endColumn), Some (`Int endByte) ->
               Result.Ok {loc with endLine; endColumn; endByte}
