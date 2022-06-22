@@ -1,6 +1,98 @@
 open Cil
+open Batteries
 module Thresholds = Set.Make(Z)
 
+(*Collect only constants that are used in comparisons*)
+(*TODO limit the amount of constants, because too many lead to too many iterations*)
+(*differentiating between upper and lower bounds, because e.g. expr > 10 is definitely true for an interval [11, x] and definitely false for an interval [x, 10]*)
+(*apron octagons use thresholds for c in inequalities +/- x +/- y <= c*)
+(* x + y <= 10 -> definitely right if c=10 *)
+(*                definitely wrong if c=-11 (because -x -y <= -11 <=> x + y >= 11 <=> x + y > 10)*)
+(* x <= 10 <=> x + x <= 2*10 -> 2 *10 and -2*10-1 are also interesting *)
+
+let addThreshold t_ref z = t_ref := Thresholds.add z !t_ref;;
+let one = Z.of_int 1;;
+let neg_one = Z.of_int (-1);;
+
+class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, ocatagon_thresholds) = object
+  inherit nopCilVisitor
+
+  method! vexpr = function
+    (*Comparisons of type: 10 < expr, expr > 10, expr <= 10, 10 >= expr*)
+    | BinOp (Lt, (Const (CInt(i,_,_))), _, (TInt _))
+    | BinOp (Gt, _, (Const (CInt(i,_,_))), (TInt _))
+    | BinOp (Le, _, (Const (CInt(i,_,_))), (TInt _))
+    | BinOp (Ge, (Const (CInt(i,_,_))), _, (TInt _)) ->
+      addThreshold upper_thresholds @@ i;
+      addThreshold lower_thresholds @@ Z.add one i;
+
+      addThreshold ocatagon_thresholds @@ i;
+      addThreshold ocatagon_thresholds @@ Z.sub neg_one i;
+      let doubleI = Z.add i i in
+      addThreshold ocatagon_thresholds @@ doubleI;
+      addThreshold ocatagon_thresholds @@ Z.sub neg_one doubleI;
+      DoChildren
+    (*Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr*)
+    | BinOp (Le, (Const (CInt(i,_,_))), _, (TInt _))
+    | BinOp (Ge, _, (Const (CInt(i,_,_))), (TInt _))
+    | BinOp (Lt, _, (Const (CInt(i,_,_))), (TInt _))
+    | BinOp (Gt, (Const (CInt(i,_,_))), _, (TInt _)) ->
+      addThreshold upper_thresholds @@ Z.add neg_one i;
+      addThreshold lower_thresholds @@ i;
+
+      addThreshold ocatagon_thresholds @@ Z.add neg_one i;
+      addThreshold ocatagon_thresholds @@ Z.neg i;
+      let doubleI = Z.add i i in
+      addThreshold ocatagon_thresholds @@ Z.add neg_one doubleI;
+      addThreshold ocatagon_thresholds @@ Z.neg doubleI;
+      DoChildren
+    (*Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr*)
+    | BinOp (Eq, (Const (CInt(i,_,_))), _, (TInt _))
+    | BinOp (Eq, _, (Const (CInt(i,_,_))), (TInt _))
+    | BinOp (Ne, _, (Const (CInt(i,_,_))), (TInt _))
+    | BinOp (Ne, (Const (CInt(i,_,_))), _, (TInt _)) ->
+      addThreshold upper_thresholds @@ Z.add neg_one i;
+      addThreshold lower_thresholds @@ Z.add one i;
+      addThreshold upper_thresholds @@ i;
+      addThreshold lower_thresholds @@ i;
+
+      addThreshold ocatagon_thresholds @@ i;
+      addThreshold ocatagon_thresholds @@ Z.neg i;
+      addThreshold ocatagon_thresholds @@ Z.sub i one;
+      addThreshold ocatagon_thresholds @@ Z.sub neg_one i;
+      let doubleI = Z.add i i in
+      addThreshold ocatagon_thresholds @@ doubleI;
+      addThreshold ocatagon_thresholds @@ Z.neg doubleI;
+      addThreshold ocatagon_thresholds @@ Z.sub doubleI one;
+      addThreshold ocatagon_thresholds @@ Z.sub neg_one doubleI;
+      DoChildren
+    | _ -> DoChildren
+end
+
+let default_thresholds = Thresholds.of_list (
+  let thresh_pos = List.map ( Int.pow 2) [0;2;4;8;16;32;48] in
+  let thresh_neg = List.map (fun x -> -x) thresh_pos in
+  List.map Z.of_int (thresh_neg @ thresh_pos @ [0])
+)
+
+let conditional_widening_thresholds = ResettableLazy.from_fun (fun () ->
+  let upper = ref default_thresholds in
+  let lower = ref default_thresholds in
+  let octagon = ref default_thresholds in
+  let thisVisitor = new extractThresholdsFromConditionsVisitor(upper,lower,octagon) in
+  visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
+  Thresholds.elements !upper, List.rev (Thresholds.elements !lower), Thresholds.elements !octagon )
+
+let upper_thresholds () = 
+  let (u,_,_) = ResettableLazy.force conditional_widening_thresholds in u;;
+
+let lower_thresholds () = 
+  let (_,l,_) = ResettableLazy.force conditional_widening_thresholds in l;;
+
+let ocatagon_thresholds () = 
+  let (_,_,o) = ResettableLazy.force conditional_widening_thresholds in o;;
+
+(*old version. is there anything this has that the new one does not?*)
 
 class extractConstantsVisitor(widening_thresholds,widening_thresholds_incl_mul2) = object
   inherit nopCilVisitor
@@ -32,4 +124,6 @@ let thresholds_incl_mul2 () =
   snd @@ ResettableLazy.force widening_thresholds
 
 let reset_lazy () =
-  ResettableLazy.reset widening_thresholds
+  ResettableLazy.reset widening_thresholds;
+  ResettableLazy.reset conditional_widening_thresholds;
+

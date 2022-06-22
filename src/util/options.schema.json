@@ -628,6 +628,13 @@
           },
           "additionalProperties": false
         },
+        "autoselect": {
+          "title": "ana.autoselect",
+          "description":
+            "Try to intelligently select analyses based on analysed file",
+          "type": "boolean",
+          "default": false
+        },
         "sv-comp": {
           "title": "ana.sv-comp",
           "type": "object",
