@@ -17,7 +17,7 @@ import multiprocessing as mp
 # The script for building the compilation database is assumed to be found in the analyzers script directory and the
 # config file is assumed to be found in the conf directory of the analyzers repository.
 if len(sys.argv) != 3:
-      print("Wrong number of parameters.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
+      print("Wrong number of parameters.\nUse script like this: python3 parallel_benchmarking.py <absolute path to goblint directory> <number of processes>")
       exit()
 res_dir = os.path.abspath('result_precision')
 maxCLOC       = None

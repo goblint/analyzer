@@ -70,23 +70,25 @@ def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filena
         # -> 17.7917cm / 7.00697in
         textwidth = 7
         xlimleft = None
-        if i == 3:
-            size = (textwidth, textwidth/4)
-            xlim = 1.02
-            step = 0.005
-            # with title: size = (7, 7/3) # 3.54in = 9cm # use 18*cm for specifying it in cm
-        elif i == 0:
+        xlabel = "Relative speedup" if i==3 else None
+        ylabel = "\# Commits" if i==0 or i==3 else None
+        outfile = os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf")
+        if i == 0:
             size = (textwidth/3+0.1, textwidth/4) # additional ylabel
             xlim = 1.05
         elif i == 1:
             xlimleft = -0.3
             size = (textwidth/3-0.1/2, textwidth/4) # missing ylabel
             xlim = 1.05
+        elif i == 3:
+            size = (textwidth, textwidth/4)
+            xlim = 1.02
+            step = 0.005
         else:
             size = (textwidth/3-0.1/2, textwidth/4) # missing ylabel
             xlim = 1.05
-            # with title: size = (7/3, 7/3)
-        utils.hist_plot(diff, step, None, "Relative speedup" if i==3 else None, "\# Commits" if i==0 or i==3 else None, os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf"), size, xlim_left=xlimleft, xlim_right=xlim, cutoffs=None)
+        utils.hist_plot(diff, step, None, xlabel, xlabel, ylabel, outfile,
+            size, xlim_left=xlimleft, xlim_right=xlim, cutoffs=None)
 
 def paper_precision_graph(results_precision, filename, outdir):
     df = utils.get_data_from_json(os.path.join(results_precision, filename))

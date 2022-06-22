@@ -48,8 +48,9 @@
       "sided": {
         "enabled": true,
         "only-access": true,
-        "destab-with-sides": false
-      }
+        "fuel": 1
+      },
+      "write-only": false
     },
     "postsolver": {
       "enabled": false

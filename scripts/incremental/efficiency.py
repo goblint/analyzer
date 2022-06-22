@@ -20,12 +20,13 @@ import pandas as pd
 if len(sys.argv) != 3:
       print("Wrong number of parameters.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
       exit()
-result_dir    = os.path.join(os.getcwd(), 'result_efficiency_incrpost') # 2) for the comparison "result_efficiency_baseline"
+result_dir    = os.path.join(os.getcwd(), 'result_efficiency') # 2) for the comparison "result_efficiency_baseline"
 maxCLOC       = 50
 url           = "https://github.com/facebook/zstd"
 repo_name     = "zstd"
 build_compdb  = "build_compdb_zstd.sh"
-conf          = "zstd-race-incrpostsolver" # 2) for comparison: "zstd-race-baseline", very minimal: "zstd-minimal"
+conf_base     = "zstd-race-baseline" # very minimal: "zstd-minimal"
+conf_incrpost = "zstd-race-incrpostsolver"
 begin         = datetime(2021,8,1)
 to            = datetime(2022,2,1) # minimal subset: datetime(2021,8,4)
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
@@ -33,7 +34,7 @@ analyzer_dir  = sys.argv[1]
 try:
     numcores = int(sys.argv[2])
 except ValueError:
-    print("Parameter should be a number.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
+    print("Parameter should be a number.\nUse script like this: python3 parallel_benchmarking.py <absolute path to goblint directory> <number of processes>")
     exit()
 only_collect_results = False # can be turned on to collect results, if data collection was aborted before the creation of result tables
 ################################################################################
@@ -53,10 +54,10 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
         #print('changed LOC: ', commit.lines)
         #print('merge commit: ', commit.merge)
 
-        # skip merge commits and commits that have less than maxCLOC of relevant code changes
+        # skip merge commits and commits that have no or less than maxCLOC of relevant code changes
         relCLOC = utils.calculateRelCLOC(repo_path, commit, diff_exclude) # use this to filter commits by actually relevant changes
         #print("relCLOC: ", relCLOC)
-        if maxCLOC is not None and relCLOC > maxCLOC:
+        if relCLOC == 0 or (maxCLOC is not None and relCLOC > maxCLOC):
             #print('Skip this commit: merge commit or too many relevant changed LOC')
             count_skipped+=1
             continue
@@ -74,19 +75,25 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
             outparent = os.path.join(outtry, 'parent')
             os.makedirs(outparent)
             add_options = ['--disable', 'incremental.load', '--enable', 'incremental.save']
-            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, parent.hash, outparent, conf, add_options)
+            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, parent.hash, outparent, conf_base, add_options)
 
             #print('And now analyze', str(commit.hash), 'incrementally.')
             outchild = os.path.join(outtry, 'child')
             os.makedirs(outchild)
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save']
-            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchild, conf, add_options)
+            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchild, conf_base, add_options)
 
-            #print('And again incremental, this time reluctantly')
+            #print('And again incremental, this time with incremental postsolver')
+            outchildrel = os.path.join(outtry, 'child-rel')
+            os.makedirs(outchildrel)
+            add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save']
+            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchildrel, conf_incrpost, add_options)
+
+            #print('And again incremental, this time with incremental postsolver and reluctant')
             outchildrel = os.path.join(outtry, 'child-rel')
             os.makedirs(outchildrel)
             add_options = ['--enable', 'incremental.load', '--disable', 'incremental.save', '--enable', 'incremental.reluctant.on']
-            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchildrel, conf, add_options)
+            utils.analyze_commit(analyzer_dir, gr, repo_path, build_compdb, commit.hash, outchildrel, conf_incrpost, add_options)
 
             count_analyzed+=1
             failed = False
