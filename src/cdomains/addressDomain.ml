@@ -152,7 +152,7 @@ struct
               let offset = offs_to_offset offs in
 
               let i =
-                if not (InvariantCil.var_is_heap vi) then
+                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp && not (var_is_tmp vi) && var_is_in_scope c.scope vi && not (var_is_heap vi)) then
                   let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
                   Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
                 else
@@ -166,7 +166,10 @@ struct
             | Addr.NullPtr ->
               let i =
                 let addr_exp = integer 0 in
-                Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope c.scope c_exp) then
+                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                else
+                  Invariant.none
               in
               Some (Invariant.(acc || i))
             (* TODO: handle Addr.StrPtr? *)
