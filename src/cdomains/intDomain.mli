@@ -234,6 +234,7 @@ sig
 
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -267,7 +268,7 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
-  val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
+  val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
@@ -304,6 +305,7 @@ sig
   val is_top_of: Cil.ikind -> t -> bool
 
   val project: PrecisionUtil.int_precision -> t -> t
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 (** The signature of integral value domains keeping track of ikind information *)
 
@@ -337,6 +339,8 @@ module Size : sig
   val is_cast_injective : from_type:Cil.typ -> to_type:Cil.typ -> bool
   val bits            : Cil.ikind -> int * int
 end
+
+module BISet: SetDomain.S with type elt = Z.t
 
 exception ArithmeticOnIntegerBot of string
 

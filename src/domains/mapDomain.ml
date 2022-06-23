@@ -299,7 +299,6 @@ struct
   let pretty_diff = M.pretty_diff
   let printXml = M.printXml
   let arbitrary = M.arbitrary
-  let invariant = M.invariant
 
   (* Lattice.S *)
   let top () = time "top" M.top ()
