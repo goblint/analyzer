@@ -691,6 +691,19 @@
               "type": "string",
               "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
               "default": "protection-read"
+            },
+            "invariant": {
+              "title": "ana.base.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.invariant.enabled",
+                  "description": "Generate base analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -780,6 +793,24 @@
                 "one-var": {
                   "title": "ana.apron.invariant.one-var",
                   "description": "Generate invariants with only one variable",
+                  "type": "boolean",
+                  "default": false
+                },
+                "local": {
+                  "title": "ana.apron.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.apron.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
                   "type": "boolean",
                   "default": false
                 }

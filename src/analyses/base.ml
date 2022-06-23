@@ -1128,6 +1128,12 @@ struct
 
     cpa_invariant
 
+  let query_invariant ctx context =
+    if GobConfig.get_bool "ana.base.invariant.enabled" then
+      query_invariant ctx context
+    else
+      Invariant.none
+
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
