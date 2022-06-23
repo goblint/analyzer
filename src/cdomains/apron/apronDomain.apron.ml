@@ -626,6 +626,7 @@ sig
   val bot_env: Environment.t -> t
   val is_top_env: t -> bool
   val is_bot_env: t -> bool
+  val invariant: scope:Cil.fundec -> t -> Invariant.t
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
@@ -641,7 +642,7 @@ struct
   let is_bot_env = A.is_bottom Man.mgr
 
   let to_yojson x = failwith "TODO implement to_yojson"
-  let invariant _ _ = Invariant.none
+  let invariant ~scope _ = Invariant.none
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
@@ -667,6 +668,7 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
+  val invariant: scope:Cil.fundec -> t -> Invariant.t
 end
 
 module Tracked =
@@ -766,7 +768,7 @@ struct
       | (None, Some max) -> ID.ending ik max
       | (None, None) -> ID.top_of ik
 
-  let invariant (ctx: Invariant.context) x =
+  let invariant ~scope x =
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
     (* let x = A.copy Man.mgr x in
@@ -779,12 +781,12 @@ struct
       )
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          Convert.cil_exp_of_lincons1 ctx.scope lincons1
-          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)
+          Convert.cil_exp_of_lincons1 scope lincons1
+          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else
           None
       )
-    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) (Invariant.top ())
 end
 
 
@@ -1069,6 +1071,7 @@ module ApronComponents (D2: S2) (PrivD: Lattice.S):
 sig
   module AD: S2 with type Man.mt = D2.Man.mt
   include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
+  val invariant: scope:Cil.fundec -> t -> Invariant.t
 end =
 struct
   module AD = D2
@@ -1094,8 +1097,8 @@ struct
 
   let name () = D2.name () ^ " * " ^ PrivD.name ()
 
-  let invariant c {apr; priv} =
-    Invariant.(D2.invariant c apr && PrivD.invariant c priv)
+  let invariant ~scope {apr; priv} =
+    D2.invariant ~scope apr
 
   let of_tuple(apr, priv):t = {apr; priv}
   let to_tuple r = (r.apr, r.priv)
