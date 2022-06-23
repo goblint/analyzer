@@ -1949,16 +1949,16 @@ struct
       AD.is_top xs || AD.exists not_local xs
     in
     (match rval_val, lval_val with
-    | `Address adrs, lval
-      when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
-      let find_fps e xs = match Addr.to_var_must e with
-        | Some x -> x :: xs
-        | None -> xs
-      in
-      let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
-      let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-      List.iter (fun x -> ctx.spawn None x []) funs
-    | _ -> ()
+     | `Address adrs, lval
+       when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+       let find_fps e xs = match Addr.to_var_must e with
+         | Some x -> x :: xs
+         | None -> xs
+       in
+       let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
+       let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
+       List.iter (fun x -> ctx.spawn None x []) funs
+     | _ -> ()
     );
     match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
     | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
