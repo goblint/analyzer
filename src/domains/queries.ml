@@ -37,7 +37,6 @@ end
 module LS = SetDomain.ToppedSet (Lval.CilLval) (struct let topname = "All" end)
 module TS = SetDomain.ToppedSet (CilType.Typ) (struct let topname = "All" end)
 module ES = SetDomain.Reverse (SetDomain.ToppedSet (CilType.Exp) (struct let topname = "All" end))
-module LiftedExp = Lattice.Flat(CilType.Exp)(struct let top_name = "Top" let bot_name = "Unreachable" end)
 
 module VI = Lattice.Flat (Basetype.Variables) (struct
   let top_name = "Unknown line"
@@ -65,10 +64,9 @@ type access =
   | Memory of memory_access (** Memory location access (race). *)
   | Point (** Program point and state access (MHP), independent of memory location. *)
 [@@deriving ord, hash] (* TODO: fix ppx_deriving_hash on variant with inline record *)
-type invariant_context = {
-  scope: CilType.Fundec.t;
+type invariant_context = Invariant.context = {
+  path: int option;
   lval: CilType.Lval.t option;
-  offset: CilType.Offset.t;
 }
 [@@deriving ord, hash]
 
@@ -108,7 +106,7 @@ type _ t =
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
   | CreatedThreads: ConcDomain.ThreadSet.t t
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
-  | Invariant: invariant_context -> LiftedExp.t t
+  | Invariant: invariant_context -> Invariant.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
 
 type 'a result = 'a
@@ -159,7 +157,7 @@ struct
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
-    | Invariant _ -> (module LiftedExp)
+    | Invariant _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
 
   (** Get bottom result for query. *)
@@ -209,7 +207,7 @@ struct
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
-    | Invariant _ -> LiftedExp.top ()
+    | Invariant _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
 end
 

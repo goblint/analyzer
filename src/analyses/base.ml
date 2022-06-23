@@ -682,6 +682,27 @@ struct
       | Index (_, offs) -> do_offs def offs
       | NoOffset -> def
     in
+    let binop_remove_same_casts ~extra_is_safe ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 =
+      let te1 = Cilfacade.typeOf e1 in
+      let te2 = Cilfacade.typeOf e2 in
+      let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
+      let is_safe = (extra_is_safe || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
+      M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
+      if is_safe then ( (* we can ignore the casts if the casts can't change the value *)
+        let e1 = if isArithmeticType te1 then c1 else e1 in
+        let e2 = if isArithmeticType te2 then c2 else e2 in
+        (e1, e2)
+      )
+      else
+        (c1, c2)
+    in
+    let binop_case ~arg1 ~arg2 ~op ~typ =
+      let a1 = eval_rv a gs st arg1 in
+      let a2 = eval_rv a gs st arg2 in
+      let t1 = Cilfacade.typeOf arg1 in
+      let t2 = Cilfacade.typeOf arg2 in
+      evalbinop a st op t1 a1 t2 a2 typ
+    in
     let r =
       (* query functions were no help ... now try with values*)
       match constFold true exp with
@@ -755,26 +776,87 @@ struct
       | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
         let a1 = eval_rv a gs st e1 in
         let a2 = eval_rv a gs st e2 in
-        let te1 = Cilfacade.typeOf e1 in
-        let te2 = Cilfacade.typeOf e2 in
-        let both_arith_type = isArithmeticType te1 && isArithmeticType te2 in
-        let is_safe = (VD.equal a1 a2 || VD.is_safe_cast t1 te1 && VD.is_safe_cast t2 te2) && not both_arith_type in
-        M.tracel "cast" "remove cast on both sides for %a? -> %b\n" d_exp exp is_safe;
-        if is_safe then ( (* we can ignore the casts if the values are equal anyway, or if the casts can't change the value *)
-          let e1 = if isArithmeticType te1 then c1 else e1 in
-          let e2 = if isArithmeticType te2 then c2 else e2 in
-          eval_rv a gs st (BinOp (op, e1, e2, typ))
-        )
-        else
-          let a1 = eval_rv a gs st c1 in
-          let a2 = eval_rv a gs st c2 in
-          evalbinop a st op t1 a1 t2 a2 typ
-      | BinOp (op,arg1,arg2,typ) ->
-        let a1 = eval_rv a gs st arg1 in
-        let a2 = eval_rv a gs st arg2 in
-        let t1 = Cilfacade.typeOf arg1 in
-        let t2 = Cilfacade.typeOf arg2 in
+        let (e1, e2) = binop_remove_same_casts ~extra_is_safe:(VD.equal a1 a2) ~e1 ~e2 ~t1 ~t2 ~c1 ~c2 in
+        let a1 = eval_rv a gs st e1 in (* re-evaluate because might be with cast *)
+        let a2 = eval_rv a gs st e2 in
         evalbinop a st op t1 a1 t2 a2 typ
+      | BinOp (LOr, arg1, arg2, typ) as exp ->
+        let (let*) = Option.bind in
+        (* split nested LOr Eqs to equality pairs, if possible *)
+        let rec split = function
+          (* copied from above to support pointer equalities with implicit casts inserted *)
+          | BinOp (op, (CastE (t1, e1) as c1), (CastE (t2, e2) as c2), typ) when typeSig t1 = typeSig t2 && (op = Eq || op = Ne) ->
+            Some [binop_remove_same_casts ~extra_is_safe:false ~e1 ~e2 ~t1 ~t2 ~c1 ~c2]
+          | BinOp (Eq, arg1, arg2, _) ->
+            Some [(arg1, arg2)]
+          | BinOp (LOr, arg1, arg2, _) ->
+            let* s1 = split arg1 in
+            let* s2 = split arg2 in
+            Some (s1 @ s2)
+          | _ ->
+            None
+        in
+        (* find common exp from all equality pairs and list of other sides, if possible *)
+        let find_common = function
+          | [] -> assert false
+          | (e1, e2) :: eqs ->
+            let eqs_for_all_mem e = List.for_all (fun (e1, e2) -> CilType.Exp.(equal e1 e || equal e2 e)) eqs in
+            let eqs_map_remove e = List.map (fun (e1, e2) -> if CilType.Exp.equal e1 e then e2 else e1) eqs in
+            if eqs_for_all_mem e1 then
+              Some (e1, e2 :: eqs_map_remove e1)
+            else if eqs_for_all_mem e2 then
+              Some (e2, e1 :: eqs_map_remove e2)
+            else
+              None
+        in
+        let eqs_value =
+          let* eqs = split exp in
+          let* (e, es) = find_common eqs in
+          let v = eval_rv a gs st e in (* value of common exp *)
+          let vs = List.map (eval_rv a gs st) es in (* values of other sides *)
+          let ik = Cilfacade.get_ikind typ in
+          match v with
+          | `Address a ->
+            (* get definite addrs from vs *)
+            let rec to_definite_ad = function
+              | [] -> AD.empty ()
+              | `Address a :: vs when AD.is_definite a ->
+                AD.union a (to_definite_ad vs)
+              | _ :: vs ->
+                to_definite_ad vs
+            in
+            let definite_ad = to_definite_ad vs in
+            if AD.leq a definite_ad then (* other sides cover common address *)
+              Some (`Int (ID.of_bool ik true))
+            else (* TODO: detect disjoint cases using may: https://github.com/goblint/analyzer/pull/757#discussion_r898105918 *)
+              None
+          | `Int i ->
+            let module BISet = IntDomain.BISet in
+            (* get definite ints from vs *)
+            let rec to_int_set = function
+              | [] -> BISet.empty ()
+              | `Int i :: vs when ID.is_int i ->
+                let i' = Option.get (ID.to_int i) in
+                BISet.add i' (to_int_set vs)
+              | _ :: vs ->
+                to_int_set vs
+            in
+            let* incl_list = ID.to_incl_list i in
+            let incl_set = BISet.of_list incl_list in
+            let int_set = to_int_set vs in
+            if BISet.leq incl_set int_set then (* other sides cover common int *)
+              Some (`Int (ID.of_bool ik true))
+            else (* TODO: detect disjoint cases using may: https://github.com/goblint/analyzer/pull/757#discussion_r898105918 *)
+              None
+          | _ ->
+            None
+        in
+        begin match eqs_value with
+          | Some x -> x
+          | None -> binop_case ~arg1 ~arg2 ~op:LOr ~typ (* fallback to general case *)
+        end
+      | BinOp (op,arg1,arg2,typ) ->
+        binop_case ~arg1 ~arg2 ~op ~typ
       (* Unary operators *)
       | UnOp (op,arg1,typ) ->
         let a1 = eval_rv a gs st arg1 in
@@ -942,6 +1024,116 @@ struct
 
   (* interpreter end *)
 
+  let query_invariant ctx context =
+    let cpa = ctx.local.BaseDomain.cpa in
+    let scope = Node.find_fundec ctx.node in
+
+    (* VS is used to detect and break cycles in deref_invariant calls *)
+    let module VS = Set.Make (Basetype.Variables) in
+
+    let rec ad_invariant ~vs ~offset c x =
+      let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+      let i_opt = AD.fold (fun addr acc_opt ->
+          BatOption.bind acc_opt (fun acc ->
+              match addr with
+              | Addr.UnknownPtr ->
+                None
+              | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+                let rec offs_to_offset = function
+                  | `NoOffset -> NoOffset
+                  | `Field (f, offs) -> Field (f, offs_to_offset offs)
+                  | `Index (i, offs) ->
+                    (* Addr.Offs.is_definite implies Idx.is_int *)
+                    let i_definite = BatOption.get (ValueDomain.IndexDomain.to_int i) in
+                    let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
+                    Index (i_exp, offs_to_offset offs)
+                in
+                let offset = offs_to_offset offs in
+
+                let i =
+                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
+                    let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                  else
+                    Invariant.none
+                in
+                let i_deref = deref_invariant ~vs c vi offset (Mem c_exp, NoOffset) in
+
+                Some (Invariant.(acc || (i && i_deref)))
+              | Addr.NullPtr ->
+                let i =
+                  let addr_exp = integer 0 in
+                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
+                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                  else
+                    Invariant.none
+                in
+                Some (Invariant.(acc || i))
+              (* TODO: handle Addr.StrPtr? *)
+              | _ ->
+                None
+            )
+        ) x (Some (Invariant.bot ()))
+      in
+      match i_opt with
+      | Some i -> i
+      | None -> Invariant.none
+
+    and blob_invariant ~vs ~offset c (v, _, _) =
+      vd_invariant ~vs ~offset c v
+
+    and vd_invariant ~vs ~offset c = function
+      | `Int n ->
+        let e = Lval (BatOption.get c.Invariant.lval) in
+        if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+          ID.invariant e n
+        else
+          Invariant.none
+      | `Address n -> ad_invariant ~vs ~offset c n
+      | `Blob n -> blob_invariant ~vs ~offset c n
+      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
+      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
+      | _ -> Invariant.none (* TODO *)
+
+    and deref_invariant ~vs c vi offset lval =
+      let v = CPA.find vi cpa in
+      key_invariant_lval ~vs c vi offset lval v
+
+    and key_invariant_lval ~vs c k offset lval v =
+      if not (VS.mem k vs) then
+        let vs' = VS.add k vs in
+        let key_context: Invariant.context = {c with lval=Some lval} in
+        vd_invariant ~vs:vs' ~offset key_context v
+      else
+        Invariant.none
+    in
+
+    let cpa_invariant =
+      let key_invariant k v = key_invariant_lval ~vs:VS.empty context k NoOffset (var k) v in
+      match context.lval with
+      | None ->
+        CPA.fold (fun k v a ->
+            let i =
+              if not (InvariantCil.var_is_heap k) then
+                key_invariant k v
+              else
+                Invariant.none
+            in
+            Invariant.(a && i)
+          ) cpa Invariant.none
+      | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
+        (try key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
+      | _ -> Invariant.none
+    in
+
+    cpa_invariant
+
+  let query_invariant ctx context =
+    if GobConfig.get_bool "ana.base.invariant.enabled" then
+      query_invariant ctx context
+    else
+      Invariant.none
+
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
@@ -1098,6 +1290,7 @@ struct
         | _ -> true
       end
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
+    | Q.Invariant context -> query_invariant ctx context
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =

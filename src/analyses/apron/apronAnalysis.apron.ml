@@ -388,6 +388,9 @@ struct
       let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
       let is_lt = eval_int exp in
       Option.default true (ID.to_bool is_lt)
+    | Queries.Invariant context ->
+      let scope = Node.find_fundec ctx.node in
+      D.invariant ~scope ctx.local
     | _ -> Result.top q
 
 

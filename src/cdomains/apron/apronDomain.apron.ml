@@ -729,6 +729,7 @@ sig
   val is_bot_env: t -> bool
 
   val unify: t -> t -> t
+  val invariant: scope:Cil.fundec -> t -> Invariant.t
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
@@ -744,7 +745,7 @@ struct
   let is_bot_env = A.is_bottom Man.mgr
 
   let to_yojson x = failwith "TODO implement to_yojson"
-  let invariant _ _ = Invariant.none
+  let invariant ~scope _ = Invariant.none
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
@@ -773,6 +774,7 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
+  val invariant: scope:Cil.fundec -> t -> Invariant.t
 end
 
 module Tracked =
@@ -872,7 +874,7 @@ struct
       | (None, Some max) -> ID.ending ik max
       | (None, None) -> ID.top_of ik
 
-  let invariant (ctx: Invariant.context) x =
+  let invariant ~scope x =
     (* TODO: deduplicate in Invariant query *)
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
     let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
@@ -898,12 +900,12 @@ struct
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         (* filter one-vars *)
         if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          Convert.cil_exp_of_lincons1 ctx.scope lincons1
-          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)
+          Convert.cil_exp_of_lincons1 scope lincons1
+          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else
           None
       )
-    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) (Invariant.top ())
 end
 
 
@@ -1307,7 +1309,7 @@ struct
   let assert_inv (b, d) e n = (BoxD.assert_inv b e n, D.assert_inv d e n)
   let eval_int (_, d) = D.eval_int d
 
-  let invariant (ctx: Invariant.context) (b, d) =
+  let invariant ~scope (b, d) =
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
     let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
     let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
@@ -1329,8 +1331,8 @@ struct
     |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
         (* filter one-vars *)
         if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          CilOfApron.cil_exp_of_lincons1 ctx.scope lincons1
-          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)
+          CilOfApron.cil_exp_of_lincons1 scope lincons1
+          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
         else
           None
       )
@@ -1350,6 +1352,7 @@ module ApronComponents (D3: S3) (PrivD: Lattice.S):
 sig
   module AD: S3
   include Lattice.S with type t = (D3.t, PrivD.t) aproncomponents_t
+  val invariant: scope:Cil.fundec -> t -> Invariant.t
 end =
 struct
   module AD = D3
@@ -1375,8 +1378,8 @@ struct
 
   let name () = AD.name () ^ " * " ^ PrivD.name ()
 
-  let invariant c {apr; priv} =
-    Invariant.(AD.invariant c apr && PrivD.invariant c priv)
+  let invariant ~scope {apr; priv} =
+    AD.invariant ~scope apr
 
   let of_tuple(apr, priv):t = {apr; priv}
   let to_tuple r = (r.apr, r.priv)

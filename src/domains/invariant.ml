@@ -1,23 +1,51 @@
 open Cil
 
-type t = exp option
+(** Symbolic (and fully syntactic) expression "lattice". *)
+module ExpLat =
+struct
+  include CilType.Exp
+
+  let bot () = zero (* false *)
+  let top () = one (* true *)
+  let is_bot _ = failwith "ExpLat: is_bot" (* cannot say for sure, many contradictions exist *)
+  let is_top _ = failwith "ExpLat: is_top" (* cannot say for sure, many tautologies exist *)
+
+  let leq _ _ = failwith "ExpLat: leq" (* cannot say for sure, requires general entailment check *)
+  let pretty_diff () _ = failwith "ExpLat: pretty_diff" (* irrelevant, no leq *)
+
+  (* join and meet are not idempotent, commutative and associative,
+     but it shouldn't be of issue since there's no leq either.
+     Would need at least AC-rewriting, if not more, to ensure those symbolically *)
+  let join x y = BinOp (LOr, x, y, intType)
+  let meet x y = BinOp (LAnd, x, y, intType)
+  let widen x y = y
+  let narrow = meet
+end
+
+(** Lift {!ExpLat} such that join/meet folds don't introduce excessive [|| 0|] or [&& 1] expressions. *)
+
+module N =
+struct
+  let bot_name = "false"
+  let top_name = "true"
+end
+
+include Lattice.Lift (ExpLat) (N)
+
+let none = top ()
+let of_exp = lift
+
+let ( && ) = meet
+let ( || ) = join
+
+
 
 type context = {
-  scope: fundec;
-  i: int;
+  path: int option;
   lval: lval option;
-  offset: offset;
-  deref_invariant: varinfo -> offset -> lval -> t
 }
 
-let none: t = None
-let of_exp s: t = Some s
-
-let combine op (i1:t) (i2:t): t =
-  match i1, i2 with
-  | Some i1, Some i2 -> Some (BinOp (op, i1, i2, intType))
-  | Some i, None | None, Some i -> Some i
-  | None, None -> None
-
-let ( && ) = combine LAnd
-let ( || ) = combine LOr
+let default_context = {
+  path = None;
+  lval = None;
+}
