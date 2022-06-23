@@ -360,6 +360,22 @@ struct
       | None -> st'
 
 
+  let query_invariant ctx context =
+    let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
+    let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
+
+    let apr = ctx.local.apr in
+    (* filter variables *)
+    let var_filter v = match V.find_metadata v with
+      | Some (Global _) -> keep_global
+      | Some Local -> keep_local
+      | _ -> false
+    in
+    let apr = AD.keep_filter apr var_filter in
+
+    let scope = Node.find_fundec ctx.node in
+    AD.invariant ~scope apr
+
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in
     let st = ctx.local in
@@ -389,8 +405,7 @@ struct
       let is_lt = eval_int exp in
       Option.default true (ID.to_bool is_lt)
     | Queries.Invariant context ->
-      let scope = Node.find_fundec ctx.node in
-      D.invariant ~scope ctx.local
+      query_invariant ctx context
     | _ -> Result.top q
 
 

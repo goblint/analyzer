@@ -875,18 +875,7 @@ struct
       | (None, None) -> ID.top_of ik
 
   let invariant ~scope x =
-    (* TODO: deduplicate in Invariant query *)
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
-    let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
-    let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
-
-    (* filter variables *)
-    let var_filter v = match V.find_metadata v with
-      | Some (Global _) -> keep_global
-      | Some Local -> keep_local
-      | _ -> false
-    in
-    let x = keep_filter x var_filter in
 
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
@@ -1311,17 +1300,6 @@ struct
 
   let invariant ~scope (b, d) =
     let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
-    let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
-    let keep_global = GobConfig.get_bool "ana.apron.invariant.global" in
-
-    (* filter variables *)
-    let var_filter v = match V.find_metadata v with
-      | Some (Global _) -> keep_global
-      | Some Local -> keep_local
-      | _ -> false
-    in
-    let b = BoxD.keep_filter b var_filter in
-    let d = D.keep_filter d var_filter in
 
     (* diff via lincons *)
     let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
@@ -1352,7 +1330,6 @@ module ApronComponents (D3: S3) (PrivD: Lattice.S):
 sig
   module AD: S3
   include Lattice.S with type t = (D3.t, PrivD.t) aproncomponents_t
-  val invariant: scope:Cil.fundec -> t -> Invariant.t
 end =
 struct
   module AD = D3
@@ -1377,9 +1354,6 @@ struct
     BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (AD.name ())) AD.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
   let name () = AD.name () ^ " * " ^ PrivD.name ()
-
-  let invariant ~scope {apr; priv} =
-    AD.invariant ~scope apr
 
   let of_tuple(apr, priv):t = {apr; priv}
   let to_tuple r = (r.apr, r.priv)
