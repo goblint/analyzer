@@ -155,6 +155,26 @@ sig
   val varinfo_tracked: varinfo -> bool
 end
 
+module Lincons1 =
+struct
+  include Lincons1
+
+  let show = Format.asprintf "%a" print
+  let compare x y = String.compare (show x) (show y) (* HACK *)
+end
+
+module Lincons1Set =
+struct
+  include Set.Make (Lincons1)
+
+  let of_earray ({lincons0_array; array_env}: Lincons1.earray): t =
+    Array.enum lincons0_array
+    |> Enum.map (fun (lincons0: Lincons0.t) ->
+        Lincons1.{lincons0; env = array_env}
+      )
+    |> of_enum
+end
+
 (* Generic operations on abstract values at level 1 of interface, there is also Abstract0 *)
 module A = Abstract1
 
@@ -204,15 +224,13 @@ sig
 end
 
 (** Conversion from CIL expressions to Apron. *)
-module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
+module ApronOfCil (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager) =
 struct
   open Texpr1
   open Tcons1
   module Bounds = Bounds(Man)
+
   exception Unsupported_CilExp
-  exception Unsupported_Linexpr1
-
-
 
   let texpr1_expr_of_cil_exp d env =
     (* recurse without env argument *)
@@ -314,6 +332,12 @@ struct
     in
     let texpr1' = Binop (Sub, texpr1_plus, texpr1_minus, Int, Near) in
     Tcons1.make (Texpr1.of_expr env texpr1') typ
+end
+
+(** Conversion from Apron to CIL expressions. *)
+module CilOfApron =
+struct
+  exception Unsupported_Linexpr1
 
   let cil_exp_of_linexpr1 fundec (linexpr1:Linexpr1.t) =
     let longlong = TInt(ILongLong,[]) in
@@ -370,9 +394,125 @@ struct
       Unsupported_Linexpr1 -> None
 end
 
+(** Conversion between CIL expressions and Apron. *)
+module Convert (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager)=
+struct
+  include ApronOfCil (Arg) (Tracked) (Man)
+  include CilOfApron
+end
+
+(** Pure environment and transfer functions. *)
+module type AOpsPure =
+sig
+  type t
+  val add_vars : t -> Var.t list -> t
+  val remove_vars : t -> Var.t list -> t
+  val remove_filter : t -> (Var.t -> bool) -> t
+  val keep_vars : t -> Var.t list -> t
+  val keep_filter : t -> (Var.t -> bool) -> t
+  val forget_vars : t -> Var.t list -> t
+  val assign_exp : t -> Var.t -> exp -> t
+  val assign_var : t -> Var.t -> Var.t -> t
+  val substitute_exp : t -> Var.t -> exp -> t
+end
+
+(** Imperative in-place environment and transfer functions. *)
+module type AOpsImperative =
+sig
+  type t
+  val add_vars_with : t -> Var.t list -> unit
+  val remove_vars_with : t -> Var.t list -> unit
+  val remove_filter_with : t -> (Var.t -> bool) -> unit
+  val keep_vars_with : t -> Var.t list -> unit
+  val keep_filter_with : t -> (Var.t -> bool) -> unit
+  val forget_vars_with : t -> Var.t list -> unit
+  val assign_exp_with : t -> Var.t -> exp -> unit
+  val assign_exp_parallel_with : t -> (Var.t * exp) list -> unit
+  val assign_var_with : t -> Var.t -> Var.t -> unit
+  val assign_var_parallel_with : t -> (Var.t * Var.t) list -> unit
+  val substitute_exp_with : t -> Var.t -> exp -> unit
+  val substitute_exp_parallel_with :
+    t -> (Var.t * exp) list -> unit
+  val substitute_var_with : t -> Var.t -> Var.t -> unit
+end
+
+module type AOpsImperativeCopy =
+sig
+  include AOpsImperative
+  val copy : t -> t
+end
+
+(** Default implementations of pure functions from [copy] and imperative functions. *)
+module AOpsPureOfImperative (AOpsImperative: AOpsImperativeCopy): AOpsPure with type t = AOpsImperative.t =
+struct
+  open AOpsImperative
+  type nonrec t = t
+
+  let add_vars d vs =
+    let nd = copy d in
+    add_vars_with nd vs;
+    nd
+  let remove_vars d vs =
+    let nd = copy d in
+    remove_vars_with nd vs;
+    nd
+  let remove_filter d f =
+    let nd = copy d in
+    remove_filter_with nd f;
+    nd
+  let keep_vars d vs =
+    let nd = copy d in
+    keep_vars_with nd vs;
+    nd
+  let keep_filter d f =
+    let nd = copy d in
+    keep_filter_with nd f;
+    nd
+  let forget_vars d vs =
+    let nd = copy d in
+    forget_vars_with nd vs;
+    nd
+  let assign_exp d v e =
+    let nd = copy d in
+    assign_exp_with nd v e;
+    nd
+  let assign_var d v v' =
+    let nd = copy d in
+    assign_var_with nd v v';
+    nd
+  let substitute_exp d v e =
+    let nd = copy d in
+    substitute_exp_with nd v e;
+    nd
+end
+
+(** Extra functions that don't have the pure-imperative correspondence. *)
+module type AOpsExtra =
+sig
+  type t
+  val copy : t -> t
+  val vars_as_array : t -> Var.t array
+  val vars : t -> Var.t list
+  type marshal
+  val unmarshal : marshal -> t
+  val marshal : t -> marshal
+  val mem_var : t -> Var.t -> bool
+  val assign_var_parallel' :
+    t -> Var.t list -> Var.t list -> t
+  val meet_tcons : t -> Tcons1.t -> t
+  val to_lincons_array : t -> Lincons1.earray
+  val of_lincons_array : Lincons1.earray -> t
+end
+
+module type AOps =
+sig
+  include AOpsExtra
+  include AOpsImperative with type t := t
+  include AOpsPure with type t := t
+end
 
 (** Convenience operations on A. *)
-module AOps (Tracked: Tracked) (Man: Manager) =
+module AOps0 (Tracked: Tracked) (Man: Manager) =
 struct
   module Convert = Convert (struct let allow_global = false end) (Tracked) (Man)
 
@@ -415,11 +555,6 @@ struct
     let env' = Environment.add env vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let add_vars d vs =
-    let nd = copy d in
-    add_vars_with nd vs;
-    nd
-
   let remove_vars_with nd vs =
     let env = A.env nd in
     let vs' =
@@ -431,11 +566,6 @@ struct
     let env' = Environment.remove env vs' in
     A.change_environment_with Man.mgr nd env' false
 
-  let remove_vars d vs =
-    let nd = copy d in
-    remove_vars_with nd vs;
-    nd
-
   let remove_filter_with nd f =
     let env = A.env nd in
     let vs' =
@@ -446,11 +576,6 @@ struct
     in
     let env' = Environment.remove env vs' in
     A.change_environment_with Man.mgr nd env' false
-
-  let remove_filter d f =
-    let nd = copy d in
-    remove_filter_with nd f;
-    nd
 
   let keep_vars_with nd vs =
     let env = A.env nd in
@@ -465,11 +590,6 @@ struct
     let env' = Environment.make vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let keep_vars d vs =
-    let nd = copy d in
-    keep_vars_with nd vs;
-    nd
-
   let keep_filter_with nd f =
     (* Instead of removing undesired vars,
        make a new env with just the desired vars. *)
@@ -482,20 +602,10 @@ struct
     let env' = Environment.make vs' [||] in
     A.change_environment_with Man.mgr nd env' false
 
-  let keep_filter d f =
-    let nd = copy d in
-    keep_filter_with nd f;
-    nd
-
   let forget_vars_with nd vs =
     (* Unlike keep_vars_with, this doesn't check mem_var, but assumes valid vars, like assigns *)
     let vs' = Array.of_list vs in
     A.forget_array_with Man.mgr nd vs' false
-
-  let forget_vars d vs =
-    let nd = copy d in
-    forget_vars_with nd vs;
-    nd
 
   let assign_exp_with nd v e =
     match Convert.texpr1_of_cil_exp nd (A.env nd) e with
@@ -505,11 +615,6 @@ struct
     | exception Convert.Unsupported_CilExp ->
       if M.tracing then M.trace "apron" "assign_exp unsupported\n";
       forget_vars_with nd [v]
-
-  let assign_exp d v e =
-    let nd = copy d in
-    assign_exp_with nd v e;
-    nd
 
   let assign_exp_parallel_with nd ves =
     (* TODO: non-_with version? *)
@@ -545,11 +650,6 @@ struct
     let texpr1 = Texpr1.of_expr (A.env nd) (Var v') in
     A.assign_texpr_with Man.mgr nd v texpr1 None
 
-  let assign_var d v v' =
-    let nd = copy d in
-    assign_var_with nd v v';
-    nd
-
   let assign_var_parallel_with nd vv's =
     (* TODO: non-_with version? *)
     let env = A.env nd in
@@ -580,11 +680,6 @@ struct
       A.substitute_texpr_with Man.mgr nd v texpr1 None
     | exception Convert.Unsupported_CilExp ->
       forget_vars_with nd [v]
-
-  let substitute_exp d v e =
-    let nd = copy d in
-    substitute_exp_with nd v e;
-    nd
 
   let substitute_exp_parallel_with nd ves =
     (* TODO: non-_with version? *)
@@ -633,6 +728,12 @@ struct
     A.of_lincons_array Man.mgr a.array_env a
 end
 
+module AOps (Tracked: Tracked) (Man: Manager) =
+struct
+  module AO0 = AOps0 (Tracked) (Man)
+  include AO0
+  include AOpsPureOfImperative (AO0)
+end
 
 module type SPrintable =
 sig
@@ -642,13 +743,17 @@ sig
   val bot_env: Environment.t -> t
   val is_top_env: t -> bool
   val is_bot_env: t -> bool
+
+  val unify: t -> t -> t
+  val invariant: scope:Cil.fundec -> t -> Lincons1.t list
+  val pretty_diff: unit -> t * t -> Pretty.doc
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
 struct
   type t = Man.mt A.t
 
-  let name () = "Apron"
+  let name () = "Apron " ^ Man.name ()
 
   (* Functions for bot and top for particular environment. *)
   let top_env = A.top    Man.mgr
@@ -657,7 +762,7 @@ struct
   let is_bot_env = A.is_bottom Man.mgr
 
   let to_yojson x = failwith "TODO implement to_yojson"
-  let invariant _ _ = Invariant.none
+  let invariant ~scope _ = []
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
@@ -676,6 +781,15 @@ struct
     (* there is no A.compare, but polymorphic compare should delegate to Abstract0 and Environment compare's implemented in Apron's C *)
     Stdlib.compare x y
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nconstraints\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%a" A.print x)) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (A.env x)))
+
+  let unify x y =
+    A.unify Man.mgr x y
+
+  let pretty_diff () (x, y) =
+    let lcx = A.to_lincons_array Man.mgr x in
+    let lcy = A.to_lincons_array Man.mgr y in
+    let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
+    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) () (Lincons1Set.elements diff)
 end
 
 
@@ -683,6 +797,7 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
+  val invariant: scope:Cil.fundec -> t -> Lincons1.t list
 end
 
 module Tracked =
@@ -785,25 +900,17 @@ struct
         | (None, Some max) -> ID.ending ik max
         | (None, None) -> ID.top_of ik
 
-  let invariant (ctx: Invariant.context) x =
+  let invariant ~scope x =
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
     (* let x = A.copy Man.mgr x in
        A.minimize Man.mgr x; *)
-    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
     let {lincons0_array; array_env}: Lincons1.earray = A.to_lincons_array Man.mgr x in
     Array.enum lincons0_array
     |> Enum.map (fun (lincons0: Lincons0.t) ->
         Lincons1.{lincons0; env = array_env}
       )
-    |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
-        if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          Convert.cil_exp_of_lincons1 ctx.scope lincons1
-          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope ctx.scope exp)
-        else
-          None
-      )
-    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+    |> List.of_enum
 end
 
 
@@ -864,8 +971,7 @@ struct
       (* TODO: warn if different environments? *)
     )
 
-  let pretty_diff () (x, y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  (* TODO: check environments in pretty_diff? *)
 end
 
 module D (Man: Manager) = DWithOps (Man) (DLift (Man))
@@ -1057,8 +1163,7 @@ struct
   (* TODO: better narrow *)
   let narrow x y = x
 
-  let pretty_diff () (x, y) =
-    dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
+  (* TODO: check environments in pretty_diff? *)
 end
 
 module type S2 =
@@ -1084,63 +1189,193 @@ struct
   module Man = Man
 end
 
-module ApronComponents (D2: S2) (PrivD: Lattice.S):
+
+module OctagonD2 = D2 (OctagonManager)
+
+module type S3 =
 sig
-  module AD: S2 with type Man.mt = D2.Man.mt
-  include Lattice.S with type t = (D2.t, PrivD.t) aproncomponents_t
+  include SLattice
+  include AOps with type t := t
+
+  val assert_inv : t -> exp -> bool -> t
+  val eval_int : t -> exp -> Queries.ID.t
+
+  val to_oct: t -> OctagonD2.t
+end
+
+
+module D3 (Man: Manager) : S3 =
+struct
+  include D2 (Man)
+
+  let to_oct (a: t): OctagonD2.t =
+    if Oct.manager_is_oct Man.mgr then
+      Oct.Abstract1.to_oct a
+    else
+      let generator = to_lincons_array a in
+      OctagonD2.of_lincons_array generator
+end
+
+(** Lift [D] to a non-reduced product with box.
+    Both are updated in parallel, but [D] answers to queries.
+    Box domain is used to filter out non-relational invariants for output. *)
+module BoxProd0 (D: S3) =
+struct
+  module BoxD = D3 (IntervalManager)
+
+  include Printable.Prod (BoxD) (D)
+
+  let equal (_, d1) (_, d2) = D.equal d1 d2
+  let hash (_, d) = D.hash d
+  let compare (_, d1) (_, d2) = D.compare d1 d2
+
+  let leq (_, d1) (_, d2) = D.leq d1 d2
+  let join (b1, d1) (b2, d2) = (BoxD.join b1 b2, D.join d1 d2)
+  let meet (b1, d1) (b2, d2) = (BoxD.meet b1 b2, D.meet d1 d2)
+  let widen (b1, d1) (b2, d2) = (BoxD.widen b1 b2, D.widen d1 d2)
+  let narrow (b1, d1) (b2, d2) = (BoxD.narrow b1 b2, D.narrow d1 d2)
+
+  let top () = (BoxD.top (), D.top ())
+  let bot () = (BoxD.bot (), D.bot ())
+  let is_top (_, d) = D.is_top d
+  let is_bot (_, d) = D.is_bot d
+  let top_env env = (BoxD.top_env env, D.top_env env)
+  let bot_env env = (BoxD.bot_env env, D.bot_env env)
+  let is_top_env (_, d) = D.is_top_env d
+  let is_bot_env (_, d) = D.is_bot_env d
+  let unify (b1, d1) (b2, d2) = (BoxD.unify b1 b2, D.unify d1 d2)
+  let copy (b, d) = (BoxD.copy b, D.copy d)
+
+  type marshal = BoxD.marshal * D.marshal
+
+  let marshal (b, d) = (BoxD.marshal b, D.marshal d)
+  let unmarshal (b, d) = (BoxD.unmarshal b, D.unmarshal d)
+
+  let mem_var (_, d) v = D.mem_var d v
+  let vars_as_array (_, d) = D.vars_as_array d
+  let vars (_, d) = D.vars d
+
+  let pretty_diff () ((_, d1), (_, d2)) = D.pretty_diff () (d1, d2)
+
+  let add_vars_with (b, d) vs =
+    BoxD.add_vars_with b vs;
+    D.add_vars_with d vs
+  let remove_vars_with (b, d) vs =
+    BoxD.remove_vars_with b vs;
+    D.remove_vars_with d vs
+  let remove_filter_with (b, d) f =
+    BoxD.remove_filter_with b f;
+    D.remove_filter_with d f
+  let keep_filter_with (b, d) f =
+    BoxD.keep_filter_with b f;
+    D.keep_filter_with d f
+  let keep_vars_with (b, d) vs =
+    BoxD.keep_vars_with b vs;
+    D.keep_vars_with d vs
+  let forget_vars_with (b, d) vs =
+    BoxD.forget_vars_with b vs;
+    D.forget_vars_with d vs
+  let assign_exp_with (b, d) v e =
+    BoxD.assign_exp_with b v e;
+    D.assign_exp_with d v e
+  let assign_exp_parallel_with (b, d) ves =
+    BoxD.assign_exp_parallel_with b ves;
+    D.assign_exp_parallel_with d ves
+  let assign_var_with (b, d) v e =
+    BoxD.assign_var_with b v e;
+    D.assign_var_with d v e
+  let assign_var_parallel_with (b, d) vvs =
+    BoxD.assign_var_parallel_with b vvs;
+    D.assign_var_parallel_with d vvs
+  let assign_var_parallel' (b, d) vs v's =
+    (BoxD.assign_var_parallel' b vs v's, D.assign_var_parallel' d vs v's)
+  let substitute_exp_with (b, d) v e =
+    BoxD.substitute_exp_with b v e;
+    D.substitute_exp_with d v e
+  let substitute_exp_parallel_with (b, d) ves =
+    BoxD.substitute_exp_parallel_with b ves;
+    D.substitute_exp_parallel_with d ves
+  let substitute_var_with (b, d) v1 v2 =
+    BoxD.substitute_var_with b v1 v2;
+    D.substitute_var_with d v1 v2
+  let meet_tcons (b, d) c = (BoxD.meet_tcons b c, D.meet_tcons d c)
+  let to_lincons_array (_, d) = D.to_lincons_array d
+  let of_lincons_array a = (BoxD.of_lincons_array a, D.of_lincons_array a)
+
+  let assert_inv (b, d) e n = (BoxD.assert_inv b e n, D.assert_inv d e n)
+  let eval_int (_, d) = D.eval_int d
+
+  let invariant ~scope (b, d) =
+    (* diff via lincons *)
+    let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
+    let lcd = D.to_lincons_array d in
+    Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
+    |> Lincons1Set.elements
+
+  let to_oct (b, d) = D.to_oct d
+end
+
+module BoxProd (D: S3): S3 =
+struct
+  module BP0 = BoxProd0 (D)
+  include BP0
+  include AOpsPureOfImperative (BP0)
+end
+
+module ApronComponents (D3: S3) (PrivD: Lattice.S):
+sig
+  module AD: S3
+  include Lattice.S with type t = (D3.t, PrivD.t) aproncomponents_t
 end =
 struct
-  module AD = D2
-  type t = (D2.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
+  module AD = D3
+  type t = (AD.t, PrivD.t) aproncomponents_t [@@deriving eq, ord, hash, to_yojson]
 
   include Printable.Std
   open Pretty
 
   let show r =
-    let first  = D2.show r.apr in
+    let first  = AD.show r.apr in
     let third  = PrivD.show r.priv in
     "(" ^ first ^ ", " ^ third  ^ ")"
 
   let pretty () r =
     text "(" ++
-    D2.pretty () r.apr
+    AD.pretty () r.apr
     ++ text ", " ++
     PrivD.pretty () r.priv
     ++ text ")"
 
   let printXml f r =
-    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (D2.name ())) D2.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
+    BatPrintf.fprintf f "<value>\n<map>\n<key>\n%s\n</key>\n%a<key>\n%s\n</key>\n%a</map>\n</value>\n" (Goblintutil.escape (AD.name ())) AD.printXml r.apr (Goblintutil.escape (PrivD.name ())) PrivD.printXml r.priv
 
-  let name () = D2.name () ^ " * " ^ PrivD.name ()
-
-  let invariant c {apr; priv} =
-    Invariant.(D2.invariant c apr && PrivD.invariant c priv)
+  let name () = AD.name () ^ " * " ^ PrivD.name ()
 
   let of_tuple(apr, priv):t = {apr; priv}
   let to_tuple r = (r.apr, r.priv)
 
   let arbitrary () =
-    let tr = QCheck.pair (D2.arbitrary ()) (PrivD.arbitrary ()) in
+    let tr = QCheck.pair (AD.arbitrary ()) (PrivD.arbitrary ()) in
     QCheck.map ~rev:to_tuple of_tuple tr
 
-  let bot () = {apr = D2.bot (); priv = PrivD.bot ()}
-  let is_bot {apr; priv} = D2.is_bot apr && PrivD.is_bot priv
-  let top () = {apr = D2.top (); priv = PrivD.bot ()}
-  let is_top {apr; priv} = D2.is_top apr && PrivD.is_top priv
+  let bot () = {apr = AD.bot (); priv = PrivD.bot ()}
+  let is_bot {apr; priv} = AD.is_bot apr && PrivD.is_bot priv
+  let top () = {apr = AD.top (); priv = PrivD.bot ()}
+  let is_top {apr; priv} = AD.is_top apr && PrivD.is_top priv
 
   let leq {apr=x1; priv=x3 } {apr=y1; priv=y3} =
-    D2.leq x1 y1 && PrivD.leq x3 y3
+    AD.leq x1 y1 && PrivD.leq x3 y3
 
   let pretty_diff () (({apr=x1; priv=x3}:t),({apr=y1; priv=y3}:t)): Pretty.doc =
-    if not (D2.leq x1 y1) then
-      D2.pretty_diff () (x1,y1)
+    if not (AD.leq x1 y1) then
+      AD.pretty_diff () (x1,y1)
     else
       PrivD.pretty_diff () (x3,y3)
 
   let op_scheme op1 op3 {apr=x1; priv=x3} {apr=y1; priv=y3}: t =
     {apr = op1 x1 y1; priv = op3 x3 y3 }
-  let join = op_scheme D2.join PrivD.join
-  let meet = op_scheme D2.meet PrivD.meet
-  let widen = op_scheme D2.widen PrivD.widen
-  let narrow = op_scheme D2.narrow PrivD.narrow
+  let join = op_scheme AD.join PrivD.join
+  let meet = op_scheme AD.meet PrivD.meet
+  let widen = op_scheme AD.widen PrivD.widen
+  let narrow = op_scheme AD.narrow PrivD.narrow
 end

@@ -12,7 +12,7 @@ open CommonPriv
 
 
 module type S =
-  functor (AD: ApronDomain.S2) ->
+  functor (AD: ApronDomain.S3) ->
   sig
     module D: Lattice.S
     module G: Lattice.S
@@ -47,7 +47,7 @@ module type S =
 
 (** Top privatization, which doesn't track globals at all.
     This is unlike base's "none" privatization. which does track globals, but doesn't privatize them. *)
-module Top: S = functor (AD: ApronDomain.S2) ->
+module Top: S = functor (AD: ApronDomain.S3) ->
 struct
   module D = Lattice.Unit
   module G = Lattice.Unit
@@ -139,7 +139,7 @@ sig
 end
 
 (** Protection-Based Reading. Is unsound w.r.t. to locals escaping and becoming public. *)
-module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S = functor (AD: ApronDomain.S2) ->
+module ProtectionBasedPriv (Param: ProtectionBasedPrivParam): S = functor (AD: ApronDomain.S3) ->
 struct
   include ConfCheck.RequireMutexActivatedInit
   open Protection
@@ -406,7 +406,7 @@ struct
   let finalize () = ()
 end
 
-module CommonPerMutex = functor(AD: ApronDomain.S2) ->
+module CommonPerMutex = functor(AD: ApronDomain.S3) ->
 struct
   include Protection
   module V = ApronDomain.V
@@ -429,7 +429,7 @@ struct
 end
 
 (** Per-mutex meet. *)
-module PerMutexMeetPriv : S = functor (AD: ApronDomain.S2) ->
+module PerMutexMeetPriv : S = functor (AD: ApronDomain.S3) ->
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
@@ -572,7 +572,7 @@ struct
 
   let escape node ask getg sideg (st:apron_components_t) escaped : apron_components_t =
     let esc_vars = EscapeDomain.EscapedVars.elements escaped in
-    let esc_vars = List.filter (fun v -> not v.vglob && AD.varinfo_tracked v && AD.mem_var st.apr (AV.local v)) esc_vars in
+    let esc_vars = List.filter (fun v -> not v.vglob && ApronDomain.Tracked.varinfo_tracked v && AD.mem_var st.apr (AV.local v)) esc_vars in
     let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
@@ -590,7 +590,7 @@ struct
   let name () = "W"
 end
 
-module type ClusterArg = functor (AD: ApronDomain.S2) ->
+module type ClusterArg = functor (AD: ApronDomain.S3) ->
 sig
   module LAD: Lattice.S
 
@@ -604,7 +604,7 @@ sig
 end
 
 (** No clustering. *)
-module NoCluster:ClusterArg = functor (AD: ApronDomain.S2) ->
+module NoCluster:ClusterArg = functor (AD: ApronDomain.S3) ->
 struct
   module AD = AD
   open CommonPerMutex(AD)
@@ -687,7 +687,7 @@ end
 
 
 (** Clusters when clustering is downward-closed. *)
-module DownwardClosedCluster (ClusteringArg: ClusteringArg) =  functor (AD: ApronDomain.S2) ->
+module DownwardClosedCluster (ClusteringArg: ClusteringArg) =  functor (AD: ApronDomain.S3) ->
 struct
   module AD = AD
   open CommonPerMutex(AD)
@@ -752,7 +752,7 @@ struct
 end
 
 (** Clusters when clustering is arbitrary (not necessarily downward-closed). *)
-module ArbitraryCluster (ClusteringArg: ClusteringArg): ClusterArg = functor (AD: ApronDomain.S2) ->
+module ArbitraryCluster (ClusteringArg: ClusteringArg): ClusterArg = functor (AD: ApronDomain.S3) ->
 struct
   module AD = AD
   module DCCluster = (DownwardClosedCluster(ClusteringArg))(AD)
@@ -828,7 +828,7 @@ struct
 end
 
 (** Per-mutex meet with TIDs. *)
-module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.S2) ->
+module PerMutexMeetPrivTID (Cluster: ClusterArg): S  = functor (AD: ApronDomain.S3) ->
 struct
   open CommonPerMutex(AD)
   include MutexGlobals
@@ -1094,7 +1094,7 @@ struct
 
   let escape node ask getg sideg (st: apron_components_t) escaped: apron_components_t =
     let esc_vars = EscapeDomain.EscapedVars.elements escaped in
-    let esc_vars = List.filter (fun v -> not v.vglob && AD.varinfo_tracked v && AD.mem_var st.apr (AV.local v)) esc_vars in
+    let esc_vars = List.filter (fun v -> not v.vglob && ApronDomain.Tracked.varinfo_tracked v && AD.mem_var st.apr (AV.local v)) esc_vars in
     let escape_one (x:varinfo) st = write_global ask getg sideg st x x in
     List.fold_left (fun st v -> escape_one v st) st esc_vars
 
@@ -1125,7 +1125,7 @@ struct
   let finalize () = finalize ()
 end
 
-module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S2) ->
+module TracingPriv = functor (Priv: S) -> functor (AD: ApronDomain.S3) ->
 struct
   module Priv = Priv (AD)
   include Priv
