@@ -373,8 +373,20 @@ struct
     in
     let apr = AD.keep_filter apr var_filter in
 
+    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
     let scope = Node.find_fundec ctx.node in
+
     AD.invariant ~scope apr
+    |> List.enum
+    |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
+        (* filter one-vars *)
+        if one_var || Apron.Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
+          CilOfApron.cil_exp_of_lincons1 scope lincons1
+          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
+        else
+          None
+      )
+    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let open Queries in

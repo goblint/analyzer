@@ -729,7 +729,7 @@ sig
   val is_bot_env: t -> bool
 
   val unify: t -> t -> t
-  val invariant: scope:Cil.fundec -> t -> Invariant.t
+  val invariant: scope:Cil.fundec -> t -> Lincons1.t list
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
@@ -745,7 +745,7 @@ struct
   let is_bot_env = A.is_bottom Man.mgr
 
   let to_yojson x = failwith "TODO implement to_yojson"
-  let invariant ~scope _ = Invariant.none
+  let invariant ~scope _ = []
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
@@ -774,7 +774,7 @@ module type SLattice =
 sig
   include SPrintable
   include Lattice.S with type t := t
-  val invariant: scope:Cil.fundec -> t -> Invariant.t
+  val invariant: scope:Cil.fundec -> t -> Lincons1.t list
 end
 
 module Tracked =
@@ -875,8 +875,6 @@ struct
       | (None, None) -> ID.top_of ik
 
   let invariant ~scope x =
-    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
-
     (* Would like to minimize to get rid of multi-var constraints directly derived from one-var constraints,
        but not implemented in Apron at all: https://github.com/antoinemine/apron/issues/44 *)
     (* let x = A.copy Man.mgr x in
@@ -886,15 +884,7 @@ struct
     |> Enum.map (fun (lincons0: Lincons0.t) ->
         Lincons1.{lincons0; env = array_env}
       )
-    |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
-        (* filter one-vars *)
-        if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          Convert.cil_exp_of_lincons1 scope lincons1
-          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
-        else
-          None
-      )
-    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) (Invariant.top ())
+    |> List.of_enum
 end
 
 
@@ -1299,22 +1289,11 @@ struct
   let eval_int (_, d) = D.eval_int d
 
   let invariant ~scope (b, d) =
-    let one_var = GobConfig.get_bool "ana.apron.invariant.one-var" in
-
     (* diff via lincons *)
     let lcb = D.to_lincons_array (D.of_lincons_array (BoxD.to_lincons_array b)) in (* convert through D to make lincons use the same format *)
     let lcd = D.to_lincons_array d in
     Lincons1Set.(diff (of_earray lcd) (of_earray lcb))
-    |> Lincons1Set.enum
-    |> Enum.filter_map (fun (lincons1: Lincons1.t) ->
-        (* filter one-vars *)
-        if one_var || Linexpr0.get_size lincons1.lincons0.linexpr0 >= 2 then
-          CilOfApron.cil_exp_of_lincons1 scope lincons1
-          |> Option.filter (fun exp -> not (InvariantCil.exp_contains_tmp exp) && InvariantCil.exp_is_in_scope scope exp)
-        else
-          None
-      )
-    |> Enum.fold (fun acc x -> Invariant.(acc && of_exp x)) Invariant.none
+    |> Lincons1Set.elements
 
   let to_oct (b, d) = D.to_oct d
 end
