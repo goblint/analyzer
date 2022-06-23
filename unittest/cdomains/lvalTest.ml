@@ -57,5 +57,6 @@ let test () =
     "test_compare_0" >:: test_compare_0;
     "test_hash_0" >:: test_hash_0;
     "test_join_0" >:: test_join_0;
+    "test_leq_0" >:: test_leq_0;
     "test_leq_not_0" >:: test_leq_not_0;
   ]

@@ -36,6 +36,7 @@ type category =
   | Analyzer
   | Unsound
   | Imprecise
+  | Witness
 [@@deriving eq, ord, hash]
 
 type t = category [@@deriving eq, ord, hash]
@@ -171,6 +172,7 @@ let should_warn e =
     | Analyzer -> "analyzer"
     | Unsound -> "unsound"
     | Imprecise -> "imprecise"
+    | Witness -> "witness"
   in get_bool ("warn." ^ (to_string e))
 
 let path_show e =
@@ -187,6 +189,7 @@ let path_show e =
   | Analyzer -> ["Analyzer"]
   | Unsound -> ["Unsound"]
   | Imprecise -> ["Imprecise"]
+  | Witness -> ["Witness"]
 
 let show x = String.concat " > " (path_show x)
 
@@ -211,6 +214,7 @@ let categoryName = function
   | Analyzer -> "Analyzer"
   | Unsound -> "Unsound"
   | Imprecise -> "Imprecise"
+  | Witness -> "Witness"
 
   | Behavior x -> behaviorName x
   | Integer x -> (match x with
@@ -233,6 +237,7 @@ let from_string_list (s: string list) =
     | "analyzer" -> Analyzer
     | "unsound" -> Unsound
     | "imprecise" -> Imprecise
+    | "witness" -> Witness
     | _ -> Unknown
 
 let to_yojson x = `List (List.map (fun x -> `String x) (path_show x))

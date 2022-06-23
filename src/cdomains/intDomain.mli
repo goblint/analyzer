@@ -377,7 +377,7 @@ module Interval32 :Y with (* type t = (IntOps.Int64Ops.t * IntOps.Int64Ops.t) op
 
 module BigInt:
   sig
-    include Printable.S (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
+    include Printable.S with type t = Z.t (* TODO: why doesn't this have a more useful signature like IntOps.BigIntOps? *)
     val cast_to: Cil.ikind -> Z.t -> Z.t
   end
 
