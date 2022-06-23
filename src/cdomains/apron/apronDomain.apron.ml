@@ -730,6 +730,7 @@ sig
 
   val unify: t -> t -> t
   val invariant: scope:Cil.fundec -> t -> Lincons1.t list
+  val pretty_diff: unit -> t * t -> Pretty.doc
 end
 
 module DBase (Man: Manager): SPrintable with type t = Man.mt A.t =
@@ -767,6 +768,12 @@ struct
 
   let unify x y =
     A.unify Man.mgr x y
+
+  let pretty_diff () (x, y) =
+    let lcx = A.to_lincons_array Man.mgr x in
+    let lcy = A.to_lincons_array Man.mgr y in
+    let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
+    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) () (Lincons1Set.elements diff)
 end
 
 
@@ -945,11 +952,7 @@ struct
       (* TODO: warn if different environments? *)
     )
 
-  let pretty_diff () (x, y) =
-    let lcx = A.to_lincons_array Man.mgr x in
-    let lcy = A.to_lincons_array Man.mgr y in
-    let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
-    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) () (Lincons1Set.elements diff)
+  (* TODO: check environments in pretty_diff? *)
 end
 
 module D (Man: Manager) = DWithOps (Man) (DLift (Man))
@@ -1141,12 +1144,7 @@ struct
   (* TODO: better narrow *)
   let narrow x y = x
 
-  let pretty_diff () (x, y) =
-    (* TODO: deduplicate *)
-    let lcx = A.to_lincons_array Man.mgr x in
-    let lcy = A.to_lincons_array Man.mgr y in
-    let diff = Lincons1Set.(diff (of_earray lcy) (of_earray lcx)) in
-    Pretty.docList ~sep:(Pretty.text ", ") (fun lc -> Pretty.text (Lincons1.show lc)) () (Lincons1Set.elements diff)
+  (* TODO: check environments in pretty_diff? *)
 end
 
 module type S2 =
