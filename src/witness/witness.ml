@@ -35,12 +35,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         | MyARG.CFGEdge (Test _) -> true
         | _ -> false
       end || begin if Invariant.is_invariant_node to_cfgnode then
-            match to_cfgnode, TaskResult.invariant to_node with
-            | Statement _, `Lifted _ -> true
-            | _, _ -> false
-          else
-            false
-        end || begin match from_cfgnode, to_cfgnode with
+               match to_cfgnode, TaskResult.invariant to_node with
+               | Statement _, `Lifted _ -> true
+               | _, _ -> false
+             else
+               false
+           end || begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f -> true
           | Function f, _ -> true
           | _, _ -> false

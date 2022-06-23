@@ -1113,14 +1113,14 @@ struct
       match context.lval with
       | None ->
         CPA.fold (fun k v a ->
-          let i =
-            if not (InvariantCil.var_is_heap k) then
-              key_invariant k v
-            else
-              Invariant.none
-          in
-          Invariant.(a && i)
-        ) cpa Invariant.none
+            let i =
+              if not (InvariantCil.var_is_heap k) then
+                key_invariant k v
+              else
+                Invariant.none
+            in
+            Invariant.(a && i)
+          ) cpa Invariant.none
       | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
         (try key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
       | _ -> Invariant.none
