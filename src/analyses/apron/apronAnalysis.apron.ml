@@ -113,11 +113,12 @@ struct
   let rec assign_to_global_wrapper (ask:Queries.ask) getg sideg st lv f =
     match lv with
     | (Var v, NoOffset) when AD.varinfo_tracked v ->
-      if not v.vglob && not (ThreadEscape.has_escaped ask v) then
-        (if ask.f (Queries.IsMultiple v) then
+      if not v.vglob && not (ThreadEscape.has_escaped ask v) then (
+        if ask.f (Queries.IsMultiple v) then
           {st with apr = AD.join (f st v) st.apr}
-         else
-          {st with apr = f st v})
+        else
+          {st with apr = f st v}
+      )
       else (
         let v_out = Goblintutil.create_var @@ makeVarinfo false (v.vname ^ "#out") v.vtype in (* temporary local g#out for global g *)
         let st = {st with apr = AD.add_vars st.apr [V.local v_out]} in (* add temporary g#out *)
