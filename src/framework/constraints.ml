@@ -61,9 +61,6 @@ struct
   let return ctx r f =
     D.lift @@ S.return (conv ctx) r f
 
-  let intrpt ctx =
-    D.lift @@ S.intrpt (conv ctx)
-
   let asm ctx =
     D.lift @@ S.asm (conv ctx)
 
@@ -140,9 +137,6 @@ struct
 
   let return ctx r f =
     S.return (conv ctx) r f
-
-  let intrpt ctx =
-    S.intrpt (conv ctx)
 
   let asm ctx =
     S.asm (conv ctx)
@@ -230,7 +224,6 @@ struct
   let branch ctx e tv = lift_fun ctx (lift ctx) S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx (lift ctx) S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx (lift ctx) S.return ((|>) f % (|>) r)
-  let intrpt ctx      = lift_fun ctx (lift ctx) S.intrpt identity
   let asm ctx         = lift_fun ctx (lift ctx) S.asm    identity
   let skip ctx        = lift_fun ctx (lift ctx) S.skip   identity
   let special ctx r f args        = lift_fun ctx (lift ctx) S.special ((|>) args % (|>) f % (|>) r)
@@ -357,7 +350,6 @@ struct
   let branch ctx e tv = lift_fun ctx S.branch ((|>) tv % (|>) e)
   let body ctx f      = lift_fun ctx S.body   ((|>) f)
   let return ctx r f  = lift_fun ctx S.return ((|>) f % (|>) r)
-  let intrpt ctx      = lift_fun ctx S.intrpt identity
   let asm ctx         = lift_fun ctx S.asm    identity
   let skip ctx        = lift_fun ctx S.skip   identity
   let special ctx r f args       = lift_fun ctx S.special ((|>) args % (|>) f % (|>) r)
@@ -436,7 +428,6 @@ struct
   let branch ctx e tv = lift_fun ctx D.lift   S.branch ((|>) tv % (|>) e) `Bot
   let body ctx f      = lift_fun ctx D.lift   S.body   ((|>) f)            `Bot
   let return ctx r f  = lift_fun ctx D.lift   S.return ((|>) f % (|>) r)  `Bot
-  let intrpt ctx      = lift_fun ctx D.lift   S.intrpt identity            `Bot
   let asm ctx         = lift_fun ctx D.lift   S.asm    identity           `Bot
   let skip ctx        = lift_fun ctx D.lift   S.skip   identity           `Bot
   let special ctx r f args       = lift_fun ctx D.lift S.special ((|>) args % (|>) f % (|>) r)        `Bot
@@ -458,7 +449,6 @@ module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
                            and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = S.G
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t
   end
 =
 struct
@@ -494,7 +484,6 @@ struct
       ; local   = pval
       ; global  = getg
       ; presub  = (fun _ -> raise Not_found)
-      ; postsub = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = sideg
@@ -552,10 +541,6 @@ struct
 
   let common_joins ctx ds splits spawns = common_join ctx (bigsqcup ds) splits spawns
 
-  let tf_loop var edge prev_node getl sidel getg sideg d =
-    let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
-    common_join ctx (S.intrpt ctx) !r !spawns
-
   let tf_assign var edge prev_node lv e getl sidel getg sideg d =
     let ctx, r, spawns = common_ctx var edge prev_node d getl sidel getg sideg in
     common_join ctx (S.assign ctx lv e) !r !spawns
@@ -580,7 +565,7 @@ struct
     let d =
       if (CilType.Fundec.equal fd MyCFG.dummy_func ||
           List.mem fd.svar.vname (get_string_list "mainfun")) &&
-         (get_bool "kernel" || get_string "ana.osek.oil" <> "")
+         get_bool "kernel"
       then toplevel_kernel_return ret fd ctx sideg
       else normal_return ret fd ctx sideg
     in
@@ -677,7 +662,6 @@ struct
       | Test (p,b)     -> tf_test var edge prev_node p b
       | ASM (_, _, _)  -> tf_asm var edge prev_node (* TODO: use ASM fields for something? *)
       | Skip           -> tf_skip var edge prev_node
-      | SelfLoop       -> tf_loop var edge prev_node
     end getl sidel getg sideg d
 
   let tf var getl sidel getg sideg prev_node (_,edge) d (f,t) =
@@ -988,7 +972,6 @@ struct
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)

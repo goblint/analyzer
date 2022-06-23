@@ -268,9 +268,6 @@ struct
           Result.meet a @@ S.query ctx' q
         in
         match q with
-        | Queries.PrintFullState ->
-          ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-          ()
         | Queries.WarnGlobal g ->
           (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
           let (n, g): V.t = Obj.obj g in
@@ -331,7 +328,6 @@ struct
     { ctx with
       local  = obj d
     ; context = (fun () -> ctx.context () |> assoc n |> obj)
-    ; postsub= assoc_sub post_all
     ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
     ; split
     ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))
@@ -406,22 +402,6 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let intrpt (ctx:(D.t, G.t, C.t, V.t) ctx) =
-    let spawns = ref [] in
-    let splits = ref [] in
-    let sides  = ref [] in
-    let emits = ref [] in
-    let ctx'' = outer_ctx "interpt" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "interpt" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.intrpt ctx'
-    in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
-    if q then raise Deadcode else d
 
   let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in

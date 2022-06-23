@@ -28,6 +28,8 @@ exception ConfigError of string
 (* Phase of the analysis (moved from GoblintUtil b/c of circular build...) *)
 let phase = ref 0
 
+let building_spec = ref false
+
 
 module Validator = JsonSchema.Validator (struct let schema = Options.schema end)
 module ValidatorRequireAll = JsonSchema.Validator (struct let schema = Options.require_all end)
@@ -67,12 +69,6 @@ sig
 
   (** Set a list of values *)
   val set_list : string -> Yojson.Safe.t list -> unit
-
-  (** Functions to set a conf variables to null. *)
-  val set_null   : string -> unit
-
-  (** Print the current configuration *)
-  val print : 'a BatInnerIO.output -> unit
 
   (** Write the current configuration to [filename] *)
   val write_file: Fpath.t -> unit
@@ -303,10 +299,16 @@ struct
     in
     drop memo_int; drop memo_bool; drop memo_string; drop memo_list
 
-  let get_int    = memo_int.get
-  let get_bool   = memo_bool.get
-  let get_string = memo_string.get
-  let get_list   = memo_list.get
+  let wrap_get f x =
+    (* self-observe options, which Spec construction depends on *)
+    if !building_spec && Tracing.tracing then Tracing.trace "config" "get during building_spec: %s\n" x;
+    (* TODO: blacklist such building_spec option from server mode modification since it will have no effect (spec is already built) *)
+    f x
+
+  let get_int    = wrap_get memo_int.get
+  let get_bool   = wrap_get memo_bool.get
+  let get_string = wrap_get memo_string.get
+  let get_list   = wrap_get memo_list.get
   let get_string_list = List.map Yojson.Safe.Util.to_string % get_list
 
   (** Helper functions for writing values. *)
@@ -323,7 +325,6 @@ struct
   let set_int    st i = set_path_string_trace st (`Int i)
   let set_bool   st i = set_path_string_trace st (`Bool i)
   let set_string st i = set_path_string_trace st (`String i)
-  let set_null   st   = set_path_string_trace st `Null
   let set_list   st l =
     drop_memo ();
     set_value (`List l) json_conf (parse_path st)

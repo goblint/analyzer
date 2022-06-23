@@ -411,37 +411,6 @@ end
 module Prod = ProdConf (struct let expand_fst = true let expand_snd = true end)
 module ProdSimple = ProdConf (struct let expand_fst = false let expand_snd = false end)
 
-module LexProd (Base1: S) (Base2: S) =
-struct
-  include Prod (Base1) (Base2)
-
-  let leq (x1,x2) (y1,y2) =
-    if Base1.equal x1 y1 then
-      Base2.leq x2 y2
-    else
-      Base1.leq x1 y1
-
-  let join (x1, y1) (x2, y2) =
-    if Base1.equal x1 x2 then
-      (x1, Base2.join y1 y2)
-    else if Base1.leq x1 x2 then
-      (x2, y2)
-    else if Base1.leq x2 x1 then
-      (x1, y1)
-    else
-      (Base1.join x1 x2, Base2.bot ())
-
-  let meet (x1, y1) (x2, y2) =
-    if Base1.equal x1 x2 then
-      (x1, Base2.meet y1 y2)
-    else if Base1.leq x1 x2 then
-      (x2, y2)
-    else if Base1.leq x2 x1 then
-      (x1, y1)
-    else
-      (Base1.meet x1 x2, Base2.top ())
-end
-
 module Prod3 (Base1: S) (Base2: S) (Base3: S) =
 struct
   include Printable.Prod3 (Base1) (Base2) (Base3)

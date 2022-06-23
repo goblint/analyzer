@@ -132,7 +132,7 @@ let disableIntervalContextsInRecursiveFunctions () =
 let chooseConfig file = 
   set_bool "annotation.int.enabled" true;
   addModAttributes file;
-  set_bool "ana.int.interval_threshold_widening" true;
+  set_bool "ana.int.interval_threshold_widening" true; (*Do not do this all the time?*)
   disableIntervalContextsInRecursiveFunctions ();;
 (*currently crashes sometimes because sometimes bigints are needed  
   print_endline @@ "Upper thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.upper_thresholds ();

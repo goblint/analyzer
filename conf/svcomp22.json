@@ -15,6 +15,7 @@
       "threadid",
       "threadflag",
       "mallocWrapper",
+      "mutexEvents",
       "mutex",
       "mutexEvents",
       "access",

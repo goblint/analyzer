@@ -151,14 +151,17 @@ class Tests
       ranking = ["other", "warn", "race", "norace", "deadlock", "nodeadlock", "success", "fail", "unknown", "term", "noterm"]
       thiswarn =  case obj
                     when /\(conf\. \d+\)/            then "race"
-                    when /lockset:/                  then "race" # osek races have their own legacy-like output
                     when /Deadlock/                  then "deadlock"
                     when /lock (before|after):/      then "deadlock"
                     when /Assertion .* will fail/    then "fail"
                     when /Assertion .* will succeed/ then "success"
                     when /Assertion .* is unknown/   then "unknown"
+                    when /invariant confirmed/       then "success"
+                    when /invariant unconfirmed/     then "unknown"
+                    when /invariant refuted/         then "fail"
                     when /^\[Warning\]/              then "warn"
                     when /^\[Error\]/                then "warn"
+                    when /^\[Success\]/              then "success"
                     when /\[Debug\]/                 then next # debug "warnings" shouldn't count as other warnings (against NOWARN)
                     when /^  on line \d+ $/          then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
                     when /^  on lines \d+..\d+ $/    then next # dead line warnings shouldn't count (used for unreachability with NOWARN)
@@ -193,7 +196,7 @@ class Tests
         check.call warnings[idx] == type
       when "nowarn"
         check.call warnings[idx].nil?
-      when "assert"
+      when "assert", "success"
         check.call warnings[idx] == "success"
       when "norace"
         check.call warnings[idx] != "race"
@@ -286,6 +289,12 @@ class Project
         tests[i] = if obj =~ /NODEADLOCK/ then "nodeadlock" else "deadlock" end
       elsif obj =~ /WARN/ then
         tests[i] = if obj =~ /NOWARN/ then "nowarn" else "warn" end
+      elsif obj =~ /SUCCESS/ then
+        tests[i] = "success"
+      elsif obj =~ /FAIL/ then
+        tests[i] = "fail"
+      elsif obj =~ /UNKNOWN/ then
+        tests[i] = "unknown"
       elsif obj =~ /assert.*\(/ then
         if obj =~ /FAIL/ then
           tests[i] = "fail"

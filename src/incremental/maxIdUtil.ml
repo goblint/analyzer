@@ -1,4 +1,3 @@
-open CompareCIL
 open Cil
 
 type max_ids = {
@@ -29,7 +28,3 @@ let get_file_max_ids (new_file: Cil.file) =
   let vid_max = ref 0 in
   Cil.iterGlobals new_file (fun g -> update_max_ids ~sid_max ~vid_max g);
   {max_sid = !sid_max; max_vid = !vid_max}
-
-(** Loads the max sid and vid from a previous run *)
-let load_max_ids () =
-  Serialize.load_data Serialize.VersionData

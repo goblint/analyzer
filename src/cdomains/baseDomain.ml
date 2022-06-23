@@ -24,7 +24,7 @@ struct
         )
       }
     and key_invariant_lval k offset lval v vs =
-      if not (InvariantCil.var_is_tmp k) && InvariantCil.var_is_in_scope c.scope k && not (VS.mem k vs) then
+      if not (VS.mem k vs) then
         let vs' = VS.add k vs in
         let key_context = {(context vs') with offset; lval=Some lval} in
         VD.invariant key_context v
