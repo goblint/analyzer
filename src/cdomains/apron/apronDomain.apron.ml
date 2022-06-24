@@ -269,11 +269,12 @@ struct
             | BinOp (Mod, e1, e2, _) ->
               Binop (Mod, texpr1_expr_of_cil_exp e1, texpr1_expr_of_cil_exp e2, Int, Near)
             | CastE (TInt _ as t, e) ->
-              begin match Cilfacade.typeOf e with
-                | e_typ when IntDomain.Size.is_cast_injective ~from_type:e_typ ~to_type:t -> (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+              begin match IntDomain.Size.is_cast_injective ~from_type:(Cilfacade.typeOf e) ~to_type:t with (* TODO: unnecessary cast check due to overflow check below? or maybe useful in general to also assume type bounds based on argument types? *)
+                | true ->
                   Unop (Cast, texpr1_expr_of_cil_exp e, Int, Zero) (* TODO: what does Apron Cast actually do? just for floating point and rounding? *)
-                | _
-                | exception Cilfacade.TypeOfError _ -> (* typeOf inner e, not outer exp *)
+                | false
+                | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
+                | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
                   raise Unsupported_CilExp
               end
             | _ ->
@@ -289,7 +290,8 @@ struct
               raise Unsupported_CilExp
           );
           expr
-        | exception Cilfacade.TypeOfError _ ->
+        | exception Cilfacade.TypeOfError _
+        | exception Invalid_argument _ ->
           raise Unsupported_CilExp
     in
     texpr1_expr_of_cil_exp
@@ -366,7 +368,7 @@ struct
       match V.to_cil_varinfo fundec v with
       | Some vinfo ->
         (* TODO: What to do with variables that have a type that cannot be stored into ILongLong to avoid overflows? *)
-        let var = Cil.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
+        let var = Cilfacade.mkCast ~e:(Lval(Var vinfo,NoOffset)) ~newt:longlong in
         let coeff, flip = coeff_to_const true c in
         let prod = BinOp(Mult, coeff, var, longlong) in
         if flip then
@@ -884,7 +886,8 @@ struct
   let eval_int d e =
     let module ID = Queries.ID in
     match Cilfacade.get_ikind_exp e with
-    | exception Cilfacade.TypeOfError _ ->
+    | exception Cilfacade.TypeOfError _
+    | exception Invalid_argument _ ->
       ID.top () (* real top, not a top of any ikind because we don't even know the ikind *)
     | ik ->
       if M.tracing then M.trace "apron" "eval_int: exp_is_cons %a = %B\n" d_plainexp e (exp_is_cons e);
