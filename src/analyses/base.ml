@@ -2383,21 +2383,17 @@ struct
       end
     | Abort, _ -> raise Deadcode
     | Unknown, "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
-    | Unknown, "pthread_exit" ->
-      begin match args with
-        | [exp] ->
-          begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-            | `Lifted tid ->
-              let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-              ctx.sideg (V.thread tid) (G.create_thread rv);
-              (* TODO: emit thread return event so other analyses are aware? *)
-              (* TODO: publish still needed? *)
-              publish_all ctx `Return (* like normal return *)
-            | _ -> ()
-          end;
-          raise Deadcode
-        | _ -> failwith "Unknown pthread_exit."
-      end
+    | ThreadExit { ret_val = exp }, _ ->
+      begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | `Lifted tid ->
+          let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+          ctx.sideg (V.thread tid) (G.create_thread rv);
+          (* TODO: emit thread return event so other analyses are aware? *)
+          (* TODO: publish still needed? *)
+          publish_all ctx `Return (* like normal return *)
+        | _ -> ()
+      end;
+      raise Deadcode
     | Unknown, "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)
