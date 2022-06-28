@@ -80,7 +80,7 @@ type categories = [
   | `Unlock
   | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
   | `ThreadJoin   of exp * exp (* id * ret_var *)
-  | `MathH        of exp list
+  | `Math        of exp list
   | `Unknown      of string ]
 
 
@@ -138,12 +138,12 @@ let classify fn exps =
   | "__builtin_signbit" | "__builtin_acos" | "acos" | "__builtin_asin" | "asin" | "__builtin_atan" | "atan" 
   | "__builtin_cos" | "cos" | "__builtin_sin" | "sin" | "__builtin_tan" | "tan" ->
     begin match exps with
-      | [x] -> `MathH exps
+      | [x] -> `Math exps
       | _ -> strange_arguments ()
     end
   | "__builtin_atan2" | "atan2" ->
     begin match exps with
-      | [y; x] -> `MathH exps
+      | [y; x] -> `Math exps
       | _ -> strange_arguments ()
     end 
   | x -> `Unknown x

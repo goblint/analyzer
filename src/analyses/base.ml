@@ -2531,7 +2531,7 @@ struct
         | None -> ctx.local
       end
     (**Floating point classification and trigonometric functions defined in c99*)
-    | MathH { args; }, _ ->
+    | Math { args; }, _ ->
       begin match args with
         | [x] -> 
           let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
