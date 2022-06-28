@@ -118,9 +118,9 @@ struct
     | i when Vector.compare_length_with v (i + 1) = 0 -> Some (Vector.nth v i)
     | _ -> None
 
-  (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
-    Returns None if the expression is not affine linear*)
   let get_coeff_vec (t: t) texp =
+    (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
+    Returns None if the expression is not affine linear*)
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
