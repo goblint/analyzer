@@ -39,6 +39,11 @@ except ValueError:
 only_collect_results = False # can be turned on to collect results, if data collection was aborted before the creation of result tables
 ################################################################################
 
+def filter_commits_false_pred(repo_path):
+    def pred(c):
+        relCLOC = utils.calculateRelCLOC(repo_path, c, diff_exclude)
+        return relCLOC == 0 or (maxCLOC is not None and relCLOC > maxCLOC)
+    return pred
 
 def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
     count_analyzed = 0
@@ -47,7 +52,7 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
     analyzed_commits = {}
     repo_path = os.path.join(cwd, repo_name)
 
-    for commit in itertools.islice(Repository(url, since=begin, to=to, only_no_merge=True, clone_repo_to=cwd).traverse_commits(), from_c, to_c):
+    for commit in itertools.islice(itertools.filterfalse(filter_commits_false_pred(repo_path), Repository(url, since=begin, to=to, only_no_merge=True, clone_repo_to=cwd).traverse_commits()), from_c, to_c):
         gr = Git(repo_path)
 
         #print("\n" + commit.hash)
@@ -114,11 +119,13 @@ def analyze_small_commits_in_repo(cwd, outdir, from_c, to_c):
 def collect_data(outdir):
     data = {"Commit": [], "Failed?": [], "Changed LOC": [], "Relevant changed LOC": [], "Changed/Added/Removed functions": [],
       utils.header_runtime_parent: [], utils.header_runtime_incr_child: [],
-      utils.header_runtime_incr_rel_child: [], "Change in number of race warnings": []}
+      utils.header_runtime_incr_posts_child: [], utils.header_runtime_incr_posts_rel_child: [],
+      "Change in number of race warnings": []}
     for t in os.listdir(outdir):
         parentlog = os.path.join(outdir, t, 'parent', 'analyzer.log')
         childlog = os.path.join(outdir, t, 'child', 'analyzer.log')
-        childrellog = os.path.join(outdir, t, 'child-rel', 'analyzer.log')
+        childpostslog = os.path.join(outdir, t, 'child-incr-post', 'analyzer.log')
+        childpostsrellog = os.path.join(outdir, t, 'child-rel', 'analyzer.log')
         commit_prop_log = os.path.join(outdir, t, 'commit_properties.log')
         t = int(t)
         commit_prop = json.load(open(commit_prop_log, "r"))
@@ -129,17 +136,20 @@ def collect_data(outdir):
         if commit_prop["failed"] == True:
             data[utils.header_runtime_parent].append(0)
             data[utils.header_runtime_incr_child].append(0)
-            data[utils.header_runtime_incr_rel_child].append(0)
+            data[utils.header_runtime_incr_posts_child].append(0)
+            data[utils.header_runtime_incr_posts_rel_child].append(0)
             data["Changed/Added/Removed functions"].append(0)
             data["Change in number of race warnings"].append(0)
             continue
         parent_info = utils.extract_from_analyzer_log(parentlog)
         child_info = utils.extract_from_analyzer_log(childlog)
-        child_rel_info = utils.extract_from_analyzer_log(childrellog)
+        child_posts_info = utils.extract_from_analyzer_log(childpostslog)
+        child_posts_rel_info = utils.extract_from_analyzer_log(childpostsrellog)
         data["Changed/Added/Removed functions"].append(int(child_info["changed"]) + int(child_info["added"]) + int(child_info["removed"]))
         data[utils.header_runtime_parent].append(float(parent_info["runtime"]))
         data[utils.header_runtime_incr_child].append(float(child_info["runtime"]))
-        data[utils.header_runtime_incr_rel_child].append(float(child_rel_info["runtime"]))
+        data[utils.header_runtime_incr_posts_child].append(float(child_posts_info["runtime"]))
+        data[utils.header_runtime_incr_posts_rel_child].append(float(child_posts_rel_info["runtime"]))
         data["Change in number of race warnings"].append(int(child_info["race_warnings"] - int(parent_info["race_warnings"])))
     return data
 
@@ -173,8 +183,9 @@ def analyze_chunks_of_commits_in_parallel():
     coremapping = [coremapping1[i//2] if i%2==0 else coremapping2[i//2] for i in range(len(coremapping1) + len(coremapping2))]
     processes = []
 
-    # calculate number of interesting commits
-    num_commits = sum(1 for _ in Repository(url, since=begin, to=to, only_no_merge=True).traverse_commits())
+    # calculate actual number of interesting commits up-front to allow for similar load distribution
+    iter = itertools.filterfalse(filter_commits_false_pred(os.path.join(os.getcwd(), repo_name)), Repository(url, since=begin, to=to, only_no_merge=True, clone_repo_to=os.getcwd()).traverse_commits())
+    num_commits = sum(1 for _ in iter)
     print("Number of potentially interesting commits:", num_commits)
     perprocess = num_commits // numcores if num_commits % numcores == 0 else num_commits // numcores + 1
     print("Per process: " + str(perprocess))

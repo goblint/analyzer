@@ -13,7 +13,7 @@ def cummulative_distr_compare2(outdir, result_csv_filename):
     dataincr = {"values": data[1], "label": "Incremental analysis of commit"}
     utils.cummulative_distr_plot([datanonincr, dataincr], base, outfile_nonincr_vs_incr)
 
-    data, base = utils.create_cum_data(df, num_bins, [utils.header_runtime_incr_child, utils.header_runtime_incr_rel_child])
+    data, base = utils.create_cum_data(df, num_bins, [utils.header_runtime_incr_child, utils.header_runtime_incr_posts_rel_child])
     dataincr = {"values": data[0], "label": "Incremental analysis of commit"}
     datarelincr = {"values": data[1], "label": "Reluctant incremental analysis of commit"}
     utils.cummulative_distr_plot([dataincr, datarelincr], base, outfile_incr_vs_incrrel, logscale=True)
@@ -23,7 +23,7 @@ def cummulative_distr_all3(outdir, result_csv_filename):
     outfile_nonincr_vs_incr = "figure_cum_distr_all3.pdf"
     df = utils.get_cleaned_filtered_data(os.path.join(outdir,result_csv_filename), filterDetectedChanges=True)
 
-    data, base = utils.create_cum_data(df, num_bins, [utils.header_runtime_parent, utils.header_runtime_incr_child, utils.header_runtime_incr_rel_child])
+    data, base = utils.create_cum_data(df, num_bins, [utils.header_runtime_parent, utils.header_runtime_incr_child, utils.header_runtime_incr_posts_rel_child])
     datanonincr = {"values": data[0], "label": "Non-incremental analysis of parent commit"}
     dataincr = {"values": data[1], "label": "Incremental analysis of commit"}
     datarelincr = {"values": data[2], "label": "Reluctant incremental analysis of commit"}
@@ -37,7 +37,7 @@ def distribution_absdiff_plot(title, result_csv_filename, outdir, cutoffs_incr=N
     utils.hist_plot(diff, 20, title, 'Improvement in s (incremental compared to non-incremental)', 'Number of Commits', os.path.join(outdir, "figure_absdiff_distr_incr.pdf"), cutoffs_incr)
 
     # plot reluctant vs. basic incremental
-    diff = df.loc[:,utils.header_runtime_incr_child] - df.loc[:,utils.header_runtime_incr_rel_child]
+    diff = df.loc[:,utils.header_runtime_incr_child] - df.loc[:,utils.header_runtime_incr_posts_rel_child]
     utils.hist_plot(diff, 2, title, 'Improvement in s (reluctant compared to incremental)', 'Number of Commits', os.path.join(outdir, "figure_absdiff_distr_rel.pdf"), cutoffs_rel)
 
 def distribution_reldiff_plot(title, result_csv_filename, outdir, cutoffs_incr=None, cutoffs_rel=None):
@@ -49,18 +49,15 @@ def distribution_reldiff_plot(title, result_csv_filename, outdir, cutoffs_incr=N
     utils.hist_plot(diff, 0.01, title, "Relative Improvement in s (incremental compared to non-incremental)", 'Number of Commits', os.path.join(outdir, "figure_reldiff_distr_incr.pdf"), cutoffs_incr)
 
     # plot reluctant vs. basic incremental
-    diff = 1 - df.loc[:,utils.header_runtime_incr_rel_child] / df.loc[:,utils.header_runtime_incr_child]
+    diff = 1 - df.loc[:,utils.header_runtime_incr_posts_rel_child] / df.loc[:,utils.header_runtime_incr_child]
     utils.hist_plot(diff, 0.005, title, 'Relative Improvement (reluctant compared to incremental)', 'Number of Commits', os.path.join(outdir, "figure_reldiff_distr_rel.pdf"), cutoffs_rel)
 
-def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filename, outdir, filterRelCLOC=False, filterDetectedChanges=False):
-    df_base = utils.get_cleaned_filtered_data(os.path.join(dir_results_baseline,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
-    df_incrps = utils.get_cleaned_filtered_data(os.path.join(dir_results_incrps,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
-    df = df_base.join(df_incrps, how='inner', lsuffix=' base', rsuffix=' incrps')
-    df.to_csv('join.csv',sep=";")
-    diff1 = 1 - df[utils.header_runtime_incr_child + " base"].astype('float') / df[utils.header_runtime_parent + " base"].astype('float')
-    diff2 = 1 - df[utils.header_runtime_incr_child + " incrps"].astype('float') / df[utils.header_runtime_incr_child + " base"].astype('float')
-    diff3 = 1 - df[utils.header_runtime_incr_rel_child].astype('float') / df[utils.header_runtime_incr_child + " incrps"].astype('float')
-    diff4 = 1 - df[utils.header_runtime_incr_rel_child].astype('float') / df[utils.header_runtime_parent + " base"].astype('float')
+def paper_efficiency_graphs(dir_results, csv_filename, outdir, filterRelCLOC=False, filterDetectedChanges=False):
+    df = utils.get_cleaned_filtered_data(os.path.join(dir_results,csv_filename), filterRelCLOC=filterRelCLOC, filterDetectedChanges=filterDetectedChanges)
+    diff1 = 1 - df[utils.header_runtime_incr_child].astype('float') / df[utils.header_runtime_parent].astype('float')
+    diff2 = 1 - df[utils.header_runtime_incr_posts_child].astype('float') / df[utils.header_runtime_incr_child].astype('float')
+    diff3 = 1 - df[utils.header_runtime_incr_posts_rel_child].astype('float') / df[utils.header_runtime_incr_posts_child].astype('float')
+    diff4 = 1 - df[utils.header_runtime_incr_posts_rel_child].astype('float') / df[utils.header_runtime_parent].astype('float')
     step = 0.01
     for i, diff in enumerate([diff1,diff2,diff3,diff4]):
         # output textwidth in latex with
@@ -87,7 +84,7 @@ def paper_efficiency_graphs(dir_results_baseline, dir_results_incrps, csv_filena
         else:
             size = (textwidth/3-0.1/2, textwidth/4) # missing ylabel
             xlim = 1.05
-        utils.hist_plot(diff, step, None, xlabel, xlabel, ylabel, outfile,
+        utils.hist_plot(diff, step, None, xlabel, ylabel, outfile,
             size, xlim_left=xlimleft, xlim_right=xlim, cutoffs=None)
 
 def paper_precision_graph(results_precision, filename, outdir):
@@ -121,14 +118,13 @@ def paper_precision_graph(results_precision, filename, outdir):
 
 
 # efficiency plots
-results_efficiency_baseline = "result_efficiency_baseline"
-results_efficiency_incrpostsolver = "result_efficiency_incrpost"
+results_efficiency = "result_efficiency"
 outdir = "figures"
 if os.path.exists(outdir):
     shutil.rmtree(outdir)
 os.mkdir(outdir)
 filename = "total_results.csv"
-paper_efficiency_graphs(results_efficiency_baseline, results_efficiency_incrpostsolver, filename, outdir, filterRelCLOC=True, filterDetectedChanges=False)
+paper_efficiency_graphs(results_efficiency, filename, outdir, filterRelCLOC=True, filterDetectedChanges=False)
 
 
 # precision plot

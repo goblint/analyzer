@@ -29,7 +29,8 @@ from matplotlib.ticker import ScalarFormatter
 
 header_runtime_parent = "Runtime for parent commit (non-incremental)"
 header_runtime_incr_child = "Runtime for commit (incremental)"
-header_runtime_incr_rel_child = "Runtime for commit (incremental + reluctant)"
+header_runtime_incr_posts_child = "Runtime for commit (incremental + incr postsolver)"
+header_runtime_incr_posts_rel_child = "Runtime for commit (incremental + incr postsolver + reluctant)"
 
 def reset_incremental_data(incr_data_dir):
     if os.path.exists(incr_data_dir) and os.path.isdir(incr_data_dir):
