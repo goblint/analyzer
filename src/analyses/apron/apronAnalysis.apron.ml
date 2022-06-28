@@ -1,9 +1,12 @@
 open Analyses
 
+include RelationAnalysis
+
+
 module ExtendedSpecFunctor (CPriv: RelationPriv.S) (RD: RelationDomain.RD) : Analyses.MCPSpec =
 struct
   module OctApron = ApronPrecCompareUtil.OctagonD
-  include  RelationAnalysis.SpecFunctor (CPriv) (RD) (ApronPrecCompareUtil.Util)
+  include  SpecFunctor (CPriv) (RD) (ApronPrecCompareUtil.Util)
   module AD = ApronDomain.D2Complete(OctApron.Man)
   module PCU = ApronPrecCompareUtil.Util(OctApron)
 
@@ -68,13 +71,3 @@ let after_config () =
 
 let _ =
   AfterConfig.register after_config
-
-
-let () =
-  Printexc.register_printer
-    (function
-      | Apron.Manager.Error e ->
-        let () = Apron.Manager.print_exclog Format.str_formatter e in
-        Some(Printf.sprintf "Apron.Manager.Error\n %s" (Format.flush_str_formatter ()))
-      | _ -> None (* for other exceptions *)
-    )
