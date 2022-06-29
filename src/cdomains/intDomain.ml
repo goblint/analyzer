@@ -792,9 +792,28 @@ struct
           norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
                            (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
       end
-  let ne ik i1 i2 = to_bool_interval (sub ik i1 i2)
 
-  let eq ik (i1: t) (i2: t) = to_bool_interval (lognot ik (sub ik i1 i2))
+  let ne ik x y =
+    match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (x1,x2), Some (y1,y2) ->
+      if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
+        of_bool ik true
+      else if Ints_t.compare x2 y1 <= 0 && Ints_t.compare y2 x1 <= 0 then
+        of_bool ik false
+      else top_bool
+
+  let eq ik x y =
+    match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (x1,x2), Some (y1,y2) ->
+      if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
+        of_bool ik true
+      else if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
+        of_bool ik false
+      else top_bool
 
   let ge ik x y =
     match x, y with
