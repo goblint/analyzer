@@ -52,7 +52,7 @@ struct
       FI.top () + FI.top () = FI.top ();
       (FI.of_const fmin) + (FI.of_const fmax) = fi_zero;
       (FI.of_const fsmall) + (FI.of_const fsmall) = FI.of_const (fsmall +. fsmall);
-      (FI.of_const fsmall) + (FI.of_const 1.) = FI.of_interval (1., succ (1. +. fsmall));
+      (FI.of_const fsmall) + (FI.of_const 1.) = FI.of_interval (1., (1. +. fsmall));
       (FI.of_interval (1., 2.)) + (FI.of_interval (2., 3.)) = FI.of_interval (3., 5.);
       (FI.of_interval (-. 2., 3.)) + (FI.of_interval (-. 100., 20.)) = FI.of_interval (-. 102., 23.);
     end

@@ -39,10 +39,11 @@ static void change_round_mode(int mode)
 #define BINARY_OP(name, type, op)                                \
     CAMLprim value name##_##type(value mode, value x, value y)   \
     {                                                            \
+        int old_roundingmode = fegetround();                     \
         change_round_mode(Int_val(mode));                        \
         volatile type r, x1 = Double_val(x), y1 = Double_val(y); \
         r = x1 op y1;                                            \
-        change_round_mode(Nearest);                              \
+        fesetround(old_roundingmode);                            \
         return caml_copy_double(r);                              \
     }
 
@@ -74,7 +75,6 @@ CAMLprim value atof_float(value mode, value str)
     change_round_mode(Nearest);
     return caml_copy_double(r);
 }
-
 
 CAMLprim value max_float(value unit)
 {

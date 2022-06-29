@@ -5,7 +5,7 @@ module type FloatArith = sig
   type t
 
   val neg : t -> t
-  (** Negating an flaot value: [-x] *)
+  (** Negating a float value: [-x] *)
   val add : t -> t -> t
   (** Addition: [x + y] *)
   val sub : t -> t -> t
@@ -62,7 +62,7 @@ module type FloatDomainBase = sig
   val is_exact : t -> bool
 end
 
-(* Only required for testing *)
+(* Only exposed for testing *)
 module F64Interval : FloatDomainBase
 module F32Interval : FloatDomainBase
 
@@ -88,11 +88,8 @@ module type FloatDomain = sig
   val maximal: t -> float option
 
   val is_exact : t -> bool
-  val precision : t -> Cil.fkind
-
+  val get_fkind : t -> Cil.fkind
   val invariant: Cil.exp -> t -> Invariant.t
 end
 
-module FloatDomTupleImpl : sig
-  include FloatDomain
-end
+module FloatDomTupleImpl : FloatDomain

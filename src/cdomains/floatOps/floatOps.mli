@@ -22,6 +22,7 @@ module type CFloatType = sig
   val succ: t -> t
 
   val equal: t -> t -> bool
+  val hash: t -> int
   val compare: t -> t -> int
   val to_yojson: t -> Yojson.Safe.t
   val to_string: t -> string

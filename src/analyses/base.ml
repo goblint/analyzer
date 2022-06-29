@@ -131,7 +131,7 @@ struct
   let unop_FD = function
     | Neg  -> FD.neg
     (* other unary operators are not implemented on float values *)
-    | _ -> (fun c -> FD.top_of (FD.precision c))
+    | _ -> (fun c -> FD.top_of (FD.get_fkind c))
 
   (* Evaluating Cil's unary operators. *)
   let evalunop op typ = function
@@ -747,9 +747,9 @@ struct
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
       | Const (CReal (_, (FFloat | FDouble as fkind), Some str)) -> `Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
       | Const (CReal (num, (FFloat | FDouble as fkind), None)) -> `Float (FD.of_const fkind num)
-      (* this is so far only for DBL_MIN/DBL_MAX as it is represented as LongDouble although it would fit into a double as well *)
-      | Const (CReal (_, (FLongDouble), Some str)) when str = "2.2250738585072014e-308L" -> `Float (FD.of_string FDouble str)
-      | Const (CReal (_, (FLongDouble), Some str)) when str = "1.7976931348623157e+308L" -> `Float (FD.of_string FDouble str)
+      (* we also support long doubles but only with the precision of a double *)
+      | Const (CReal (_, (FLongDouble), Some str)) -> `Float (FD.of_string FDouble str)
+      | Const (CReal (num, (FLongDouble), None)) -> `Float (FD.of_const FDouble num)
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
@@ -1851,7 +1851,7 @@ struct
       | Eq | Ne as op ->
         let both x = x, x in
         let m = FD.meet a b in
-        let result = FD.ne c (FD.of_const (FD.precision c) 0.) in
+        let result = FD.ne c (FD.of_const (FD.get_fkind c) 0.) in
         (match op, ID.to_bool(result) with
          | Eq, Some true
          | Ne, Some false -> both m (* def. equal: if they compare equal, both values must be from the meet *)
@@ -1864,15 +1864,15 @@ struct
       | Lt | Le | Ge | Gt as op ->
         (match FD.minimal a, FD.maximal a, FD.minimal b, FD.maximal b with
          | Some l1, Some u1, Some l2, Some u2 ->
-           (match op, ID.to_bool(FD.ne c (FD.of_const (FD.precision c) 0.)) with
+           (match op, ID.to_bool(FD.ne c (FD.of_const (FD.get_fkind c) 0.)) with
             | Le, Some true
-            | Gt, Some false -> meet_bin (FD.ending (FD.precision a) u2) (FD.starting (FD.precision b) l1)
+            | Gt, Some false -> meet_bin (FD.ending (FD.get_fkind a) u2) (FD.starting (FD.get_fkind b) l1)
             | Ge, Some true
-            | Lt, Some false -> meet_bin (FD.starting (FD.precision a) l2) (FD.ending (FD.precision b) u1)
+            | Lt, Some false -> meet_bin (FD.starting (FD.get_fkind a) l2) (FD.ending (FD.get_fkind b) u1)
             | Lt, Some true
-            | Ge, Some false -> meet_bin (FD.ending (FD.precision a) (Float.pred u2)) (FD.starting (FD.precision b) (Float.succ l1))
+            | Ge, Some false -> meet_bin (FD.ending (FD.get_fkind a) (Float.pred u2)) (FD.starting (FD.get_fkind b) (Float.succ l1))
             | Gt, Some true
-            | Le, Some false -> meet_bin (FD.starting (FD.precision a) (Float.succ l2)) (FD.ending (FD.precision b) (Float.pred u1))
+            | Le, Some false -> meet_bin (FD.starting (FD.get_fkind a) (Float.succ l2)) (FD.ending (FD.get_fkind b) (Float.pred u1))
             | _, _ -> a, b)
          | _ -> a, b)
       | op ->
@@ -1884,12 +1884,7 @@ struct
     let set' lval v st = set a gs st (eval_lv a gs st lval) (Cilfacade.typeOfLval lval) v ~invariant:true ~ctx in
     let rec inv_exp c_typed exp (st:store): store =
       (* trying to improve variables in an expression so it is bottom means dead code *)
-      (
-        match c_typed with
-        | `Int c -> if ID.is_bot c then raise Deadcode
-        | `Float c -> if FD.is_bot c then raise Deadcode
-        | _ -> if VD.is_bot c_typed then raise Deadcode
-      );
+      if VD.is_bot_value c_typed then raise Deadcode;
       match exp, c_typed with
       | UnOp (LNot, e, _), `Int c ->
         let ikind = Cilfacade.get_ikind_exp e in
@@ -1977,7 +1972,7 @@ struct
          | _ -> failwith "unreachable")
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
-        (match Cilfacade.typeOf e, FD.precision c with
+        (match Cilfacade.typeOf e, FD.get_fkind c with
          | TFloat (FDouble as fk, _), FFloat
          | TFloat (FDouble as fk, _), FDouble
          | TFloat (FFloat as fk, _), FFloat -> inv_exp (`Float (FD.cast_to fk c)) e st

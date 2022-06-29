@@ -66,9 +66,7 @@ end
 
 module FloatIntervalImpl(Float_t : CFloatType) = struct
   include Printable.Std (* for default invariant, tag and relift *)
-  type t = (Float_t.t * Float_t.t) option [@@deriving eq, ord, to_yojson]
-
-  let hash = Hashtbl.hash
+  type t = (Float_t.t * Float_t.t) option [@@deriving eq, ord, to_yojson, hash]
 
   let to_int ik = function
     | None -> IntDomain.IntDomTuple.top_of ik
@@ -122,7 +120,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
         else None
       | _ -> None
     in if is_top normed then
-      Messages.warn ~category:Messages.Category.FloatMessage ~tags:[CWE 189; CWE 739] 
+      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739] 
         "Float could be +/-infinity or Nan";
     normed
 
@@ -184,7 +182,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       let high = if h1 >= h2 then h1 else Float_t.upper_bound in
       norm @@ Some (low, high)
 
-  let narrow v1 v2 = (**TODO: support 'threshold_narrowing' and 'narrow_by_meet' option *)
+  let narrow v1 v2 =
     match v1, v2 with (**we cannot distinguish between the lower bound beeing -inf or the upper bound beeing inf. Also there is nan *)
     | None, _ -> v2
     | _, _ -> v1
@@ -201,7 +199,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
          let is_exact_after = is_exact (r1, r2)
          in if not is_exact_after && is_exact_before then 
            Messages.warn
-             ~category:Messages.Category.FloatMessage 
+             ~category:Messages.Category.Float 
              ~tags:[CWE 197; CWE 681; CWE 1339]
              "The result of this operation is not exact, even though the inputs were exact."; 
          result
@@ -274,7 +272,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_eq (l1, h1) (l2, h2) =
     Messages.warn 
-      ~category:Messages.Category.FloatMessage 
+      ~category:Messages.Category.Float 
       ~tags:[CWE 1077]
       "Equality between `double` is dangerous!";
     if h1 < l2 || h2 < l1 then (0, 0)
@@ -283,7 +281,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_ne (l1, h1) (l2, h2) =
     Messages.warn 
-      ~category:Messages.Category.FloatMessage 
+      ~category:Messages.Category.Float 
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
     if h1 < l2 || h2 < l1 then (1, 1)
@@ -373,8 +371,7 @@ module type FloatDomain = sig
   val maximal: t -> float option
 
   val is_exact : t -> bool
-  val precision : t -> Cil.fkind
-
+  val get_fkind : t -> Cil.fkind
   val invariant: Cil.exp -> t -> Invariant.t
 end
 
@@ -437,7 +434,7 @@ module FloatIntervalImplLifted = struct
   let top () = failwith "top () is not implemented for FloatIntervalImplLifted."
   let is_top = dispatch (F1.is_bot, F2.is_bot)
 
-  let precision = dispatch ((fun _ -> FFloat), (fun _ -> FDouble))
+  let get_fkind = dispatch ((fun _ -> FFloat), (fun _ -> FDouble))
 
   let leq = lift2_cmp (F1.leq, F2.leq)
   let join = lift2 (F1.join, F2.join)
@@ -481,7 +478,7 @@ module FloatIntervalImplLifted = struct
     | _ -> x
 
   let invariant e (x:t) =
-    let fk = precision x in
+    let fk = get_fkind x in
     match minimal x, maximal x with
     | Some x1, Some x2 when x1 = x2 ->
       Invariant.of_exp Cil.(BinOp (Eq, e, Const (CReal (x1, fk, None)), intType))
@@ -583,7 +580,7 @@ module FloatDomTupleImpl = struct
     for_all
     % mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.is_top); }
 
-  let precision = Option.map_default F1.precision FDouble
+  let get_fkind = Option.map_default F1.get_fkind FDouble
 
   let minimal x = Option.bind x F1.minimal
   let maximal x = Option.bind x F1.maximal

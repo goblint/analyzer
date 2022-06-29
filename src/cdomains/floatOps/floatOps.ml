@@ -22,6 +22,7 @@ module type CFloatType = sig
   val succ: t -> t
 
   val equal: t -> t -> bool
+  val hash: t -> int
   val compare: t -> t -> int
   val to_yojson: t -> Yojson.Safe.t
   val to_string: t -> string
@@ -59,6 +60,7 @@ module CDouble = struct
   let pred = Float.pred
   let succ = Float.succ
 
+  let hash = Hashtbl.hash
   let to_string = Float.to_string
 
   let neg = Float.neg
@@ -88,6 +90,7 @@ module CFloat = struct
 
   let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound 
 
+  let hash = Hashtbl.hash
   let to_string = Float.to_string
 
   let neg = Float.neg
