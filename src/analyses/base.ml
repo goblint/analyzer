@@ -1127,6 +1127,12 @@ struct
           ID.invariant e n
         else
           Invariant.none
+      | `Float n ->
+        let e = Lval (BatOption.get c.Invariant.lval) in
+        if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+          FD.invariant e n
+        else
+          Invariant.none
       | `Address n -> ad_invariant ~vs ~offset c n
       | `Blob n -> blob_invariant ~vs ~offset c n
       | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n

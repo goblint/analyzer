@@ -89,6 +89,8 @@ module type FloatDomain = sig
 
   val is_exact : t -> bool
   val precision : t -> Cil.fkind
+
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 
 module FloatDomTupleImpl : sig

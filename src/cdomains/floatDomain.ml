@@ -374,6 +374,8 @@ module type FloatDomain = sig
 
   val is_exact : t -> bool
   val precision : t -> Cil.fkind
+
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 
 module FloatIntervalImplLifted = struct
@@ -477,6 +479,17 @@ module FloatIntervalImplLifted = struct
     | F32 a, FDouble -> create_interval FDouble (F1.minimal a) (F1.maximal a)
     | F64 a, FFloat -> create_interval FFloat (F2.minimal a) (F2.maximal a)
     | _ -> x
+
+  let invariant e (x:t) =
+    let fk = precision x in
+    match minimal x, maximal x with
+    | Some x1, Some x2 when x1 = x2 ->
+      Invariant.of_exp Cil.(BinOp (Eq, e, Const (CReal (x1, fk, None)), intType))
+    | Some x1, Some x2 ->
+      let i1 = Invariant.of_exp Cil.(BinOp (Le, Const (CReal (x1, fk, None)), e, intType)) in
+      let i2 = Invariant.of_exp Cil.(BinOp (Le, e, Const (CReal (x2, fk, None)), intType)) in
+      Invariant.(&&) i1 i2
+    | _ -> Invariant.none
 end
 
 module FloatDomTupleImpl = struct
@@ -574,6 +587,7 @@ module FloatDomTupleImpl = struct
 
   let minimal x = Option.bind x F1.minimal
   let maximal x = Option.bind x F1.maximal
+  let invariant e x = Option.map_default (F1.invariant e) (Invariant.none) x
 
   let of_int fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_int fkind); }

@@ -1098,7 +1098,8 @@ struct
   let rec project p (v: t): t =
     match v with
     | `Int n ->  `Int (ID.project p n)
-    | `Float n ->  failwith "todo - project"
+    (* as long as we only have one representation, project is a nop*)
+    | `Float n ->  `Float n
     | `Address n -> `Address (project_addr p n)
     | `Struct n -> `Struct (Structs.map (fun (x: t) -> project p x) n)
     | `Union (f, v) -> `Union (f, project p v)
