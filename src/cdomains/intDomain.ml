@@ -418,6 +418,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
+    M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pretty from_type (BI.to_string from_min) (BI.to_string from_max) CilType.Typ.pretty to_type (BI.to_string to_min) (BI.to_string to_max);
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)

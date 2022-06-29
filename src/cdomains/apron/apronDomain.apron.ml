@@ -223,6 +223,15 @@ sig
   val allow_global: bool
 end
 
+type unsupported_cilExp =
+  | Var_not_found of CilType.Varinfo.t (** Variable not found in Apron environment. *)
+  | Cast_not_injective of CilType.Typ.t (** Cast is not injective, i.e. may under-/overflow. *)
+  | Exp_not_supported (** Expression constructor not supported. *)
+  | Overflow (** May overflow according to Apron bounds. *)
+  | Exp_typeOf of exn [@printer fun ppf e -> Format.pp_print_string ppf (Printexc.to_string e)] (** Expression type could not be determined. *)
+  | BinOp_not_supported (** BinOp constructor not supported. *)
+[@@deriving show { with_path = false }]
+
 (** Conversion from CIL expressions to Apron. *)
 module ApronOfCil (Arg: ConvertArg) (Tracked: Tracked) (Man: Manager) =
 struct
@@ -230,7 +239,12 @@ struct
   open Tcons1
   module Bounds = Bounds(Man)
 
-  exception Unsupported_CilExp
+  exception Unsupported_CilExp of unsupported_cilExp
+
+  let () = Printexc.register_printer (function
+      | Unsupported_CilExp reason -> Some (show_unsupported_cilExp reason)
+      | _ -> None (* for other exception *)
+    )
 
   let texpr1_expr_of_cil_exp d env =
     (* recurse without env argument *)
@@ -246,7 +260,7 @@ struct
           if Environment.mem_var env var then
             Var var
           else
-            raise Unsupported_CilExp
+            raise (Unsupported_CilExp (Var_not_found v))
         else
           failwith "texpr1_expr_of_cil_exp: globals must be replaced with temporary locals"
       | Const (CInt (i, _, _)) ->
@@ -275,10 +289,10 @@ struct
                 | false
                 | exception Cilfacade.TypeOfError _ (* typeOf inner e, not outer exp *)
                 | exception Invalid_argument _ -> (* get_ikind in is_cast_injective *)
-                  raise Unsupported_CilExp
+                  raise (Unsupported_CilExp (Cast_not_injective t))
               end
             | _ ->
-              raise Unsupported_CilExp
+              raise (Unsupported_CilExp Exp_not_supported)
           in
           if not (IntDomain.should_ignore_overflow ik) then (
             let (type_min, type_max) = IntDomain.Size.range ik in
@@ -287,12 +301,12 @@ struct
             | Some min, Some max when BI.compare type_min min <= 0 && BI.compare max type_max <= 0 -> ()
             | min_opt, max_opt ->
               if M.tracing then M.trace "apron" "may overflow: %a (%a, %a)\n" CilType.Exp.pretty exp (Pretty.docOpt (IntDomain.BigInt.pretty ())) min_opt (Pretty.docOpt (IntDomain.BigInt.pretty ())) max_opt;
-              raise Unsupported_CilExp
+              raise (Unsupported_CilExp Overflow)
           );
           expr
-        | exception Cilfacade.TypeOfError _
-        | exception Invalid_argument _ ->
-          raise Unsupported_CilExp
+        | exception (Cilfacade.TypeOfError _ as e)
+        | exception (Invalid_argument _ as e) ->
+          raise (Unsupported_CilExp (Exp_typeOf e))
     in
     texpr1_expr_of_cil_exp
 
@@ -315,9 +329,9 @@ struct
           | Ge -> (texpr1_1, texpr1_2, SUPEQ) (* e1 >= e2  ==>  e1 - e2 >= 0 *)
           | Eq -> (texpr1_1, texpr1_2, EQ)    (* e1 == e2  ==>  e1 - e2 == 0 *)
           | Ne -> (texpr1_1, texpr1_2, DISEQ) (* e1 != e2  ==>  e1 - e2 != 0 *)
-          | _ -> raise Unsupported_CilExp
+          | _ -> raise (Unsupported_CilExp BinOp_not_supported)
         end
-      | _ -> raise Unsupported_CilExp
+      | _ -> raise (Unsupported_CilExp Exp_not_supported)
     in
     let inverse_typ = function
       | EQ -> DISEQ
@@ -614,7 +628,7 @@ struct
     | texpr1 ->
       if M.tracing then M.trace "apron" "assign_exp converted: %s\n" (Format.asprintf "%a" Texpr1.print texpr1);
       A.assign_texpr_with Man.mgr nd v texpr1 None
-    | exception Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp _ ->
       if M.tracing then M.trace "apron" "assign_exp unsupported\n";
       forget_vars_with nd [v]
 
@@ -628,7 +642,7 @@ struct
       |> Enum.map (Tuple2.map2 (fun e ->
           match Convert.texpr1_of_cil_exp nd env e with
           | texpr1 -> Some texpr1
-          | exception Convert.Unsupported_CilExp -> None
+          | exception Convert.Unsupported_CilExp _ -> None
         ))
       |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
@@ -680,7 +694,7 @@ struct
     match Convert.texpr1_of_cil_exp nd (A.env nd) e with
     | texpr1 ->
       A.substitute_texpr_with Man.mgr nd v texpr1 None
-    | exception Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp _ ->
       forget_vars_with nd [v]
 
   let substitute_exp_parallel_with nd ves =
@@ -693,7 +707,7 @@ struct
       |> Enum.map (Tuple2.map2 (fun e ->
           match Convert.texpr1_of_cil_exp nd env e with
           | texpr1 -> Some texpr1
-          | exception Convert.Unsupported_CilExp -> None
+          | exception Convert.Unsupported_CilExp _ -> None
         ))
       |> Enum.partition (fun (_, e_opt) -> Option.is_some e_opt)
     in
@@ -850,8 +864,8 @@ struct
           let r = meet_tcons d tcons1 in
           if M.tracing then M.trace "apron" "assert_cons r: %a\n" D.pretty r;
           r
-        | exception Convert.Unsupported_CilExp ->
-          if M.tracing then M.trace "apron" "assert_cons %a unsupported\n" d_exp e;
+        | exception Convert.Unsupported_CilExp reason ->
+          if M.tracing then M.trace "apron" "assert_cons %a unsupported: %s\n" d_exp e (show_unsupported_cilExp reason);
           d
       end
 
@@ -879,7 +893,7 @@ struct
     match Convert.texpr1_of_cil_exp d (A.env d) e with
     | texpr1 ->
       Bounds.bound_texpr d texpr1
-    | exception Convert.Unsupported_CilExp ->
+    | exception Convert.Unsupported_CilExp _ ->
       (None, None)
 
   (** Evaluate constraint or non-constraint expression as integer. *)
@@ -1136,7 +1150,7 @@ struct
               | tcons1 when A.sat_tcons Man.mgr y tcons1 ->
                 Some tcons1
               | _
-              | exception Convert.Unsupported_CilExp ->
+              | exception Convert.Unsupported_CilExp _ ->
                 None
             ) exps
           in
