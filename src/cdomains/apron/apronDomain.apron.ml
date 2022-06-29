@@ -816,10 +816,14 @@ sig
   val invariant: scope:Cil.fundec -> t -> Lincons1.t list
 end
 
-module Tracked =
+module Tracked: Tracked =
 struct
+  let is_pthread_int_type = function
+    | TNamed ({tname = ("pthread_t" | "pthread_key_t" | "pthread_once_t" | "pthread_spinlock_t"); _}, _) -> true (* on Linux these pthread types are integral *)
+    | _ -> false
+
   let type_tracked typ =
-    isIntegralType typ
+    isIntegralType typ && not (is_pthread_int_type typ)
 
   let varinfo_tracked vi =
     (* no vglob check here, because globals are allowed in apron, but just have to be handled separately *)
