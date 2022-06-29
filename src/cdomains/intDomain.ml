@@ -1605,8 +1605,20 @@ struct
   let shift_right =
     shift BigInt.shift_right
   (* TODO: lift does not treat Not {0} as true. *)
-  let logand = lift2 BigInt.logand
-  let logor  = lift2 BigInt.logor
+  let logand ik x y =
+    match to_bool x, to_bool y with
+    | Some false, _
+    | _, Some false ->
+      of_bool ik false
+    | _, _ ->
+      lift2 BigInt.logand ik x y
+  let logor ik x y =
+    match to_bool x, to_bool y with
+    | Some true, _
+    | _, Some true ->
+      of_bool ik true
+    | _, _ ->
+      lift2 BigInt.logor ik x y
   let lognot ik = eq ik (of_int ik BigInt.zero)
 
   let invariant_ikind e ik (x:t) =
