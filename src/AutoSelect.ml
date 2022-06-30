@@ -28,37 +28,48 @@ let addOrCreateMap fd = function
   | Some set -> Some (FunctionSet.add fd set)
   | None     -> Some (FunctionSet.singleton fd) ;;
 
-class collectFunctionCallsVisitor(callSet, calledBy, fd) = object
+class collectFunctionCallsVisitor(callSet, calledBy, argLists, fd) = object
   inherit nopCilVisitor
 
   method! vinst = function
-    | Call (_,Lval ((Var info), NoOffset),_,_,_) ->
+    | Call (_,Lval ((Var info), NoOffset),args,_,_) as call->
+      (*ignore @@ Pretty.fprint stdout 50 (printInstr defaultCilPrinter () call) ;*)
       callSet := FunctionSet.add info !callSet;
       calledBy := FunctionCallMap.update info (addOrCreateMap fd) !calledBy;
+      (*We collect the argument list so we can use LibraryFunctions.find to classify functions*)
+      argLists := FunctionCallMap.add info args !argLists;
+      (*print_endline @@ fd.vname ^ " -> " ^ info.vname;
+      Pretty.fprint stdout (Pretty.d_list "\n" (fun () e -> printExp defaultCilPrinter () e) () args) ~width:50;
+      print_endline "\n";*)
       DoChildren
     | _ -> DoChildren
 end;;
 
-class functionVisitor(calling, calledBy) = object
+class functionVisitor(calling, calledBy, argLists) = object
   inherit nopCilVisitor
   
     method! vfunc fd = 
       let callSet = ref FunctionSet.empty in
-      let callVisitor = new collectFunctionCallsVisitor (callSet, calledBy, fd.svar) in
+      let callVisitor = new collectFunctionCallsVisitor (callSet, calledBy, argLists, fd.svar) in
       ignore @@ Cil.visitCilFunction callVisitor fd;
       calling := FunctionCallMap.add fd.svar !callSet !calling;
+      (*print_endline fd.svar.vname;
+      ignore (dumpGlobal plainCilPrinter stdout (GFun (fd, !currentLoc)));*)
       SkipChildren
   end;;
 
 let functionCallMaps = ResettableLazy.from_fun (fun () ->
   let calling = ref FunctionCallMap.empty in
   let calledBy = ref FunctionCallMap.empty in
-  let thisVisitor = new functionVisitor(calling,calledBy) in
+  let argLists = ref FunctionCallMap.empty in
+  let thisVisitor = new functionVisitor(calling,calledBy, argLists) in
   visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-  !calling, !calledBy );;
+  !calling, !calledBy, !argLists);;
 
-let calledFunctions fd = ResettableLazy.force functionCallMaps |> fst |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty;;
-let callingFunctions fd = ResettableLazy.force functionCallMaps |> snd |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty;;
+(*TODO Extend to dynamic calls?*)
+let calledFunctions fd = ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty;;
+let callingFunctions fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty;;
+let functionArgs fd = ResettableLazy.force functionCallMaps |> fun (_,_,x) -> x |> FunctionCallMap.find_opt fd;;
 
 (*Functions for determining if the Congruence analysis should be enabled *)
 let isNotExtern = function
@@ -102,7 +113,7 @@ class modFunctionAnnotatorVisitor = object
     if !count > 0 then (
       print_endline ("function " ^ (CilType.Fundec.show fd) ^" uses mod, enable Congruence recursively for:");
       print_endline ("  \"down\":");
-      setCongruenceRecursive fd 6 calledFunctions; (* depth? don't do it repeatedly?*)
+      setCongruenceRecursive fd 6 calledFunctions; (* depth? don't do it repeatedly for same function?*)
       print_endline ("  \"up\":");
       setCongruenceRecursive fd 3 callingFunctions;
       (*ignore (dumpGlobal plainCilPrinter stdout (GFun (fd, !currentLoc)))*)
@@ -116,7 +127,7 @@ let addModAttributes file =
   (*TODO: Overflow analysis has to be enabled/assumed to not occur, else there are problems?*)
 
 let disableIntervalContextsInRecursiveFunctions () =
-  ResettableLazy.force functionCallMaps |> fst |> FunctionCallMap.iter (fun f set ->
+  ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.iter (fun f set ->
     (*detect direct recursion and recursion with one indirection*)
     if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
       print_endline ("function " ^ (f.vname) ^" is recursive, disable interval analysis");
@@ -132,18 +143,26 @@ let toJsonArray list = "[\"" ^ (String.concat "\",\"" list) ^ "\"]";;
 let notNeccessaryThreadAnalyses = ["deadlock"; "maylocks"; "symb_locks"; "thread"; "threadflag"; "threadid"; "threadJoins"; "threadreturn"];;
 
 let reduceThreadAnalyses () = 
+  (*TODO also consider dynamic calls!?*)
   let hasThreadCreate () = 
     ResettableLazy.force functionCallMaps 
-    |> fst (*called functions*)
-    |> FunctionCallMap.exists @@ 
-      fun _ fset -> FunctionSet.exists
-        (fun var -> String.equal "pthread_create" var.vname)
-        fset      
-      (* TODO maybe use LibraryFunctions to determine if a thread is created instead of only checking for pthread_create*)
+    |> fun (_,x,_) -> x  (*every function that is called*)
+    |> FunctionCallMap.exists
+      (fun var callers ->
+        let desc = LibraryFunctions.find var in
+          match (functionArgs var) with
+            | None -> false;
+            | Some args -> 
+              match desc.special args with
+              | ThreadCreate _ -> 
+                print_endline @@ "thread created in " ^ var.vname ^ ", called by:"; 
+                FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
+                true;
+              | _ -> false; 
+      ) 
+  in
 
-  in   
   (*TODO is there a way to specify only the thread analyses to keep?  *)
-  
   if not @@ hasThreadCreate () then (
       print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
       get_string_list "ana.activated" 
@@ -177,11 +196,14 @@ let chooseConfig file =
   set_bool "annotation.int.enabled" true;
   addModAttributes file;
   set_bool "ana.int.interval_threshold_widening" true; (*Do not do this all the time?*)
+
   disableIntervalContextsInRecursiveFunctions ();
-(*currently crashes sometimes because sometimes bigints are needed  
+
+(*crashes because sometimes bigints are needed  
   print_endline @@ "Upper thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.upper_thresholds ();
   print_endline @@ "Lower thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.lower_thresholds ();*)
   if get_string "ana.specification" <> "" then focusOnSpecification ();
-  reduceThreadAnalyses ();;
+  reduceThreadAnalyses ();
+;;
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps;;
