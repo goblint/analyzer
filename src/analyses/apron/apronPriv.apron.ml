@@ -6,7 +6,6 @@ module Q = Queries
 
 module A = ApronDomain.A
 module ApronComponents = ApronDomain.ApronComponents
-open Apron
 
 open CommonPriv
 
@@ -75,8 +74,6 @@ struct
 
   let thread_join ask getg exp st = st
   let thread_return ask getg sideg tid st = st
-
-  let sync ask getg sideg st reason = st
 
   let escape node ask getg sideg (st:apron_components_t) escaped:apron_components_t =
     let apr = st.apr in

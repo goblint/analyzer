@@ -40,7 +40,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 
 (** Linux kernel functions. *)
-let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
 
   ]
 
@@ -84,7 +84,7 @@ type categories = [
   | `Unknown      of string ]
 
 
-let classify fn exps =
+let classify fn exps: categories =
   let strange_arguments () =
     M.warn "%s arguments are strange!" fn;
     `Unknown fn
