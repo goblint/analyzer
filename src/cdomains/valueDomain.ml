@@ -327,6 +327,11 @@ struct
           end
     in
     let one_addr = let open Addr in function
+        (* only allow conversion of float pointers if source and target type are the same *)
+        | Addr ({ vtype = TFloat(fkind, _); _}, _) as x when (match t with TFloat (fkind', _) when fkind = fkind' -> true | _ -> false) -> x
+          (* do not allow conversion from/to float pointers*)
+        | Addr ({ vtype = TFloat(_); _}, _) -> UnknownPtr
+        | _ when (match t with TFloat _ -> true | _ -> false) -> UnknownPtr
         | Addr ({ vtype = TVoid _; _} as v, offs) when not (Cilfacade.isCharType t) -> (* we had no information about the type (e.g. malloc), so we add it; ignore for casts to char* since they're special conversions (N1570 6.3.2.3.7) *)
           Addr ({ v with vtype = t }, offs) (* HACK: equal varinfo with different type, causes inconsistencies down the line, when we again assume vtype being "right", but joining etc gives no consideration to which type version to keep *)
         | Addr (v, o) as a ->
@@ -842,11 +847,17 @@ struct
           end
         | `Field (fld, offs) -> begin
             match x with
-            | `Union (`Lifted l_fld, valu) ->
-              let x = cast ~torg:l_fld.ftype fld.ftype valu in
-              let l', o' = shift_one_over l o in
-              do_eval_offset ask f x offs exp l' o' v t
-            | `Union (_, valu) -> top ()
+            | `Union (`Lifted l_fld, value) ->
+              (match value, fld.ftype with
+               (* only return an actual value if we have a type and return actually the exact same type *)
+               | `Float f_value, TFloat(fkind, _) when FD.get_fkind f_value = fkind -> `Float f_value
+               | `Float _, t -> top_value t
+               | _, TFloat(fkind, _) -> `Float (FD.top_of fkind)
+               | _ ->
+                 let x = cast ~torg:l_fld.ftype fld.ftype value in
+                 let l', o' = shift_one_over l o in
+                 do_eval_offset ask f x offs exp l' o' v t)
+            | `Union (_, value) -> top ()
             | `Top -> M.debug "Trying to read a field, but the union is unknown"; top ()
             | _ -> M.warn "Trying to read a field, but was not given a union"; top ()
           end
