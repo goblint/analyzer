@@ -60,13 +60,13 @@ struct
       begin
         (* Compare the cilint first in the hope that it is cheaper than the LVal comparison *)
         match e1, e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) -> (* TODO: untested *)
             false  (* c > 0 => (! x+c < x) *)
-        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
+        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) -> (* TODO: untested *)
             false  (* c < 0 => (! x < x+c )*)
-        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) -> (* TODO: untested *)
             false  (* c < 0 => (! x-c < x) *)
-        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
+        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) -> (* TODO: untested *)
             false  (* c < 0 => (! x < x-c) *)
         | _ ->
             true
@@ -74,10 +74,10 @@ struct
     | Queries.MayBeEqual (e1,e2) when not (isFloat e1) ->
       begin
         match e1,e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _)
-        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _) when compare_cilint i zero_cilint <> 0 && (lvalsEq l1 l2) ->
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 (* TODO: untested *)
+        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _) (* TODO: untested *)
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 (* TODO: untested *)
+        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _) when compare_cilint i zero_cilint <> 0 && (lvalsEq l1 l2) -> (* TODO: untested *)
             false
         | _ -> true
       end
