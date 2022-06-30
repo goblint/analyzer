@@ -1247,24 +1247,6 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           Queries.Result.top q
       end
-    | Q.MayBeLess (e1, e2) -> begin
-        (* Printf.printf "----------------------> may check for %s < %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
-        let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
-        let e2_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e2 in
-        match e1_val, e2_val with
-        | `Int i1, `Int i2 -> begin
-            match (ID.minimal i1), (ID.maximal i2) with
-            | Some i1', Some i2' ->
-              if Z.geq i1' i2' then
-                begin
-                  (* Printf.printf "----------------------> NOPE may check for %s < %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
-                  false
-                end
-              else true
-            | _ -> true
-          end
-        | _ -> true
-      end
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
     | Q.Invariant context -> query_invariant ctx context
     | _ -> Q.Result.top q

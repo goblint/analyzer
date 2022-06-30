@@ -100,7 +100,6 @@ type _ t =
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
-  | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
@@ -137,7 +136,6 @@ struct
     | MayBePublic _ -> (module MayBool)
     | MayBePublicWithout _ -> (module MayBool)
     | MayBeThreadReturn -> (module MayBool)
-    | MayBeLess _ -> (module MayBool)
     | IsHeapVar _ -> (module MayBool)
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
@@ -185,7 +183,6 @@ struct
     | MayBePublic _ -> MayBool.top ()
     | MayBePublicWithout _ -> MayBool.top ()
     | MayBeThreadReturn -> MayBool.top ()
-    | MayBeLess _ -> MayBool.top ()
     | IsHeapVar _ -> MayBool.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
@@ -242,7 +239,6 @@ struct
     | Any (PartAccess _) -> 23
     | Any (IterPrevVars _) -> 24
     | Any (IterVars _) -> 25
-    | Any (MayBeLess _) -> 28
     | Any HeapVar -> 29
     | Any (IsHeapVar _) -> 30
     | Any (IsMultiple _) -> 31
@@ -276,8 +272,6 @@ struct
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
-      | Any (MayBeLess (e1, e2)), Any (MayBeLess (e3, e4)) ->
-        [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
@@ -307,7 +301,6 @@ struct
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
-    | Any (MayBeLess (e1, e2)) -> [%hash: CilType.Exp.t * CilType.Exp.t] (e1, e2)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
     | Any (IsMultiple v) -> CilType.Varinfo.hash v
     | Any (EvalThread e) -> CilType.Exp.hash e
@@ -336,6 +329,18 @@ let may_be_equal (ask: ask) e1 e2: MayBool.t =
   let t1 = Cilfacade.typeOf e1 in
   let t2 = Cilfacade.typeOf e2 in
   let (_, e) = Cilfacade.doBinOp Eq e1 t1 e2 t2 in
+  let i = ask.f (EvalInt e) in
+  if ID.is_bot i || ID.is_bot_ikind i then
+    MayBool.top () (* base returns bot for non-int results, consider unknown *)
+  else
+    match ID.to_bool i with
+    | Some b -> b
+    | None -> MayBool.top ()
+
+let may_be_less (ask: ask) e1 e2: MayBool.t =
+  let t1 = Cilfacade.typeOf e1 in
+  let t2 = Cilfacade.typeOf e2 in
+  let (_, e) = Cilfacade.doBinOp Lt e1 t1 e2 t2 in
   let i = ask.f (EvalInt e) in
   if ID.is_bot i || ID.is_bot_ikind i then
     MayBool.top () (* base returns bot for non-int results, consider unknown *)

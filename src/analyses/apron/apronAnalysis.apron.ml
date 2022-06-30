@@ -495,10 +495,6 @@ struct
       let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
-    | Queries.MayBeLess (exp1, exp2) ->
-      let exp = (BinOp (Cil.Lt, exp1, exp2, TInt (IInt, []))) in
-      let is_lt = eval_int exp in
-      Option.default true (ID.to_bool is_lt)
     | Queries.Invariant context ->
       query_invariant ctx context
     | _ -> Result.top q

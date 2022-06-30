@@ -56,20 +56,20 @@ struct
     match q with
     | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) && Basetype.CilExp.equal (canonize e1) (canonize e2) ->
       Queries.ID.of_bool (Cilfacade.get_ikind t) true
-    | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
+    | Queries.EvalInt (BinOp (Lt, e1, e2, t)) when not (isFloat e1) ->
       begin
         (* Compare the cilint first in the hope that it is cheaper than the LVal comparison *)
         match e1, e2 with
         | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) -> (* TODO: untested *)
-            false  (* c > 0 => (! x+c < x) *)
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c > 0 => (! x+c < x) *)
         | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) -> (* TODO: untested *)
-            false  (* c < 0 => (! x < x+c )*)
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x < x+c )*)
         | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) -> (* TODO: untested *)
-            false  (* c < 0 => (! x-c < x) *)
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x-c < x) *)
         | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) -> (* TODO: untested *)
-            false  (* c < 0 => (! x < x-c) *)
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x < x-c) *) (* TODO: conflicting conditions: > in when, but < in comment *)
         | _ ->
-            true
+          Queries.ID.top ()
       end
     | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) ->
       begin
