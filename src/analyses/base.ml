@@ -1247,25 +1247,6 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           Queries.Result.top q
       end
-    | Q.MayBeEqual (e1, e2) -> begin
-        (* Printf.printf "---------------------->  may equality check for %s and %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
-        let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
-        let e2_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e2 in
-        match e1_val, e2_val with
-        | `Int i1, `Int i2 -> begin
-            (* This should behave like == and also work on different int types, hence the cast (just like with == in C) *)
-            let e1_ik = Cilfacade.get_ikind_exp e1 in
-            let e2_ik = Cilfacade.get_ikind_exp e2 in
-            let ik= Cil.commonIntKind e1_ik e2_ik in
-            if ID.is_bot (ID.meet (ID.cast_to ik i1) (ID.cast_to ik i2)) then
-              begin
-                (* Printf.printf "----------------------> NOPE may equality check for %s and %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
-                false
-              end
-            else true
-          end
-        | _ -> true
-      end
     | Q.MayBeLess (e1, e2) -> begin
         (* Printf.printf "----------------------> may check for %s < %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
         let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in

@@ -246,7 +246,7 @@ struct
             let contributionLess = match ask.f (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
             | false -> Val.bot ()
             | _ -> xl in
-            let contributionEqual = match ask.f (Q.MayBeEqual (i', e')) with      (* (may i = e) ? xm : bot *)
+            let contributionEqual = match Q.may_be_equal ask i' e' with      (* (may i = e) ? xm : bot *)
             | false -> Val.bot ()
             | _ -> xm in
             let contributionGreater =  match ask.f (Q.MayBeLess (e', i')) with    (* (may i > e) ? xr : bot *)
@@ -424,7 +424,7 @@ struct
                 | false -> xl
                 | _ -> lubIfNotBot xl in
               let middle =
-                match ask.f (Q.MayBeEqual (i', e')) with    (* (may i = e) ? xm : bot *)
+                match Q.may_be_equal ask i' e' with    (* (may i = e) ? xm : bot *)
                 | false -> xm
                 | _ -> Val.join xm a in
               let right =
@@ -459,7 +459,7 @@ struct
             (e,(xl,a,xr))
           else
             let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
-              (match ask.f (Q.MayBeEqual (e', i')) with (* TODO: untested *)
+              (match Q.may_be_equal ask e' i' with (* TODO: untested *)
               | false -> Val.bot()
               | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
               (
@@ -476,7 +476,7 @@ struct
               )
             in
             let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
-              (match ask.f (Q.MayBeEqual (e', i')) with (* TODO: untested *)
+              (match Q.may_be_equal ask e' i' with (* TODO: untested *)
               | false -> Val.bot()
               | _ -> xm)
 

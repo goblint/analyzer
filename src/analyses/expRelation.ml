@@ -71,15 +71,16 @@ struct
         | _ ->
             true
       end
-    | Queries.MayBeEqual (e1,e2) when not (isFloat e1) ->
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) ->
       begin
         match e1,e2 with
         | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 (* TODO: untested *)
         | Lval l2, BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _) (* TODO: untested *)
         | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 (* TODO: untested *)
         | Lval l2, BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _) when compare_cilint i zero_cilint <> 0 && (lvalsEq l1 l2) -> (* TODO: untested *)
-            false
-        | _ -> true
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false
+        | _ ->
+          Queries.ID.top ()
       end
     | _ -> Queries.Result.top q
 
