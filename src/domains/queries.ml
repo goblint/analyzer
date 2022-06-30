@@ -333,7 +333,7 @@ let must_be_equal (ask: ask) e1 e2: MustBool.t =
   let (_, e) = Cilfacade.doBinOp Eq e1 t1 e2 t2 in
   let i = ask.f (EvalInt e) in
   if ID.is_bot i || ID.is_bot_ikind i then
-    MustBool.bot () (* TODO: right? *)
+    MustBool.top () (* base returns bot for non-int results, consider unknown *)
   else
     match ID.to_bool i with
     | Some b -> b
