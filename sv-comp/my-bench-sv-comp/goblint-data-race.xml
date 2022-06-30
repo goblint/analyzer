@@ -4,12 +4,12 @@
 
   <resultfiles></resultfiles>
 
-  <option name="--conf">conf/svcomp.json</option>
+  <option name="--conf">conf/svcomp22.json</option>
 
 <rundefinition name="sv-comp21_prop-nodatarace">
   <tasks name="NoDataRace-Main">
-    <!-- <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoDataRace-Main.set</includesfile> -->
-    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoDataRace-ConcurrencySafety.set</includesfile>
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoDataRace-Main.set</includesfile>
+    <!--<includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/NoDataRace-ConcurrencySafety.set</includesfile>-->
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/no-data-race.prp</propertyfile>
   </tasks>
 </rundefinition>

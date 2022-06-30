@@ -123,7 +123,51 @@ let disableIntervalContextsInRecursiveFunctions () =
       f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"])];
     )
   );;
+
+(*If only one Thread is used in the program, we can disable most thread analyses*)
+(*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access*)
+(*TODO escape is also still enabled, because I do not know if the analysis gets more imprecise if not*)
+
+let toJsonArray list = "[\"" ^ (String.concat "\",\"" list) ^ "\"]";;
+let notNeccessaryThreadAnalyses = ["deadlock"; "maylocks"; "symb_locks"; "thread"; "threadflag"; "threadid"; "threadJoins"; "threadreturn"];;
+
+let reduceThreadAnalyses () = 
+  let hasThreadCreate () = 
+    ResettableLazy.force functionCallMaps 
+    |> fst (*called functions*)
+    |> FunctionCallMap.exists @@ 
+      fun _ fset -> FunctionSet.exists
+        (fun var -> String.equal "pthread_create" var.vname)
+        fset      
+      (* TODO maybe use LibraryFunctions to determine if a thread is created instead of only checking for pthread_create*)
+
+  in   
+  (*TODO is there a way to specify only the thread analyses to keep?  *)
   
+  if not @@ hasThreadCreate () then (
+      print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+      get_string_list "ana.activated" 
+      |> List.filter (fun l -> not (List.mem l notNeccessaryThreadAnalyses))
+      |> toJsonArray
+      |> set_auto "ana.activated"
+
+    )
+ ;;
+
+let focusOnSpecification () = 
+  match Svcomp.Specification.of_option () with 
+    | UnreachCall s -> () (*TODO?*)
+    | NoDataRace -> (*enable all thread analyses*)
+      print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+      get_string_list "ana.activated" 
+      |> List.filter (fun l -> not (List.mem l notNeccessaryThreadAnalyses)) (*remove duplicates*)
+      |> (@) notNeccessaryThreadAnalyses
+      |> toJsonArray
+      |> set_auto "ana.activated";
+    | NoOverflow -> (*We focus on integer analysis*)
+      set_bool "ana.int.def_exc" true;
+      set_bool "ana.int.enums" true;
+      set_bool "ana.int.interval" true;;
 
 
 (*TODO: does calling this at a late point cause any problems?*)
@@ -133,10 +177,11 @@ let chooseConfig file =
   set_bool "annotation.int.enabled" true;
   addModAttributes file;
   set_bool "ana.int.interval_threshold_widening" true; (*Do not do this all the time?*)
-  disableIntervalContextsInRecursiveFunctions ();;
+  disableIntervalContextsInRecursiveFunctions ();
 (*currently crashes sometimes because sometimes bigints are needed  
   print_endline @@ "Upper thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.upper_thresholds ();
   print_endline @@ "Lower thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.lower_thresholds ();*)
-  
+  if get_string "ana.specification" <> "" then focusOnSpecification ();
+  reduceThreadAnalyses ();;
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps;;

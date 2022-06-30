@@ -7,7 +7,6 @@
     },
     "int": {
       "def_exc": true,
-      "enums": true,
       "interval": true
     },
     "activated": [

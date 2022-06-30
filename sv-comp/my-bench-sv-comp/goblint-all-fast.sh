@@ -2,9 +2,9 @@
 
 shopt -s extglob
 
-MYBENCHDIR=/mnt/goblint-svcomp/benchexec/my-bench-sv-comp
-RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/70-all-fast-no-interval
-GOBLINTPARALLEL=14
+MYBENCHDIR=//mnt/goblint-svcomp/sv-comp/goblint/sv-comp/my-bench-sv-comp
+RESULTSDIR=/mnt/goblint-svcomp/benchexec/results/LoopsEnums
+GOBLINTPARALLEL=3
 
 mkdir $RESULTSDIR
 
