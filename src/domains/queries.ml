@@ -336,3 +336,7 @@ let must_be_equal (ask: ask) e1 e2: MustBool.t =
     match ID.to_bool i with
     | Some b -> b
     | None -> MustBool.top ()
+
+
+module Set = BatSet.Make (Any)
+module Hashtbl = BatHashtbl.Make (Any)

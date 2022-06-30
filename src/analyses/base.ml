@@ -989,13 +989,19 @@ struct
   (* Wherever possible, don't use this but the query system or normal eval_rv instead. *)
   let eval_exp st (exp:exp) =
     (* Since ctx is not available here, we need to make some adjustments *)
-    let rec query: type a. a Queries.t -> a Queries.result = fun q ->
-      match q with
-      | EvalInt e -> query_evalint ask gs st e (* mimic EvalInt query since eval_rv needs it *)
-      | _ -> Queries.Result.top q
-    and ask = { Queries.f = fun (type a) (q: a Queries.t) -> query q } (* our version of ask *)
+    let rec query: type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
+      let anyq = Queries.Any q in
+      if Queries.Set.mem anyq asked then
+        Queries.Result.top q (* query cycle *)
+      else (
+        let asked' = Queries.Set.add anyq asked in
+        match q with
+        | EvalInt e -> query_evalint (ask asked') gs st e (* mimic EvalInt query since eval_rv needs it *)
+        | _ -> Queries.Result.top q
+      )
+    and ask asked = { Queries.f = fun (type a) (q: a Queries.t) -> query asked q } (* our version of ask *)
     and gs = function `Left _ -> `Lifted1 (Priv.G.top ()) | `Right _ -> `Lifted2 (VD.top ()) in (* the expression is guaranteed to not contain globals *)
-    match (eval_rv ask gs st exp) with
+    match (eval_rv (ask Queries.Set.empty) gs st exp) with
     | `Int x -> ValueDomain.ID.to_int x
     | _ -> None
 
@@ -1422,15 +1428,24 @@ struct
                   (* The usual recursion trick for ctx. *)
                   (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
                   (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
-                  let rec ctx' =
+                  let rec ctx' asked =
                     { ctx with
-                      ask = (fun (type a) (q: a Queries.t) -> query ctx' q)
+                      ask = (fun (type a) (q: a Queries.t) -> query' asked q)
                     ; local = st
                     }
+                  and query': type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
+                    let anyq = Queries.Any q in
+                    if Queries.Set.mem anyq asked then
+                      Queries.Result.top q (* query cycle *)
+                    else (
+                      let asked' = Queries.Set.add anyq asked in
+                      query (ctx' asked') q
+                    )
                   in
-                  Analyses.ask_of_ctx ctx'
+                  Analyses.ask_of_ctx (ctx' Queries.Set.empty)
                 in
                 let moved_by = fun x -> Some 0 in (* this is ok, the information is not provided if it *)
+                (* TODO: why does affect_move need general ask (of any query) instead of eval_exp? *)
                 VD.affect_move patched_ask v x moved_by     (* was a set call caused e.g. by a guard *)
             in
             { st with cpa = update_variable arr arr.vtype nval st.cpa }
