@@ -313,41 +313,26 @@ struct
 end
 
 
-let must_be_equal (ask: ask) e1 e2: MustBool.t =
+let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =
   let t1 = Cilfacade.typeOf e1 in
   let t2 = Cilfacade.typeOf e2 in
-  let (_, e) = Cilfacade.doBinOp Eq e1 t1 e2 t2 in
+  let (_, e) = Cilfacade.doBinOp binop e1 t1 e2 t2 in
   let i = ask.f (EvalInt e) in
   if ID.is_bot i || ID.is_bot_ikind i then
-    MustBool.top () (* base returns bot for non-int results, consider unknown *)
+    Bool.top () (* base returns bot for non-int results, consider unknown *)
   else
     match ID.to_bool i with
     | Some b -> b
-    | None -> MustBool.top ()
+    | None -> Bool.top ()
 
-let may_be_equal (ask: ask) e1 e2: MayBool.t =
-  let t1 = Cilfacade.typeOf e1 in
-  let t2 = Cilfacade.typeOf e2 in
-  let (_, e) = Cilfacade.doBinOp Eq e1 t1 e2 t2 in
-  let i = ask.f (EvalInt e) in
-  if ID.is_bot i || ID.is_bot_ikind i then
-    MayBool.top () (* base returns bot for non-int results, consider unknown *)
-  else
-    match ID.to_bool i with
-    | Some b -> b
-    | None -> MayBool.top ()
+(** Backwards-compatibility for former [MustBeEqual] query. *)
+let must_be_equal = eval_int_binop (module MustBool) Eq
 
-let may_be_less (ask: ask) e1 e2: MayBool.t =
-  let t1 = Cilfacade.typeOf e1 in
-  let t2 = Cilfacade.typeOf e2 in
-  let (_, e) = Cilfacade.doBinOp Lt e1 t1 e2 t2 in
-  let i = ask.f (EvalInt e) in
-  if ID.is_bot i || ID.is_bot_ikind i then
-    MayBool.top () (* base returns bot for non-int results, consider unknown *)
-  else
-    match ID.to_bool i with
-    | Some b -> b
-    | None -> MayBool.top ()
+(** Backwards-compatibility for former [MayBeEqual] query. *)
+let may_be_equal = eval_int_binop (module MayBool) Eq
+
+(** Backwards-compatibility for former [MayBeLess] query. *)
+let may_be_less = eval_int_binop (module MayBool) Lt
 
 
 module Set = BatSet.Make (Any)
