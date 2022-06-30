@@ -328,7 +328,9 @@ end
 
 
 let must_be_equal (ask: ask) e1 e2: MustBool.t =
-  let e = Cil.BinOp (Eq, e1, e2, Cil.intType) in
+  let t1 = Cilfacade.typeOf e1 in
+  let t2 = Cilfacade.typeOf e2 in
+  let (_, e) = Cilfacade.doBinOp Eq e1 t1 e2 t2 in
   let i = ask.f (EvalInt e) in
   if ID.is_bot i || ID.is_bot_ikind i then
     MustBool.bot () (* TODO: right? *)
