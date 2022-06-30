@@ -54,8 +54,8 @@ struct
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let lvalsEq l1 l2 = CilType.Lval.equal l1 l2 in (* == would be wrong here *)
     match q with
-    | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
-      Basetype.CilExp.equal (canonize e1) (canonize e2)
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) && Basetype.CilExp.equal (canonize e1) (canonize e2) ->
+      Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
       begin
         (* Compare the cilint first in the hope that it is cheaper than the LVal comparison *)

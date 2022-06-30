@@ -636,7 +636,7 @@ struct
     if M.tracing then M.traceli "evalint" "base eval_rv_ask_mustbeequal %a\n" d_exp exp;
     let binop op e1 e2 =
       let must_be_equal () =
-        let r = a.f (Q.MustBeEqual (e1, e2)) in
+        let r = Q.must_be_equal a e1 e2 in
         if M.tracing then M.tracel "query" "MustBeEqual (%a, %a) = %b\n" d_exp e1 d_exp e2 r;
         r
       in
@@ -1241,17 +1241,6 @@ struct
           (* ignore @@ printf "EvalStr Unknown: %a -> %s\n" d_plainexp e (VD.short 80 x); *)
           Queries.Result.top q
       end
-    | Q.MustBeEqual (e1, e2) -> begin
-        let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
-        let e2_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e2 in
-        match e1_val, e2_val with
-        | `Int i1, `Int i2 -> begin
-            match ID.to_int i1, ID.to_int i2 with
-            | Some i1', Some i2' when Z.equal i1' i2' -> true
-            | _ -> false
-            end
-        | _ -> false
-      end
     | Q.MayBeEqual (e1, e2) -> begin
         (* Printf.printf "---------------------->  may equality check for %s and %s \n" (CilType.Exp.show e1) (CilType.Exp.show e2); *)
         let e1_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local e1 in
@@ -1402,7 +1391,7 @@ struct
             Dep.VarSet.elements set
           in
           let movement_for_expr l' r' currentE' =
-            let are_equal e1 e2 = a.f (Q.MustBeEqual (e1, e2)) in
+            let are_equal = Q.must_be_equal a in
             let t = Cilfacade.typeOf currentE' in
             let ik = Cilfacade.get_ikind t in
             let newE = Basetype.CilExp.replace l' r' currentE' in

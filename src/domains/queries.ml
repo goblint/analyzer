@@ -97,7 +97,6 @@ type _ t =
   | PartAccess: access -> Obj.t t (** Only queried by access and deadlock analysis. [Obj.t] represents [MCPAccess.A.t], needed to break dependency cycle. *)
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
-  | MustBeEqual: exp * exp -> MustBool.t t (* are two expression known to must-equal ? *)
   | MayBeEqual: exp * exp -> MayBool.t t (* may two expressions be equal? *)
   | MayBeLess: exp * exp -> MayBool.t t (* may exp1 < exp2 ? *)
   | HeapVar: VI.t t
@@ -143,7 +142,6 @@ struct
     | MustBeAtomic -> (module MustBool)
     | MustBeSingleThreaded -> (module MustBool)
     | MustBeUniqueThread -> (module MustBool)
-    | MustBeEqual _ -> (module MustBool)
     | EvalInt _ -> (module ID)
     | EvalLength _ -> (module ID)
     | BlobSize _ -> (module ID)
@@ -193,7 +191,6 @@ struct
     | MustBeAtomic -> MustBool.top ()
     | MustBeSingleThreaded -> MustBool.top ()
     | MustBeUniqueThread -> MustBool.top ()
-    | MustBeEqual _ -> MustBool.top ()
     | EvalInt _ -> ID.top ()
     | EvalLength _ -> ID.top ()
     | BlobSize _ -> ID.top ()
@@ -245,7 +242,6 @@ struct
     | Any (PartAccess _) -> 23
     | Any (IterPrevVars _) -> 24
     | Any (IterVars _) -> 25
-    | Any (MustBeEqual _) -> 26
     | Any (MayBeEqual _) -> 27
     | Any (MayBeLess _) -> 28
     | Any HeapVar -> 29
@@ -281,8 +277,6 @@ struct
       | Any (PartAccess p1), Any (PartAccess p2) -> compare_access p1 p2
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
-      | Any (MustBeEqual (e1, e2)), Any (MustBeEqual (e3, e4)) ->
-        [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (MayBeEqual (e1, e2)), Any (MayBeEqual (e3, e4)) ->
         [%ord: CilType.Exp.t * CilType.Exp.t] (e1, e2) (e3, e4)
       | Any (MayBeLess (e1, e2)), Any (MayBeLess (e3, e4)) ->
@@ -316,7 +310,6 @@ struct
     | Any (PartAccess p) -> hash_access p
     | Any (IterPrevVars i) -> 0
     | Any (IterVars i) -> 0
-    | Any (MustBeEqual (e1, e2)) -> [%hash: CilType.Exp.t * CilType.Exp.t] (e1, e2)
     | Any (MayBeEqual (e1, e2)) -> [%hash: CilType.Exp.t * CilType.Exp.t] (e1, e2)
     | Any (MayBeLess (e1, e2)) -> [%hash: CilType.Exp.t * CilType.Exp.t] (e1, e2)
     | Any (IsHeapVar v) -> CilType.Varinfo.hash v
@@ -329,3 +322,14 @@ struct
 
   let hash x = 31 * order x + hash_arg x
 end
+
+
+let must_be_equal (ask: ask) e1 e2: MustBool.t =
+  let e = Cil.BinOp (Eq, e1, e2, Cil.intType) in
+  let i = ask.f (EvalInt e) in
+  if ID.is_bot i || ID.is_bot_ikind i then
+    MustBool.bot () (* TODO: right? *)
+  else
+    match ID.to_bool i with
+    | Some b -> b
+    | None -> MustBool.top ()

@@ -240,7 +240,7 @@ struct
     match e, i with
     | `Lifted e', `Lifted i' ->
       begin
-        if ask.f (Q.MustBeEqual (e',i')) then xm
+        if Q.must_be_equal ask e' i' then xm
         else
           begin
             let contributionLess = match ask.f (Q.MayBeLess (i', e')) with        (* (may i < e) ? xl : bot *)
@@ -415,7 +415,7 @@ struct
           let r = if equals_maxIndex i then Val.bot () else join_of_all_parts x in
           (i, (l, a, r))
       else
-        let isEqual e' i' = ask.f (Q.MustBeEqual (e',i')) in
+        let isEqual = Q.must_be_equal ask in
         match e, i with
         | `Lifted e', `Lifted i' when not use_last || not_allowed_for_part i -> begin
             let default =
@@ -465,7 +465,7 @@ struct
               (
                 let t = Cilfacade.typeOf e' in
                 let ik = Cilfacade.get_ikind t in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik 1, t),i')) with
+                match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik 1, t)) i' with
                 | true -> xm
                 | _ ->
                   begin
@@ -483,7 +483,7 @@ struct
               (
                 let t = Cilfacade.typeOf e' in
                 let ik = Cilfacade.get_ikind t in
-                match ask.f (Q.MustBeEqual(BinOp(PlusA, e', Cil.kinteger ik (-1), t),i')) with (* TODO: untested *)
+                match Q.must_be_equal ask (BinOp(PlusA, e', Cil.kinteger ik (-1), t)) i' with (* TODO: untested *)
                 | true -> xm
                 | _ ->
                   begin

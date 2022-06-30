@@ -495,10 +495,6 @@ struct
       let r = eval_int e in
       if M.tracing then M.traceu "evalint" "apron query %a -> %a\n" d_exp e ID.pretty r;
       r
-    | Queries.MustBeEqual (exp1,exp2) ->
-      let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
-      let is_eq = eval_int exp in
-      Option.default false (ID.to_bool is_eq)
     | Queries.MayBeEqual (exp1,exp2) ->
       let exp = (BinOp (Cil.Eq, exp1, exp2, TInt (IInt, []))) in
       let is_neq = eval_int exp in
