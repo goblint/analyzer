@@ -606,10 +606,6 @@ struct
     | None -> None
     | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
-  let to_bool_interval x = match x with
-    | None -> x
-    | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> x
-    | _ -> if leq zero x then top_bool else one
 
   let range_opt f = function
     | None -> None
