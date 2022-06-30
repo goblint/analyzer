@@ -12,6 +12,9 @@ struct
   let unlift op x = match x with
     | `Lifted x -> op x
     | _ -> failwith "Queries.ID.unlift"
+  let unlift_opt op x = match x with
+    | `Lifted x -> op x
+    | _ -> None
 
   let bot_of = lift I.bot_of
   let top_of = lift I.top_of
@@ -24,9 +27,9 @@ struct
   let starting ik = lift (I.starting ik)
   let ending ik = lift (I.ending ik)
 
-  let to_int x = unlift I.to_int x
+  let to_int x = unlift_opt I.to_int x
   let is_int x = unlift I.is_int x
-  let to_bool x = unlift I.to_bool x
+  let to_bool x = unlift_opt I.to_bool x
   let is_bool x = unlift I.is_bool x
 
   let is_bot_ikind = function
