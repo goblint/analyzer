@@ -977,7 +977,7 @@ struct
     if M.tracing then M.traceli "evalint" "base query_evalint %a\n" d_exp e;
     let r = match eval_rv_no_ask_evalint ask gs st e with
       | `Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
-      | `Bot   -> Queries.ID.bot () (* TODO: remove? *)
+      | `Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
       (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
       | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
     in
