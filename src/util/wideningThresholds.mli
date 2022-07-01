@@ -6,4 +6,4 @@ val exps: Cil.exp list ResettableLazy.t
 val reset_lazy : unit -> unit
 val upper_thresholds : unit -> Z.t list
 val lower_thresholds : unit -> Z.t list
-val ocatagon_thresholds : unit -> Z.t list
+val octagon_thresholds : unit -> Z.t list

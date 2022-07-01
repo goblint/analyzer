@@ -14,7 +14,7 @@ let addThreshold t_ref z = t_ref := Thresholds.add z !t_ref;;
 let one = Z.of_int 1;;
 let neg_one = Z.of_int (-1);;
 
-class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, ocatagon_thresholds) = object
+class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, octagon_thresholds) = object
   inherit nopCilVisitor
 
   method! vexpr = function
@@ -26,11 +26,11 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ Z.add one i;
 
-      addThreshold ocatagon_thresholds @@ i;
-      addThreshold ocatagon_thresholds @@ Z.sub neg_one i;
+      addThreshold octagon_thresholds @@ i;
+      addThreshold octagon_thresholds @@ Z.sub neg_one i;
       let doubleI = Z.add i i in
-      addThreshold ocatagon_thresholds @@ doubleI;
-      addThreshold ocatagon_thresholds @@ Z.sub neg_one doubleI;
+      addThreshold octagon_thresholds @@ doubleI;
+      addThreshold octagon_thresholds @@ Z.sub neg_one doubleI;
       DoChildren
     (*Comparisons of type: 10 <= expr, expr >= 10, expr < 10, 10 > expr*)
     | BinOp (Le, (Const (CInt(i,_,_))), _, (TInt _))
@@ -40,11 +40,11 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       addThreshold upper_thresholds @@ Z.add neg_one i;
       addThreshold lower_thresholds @@ i;
 
-      addThreshold ocatagon_thresholds @@ Z.add neg_one i;
-      addThreshold ocatagon_thresholds @@ Z.neg i;
+      addThreshold octagon_thresholds @@ Z.add neg_one i;
+      addThreshold octagon_thresholds @@ Z.neg i;
       let doubleI = Z.add i i in
-      addThreshold ocatagon_thresholds @@ Z.add neg_one doubleI;
-      addThreshold ocatagon_thresholds @@ Z.neg doubleI;
+      addThreshold octagon_thresholds @@ Z.add neg_one doubleI;
+      addThreshold octagon_thresholds @@ Z.neg doubleI;
       DoChildren
     (*Comparisons of type: 10 == expr, expr == 10, expr != 10, 10 != expr*)
     | BinOp (Eq, (Const (CInt(i,_,_))), _, (TInt _))
@@ -56,15 +56,15 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
       addThreshold upper_thresholds @@ i;
       addThreshold lower_thresholds @@ i;
 
-      addThreshold ocatagon_thresholds @@ i;
-      addThreshold ocatagon_thresholds @@ Z.neg i;
-      addThreshold ocatagon_thresholds @@ Z.sub i one;
-      addThreshold ocatagon_thresholds @@ Z.sub neg_one i;
+      addThreshold octagon_thresholds @@ i;
+      addThreshold octagon_thresholds @@ Z.neg i;
+      addThreshold octagon_thresholds @@ Z.sub i one;
+      addThreshold octagon_thresholds @@ Z.sub neg_one i;
       let doubleI = Z.add i i in
-      addThreshold ocatagon_thresholds @@ doubleI;
-      addThreshold ocatagon_thresholds @@ Z.neg doubleI;
-      addThreshold ocatagon_thresholds @@ Z.sub doubleI one;
-      addThreshold ocatagon_thresholds @@ Z.sub neg_one doubleI;
+      addThreshold octagon_thresholds @@ doubleI;
+      addThreshold octagon_thresholds @@ Z.neg doubleI;
+      addThreshold octagon_thresholds @@ Z.sub doubleI one;
+      addThreshold octagon_thresholds @@ Z.sub neg_one doubleI;
       DoChildren
     | _ -> DoChildren
 end
@@ -89,7 +89,7 @@ let upper_thresholds () =
 let lower_thresholds () = 
   let (_,l,_) = ResettableLazy.force conditional_widening_thresholds in l;;
 
-let ocatagon_thresholds () = 
+let octagon_thresholds () = 
   let (_,_,o) = ResettableLazy.force conditional_widening_thresholds in o;;
 
 (*old version. is there anything this has that the new one does not?*)
