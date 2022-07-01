@@ -21,7 +21,7 @@
   location:
     file_name: 04-base-priv-sync-prune.c
     file_hash: 20f9b103c97d1a16c6c4e39478f949ffbf1bb4c7ed7b17af7d7399aa57c8f158
-    line: 7
+    line: 8
     column: 2
     function: main
   loop_invariant:
