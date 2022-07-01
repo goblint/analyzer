@@ -1,0 +1,30 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 640889a9-5b82-4fc0-9365-7d4a21f11a45
+    creation_time: 2022-07-01T11:30:04Z
+    producer:
+      name: Goblint
+      version: heads/apron-ikind-11-gb9a9ada69-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''04-base-priv-sync-prune.c''
+        ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
+        ''witness.yaml.path'' ''04-base-priv-sync-prune.yml'' ''--set'' ''dbg.debug''
+        ''true'' ''--set'' ''printstats'' ''true'' ''--enable'' ''dbg.print_dead_code''
+        ''--set'' ''goblint-dir'' ''.goblint-56-03'''
+    task:
+      input_files:
+      - 04-base-priv-sync-prune.c
+      input_file_hashes:
+        04-base-priv-sync-prune.c: 20f9b103c97d1a16c6c4e39478f949ffbf1bb4c7ed7b17af7d7399aa57c8f158
+      data_model: LP64
+      language: C
+  location:
+    file_name: 04-base-priv-sync-prune.c
+    file_hash: 20f9b103c97d1a16c6c4e39478f949ffbf1bb4c7ed7b17af7d7399aa57c8f158
+    line: 7
+    column: 2
+    function: main
+  loop_invariant:
+    string: g == 2
+    type: assertion
+    format: C
