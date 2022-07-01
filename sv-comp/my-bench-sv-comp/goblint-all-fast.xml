@@ -5,17 +5,17 @@
 
   <resultfiles></resultfiles>
 
-  <option name="--conf">conf/svcomp22.json</option>
+  <option name="--conf">conf/svcomp.json</option>
 
 <rundefinition name="sv-comp20_prop-reachsafety">
-   <!--<tasks name="ReachSafety-Arrays">
+  <!-- <tasks name="ReachSafety-Arrays">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-Arrays.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-  </tasks> -->
-  <!--<tasks name="ReachSafety-BitVectors">
+  </tasks>
+  <tasks name="ReachSafety-BitVectors">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-BitVectors.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-  </tasks> --><!--
+  </tasks>
   <tasks name="ReachSafety-ControlFlow">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-ControlFlow.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
@@ -32,15 +32,14 @@
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-Heap.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
   </tasks>
-  -->
   <tasks name="ReachSafety-Loops">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-Loops.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-  </tasks><!--
-  <tasks name="ReachSafety-ProductLines">
+  </tasks> -->
+  <!-- <tasks name="ReachSafety-ProductLines">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-ProductLines.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-  </tasks>-->
+  </tasks> -->
   <!-- <tasks name="ReachSafety-Recursive">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ReachSafety-Recursive.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
@@ -53,17 +52,23 @@
   <tasks name="ConcurrencySafety-Main">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/ConcurrencySafety-Main.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-  </tasks> 
+    <exclude>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/pthread-wmm/*</exclude>
+  </tasks>
 
-  <tasks name="SoftwareSystems-AWS-C-Common-ReachSafety">
+  <!-- <tasks name="SoftwareSystems-AWS-C-Common-ReachSafety">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-AWS-C-Common-ReachSafety.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-  </tasks>
+  </tasks> -->
 
   <tasks name="SoftwareSystems-DeviceDriversLinux64-ReachSafety">
     <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64-ReachSafety.set</includesfile>
     <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
-  </tasks> -->
+  </tasks>
+
+  <tasks name="SoftwareSystems-DeviceDriversLinux64Large-ReachSafety">
+    <includesfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/SoftwareSystems-DeviceDriversLinux64Large-ReachSafety.set</includesfile>
+    <propertyfile>/mnt/goblint-svcomp/benchexec/sv-benchmarks/c/properties/unreach-call.prp</propertyfile>
+  </tasks>
 </rundefinition>
 
 </benchmark>

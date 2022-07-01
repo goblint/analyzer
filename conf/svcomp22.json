@@ -1,12 +1,12 @@
 {
   "ana": {
-    "autoselect": true,
     "sv-comp": {
       "enabled": true,
       "functions": true
     },
     "int": {
       "def_exc": true,
+      "enums": false,
       "interval": true
     },
     "activated": [
@@ -16,7 +16,6 @@
       "mallocWrapper",
       "mutexEvents",
       "mutex",
-      "mutexEvents",
       "access",
       "escape",
       "expRelation",
