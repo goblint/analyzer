@@ -35,14 +35,6 @@ let should_reanalyze (fdec: Cil.fundec) =
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (global_function_rename_mapping: method_rename_assumptions) (global_var_rename_mapping: glob_var_rename_assumptions) =
-  let local_rename_map: (string, string) Hashtbl.t = Hashtbl.create (List.length a.slocals) in
-
-  if (List.length a.slocals) = (List.length b.slocals) then
-    List.combine a.slocals b.slocals |>
-    List.map (fun x -> match x with (a, b) -> (a.vname, b.vname)) |>
-    List.iter (fun pair -> match pair with (a, b) -> Hashtbl.add local_rename_map a b);
-
-
   (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal,
    * and as a second a rename_mapping, holding the rename assumptions *)
   let rec rename_mapping_aware_compare (alocals: varinfo list) (blocals: varinfo list) (rename_mapping: string StringMap.t) = match alocals, blocals with

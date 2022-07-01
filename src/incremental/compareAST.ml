@@ -8,7 +8,7 @@ and global_identifier = {name: string ; global_t: global_type} [@@deriving ord]
 
 module StringMap = Map.Make(String)
 
-type method_rename_assumption = {original_method_name: string; new_method_name: string; parameter_renames: string StringMap.t}
+type method_rename_assumption = {original_method_name: string; new_method_name: string}
 type method_rename_assumptions = method_rename_assumption VarinfoMap.t
 type glob_var_rename_assumptions = string VarinfoMap.t
 
@@ -54,9 +54,8 @@ let rename_mapping_to_string (rename_mapping: rename_mapping) =
   let (local, methods, glob_vars, _) = rename_mapping in
   let local_string = string_tuple_to_string (List.of_seq (StringMap.to_seq local)) in
   let methods_string: string = List.of_seq (VarinfoMap.to_seq methods |> Seq.map snd) |>
-                               List.map (fun x -> match x with {original_method_name; new_method_name; parameter_renames} ->
-                                   "(methodName: " ^ original_method_name ^ " -> " ^ new_method_name ^
-                                   "; renamed_params=" ^ string_tuple_to_string (List.of_seq (StringMap.to_seq parameter_renames)) ^ ")") |>
+                               List.map (fun x -> match x with {original_method_name; new_method_name} ->
+                                   "(methodName: " ^ original_method_name ^ " -> " ^ new_method_name ^ ")") |>
                                String.concat ", " in
 
   let global_var_string: string = string_tuple_to_string (List.of_seq (VarinfoMap.to_seq glob_vars) |>
@@ -134,7 +133,7 @@ and mem_typ_acc (a: typ) (b: typ) acc = List.exists (fun p -> match p with (x, y
 
 and pretty_length () l = Pretty.num (List.length l)
 
-and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename_mapping) : bool * rename_mapping =
+and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) ?(fun_parameter_name_comparison_enabled: bool = true) (rename_mapping: rename_mapping) : bool * rename_mapping =
   (* Registers a compinfo rename or a enum rename*)
   let register_rename_on_success = fun rename_mapping compinfo_option enum_option ->
     let maybeAddTuple = fun list option ->
@@ -142,12 +141,12 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename
     in
 
     let (a, b, c, renames_on_success) = rename_mapping in
-          let (compinfoRenames, enumRenames) = renames_on_success in
+    let (compinfoRenames, enumRenames) = renames_on_success in
 
-          let updatedCompinfoRenames = maybeAddTuple compinfoRenames compinfo_option in
-          let updatedEnumRenames = maybeAddTuple enumRenames enum_option in
+    let updatedCompinfoRenames = maybeAddTuple compinfoRenames compinfo_option in
+    let updatedEnumRenames = maybeAddTuple enumRenames enum_option in
 
-          a, b, c, (updatedCompinfoRenames, updatedEnumRenames)
+    a, b, c, (updatedCompinfoRenames, updatedEnumRenames)
   in
 
   if Messages.tracing then Messages.tracei "compareast" "eq_typ_acc %a vs %a (%a, %a)\n" d_type a d_type b pretty_length acc pretty_length !global_typ_acc; (* %a makes List.length calls lazy if compareast isn't being traced *)
@@ -158,7 +157,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename
     | TArray (typ1, None, attr1), TArray (typ2, None, attr2) -> eq_typ_acc typ1 typ2 acc rename_mapping &&>> forward_list_equal eq_attribute attr1 attr2
     | TFun (typ1, (Some list1), varArg1, attr1), TFun (typ2, (Some list2), varArg2, attr2) ->
       eq_typ_acc typ1 typ2 acc rename_mapping &&>>
-      forward_list_equal (eq_args acc) list1 list2 &&>
+      forward_list_equal (eq_args acc ~fun_parameter_name_comparison_enabled:fun_parameter_name_comparison_enabled) list1 list2 &&>
       (varArg1 = varArg2) &&>>
       forward_list_equal eq_attribute attr1 attr2
     | TFun (typ1, None, varArg1, attr1), TFun (typ2, None, varArg2, attr2) ->
@@ -179,11 +178,11 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename
         let acc = (a, b) :: acc in
         let (res, rm) = eq_compinfo compinfo1 compinfo2 acc rename_mapping &&>> forward_list_equal eq_attribute attr1 attr2 in
         let updated_rm: rename_mapping = if res && compinfo1.cname <> compinfo2.cname then
-          (* This renaming now only takes place when the comparison was successful.*)
-          (*compinfo2.cname <- compinfo1.cname;*)
+            (* This renaming now only takes place when the comparison was successful.*)
+            (*compinfo2.cname <- compinfo1.cname;*)
 
-          register_rename_on_success rm (Some((compinfo2, compinfo1))) None
-        else rm
+            register_rename_on_success rm (Some((compinfo2, compinfo1))) None
+          else rm
         in
         if res then
           global_typ_acc := (a, b) :: !global_typ_acc;
@@ -203,7 +202,7 @@ and eq_typ_acc (a: typ) (b: typ) (acc: (typ * typ) list) (rename_mapping: rename
   if Messages.tracing then Messages.traceu "compareast" "eq_typ_acc %a vs %a\n" d_type a d_type b;
   (r, updated_rename_mapping)
 
-and eq_typ (a: typ) (b: typ) (rename_mapping: rename_mapping) : bool * rename_mapping = eq_typ_acc a b [] rename_mapping
+and eq_typ (a: typ) (b: typ) ?(fun_parameter_name_comparison_enabled: bool = true) (rename_mapping: rename_mapping) : bool * rename_mapping = eq_typ_acc a b [] ~fun_parameter_name_comparison_enabled:fun_parameter_name_comparison_enabled rename_mapping
 
 and eq_eitems (a: string * exp * location) (b: string * exp * location) (rename_mapping: rename_mapping) = match a, b with
     (name1, exp1, _l1), (name2, exp2, _l2) -> (name1 = name2, rename_mapping) &&>> eq_exp exp1 exp2
@@ -215,9 +214,10 @@ and eq_enuminfo (a: enuminfo) (b: enuminfo) (rename_mapping: rename_mapping) =
   forward_list_equal eq_eitems a.eitems b.eitems
 (* Ignore ereferenced *)
 
-and eq_args (acc: (typ * typ) list) (a: string * typ * attributes) (b: string * typ * attributes) (rename_mapping: rename_mapping) : bool * rename_mapping = match a, b with
+(*param: fun_parameter_name_comparison_enabled when set to false, skips the comparison of the names*)
+and eq_args (acc: (typ * typ) list) (a: string * typ * attributes) (b: string * typ * attributes) ?(fun_parameter_name_comparison_enabled: bool = true) (rename_mapping: rename_mapping) : bool * rename_mapping = match a, b with
     (name1, typ1, attr1), (name2, typ2, attr2) ->
-    (rename_mapping_aware_name_comparison name1 name2 rename_mapping, rename_mapping) &&>>
+    ((not fun_parameter_name_comparison_enabled) || rename_mapping_aware_name_comparison name1 name2 rename_mapping, rename_mapping) &&>>
     eq_typ_acc typ1 typ2 acc &&>>
     forward_list_equal eq_attribute attr1 attr2
 
@@ -275,18 +275,8 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
           is_naming_ok, method_rename_mappings, glob_vars
         | None ->
           if a.vname <> b.vname then
-            (*Function that extracts the names from the param spec of the TFun*)
-            let extract_names_from_params param_spec =
-              Option.map (fun list -> List.map (fun (name, _, _) -> name) list) param_spec |>
-              Option.value ~default:[]
-            in
-
-            (*No mapping exists yet. Create one.*)
-            let aParamNames = extract_names_from_params aParamSpec in
-            let bParamNames = extract_names_from_params bParamSpec in
-
             let assumption =
-              {original_method_name = a.vname; new_method_name = b.vname; parameter_renames = create_locals_rename_mapping aParamNames bParamNames} in
+              {original_method_name = a.vname; new_method_name = b.vname} in
 
             true, VarinfoMap.add a assumption method_rename_mappings, glob_vars
           else true, method_rename_mappings, glob_vars
@@ -298,15 +288,8 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
   in
 
   (*If the following is a method call, we need to check if we have a mapping for that method call. *)
-  let typ_rename_mapping = match b.vtype with
-    | TFun(_, _, _, _) -> (
-        let new_locals = VarinfoMap.find_opt a updated_method_rename_mappings in
-
-        match new_locals with
-        | Some locals ->
-          (locals.parameter_renames, updated_method_rename_mappings, updatedGlobVarMapping, renames_on_success)
-        | None -> (StringMap.empty, updated_method_rename_mappings, updatedGlobVarMapping, renames_on_success)
-      )
+  let fun_parameter_name_comparison_enabled = match b.vtype with
+    | TFun(_, _, _, _) -> false
     (*| GVar (_, _, _) -> (
         let new_local = VarinfoMap.find_opt a glob_vars in
 
@@ -314,11 +297,11 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) : bool
         | Some now_name -> (StringMap.add a.vname now_name StringMap.empty, updated_method_rename_mappings, updatedGlobVarMapping)
         | None -> (StringMap.empty, updated_method_rename_mappings, updatedGlobVarMapping)
       )*)
-    | _ -> (locals_renames, updated_method_rename_mappings, updatedGlobVarMapping, renames_on_success)
+    | _ -> true
   in
 
   (*Ignore rename mapping for type check, as it doesn't change anyway. We only need the renames_on_success*)
-  let (typeCheck, (_, _, _, updated_renames_on_success)) = eq_typ a.vtype b.vtype typ_rename_mapping in
+  let (typeCheck, (_, _, _, updated_renames_on_success)) = eq_typ a.vtype b.vtype ~fun_parameter_name_comparison_enabled:fun_parameter_name_comparison_enabled (StringMap.empty, VarinfoMap.empty, VarinfoMap.empty, renames_on_success) in
 
   (isNamingOk && typeCheck, (locals_renames, updated_method_rename_mappings, updatedGlobVarMapping, updated_renames_on_success)) &&>>
   forward_list_equal eq_attribute a.vattr b.vattr &&>
