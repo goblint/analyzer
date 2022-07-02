@@ -3,6 +3,8 @@ open PrecisionUtil
 open FloatOps
 open Cil
 
+exception ArithmeticOnFloatBot of string
+
 module type FloatArith = sig
   type t
 
@@ -83,15 +85,16 @@ end
 
 module FloatIntervalImpl(Float_t : CFloatType) = struct
   include Printable.Std (* for default invariant, tag and relift *)
-  type t = (Float_t.t * Float_t.t) option [@@deriving eq, ord, to_yojson, hash]
+  type t = Top | Bot | Interval of (Float_t.t * Float_t.t) [@@deriving eq, ord, to_yojson, hash]
 
   let to_int ik = function
-    | None -> IntDomain.IntDomTuple.top_of ik
+    | Bot -> IntDomain.IntDomTuple.bot_of ik (**shold it rather throw ArithmeticOnFloatBot ?*)
+    | Top -> IntDomain.IntDomTuple.top_of ik
     (* special treatment for booleans as those aren't "just" truncated *)
-    | Some (l, h) when ik = IBool && (l > Float_t.zero || h < Float_t.zero) -> IntDomain.IntDomTuple.of_bool IBool true
-    | Some (l, h) when ik = IBool && l = h && l = Float_t.zero -> IntDomain.IntDomTuple.of_bool IBool false
-    | Some (l, h) when ik = IBool -> IntDomain.IntDomTuple.top_of IBool
-    | Some (l, h) -> 
+    | Interval (l, h) when ik = IBool && (l > Float_t.zero || h < Float_t.zero) -> IntDomain.IntDomTuple.of_bool IBool true
+    | Interval (l, h) when ik = IBool && l = h && l = Float_t.zero -> IntDomain.IntDomTuple.of_bool IBool false
+    | Interval (l, h) when ik = IBool -> IntDomain.IntDomTuple.top_of IBool
+    | Interval (l, h) -> 
       (* as converting from float to integer is (exactly) defined as leaving out the fractional part,
          (value is truncated towrad zero) we do not require specific rounding here *)
       IntDomain.IntDomTuple.of_interval ik (Float_t.to_big_int l, Float_t.to_big_int h)
@@ -102,14 +105,15 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       let l' = Float_t.of_float Down (Big_int_Z.float_of_big_int l) in
       let h' = Float_t.of_float Up (Big_int_Z.float_of_big_int h) in
       if not (Float_t.is_finite l' && Float_t.is_finite h') then
-        None
+        Top
       else
-        Some (l', h')
-    | _, _ -> None
+        Interval (l', h')
+    | _, _ -> Top
 
   let show = function
-    | None -> "[Top]"
-    | Some (low, high) -> Printf.sprintf "[%s,%s]" (Float_t.to_string low) (Float_t.to_string high)
+    | Top -> Float_t.name ^ ": [Top]"
+    | Bot -> Float_t.name ^ ": [Bot]"
+    | Interval (low, high) -> Printf.sprintf "%s:[%s,%s]" Float_t.name (Float_t.to_string low) (Float_t.to_string high)
 
   let pretty () x = text (show x)
 
@@ -122,44 +126,40 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let pretty_diff () (x, y) =
     Pretty.dprintf "%a instead of %a" pretty x pretty y
 
-  let bot () = failwith "no bot exists"
+  let bot () = Bot
 
-  let is_bot _ = false
+  let is_bot = function 
+  | Bot -> true
+  | _ -> false 
 
-  let top () = None
+  let top () = Top
 
-  let is_top = Option.is_none
+  let is_top = function 
+    | Top -> true
+    | _ -> false 
 
-  let neg = Option.map (fun (low, high) -> (Float_t.neg high, Float_t.neg low))
+  let neg = function 
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "neg %s" (show Bot)))
+    | Interval (low, high) -> Interval (Float_t.neg high, Float_t.neg low)
+    | _ -> Top
 
   let norm v = 
     let normed = match v with
-      | Some (low, high) -> 
+      | Interval (low, high) -> 
         if Float_t.is_finite low && Float_t.is_finite high then 
           if low > high then failwith "invalid Interval"
           else v
-        else None
-      | _ -> None
+        else Top
+      | tb -> tb
     in if is_top normed then
       Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739] 
         "Float could be +/-infinity or Nan";
     normed
 
-  (**just for norming the arbitraries, so correct intervals get created, but no failwith if low > high*)
-  let norm_arb v = 
-    match v with
-    | Some (f1, f2) ->
-      let f1' = Float_t.of_float Nearest f1 in
-      let f2' = Float_t.of_float Nearest f2 in
-      if Float_t.is_finite f1' && Float_t.is_finite f2' 
-      then Some(min f1' f2', max f1' f2') 
-      else None
-    | _ -> None
-
   (**for QCheck: should describe how to generate random values and shrink possible counter examples *)
-  let arbitrary () = QCheck.map norm_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float)) 
+  let arbitrary () = failwith "not implemented" 
 
-  let of_interval' interval = norm @@ Some interval
+  let of_interval' interval = norm @@ Interval interval
   let of_interval (l, h) = of_interval' (Float_t.of_float Down (min l h), Float_t.of_float Up (max l h))
   let of_string s = of_interval' (Float_t.atof Down s, Float_t.atof Up s)
   let of_const f = of_interval (f, f)
@@ -169,56 +169,70 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let starting s = of_interval' (Float_t.of_float Down s, Float_t.upper_bound)
   let starting_after s = of_interval' (Float_t.succ @@ Float_t.of_float Down s, Float_t.upper_bound)
 
-  let minimal x = Option.bind x (fun (l, _) -> Float_t.to_float l)
-  let maximal x = Option.bind x (fun (_, h) -> Float_t.to_float h)
+  let minimal = function
+    | Interval (l, _) -> Float_t.to_float l
+    | _ -> None
 
-  let is_exact = function Some (l, v) -> l = v | _ -> false
+  let maximal = function
+    | Interval (_, h) -> Float_t.to_float h
+    | _ -> None
+
+  let is_exact = function 
+    | Interval (l, v) -> l = v 
+    | _ -> false
 
   let leq v1 v2 = 
     match v1, v2 with
-    | _, None -> true
-    | None, Some _ -> false
-    | Some (l1, h1), Some (l2, h2) -> l1 >= l2 && h1 <= h2
+      | _, Top -> true
+      | Top, _ -> false
+      | Bot, _ -> true
+      | _, Bot -> false
+      | Interval (l1, h1), Interval (l2, h2) -> l1 >= l2 && h1 <= h2
 
   let join v1 v2 = 
     match v1, v2 with
-    | None, _ | _, None -> None
-    | Some (l1, h1), Some (l2, h2) -> Some (min l1 l2, max h1 h2)
+    | Top, _ | _, Top -> Top
+    | Bot, v | v, Bot -> v
+    | Interval (l1, h1), Interval (l2, h2) -> Interval (min l1 l2, max h1 h2)
 
   let meet v1 v2 = 
     match v1, v2 with
-    | None, v | v, None -> v
-    | Some (l1, h1), Some (l2, h2) -> 
+    | Bot, _ | _, Bot -> Bot
+    | Top, v | v, Top -> v
+    | Interval (l1, h1), Interval (l2, h2) -> 
       let (l, h) = (max l1 l2, min h1 h2) in
       if l <= h 
-      then Some (l, h) 
-      else failwith "meet results in empty Interval"
+      then Interval (l, h) 
+      else Bot
 
   (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
   let widen v1 v2 = (**TODO: support 'threshold_widening' option *)
     match v1, v2 with
-    | None, _ | _, None -> None
-    | Some (l1, h1), Some (l2, h2) ->
+    | Top, _ | _, Top -> Top
+    | Bot, v | v, Bot -> v
+    | Interval (l1, h1), Interval (l2, h2) ->
       (**If we widen and we know that neither interval contains +-inf or nan, it is ok to widen only to +-max_float, 
          because a widening with +-inf/nan will always result in the case above -> Top *)
       let low = if l1 <= l2 then l1 else Float_t.lower_bound in 
       let high = if h1 >= h2 then h1 else Float_t.upper_bound in
-      norm @@ Some (low, high)
+      norm @@ Interval (low, high)
 
   let narrow v1 v2 =
     match v1, v2 with (**we cannot distinguish between the lower bound beeing -inf or the upper bound beeing inf. Also there is nan *)
-    | None, _ -> v2
+    | Bot, _ | _, Bot -> Bot
+    | Top, _ -> v2
     | _, _ -> v1
 
   (** evaluation of the binary operations *)
   let eval_binop eval_operation op1 op2 =
     norm @@ match (op1, op2) with 
-    | Some v1, Some v2 -> 
+    | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+    | Interval v1, Interval v2 -> 
       let is_exact (lower, upper) = (lower = upper) in
       let is_exact_before = is_exact v1 && is_exact v2 in
       let result = eval_operation v1 v2 in
       (match result with
-       | Some (r1, r2) ->
+       | Interval (r1, r2) ->
          let is_exact_after = is_exact (r1, r2)
          in if not is_exact_after && is_exact_before then 
            Messages.warn
@@ -226,23 +240,24 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
              ~tags:[CWE 197; CWE 681; CWE 1339]
              "The result of this operation is not exact, even though the inputs were exact."; 
          result
-       | _ -> None)
-    | _ -> None
+       | bt -> bt)
+    | _ -> Top
 
   let eval_int_binop eval_operation (op1: t) op2 =
     let a, b =
       match (op1, op2) with 
-      | Some v1, Some v2 -> eval_operation v1 v2 
+      | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
+      | Interval v1, Interval v2 -> eval_operation v1 v2 
       | _ -> (0, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
       (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
 
   let eval_add (l1, h1) (l2, h2) = 
-    Some (Float_t.add Down l1 l2, Float_t.add Up h1 h2)
+    Interval (Float_t.add Down l1 l2, Float_t.add Up h1 h2)
 
   let eval_sub (l1, h1) (l2, h2) = 
-    Some (Float_t.sub Down l1 h2, Float_t.sub Up h1 l2)
+    Interval (Float_t.sub Down l1 h2, Float_t.sub Up h1 l2)
 
   let eval_mul (l1, h1) (l2, h2) =
     let mul1u = Float_t.mul Up l1 l2 in
@@ -255,10 +270,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     let mul4d = Float_t.mul Down h1 h2 in
     let high = max (max (max mul1u mul2u) mul3u) mul4u in
     let low = min (min (min mul1d mul2d) mul3d) mul4d in
-    Some (low, high)
+    Interval (low, high)
 
   let eval_div (l1, h1) (l2, h2) =
-    if l2 <= Float_t.zero && h2 >= Float_t.zero then None
+    if l2 <= Float_t.zero && h2 >= Float_t.zero then Top
     else
       let div1u = Float_t.div Up l1 l2 in
       let div2u = Float_t.div Up l1 h2 in
@@ -270,7 +285,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       let div4d = Float_t.div Down h1 h2 in
       let high = max (max (max div1u div2u) div3u) div4u in
       let low = min (min (min div1d div2d) div3d) div4d in
-      Some (low, high)
+      Interval (low, high)
 
 
   let eval_lt (l1, h1) (l2, h2) = 
@@ -336,79 +351,89 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let unknown_IInt = IntDomain.IntDomTuple.top_of IInt
 
   let isfinite op =
-    match op with 
-    | Some v -> true_nonZero_IInt
-    | None -> unknown_IInt
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Interval v -> true_nonZero_IInt
+    | Top -> unknown_IInt
 
   let isinf op =
-    match op with 
-    | Some v -> false_zero_IInt
-    | None -> unknown_IInt
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op))) 
+    | Interval v -> false_zero_IInt
+    | Top -> unknown_IInt
 
   let isnan = isinf (**currently we cannot decide if we are NaN or +-inf; both are only in Top*)
 
   let isnormal op =
-    match op with 
-    | Some (l, h) -> 
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
+    | Interval (l, h) -> 
       if l >= Float_t.smallest || h <= (Float_t.neg (Float_t.smallest)) then
         true_nonZero_IInt
       else if l > (Float_t.neg (Float_t.smallest)) && h < Float_t.smallest then
         false_zero_IInt
       else 
         unknown_IInt
-    | None -> unknown_IInt
+    | Top -> unknown_IInt
 
   (**it seems strange not to return a explicit 1 for negative numbers, but in c99 signbit is defined as: *)
   (**<<The signbit macro returns a nonzero value if and only if the sign of its argument value is negative.>> *)
   let signbit op = 
     match op with
-    | Some (_, h) when h < Float_t.zero -> true_nonZero_IInt
-    | Some (l, _) when l > Float_t.zero -> false_zero_IInt
-    | Some _ -> unknown_IInt (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
-    | None -> unknown_IInt
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
+    | Interval (_, h) when h < Float_t.zero -> true_nonZero_IInt
+    | Interval (l, _) when l > Float_t.zero -> false_zero_IInt
+    | Interval _ -> unknown_IInt (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
+    | Top -> unknown_IInt
 
   (**This Constant overapproximates pi to use as bounds for the return values of trigonometric functions *)
   let overapprox_pi = 3.1416 
 
   let acos op =
     match op with
-    | Some (l, _) when (is_exact op) && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
-    | Some (l, h) -> 
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
+    | Interval (l, _) when (is_exact op) && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
+    | Interval (l, h) -> 
       if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
         Messages.warn ~category:Messages.Category.Float "Domain error will occur: acos argument is outside of [-1., 1.]";
       of_interval (0., (overapprox_pi)) (**could be more exact *)
-    | None -> top ()
+    | Top -> top ()
 
   let asin op =
     match op with
-    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
-    | Some (l, h) -> 
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
+    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
+    | Interval (l, h) -> 
       if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
         Messages.warn ~category:Messages.Category.Float "Domain error will occur: asin argument is outside of [-1., 1.]";
       div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
-    | None -> top ()
+    | Top -> top ()
 
   let atan op =
     match op with
-    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
-    | Some _ -> div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
-    | None -> top ()
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
+    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
+    | Interval _ -> div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
+    | Top -> top ()
 
   let cos op =
-    match op with 
-    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 1. (*cos(0) = 1*)
-    | Some _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for some intervals *)
-    | None -> top ()
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op))) 
+    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 1. (*cos(0) = 1*)
+    | Interval _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for Interval intervals *)
+    | Top -> top ()
 
   let sin op =
-    match op with 
-    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*sin(0) = 0*)
-    | Some _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for some intervals *)
-    | None -> top ()
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op))) 
+    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*sin(0) = 0*)
+    | Interval _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for some intervals *)
+    | Top -> top ()
 
   let tan op = 
     match op with
-    | Some (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
+    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
     | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
 
 end
