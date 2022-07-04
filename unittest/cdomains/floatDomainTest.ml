@@ -189,7 +189,7 @@ struct
     begin
       check_meet (FI.top ()) (FI.top ()) (FI.top ());
       check_meet (FI.top ()) fi_one fi_one;
-      assert_raises (Failure "meet results in empty Interval") (fun () -> (FI.meet fi_zero fi_one));
+      check_meet fi_zero fi_one (FI.bot ());
       check_meet (FI.of_interval (0., 10.)) (FI.of_interval (5., 20.)) (FI.of_interval (5., 10.));
     end
 

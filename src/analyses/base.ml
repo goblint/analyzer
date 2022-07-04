@@ -1830,7 +1830,10 @@ struct
     in
     let inv_bin_float (a, b) c op =
       let open Stdlib in
-      let meet_bin a' b'  = FD.meet a a', FD.meet b b' in
+      let meet_bin a' b'  = 
+        try
+          FD.meet a a', FD.meet b b' 
+        with FloatDomain.ArithmeticOnFloatBot _ -> raise Deadcode in
       match op with
       | PlusA  ->
         (* A + B = C, \forall a \in A. a + b_min > pred c_min \land a + b_max < succ c_max

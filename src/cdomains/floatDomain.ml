@@ -87,8 +87,24 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   include Printable.Std (* for default invariant, tag and relift *)
   type t = Top | Bot | Interval of (Float_t.t * Float_t.t) [@@deriving eq, ord, to_yojson, hash]
 
+  let show = function
+    | Top -> Float_t.name ^ ": [Top]"
+    | Bot -> Float_t.name ^ ": [Bot]"
+    | Interval (low, high) -> Printf.sprintf "%s:[%s,%s]" Float_t.name (Float_t.to_string low) (Float_t.to_string high)
+
+  let pretty () x = text (show x)
+
+  let printXml f (x : t) =
+    BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
+
+  let name () = "FloatInterval"
+
+  (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
+  let pretty_diff () (x, y) =
+    Pretty.dprintf "%a instead of %a" pretty x pretty y
+
   let to_int ik = function
-    | Bot -> IntDomain.IntDomTuple.bot_of ik (**shold it rather throw ArithmeticOnFloatBot ?*)
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "to_int %s" (show Bot)))
     | Top -> IntDomain.IntDomTuple.top_of ik
     (* special treatment for booleans as those aren't "just" truncated *)
     | Interval (l, h) when ik = IBool && (l > Float_t.zero || h < Float_t.zero) -> IntDomain.IntDomTuple.of_bool IBool true
@@ -110,27 +126,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
         Interval (l', h')
     | _, _ -> Top
 
-  let show = function
-    | Top -> Float_t.name ^ ": [Top]"
-    | Bot -> Float_t.name ^ ": [Bot]"
-    | Interval (low, high) -> Printf.sprintf "%s:[%s,%s]" Float_t.name (Float_t.to_string low) (Float_t.to_string high)
-
-  let pretty () x = text (show x)
-
-  let printXml f (x : t) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
-
-  let name () = "FloatInterval"
-
-  (** If [leq x y = false], then [pretty_diff () (x, y)] should explain why. *)
-  let pretty_diff () (x, y) =
-    Pretty.dprintf "%a instead of %a" pretty x pretty y
-
   let bot () = Bot
 
   let is_bot = function 
-  | Bot -> true
-  | _ -> false 
+    | Bot -> true
+    | _ -> false 
 
   let top () = Top
 
@@ -156,8 +156,19 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
         "Float could be +/-infinity or Nan";
     normed
 
+  (**converts "(Float_t.t * Float_t.t) option" arbitraries to "Top | Bot | Interval of (Float_t.t * Float_t.t)". Does not create Bot*)
+  let convert_arb v = 
+    match v with
+    | Some (f1, f2) ->
+      let f1' = Float_t.of_float Nearest f1 in
+      let f2' = Float_t.of_float Nearest f2 in
+      if Float_t.is_finite f1' && Float_t.is_finite f2' 
+      then Interval (min f1' f2', max f1' f2') 
+      else Top
+    | _ -> Top
+
   (**for QCheck: should describe how to generate random values and shrink possible counter examples *)
-  let arbitrary () = failwith "not implemented" 
+  let arbitrary () = QCheck.map convert_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float))
 
   let of_interval' interval = norm @@ Interval interval
   let of_interval (l, h) = of_interval' (Float_t.of_float Down (min l h), Float_t.of_float Up (max l h))
@@ -183,11 +194,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let leq v1 v2 = 
     match v1, v2 with
-      | _, Top -> true
-      | Top, _ -> false
-      | Bot, _ -> true
-      | _, Bot -> false
-      | Interval (l1, h1), Interval (l2, h2) -> l1 >= l2 && h1 <= h2
+    | _, Top -> true
+    | Top, _ -> false
+    | Bot, _ -> true
+    | _, Bot -> false
+    | Interval (l1, h1), Interval (l2, h2) -> l1 >= l2 && h1 <= h2
 
   let join v1 v2 = 
     match v1, v2 with
@@ -346,95 +357,82 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let ne = eval_int_binop eval_ne
 
+
+  let eval_unop onTop eval_operation op =
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Interval v -> eval_operation v
+    | Top -> onTop
+
   let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
   let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)
   let unknown_IInt = IntDomain.IntDomTuple.top_of IInt
 
-  let isfinite op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Interval v -> true_nonZero_IInt
-    | Top -> unknown_IInt
+  let eval_isfinite _ = true_nonZero_IInt
 
-  let isinf op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op))) 
-    | Interval v -> false_zero_IInt
-    | Top -> unknown_IInt
+  let eval_isinf _ = false_zero_IInt
 
-  let isnan = isinf (**currently we cannot decide if we are NaN or +-inf; both are only in Top*)
-
-  let isnormal op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
-    | Interval (l, h) -> 
+  let eval_isnormal = function 
+    | (l, h) ->
       if l >= Float_t.smallest || h <= (Float_t.neg (Float_t.smallest)) then
         true_nonZero_IInt
       else if l > (Float_t.neg (Float_t.smallest)) && h < Float_t.smallest then
         false_zero_IInt
       else 
         unknown_IInt
-    | Top -> unknown_IInt
 
-  (**it seems strange not to return a explicit 1 for negative numbers, but in c99 signbit is defined as: *)
+  (**it seems strange not to return an explicit 1 for negative numbers, but in c99 signbit is defined as: *)
   (**<<The signbit macro returns a nonzero value if and only if the sign of its argument value is negative.>> *)
-  let signbit op = 
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
-    | Interval (_, h) when h < Float_t.zero -> true_nonZero_IInt
-    | Interval (l, _) when l > Float_t.zero -> false_zero_IInt
-    | Interval _ -> unknown_IInt (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
-    | Top -> unknown_IInt
+  let eval_signbit = function
+    | (_, h) when h < Float_t.zero -> true_nonZero_IInt
+    | (l, _) when l > Float_t.zero -> false_zero_IInt
+    | _ -> unknown_IInt (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
 
   (**This Constant overapproximates pi to use as bounds for the return values of trigonometric functions *)
   let overapprox_pi = 3.1416 
 
-  let acos op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
-    | Interval (l, _) when (is_exact op) && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
-    | Interval (l, h) -> 
+  let eval_acos = function
+    | (l, h) when l = h && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
+    | (l, h) -> 
       if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
         Messages.warn ~category:Messages.Category.Float "Domain error will occur: acos argument is outside of [-1., 1.]";
       of_interval (0., (overapprox_pi)) (**could be more exact *)
-    | Top -> top ()
 
-  let asin op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
-    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
-    | Interval (l, h) -> 
+  let eval_asin = function
+    | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
+    | (l, h) -> 
       if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
         Messages.warn ~category:Messages.Category.Float "Domain error will occur: asin argument is outside of [-1., 1.]";
       div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
-    | Top -> top ()
 
-  let atan op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
-    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
-    | Interval _ -> div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
-    | Top -> top ()
+  let eval_atan = function
+    | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*atan(0) = 0*)
+    | _ -> div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
 
-  let cos op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op))) 
-    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 1. (*cos(0) = 1*)
-    | Interval _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for Interval intervals *)
-    | Top -> top ()
+  let eval_cos = function
+    | (l, h) when l = h && l = Float_t.zero -> of_const 1. (*cos(0) = 1*)
+    | _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for Interval intervals *)
 
-  let sin op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op))) 
-    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*sin(0) = 0*)
-    | Interval _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for some intervals *)
-    | Top -> top ()
+  let eval_sin = function
+    | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*sin(0) = 0*)
+    | _ -> of_interval (-. 1., 1.) (**could be exact for intervals where l=h, or even for some intervals *)
 
-  let tan op = 
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "isfinite %s" (show op)))
-    | Interval (l, _) when (is_exact op) && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
+  let eval_tan = function
+    | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*tan(0) = 0*)
     | _ -> top () (**could be exact for intervals where l=h, or even for some intervals *)
+
+  let isfinite = eval_unop unknown_IInt eval_isfinite
+  let isinf = eval_unop unknown_IInt eval_isinf
+  let isnan = isinf (**currently we cannot decide if we are NaN or +-inf; both are only in Top*)
+  let isnormal = eval_unop unknown_IInt eval_isnormal
+  let signbit = eval_unop unknown_IInt eval_signbit
+
+  let acos = eval_unop (top ()) eval_acos
+  let asin = eval_unop (top ()) eval_asin
+  let atan = eval_unop (top ()) eval_atan
+  let cos = eval_unop (top ()) eval_cos
+  let sin = eval_unop (top ()) eval_sin
+  let tan = eval_unop (top ()) eval_tan
 
 end
 
