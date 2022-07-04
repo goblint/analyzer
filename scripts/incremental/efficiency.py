@@ -122,10 +122,10 @@ def collect_data(outdir):
       utils.header_runtime_incr_posts_child: [], utils.header_runtime_incr_posts_rel_child: [],
       "Change in number of race warnings": []}
     for t in os.listdir(outdir):
-        parentlog = os.path.join(outdir, t, 'parent', 'analyzer.log')
-        childlog = os.path.join(outdir, t, 'child', 'analyzer.log')
-        childpostslog = os.path.join(outdir, t, 'child-incr-post', 'analyzer.log')
-        childpostsrellog = os.path.join(outdir, t, 'child-rel', 'analyzer.log')
+        parentlog = os.path.join(outdir, t, 'parent', utils.analyzerlog)
+        childlog = os.path.join(outdir, t, 'child', utils.analyzerlog)
+        childpostslog = os.path.join(outdir, t, 'child-incr-post', utils.analyzerlog)
+        childpostsrellog = os.path.join(outdir, t, 'child-rel', utils.analyzerlog)
         commit_prop_log = os.path.join(outdir, t, 'commit_properties.log')
         t = int(t)
         commit_prop = json.load(open(commit_prop_log, "r"))

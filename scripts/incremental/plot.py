@@ -67,25 +67,35 @@ def paper_efficiency_graphs(dir_results, csv_filename, outdir, filterRelCLOC=Fal
         # -> 17.7917cm / 7.00697in
         textwidth = 7
         xlimleft = None
+        xlimright = 1.05
         xlabel = "Relative speedup" if i==3 else None
         ylabel = "\# Commits" if i==0 or i==3 else None
         outfile = os.path.join(outdir, "efficiency_figure_" + str(i) + ".pgf")
         if i == 0:
             size = (textwidth/3+0.1, textwidth/4) # additional ylabel
-            xlim = 1.05
         elif i == 1:
             xlimleft = -0.3
             size = (textwidth/3-0.1/2, textwidth/4) # missing ylabel
-            xlim = 1.05
         elif i == 3:
             size = (textwidth, textwidth/4)
-            xlim = 1.02
+            xlimright = 1.02
             step = 0.005
         else:
             size = (textwidth/3-0.1/2, textwidth/4) # missing ylabel
-            xlim = 1.05
         utils.hist_plot(diff, step, None, xlabel, ylabel, outfile,
-            size, xlim_left=xlimleft, xlim_right=xlim, cutoffs=None)
+            size, xlim_left=xlimleft, xlim_right=xlimright, cutoffs=None)
+
+        # print statistics
+        for e in diff:
+            if (xlimleft and e < xlimleft) or (xlimright and e > xlimright):
+                print("excluded", e, "from efficiency figure", i)
+    diff1 = df[utils.header_runtime_incr_child].astype('float') / df[utils.header_runtime_parent].astype('float')
+    diff2 = df[utils.header_runtime_incr_posts_child].astype('float') / df[utils.header_runtime_parent].astype('float')
+    diff3 = df[utils.header_runtime_incr_posts_rel_child].astype('float') / df[utils.header_runtime_parent].astype('float')
+    for n, diff in [("incr", diff1), ("+ incr postsolver", diff2), ("+ reluctant", diff3)]:
+        print("80% quantile for", n, "compared to from-scratch analysis:", diff.quantile(q=0.8) * 100, "%")
+        print("75% quantile for", n, "compared to from-scratch analysis:", diff.quantile(q=0.75) * 100, "%")
+
 
 def paper_precision_graph(results_precision, filename, outdir):
     df = utils.get_data_from_json(os.path.join(results_precision, filename))

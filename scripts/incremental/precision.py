@@ -213,7 +213,7 @@ def analyze_seq_in_parallel(seq_list):
         p.join()
 
 
-def merge_results(filename, outfilename):
+def merge_results(outfilename):
     wd = os.getcwd()
     seq_summaries = []
     result_sums = {str(i): {"precpertotal": {"equal": 0, "moreprec": 0, "lessprec": 0, "incomp": 0, "total": 0}, "number_of_commits": 0, "relCLOC": 0} for i in compare_commits}
@@ -234,20 +234,20 @@ def merge_results(filename, outfilename):
         relCLOC = 0
         for i in filter(lambda x: x != "0", commits):
             ith_dir = os.path.join(outdir, i)
-            comparelog = os.path.join(ith_dir, "compare", filename)
+            compare_log_path = os.path.join(ith_dir, "compare", utils.comparelog)
             with open(os.path.join(outdir, i, "commit_properties.log"), "r") as f:
                 relCLOC += json.load(f)["relCLOC"]
             if int(i) in compare_commits:
-                if os.path.isdir(ith_dir) and os.path.exists(comparelog):
-                    int_prec[i]["precision"] = utils.extract_precision_from_compare_log(os.path.join(ith_dir, "compare", "compare.log"))
+                if os.path.isdir(ith_dir) and os.path.exists(compare_log_path):
+                    int_prec[i]["precision"] = utils.extract_precision_from_compare_log(compare_log_path)
                     int_prec[i]["relCLOC"] = relCLOC
                     if int_prec[i]["precision"]:
                         result_sums[i]["precpertotal"] = {k: result_sums[i]["precpertotal"].get(k, 0) + (int_prec[i]["precision"].get(k, 0) / int_prec[i]["precision"]["total"]) for k in set(result_sums[i]["precpertotal"])}
                         result_sums[i]["number_of_commits"] += 1
                         result_sums[i]["relCLOC"] += relCLOC
             if int(i) != 0 and int(i) == len(commits) - 1:
-                if os.path.exists(comparelog):
-                    final_prec = utils.extract_precision_from_compare_log(comparelog)
+                if os.path.exists(compare_log_path):
+                    final_prec = utils.extract_precision_from_compare_log(compare_log_path)
         summary = {"name": os.path.basename(s), "sequence": seq, "length": len(seq), "intermediate precision": int_prec, "final precision": final_prec, "finalRelCLOC": relCLOC}
         seq_summaries.append(summary)
         os.chdir(wd)
@@ -274,6 +274,5 @@ if not only_collect_results:
     analyze_seq_in_parallel(seq_list)
 
 print("\nmerge results")
-comp_filename = "compare.log"
 results_filename = "results.json"
-merge_results(comp_filename, results_filename)
+merge_results(results_filename)
