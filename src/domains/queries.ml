@@ -15,6 +15,9 @@ struct
   let unlift_opt op x = match x with
     | `Lifted x -> op x
     | _ -> None
+  let unlift_is op x = match x with
+    | `Lifted x -> op x
+    | _ -> false
 
   let bot_of = lift I.bot_of
   let top_of = lift I.top_of
@@ -28,9 +31,9 @@ struct
   let ending ik = lift (I.ending ik)
 
   let to_int x = unlift_opt I.to_int x
-  let is_int x = unlift I.is_int x
+  let is_int x = unlift_is I.is_int x
   let to_bool x = unlift_opt I.to_bool x
-  let is_bool x = unlift I.is_bool x
+  let is_bool x = unlift_is I.is_bool x
 
   let is_bot_ikind = function
     | `Bot -> false
