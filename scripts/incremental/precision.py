@@ -274,9 +274,6 @@ if not only_collect_results:
     analyze_seq_in_parallel(seq_list)
 
 print("\nmerge results")
-comp_filename = "compare_prec.log"
-results_filename = "prec_results.json"
-merge_results(comp_filename, results_filename)
 comp_filename = "compare.log"
 results_filename = "results.json"
 merge_results(comp_filename, results_filename)

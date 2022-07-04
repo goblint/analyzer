@@ -129,5 +129,5 @@ paper_efficiency_graphs(results_efficiency, filename, outdir, filterRelCLOC=True
 
 # precision plot
 results_precision = "result_precision"
-filename = "prec_results.json"
+filename = "results.json"
 paper_precision_graph(results_precision, filename, outdir)
