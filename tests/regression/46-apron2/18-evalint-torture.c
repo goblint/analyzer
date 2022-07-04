@@ -22,7 +22,7 @@ int main() {
   z = 3;
   w = 4;
 
-#define A1 assert(x + y + z + w == 10);
+#define A1 assert(x + y + z + w == 10); // NOWARN (macro)
 #define A2 A1 A1
 #define A4 A2 A2
 #define A8 A4 A4
@@ -36,7 +36,7 @@ int main() {
 #define A2048 A1024 A1024
 #define A4096 A2048 A2048
 
-  A4096
+  A4096 // SUCCESS (via macros)
 
   return 0;
 }
