@@ -128,6 +128,7 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val arbitrary: unit -> t QCheck.arbitrary
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 (** Interface of IntDomain implementations that do not take ikinds for arithmetic operations yet.
    TODO: Should be ported to S in the future. *)
@@ -155,7 +156,7 @@ sig
   val of_interval: Cil.ikind -> int_t * int_t -> t
   val of_congruence: Cil.ikind -> int_t * int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
-  val invariant_ikind : Invariant.context -> Cil.ikind -> t -> Invariant.t
+  val invariant_ikind : Cil.exp -> Cil.ikind -> t -> Invariant.t
 
   val refine_with_congruence: Cil.ikind -> t -> (int_t * int_t) option -> t
   val refine_with_interval: Cil.ikind -> t -> (int_t * int_t) option -> t
@@ -182,6 +183,7 @@ sig
   val is_top_of: Cil.ikind -> t -> bool
 
   val project: precision -> t -> t
+  val invariant: Cil.exp -> t -> Invariant.t
 end
 
 module type Z = Y with type int_t = BI.t
@@ -265,7 +267,7 @@ struct
 
   let is_top_of _ik = Old.is_top
 
-  let invariant_ikind c ik t = Old.invariant c t
+  let invariant_ikind e ik t = Old.invariant e t
 
   let cast_to ?torg ?no_ov = Old.cast_to ?torg
 
@@ -316,7 +318,9 @@ struct
   (* This is for debugging *)
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
-  let invariant c x = I.invariant_ikind c x.ikind x.v
+  let invariant e x =
+    let e' = Cilfacade.mkCast ~e ~newt:(TInt (x.ikind, [])) in
+    I.invariant_ikind e' x.ikind x.v
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
   let to_int x = I.to_int x.v
@@ -414,6 +418,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
+    if M.tracing then M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pretty from_type (BI.to_string from_min) (BI.to_string from_max) CilType.Typ.pretty to_type (BI.to_string to_min) (BI.to_string to_max);
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
@@ -827,21 +832,18 @@ struct
       else if Ints_t.compare y2 x1 <= 0 then of_bool ik false
       else top_bool
 
-  let invariant c x = failwith "unimplemented"
-
-  let invariant_ikind c ik x =
-    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+  let invariant_ikind e ik x =
     match x with
     | Some (x1, x2) when Ints_t.compare x1 x2 = 0 ->
       let x1 = Ints_t.to_bigint x1 in
-      Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x1, intType))
+      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x1, intType))
     | Some (x1, x2) ->
       let open Invariant in
       let (x1', x2') = BatTuple.Tuple2.mapn (Ints_t.to_bigint) (x1, x2) in
-      let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', c, intType)) else none in
-      let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, c, kintegerCilint ik x2', intType)) else none in
+      let i1 = if Ints_t.compare (min_int ik) x1 <> 0 then of_exp Cil.(BinOp (Le, kintegerCilint ik x1', e, intType)) else none in
+      let i2 = if Ints_t.compare x2 (max_int ik) <> 0 then of_exp Cil.(BinOp (Le, e, kintegerCilint ik x2', intType)) else none in
       i1 && i2
-    | None -> None
+    | None -> Invariant.none
 
   let arbitrary ik =
     let open QCheck.Iter in
@@ -930,7 +932,7 @@ struct
   let bot () = raise Error
   let top_of ik = top ()
   let bot_of ik = bot ()
-  let show (x: Ints_t.t) = if (Ints_t.to_int64 x) = GU.inthack then "*" else Ints_t.to_string x
+  let show (x: Ints_t.t) = Ints_t.to_string x
 
   include Std (struct type nonrec t = t let name = name let top_of = top_of let bot_of = bot_of let show = show let equal = equal end)
   (* is_top and is_bot are never called, but if they were, the Std impl would raise their exception, so we overwrite them: *)
@@ -975,6 +977,7 @@ struct
   let logor  n1 n2 = of_bool ((to_bool' n1) || (to_bool' n2))
   let cast_to ?torg t x =  failwith @@ "Cast_to not implemented for " ^ (name ()) ^ "."
   let arbitrary ik = QCheck.map ~rev:Ints_t.to_int64 Ints_t.of_int64 MyCheck.Arbitrary.int64 (* TODO: use ikind *)
+  let invariant _ _ = Invariant.none (* TODO *)
 end
 
 module FlatPureIntegers: IkindUnawareS with type t = int64 and type int_t = int64 = (* Integers, but raises Unknown/Error on join/meet *)
@@ -1066,6 +1069,10 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+
+  let invariant e = function
+    | `Lifted x -> Base.invariant e x
+    | `Top | `Bot -> Invariant.none
 end
 
 module Lift (Base: IkindUnawareS) = (* identical to Flat, but does not go to `Top/Bot` if Base raises Unknown/Error *)
@@ -1132,6 +1139,10 @@ struct
   let lognot = lift1 Base.lognot
   let logand = lift2 Base.logand
   let logor  = lift2 Base.logor
+
+  let invariant e = function
+    | `Lifted x -> Base.invariant e x
+    | `Top | `Bot -> Invariant.none
 end
 
 module Flattened = Flat (Integers(IntOps.Int64Ops))
@@ -1594,19 +1605,30 @@ struct
   let shift_right =
     shift BigInt.shift_right
   (* TODO: lift does not treat Not {0} as true. *)
-  let logand = lift2 BigInt.logand
-  let logor  = lift2 BigInt.logor
+  let logand ik x y =
+    match to_bool x, to_bool y with
+    | Some false, _
+    | _, Some false ->
+      of_bool ik false
+    | _, _ ->
+      lift2 BigInt.logand ik x y
+  let logor ik x y =
+    match to_bool x, to_bool y with
+    | Some true, _
+    | _, Some true ->
+      of_bool ik true
+    | _, _ ->
+      lift2 BigInt.logor ik x y
   let lognot ik = eq ik (of_int ik BigInt.zero)
 
-  let invariant_ikind c ik (x:t) =
-    let c = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+  let invariant_ikind e ik (x:t) =
     match x with
-    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x, intType))
+    | `Definite x -> Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType))
     | `Excluded (s, _) ->
       S.fold (fun x a ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik x, intType)) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) s Invariant.none
+        ) s (Invariant.top ())
     | `Bot -> Invariant.none
 
   let arbitrary ik =
@@ -1695,6 +1717,7 @@ struct
   let logand = (&&)
   let logor  = (||)
   let arbitrary () = QCheck.bool
+  let invariant _ _ = Invariant.none (* TODO *)
 end
 
 module Booleans = MakeBooleans (
@@ -2004,19 +2027,18 @@ module Enums : S with type int_t = BigInt.t = struct
 
   let ne ik x y = lognot ik (eq ik x y)
 
-  let invariant_ikind c ik x =
-    let c = Cil.(Lval (Option.get c.Invariant.lval)) in
+  let invariant_ikind e ik x =
     match x with
     | Inc ps ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Eq, c, kintegerCilint ik x, intType)) in
+          let i = Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik x, intType)) in
           Invariant.(a || i)
-        ) Invariant.none (BISet.elements ps)
+        ) (Invariant.bot ()) (BISet.elements ps)
     | Exc (ns, _) ->
       List.fold_left (fun a x ->
-          let i = Invariant.of_exp Cil.(BinOp (Ne, c, kintegerCilint ik x, intType)) in
+          let i = Invariant.of_exp Cil.(BinOp (Ne, e, kintegerCilint ik x, intType)) in
           Invariant.(a && i)
-        ) Invariant.none (BISet.elements ns)
+        ) (Invariant.top ()) (BISet.elements ns)
 
 
   let arbitrary ik =
@@ -2221,10 +2243,10 @@ struct
       | _ -> top ()
 
 
-  let cast_to ?torg ?(no_ov=false) (t : Cil.ikind) x =
+  let cast_to ?torg ?no_ov (t : Cil.ikind) x =
     let pretty_bool _ x = Pretty.text (string_of_bool x) in
-    let res = cast_to ?torg ~no_ov t x in
-    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t pretty_bool no_ov pretty res;
+    let res = cast_to ?torg ?no_ov t x in
+    if M.tracing then M.trace "cong-cast" "Cast %a to %a (no_ov: %a) = %a\n" pretty x Cil.d_ikind t (Pretty.docOpt (pretty_bool ())) no_ov pretty res;
     res
 
   let widen = join
@@ -2447,17 +2469,16 @@ struct
     if M.tracing then  M.trace "congruence" "less than : %a %a -> %a \n" pretty x pretty y pretty res;
     res
 
-  let invariant_ikind ctxt ik x =
-    let l = Cil.(Lval (BatOption.get ctxt.Invariant.lval)) in
+  let invariant_ikind e ik x =
     match x with
     | Some (c, m) when m =: Ints_t.zero ->
       let c = Ints_t.to_bigint c in
-      Invariant.of_exp Cil.(BinOp (Eq, l, Cil.kintegerCilint ik c, intType))
+      Invariant.of_exp Cil.(BinOp (Eq, e, Cil.kintegerCilint ik c, intType))
     | Some (c, m) ->
       let open Cil in
       let (c, m) = BatTuple.Tuple2.mapn (fun a -> kintegerCilint ik @@ Ints_t.to_bigint a) (c, m) in
-      Invariant.of_exp (BinOp (Eq, (BinOp (Mod, l, m, TInt(ik,[]))), c, intType))
-    | None -> None
+      Invariant.of_exp (BinOp (Eq, (BinOp (Mod, e, m, TInt(ik,[]))), c, intType))
+    | None -> Invariant.none
 
   let arbitrary ik =
     let open QCheck in
@@ -2888,19 +2909,16 @@ module IntDomTupleImpl = struct
   let pretty_diff () (x,y) = dprintf "%a instead of %a" pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 
-  let invariant _ _ = failwith "invariant not implemented for IntDomTupleImpl. Use invariant_ikind instead"
-
-  let invariant_ikind c ik x =
+  let invariant_ikind e ik x =
     match to_int x with
     | Some v ->
       (* If definite, output single equality instead of every subdomain repeating same equality *)
-      let c_exp = Cil.(Lval (Option.get c.Invariant.lval)) in
-      Invariant.of_exp Cil.(BinOp (Eq, c_exp, kintegerCilint ik v, intType))
+      Invariant.of_exp Cil.(BinOp (Eq, e, kintegerCilint ik v, intType))
     | None ->
-      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind c ik } x)
+      let is = to_list (mapp { fp = fun (type a) (module I:S with type t = a) -> I.invariant_ikind e ik } x)
       in List.fold_left (fun a i ->
           Invariant.(a && i)
-        ) Invariant.none is
+        ) (Invariant.top ()) is
 
   let arbitrary ik = QCheck.(set_print show @@ quad (option (I1.arbitrary ik)) (option (I2.arbitrary ik)) (option (I3.arbitrary ik)) (option (I4.arbitrary ik)))
 end

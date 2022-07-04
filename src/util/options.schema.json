@@ -691,6 +691,19 @@
               "type": "string",
               "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
               "default": "protection-read"
+            },
+            "invariant": {
+              "title": "ana.base.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.invariant.enabled",
+                  "description": "Generate base analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -747,9 +760,9 @@
             "privatization": {
               "title": "ana.apron.privatization",
               "description":
-                "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+                "Which apron privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
               "type": "string",
-              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
               "default": "mutex-meet"
             },
             "priv": {
@@ -769,6 +782,37 @@
                     "Exclude writes from threads that must have been joined",
                   "type": "boolean",
                   "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "invariant": {
+              "title": "ana.apron.invariant",
+              "type": "object",
+              "properties": {
+                "one-var": {
+                  "title": "ana.apron.invariant.one-var",
+                  "description": "Generate invariants with only one variable",
+                  "type": "boolean",
+                  "default": false
+                },
+                "local": {
+                  "title": "ana.apron.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.apron.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
@@ -1059,27 +1103,6 @@
           "description": "Output filename for transformations that output a transformed file.",
           "type":"string",
           "default": "transformed.c"
-        },
-        "assert": {
-          "title": "trans.assert",
-          "type": "object",
-          "properties": {
-            "full": {
-              "title": "trans.assert.full",
-              "description":
-                "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
-              "type": "boolean",
-              "default": true
-            },
-            "only-at-locks":{
-              "title": "trans.assert.only-at-locks",
-              "description":
-                "Only put locks after mutexes have been acquired.",
-              "type": "boolean",
-              "default": true
-            }
-          },
-          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1242,12 +1265,6 @@
           "items": { "type": "string" },
           "default": []
         },
-        "list-type": {
-          "title": "exp.list-type",
-          "description": "Use a special abstract value for lists.",
-          "type": "boolean",
-          "default": false
-        },
         "g2html_path": {
           "title": "exp.g2html_path",
           "description": "Location of the g2html.jar file.",
@@ -1286,6 +1303,7 @@
           "title": "exp.architecture",
           "description": "Architecture for analysis, currently for witness",
           "type": "string",
+          "enum": ["64bit", "32bit"],
           "default": "64bit"
         },
         "gcc_path": {
@@ -1606,6 +1624,12 @@
           "type": "boolean",
           "default": true
         },
+        "witness": {
+          "title": "warn.witness",
+          "description": "Witness messages",
+          "type": "boolean",
+          "default": true
+        },
         "unknown": {
           "title": "warn.unknown",
           "description": "Unknown (of string) warnings",
@@ -1753,13 +1777,39 @@
           "title": "witness.invariant",
           "type": "object",
           "properties": {
-            "nodes": {
-              "title": "witness.invariant.nodes",
+            "loop-head": {
+              "title": "witness.invariant.loop-head",
               "description":
-                "Which witness nodes to add invariants to? all/loop_heads/none",
-              "type": "string",
-              "enum": ["all", "loop_heads", "none"],
-              "default": "all"
+                "Emit invariants at loop heads",
+              "type": "boolean",
+              "default": true
+            },
+            "after-lock": {
+              "title": "witness.invariant.after-lock",
+              "description":
+                "Emit invariants after mutex locking",
+              "type": "boolean",
+              "default": true
+            },
+            "other": {
+              "title": "witness.invariant.other",
+              "description":
+                "Emit invariants at all other locations",
+              "type": "boolean",
+              "default": true
+            },
+            "split-conjunction": {
+              "title": "witness.invariant.split-conjunction",
+              "description": "Split conjunctive invariant to multiple invariants",
+              "type": "boolean",
+              "default": true
+            },
+            "full": {
+              "title": "witness.invariant.full",
+              "description":
+                "Whether to dump assertions about all local variables or limitting it to modified ones where possible.",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false
@@ -1788,6 +1838,37 @@
           "description": "Output witness for unknown result",
           "type": "boolean",
           "default": true
+        },
+        "yaml": {
+          "title": "witness.yaml",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "witness.yaml.enabled",
+              "description": "Output YAML witness",
+              "type": "boolean",
+              "default": false
+            },
+            "path": {
+              "title": "witness.yaml.path",
+              "description": "YAML witness output path",
+              "type": "string",
+              "default": "witness.yml"
+            },
+            "validate": {
+              "title": "witness.yaml.validate",
+              "description": "YAML witness input path",
+              "type": "string",
+              "default": ""
+            },
+            "certificate": {
+              "title": "witness.yaml.certificate",
+              "description": "YAML witness certificate output path",
+              "type": "string",
+              "default": "witness.certificate.yml"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

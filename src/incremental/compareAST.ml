@@ -120,6 +120,10 @@ and eq_exp (a: exp) (b: exp) (rename_mapping: rename_mapping) : bool * rename_ma
   | CastE (typ1, exp1), CastE (typ2, exp2) -> eq_typ typ1 typ2 rename_mapping &&>> eq_exp exp1 exp2
   | AddrOf lv1, AddrOf lv2 -> eq_lval lv1 lv2 rename_mapping
   | StartOf lv1, StartOf lv2 -> eq_lval lv1 lv2 rename_mapping
+  | Real exp1, Real exp2 -> eq_exp exp1 exp2 rename_mapping
+  | Imag exp1, Imag exp2 -> eq_exp exp1 exp2 rename_mapping
+  | Question (b1, t1, f1, typ1), Question (b2, t2, f2, typ2) -> eq_exp b1 b2 rename_mapping &&>> eq_exp t1 t2 &&>> eq_exp f1 f2 &&>> eq_typ typ1 typ2
+  | AddrOfLabel _, AddrOfLabel _ -> false, rename_mapping (* TODO: what to do? *)
   | _, _ -> false, rename_mapping
 
 and eq_lhost (a: lhost) (b: lhost) (rename_mapping: rename_mapping) = match a, b with
@@ -381,9 +385,9 @@ let rec eq_stmtkind ?(cfg_comp = false) ((a, af): stmtkind * fundec) ((b, bf): s
   | Block block1, Block block2 -> eq_block' block1 block2 rename_mapping
   | _, _ -> false, rename_mapping
 
-and eq_stmt ?(cfg_comp = false) ((a, af): stmt * fundec) ((b, bf): stmt * fundec) (rename_mapping: rename_mapping) =
+and eq_stmt ?cfg_comp ((a, af): stmt * fundec) ((b, bf): stmt * fundec) (rename_mapping: rename_mapping) =
   (GobList.equal eq_label a.labels b.labels, rename_mapping) &&>>
-  eq_stmtkind ~cfg_comp (a.skind, af) (b.skind, bf)
+  eq_stmtkind ?cfg_comp (a.skind, af) (b.skind, bf)
 
 and eq_block ((a, af): Cil.block * fundec) ((b, bf): Cil.block * fundec) (rename_mapping: rename_mapping) : bool * rename_mapping =
   (a.battrs = b.battrs, rename_mapping) &&>> forward_list_equal (fun x y -> eq_stmt (x, af) (y, bf)) a.bstmts b.bstmts

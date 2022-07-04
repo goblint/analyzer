@@ -1,7 +1,7 @@
 module Addr = ValueDomain.Addr
 module Offs = ValueDomain.Offs
 module Equ = MusteqDomain.Equ
-module Exp = Exp.Exp
+module Exp = CilType.Exp
 module IdxDom = ValueDomain.IndexDomain
 
 open Cil
@@ -78,7 +78,6 @@ struct
   let empty = ReverseAddrSet.empty
   let is_empty = ReverseAddrSet.is_empty
 
-  let map = ReverseAddrSet.map
   let filter = ReverseAddrSet.filter
   let fold = ReverseAddrSet.fold
   let singleton = ReverseAddrSet.singleton
@@ -106,9 +105,6 @@ struct
   module S = SetDomain.ToppedSet (Exp) (struct let topname = "All mutexes" end)
   include Lattice.Reverse (S)
 
-  let empty = S.empty
-  let is_empty = S.is_empty
-
   let rec eq_set (ask: Queries.ask) e =
     S.union
       (match ask.f (Queries.EqualSet e) with
@@ -123,7 +119,11 @@ struct
        | Const _
        | AlignOfE _
        | UnOp _
-       | BinOp _ -> S.empty ()
+       | BinOp _
+       | Question _
+       | Real _
+       | Imag _
+       | AddrOfLabel _ -> S.empty ()
        | AddrOf  (Var _,_)
        | StartOf (Var _,_)
        | Lval    (Var _,_) -> S.singleton e
@@ -131,8 +131,7 @@ struct
        | StartOf (Mem e,ofs) -> S.map (fun e -> StartOf (Mem e,ofs)) (eq_set ask e)
        | Lval    (Mem e,ofs) -> S.map (fun e -> Lval    (Mem e,ofs)) (eq_set ask e)
        | CastE (_,e)           -> eq_set ask e
-       | Question _ -> failwith "Logical operations should be compiled away by CIL."
-       | _ -> failwith "Unmatched pattern.")
+      )
 
   let add (ask: Queries.ask) e st =
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
@@ -143,27 +142,9 @@ struct
     let no_casts = S.map Expcompare.stripCastsDeepForPtrArith (eq_set ask e) in
     let addrs = S.filter (function AddrOf _ -> true | _ -> false) no_casts in
     S.diff st addrs
-  let remove_var v st = S.filter (fun x -> not (Exp.contains_var v x)) st
+  let remove_var v st = S.filter (fun x -> not (SymbLocksDomain.Exp.contains_var v x)) st
 
-  let kill_lval (host,offset) st =
-    let rec last_field os ls =
-      match os with
-      | NoOffset -> ls
-      | Index (i,o) -> last_field o None
-      | Field (f,o) -> last_field o (Some f)
-    in
-    match last_field offset None with
-    | Some f -> S.filter (fun x -> not (Exp.contains_field f x)) st
-    | None ->
-      match host with
-      | Var v -> remove_var v st
-      | Mem (Lval (Var v, NoOffset)) -> remove_var v st
-      | Mem _ ->  top ()
-
-  let elements = S.elements
-  let choose = S.choose
   let filter = S.filter
-  let union = S.union
   let fold = S.fold
 
 end

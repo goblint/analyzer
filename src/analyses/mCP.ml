@@ -268,9 +268,6 @@ struct
           Result.meet a @@ S.query ctx' q
         in
         match q with
-        | Queries.PrintFullState ->
-          ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-          ()
         | Queries.WarnGlobal g ->
           (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
           let (n, g): V.t = Obj.obj g in
@@ -331,7 +328,6 @@ struct
     { ctx with
       local  = obj d
     ; context = (fun () -> ctx.context () |> assoc n |> obj)
-    ; postsub= assoc_sub post_all
     ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
     ; split
     ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))

@@ -2,9 +2,6 @@
 
 open Pretty
 
-type json = Yojson.Safe.t
-let json_to_yojson x = x
-
 module type S =
 sig
   type t
@@ -18,9 +15,8 @@ sig
   val printXml : 'a BatInnerIO.output -> t -> unit
   (* This is for debugging *)
   val name: unit -> string
-  val to_yojson : t -> json
+  val to_yojson : t -> Yojson.Safe.t
 
-  val invariant: Invariant.context -> t -> Invariant.t
   val tag: t -> int (** Unique ID, given by HConsed, for context identification in witness *)
 
   val arbitrary: unit -> t QCheck.arbitrary
@@ -40,7 +36,6 @@ struct
   let printXml _ (x: t) = match x with _ -> .
   let name () = "empty"
   let to_yojson (x: t) = match x with _ -> .
-  let invariant _ (x: t) = match x with _ -> .
   let tag (x: t) = match x with _ -> .
   let arbitrary () = failwith "Printable.Empty.arbitrary"
   let relift (x: t) = match x with _ -> .
@@ -60,7 +55,6 @@ struct
   let trace_enabled = false
   (* end MapDomain.Groupable *)
 
-  let invariant _ _ = Invariant.none
   let tag _ = failwith "Std: no tag"
   let arbitrary () = failwith "no arbitrary"
   let relift x = x
@@ -152,7 +146,6 @@ struct
   let pretty () = lift_f (Base.pretty ())
   let printXml f x = Base.printXml f x.BatHashcons.obj
 
-  let invariant c = lift_f (Base.invariant c)
   let equal_debug x y = (* This debug version checks if we call hashcons enough to have up-to-date tags. Comment out the equal below to use this. This will be even slower than with hashcons disabled! *)
     if x.BatHashcons.tag = y.BatHashcons.tag then ( (* x.BatHashcons.obj == y.BatHashcons.obj || *)
       if not (Base.equal x.BatHashcons.obj y.BatHashcons.obj) then
@@ -203,7 +196,6 @@ struct
   let arbitrary () = QCheck.map ~rev:unlift lift (M.arbitrary ())
 
   let tag = lift_f M.tag
-  let invariant c = lift_f (M.invariant c)
 end
 
 module Lift (Base: S) (N: LiftingNames) =
@@ -236,10 +228,6 @@ struct
     | `Bot -> `String N.bot_name
     | `Top -> `String N.top_name
     | `Lifted x -> Base.to_yojson x
-
-  let invariant c = function
-    | `Lifted x -> Base.invariant c x
-    | `Top | `Bot -> Invariant.none
 
   let relift x = match x with
     | `Bot |`Top -> x
@@ -394,7 +382,6 @@ struct
   let to_yojson (x, y) =
     `Assoc [ (Base1.name (), Base1.to_yojson x); (Base2.name (), Base2.to_yojson y) ]
 
-  let invariant c (x, y) = Invariant.(Base1.invariant c x && Base2.invariant c y)
   let arbitrary () = QCheck.pair (Base1.arbitrary ()) (Base2.arbitrary ())
 
   let relift (x,y) = (Base1.relift x, Base2.relift y)
@@ -436,7 +423,6 @@ struct
   let name () = Base1.name () ^ " * " ^ Base2.name () ^ " * " ^ Base3.name ()
 
   let relift (x,y,z) = (Base1.relift x, Base2.relift y, Base3.relift z)
-  let invariant c (x, y, z) = Invariant.(Base1.invariant c x && Base2.invariant c y && Base3.invariant c z)
   let arbitrary () = QCheck.triple (Base1.arbitrary ()) (Base2.arbitrary ()) (Base3.arbitrary ())
 end
 

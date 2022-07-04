@@ -449,7 +449,6 @@ module FromSpec (S:Spec) (Cfg:CfgBackward) (I: Increment)
                            and module GVar = GVarF (S.V)
                            and module D = S.D
                            and module G = S.G
-    val tf : MyCFG.node * S.C.t -> (Cil.location * MyCFG.edge) list * MyCFG.node -> ((MyCFG.node * S.C.t) -> S.D.t) -> (MyCFG.node * S.C.t -> S.D.t -> unit) -> (GVar.t -> G.t) -> (GVar.t -> G.t -> unit) -> D.t
   end
 =
 struct
@@ -485,7 +484,6 @@ struct
       ; local   = pval
       ; global  = getg
       ; presub  = (fun _ -> raise Not_found)
-      ; postsub = (fun _ -> raise Not_found)
       ; spawn   = spawn
       ; split   = (fun (d:D.t) es -> assert (List.is_empty es); r := d::!r)
       ; sideg   = sideg
@@ -917,10 +915,6 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
-
-    let invariant c s = fold (fun x a ->
-        Invariant.(a || Spec.D.invariant c x) (* TODO: || correct? *)
-      ) s Invariant.none
   end
 
   module G = Spec.G
@@ -988,6 +982,7 @@ struct
     let sync ctx reason = map ctx Spec.sync (fun h -> h reason)
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
+    (* TODO: handle Invariant path like PathSensitive3? *)
     (* join results so that they are sound for all paths *)
     let module Result = (val Queries.Result.lattice q) in
     fold' ctx Spec.query identity (fun x f -> Result.join x (f q)) (Result.bot ())

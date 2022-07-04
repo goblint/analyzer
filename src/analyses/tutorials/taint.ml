@@ -42,7 +42,7 @@ struct
     | CastE (_,e)
     | UnOp (_,e,_) -> is_exp_tainted state e
     | SizeOf _ | SizeOfStr _ | Const _  | AlignOf _ | AddrOfLabel _ -> false
-    | Question _ -> failwith "should be optimized away by CIL"
+    | Question (b, t, f, _) -> is_exp_tainted state b || is_exp_tainted state t || is_exp_tainted state f
   and is_lval_tainted state = function
     | (Var v, _) ->
       (* TODO: Check whether variable v is tainted *)
