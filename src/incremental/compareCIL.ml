@@ -66,17 +66,17 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
     GlobalElemMap.to_seq renameDetectionResults |>
     Seq.iter
       (fun (gT, (functionGlobal, status)) ->
-        Messages.trace "compareCIL" "Function status of %s is=" (globalElemName gT);
-        match status with
-        | Unchanged _ ->  Messages.trace "compareCIL" "Same Name\n";
-        | Added ->  Messages.trace "compareCIL" "Added\n";
-        | Removed ->  Messages.trace "compareCIL" "Removed\n";
-        | Changed _ ->  Messages.trace "compareCIL" "Changed\n";
-        | UnchangedButRenamed toFrom ->
-          match toFrom with
-          | GFun (f, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" f.svar.vname;
-          | GVar(v, _, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" v.vname;
-          | _ -> ();
+         Messages.trace "compareCIL" "Function status of %s is=" (globalElemName gT);
+         match status with
+         | Unchanged _ ->  Messages.trace "compareCIL" "Same Name\n";
+         | Added ->  Messages.trace "compareCIL" "Added\n";
+         | Removed ->  Messages.trace "compareCIL" "Removed\n";
+         | Changed _ ->  Messages.trace "compareCIL" "Changed\n";
+         | UnchangedButRenamed toFrom ->
+           match toFrom with
+           | GFun (f, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" f.svar.vname;
+           | GVar(v, _, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" v.vname;
+           | _ -> ();
       );
 
   (*  For each function in the new file, check whether a function with the same name

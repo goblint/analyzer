@@ -1,3 +1,5 @@
+#include <assert.h>
+
 void foo() {
     int fooOne = 1;
     fooOne++;

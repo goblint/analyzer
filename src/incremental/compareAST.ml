@@ -52,7 +52,7 @@ let string_tuple_to_string (tuple: (string * string) list) = "[" ^ (tuple |>
 
 let rename_mapping_to_string (rename_mapping: rename_mapping) =
   let (local, methods, glob_vars, _) = rename_mapping in
-  let local_string = string_tuple_to_string (List.of_seq (StringMap.to_seq local)) in
+  let local_string = [%show: (string * string) list] (List.of_seq (StringMap.to_seq local)) in
   let methods_string: string = List.of_seq (VarinfoMap.to_seq methods |> Seq.map snd) |>
                                List.map (fun x -> match x with {original_method_name; new_method_name} ->
                                    "(methodName: " ^ original_method_name ^ " -> " ^ new_method_name ^ ")") |>
