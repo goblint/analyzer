@@ -60,9 +60,10 @@ CAMLprim value atof_double(value mode, value str)
 {
     const char *s = String_val(str);
     volatile double r;
+    int old_roundingmode = fegetround();
     change_round_mode(Int_val(mode));
     r = atof(s);
-    change_round_mode(Nearest);
+    fesetround(old_roundingmode);
     return caml_copy_double(r);
 }
 
@@ -70,9 +71,10 @@ CAMLprim value atof_float(value mode, value str)
 {
     const char *s = String_val(str);
     volatile float r;
+    int old_roundingmode = fegetround();
     change_round_mode(Int_val(mode));
     r = (float)atof(s);
-    change_round_mode(Nearest);
+    fesetround(old_roundingmode);
     return caml_copy_double(r);
 }
 
