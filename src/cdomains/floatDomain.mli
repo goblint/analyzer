@@ -70,6 +70,8 @@ module type FloatDomainBase = sig
 
   val ending : float -> t
   val starting : float -> t
+  val ending_before : float -> t
+  val starting_after : float -> t
 
   val minimal: t -> float option
   val maximal: t -> float option
@@ -98,6 +100,8 @@ module type FloatDomain = sig
 
   val ending : Cil.fkind -> float -> t
   val starting : Cil.fkind -> float -> t
+  val ending_before : Cil.fkind -> float -> t
+  val starting_after : Cil.fkind -> float -> t
 
   val minimal: t -> float option
   val maximal: t -> float option

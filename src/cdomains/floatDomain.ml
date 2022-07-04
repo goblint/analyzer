@@ -72,6 +72,8 @@ module type FloatDomainBase = sig
 
   val ending : float -> t
   val starting : float -> t
+  val ending_before : float -> t
+  val starting_after : float -> t
 
   val minimal: t -> float option
   val maximal: t -> float option
@@ -85,6 +87,10 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let to_int ik = function
     | None -> IntDomain.IntDomTuple.top_of ik
+    (* special treatment for booleans as those aren't "just" truncated *)
+    | Some (l, h) when ik = IBool && (l > Float_t.zero || h < Float_t.zero) -> IntDomain.IntDomTuple.of_bool IBool true
+    | Some (l, h) when ik = IBool && l = h && l = Float_t.zero -> IntDomain.IntDomTuple.of_bool IBool false
+    | Some (l, h) when ik = IBool -> IntDomain.IntDomTuple.top_of IBool
     | Some (l, h) -> 
       (* as converting from float to integer is (exactly) defined as leaving out the fractional part,
          (value is truncated towrad zero) we do not require specific rounding here *)
@@ -159,7 +165,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let of_const f = of_interval (f, f)
 
   let ending e = of_interval' (Float_t.lower_bound, Float_t.of_float Up e)
+  let ending_before e = of_interval' (Float_t.lower_bound, Float_t.pred @@ Float_t.of_float Up e)
   let starting s = of_interval' (Float_t.of_float Down s, Float_t.upper_bound)
+  let starting_after s = of_interval' (Float_t.succ @@ Float_t.of_float Down s, Float_t.upper_bound)
 
   let minimal x = Option.bind x (fun (l, _) -> Float_t.to_float l)
   let maximal x = Option.bind x (fun (_, h) -> Float_t.to_float h)
@@ -425,6 +433,8 @@ module type FloatDomain = sig
 
   val ending : Cil.fkind -> float -> t
   val starting : Cil.fkind -> float -> t
+  val ending_before : Cil.fkind -> float -> t
+  val starting_after : Cil.fkind -> float -> t
 
   val minimal: t -> float option
   val maximal: t -> float option
@@ -525,7 +535,9 @@ module FloatIntervalImplLifted = struct
   let of_int fkind i = dispatch_fkind fkind ((fun () -> F1.of_int i), (fun () -> F2.of_int i))
   let of_interval fkind i = dispatch_fkind fkind ((fun () -> F1.of_interval i), (fun () -> F2.of_interval i))
   let starting fkind s = dispatch_fkind fkind ((fun () -> F1.starting s), (fun () -> F2.starting s))
+  let starting_after fkind s = dispatch_fkind fkind ((fun () -> F1.starting_after s), (fun () -> F2.starting_after s))
   let ending fkind e = dispatch_fkind fkind ((fun () -> F1.ending e), (fun () -> F2.ending e))
+  let ending_before fkind e = dispatch_fkind fkind ((fun () -> F1.ending_before e), (fun () -> F2.ending_before e))
   let minimal = dispatch (F1.minimal, F2.minimal)
   let maximal = dispatch (F1.maximal, F2.maximal)
   let to_int ikind = dispatch (F1.to_int ikind, F2.to_int ikind)
@@ -622,6 +634,10 @@ module FloatDomTupleImpl = struct
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.ending fkind); }
   let starting fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.starting fkind); }
+    let ending_before fkind =
+      create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.ending_before fkind); }
+    let starting_after fkind =
+      create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.starting_after fkind); }
 
   let of_string fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_string fkind); }
