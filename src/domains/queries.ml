@@ -314,9 +314,7 @@ end
 
 
 let eval_int_binop (module Bool: Lattice.S with type t = bool) binop (ask: ask) e1 e2: Bool.t =
-  let t1 = Cilfacade.typeOf e1 in
-  let t2 = Cilfacade.typeOf e2 in
-  let (_, e) = Cilfacade.doBinOp binop e1 t1 e2 t2 in
+  let e = Cilfacade.makeBinOp binop e1 e2 in
   let i = ask.f (EvalInt e) in
   if ID.is_bot i || ID.is_bot_ikind i then
     Bool.top () (* base returns bot for non-int results, consider unknown *)
