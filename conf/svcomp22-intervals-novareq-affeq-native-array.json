@@ -10,7 +10,7 @@
       "interval": true
     },
     "affeq": {
-      "matrix": "list"
+      "matrix": "array"
     },
     "activated": [
       "base",
