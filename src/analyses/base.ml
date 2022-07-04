@@ -641,21 +641,21 @@ struct
         r
       in
       match op with
-      | MinusA when must_be_equal () -> (* TODO: untested *)
+      | MinusA when must_be_equal () ->
         let ik = Cilfacade.get_ikind_exp exp in
         `Int (ID.of_int ik BI.zero)
       | MinusPI (* TODO: untested *)
-      | MinusPP when must_be_equal () -> (* TODO: untested *)
+      | MinusPP when must_be_equal () ->
         let ik = Cilfacade.ptrdiff_ikind () in
         `Int (ID.of_int ik BI.zero)
-      | Eq
-      | Le (* TODO: untested *)
-      | Ge when must_be_equal () -> (* TODO: untested *)
+      | Eq (* TODO: unnecessary, always returns top from query cycle? *)
+      | Le
+      | Ge when must_be_equal () ->
         let ik = Cilfacade.get_ikind_exp exp in
         `Int (ID.of_bool ik true)
-      | Ne (* TODO: untested *)
-      | Lt (* TODO: untested *)
-      | Gt when must_be_equal () -> (* TODO: untested *)
+      | Ne
+      | Lt
+      | Gt when must_be_equal () ->
         let ik = Cilfacade.get_ikind_exp exp in
         `Int (ID.of_bool ik false)
       | _ -> eval_next ()
