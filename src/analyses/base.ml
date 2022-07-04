@@ -646,7 +646,7 @@ struct
         `Int (ID.of_int ik BI.zero)
       | MinusPI (* TODO: untested *)
       | MinusPP when must_be_equal () -> (* TODO: untested *)
-        let ik = match !ptrdiffType with TInt (ik,_) -> ik | _ -> assert false in
+        let ik = Cilfacade.ptrdiff_ikind () in
         `Int (ID.of_int ik BI.zero)
       | Eq
       | Le (* TODO: untested *)
