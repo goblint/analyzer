@@ -360,12 +360,7 @@ struct
               | _ -> false
             in
             let e_must_less_zero =
-              if Cil.isSigned (Cilfacade.get_ikind_exp exp) then ( (* avoid may_be_less comparing unsigned index to -1, which is promoted to max int of ikind via unsigned underflow *)
-                let b = Q.may_be_less ask Cil.mone exp in (* TODO: untested *)
-                not b (* !(-1 <_{may} e) => e <=_{must} -1 *)
-              )
-              else
-                false
+              Q.eval_int_binop (module Q.MustBool) Lt ask exp Cil.zero (* TODO: untested *)
             in
             if e_must_bigger_max_index then
               (* Entire array is covered by left part, dropping partitioning. *)
