@@ -582,38 +582,23 @@ struct
             match local with
             | None -> Queries.Result.bot q
             | Some local ->
-              match q with
-              | Queries.Invariant context ->
-                (* Directly handle the invariant query here *)
-                (let context: Invariant.context = {
-                    scope=context.scope;
-                    i= -1; (* Not used here *)
-                    lval=context.lval;
-                    offset=context.offset;
-                    deref_invariant=(fun _ _ _ -> Invariant.none)
-                  } in
-                 match Spec.D.invariant context local with
-                 | Some e -> (`Lifted e)
-                 | None -> `Top)
-              | _ ->
-                (* build a ctx for using the query system for all other queries *)
-                let rec ctx =
-                  { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-                  ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
-                  ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
-                  ; prev_node = MyCFG.dummy_node
-                  ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
-                  ; context = (fun () -> ctx_failwith "No context in query context.")
-                  ; edge    = MyCFG.Skip
-                  ; local  = local
-                  ; global = GHT.find gh
-                  ; presub = (fun _ -> raise Not_found)
-                  ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
-                  ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
-                  ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
-                  }
-                in
-                Spec.query ctx q
+              let rec ctx =
+                { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+                ; emit   = (fun _ -> failwith "Cannot \"emit\" in query context.")
+                ; node   = MyCFG.dummy_node (* TODO maybe ask should take a node (which could be used here) instead of a location *)
+                ; prev_node = MyCFG.dummy_node
+                ; control_context = Obj.repr (fun () -> ctx_failwith "No context in query context.")
+                ; context = (fun () -> ctx_failwith "No context in query context.")
+                ; edge    = MyCFG.Skip
+                ; local  = local
+                ; global = GHT.find gh
+                ; presub = (fun _ -> raise Not_found)
+                ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in query context.")
+                ; split  = (fun d es   -> failwith "Cannot \"split\" in query context.")
+                ; sideg  = (fun v g    -> failwith "Cannot \"split\" in query context.")
+                }
+              in
+              Spec.query ctx q
           )
         in
         let ask loc = { Queries.f = fun (type a) (q: a Queries.t) -> ask loc q } in

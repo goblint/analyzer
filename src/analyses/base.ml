@@ -511,7 +511,7 @@ struct
       let toInt i =
         match IdxDom.to_int @@ ID.cast_to ik i with
         | Some x -> Const (CInt (x,ik, None))
-        | _ -> mkCast ~e:(Const (CStr ("unknown",No_encoding))) ~newt:intType
+        | _ -> Cilfacade.mkCast ~e:(Const (CStr ("unknown",No_encoding))) ~newt:intType
 
       in
       match o with
@@ -1024,6 +1024,116 @@ struct
 
   (* interpreter end *)
 
+  let query_invariant ctx context =
+    let cpa = ctx.local.BaseDomain.cpa in
+    let scope = Node.find_fundec ctx.node in
+
+    (* VS is used to detect and break cycles in deref_invariant calls *)
+    let module VS = Set.Make (Basetype.Variables) in
+
+    let rec ad_invariant ~vs ~offset c x =
+      let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
+      let i_opt = AD.fold (fun addr acc_opt ->
+          BatOption.bind acc_opt (fun acc ->
+              match addr with
+              | Addr.UnknownPtr ->
+                None
+              | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
+                let rec offs_to_offset = function
+                  | `NoOffset -> NoOffset
+                  | `Field (f, offs) -> Field (f, offs_to_offset offs)
+                  | `Index (i, offs) ->
+                    (* Addr.Offs.is_definite implies Idx.is_int *)
+                    let i_definite = BatOption.get (ValueDomain.IndexDomain.to_int i) in
+                    let i_exp = Cil.(kinteger64 ILongLong (IntOps.BigIntOps.to_int64 i_definite)) in
+                    Index (i_exp, offs_to_offset offs)
+                in
+                let offset = offs_to_offset offs in
+
+                let i =
+                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp && not (var_is_tmp vi) && var_is_in_scope scope vi && not (var_is_heap vi)) then
+                    let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
+                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                  else
+                    Invariant.none
+                in
+                let i_deref = deref_invariant ~vs c vi offset (Mem c_exp, NoOffset) in
+
+                Some (Invariant.(acc || (i && i_deref)))
+              | Addr.NullPtr ->
+                let i =
+                  let addr_exp = integer 0 in
+                  if InvariantCil.(not (exp_contains_tmp c_exp) && exp_is_in_scope scope c_exp) then
+                    Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
+                  else
+                    Invariant.none
+                in
+                Some (Invariant.(acc || i))
+              (* TODO: handle Addr.StrPtr? *)
+              | _ ->
+                None
+            )
+        ) x (Some (Invariant.bot ()))
+      in
+      match i_opt with
+      | Some i -> i
+      | None -> Invariant.none
+
+    and blob_invariant ~vs ~offset c (v, _, _) =
+      vd_invariant ~vs ~offset c v
+
+    and vd_invariant ~vs ~offset c = function
+      | `Int n ->
+        let e = Lval (BatOption.get c.Invariant.lval) in
+        if InvariantCil.(not (exp_contains_tmp e) && exp_is_in_scope scope e) then
+          ID.invariant e n
+        else
+          Invariant.none
+      | `Address n -> ad_invariant ~vs ~offset c n
+      | `Blob n -> blob_invariant ~vs ~offset c n
+      | `Struct n -> ValueDomain.Structs.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
+      | `Union n -> ValueDomain.Unions.invariant ~value_invariant:(vd_invariant ~vs) ~offset c n
+      | _ -> Invariant.none (* TODO *)
+
+    and deref_invariant ~vs c vi offset lval =
+      let v = CPA.find vi cpa in
+      key_invariant_lval ~vs c vi offset lval v
+
+    and key_invariant_lval ~vs c k offset lval v =
+      if not (VS.mem k vs) then
+        let vs' = VS.add k vs in
+        let key_context: Invariant.context = {c with lval=Some lval} in
+        vd_invariant ~vs:vs' ~offset key_context v
+      else
+        Invariant.none
+    in
+
+    let cpa_invariant =
+      let key_invariant k v = key_invariant_lval ~vs:VS.empty context k NoOffset (var k) v in
+      match context.lval with
+      | None ->
+        CPA.fold (fun k v a ->
+            let i =
+              if not (InvariantCil.var_is_heap k) then
+                key_invariant k v
+              else
+                Invariant.none
+            in
+            Invariant.(a && i)
+          ) cpa Invariant.none
+      | Some (Var k, _) when not (InvariantCil.var_is_heap k) ->
+        (try key_invariant k (CPA.find k cpa) with Not_found -> Invariant.none)
+      | _ -> Invariant.none
+    in
+
+    cpa_invariant
+
+  let query_invariant ctx context =
+    if GobConfig.get_bool "ana.base.invariant.enabled" then
+      query_invariant ctx context
+    else
+      Invariant.none
+
   let query ctx (type a) (q: a Q.t): a Q.result =
     match q with
     | Q.EvalFunvar e ->
@@ -1180,6 +1290,7 @@ struct
         | _ -> true
       end
     | Q.IsMultiple v -> WeakUpdates.mem v ctx.local.weak
+    | Q.Invariant context -> query_invariant ctx context
     | _ -> Q.Result.top q
 
   let update_variable variable typ value cpa =
@@ -1838,16 +1949,16 @@ struct
       AD.is_top xs || AD.exists not_local xs
     in
     (match rval_val, lval_val with
-    | `Address adrs, lval
-      when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
-      let find_fps e xs = match Addr.to_var_must e with
-        | Some x -> x :: xs
-        | None -> xs
-      in
-      let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
-      let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
-      List.iter (fun x -> ctx.spawn None x []) funs
-    | _ -> ()
+     | `Address adrs, lval
+       when (not !GU.global_initialization) && get_bool "kernel" && not_local lval && not (AD.is_top adrs) ->
+       let find_fps e xs = match Addr.to_var_must e with
+         | Some x -> x :: xs
+         | None -> xs
+       in
+       let vars = AD.fold find_fps adrs [] in (* filter_map from AD to list *)
+       let funs = List.filter (fun x -> isFunctionType x.vtype) vars in
+       List.iter (fun x -> ctx.spawn None x []) funs
+     | _ -> ()
     );
     match lval with (* this section ensure global variables contain bottom values of the proper type before setting them  *)
     | (Var v, offs) when AD.is_definite lval_val && v.vglob ->
@@ -2272,21 +2383,17 @@ struct
       end
     | Abort, _ -> raise Deadcode
     | Unknown, "__builtin_unreachable" when get_bool "sem.builtin_unreachable.dead_code" -> raise Deadcode (* https://github.com/sosy-lab/sv-benchmarks/issues/1296 *)
-    | Unknown, "pthread_exit" ->
-      begin match args with
-        | [exp] ->
-          begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
-            | `Lifted tid ->
-              let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
-              ctx.sideg (V.thread tid) (G.create_thread rv);
-              (* TODO: emit thread return event so other analyses are aware? *)
-              (* TODO: publish still needed? *)
-              publish_all ctx `Return (* like normal return *)
-            | _ -> ()
-          end;
-          raise Deadcode
-        | _ -> failwith "Unknown pthread_exit."
-      end
+    | ThreadExit { ret_val = exp }, _ ->
+      begin match ThreadId.get_current (Analyses.ask_of_ctx ctx) with
+        | `Lifted tid ->
+          let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
+          ctx.sideg (V.thread tid) (G.create_thread rv);
+          (* TODO: emit thread return event so other analyses are aware? *)
+          (* TODO: publish still needed? *)
+          publish_all ctx `Return (* like normal return *)
+        | _ -> ()
+      end;
+      raise Deadcode
     | Unknown, "__builtin_expect" ->
       begin match lv with
         | Some v -> assign ctx v (List.hd args)

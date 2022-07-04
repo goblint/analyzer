@@ -1,0 +1,58 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 872fc896-7029-4d06-b733-6ecc2d3f8074
+    creation_time: 2022-06-29T09:18:35Z
+    producer:
+      name: Goblint
+      version: heads/int-log-0-g5f8473450-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''03-int-log-short.c''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
+        ''printstats'' ''true'' ''--enable'' ''dbg.print_dead_code'' ''--set'' ''goblint-dir''
+        ''.goblint-56-03'''
+    task:
+      input_files:
+      - 03-int-log-short.c
+      input_file_hashes:
+        03-int-log-short.c: 055e8b0b611a6bbe2b072f5c92f094e63fa339ac53190660ac3e54f2fd40d379
+      data_model: LP64
+      language: C
+  location:
+    file_name: 03-int-log-short.c
+    file_hash: 055e8b0b611a6bbe2b072f5c92f094e63fa339ac53190660ac3e54f2fd40d379
+    line: 8
+    column: 2
+    function: main
+  loop_invariant:
+    string: r || x
+    type: assertion
+    format: C
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: f42797cf-479e-469f-b378-3bf9ab3f79a9
+    creation_time: 2022-06-29T09:18:35Z
+    producer:
+      name: Goblint
+      version: heads/int-log-0-g5f8473450-dirty
+      command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''03-int-log-short.c''
+        ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
+        ''printstats'' ''true'' ''--enable'' ''dbg.print_dead_code'' ''--set'' ''goblint-dir''
+        ''.goblint-56-03'''
+    task:
+      input_files:
+      - 03-int-log-short.c
+      input_file_hashes:
+        03-int-log-short.c: 055e8b0b611a6bbe2b072f5c92f094e63fa339ac53190660ac3e54f2fd40d379
+      data_model: LP64
+      language: C
+  location:
+    file_name: 03-int-log-short.c
+    file_hash: 055e8b0b611a6bbe2b072f5c92f094e63fa339ac53190660ac3e54f2fd40d379
+    line: 9
+    column: 2
+    function: main
+  loop_invariant:
+    string: '!(r && y)'
+    type: assertion
+    format: C

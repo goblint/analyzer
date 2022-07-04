@@ -301,10 +301,6 @@ struct
     | x, `Top -> x
     | `Lifted x, `Lifted y -> `Lifted (S.narrow x y)
 
-  let invariant c = function
-    | `Top -> Invariant.none
-    | `Lifted s -> S.invariant c s
-
   let arbitrary () = QCheck.set_print show (arbitrary ())
 end
 
