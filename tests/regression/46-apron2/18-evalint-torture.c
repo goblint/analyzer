@@ -1,4 +1,4 @@
-// SKIP PARAM: --set ana.activated[+] apron
+// SKIP PARAM: --set ana.activated[+] apron --disable ana.base.eval.deep-query
 // Torture EvalInt queries using large number of (relational) expressions.
 // Ran in ~7s with MustBeEqual, MayBeEqual and MayBeLess queries.
 #include <assert.h>

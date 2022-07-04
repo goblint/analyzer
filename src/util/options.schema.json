@@ -704,6 +704,19 @@
                 }
               },
               "additionalProperties": false
+            },
+            "eval": {
+              "title": "ana.base.eval",
+              "type": "object",
+              "properties": {
+                "deep-query": {
+                  "title": "ana.base.eval.deep-query",
+                  "description": "Perform EvalInt queries on all subexpressions, not just the outermost expression.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

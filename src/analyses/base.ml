@@ -668,10 +668,22 @@ struct
     if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
     r
 
+  and eval_rv_back_up a gs st exp =
+    if get_bool "ana.base.eval.deep-query" then
+      eval_rv a gs st exp
+    else (
+      (* duplicate unknown_exp check from eval_rv since we're bypassing it now *)
+      if exp = MyCFG.unknown_exp then
+        VD.top ()
+      else
+        eval_rv_base a gs st exp (* bypass all queries *)
+    )
+
   (** Evaluate expression structurally by base.
       This handles constants directly and variables using CPA.
       Subexpressions delegate to [eval_rv], which may use queries on them. *)
   and eval_rv_base (a: Q.ask) (gs:glob_fun) (st: store) (exp:exp): value =
+    let eval_rv = eval_rv_back_up in
     if M.tracing then M.traceli "evalint" "base eval_rv_base %a\n" d_exp exp;
     let rec do_offs def = function (* for types that only have one value *)
       | Field (fd, offs) -> begin
@@ -908,6 +920,7 @@ struct
   (* A function to convert the offset to our abstract representation of
    * offsets, i.e.  evaluate the index expression to the integer domain. *)
   and convert_offset a (gs:glob_fun) (st: store) (ofs: offset) =
+    let eval_rv = eval_rv_back_up in
     match ofs with
     | NoOffset -> `NoOffset
     | Field (fld, ofs) -> `Field (fld, convert_offset a gs st ofs)
@@ -922,6 +935,7 @@ struct
       | _ -> failwith "Index not an integer value"
   (* Evaluation of lvalues to our abstract address domain. *)
   and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t =
+    let eval_rv = eval_rv_back_up in
     let rec do_offs def = function
       | Field (fd, offs) -> begin
           match Goblintutil.is_blessed (TComp (fd.fcomp, [])) with
