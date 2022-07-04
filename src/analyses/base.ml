@@ -648,7 +648,7 @@ struct
       | MinusPP when must_be_equal () ->
         let ik = Cilfacade.ptrdiff_ikind () in
         `Int (ID.of_int ik BI.zero)
-      | Eq (* TODO: unnecessary, always returns top from query cycle? *)
+      (* Eq case is unnecessary: Q.must_be_equal reconstructs BinOp (Eq, _, _, _) and repeats EvalInt query for that, yielding a top from query cycle and never being must equal *)
       | Le
       | Ge when must_be_equal () ->
         let ik = Cilfacade.get_ikind_exp exp in
