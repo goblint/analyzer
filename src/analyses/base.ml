@@ -745,11 +745,8 @@ struct
       | Const (CInt (num,ikind,str)) ->
         (match str with Some x -> M.tracel "casto" "CInt (%s, %a, %s)\n" (Cilint.string_of_cilint num) d_ikind ikind x | None -> ());
         `Int (ID.cast_to ikind (IntDomain.of_const (num,ikind,str)))
-      | Const (CReal (_, (FFloat | FDouble as fkind), Some str)) -> `Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
-      | Const (CReal (num, (FFloat | FDouble as fkind), None)) -> `Float (FD.of_const fkind num)
-      (* we also support long doubles but only with the precision of a double *)
-      | Const (CReal (_, (FLongDouble), Some str)) -> `Float (FD.of_string FDouble str)
-      | Const (CReal (num, (FLongDouble), None)) -> `Float (FD.of_const FDouble num)
+      | Const (CReal (_, fkind, Some str)) -> `Float (FD.of_string fkind str) (* prefer parsing from string due to higher precision *)
+      | Const (CReal (num, fkind, None)) -> `Float (FD.of_const fkind num)
       (* String literals *)
       | Const (CStr (x,_)) -> `Address (AD.from_string x) (* normal 8-bit strings, type: char* *)
       | Const (CWStr (xs,_) as c) -> (* wide character strings, type: wchar_t* *)
@@ -1831,7 +1828,7 @@ struct
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         a, b
     in
-    let inv_bin_float (a, b) fkind c op =
+    let inv_bin_float (a, b) c op =
       let open Stdlib in
       let meet_bin a' b'  = FD.meet a a', FD.meet b b' in
       match op with
@@ -1985,7 +1982,7 @@ struct
            st''
          | `Float a, `Float b ->
            let fkind = Cilfacade.get_fkind_exp e1 in (* both operands have the same type *)
-           let a', b' = inv_bin_float (a, b) fkind (c_float fkind) op in
+           let a', b' = inv_bin_float (a, b) (c_float fkind) op in
            if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e FD.pretty a' FD.pretty b';
            let st' = inv_exp (`Float a') e1 st in
            let st'' = inv_exp (`Float b') e2 st' in
@@ -2041,11 +2038,13 @@ struct
       | Const _ , _ -> st (* nothing to do *)
       | CastE ((TFloat (_, _)), e), `Float c ->
         (match Cilfacade.typeOf e, FD.get_fkind c with
+         | TFloat (FLongDouble as fk, _), FFloat
          | TFloat (FDouble as fk, _), FFloat
+         | TFloat (FLongDouble as fk, _), FDouble
+         | TFloat (fk, _), FLongDouble
          | TFloat (FDouble as fk, _), FDouble
          | TFloat (FFloat as fk, _), FFloat -> inv_exp (`Float (FD.cast_to fk c)) e st
-         | TFloat (FFloat, _), FDouble -> fallback ("CastE: e evaluates to FFloat which can not be used as FDouble") st
-         | _ -> fallback ("CastE: e has not type TFloat") st)
+         | _ -> fallback ("CastE: incompatible types") st)
       | CastE ((TInt (ik, _)) as t, e), `Int c
       | CastE ((TEnum ({ekind = ik; _ }, _)) as t, e), `Int c -> (* Can only meet the t part of an Lval in e with c (unless we meet with all overflow possibilities)! Since there is no good way to do this, we only continue if e has no values outside of t. *)
         (match eval e st with

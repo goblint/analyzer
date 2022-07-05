@@ -1,4 +1,4 @@
-// PARAM: --enable ana.float.interval --enable warn.float
+// PARAM: --enable ana.float.interval
 
 typedef union
 {

@@ -108,8 +108,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | _, _ -> None
 
   let show = function
-    | None -> Float_t.name ^ ": [Top]"
-    | Some (low, high) -> Printf.sprintf "%s:[%s,%s]" Float_t.name (Float_t.to_string low) (Float_t.to_string high)
+    | None -> "[Top]"
+    | Some (low, high) -> Printf.sprintf "[%s,%s]" (Float_t.to_string low) (Float_t.to_string high)
 
   let pretty () x = text (show x)
 
@@ -446,38 +446,48 @@ end
 
 module FloatIntervalImplLifted = struct
   include Printable.Std (* for default invariant, tag and relift *)
-  type t = F32 of F32Interval.t | F64 of F64Interval.t [@@deriving to_yojson, eq, ord, hash]
+  type t = 
+    | F32 of F32Interval.t 
+    | F64 of F64Interval.t 
+    | FLong of F64Interval.t [@@deriving to_yojson, eq, ord, hash]
 
   module F1 = F32Interval
   module F2 = F64Interval
 
+  let show = function
+    | F32 a -> "float: " ^ F1.show a
+    | F64 a -> "double: " ^ F2.show a
+    | FLong a -> "long double: " ^ F2.show a
+
   let lift2 (op32, op64) x y = match x, y with
     | F32 a, F32 b -> F32 (op32 a b)
     | F64 a, F64 b -> F64 (op64 a b)
-    | F32 a, F64 b -> failwith ("fkinds float and double are incompatible. Values: " ^ Prelude.Ana.sprint F32Interval.pretty a ^ " and " ^ Prelude.Ana.sprint F64Interval.pretty b)
-    | F64 a, F32 b -> failwith ("fkinds double and float are incompatible. Values: " ^ Prelude.Ana.sprint F64Interval.pretty a ^ " and " ^ Prelude.Ana.sprint F32Interval.pretty b)
+    | FLong a, FLong b -> FLong (op64 a b)
+    | _ -> failwith ("fkinds do not match. Values: " ^ show x ^ " and " ^ show y)
 
   let lift2_cmp (op32, op64) x y = match x, y with
     | F32 a, F32 b -> op32 a b
     | F64 a, F64 b -> op64 a b
-    | F32 a, F64 b -> failwith ("fkinds float and double are incompatible. Values: " ^ Prelude.Ana.sprint F32Interval.pretty a ^ " and " ^ Prelude.Ana.sprint F64Interval.pretty b)
-    | F64 a, F32 b -> failwith ("fkinds double and float are incompatible. Values: " ^ Prelude.Ana.sprint F64Interval.pretty a ^ " and " ^ Prelude.Ana.sprint F32Interval.pretty b)
+    | FLong a, FLong b -> op64 a b
+    | _ -> failwith ("fkinds do not match. Values: " ^ show x ^ " and " ^ show y)
 
-  let lift (op32, op64) x = match x with
+  let lift (op32, op64) = function
     | F32 a -> F32 (op32 a)
     | F64 a -> F64 (op64 a)
+    | FLong a -> FLong (op64 a)
 
-  let dispatch (op32, op64) x = match x with
+  let dispatch (op32, op64) = function
     | F32 a -> op32 a
-    | F64 a -> op64 a
+    | F64 a | FLong a -> op64 a
 
   let dispatch_fkind fkind (op32, op64) = match fkind with
     | FFloat -> F32 (op32 ())
-    | FDouble -> F64 (op64 ()) 
-    | _ -> 
+    | FDouble -> F64 (op64 ())
+    | FLongDouble -> FLong (op64 ())
+    | _ ->
       (* this sould never be reached, as we have to check for invalid fkind elsewhere, 
-         however we could instead of crashing also return top_of some fkind to vaid this and nonetheless have no actual information about anything*)
-      failwith "unsupported fkind" 
+         however we could instead of crashing also return top_of some fkind to avoid this and nonetheless have no actual information about anything*)
+      failwith "unsupported fkind"
 
   let neg = lift (F1.neg, F2.neg)
   let acos = lift (F1.acos, F2.acos)
@@ -509,7 +519,10 @@ module FloatIntervalImplLifted = struct
   let top () = failwith "top () is not implemented for FloatIntervalImplLifted."
   let is_top = dispatch (F1.is_bot, F2.is_bot)
 
-  let get_fkind = dispatch ((fun _ -> FFloat), (fun _ -> FDouble))
+  let get_fkind = function 
+    | F32 _ -> FFloat
+    | F64 _ -> FDouble
+    | FLong _ -> FLongDouble 
 
   let leq = lift2_cmp (F1.leq, F2.leq)
   let join = lift2 (F1.join, F2.join)
@@ -518,7 +531,6 @@ module FloatIntervalImplLifted = struct
   let narrow = lift2 (F1.narrow, F2.narrow)
   let is_exact = dispatch (F1.is_exact, F2.is_exact)
 
-  let show = dispatch (F1.show, F2.show)  (* TODO add fkind to output *)
   let pretty = (fun () -> dispatch (F1.pretty (), F2.pretty ())) (* TODO add fkind to output *)
 
   let pretty_diff () (x, y) = lift2_cmp ((fun a b -> F1.pretty_diff () (a, b)), (fun a b -> F2.pretty_diff () (a, b))) x y(* TODO add fkind to output *)
@@ -541,18 +553,15 @@ module FloatIntervalImplLifted = struct
   let minimal = dispatch (F1.minimal, F2.minimal)
   let maximal = dispatch (F1.maximal, F2.maximal)
   let to_int ikind = dispatch (F1.to_int ikind, F2.to_int ikind)
-  let cast_to fkind x =
+  let cast_to fkind =
     let create_interval fkind l h = 
       match l, h with 
       | Some l, Some h -> of_interval fkind (l,h)
       | Some l, None -> starting fkind l
       | None, Some h -> ending fkind h
       | _ -> top_of fkind
-    in 
-    match x, fkind with
-    | F32 a, FDouble -> create_interval FDouble (F1.minimal a) (F1.maximal a)
-    | F64 a, FFloat -> create_interval FFloat (F2.minimal a) (F2.maximal a)
-    | _ -> x
+    in
+    dispatch ((fun a -> create_interval fkind (F1.minimal a) (F1.maximal a)), (fun a -> create_interval fkind (F2.minimal a) (F2.maximal a)))
 
   let invariant e (x:t) =
     let fk = get_fkind x in
@@ -634,10 +643,10 @@ module FloatDomTupleImpl = struct
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.ending fkind); }
   let starting fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.starting fkind); }
-    let ending_before fkind =
-      create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.ending_before fkind); }
-    let starting_after fkind =
-      create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.starting_after fkind); }
+  let ending_before fkind =
+    create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.ending_before fkind); }
+  let starting_after fkind =
+    create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.starting_after fkind); }
 
   let of_string fkind =
     create { fi= (fun (type a) (module F : FloatDomain with type t = a) -> F.of_string fkind); }

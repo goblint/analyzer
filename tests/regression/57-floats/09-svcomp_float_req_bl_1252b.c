@@ -1,4 +1,4 @@
-// PARAM: --enable ana.float.interval --enable warn.float
+// PARAM: --enable ana.float.interval
 
 typedef int __int32_t;
 typedef unsigned int __uint32_t;
