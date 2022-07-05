@@ -839,9 +839,13 @@ struct
 
   include Tracked
 
+  (* LAnd, LOr, LNot are directly supported by Apron domain in order to
+     confirm logic-containing Apron invariants from witness while deep-query is disabled. *)
+
   let rec exp_is_cons = function
     (* constraint *)
     | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, _) -> true
+    | BinOp ((LAnd | LOr), e1, e2, _) -> exp_is_cons e1 && exp_is_cons e2
     | UnOp (LNot,e,_) -> exp_is_cons e
     (* expression *)
     | _ -> false
@@ -859,6 +863,22 @@ struct
       let assert_gt = assert_cons d (BinOp (Gt, lhs, rhs, intType)) (not negate) in
       let assert_lt = assert_cons d (BinOp (Lt, lhs, rhs, intType)) (not negate) in
       join assert_gt assert_lt
+    | BinOp (LAnd, lhs, rhs, intType) when not negate ->
+      let assert_l = assert_cons d lhs negate in
+      let assert_r = assert_cons d rhs negate in
+      meet assert_l assert_r
+    | BinOp (LAnd, lhs, rhs, intType) when negate ->
+      let assert_l = assert_cons d lhs negate in
+      let assert_r = assert_cons d rhs negate in
+      join assert_l assert_r (* de Morgan *)
+    | BinOp (LOr, lhs, rhs, intType) when not negate ->
+      let assert_l = assert_cons d lhs negate in
+      let assert_r = assert_cons d rhs negate in
+      join assert_l assert_r
+    | BinOp (LOr, lhs, rhs, intType) when negate ->
+      let assert_l = assert_cons d lhs negate in
+      let assert_r = assert_cons d rhs negate in
+      meet assert_l assert_r (* de Morgan *)
     | UnOp (LNot,e,_) -> assert_cons d e (not negate)
     | _ ->
       begin match Convert.tcons1_of_cil_exp d (A.env d) e negate with

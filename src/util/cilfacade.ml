@@ -454,6 +454,12 @@ let mkCast ~(e: exp) ~(newt: typ) =
 
 let get_ikind_exp e = get_ikind (typeOf e)
 
+(** Make {!Cil.BinOp} with correct implicit casts inserted. *)
+let makeBinOp binop e1 e2 =
+  let t1 = typeOf e1 in
+  let t2 = typeOf e2 in
+  let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
+  e
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200
