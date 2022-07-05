@@ -1830,122 +1830,121 @@ struct
     in
     let inv_bin_float (a, b) c op =
       let open Stdlib in
-      let meet_bin a' b'  = 
-        try
-          FD.meet a a', FD.meet b b' 
-        with FloatDomain.ArithmeticOnFloatBot _ -> raise Deadcode in
-      match op with
-      | PlusA  ->
-        (* A + B = C, \forall a \in A. a + b_min > pred c_min \land a + b_max < succ c_max
-            \land a + b_max > pred c_min \land a + b_min < succ c_max
-           \rightarrow A = [min(pred c_min - b_min, pred c_min - b_max), max(succ c_max - b_max, succ c_max - b_min)]
-           \rightarrow A = [pred c_min - b_max, succ c_max - b_min]
-        *)
-        let reverse_add v v' = (match FD.minimal c, FD.maximal c, FD.minimal v, FD.maximal v with 
-            | Some c_min, Some c_max, Some v_min, Some v_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) -> 
-              let l = Float.pred c_min -. v_max in
-              let h =  Float.succ c_max -. v_min in
-              FD.of_interval (FD.get_fkind c) (l, h)
-            | _ -> v') in
-        meet_bin (reverse_add b a) (reverse_add a b)
-      | MinusA ->
-        (* A - B = C \ forall a \in A. a - b_max > pred c_min \land a - b_min < succ c_max 
-            \land a - b_min > pred c_min \land a - b_max < succ c_max
-           \rightarrow A = [min(pred c_min + b_max, pred c_min + b_min), max(succ c_max + b_max, succ c_max + b_max)]
-           \rightarrow A = [pred c_min + b_min, succ c_max + b_max]
-        *)
-        let a' = (match FD.minimal c, FD.maximal c, FD.minimal b, FD.maximal b with 
-            | Some c_min, Some c_max, Some b_min, Some b_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) -> 
-              let l = Float.pred c_min +. b_min in
-              let h =  Float.succ c_max +. b_max in
-              FD.of_interval (FD.get_fkind c) (l, h)
-            | _ -> a) in
-        (* A - B = C \ forall b \in B. a_min - b > pred c_min \land a_max - b < succ c_max 
-            \land a_max - b > pred c_min \land a_min - b < succ c_max 
-           \rightarrow B = [min(a_max - succ c_max, a_min - succ c_max), max(a_min - pred c_min, a_max - pred c_min)]
-           \rightarrow B = [a_min - succ c_max, a_max - pred c_min]
-        *)
-        let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with 
-            | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) -> 
-              let l = a_min -. Float.succ c_max in 
-              let h =  a_max -. Float.pred c_min in 
-              FD.of_interval (FD.get_fkind c) (l, h)
-            | _ -> b) in
-        meet_bin a'  b'
-      | Mult   ->
-        (* A * B = C \forall a \in A, a > 0. a * b_min > pred c_min \land a * b_max < succ c_max
-           A * B = C \forall a \in A, a < 0. a * b_max > pred c_min \land a * b_min < succ c_max
-           (with negative b reversed <>)
-           \rightarrow A = [min(pred c_min / b_min, pred c_min / b_max, succ c_max / b_min, succ c_max /b_max), 
-                            max(succ c_max / b_min, succ c_max /b_max, pred c_min / b_min, pred c_min / b_max)]
-        *)
-        let reverse_mul v v' = (match FD.minimal c, FD.maximal c, FD.minimal v, FD.maximal v with 
-            | Some c_min, Some c_max, Some v_min, Some v_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
-              let v1, v2, v3, v4 = (Float.pred c_min /. v_min), (Float.pred c_min /. v_max), (Float.succ c_max /. v_min), (Float.succ c_max /. v_max) in
-              let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
-              let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
-              FD.of_interval (FD.get_fkind c) (l, h)
-            | _ -> v') in
-        meet_bin (reverse_mul b a) (reverse_mul a b)
-      | Div ->
-        (* A / B = C \forall a \in A, a > 0, b_min > 1. a / b_max > pred c_min \land a / b_min < succ c_max
-           A / B = C \forall a \in A, a < 0, b_min > 1. a / b_min > pred c_min \land a / b_max < succ c_max
-           A / B = C \forall a \in A, a > 0, 0 < b_min, b_max < 1. a / b_max > pred c_min \land a / b_min < succ c_max
-           A / B = C \forall a \in A, a < 0, 0 < b_min, b_max < 1. a / b_min > pred c_min \land a / b_max < succ c_max
-           ... same for negative b
-           \rightarrow A = [min(b_max * pred c_min, b_min * pred c_min, b_min * succ c_max, b_max * succ c_max), 
-                            max(b_max * succ c_max, b_min * succ c_max, b_max * pred c_min, b_min * pred c_min)]
-        *)
-        let a' = (match FD.minimal c, FD.maximal c, FD.minimal b, FD.maximal b with 
-            | Some c_min, Some c_max, Some b_min, Some b_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
-              let v1, v2, v3, v4 = (Float.pred c_min *. b_max), (Float.pred c_min *. b_min), (Float.succ c_max *. b_max), (Float.succ c_max *. b_min) in
-              let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in 
-              let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in 
-              FD.of_interval (FD.get_fkind c) (l, h)
-            | _ -> a) in
-        (* A / B = C \forall b \in B, b > 0, a_min / b > pred c_min \land a_min / b < succ c_max 
-            \land a_max / b > pred c_min \land a_max / b < succ c_max
-           A / B = C \forall b \in B, b < 0, a_min / b > pred c_min \land a_min / b < succ c_max 
-            \land a_max / b > pred c_min \land a_max / b < succ c_max
-           \rightarrow (b != 0) B = [min(a_min / succ c_max, a_max / succ c_max, a_min / pred c_min, a_max / pred c_min),
-                                     max(a_min / pred c_min, a_max / pred c_min, a_min / succ c_max, a_max / succ c_max)]
-        *)
-        let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with 
-            | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) -> 
-              let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
-                  let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
-                  let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
-              FD.of_interval (FD.get_fkind c) (l, h)
-            | _ -> b) in
-        meet_bin a' b'
-      | Eq | Ne as op ->
-        let both x = x, x in
-        (match op, ID.to_bool (FD.to_int IBool c) with
-         | Eq, Some true
-         | Ne, Some false -> both (FD.meet a b) (* def. equal: if they compare equal, both values must be from the meet *)
-         | Eq, Some false
-         | Ne, Some true -> (* def. unequal *)
-           (* M.debug ~category:Analyzer "Can't use uneqal information about float value in expression \"%a\"." d_plainexp exp; *)
-           a, b
-         | _, _ -> a, b
-        )
-      | Lt | Le | Ge | Gt as op ->
-        (match FD.minimal a, FD.maximal a, FD.minimal b, FD.maximal b with
-         | Some l1, Some u1, Some l2, Some u2 ->
-           (match op, ID.to_bool (FD.to_int IBool c) with
-            | Le, Some true
-            | Gt, Some false -> meet_bin (FD.ending (FD.get_fkind a) u2) (FD.starting (FD.get_fkind b) l1)
-            | Ge, Some true
-            | Lt, Some false -> meet_bin (FD.starting (FD.get_fkind a) l2) (FD.ending (FD.get_fkind b) u1)
-            | Lt, Some true
-            | Ge, Some false -> meet_bin (FD.ending_before (FD.get_fkind a) u2) (FD.starting_after (FD.get_fkind b) l1)
-            | Gt, Some true
-            | Le, Some false -> meet_bin (FD.starting_after (FD.get_fkind a) l2) (FD.ending_before (FD.get_fkind b) u1)
-            | _, _ -> a, b)
-         | _ -> a, b)
-      | op ->
-        if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
-        a, b
+      let meet_bin a' b'  = FD.meet a a', FD.meet b b' in
+      try
+        match op with
+        | PlusA  ->
+          (* A + B = C, \forall a \in A. a + b_min > pred c_min \land a + b_max < succ c_max
+              \land a + b_max > pred c_min \land a + b_min < succ c_max
+            \rightarrow A = [min(pred c_min - b_min, pred c_min - b_max), max(succ c_max - b_max, succ c_max - b_min)]
+            \rightarrow A = [pred c_min - b_max, succ c_max - b_min]
+          *)
+          let reverse_add v v' = (match FD.minimal c, FD.maximal c, FD.minimal v, FD.maximal v with 
+              | Some c_min, Some c_max, Some v_min, Some v_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) -> 
+                let l = Float.pred c_min -. v_max in
+                let h =  Float.succ c_max -. v_min in
+                FD.of_interval (FD.get_fkind c) (l, h)
+              | _ -> v') in
+          meet_bin (reverse_add b a) (reverse_add a b)
+        | MinusA ->
+          (* A - B = C \ forall a \in A. a - b_max > pred c_min \land a - b_min < succ c_max 
+              \land a - b_min > pred c_min \land a - b_max < succ c_max
+            \rightarrow A = [min(pred c_min + b_max, pred c_min + b_min), max(succ c_max + b_max, succ c_max + b_max)]
+            \rightarrow A = [pred c_min + b_min, succ c_max + b_max]
+          *)
+          let a' = (match FD.minimal c, FD.maximal c, FD.minimal b, FD.maximal b with 
+              | Some c_min, Some c_max, Some b_min, Some b_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) -> 
+                let l = Float.pred c_min +. b_min in
+                let h =  Float.succ c_max +. b_max in
+                FD.of_interval (FD.get_fkind c) (l, h)
+              | _ -> a) in
+          (* A - B = C \ forall b \in B. a_min - b > pred c_min \land a_max - b < succ c_max 
+              \land a_max - b > pred c_min \land a_min - b < succ c_max 
+            \rightarrow B = [min(a_max - succ c_max, a_min - succ c_max), max(a_min - pred c_min, a_max - pred c_min)]
+            \rightarrow B = [a_min - succ c_max, a_max - pred c_min]
+          *)
+          let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with 
+              | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) -> 
+                let l = a_min -. Float.succ c_max in 
+                let h =  a_max -. Float.pred c_min in 
+                FD.of_interval (FD.get_fkind c) (l, h)
+              | _ -> b) in
+          meet_bin a'  b'
+        | Mult   ->
+          (* A * B = C \forall a \in A, a > 0. a * b_min > pred c_min \land a * b_max < succ c_max
+            A * B = C \forall a \in A, a < 0. a * b_max > pred c_min \land a * b_min < succ c_max
+            (with negative b reversed <>)
+            \rightarrow A = [min(pred c_min / b_min, pred c_min / b_max, succ c_max / b_min, succ c_max /b_max), 
+                              max(succ c_max / b_min, succ c_max /b_max, pred c_min / b_min, pred c_min / b_max)]
+          *)
+          let reverse_mul v v' = (match FD.minimal c, FD.maximal c, FD.minimal v, FD.maximal v with 
+              | Some c_min, Some c_max, Some v_min, Some v_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
+                let v1, v2, v3, v4 = (Float.pred c_min /. v_min), (Float.pred c_min /. v_max), (Float.succ c_max /. v_min), (Float.succ c_max /. v_max) in
+                let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
+                let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
+                FD.of_interval (FD.get_fkind c) (l, h)
+              | _ -> v') in
+          meet_bin (reverse_mul b a) (reverse_mul a b)
+        | Div ->
+          (* A / B = C \forall a \in A, a > 0, b_min > 1. a / b_max > pred c_min \land a / b_min < succ c_max
+            A / B = C \forall a \in A, a < 0, b_min > 1. a / b_min > pred c_min \land a / b_max < succ c_max
+            A / B = C \forall a \in A, a > 0, 0 < b_min, b_max < 1. a / b_max > pred c_min \land a / b_min < succ c_max
+            A / B = C \forall a \in A, a < 0, 0 < b_min, b_max < 1. a / b_min > pred c_min \land a / b_max < succ c_max
+            ... same for negative b
+            \rightarrow A = [min(b_max * pred c_min, b_min * pred c_min, b_min * succ c_max, b_max * succ c_max), 
+                              max(b_max * succ c_max, b_min * succ c_max, b_max * pred c_min, b_min * pred c_min)]
+          *)
+          let a' = (match FD.minimal c, FD.maximal c, FD.minimal b, FD.maximal b with 
+              | Some c_min, Some c_max, Some b_min, Some b_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) ->
+                let v1, v2, v3, v4 = (Float.pred c_min *. b_max), (Float.pred c_min *. b_min), (Float.succ c_max *. b_max), (Float.succ c_max *. b_min) in
+                let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in 
+                let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in 
+                FD.of_interval (FD.get_fkind c) (l, h)
+              | _ -> a) in
+          (* A / B = C \forall b \in B, b > 0, a_min / b > pred c_min \land a_min / b < succ c_max 
+              \land a_max / b > pred c_min \land a_max / b < succ c_max
+            A / B = C \forall b \in B, b < 0, a_min / b > pred c_min \land a_min / b < succ c_max 
+              \land a_max / b > pred c_min \land a_max / b < succ c_max
+            \rightarrow (b != 0) B = [min(a_min / succ c_max, a_max / succ c_max, a_min / pred c_min, a_max / pred c_min),
+                                      max(a_min / pred c_min, a_max / pred c_min, a_min / succ c_max, a_max / succ c_max)]
+          *)
+          let b' = (match FD.minimal c, FD.maximal c, FD.minimal a, FD.maximal a with 
+              | Some c_min, Some c_max, Some a_min, Some a_max when Float.is_finite (Float.pred c_min) && Float.is_finite (Float.succ c_max) -> 
+                let v1, v2, v3, v4 = (a_min /. Float.pred c_min), (a_max /. Float.pred c_min), (a_min /. Float.succ c_max), (a_max /. Float.succ c_max) in
+                    let l = Float.min (Float.min v1 v2) (Float.min v3 v4) in
+                    let h =  Float.max (Float.max v1 v2) (Float.max v3 v4) in
+                FD.of_interval (FD.get_fkind c) (l, h)
+              | _ -> b) in
+          meet_bin a' b'
+        | Eq | Ne as op ->
+          let both x = x, x in
+          (match op, ID.to_bool (FD.to_int IBool c) with
+          | Eq, Some true
+          | Ne, Some false -> both (FD.meet a b) (* def. equal: if they compare equal, both values must be from the meet *)
+          | Eq, Some false
+          | Ne, Some true -> (* def. unequal *)
+            (* M.debug ~category:Analyzer "Can't use uneqal information about float value in expression \"%a\"." d_plainexp exp; *)
+            a, b
+          | _, _ -> a, b
+          )
+        | Lt | Le | Ge | Gt as op ->
+          (match FD.minimal a, FD.maximal a, FD.minimal b, FD.maximal b with
+          | Some l1, Some u1, Some l2, Some u2 ->
+            (match op, ID.to_bool (FD.to_int IBool c) with
+              | Le, Some true
+              | Gt, Some false -> meet_bin (FD.ending (FD.get_fkind a) u2) (FD.starting (FD.get_fkind b) l1)
+              | Ge, Some true
+              | Lt, Some false -> meet_bin (FD.starting (FD.get_fkind a) l2) (FD.ending (FD.get_fkind b) u1)
+              | Lt, Some true
+              | Ge, Some false -> meet_bin (FD.ending_before (FD.get_fkind a) u2) (FD.starting_after (FD.get_fkind b) l1)
+              | Gt, Some true
+              | Le, Some false -> meet_bin (FD.starting_after (FD.get_fkind a) l2) (FD.ending_before (FD.get_fkind b) u1)
+              | _, _ -> a, b)
+          | _ -> a, b)
+        | op ->
+          if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
+          a, b
+      with FloatDomain.ArithmeticOnFloatBot _ -> raise Deadcode
     in
     let eval e st = eval_rv a gs st e in
     let eval_bool e st = match eval e st with `Int i -> ID.to_bool i | _ -> None in

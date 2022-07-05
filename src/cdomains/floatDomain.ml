@@ -88,9 +88,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   type t = Top | Bot | Interval of (Float_t.t * Float_t.t) [@@deriving eq, ord, to_yojson, hash]
 
   let show = function
-    | Top -> Float_t.name ^ ": [Top]"
-    | Bot -> Float_t.name ^ ": [Bot]"
-    | Interval (low, high) -> Printf.sprintf "%s:[%s,%s]" Float_t.name (Float_t.to_string low) (Float_t.to_string high)
+    | Top -> "[Top]"
+    | Bot -> "[Bot]"
+    | Interval (low, high) -> Printf.sprintf "[%s,%s]" (Float_t.to_string low) (Float_t.to_string high)
 
   let pretty () x = text (show x)
 
@@ -138,11 +138,6 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Top -> true
     | _ -> false 
 
-  let neg = function 
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "neg %s" (show Bot)))
-    | Interval (low, high) -> Interval (Float_t.neg high, Float_t.neg low)
-    | _ -> Top
-
   let norm v = 
     let normed = match v with
       | Interval (low, high) -> 
@@ -181,10 +176,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let starting_after s = of_interval' (Float_t.succ @@ Float_t.of_float Down s, Float_t.upper_bound)
 
   let minimal = function
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "minimal %s" (show Bot)))
     | Interval (l, _) -> Float_t.to_float l
     | _ -> None
 
   let maximal = function
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "maximal %s" (show Bot)))
     | Interval (_, h) -> Float_t.to_float h
     | _ -> None
 
@@ -234,7 +231,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Top, _ -> v2
     | _, _ -> v1
 
-  (** evaluation of the binary operations *)
+  (** evaluation of the unary and binary operations *)
+  let eval_unop onTop eval_operation op =
+    match op with
+    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
+    | Interval v -> eval_operation v
+    | Top -> onTop
+
   let eval_binop eval_operation op1 op2 =
     norm @@ match (op1, op2) with 
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
@@ -263,6 +266,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     in
     IntDomain.IntDomTuple.of_interval IBool
       (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
+
+
+  let eval_neg = function 
+    | (low, high) -> Interval (Float_t.neg high, Float_t.neg low)
+
 
   let eval_add (l1, h1) (l2, h2) = 
     Interval (Float_t.add Down l1 l2, Float_t.add Up h1 h2)
@@ -337,32 +345,19 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     else if h1 = l1 && h2 = l2 && l1 = l2 then (0, 0)
     else (0, 1)
 
+  let neg = eval_unop Top eval_neg
+
   let add = eval_binop eval_add
-
   let sub = eval_binop eval_sub
-
   let mul = eval_binop eval_mul
-
   let div = eval_binop eval_div
 
   let lt = eval_int_binop eval_lt
-
   let gt = eval_int_binop eval_gt
-
   let le = eval_int_binop eval_le
-
   let ge = eval_int_binop eval_ge
-
   let eq = eval_int_binop eval_eq
-
   let ne = eval_int_binop eval_ne
-
-
-  let eval_unop onTop eval_operation op =
-    match op with
-    | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
-    | Interval v -> eval_operation v
-    | Top -> onTop
 
   let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
   let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)

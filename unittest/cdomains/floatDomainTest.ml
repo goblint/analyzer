@@ -237,6 +237,15 @@ struct
       check_narrow fi_zero fi_one fi_zero;
     end
 
+  let test_FI_ArithmeticOnFloatBot _ =
+    begin
+      assert_raises (FloatDomain.ArithmeticOnFloatBot ("minimal "^(FI.show (FI.bot ())))) (fun() -> (FI.minimal (FI.bot ())));
+      assert_raises (FloatDomain.ArithmeticOnFloatBot ("to_int "^(FI.show (FI.bot ())))) (fun() -> (FI.to_int IInt (FI.bot ())));
+      assert_raises (FloatDomain.ArithmeticOnFloatBot ((FI.show (FI.bot ()))^" op "^(FI.show fi_zero))) (fun() -> (FI.add (FI.bot ()) fi_zero));
+      assert_raises (FloatDomain.ArithmeticOnFloatBot ((FI.show (FI.bot ()))^" op "^(FI.show fi_zero))) (fun() -> (FI.lt (FI.bot ()) fi_zero));
+      assert_raises (FloatDomain.ArithmeticOnFloatBot ("unop "^(FI.show (FI.bot ())))) (fun() -> (FI.acos (FI.bot ())));
+    end
+
   (**interval tests using QCheck arbitraries *)
   let test_FI_not_bot =
     QCheck.Test.make ~name:"test_FI_not_bot" (FI.arbitrary ()) (fun arg -> 
@@ -306,6 +315,7 @@ struct
     "test_FI_meet_specific" >:: test_FI_leq_specific;
     "test_FI_widen_specific" >:: test_FI_widen_specific;
     "test_FI_narrow_specific" >:: test_FI_narrow_specific;
+    "test_FI_ArithmeticOnFloatBot" >:: test_FI_ArithmeticOnFloatBot;
   ]
 
   let test_qcheck () = QCheck_ounit.to_ounit2_test_list [
