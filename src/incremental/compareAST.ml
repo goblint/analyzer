@@ -197,7 +197,6 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
 
         match new_locals with
         | Some locals ->
-          (*Printf.printf "Performing rename_mapping switch. New rename_mapping=%s\n" (rename_mapping_to_string (locals.parameter_renames, method_rename_mappings));*)
           (locals.parameter_renames, method_rename_mappings)
         | None -> (StringMap.empty, method_rename_mappings)
       )
@@ -206,8 +205,6 @@ and eq_varinfo (a: varinfo) (b: varinfo) (rename_mapping: rename_mapping) =
 
   let typeCheck = eq_typ a.vtype b.vtype typ_rename_mapping in
   let attrCheck = GobList.equal (eq_attribute rename_mapping) a.vattr b.vattr in
-
-  (*let _ = if isNamingOk then a.vname <- b.vname in*)
 
   (*let _ = Printf.printf "Comparing vars: %s = %s\n" a.vname b.vname in *)
   (*a.vname = b.vname*)

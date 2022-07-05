@@ -86,10 +86,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
   identical, unchangedHeader, diffOpt
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) = match a, b with
-  | GFun (f,_), GFun (g,_) ->
-    let identical, unchangedHeader, diffOpt = eqF f g cfgs global_rename_mapping in
-
-    identical, unchangedHeader, diffOpt
+  | GFun (f,_), GFun (g,_) -> eqF f g cfgs global_rename_mapping
   | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y (StringMap.empty, VarinfoMap.empty), false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y (StringMap.empty, VarinfoMap.empty), false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
