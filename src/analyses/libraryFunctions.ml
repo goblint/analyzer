@@ -59,6 +59,31 @@ let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("ZSTD_customFree", unknown [drop "ptr" [f]; drop "customMem" [r]]);
   ]
 
+(** math functions.
+    Functions and builtin versions of function and macros defined in math.h. *)
+let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__builtin_isfinite", special [__ "x" []] @@ fun x -> Math { fun_args = (Isfinite x) });
+    ("__builtin_isinf", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
+    ("__builtin_isinf_sign", special [__ "x" []] @@ fun x -> Math { fun_args = (Isinf x) });
+    ("__builtin_isnan", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnan x) });
+    ("__builtin_isnormal", special [__ "x" []] @@ fun x -> Math { fun_args = (Isnormal x) });
+    ("__builtin_signbit", special [__ "x" []] @@ fun x -> Math { fun_args = (Signbit x) });
+    ("__builtin_acos", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos x) });
+    ("acos", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos x) });
+    ("__builtin_asin", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin x) });
+    ("asin", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin x) });
+    ("__builtin_atan", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan x) });
+    ("atan", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan x) });
+    ("__builtin_atan2", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (y, x)) });
+    ("atan2", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (y, x)) });
+    ("__builtin_cos", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos x) });
+    ("cos", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos x) });
+    ("__builtin_sin", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin x) });
+    ("sin", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin x) });
+    ("__builtin_tan", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan x) });
+    ("tan", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan x) });
+  ]
+
 (* TODO: allow selecting which lists to use *)
 let library_descs = Hashtbl.of_list (List.concat [
     c_descs_list;
@@ -68,6 +93,7 @@ let library_descs = Hashtbl.of_list (List.concat [
     linux_descs_list;
     goblint_descs_list;
     zstd_descs_list;
+    math_descs_list;
   ])
 
 
@@ -80,7 +106,6 @@ type categories = [
   | `Unlock
   | `ThreadCreate of exp * exp * exp (* id * f  * x       *)
   | `ThreadJoin   of exp * exp (* id * ret_var *)
-  | `Math        of exp list
   | `Unknown      of string ]
 
 
@@ -134,18 +159,6 @@ let classify fn exps =
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
   | "up"
     -> `Unlock
-  | "__builtin_isfinite" | "__builtin_isinf" | "__builtin_isinf_sign" | "__builtin_isnan" | "__builtin_isnormal"
-  | "__builtin_signbit" | "__builtin_acos" | "acos" | "__builtin_asin" | "asin" | "__builtin_atan" | "atan" 
-  | "__builtin_cos" | "cos" | "__builtin_sin" | "sin" | "__builtin_tan" | "tan" ->
-    begin match exps with
-      | [x] -> `Math exps
-      | _ -> strange_arguments ()
-    end
-  | "__builtin_atan2" | "atan2" ->
-    begin match exps with
-      | [y; x] -> `Math exps
-      | _ -> strange_arguments ()
-    end 
   | x -> `Unknown x
 
 

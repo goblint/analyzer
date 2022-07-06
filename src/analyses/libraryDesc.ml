@@ -11,6 +11,20 @@ struct
   }
 end
 
+type math =
+  | Isfinite of Cil.exp
+  | Isinf of Cil.exp
+  | Isnan of Cil.exp
+  | Isnormal of Cil.exp
+  | Signbit of Cil.exp
+  | Acos of Cil.exp
+  | Asin of Cil.exp
+  | Atan of Cil.exp
+  | Atan2 of (Cil.exp * Cil.exp)
+  | Cos of Cil.exp
+  | Sin of Cil.exp
+  | Tan of Cil.exp
+
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
 type special =
@@ -22,7 +36,7 @@ type special =
   | Unlock of Cil.exp
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
-  | Math of { args: (Cil.exp list); }
+  | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Abort
@@ -89,7 +103,6 @@ let special_of_old classify_name = fun args ->
   | `Unlock -> Unlock (List.hd args)
   | `ThreadCreate (thread, start_routine, arg) -> ThreadCreate { thread; start_routine; arg; }
   | `ThreadJoin (thread, ret_var) -> ThreadJoin { thread; ret_var; }
-  | `Math args -> Math { args; }
   | `Unknown _ -> Unknown
 
 let of_old ?(attrs: attr list=[]) (old_accesses: Accesses.old) (classify_name): t = {

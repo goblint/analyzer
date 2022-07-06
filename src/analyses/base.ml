@@ -2600,52 +2600,41 @@ struct
         | None -> ctx.local
       end
     (**Floating point classification and trigonometric functions defined in c99*)
-    | Math { args; }, _ ->
-      begin match args with
-        | [x] -> 
-          let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
-          begin match eval_x with
-            | `Float float_x -> 
-              let result = 
-                begin match f.vname with
-                  | "__builtin_isfinite" -> `Int (ID.cast_to IInt (FD.isfinite float_x))
-                  | "__builtin_isinf" | "__builtin_isinf_sign" -> `Int (ID.cast_to IInt (FD.isinf float_x))
-                  | "__builtin_isnan" -> `Int (ID.cast_to IInt (FD.isnan float_x))
-                  | "__builtin_isnormal" -> `Int (ID.cast_to IInt (FD.isnormal float_x))
-                  | "__builtin_signbit" -> `Int (ID.cast_to IInt (FD.signbit float_x))
-                  | "__builtin_acos" | "acos" -> `Float (FD.acos float_x)
-                  | "__builtin_asin" | "asin" -> `Float (FD.asin float_x)
-                  | "__builtin_atan" | "atan" -> `Float (FD.atan float_x)
-                  | "__builtin_cos" | "cos" -> `Float (FD.cos float_x)
-                  | "__builtin_sin" | "sin" -> `Float (FD.sin float_x)
-                  | "__builtin_tan" | "tan" -> `Float (FD.tan float_x)
-                  | _ -> failwith (f.vname^" should be implemented in goblint but isn't")
-                end 
-              in
-              begin match lv with
-                | Some lv_val -> set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
-                | None -> st
-              end
-            | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
-          end
-        | [y; x] -> 
-          let eval_y = eval_rv (Analyses.ask_of_ctx ctx) gs st y in
-          let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
-          begin match eval_y, eval_x with
-            | `Float float_y, `Float float_x -> 
-              let result = 
-                begin match f.vname with
-                  | "__builtin_atan2" | "atan2" -> `Float (FD.atan (FD.div float_y float_x))
-                  | _ -> failwith (f.vname^" should be implemented in goblint but isn't")
-                end
-              in
-              begin match lv with
-                | Some lv_val -> set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
-                | None -> st
-              end
-            | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
-          end
-        | _ -> failwith ("strange "^f.vname^" arguments")
+    | Math { fun_args; }, _ ->
+      let apply_unary float_fun x = 
+        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        begin match eval_x with
+          | `Float float_x -> float_fun float_x
+          | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
+        end
+      in
+      let apply_binary float_fun x y = 
+        let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
+        let eval_y = eval_rv (Analyses.ask_of_ctx ctx) gs st y in
+        begin match eval_x, eval_y with
+          | `Float float_x, `Float float_y -> float_fun float_x float_y
+          | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
+        end
+      in
+      let result = 
+        begin match fun_args with
+          | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FD.isfinite x))
+          | Isinf x -> `Int (ID.cast_to IInt (apply_unary FD.isinf x))
+          | Isnan x -> `Int (ID.cast_to IInt (apply_unary FD.isnan x))
+          | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FD.isnormal x))
+          | Signbit x -> `Int (ID.cast_to IInt (apply_unary FD.signbit x))
+          | Acos x -> `Float (apply_unary FD.acos x)
+          | Asin x -> `Float (apply_unary FD.asin x)
+          | Atan x -> `Float (apply_unary FD.atan x)
+          | Atan2 (y, x) -> `Float (apply_binary (fun y' x' -> FD.atan (FD.div y' x')) y x)
+          | Cos x -> `Float (apply_unary FD.cos x)
+          | Sin x -> `Float (apply_unary FD.sin x)
+          | Tan x -> `Float (apply_unary FD.tan x)
+        end
+      in
+      begin match lv with
+        | Some lv_val -> set ~ctx (Analyses.ask_of_ctx ctx) gs st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lv_val) (Cilfacade.typeOfLval lv_val) result
+        | None -> st
       end
     (* handling thread creations *)
     | ThreadCreate _, _ ->
