@@ -3,6 +3,7 @@
 // mutex-meet: needs strengthening even with path_sens threadflag
 // mutex-meet-tid: doesn't need strengthening
 // needs assume_none to avoid top via some lost upper bounds
+#include <assert.h>
 #include <pthread.h>
 
 struct __anonstruct_PQUEUE_63 {
