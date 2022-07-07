@@ -38,6 +38,8 @@ let should_reanalyze (fdec: Cil.fundec) =
  * nodes of the function changed. If on the other hand no CFGs are provided, the "old" AST comparison on the CIL.file is
  * used for functions. Then no information is collected regarding which parts/nodes of the function changed. *)
 let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (global_rename_mapping: method_rename_assumptions) =
+  let emptyRenameMapping = (StringMap.empty, VarinfoMap.empty) in
+
   (* Compares the two varinfo lists, returning as a first element, if the size of the two lists are equal,
    * and as a second a rename_mapping, holding the rename assumptions *)
   let rec rename_mapping_aware_compare (alocals: varinfo list) (blocals: varinfo list) (rename_mapping: string StringMap.t) = match alocals, blocals with
@@ -57,7 +59,7 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
         eq_varinfo a.svar b.svar actHeaderRenameMapping && GobList.equal (eq_varinfo2 actHeaderRenameMapping) a.sformals b.sformals, headerRenameMapping
       )
     | Some _ -> (
-        eq_varinfo a.svar b.svar (StringMap.empty, VarinfoMap.empty) && GobList.equal (eq_varinfo2 (StringMap.empty, VarinfoMap.empty)) a.sformals b.sformals, StringMap.empty
+        eq_varinfo a.svar b.svar emptyRenameMapping && GobList.equal (eq_varinfo2 emptyRenameMapping) a.sformals b.sformals, StringMap.empty
       )
   in
 
@@ -66,10 +68,15 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
       false, None
     else
       (* Here the local variables are checked to be equal *)
-      let sizeEqual, local_rename = rename_mapping_aware_compare a.slocals b.slocals headerRenameMapping in
+      (*flag: when running on cfg, true iff the locals are identical; on ast: if the size of the locals stayed the same*)
+      let flag, local_rename =
+        match cfgs with
+        | None -> rename_mapping_aware_compare a.slocals b.slocals headerRenameMapping
+        | Some _ -> GobList.equal (eq_varinfo2 emptyRenameMapping) a.slocals b.slocals, StringMap.empty
+      in
       let rename_mapping: rename_mapping = (local_rename, global_rename_mapping) in
 
-      let sameDef = unchangedHeader && sizeEqual in
+      let sameDef = unchangedHeader && flag in
       if not sameDef then
         (false, None)
       else
