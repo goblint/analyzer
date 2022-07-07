@@ -1,7 +1,7 @@
 {
   "incremental": {
     "reluctant": {
-      "on": true,
+      "enabled": true,
       "compare": "leq"
     },
     "ignore-const-args": [
