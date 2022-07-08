@@ -109,7 +109,7 @@ rule() {
       cp g2html/g2html.jar .
     ;; setup_gobview )
       [[ -f gobview/gobview.opam ]] || git submodule update --init gobview
-      opam install --deps-only --locked gobview/gobview.opam
+      opam install --deps-only --locked gobview/
     # ;; watch)
     #   fswatch --event Updated -e $TARGET.ml src/ | xargs -n1 -I{} make
     ;; install)

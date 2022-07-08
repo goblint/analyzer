@@ -35,12 +35,12 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         | MyARG.CFGEdge (Test _) -> true
         | _ -> false
       end || begin if Invariant.is_invariant_node to_cfgnode then
-            match to_cfgnode, TaskResult.invariant to_node with
-            | Statement _, Some _ -> true
-            | _, _ -> false
-          else
-            false
-        end || begin match from_cfgnode, to_cfgnode with
+               match to_cfgnode, TaskResult.invariant to_node with
+               | Statement _, `Lifted _ -> true
+               | _, _ -> false
+             else
+               false
+           end || begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f -> true
           | Function f, _ -> true
           | _, _ -> false
@@ -135,7 +135,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
         begin
           if Invariant.is_invariant_node cfgnode then
             match cfgnode, TaskResult.invariant node with
-            | Statement _, Some i ->
+            | Statement _, `Lifted i ->
               let i = InvariantCil.exp_replace_original_name i in
               [("invariant", CilType.Exp.show i);
               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
@@ -395,15 +395,8 @@ struct
     in
 
     let find_invariant (n, c, i) =
-      let context: Invariant.context = {
-          scope=CfgNode.find_fundec n;
-          i;
-          lval=None;
-          offset=Cil.NoOffset;
-          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-        }
-      in
-      Spec.D.invariant context (get (n, c))
+      let context = {Invariant.default_context with path = Some i} in
+      ask_local (n, c) (get (n, c)) (Invariant context)
     in
 
     match Task.specification with

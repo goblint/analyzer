@@ -291,16 +291,14 @@ let getFuns fileAST : startfuns =
 let getFirstStmt fd = List.hd fd.sbody.bstmts
 
 
-(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. Warns if a a different type is put in and return IInt *)
+(* Returns the ikind of a TInt(_) and TEnum(_). Unrolls typedefs. *)
 let rec get_ikind t =
   (* important to unroll the type here, otherwise problems with typedefs *)
   match Cil.unrollType t with
   | TInt (ik,_)
   | TEnum ({ekind = ik; _},_) -> ik
   | TPtr _ -> get_ikind !Cil.upointType
-  | _ ->
-    Messages.warn "Something that we expected to be an integer type has a different type, assuming it is an IInt";
-    Cil.IInt
+  | _ -> invalid_arg ("Cilfacade.get_ikind: non-integer type " ^ CilType.Typ.show t)
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
 
@@ -420,8 +418,24 @@ and typeOffset basetyp =
     | _ -> raise (TypeOfError Field_NonCompound)
 
 
+(** {!Cil.mkCast} using our {!typeOf}. *)
+let mkCast ~(e: exp) ~(newt: typ) =
+  let oldt =
+    try
+      typeOf e
+    with TypeOfError _ -> (* e might involve alloc variables, weird offsets, etc *)
+      Cil.voidType (* oldt is only used for avoiding duplicate cast, so this falls back to adding cast *)
+  in
+  Cil.mkCastT ~e ~oldt ~newt
+
 let get_ikind_exp e = get_ikind (typeOf e)
 
+(** Make {!Cil.BinOp} with correct implicit casts inserted. *)
+let makeBinOp binop e1 e2 =
+  let t1 = typeOf e1 in
+  let t2 = typeOf e2 in
+  let (_, e) = Cabs2cil.doBinOp binop e1 t1 e2 t2 in
+  e
 
 (** HashSet of line numbers *)
 let locs = Hashtbl.create 200
