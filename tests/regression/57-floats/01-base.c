@@ -3,9 +3,14 @@
 #include <float.h>
 #include <limits.h>
 #include <math.h>
+#include <complex.h>
 
 int main()
 {
+    // ensure that complex floats just do not do anything
+    double _Complex c = 0.;
+    assert(c == 0.); // UNKNOWN
+
     double x, a = 2., b = 3. + 1;
     float y, c = 2.f, d = 3.f + 1;
     long double z, e = 2.l, f = 3.l + 1;
@@ -26,7 +31,7 @@ int main()
     assert(e < 10.f); // SUCCESS
     assert(e > 10.f); // FAIL
 
-    x = (a + b) / 2.;  // naive way of computing the middle
+    x = (a + b) / 2.; // naive way of computing the middle
     y = (c + d) / 2.; // naive way of computing the middle
     z = (e + f) / 2.; // naive way of computing the middle
 
