@@ -70,18 +70,32 @@ let math_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__builtin_signbit", special [__ "x" []] @@ fun x -> Math { fun_args = (Signbit x) });
     ("__builtin_acos", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos x) });
     ("acos", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos x) });
+    ("acosf", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos x) });
+    ("acosl", special [__ "x" []] @@ fun x -> Math { fun_args = (Acos x) });
     ("__builtin_asin", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin x) });
     ("asin", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin x) });
+    ("asinf", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin x) });
+    ("asinl", special [__ "x" []] @@ fun x -> Math { fun_args = (Asin x) });
     ("__builtin_atan", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan x) });
     ("atan", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan x) });
+    ("atanf", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan x) });
+    ("atanl", special [__ "x" []] @@ fun x -> Math { fun_args = (Atan x) });
     ("__builtin_atan2", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (y, x)) });
     ("atan2", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (y, x)) });
+    ("atan2l", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (y, x)) });
+    ("atan2f", special [__ "y" []; __ "x" []] @@ fun y x -> Math { fun_args = (Atan2 (y, x)) });
     ("__builtin_cos", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos x) });
     ("cos", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos x) });
+    ("cosf", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos x) });
+    ("cosl", special [__ "x" []] @@ fun x -> Math { fun_args = (Cos x) });
     ("__builtin_sin", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin x) });
     ("sin", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin x) });
+    ("sinf", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin x) });
+    ("sinl", special [__ "x" []] @@ fun x -> Math { fun_args = (Sin x) });
     ("__builtin_tan", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan x) });
     ("tan", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan x) });
+    ("tanf", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan x) });
+    ("tanl", special [__ "x" []] @@ fun x -> Math { fun_args = (Tan x) });
   ]
 
 (* TODO: allow selecting which lists to use *)

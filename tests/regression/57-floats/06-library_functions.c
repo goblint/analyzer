@@ -49,12 +49,12 @@ int main()
     // acos(x):
     assert((0. <= acos(0.1)) && (acos(0.1) <= greater_than_pi)); // SUCCESS
     assert(acos(1.) == 0.);                                      // SUCCESS
-    acos(2.0);                                                   // WARN: Domain error will occur: acos argument is outside of [-1., 1.]
+    acos(2.0);                                                   // WARN: Domain error might occur: acos argument might be outside of [-1., 1.]
 
     // asin(x):
     assert(((-greater_than_pi / 2.) <= asin(0.1)) && (asin(0.1) <= (greater_than_pi / 2.))); // SUCCESS
     assert(asin(0.) == 0.);                                                                  // SUCCESS
-    asin(2.0);                                                                               // WARN: Domain error will occur: asin argument is outside of [-1., 1.]
+    asin(2.0);                                                                               // WARN: Domain error might occur: asin argument might be outside of [-1., 1.]
 
     // atan(x):
     assert(((-greater_than_pi / 2.) <= atan(0.1)) && (atan(0.1) <= (greater_than_pi / 2.))); // SUCCESS

@@ -390,14 +390,14 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | (l, h) when l = h && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
     | (l, h) ->
       if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
-        Messages.warn ~category:Messages.Category.Float "Domain error will occur: acos argument is outside of [-1., 1.]";
+        Messages.warn ~category:Messages.Category.Float "Domain error might occur: acos argument might be outside of [-1., 1.]";
       of_interval (0., (overapprox_pi)) (**could be more exact *)
 
   let eval_asin = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
     | (l, h) ->
       if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
-        Messages.warn ~category:Messages.Category.Float "Domain error will occur: asin argument is outside of [-1., 1.]";
+        Messages.warn ~category:Messages.Category.Float "Domain error might occur: asin argument might be outside of [-1., 1.]";
       div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
 
   let eval_atan = function
