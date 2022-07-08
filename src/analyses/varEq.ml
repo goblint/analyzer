@@ -581,8 +581,8 @@ struct
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeEqual (e1,e2) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
-      true
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
+      Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
       (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
