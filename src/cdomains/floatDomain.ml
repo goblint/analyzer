@@ -110,12 +110,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Interval (l, h) when ik = IBool && (l > Float_t.zero || h < Float_t.zero) -> IntDomain.IntDomTuple.of_bool IBool true
     | Interval (l, h) when ik = IBool && l = h && l = Float_t.zero -> IntDomain.IntDomTuple.of_bool IBool false
     | Interval (l, h) when ik = IBool -> IntDomain.IntDomTuple.top_of IBool
-    | Interval (l, h) -> 
+    | Interval (l, h) ->
       (* as converting from float to integer is (exactly) defined as leaving out the fractional part,
          (value is truncated towrad zero) we do not require specific rounding here *)
       IntDomain.IntDomTuple.of_interval ik (Float_t.to_big_int l, Float_t.to_big_int h)
 
-  let of_int x = 
+  let of_int x =
     match IntDomain.IntDomTuple.minimal x, IntDomain.IntDomTuple.maximal x with
     | Some l, Some h when l >= Float_t.to_big_int Float_t.lower_bound && h <= Float_t.to_big_int Float_t.upper_bound ->
       let l' = Float_t.of_float Down (Big_int_Z.float_of_big_int l) in
@@ -128,37 +128,37 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let bot () = Bot
 
-  let is_bot = function 
+  let is_bot = function
     | Bot -> true
-    | _ -> false 
+    | _ -> false
 
   let top () = Top
 
-  let is_top = function 
+  let is_top = function
     | Top -> true
-    | _ -> false 
+    | _ -> false
 
-  let norm v = 
+  let norm v =
     let normed = match v with
-      | Interval (low, high) -> 
-        if Float_t.is_finite low && Float_t.is_finite high then 
+      | Interval (low, high) ->
+        if Float_t.is_finite low && Float_t.is_finite high then
           if low > high then failwith "invalid Interval"
           else v
         else Top
       | tb -> tb
     in if is_top normed then
-      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739] 
+      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
         "Float could be +/-infinity or Nan";
     normed
 
   (**converts "(Float_t.t * Float_t.t) option" arbitraries to "Top | Bot | Interval of (Float_t.t * Float_t.t)". Does not create Bot*)
-  let convert_arb v = 
+  let convert_arb v =
     match v with
     | Some (f1, f2) ->
       let f1' = Float_t.of_float Nearest f1 in
       let f2' = Float_t.of_float Nearest f2 in
-      if Float_t.is_finite f1' && Float_t.is_finite f2' 
-      then Interval (min f1' f2', max f1' f2') 
+      if Float_t.is_finite f1' && Float_t.is_finite f2'
+      then Interval (min f1' f2', max f1' f2')
       else Top
     | _ -> Top
 
@@ -185,11 +185,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Interval (_, h) -> Float_t.to_float h
     | _ -> None
 
-  let is_exact = function 
-    | Interval (l, v) -> l = v 
+  let is_exact = function
+    | Interval (l, v) -> l = v
     | _ -> false
 
-  let leq v1 v2 = 
+  let leq v1 v2 =
     match v1, v2 with
     | _, Top -> true
     | Top, _ -> false
@@ -197,20 +197,20 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | _, Bot -> false
     | Interval (l1, h1), Interval (l2, h2) -> l1 >= l2 && h1 <= h2
 
-  let join v1 v2 = 
+  let join v1 v2 =
     match v1, v2 with
     | Top, _ | _, Top -> Top
     | Bot, v | v, Bot -> v
     | Interval (l1, h1), Interval (l2, h2) -> Interval (min l1 l2, max h1 h2)
 
-  let meet v1 v2 = 
+  let meet v1 v2 =
     match v1, v2 with
     | Bot, _ | _, Bot -> Bot
     | Top, v | v, Top -> v
-    | Interval (l1, h1), Interval (l2, h2) -> 
+    | Interval (l1, h1), Interval (l2, h2) ->
       let (l, h) = (max l1 l2, min h1 h2) in
-      if l <= h 
-      then Interval (l, h) 
+      if l <= h
+      then Interval (l, h)
       else Bot
 
   (** [widen x y] assumes [leq x y]. Solvers guarantee this by calling [widen old (join old new)]. *)
@@ -219,9 +219,9 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Top, _ | _, Top -> Top
     | Bot, v | v, Bot -> v
     | Interval (l1, h1), Interval (l2, h2) ->
-      (**If we widen and we know that neither interval contains +-inf or nan, it is ok to widen only to +-max_float, 
+      (**If we widen and we know that neither interval contains +-inf or nan, it is ok to widen only to +-max_float,
          because a widening with +-inf/nan will always result in the case above -> Top *)
-      let low = if l1 <= l2 then l1 else Float_t.lower_bound in 
+      let low = if l1 <= l2 then l1 else Float_t.lower_bound in
       let high = if h1 >= h2 then h1 else Float_t.upper_bound in
       norm @@ Interval (low, high)
 
@@ -239,43 +239,43 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Top -> onTop
 
   let eval_binop eval_operation op1 op2 =
-    norm @@ match (op1, op2) with 
+    norm @@ match (op1, op2) with
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
-    | Interval v1, Interval v2 -> 
+    | Interval v1, Interval v2 ->
       let is_exact (lower, upper) = (lower = upper) in
       let is_exact_before = is_exact v1 && is_exact v2 in
       let result = eval_operation v1 v2 in
       (match result with
        | Interval (r1, r2) ->
          let is_exact_after = is_exact (r1, r2)
-         in if not is_exact_after && is_exact_before then 
+         in if not is_exact_after && is_exact_before then
            Messages.warn
-             ~category:Messages.Category.Float 
+             ~category:Messages.Category.Float
              ~tags:[CWE 197; CWE 681; CWE 1339]
-             "The result of this operation is not exact, even though the inputs were exact."; 
+             "The result of this operation is not exact, even though the inputs were exact.";
          result
        | bt -> bt)
     | _ -> Top
 
   let eval_int_binop eval_operation (op1: t) op2 =
     let a, b =
-      match (op1, op2) with 
+      match (op1, op2) with
       | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
-      | Interval v1, Interval v2 -> eval_operation v1 v2 
+      | Interval v1, Interval v2 -> eval_operation v1 v2
       | _ -> (0, 1)
     in
     IntDomain.IntDomTuple.of_interval IBool
       (Big_int_Z.big_int_of_int a, Big_int_Z.big_int_of_int b)
 
 
-  let eval_neg = function 
+  let eval_neg = function
     | (low, high) -> Interval (Float_t.neg high, Float_t.neg low)
 
 
-  let eval_add (l1, h1) (l2, h2) = 
+  let eval_add (l1, h1) (l2, h2) =
     Interval (Float_t.add Down l1 l2, Float_t.add Up h1 h2)
 
-  let eval_sub (l1, h1) (l2, h2) = 
+  let eval_sub (l1, h1) (l2, h2) =
     Interval (Float_t.sub Down l1 h2, Float_t.sub Up h1 l2)
 
   let eval_mul (l1, h1) (l2, h2) =
@@ -307,29 +307,29 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
       Interval (low, high)
 
 
-  let eval_lt (l1, h1) (l2, h2) = 
+  let eval_lt (l1, h1) (l2, h2) =
     if h1 < l2 then (1, 1)
-    else if l1 >= h2 then (0, 0) 
+    else if l1 >= h2 then (0, 0)
     else (0, 1)
 
   let eval_gt (l1, h1) (l2, h2) =
     if l1 > h2 then (1, 1)
-    else if h1 <= l2 then (0, 0) 
+    else if h1 <= l2 then (0, 0)
     else (0, 1)
 
   let eval_le (l1, h1) (l2, h2) =
     if h1 <= l2 then (1, 1)
-    else if l1 > h2 then (0, 0) 
+    else if l1 > h2 then (0, 0)
     else (0, 1)
 
   let eval_ge (l1, h1) (l2, h2) =
     if l1 >= h2 then (1, 1)
-    else if h1 < l2 then (0, 0) 
+    else if h1 < l2 then (0, 0)
     else (0, 1)
 
   let eval_eq (l1, h1) (l2, h2) =
-    Messages.warn 
-      ~category:Messages.Category.Float 
+    Messages.warn
+      ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality between `double` is dangerous!";
     if h1 < l2 || h2 < l1 then (0, 0)
@@ -337,8 +337,8 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     else (0, 1)
 
   let eval_ne (l1, h1) (l2, h2) =
-    Messages.warn 
-      ~category:Messages.Category.Float 
+    Messages.warn
+      ~category:Messages.Category.Float
       ~tags:[CWE 1077]
       "Equality/Inequality between `double` is dangerous!";
     if h1 < l2 || h2 < l1 then (1, 1)
@@ -367,13 +367,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   let eval_isinf _ = false_zero_IInt
 
-  let eval_isnormal = function 
+  let eval_isnormal = function
     | (l, h) ->
       if l >= Float_t.smallest || h <= (Float_t.neg (Float_t.smallest)) then
         true_nonZero_IInt
       else if l > (Float_t.neg (Float_t.smallest)) && h < Float_t.smallest then
         false_zero_IInt
-      else 
+      else
         unknown_IInt
 
   (**it seems strange not to return an explicit 1 for negative numbers, but in c99 signbit is defined as: *)
@@ -384,18 +384,18 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | _ -> unknown_IInt (**any interval containing zero has to fall in this case, because we do not distinguish between 0. and -0. *)
 
   (**This Constant overapproximates pi to use as bounds for the return values of trigonometric functions *)
-  let overapprox_pi = 3.1416 
+  let overapprox_pi = 3.1416
 
   let eval_acos = function
     | (l, h) when l = h && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
-    | (l, h) -> 
+    | (l, h) ->
       if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
         Messages.warn ~category:Messages.Category.Float "Domain error will occur: acos argument is outside of [-1., 1.]";
       of_interval (0., (overapprox_pi)) (**could be more exact *)
 
   let eval_asin = function
     | (l, h) when l = h && l = Float_t.zero -> of_const 0. (*asin(0) = 0*)
-    | (l, h) -> 
+    | (l, h) ->
       if l < (Float_t.of_float Down (-.1.)) || h > (Float_t.of_float Up 1.) then
         Messages.warn ~category:Messages.Category.Float "Domain error will occur: asin argument is outside of [-1., 1.]";
       div (of_interval ((-. overapprox_pi), overapprox_pi)) (of_const 2.) (**could be more exact *)
@@ -464,13 +464,18 @@ end
 
 module FloatIntervalImplLifted = struct
   include Printable.Std (* for default invariant, tag and relift *)
-  type t = 
-    | F32 of F32Interval.t 
-    | F64 of F64Interval.t 
-    | FLong of F64Interval.t [@@deriving to_yojson, eq, ord, hash]
 
   module F1 = F32Interval
   module F2 = F64Interval
+
+  (* As described in [Relational Abstract Domains for the Detection of Floating-Point Run-Time Errors](https://www-apr.lip6.fr/~mine/publi/article-mine-esop04.pdf)
+     the over-approximating interval analysis can do the abstract computations with less precision than the concrete ones. We make use of this in order to also
+     provide a domain for long doubles although in the abstract we "only" use double precision
+  *)
+  type t =
+    | F32 of F1.t
+    | F64 of F2.t
+    | FLong of F2.t [@@deriving to_yojson, eq, ord, hash]
 
   let show = function
     | F32 a -> "float: " ^ F1.show a
@@ -503,7 +508,7 @@ module FloatIntervalImplLifted = struct
     | FDouble -> F64 (op64 ())
     | FLongDouble -> FLong (op64 ())
     | _ ->
-      (* this sould never be reached, as we have to check for invalid fkind elsewhere, 
+      (* this sould never be reached, as we have to check for invalid fkind elsewhere,
          however we could instead of crashing also return top_of some fkind to avoid this and nonetheless have no actual information about anything*)
       failwith "unsupported fkind"
 
@@ -537,10 +542,10 @@ module FloatIntervalImplLifted = struct
   let top () = failwith "top () is not implemented for FloatIntervalImplLifted."
   let is_top = dispatch (F1.is_bot, F2.is_bot)
 
-  let get_fkind = function 
+  let get_fkind = function
     | F32 _ -> FFloat
     | F64 _ -> FDouble
-    | FLong _ -> FLongDouble 
+    | FLong _ -> FLongDouble
 
   let leq = lift2_cmp (F1.leq, F2.leq)
   let join = lift2 (F1.join, F2.join)
@@ -555,7 +560,7 @@ module FloatIntervalImplLifted = struct
   let printXml o = dispatch (F1.printXml o, F2.printXml o) (* TODO add fkind to output *)
 
   (* This is for debugging *)
-  let name () = "FloatIntervalImplLifted(F32|F64)"
+  let name () = "FloatIntervalImplLifted"
   let to_yojson = dispatch (F1.to_yojson, F2.to_yojson)
   let tag = dispatch (F1.tag, F2.tag)
   let arbitrary fk = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
@@ -572,8 +577,8 @@ module FloatIntervalImplLifted = struct
   let maximal = dispatch (F1.maximal, F2.maximal)
   let to_int ikind = dispatch (F1.to_int ikind, F2.to_int ikind)
   let cast_to fkind =
-    let create_interval fkind l h = 
-      match l, h with 
+    let create_interval fkind l h =
+      match l, h with
       | Some l, Some h -> of_interval fkind (l,h)
       | Some l, None -> starting fkind l
       | None, Some h -> ending fkind h
@@ -603,7 +608,7 @@ module FloatDomTupleImpl = struct
   let name () = "floatdomtuple"
 
   type 'a m = (module FloatDomain with type t = 'a)
-  (* only first-order polymorphism on functions 
+  (* only first-order polymorphism on functions
      -> use records to get around monomorphism restriction on arguments (Same trick as used in intDomain) *)
   type 'b poly_in = { fi : 'a. 'a m -> 'b -> 'a }
   type 'b poly_pr = { fp : 'a. 'a m -> 'a -> 'b }

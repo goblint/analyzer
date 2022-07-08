@@ -88,7 +88,7 @@ module CFloat = struct
   let to_float x = Some x
   let to_big_int = big_int_of_float
 
-  let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound 
+  let is_finite x = Float.is_finite x && x >= lower_bound && x <= upper_bound
 
   let hash = Hashtbl.hash
   let to_string = Float.to_string
