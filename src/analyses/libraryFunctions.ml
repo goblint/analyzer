@@ -30,6 +30,7 @@ let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 (** Pthread functions. *)
 let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
+    ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
   ]
 
 (** GCC builtin functions.
@@ -39,7 +40,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
   ]
 
 (** Linux kernel functions. *)
-let linux_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
 
   ]
 
@@ -123,7 +124,7 @@ type categories = [
   | `Unknown      of string ]
 
 
-let classify fn exps =
+let classify fn exps: categories =
   let strange_arguments () =
     M.warn "%s arguments are strange!" fn;
     `Unknown fn

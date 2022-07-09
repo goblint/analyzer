@@ -36,6 +36,7 @@ type special =
   | Unlock of Cil.exp
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
+  | ThreadExit of { ret_val: Cil.exp; }
   | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }

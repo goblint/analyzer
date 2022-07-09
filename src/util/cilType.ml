@@ -166,7 +166,11 @@ struct
     )
 end
 
-module Typ: S with type t = typ =
+module Typ:
+sig
+  include S with type t = typ
+  val pp: Format.formatter -> t -> unit (* for deriving show *)
+end =
 struct
   include Std
 
@@ -188,6 +192,8 @@ struct
       let pretty = pretty
     end
     )
+
+  let pp fmt x = Format.fprintf fmt "%s" (show x) (* for deriving show *)
 end
 
 module Compinfo: S with type t = compinfo =

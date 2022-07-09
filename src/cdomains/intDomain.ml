@@ -319,7 +319,7 @@ struct
   let name () = "IntDomLifter(" ^ (I.name ()) ^ ")"
   let to_yojson x = I.to_yojson x.v
   let invariant e x =
-    let e' = Cil.(mkCast ~e ~newt:(TInt (x.ikind, []))) in
+    let e' = Cilfacade.mkCast ~e ~newt:(TInt (x.ikind, [])) in
     I.invariant_ikind e' x.ikind x.v
   let tag x = I.tag x.v
   let arbitrary ik = failwith @@ "Arbitrary not implement for " ^ (name ()) ^ "."
@@ -418,6 +418,7 @@ module Size = struct (* size in bits as int, range as int64 *)
   let is_cast_injective ~from_type ~to_type =
     let (from_min, from_max) = range (Cilfacade.get_ikind from_type) in
     let (to_min, to_max) = range (Cilfacade.get_ikind to_type) in
+    if M.tracing then M.trace "int" "is_cast_injective %a (%s, %s) -> %a (%s, %s)\n" CilType.Typ.pretty from_type (BI.to_string from_min) (BI.to_string from_max) CilType.Typ.pretty to_type (BI.to_string to_min) (BI.to_string to_max);
     BI.compare to_min from_min <= 0 && BI.compare from_max to_max <= 0
 
   let cast t x = (* TODO: overflow is implementation-dependent! *)
@@ -605,10 +606,6 @@ struct
     | None -> None
     | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> Some false
     | x -> if leq zero x then None else Some true
-  let to_bool_interval x = match x with
-    | None -> x
-    | Some (l, u) when Ints_t.compare l Ints_t.zero = 0 && Ints_t.compare u Ints_t.zero = 0 -> x
-    | _ -> if leq zero x then top_bool else one
 
   let range_opt f = function
     | None -> None
@@ -791,9 +788,28 @@ struct
           norm ik @@ Some ((Ints_t.min (Ints_t.min x1y1n x1y2n) (Ints_t.min x2y1n x2y2n)),
                            (Ints_t.max (Ints_t.max x1y1p x1y2p) (Ints_t.max x2y1p x2y2p)))
       end
-  let ne ik i1 i2 = to_bool_interval (sub ik i1 i2)
 
-  let eq ik (i1: t) (i2: t) = to_bool_interval (lognot ik (sub ik i1 i2))
+  let ne ik x y =
+    match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (x1,x2), Some (y1,y2) ->
+      if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
+        of_bool ik true
+      else if Ints_t.compare x2 y1 <= 0 && Ints_t.compare y2 x1 <= 0 then
+        of_bool ik false
+      else top_bool
+
+  let eq ik x y =
+    match x, y with
+    | None, None -> bot_of ik
+    | None, _ | _, None -> raise (ArithmeticOnIntegerBot (Printf.sprintf "%s op %s" (show x) (show y)))
+    | Some (x1,x2), Some (y1,y2) ->
+      if Ints_t.compare y2 x1 <= 0 && Ints_t.compare x2 y1 <= 0 then
+        of_bool ik true
+      else if Ints_t.compare y2 x1 < 0 || Ints_t.compare x2 y1 < 0 then
+        of_bool ik false
+      else top_bool
 
   let ge ik x y =
     match x, y with
@@ -1604,8 +1620,20 @@ struct
   let shift_right =
     shift BigInt.shift_right
   (* TODO: lift does not treat Not {0} as true. *)
-  let logand = lift2 BigInt.logand
-  let logor  = lift2 BigInt.logor
+  let logand ik x y =
+    match to_bool x, to_bool y with
+    | Some false, _
+    | _, Some false ->
+      of_bool ik false
+    | _, _ ->
+      lift2 BigInt.logand ik x y
+  let logor ik x y =
+    match to_bool x, to_bool y with
+    | Some true, _
+    | _, Some true ->
+      of_bool ik true
+    | _, _ ->
+      lift2 BigInt.logor ik x y
   let lognot ik = eq ik (of_int ik BigInt.zero)
 
   let invariant_ikind e ik (x:t) =

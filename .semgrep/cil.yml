@@ -5,6 +5,7 @@ rules:
       - pattern: Cil.typeOfLval
       - pattern: Cil.typeOfInit
       - pattern: Cil.typeOffset
+      - pattern: Cil.mkCast
       - pattern: Cil.get_stmtLoc
     paths:
       exclude:
