@@ -92,10 +92,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Bot -> "[Bot]"
     | Interval (low, high) -> Printf.sprintf "[%s,%s]" (Float_t.to_string low) (Float_t.to_string high)
 
-  let pretty () x = text (show x)
-
-  let printXml f (x : t) =
-    BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 
   let name () = "FloatInterval"
 
@@ -138,18 +140,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Top -> true
     | _ -> false
 
-  let norm v =
-    let normed = match v with
-      | Interval (low, high) ->
-        if Float_t.is_finite low && Float_t.is_finite high then
-          if low > high then failwith "invalid Interval"
-          else v
-        else Top
-      | tb -> tb
-    in if is_top normed then
-      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
-        "Float could be +/-infinity or Nan";
-    normed
+  let norm = function
+    | Interval (low, high) as x ->
+      if Float_t.is_finite low && Float_t.is_finite high then
+        if low > high then failwith "invalid Interval"
+        else x
+      else Top
+    | tb -> tb
 
   (**converts "(Float_t.t * Float_t.t) option" arbitraries to "Top | Bot | Interval of (Float_t.t * Float_t.t)". Does not create Bot*)
   let convert_arb v =
@@ -165,7 +162,13 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   (**for QCheck: should describe how to generate random values and shrink possible counter examples *)
   let arbitrary () = QCheck.map convert_arb (QCheck.option (QCheck.pair QCheck.float QCheck.float))
 
-  let of_interval' interval = norm @@ Interval interval
+  let of_interval' interval =
+    let x = norm @@ Interval interval
+    in if is_top x then
+      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
+        "Float could be +/-infinity or Nan";
+    x
+
   let of_interval (l, h) = of_interval' (Float_t.of_float Down (min l h), Float_t.of_float Up (max l h))
   let of_string s = of_interval' (Float_t.atof Down s, Float_t.atof Up s)
   let of_const f = of_interval (f, f)
@@ -233,31 +236,48 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
 
   (** evaluation of the unary and binary operations *)
   let eval_unop onTop eval_operation op =
+    if is_top op then
+      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
+        "Operand of unary expression could be +/-infinity or Nan";
     match op with
     | Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "unop %s" (show op)))
     | Interval v -> eval_operation v
     | Top -> onTop
 
   let eval_binop eval_operation op1 op2 =
-    norm @@ match (op1, op2) with
+    if is_top op1 then
+      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
+        "First operand of arithmetic operation could be +/-infinity or Nan";
+    if is_top op2 then
+      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
+        "Second operand of arithmetic operation could be +/-infinity or Nan";
+    match (op1, op2) with
     | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
     | Interval v1, Interval v2 ->
-      let is_exact (lower, upper) = (lower = upper) in
-      let is_exact_before = is_exact v1 && is_exact v2 in
-      let result = eval_operation v1 v2 in
+      let is_exact_before = is_exact op1 && is_exact op2 in
+      let result = norm @@ eval_operation v1 v2 in
       (match result with
-       | Interval (r1, r2) ->
-         let is_exact_after = is_exact (r1, r2)
-         in if not is_exact_after && is_exact_before then
-           Messages.warn
-             ~category:Messages.Category.Float
-             ~tags:[CWE 197; CWE 681; CWE 1339]
-             "The result of this operation is not exact, even though the inputs were exact.";
-         result
-       | bt -> bt)
+       | Interval (r1, r2) when not (is_exact result) && is_exact_before ->
+         Messages.warn
+           ~category:Messages.Category.Float
+           ~tags:[CWE 197; CWE 681; CWE 1339]
+           "The result of this operation is not exact, even though the inputs were exact";
+       | Top ->
+         Messages.warn
+           ~category:Messages.Category.Float
+           ~tags:[CWE 197; CWE 681; CWE 1339]
+           "The result of this operation could be +/-infinity or Nan";
+       | _ -> ());
+      result
     | _ -> Top
 
   let eval_int_binop eval_operation (op1: t) op2 =
+    if is_top op1 then
+      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
+        "First operand of comparison could be +/-infinity or Nan";
+    if is_top op2 then
+      Messages.warn ~category:Messages.Category.Float ~tags:[CWE 189; CWE 739]
+        "Second operand of comparison could be +/-infinity or Nan";
     let a, b =
       match (op1, op2) with
       | Bot, _ | _, Bot -> raise (ArithmeticOnFloatBot (Printf.sprintf "%s op %s" (show op1) (show op2)))
@@ -328,19 +348,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     else (0, 1)
 
   let eval_eq (l1, h1) (l2, h2) =
-    Messages.warn
-      ~category:Messages.Category.Float
-      ~tags:[CWE 1077]
-      "Equality between `double` is dangerous!";
     if h1 < l2 || h2 < l1 then (0, 0)
     else if h1 = l1 && h2 = l2 && l1 = l2 then (1, 1)
     else (0, 1)
 
   let eval_ne (l1, h1) (l2, h2) =
-    Messages.warn
-      ~category:Messages.Category.Float
-      ~tags:[CWE 1077]
-      "Equality/Inequality between `double` is dangerous!";
     if h1 < l2 || h2 < l1 then (1, 1)
     else if h1 = l1 && h2 = l2 && l1 = l2 then (0, 0)
     else (0, 1)
@@ -356,8 +368,18 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let gt = eval_int_binop eval_gt
   let le = eval_int_binop eval_le
   let ge = eval_int_binop eval_ge
-  let eq = eval_int_binop eval_eq
-  let ne = eval_int_binop eval_ne
+  let eq a b =
+    Messages.warn
+      ~category:Messages.Category.Float
+      ~tags:[CWE 1077]
+      "Equality/Inequality between `double` is dangerous!";
+    eval_int_binop eval_eq a b
+  let ne a b =
+    Messages.warn
+      ~category:Messages.Category.Float
+      ~tags:[CWE 1077]
+      "Equality/Inequality between `double` is dangerous!";
+    eval_int_binop eval_ne a b
 
   let true_nonZero_IInt = IntDomain.IntDomTuple.of_excl_list IInt [(Big_int_Z.big_int_of_int 0)]
   let false_zero_IInt = IntDomain.IntDomTuple.of_int IInt (Big_int_Z.big_int_of_int 0)
@@ -650,9 +672,6 @@ module FloatDomTupleImpl = struct
     Option.map_default identity ""
       (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) x -> F.name () ^ ":" ^ F.show x); } x)
 
-  let to_yojson =
-    [%to_yojson: Yojson.Safe.t option]
-    % mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.to_yojson); }
   let hash x =
     Option.map_default identity 0
       (mapp { fp= (fun (type a) (module F : FloatDomain with type t = a) -> F.hash); } x)
@@ -778,6 +797,10 @@ module FloatDomTupleImpl = struct
 
   let pretty_diff () (x, y) = dprintf "%a instead of %a" pretty x pretty y
 
-  let printXml f x =
-    BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
