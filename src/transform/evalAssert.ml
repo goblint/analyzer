@@ -42,18 +42,15 @@ module EvalAssert = struct
       let is_lock exp args =
         match exp with
         | Lval(Var v,_) ->
-          (match LibraryFunctions.classify v.vname args with
-           | `Lock _ -> true
+          let desc = LibraryFunctions.find v in
+          (match desc.special args with
+           | Lock _ -> true
            | _ -> false)
         | _ -> false
       in
 
       let make_assert loc lval =
-        let context:Queries.invariant_context = {
-          scope=Cilfacade.find_stmt_fundec s;
-          lval=lval;
-          offset=Cil.NoOffset;
-        } in
+        let context = {Invariant.default_context with lval} in
         match (ask loc).f (Queries.Invariant context) with
         | `Lifted e ->
           let es = WitnessUtil.InvariantExp.process_exp e in

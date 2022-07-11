@@ -5,6 +5,73 @@ open GobConfig
 
 module M = Messages
 
+(** C standard library functions.
+    These are specified by the C standard. *)
+let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+    ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+    ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+    ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
+    ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
+    ("abort", special [] Abort);
+    ("exit", special [drop "exit_code" []] Abort);
+    ("assert", special [__ "cond" [r]] @@ fun cond -> Assert cond);
+  ]
+
+(** C POSIX library functions.
+    These are {e not} specified by the C standard, but available on POSIX systems. *)
+let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+    ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+    ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+    ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
+  ]
+
+(** Pthread functions. *)
+let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
+    ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
+  ]
+
+(** GCC builtin functions.
+    These are not builtin versions of functions from other lists. *)
+let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
+  ]
+
+(** Linux kernel functions. *)
+let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
+
+  ]
+
+(** Goblint functions. *)
+let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__goblint_unknown", unknown [drop' [w]]);
+    ("__goblint_check", unknown [drop' []]);
+    ("__goblint_commit", unknown [drop' []]);
+    ("__goblint_assert", unknown [drop' []]);
+  ]
+
+(** zstd functions.
+    Only used with extraspecials. *)
+let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("ZSTD_customMalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Malloc size);
+    ("ZSTD_customCalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Calloc { size; count = Cil.one });
+    ("ZSTD_customFree", unknown [drop "ptr" [f]; drop "customMem" [r]]);
+  ]
+
+(* TODO: allow selecting which lists to use *)
+let library_descs = Hashtbl.of_list (List.concat [
+    c_descs_list;
+    posix_descs_list;
+    pthread_descs_list;
+    gcc_descs_list;
+    linux_descs_list;
+    goblint_descs_list;
+    zstd_descs_list;
+  ])
+
+
 type categories = [
   | `Malloc       of exp
   | `Calloc       of exp * exp
@@ -17,28 +84,18 @@ type categories = [
   | `Unknown      of string ]
 
 
-let classify fn exps =
+let classify fn exps: categories =
   let strange_arguments () =
     M.warn "%s arguments are strange!" fn;
     `Unknown fn
   in
   match fn with
-  | "pthread_create" ->
-    begin match exps with
-      | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
-      | _ -> strange_arguments ()
-    end
   | "pthread_join" ->
     begin match exps with
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
       | _ -> strange_arguments ()
     end
-  | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
-    begin match exps with
-      | size::_ -> `Malloc size
-      | _ -> strange_arguments ()
-    end
-  | "ZSTD_customMalloc" -> (* only used with extraspecials *)
+  | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
       | _ -> strange_arguments ()
@@ -52,21 +109,6 @@ let classify fn exps =
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
       | _ -> strange_arguments ()
-    end
-  | "ZSTD_customCalloc" -> (* only used with extraspecials *)
-    begin match exps with
-      | size::_ -> `Calloc (Cil.one, size)
-      | _ -> strange_arguments ()
-    end
-  | "realloc" ->
-    begin match exps with
-      | p::size::_ -> `Realloc (p, size)
-      | _ -> strange_arguments ()
-    end
-  | "assert" ->
-    begin match exps with
-      | [e] -> `Assert e
-      | _ -> M.warn "Assert argument mismatch!"; `Unknown fn
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
   | "down_trylock"
@@ -98,6 +140,7 @@ let classify fn exps =
 module Invalidate =
 struct
   [@@@warning "-unused-value-declaration"] (* some functions are not used below *)
+  open AccessKind
 
   let drop = List.drop
   let keep ns = List.filteri (fun i _ -> List.mem i ns)
@@ -116,72 +159,72 @@ struct
 
   let writesAllButFirst n f a x =
     match a with
-    | `Write -> f a x @ drop n x
-    | `Read  -> f a x
-    | `Free  -> []
+    | Write | Spawn -> f a x @ drop n x
+    | Read  -> f a x
+    | Free  -> []
 
   let readsAllButFirst n f a x =
     match a with
-    | `Write -> f a x
-    | `Read  -> f a x @ drop n x
-    | `Free  -> []
+    | Write | Spawn -> f a x
+    | Read  -> f a x @ drop n x
+    | Free  -> []
 
   let reads ns a x =
     let i, o = partition ns x in
     match a with
-    | `Write -> o
-    | `Read  -> i
-    | `Free  -> []
+    | Write | Spawn -> o
+    | Read  -> i
+    | Free  -> []
 
   let writes ns a x =
     let i, o = partition ns x in
     match a with
-    | `Write -> i
-    | `Read  -> o
-    | `Free  -> []
+    | Write | Spawn -> i
+    | Read  -> o
+    | Free  -> []
 
   let frees ns a x =
     let i, o = partition ns x in
     match a with
-    | `Write -> []
-    | `Read  -> o
-    | `Free  -> i
+    | Write | Spawn -> []
+    | Read  -> o
+    | Free  -> i
 
   let readsFrees rs fs a x =
     match a with
-    | `Write -> []
-    | `Read  -> keep rs x
-    | `Free  -> keep fs x
+    | Write | Spawn -> []
+    | Read  -> keep rs x
+    | Free  -> keep fs x
 
   let onlyReads ns a x =
     match a with
-    | `Write -> []
-    | `Read  -> keep ns x
-    | `Free  -> []
+    | Write | Spawn -> []
+    | Read  -> keep ns x
+    | Free  -> []
 
   let onlyWrites ns a x =
     match a with
-    | `Write -> keep ns x
-    | `Read  -> []
-    | `Free  -> []
+    | Write | Spawn -> keep ns x
+    | Read  -> []
+    | Free  -> []
 
   let readsWrites rs ws a x =
     match a with
-    | `Write -> keep ws x
-    | `Read  -> keep rs x
-    | `Free  -> []
+    | Write | Spawn -> keep ws x
+    | Read  -> keep rs x
+    | Free  -> []
 
   let readsAll a x =
     match a with
-    | `Write -> []
-    | `Read  -> x
-    | `Free  -> []
+    | Write | Spawn -> []
+    | Read  -> x
+    | Free  -> []
 
   let writesAll a x =
     match a with
-    | `Write -> x
-    | `Read  -> []
-    | `Free  -> []
+    | Write | Spawn -> x
+    | Read  -> []
+    | Free  -> []
 end
 
 open Invalidate
@@ -195,10 +238,6 @@ let invalidate_actions = [
     "__builtin_ctzl", readsAll;
     "__builtin_ctzll", readsAll;
     "__builtin_clz", readsAll;
-    "bzero", writes [1]; (*keep 1*)
-    "__builtin_bzero", writes [1]; (*keep [1]*)
-    "explicit_bzero", writes [1];
-    "__explicit_bzero_chk", writes [1];
     "connect", readsAll;          (*safe*)
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
@@ -221,9 +260,6 @@ let invalidate_actions = [
     "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
     "__builtin___mempcpy_chk", writes [1];
-    "memset", writes [1];(*unsafe*)
-    "__builtin_memset", writes [1];(*unsafe*)
-    "__builtin___memset_chk", writes [1];
     "printf", readsAll;(*safe*)
     "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
@@ -449,7 +485,6 @@ let invalidate_actions = [
     "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
-    "realloc", readsFrees [0; 1] [0]; (* read+free first argument, read second argument *)
     "setrlimit", readsAll; (*safe*)
     "getrlimit", writes [2]; (*keep [2]*)
     "sem_init", readsAll; (*safe*)
@@ -475,7 +510,6 @@ let invalidate_actions = [
     "pthread_rwlock_destroy", readsAll;
     "pthread_rwlock_init", readsAll;
     "pthread_rwlock_unlock", readsAll;
-    "__builtin_object_size", readsAll;
     "__builtin_bswap16", readsAll;
     "__builtin_bswap32", readsAll;
     "__builtin_bswap64", readsAll;
@@ -487,7 +521,6 @@ let invalidate_actions = [
     "dev_driver_string", readsAll;
     "__spin_lock_init", writes [1];
     "kmem_cache_create", readsAll;
-    "pthread_create", onlyWrites [0; 2]; (* TODO: onlyWrites/keep is 0-indexed now, WTF? *)
     "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
@@ -511,8 +544,8 @@ let invalidate_actions = [
     "sema_init", readsAll;
     "down_trylock", readsAll;
     "up", readsAll;
-    "ZSTD_customFree", frees [1]; (* only used with extraspecials *)
   ]
+
 
 (* used by get_invalidate_action to make sure
  * that hash of invalidates is built only once
@@ -536,32 +569,6 @@ let get_invalidate_action name =
   then Some (Hashtbl.find tbl name)
   else None
 
-let threadSafe =
-  let rec threadSafe n ns xs =
-    match ns, xs with
-    | n'::ns, x::xs when n=n' -> mone::threadSafe (n+1) ns xs
-    | n'::ns, x::xs -> x::threadSafe (n+1) (n'::ns) xs
-    | _ -> xs
-  in
-  threadSafe 1
-
-let thread_safe_fn =
-  ["strerror", threadSafe [1];
-   "fprintf",  threadSafe [1];
-   "fgets",    threadSafe [3];
-   "strerror_r", threadSafe [1];
-   "fclose", threadSafe [1]
-  ]
-
-let get_threadsafe_inv_ac name =
-  try
-    let f = List.assoc name thread_safe_fn in
-    match get_invalidate_action name with
-    | Some g -> Some (fun a xs -> g a (f xs))
-    | None -> Some (fun a xs -> f xs)
-  with Not_found -> get_invalidate_action name
-
-
 
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
@@ -576,3 +583,41 @@ let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]
 let is_safe_uncalled fn_name =
   Set.String.mem fn_name kernel_safe_uncalled ||
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
+
+
+let unknown_desc ~f name = (* TODO: remove name argument, unknown function shouldn't have classify *)
+  let old_accesses (kind: AccessKind.t) args = match kind with
+    | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
+    | Write -> []
+    | Read -> args
+    | Free -> []
+    | Spawn when get_bool "sem.unknown_function.spawn" -> args
+    | Spawn -> []
+  in
+  let attrs: LibraryDesc.attr list =
+    if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then
+      [InvalidateGlobals]
+    else
+      []
+  in
+  let classify_name args =
+    match classify name args with
+    | `Unknown _ as category ->
+      (* TODO: remove hack when all classify are migrated *)
+      if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then
+        M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname;
+      category
+    | category -> category
+  in
+  LibraryDesc.of_old ~attrs old_accesses classify_name
+
+let find f =
+  let name = f.vname in
+  match Hashtbl.find_option library_descs name with
+  | Some desc -> desc
+  | None ->
+    match get_invalidate_action name with
+    | Some old_accesses ->
+      LibraryDesc.of_old old_accesses (classify name)
+    | None ->
+      unknown_desc ~f name

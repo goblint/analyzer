@@ -691,6 +691,32 @@
               "type": "string",
               "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
               "default": "protection-read"
+            },
+            "invariant": {
+              "title": "ana.base.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.invariant.enabled",
+                  "description": "Generate base analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "eval": {
+              "title": "ana.base.eval",
+              "type": "object",
+              "properties": {
+                "deep-query": {
+                  "title": "ana.base.eval.deep-query",
+                  "description": "Perform EvalInt queries on all subexpressions, not just the outermost expression.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -747,9 +773,9 @@
             "privatization": {
               "title": "ana.apron.privatization",
               "description":
-                "Which apron privatization to use? dummy/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
+                "Which apron privatization to use? top/protection/protection-path/mutex-meet/mutex-meet-tid/mutex-meet-tid-cluster12/mutex-meet-tid-cluster2/mutex-meet-tid-cluster-max/mutex-meet-tid-cluster-power",
               "type": "string",
-              "enum": ["dummy", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
+              "enum": ["top", "protection", "protection-path", "mutex-meet", "mutex-meet-tid", "mutex-meet-tid-cluster12", "mutex-meet-tid-cluster2", "mutex-meet-tid-cluster-max", "mutex-meet-tid-cluster-power"],
               "default": "mutex-meet"
             },
             "priv": {
@@ -769,6 +795,37 @@
                     "Exclude writes from threads that must have been joined",
                   "type": "boolean",
                   "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "invariant": {
+              "title": "ana.apron.invariant",
+              "type": "object",
+              "properties": {
+                "one-var": {
+                  "title": "ana.apron.invariant.one-var",
+                  "description": "Generate invariants with only one variable",
+                  "type": "boolean",
+                  "default": false
+                },
+                "local": {
+                  "title": "ana.apron.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.apron.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
