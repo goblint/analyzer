@@ -2,20 +2,7 @@ open GobConfig
 open Cil
 
 (*Create maps that map each function to the ones called in it and the ones calling it
-   Only considers static calls*)
-(* TODO rewrite with Syntacticsearch?: https://github.com/goblint/cil/blob/develop/src/ext/syntacticsearch/funcFunction.ml
-  Problems: No access to Storage variable to determine if fuction is extern
-            No direct way to map uses to function it is called from
-            No included filtering of duplicate functions?
-
-let calledFunctionsQuery = {
-    sel = [Name_sel, ID_sel]; (*Can we get the storage directly? *)
-    k = Fun_k; 
-    tar = All_t;
-    f = Uses_f; (*Does this select only function calls without Parameters? *)
-    str = None_s; (* Only search in the specific function*)
-  }
-*)
+   Only considers static calls!*)
 
 module FunctionSet = Set.Make(CilType.Varinfo)
 module FunctionCallMap = Map.Make(CilType.Varinfo)
@@ -62,12 +49,13 @@ let functionCallMaps = ResettableLazy.from_fun (fun () ->
   visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
   !calling, !calledBy, !argLists)
 
+(* Only considers static calls!*)
 (*TODO Extend to dynamic calls?*)
 let calledFunctions fd = ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty
 let callingFunctions fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty
 let functionArgs fd = ResettableLazy.force functionCallMaps |> fun (_,_,x) -> x |> FunctionCallMap.find_opt fd
 
-(*Functions for determining if the Congruence analysis should be enabled *)
+(*Functions for determining if the congruence analysis should be enabled *)
 let isNotExtern = function
   | Extern -> false
   | _ -> true
@@ -117,7 +105,7 @@ end
 let addModAttributes file =
   let thisVisitor = new modFunctionAnnotatorVisitor in
   ignore (visitCilFileSameGlobals thisVisitor file)
-  (*TODO: Overflow analysis has to be enabled/assumed to not occur, else there are problems?*)
+  (*TODO: Overflow analysis has to be enabled/assumed to not occur, otherwise the congruence analysis could be wrong*)
 
 let disableIntervalContextsInRecursiveFunctions () =
   ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.iter (fun f set ->
@@ -128,9 +116,9 @@ let disableIntervalContextsInRecursiveFunctions () =
     )
   )
 
-(*If only one Thread is used in the program, we can disable most thread analyses*)
+(*If only one thread is used in the program, we can disable most thread analyses*)
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access*)
-(*TODO escape is also still enabled, because I do not know if the analysis gets more imprecise if not*)
+(*escape is also still enabled, because otherwise we get a warning*)
 
 let notNeccessaryThreadAnalyses = ["deadlock"; "maylocks"; "symb_locks"; "thread"; "threadflag"; "threadid"; "threadJoins"; "threadreturn"]
 
@@ -171,13 +159,31 @@ let focusOnSpecification () =
       List.iter enableAnalysis notNeccessaryThreadAnalyses;
     | NoOverflow -> (*We focus on integer analysis*)
       set_bool "ana.int.def_exc" true;
-      set_bool "ana.int.enums" true;
       set_bool "ana.int.interval" true
 
+(*Detect enumerations and enable the "ana.int.enums" option*)
+exception EnumFound
+class enumVisitor = object
+  inherit nopCilVisitor
+
+  method! vglob = function
+    | GEnumTag _ 
+    | GEnumTagDecl _ ->
+      raise EnumFound;
+    | _ -> SkipChildren;
+end
+
+let hasEnums file = 
+  let thisVisitor = new enumVisitor in
+  try 
+    ignore (visitCilFileSameGlobals thisVisitor file);
+    false;
+  with EnumFound -> true
 
 (*TODO: does calling this at a late point cause any problems?*)
 (*      do not overwrite explicit settings?*)
 (*      how to better display changed/selected settings?*)
+(*      tune all constants*)
 let chooseConfig file = 
   set_bool "annotation.int.enabled" true;
   addModAttributes file;
@@ -185,10 +191,11 @@ let chooseConfig file =
 
   disableIntervalContextsInRecursiveFunctions ();
 
-(*crashes because sometimes bigints are needed  
+(*crashes because sometimes bigints are needed?
   print_endline @@ "Upper thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.upper_thresholds ();
   print_endline @@ "Lower thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.lower_thresholds ();*)
   if get_string "ana.specification" <> "" then focusOnSpecification ();
+  if hasEnums file then set_bool "ana.int.enums" true;
   reduceThreadAnalyses ()
 
 let reset_lazy () = ResettableLazy.reset functionCallMaps
