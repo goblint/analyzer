@@ -120,7 +120,7 @@ struct
 
   let get_coeff_vec (t: t) texp =
     (*Parses a Texpr to obtain a coefficient + const (last entry) vector to repr. an affine relation.
-    Returns None if the expression is not affine linear*)
+      Returns None if the expression is not affine linear*)
     let open Apron.Texpr1 in
     let exception NotLinear in
     let zero_vec = Vector.zero_vec @@ Environment.size t.env + 1 in
@@ -207,14 +207,49 @@ struct
   module Convert = SharedFunctions.Convert (Bounds)
 
   type var = SharedFunctions.V.t
-  
+
   let tag t = failwith "No tag"
 
   let show t =
+    let conv_to_ints row =
+      let module BI = IntOps.BigIntOps in
+      let row = Array.copy @@ Vector.to_array row
+      in
+      for i = 0 to Array.length row -1 do
+        let val_i = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ Mpqf.get_den row.(i)
+        in Array.iteri(fun j x -> row.(j) <- val_i *: x)  row
+      done;
+      let int_arr = Array.init (Array.length row) (fun i -> Mpqf.get_num row.(i))
+      in let div = Mpqf.of_mpz @@ Z_mlgmpidl.mpzf_of_z @@ Array.fold_left BI.gcd int_arr.(0) int_arr
+      in Array.iteri (fun i x -> row.(i) <- x /: div) row;
+      Vector.of_array @@ row
+    in
+    let vec_to_constraint vec env = 
+      let vars, _ = Environment.vars env
+      in let dim_to_str var = 
+           let vl =  Vector.nth vec (Environment.dim_of_var env var)
+           in let var_str = Var.to_string var
+           in if vl = of_int 1 then "+" ^ var_str 
+           else if vl = of_int (-1) then "-" ^ var_str
+           else if vl <: of_int (-1) then Mpqf.to_string vl ^ var_str
+           else if vl >: of_int 1 then Format.asprintf "+%s" (Mpqf.to_string vl) ^ var_str
+           else ""
+      in
+      let c_to_str vl =
+        if vl >: of_int 0 then "-" ^ Mpqf.to_string vl
+        else if vl <: of_int 0 then "+" ^ Mpqf.to_string vl
+        else ""
+      in
+      let res = (String.concat "" @@ Array.to_list @@ Array.map dim_to_str vars)
+                ^ (c_to_str @@ Vector.nth vec (Vector.length vec - 1)) ^ "=0"
+      in if String.starts_with res "+" then String.sub res 1 (String.length res - 1) else res
+    in
     match t.d with
-    | None -> Format.asprintf "Bottom Env"
-    | Some m when Matrix.is_empty m -> Format.asprintf "⊤ (env: %a)" (Environment.print:Format.formatter -> Environment.t -> unit) t.env
-    | Some m -> Format.asprintf "%s env %a" (Matrix.show m) (Environment.print:Format.formatter -> Environment.t -> unit) t.env
+    | None -> "Bottom Env"
+    | Some m when Matrix.is_empty m -> "⊤"
+    | Some m -> 
+      let constraint_list = List.init (Matrix.num_rows m) (fun i -> vec_to_constraint (conv_to_ints @@ Matrix.get_row m i) t.env)
+      in Format.asprintf "%s" ("[|"^ (String.concat "; " constraint_list) ^"|]") 
 
   let pretty () (x:t) = text (show x)
   let printXml f x = BatPrintf.fprintf f "<value>\n<map>\n<key>\nmatrix\n</key>\n<value>\n%s</value>\n<key>\nenv\n</key>\n<value>\n%s</value>\n</map>\n</value>\n" (XmlUtil.escape (Format.asprintf "%s" (show x) )) (XmlUtil.escape (Format.asprintf "%a" (Environment.print: Format.formatter -> Environment.t -> unit) (x.env)))
