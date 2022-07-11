@@ -360,7 +360,7 @@ let merge_preprocessed preprocessed =
   Cilfacade.rmTemps merged_AST;
 
   (* create the Control Flow Graph from CIL's AST *)
-  Cilfacade.createCFG merged_AST;
+  CFG.createCFG merged_AST;
   Cilfacade.current_file := merged_AST;
   merged_AST
 
