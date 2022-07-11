@@ -19,7 +19,7 @@ struct
   struct
     include PartitionDomain.ExpPartitions
 
-    let invariant c ss =
+    let invariant ~scope ss =
       fold (fun s a ->
           if B.mem MyCFG.unknown_exp s then
             a
@@ -27,15 +27,15 @@ struct
             let module B_prod = BatSet.Make2 (Exp) (Exp) in
             let s_prod = B_prod.cartesian_product s s in
             let i = B_prod.Product.fold (fun (x, y) a ->
-                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope c.Invariant.scope x && InvariantCil.exp_is_in_scope c.Invariant.scope y then (* each equality only one way, no self-equalities *)
+                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope scope x && InvariantCil.exp_is_in_scope scope y then (* each equality only one way, no self-equalities *)
                   let eq = BinOp (Eq, x, y, intType) in
                   Invariant.(a && of_exp eq)
                 else
                   a
-              ) s_prod Invariant.none
+              ) s_prod (Invariant.top ())
             in
             Invariant.(a && i)
-        ) ss Invariant.none
+        ) ss (Invariant.top ())
   end
 
   module C = D
@@ -606,13 +606,16 @@ struct
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeEqual (e1,e2) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
-      true
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
+      Queries.ID.of_bool (Cilfacade.get_ikind t) true
     | Queries.EqualSet e ->
       let r = eq_set_clos e ctx.local in
       (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
       if M.tracing then M.tracel "var_eq" "equalset %a = %a\n" d_plainexp e Queries.ES.pretty r;
       r
+    | Queries.Invariant context ->
+      let scope = Node.find_fundec ctx.node in
+      D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x
 
 end

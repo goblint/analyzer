@@ -37,7 +37,6 @@ struct
   let to_yojson = unop L.to_yojson R.to_yojson
   let relift = unop_to_t L.relift R.relift
 
-  let invariant _ _ = Invariant.none
   let tag _ = failwith (Msg.name ^ ": no tag")
   let arbitrary () = failwith (Msg.name ^ ": no arbitrary")
 end

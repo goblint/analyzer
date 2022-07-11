@@ -1,7 +1,5 @@
 (** This allows us to query information about library functions. *)
 
-open Prelude.Ana
-
 val add_lib_funs : string list -> unit
 (* can't use Base.Main.store b/c of circular build - this is painful... *)
 val add_effects : (string -> Cil.exp list -> (Cil.lval * ValueDomain.Compound.t) list option) -> unit
