@@ -29,14 +29,17 @@
       "privatization": "mutex-meet",
       "invariant": {
         "enabled": false
+      },
+      "eval": {
+        "deep-query": false
       }
     },
     "apron": {
       "invariant": {
-        "one-var": false,
-        "local": false,
+        "one-var": true,
+        "local": true,
         "global": true,
-        "diff-box": true
+        "diff-box": false
       }
     }
   },
@@ -73,5 +76,12 @@
       "loop-head": false,
       "after-lock": true
     }
+  },
+  "pre": {
+    "cppflags": [
+      "-DGOBLINT_NO_PTHREAD_ONCE",
+      "-DGOBLINT_NO_QSORT",
+      "-DGOBLINT_NO_BSEARCH"
+    ]
   }
 }
