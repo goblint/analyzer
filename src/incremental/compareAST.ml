@@ -63,6 +63,10 @@ let rename_mapping_to_string (rename_mapping: rename_mapping) =
 
   "(local=" ^ local_string ^ "; methods=[" ^ methods_string ^ "]; glob_vars=" ^ global_var_string ^ ")"
 
+let is_rename_mapping_empty (rename_mapping: rename_mapping) =
+  let local, methods, glob_vars, _= rename_mapping in
+  StringMap.is_empty local && VarinfoMap.is_empty methods && VarinfoMap.is_empty glob_vars
+
 let identifier_of_global glob =
   match glob with
   | GFun (fundec, l) -> {name = fundec.svar.vname; global_t = Fun}
@@ -86,9 +90,9 @@ let (&&>) (prev_result: bool * rename_mapping) (b: bool) : bool * rename_mapping
   (prev_equal && b, rename_mapping)
 
 (*Same as Goblist.eq but propagates the rename_mapping*)
-let forward_list_equal f l1 l2 (prev_result: rename_mapping) : bool * rename_mapping =
+let forward_list_equal ?(propF = (&&>>)) f l1 l2 (prev_result: rename_mapping) : bool * rename_mapping =
   if ((List.compare_lengths l1 l2) = 0) then
-    List.fold_left2 (fun (b, r) x y -> if b then f x y r else (b, r)) (true, prev_result) l1 l2
+    List.fold_left2 (fun (b, r) x y -> propF (b, r) (f x y)) (true, prev_result) l1 l2
   else false, prev_result
 
 (* hack: CIL generates new type names for anonymous types - we want to ignore these *)

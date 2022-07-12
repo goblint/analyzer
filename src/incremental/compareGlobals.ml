@@ -1,5 +1,6 @@
 open Cil
 open MyCFG
+open CilMaps
 include CompareAST
 include CompareCFG
 
@@ -47,19 +48,43 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
     | _, _ -> false, rename_mapping
   in
 
-  let headerSizeEqual, headerRenameMapping = rename_mapping_aware_compare a.sformals b.sformals (StringMap.empty) in
-  let actHeaderRenameMapping: rename_mapping = (headerRenameMapping, global_function_rename_mapping, global_var_rename_mapping, ([], [])) in
+  let unchangedHeader, headerRenameMapping, renamesOnSuccessHeader = match cfgs with
+    | None -> (
+        let headerSizeEqual, headerRenameMapping = rename_mapping_aware_compare a.sformals b.sformals (StringMap.empty) in
+        let actHeaderRenameMapping: rename_mapping = (headerRenameMapping, global_function_rename_mapping, global_var_rename_mapping, ([], [])) in
 
-  let (unchangedHeader, (_, _, _, renamesOnSuccessHeader)) = eq_varinfo a.svar b.svar actHeaderRenameMapping &&>> forward_list_equal eq_varinfo a.sformals b.sformals in
+        let (unchangedHeader, (_, _, _, renamesOnSuccessHeader)) = eq_varinfo a.svar b.svar actHeaderRenameMapping &&>>
+                                                                   forward_list_equal eq_varinfo a.sformals b.sformals in
+        unchangedHeader, headerRenameMapping, renamesOnSuccessHeader
+      )
+    | Some _ -> (
+        let unchangedHeader, headerRenameMapping = eq_varinfo a.svar b.svar emptyRenameMapping &&>>
+                                                   forward_list_equal eq_varinfo a.sformals b.sformals in
+        let (_, _, _, renamesOnSuccessHeader) = headerRenameMapping in
+
+        (unchangedHeader && is_rename_mapping_empty headerRenameMapping), StringMap.empty, renamesOnSuccessHeader
+      )
+  in
+
   let identical, diffOpt, (_, renamed_method_dependencies, renamed_global_vars_dependencies, renamesOnSuccess) =
     if should_reanalyze a then
       false, None, emptyRenameMapping
     else
       (* Here the local variables are checked to be equal *)
-      let sizeEqual, local_rename = rename_mapping_aware_compare a.slocals b.slocals headerRenameMapping in
-      let rename_mapping: rename_mapping = (local_rename, global_function_rename_mapping, global_var_rename_mapping, renamesOnSuccessHeader) in
+      (*flag: when running on cfg, true iff the locals are identical; on ast: if the size of the locals stayed the same*)
+      let flag, rename_mapping =
+        match cfgs with
+        | None -> (
+            let sizeEqual, local_rename = rename_mapping_aware_compare a.slocals b.slocals headerRenameMapping in
+            sizeEqual, (local_rename, global_function_rename_mapping, global_var_rename_mapping, renamesOnSuccessHeader)
+          )
+        | Some _ -> (
+            let isEqual, rename_mapping = forward_list_equal eq_varinfo a.slocals b.slocals (StringMap.empty, VarinfoMap.empty, VarinfoMap.empty, renamesOnSuccessHeader) in
+            isEqual && is_rename_mapping_empty rename_mapping, rename_mapping
+          )
+      in
 
-      let sameDef = unchangedHeader && sizeEqual in
+      let sameDef = unchangedHeader && flag in
       if not sameDef then
         (false, None, emptyRenameMapping)
       else
@@ -70,8 +95,8 @@ let eqF (a: Cil.fundec) (b: Cil.fundec) (cfgs : (cfg * (cfg * cfg)) option) (glo
         | Some (cfgOld, (cfgNew, cfgNewBack)) ->
           let module CfgOld : MyCFG.CfgForward = struct let next = cfgOld end in
           let module CfgNew : MyCFG.CfgBidir = struct let prev = cfgNewBack let next = cfgNew end in
-          let matches, diffNodes1 = compareFun (module CfgOld) (module CfgNew) a b in
-          if diffNodes1 = [] then (true, None, emptyRenameMapping)
-          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1}, emptyRenameMapping)
+          let matches, diffNodes1, updated_rename_mapping = compareFun (module CfgOld) (module CfgNew) a b rename_mapping in
+          if diffNodes1 = [] then (true, None, updated_rename_mapping)
+          else (false, Some {unchangedNodes = matches; primObsoleteNodes = diffNodes1}, updated_rename_mapping)
   in
   identical, unchangedHeader, diffOpt, renamed_method_dependencies, renamed_global_vars_dependencies, renamesOnSuccess
