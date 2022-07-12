@@ -953,6 +953,12 @@
           "enum": ["ast", "cfg"],
           "default": "ast"
         },
+        "detect-renames": {
+          "title": "incremental.detect-renames",
+          "description": "If Goblint should try to detect renamed local variables, function parameters, functions and global variables",
+          "type":"boolean",
+          "default": true
+        },
         "force-reanalyze": {
           "title": "incremental.force-reanalyze",
           "type": "object",

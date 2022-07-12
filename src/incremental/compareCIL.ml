@@ -41,12 +41,13 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   global_typ_acc := [];
   let findChanges map global =
     try
-      let isGFun = match global with
-        | GFun _-> true (* set to true later to disable finding changes for funs*)
+      let skipFindChanges = match global with
+        | GFun _-> true
+        | GVar _ -> true
         | _ -> false
       in
 
-      if not isGFun then
+      if not skipFindChanges || not (GobConfig.get_bool "incremental.detect-renames") then
         let ident = identifier_of_global global in
         let old_global = GlobalMap.find ident map in
         (* Do a (recursive) equal comparison ignoring location information *)
@@ -60,44 +61,46 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   (* Store a map from functionNames in the old file to the function definition*)
   let oldMap = Cil.foldGlobals oldAST addGlobal GlobalMap.empty in
 
-  let renameDetectionResults = detectRenamedFunctions oldAST newAST in
+  if GobConfig.get_bool "incremental.detect-renames" then (
+    let renameDetectionResults = detectRenamedFunctions oldAST newAST in
 
-  if Messages.tracing then
-    GlobalElemMap.to_seq renameDetectionResults |>
-    Seq.iter
-      (fun (gT, (functionGlobal, status)) ->
-         Messages.trace "compareCIL" "Function status of %s is=" (globalElemName gT);
-         match status with
-         | Unchanged _ ->  Messages.trace "compareCIL" "Same Name\n";
-         | Added ->  Messages.trace "compareCIL" "Added\n";
-         | Removed ->  Messages.trace "compareCIL" "Removed\n";
-         | Changed _ ->  Messages.trace "compareCIL" "Changed\n";
-         | UnchangedButRenamed toFrom ->
-           match toFrom with
-           | GFun (f, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" f.svar.vname;
-           | GVar(v, _, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" v.vname;
-           | _ -> ();
-      );
+    if Messages.tracing then
+      GlobalElemMap.to_seq renameDetectionResults |>
+      Seq.iter
+        (fun (gT, (functionGlobal, status)) ->
+           Messages.trace "compareCIL" "Function status of %s is=" (globalElemName gT);
+           match status with
+           | Unchanged _ ->  Messages.trace "compareCIL" "Same Name\n";
+           | Added ->  Messages.trace "compareCIL" "Added\n";
+           | Removed ->  Messages.trace "compareCIL" "Removed\n";
+           | Changed _ ->  Messages.trace "compareCIL" "Changed\n";
+           | UnchangedButRenamed toFrom ->
+             match toFrom with
+             | GFun (f, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" f.svar.vname;
+             | GVar(v, _, _) ->  Messages.trace "compareCIL" "Renamed to %s\n" v.vname;
+             | _ -> ();
+        );
+
+    let unchanged, changed, added, removed = GlobalElemMap.fold (fun _ (global, status) (u, c, a, r) ->
+        match status with
+        | Unchanged now -> (u @ [{old=global; current=now}], c, a, r)
+        | UnchangedButRenamed now -> (u @ [{old=global; current=now}], c, a, r)
+        | Added -> (u, c, a @ [global], r)
+        | Removed -> (u, c, a, r @ [global])
+        | Changed (now, unchangedHeader) -> (u, c @ [{old=global; current=now; unchangedHeader=unchangedHeader; diff=None}], a, r)
+      ) renameDetectionResults (changes.unchanged, changes.changed, changes.added, changes.removed)
+    in
+
+    changes.added <- added;
+    changes.removed <- removed;
+    changes.changed <- changed;
+    changes.unchanged <- unchanged;
+  ) else ();
 
   (*  For each function in the new file, check whether a function with the same name
       already existed in the old version, and whether it is the same function. *)
   Cil.iterGlobals newAST
     (fun glob -> findChanges oldMap glob);
-
-  let unchanged, changed, added, removed = GlobalElemMap.fold (fun _ (global, status) (u, c, a, r) ->
-      match status with
-      | Unchanged now -> (u @ [{old=global; current=now}], c, a, r)
-      | UnchangedButRenamed now -> (u @ [{old=global; current=now}], c, a, r)
-      | Added -> (u, c, a @ [global], r)
-      | Removed -> (u, c, a, r @ [global])
-      | Changed (now, unchangedHeader) -> (u, c @ [{old=global; current=now; unchangedHeader=unchangedHeader; diff=None}], a, r)
-    ) renameDetectionResults (changes.unchanged, changes.changed, changes.added, changes.removed)
-  in
-
-  changes.added <- added;
-  changes.removed <- removed;
-  changes.changed <- changed;
-  changes.unchanged <- unchanged;
 
   changes
 

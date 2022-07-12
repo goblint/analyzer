@@ -24,16 +24,19 @@ let emptyRenameMapping: rename_mapping = (StringMap.empty, VarinfoMap.empty, Var
   1. there is a rename for name1 -> name2 = rename(name1)
   2. there is no rename for name1 -> name1 = name2*)
 let rename_mapping_aware_name_comparison (name1: string) (name2: string) (rename_mapping: rename_mapping) =
-  let (local_c, method_c, _, _) = rename_mapping in
-  let existingAssumption: string option = StringMap.find_opt name1 local_c in
+  if GobConfig.get_bool "incremental.detect-renames" then (
+    let (local_c, method_c, _, _) = rename_mapping in
+    let existingAssumption: string option = StringMap.find_opt name1 local_c in
 
-  match existingAssumption with
-  | Some now ->
-    (*Printf.printf "Assumption is: %s -> %s\n" original now;*)
-    now = name2
-  | None ->
-    (*Printf.printf "No assumption when %s, %s, %b\n" name1 name2 (name1 = name2);*)
-    name1 = name2 (*Var names differ, but there is no assumption, so this can't be good*)
+    match existingAssumption with
+    | Some now ->
+      (*Printf.printf "Assumption is: %s -> %s\n" original now;*)
+      now = name2
+    | None ->
+      (*Printf.printf "No assumption when %s, %s, %b\n" name1 name2 (name1 = name2);*)
+      name1 = name2 (*Var names differ, but there is no assumption, so this can't be good*)
+  )
+  else name1 = name2
 
 (*Creates the mapping of local renames. If the locals do not match in size, an empty mapping is returned.*)
 let create_locals_rename_mapping (originalLocalNames: string list) (updatedLocalNames: string list): string StringMap.t =
