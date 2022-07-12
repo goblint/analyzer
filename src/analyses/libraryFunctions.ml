@@ -15,7 +15,7 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
-    ("assert", special [__ "cond" [r]] @@ fun cond -> Assert cond);
+    ("assert", special [__ "cond" []] @@ fun cond -> Assert cond);
   ]
 
 (** C POSIX library functions.

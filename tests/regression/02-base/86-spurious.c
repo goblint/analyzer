@@ -11,7 +11,9 @@ void* producer(void* param) {
 
 void* consumer(void* param) {
     pthread_mutex_lock(&lock1);
-    assert(counter >= 0); //NOWARN
+    int bla = counter >= 0;
+    // This should not produce a warning about the privatization being unsound
+    assert(counter >= 0);
     pthread_mutex_unlock(&lock1);
 }
 
