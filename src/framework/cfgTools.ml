@@ -601,8 +601,7 @@ let iter_fd_edges (module Cfg : CfgBackward) fd =
 let fprint_fundec_html_dot (module Cfg : CfgBidir) live fd out =
   let module HtmlExtraNodeStyles =
   struct
-    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* \N is graphviz special for node ID *)
-
+    let defaultNodeStyles = ["id=\"\\N\""; "URL=\"javascript:show_info('\\N');\""; "style=filled"; "fillcolor=white"] (* The \N is graphviz special for node ID. *)
     let extraNodeStyles n =
       if live n then
         []
