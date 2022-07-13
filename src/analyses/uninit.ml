@@ -113,7 +113,7 @@ struct
         GobOption.exists (is_prefix_of a) (Addr.to_var_offset addr)
       in
       if D.exists f st then begin
-        Messages.warn "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
+        M.error ~category:M.Category.Behavior.Undefined.uninitialized ~tags:[CWE 457] "Uninitialized variable %a accessed." Addr.pretty (Addr.from_var_offset a);
         false
       end else
         t in
