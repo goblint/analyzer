@@ -695,7 +695,7 @@ struct
     in
     let r =
     match exp with
-    | BinOp (op,arg1,arg2,_) -> binop op arg1 arg2
+    | BinOp (op,arg1,arg2,_) when Cil.isIntegralType (Cilfacade.typeOf exp) -> binop op arg1 arg2
     | _ -> eval_next ()
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
