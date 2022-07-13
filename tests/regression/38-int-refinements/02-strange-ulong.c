@@ -1,25 +1,6 @@
 // PARAM: --enable ana.int.interval --set ana.int.refinement once
 #include <assert.h>
 
-int main() {
-  withint();
-  withuint();
-  withlong();
-  withlonglong();
-  withulonglong();
-
-  unsigned long i = 0;
-  void* bla;
-
-  while(i < 10000) {
-    i++;
-    bla = &main;
-  }
-
-  assert(1); // reachable
-  return 0;
-}
-
 int withint() {
   int i = 0;
   void* bla;
@@ -74,6 +55,25 @@ int withlonglong() {
 
 int withulonglong() {
   unsigned long long i = 0;
+  void* bla;
+
+  while(i < 10000) {
+    i++;
+    bla = &main;
+  }
+
+  assert(1); // reachable
+  return 0;
+}
+
+int main() {
+  withint();
+  withuint();
+  withlong();
+  withlonglong();
+  withulonglong();
+
+  unsigned long i = 0;
   void* bla;
 
   while(i < 10000) {
