@@ -766,7 +766,7 @@ struct
                     if contains_vla t || contains_vla (get_type_addr (x, o)) then
                       begin
                         (* TODO: Is this ok? *)
-                        M.warn "Casting involving a VLA is assumed to work";
+                        M.warn ~category:Unsound "Casting involving a VLA is assumed to work";
                         true
                       end
                     else
@@ -994,7 +994,6 @@ struct
     let r = match eval_rv_no_ask_evalint ask gs st e with
       | `Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
       | `Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
-      (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
       | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
@@ -1025,12 +1024,12 @@ struct
     try
       let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
       if AD.mem Addr.UnknownPtr fp then begin
-        M.warn "Function pointer %a may contain unknown functions." d_exp fval;
+        M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;
         dummyFunDec.svar :: AD.to_var_may fp
       end else
         AD.to_var_may fp
     with SetDomain.Unsupported _ ->
-      M.warn "Unknown call to function %a." d_exp fval;
+      M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;
       [dummyFunDec.svar]
 
   (** Evaluate expression as address.
@@ -1321,7 +1320,7 @@ struct
             with Cilfacade.TypeOfError _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-              M.warn "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
+              M.warn ~category:Analzyer "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
               lval_type
       in
       let update_offset old_value =
@@ -1454,7 +1453,7 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "set" ~var:firstvar "set got an exception '%s'\n" x; *)
-      M.warn "Assignment to unknown address"; st
+      M.warn ~category:Unsound "Assignment to unknown address"; st
 
   let set_many ~ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -1658,7 +1657,7 @@ struct
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if GobOption.exists (BI.equal BI.zero) (ID.to_int x) then
-          (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
+          (M.warn ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
           ID.top_of ikind)
         else
           x
@@ -2038,7 +2037,7 @@ struct
       | None -> nst
       | Some exp ->
         let t_override = match Cilfacade.fundec_return_type fundec with
-          | TVoid _ -> M.warn "Returning a value from a void function"; assert false
+          | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
           | ret -> ret
         in
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
@@ -2265,7 +2264,7 @@ struct
       end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise "Unknown function ptr called");
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in

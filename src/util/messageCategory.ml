@@ -37,6 +37,7 @@ type category =
   | Unsound
   | Imprecise
   | Witness
+  | Program
 [@@deriving eq, ord, hash]
 
 type t = category [@@deriving eq, ord, hash]
@@ -175,6 +176,7 @@ let should_warn e =
     | Unsound -> "unsound"
     | Imprecise -> "imprecise"
     | Witness -> "witness"
+    | Program -> "program"
   in get_bool ("warn." ^ (to_string e))
 
 let path_show e =
@@ -191,6 +193,7 @@ let path_show e =
   | Unsound -> ["Unsound"]
   | Imprecise -> ["Imprecise"]
   | Witness -> ["Witness"]
+  | Program -> ["Program"]
 
 let show x = String.concat " > " (path_show x)
 
@@ -217,6 +220,7 @@ let categoryName = function
   | Unsound -> "Unsound"
   | Imprecise -> "Imprecise"
   | Witness -> "Witness"
+  | Program -> "Program"
 
   | Behavior x -> behaviorName x
   | Integer x -> match x with
