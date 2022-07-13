@@ -1,0 +1,13 @@
+--- tests/incremental/05-method-rename/08-recursive_rename.c
++++ tests/incremental/05-method-rename/08-recursive_rename.c
+@@ -1,7 +1,7 @@
+-void foo(int x) {
+-    if(x > 1) foo(x - 1);
++void bar(int x) {
++    if(x > 1) bar(x - 1);
+ }
+
+ int main() {
+-    foo(10);
++    bar(10);
+ }
