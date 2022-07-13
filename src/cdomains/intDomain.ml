@@ -2802,7 +2802,7 @@ module IntDomTupleImpl = struct
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
-      if n>1 then Messages.warn "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort, but we need some unsound category *)
+      if n>1 then Messages.warn ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort, but we need some unsound category *)
       None
     )
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_int }
