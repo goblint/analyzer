@@ -1,6 +1,8 @@
 // PARAM: --enable ana.int.interval --set ana.int.refinement once
 #include <assert.h>
 
+int main();
+
 int withint() {
   int i = 0;
   void* bla;
