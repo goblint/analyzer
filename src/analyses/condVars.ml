@@ -64,7 +64,7 @@ struct
     | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
-          M.debug "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
+          M.debug ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
           Queries.LS.remove top_elt a
         ) else a
       in
@@ -104,7 +104,7 @@ struct
     let save_expr lval expr =
       match mustPointTo ctx (AddrOf lval) with
       | Some clval ->
-        M.debug "CondVars: saving %a = %a" Lval.CilLval.pretty clval d_exp expr;
+        if M.tracing then M.tracel "condvars" "CondVars: saving %a = %a" Lval.CilLval.pretty clval d_exp expr;
         D.add clval (D.V.singleton expr) d (* if lval must point to clval, add expr *)
       | None -> d
     in
