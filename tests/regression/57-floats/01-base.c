@@ -8,8 +8,8 @@
 int main()
 {
     // ensure that complex floats just do not do anything
-    double _Complex c = 0.;
-    assert(c == 0.); // UNKNOWN
+    double _Complex cplx = 0.;
+    assert(cplx == 0.); // UNKNOWN
 
     double x, a = 2., b = 3. + 1;
     float y, c = 2.f, d = 3.f + 1;

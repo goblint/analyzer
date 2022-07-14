@@ -22,7 +22,7 @@ int main()
     long l;
     unsigned u;
 
-    // Casts from double/flout/long double into different variants of ints
+    // Casts from double/float/long double into different variants of ints
     assert((int)0.0);       // FAIL
     assert((long)0.0);      // FAIL
     assert((unsigned)0.0);  // FAIL
@@ -43,7 +43,7 @@ int main()
     assert((long)2.0l);     // SUCCESS
     assert((int)3.0l);      // SUCCESS
 
-    // Cast from int into double/flaot/long double
+    // Cast from int into double/float/long double
     assert((double)0);  // FAIL
     assert((double)0l); // FAIL
     assert((double)0u); // FAIL
