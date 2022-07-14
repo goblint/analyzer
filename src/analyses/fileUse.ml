@@ -234,7 +234,7 @@ struct
         let m = check_overwrite_open k m in
         (match arglist with
          | Const(CStr(filename,_))::Const(CStr(mode,_))::[] ->
-           (* M.debug @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
+           (* M.debug ~category:Analyzer @@ "fopen(\""^filename^"\", \""^mode^"\")"; *)
            D.fopen k loc filename mode m |> split_err_branch lval (* TODO k instead of lval? *)
          | e::Const(CStr(mode,_))::[] ->
            (* ignore(printf "CIL: %a\n" d_plainexp e); *)
@@ -244,7 +244,7 @@ struct
            )
          | xs ->
            let args = (String.concat ", " (List.map (sprint d_exp) xs)) in
-           M.debug "fopen args: %s" args;
+           M.debug ~category:Analyzer "fopen args: %s" args;
            (* List.iter (fun exp -> ignore(printf "%a\n" d_plainexp exp)) xs; *)
            D.warn @@ "[Program]fopen needs two strings as arguments, given: "^args; m
         )
