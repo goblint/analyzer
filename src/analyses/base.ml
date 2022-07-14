@@ -2590,35 +2590,39 @@ struct
       end
     (**Floating point classification and trigonometric functions defined in c99*)
     | Math { fun_args; }, _ ->
-      let apply_unary float_fun x =
+      let apply_unary fk float_fun x =
         let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
         begin match eval_x with
-          | `Float float_x -> float_fun float_x
+          | `Float float_x -> float_fun (FD.cast_to fk float_x)
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
-      let apply_binary float_fun x y =
+      let apply_binary fk float_fun x y =
         let eval_x = eval_rv (Analyses.ask_of_ctx ctx) gs st x in
         let eval_y = eval_rv (Analyses.ask_of_ctx ctx) gs st y in
         begin match eval_x, eval_y with
-          | `Float float_x, `Float float_y -> float_fun float_x float_y
+          | `Float float_x, `Float float_y -> float_fun (FD.cast_to fk float_x) (FD.cast_to fk float_y)
           | _ -> failwith ("non-floating-point argument in call to function "^f.vname)
         end
       in
       let result =
         begin match fun_args with
-          | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FD.isfinite x))
-          | Isinf x -> `Int (ID.cast_to IInt (apply_unary FD.isinf x))
-          | Isnan x -> `Int (ID.cast_to IInt (apply_unary FD.isnan x))
-          | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FD.isnormal x))
-          | Signbit x -> `Int (ID.cast_to IInt (apply_unary FD.signbit x))
-          | Acos x -> `Float (apply_unary FD.acos x)
-          | Asin x -> `Float (apply_unary FD.asin x)
-          | Atan x -> `Float (apply_unary FD.atan x)
-          | Atan2 (y, x) -> `Float (apply_binary (fun y' x' -> FD.atan (FD.div y' x')) y x)
-          | Cos x -> `Float (apply_unary FD.cos x)
-          | Sin x -> `Float (apply_unary FD.sin x)
-          | Tan x -> `Float (apply_unary FD.tan x)
+          | Nan (fk, str) when Cil.isPointerType (Cilfacade.typeOf str) -> `Float (FD.top_of fk)
+          | Nan _ -> failwith ("non-pointer argument in call to function "^f.vname)
+          | Inf fk -> `Float (FD.top_of fk)
+          | Isfinite x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isfinite x))
+          | Isinf x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isinf x))
+          | Isnan x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnan x))
+          | Isnormal x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.isnormal x))
+          | Signbit x -> `Int (ID.cast_to IInt (apply_unary FDouble FD.signbit x))
+          | Fabs (fk, x) -> `Float (apply_unary fk FD.fabs x)
+          | Acos (fk, x) -> `Float (apply_unary fk FD.acos x)
+          | Asin (fk, x) -> `Float (apply_unary fk FD.asin x)
+          | Atan (fk, x) -> `Float (apply_unary fk FD.atan x)
+          | Atan2 (fk, y, x) -> `Float (apply_binary fk (fun y' x' -> FD.atan (FD.div y' x')) y x)
+          | Cos (fk, x) -> `Float (apply_unary fk FD.cos x)
+          | Sin (fk, x) -> `Float (apply_unary fk FD.sin x)
+          | Tan (fk, x) -> `Float (apply_unary fk FD.tan x)
         end
       in
       begin match lv with

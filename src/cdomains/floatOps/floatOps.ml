@@ -28,6 +28,7 @@ module type CFloatType = sig
   val to_string: t -> string
 
   val neg: t -> t
+  val fabs: t -> t
   val add: round_mode -> t -> t -> t
   val sub: round_mode -> t -> t -> t
   val mul: round_mode -> t -> t -> t
@@ -64,6 +65,7 @@ module CDouble = struct
   let to_string = Float.to_string
 
   let neg = Float.neg
+  let fabs = Float.abs
   external add: round_mode -> t -> t -> t = "add_double"
   external sub: round_mode -> t -> t -> t = "sub_double"
   external mul: round_mode -> t -> t -> t = "mul_double"
@@ -94,6 +96,7 @@ module CFloat = struct
   let to_string = Float.to_string
 
   let neg = Float.neg
+  let fabs = Float.abs
   external add: round_mode -> t -> t -> t = "add_float"
   external sub: round_mode -> t -> t -> t = "sub_float"
   external mul: round_mode -> t -> t -> t = "mul_float"

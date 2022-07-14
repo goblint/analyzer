@@ -18,6 +18,8 @@ module type FloatArith = sig
   (** Division: [x / y] *)
 
   (** {unary functions} *)
+  val fabs : t -> t
+  (** fabs(x) *)
   val acos : t -> t
   (** acos(x) *)
   val asin : t -> t

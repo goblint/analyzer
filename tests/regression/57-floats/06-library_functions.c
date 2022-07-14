@@ -2,12 +2,13 @@
 #include <assert.h>
 #include <math.h>
 #include <float.h>
+#include <complex.h>
 
 int main()
 {
     double dbl_min = 2.2250738585072014e-308;
-    double inf = 1. / 0.;
-    double nan = 0. / 0.;
+    double inf = __builtin_inf();
+    double nan = __builtin_nan("");
 
     //__buitin_isfinite(x):
     assert(__builtin_isfinite(1.0)); // SUCCESS
@@ -44,6 +45,12 @@ int main()
     assert(__builtin_signbit(inf));  // UNKNOWN
     assert(__builtin_signbit(-inf)); // UNKNOWN
     assert(__builtin_signbit(nan));  // UNKNOWN
+
+    // fabs(x):
+    assert(4. == fabs(-4.));         // SUCCESS
+    assert(0. <= fabs(cos(0.1)));    // SUCCESS
+    assert(0. <= fabs(-inf));        // UNKNOWN
+    assert(0. <= fabs(nan));         // UNKNOWN
 
     double greater_than_pi = 3.142;
     // acos(x):
