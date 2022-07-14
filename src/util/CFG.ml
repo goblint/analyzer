@@ -99,11 +99,290 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
     | _ -> ChangeDoChildrenPost(rename_labels s, after)
 end
 
+(*loop unroll heuristics*)
+(*used if autoselect is activated*)
+
+(*simple fixed loop iterations: 
+  - one single break with a comparison of a single integral local variable against a constant
+  - before the loop the variable is assigned a constant (or never assigned)
+  - only one assign to this variable inside the loop with a fixed difference to before
+  - no pointer to this variable is used (to make the last two things checkable)
+
+  We can't use succs/preds, because they get computed with the CFG, and the loop unrolling has to happen before
+  TODO: gotos inside the loop could make the iteration not fixed, but are ignored for now
+  TODO: some parts do not support switch statements yet 
+  *)
+
+(*exceptions to break out of visitors. two to make purpose clear*)
+exception WrongOrMultiple
+exception Found
+class checkNoBreakVisitor = object
+  inherit nopCilVisitor
+  
+  method! vstmt stmt =
+    match stmt.skind with 
+      | Loop _ 
+      | Switch _ -> SkipChildren (*Breaks in inner loops/switch are fine*)
+      | Break _ -> raise WrongOrMultiple
+      | _ -> DoChildren
+
+end
+
+let checkNoBreakStmt stmt =
+  let visitor = new checkNoBreakVisitor in
+  ignore @@ visitCilStmt visitor stmt
+
+let checkNoBreakBlock block =
+  let visitor = new checkNoBreakVisitor in
+  ignore @@ visitCilBlock visitor block
+
+class findBreakVisitor(compOption: exp option ref) = object
+  inherit nopCilVisitor
+
+  method! vstmt stmt = 
+    match stmt.skind with 
+      | Block _ -> DoChildren
+      | Break _ -> raise WrongOrMultiple
+      | If (cond, t, e, _, _) ->  (
+          checkNoBreakBlock t;
+          match e.bstmts with 
+            | [s] -> ( 
+              match s.skind with 
+              | Break _ -> (
+                match !compOption with 
+                  | Some _ -> raise WrongOrMultiple (*more than one loop break*)
+                  | _ -> compOption := Some cond; SkipChildren
+                )
+              | _ -> checkNoBreakStmt stmt; SkipChildren
+            )
+            | _ -> checkNoBreakStmt stmt; SkipChildren
+        )
+      | _ ->  SkipChildren 
+
+end
+
+class isPointedAtVisitor(var) = object
+  inherit nopCilVisitor
+
+  method! vexpr = function
+    | AddrOf (Var info, NoOffset) when info.vid == var.vid -> raise Found
+    | _ -> DoChildren
+end
+
+class hasAssignmentVisitor(var) = object
+  inherit nopCilVisitor
+
+  method! vinst = function
+    | Set ((Var info, NoOffset),_,_,_) when info.vid == var.vid -> raise Found
+    | _ -> SkipChildren
+end
+
+let hasAssignmentTo var block = try
+  let visitor = new hasAssignmentVisitor(var) in
+  ignore  @@ visitCilBlock visitor block;
+  false
+  with | Found -> true
+
+class findAssignmentConstDiff((diff: int option ref), var) = object
+  inherit nopCilVisitor
+
+  method! vstmt stmt = match stmt.skind with 
+    | Loop _ 
+    | Instr _ 
+    | Block _ -> DoChildren
+    | If (_, t, e, _, _) -> 
+      if hasAssignmentTo var t || hasAssignmentTo var t then 
+        raise WrongOrMultiple
+      else SkipChildren 
+    | Switch (_,b,_,_,_) -> 
+      if hasAssignmentTo var b then 
+        raise WrongOrMultiple
+      else SkipChildren  
+    | _ -> SkipChildren
+
+  method! vinst = function
+    | Set ((Var v, NoOffset), BinOp (PlusA, Const (CInt (cint,_,_)), Lval (Var v2, NoOffset), _ ),_,_) 
+    | Set ((Var v, NoOffset), BinOp (PlusA, Lval (Var v2, NoOffset), Const (CInt (cint,_,_)), _ ),_,_) when v.vid = var.vid && v2.vid = var.vid ->
+     ( match !diff with 
+      | Some _ -> raise WrongOrMultiple 
+      | _ -> diff := Some (cilint_to_int cint); SkipChildren
+     )
+    | Set ((Var v, NoOffset), BinOp (MinusA, Lval (Var v2, NoOffset), Const (CInt (cint,_,_)), _ ),_,_) when v.vid = var.vid && v2.vid = var.vid ->
+     ( match !diff with 
+      | Some _ -> raise WrongOrMultiple 
+      | _ -> diff := Some (- (cilint_to_int cint)); SkipChildren
+     )
+    | Set ((Var v, NoOffset), _,_,_) when v.vid = var.vid  -> raise WrongOrMultiple 
+    | _ -> SkipChildren
+end
+
+let isCompare = function 
+  | Lt | Gt |	Le | Ge | Ne -> true (*an loop that test for equality can not be of the type we look for*)
+  | _ -> false
+
+let loopBody loopStatement = match loopStatement.skind with 
+| Loop (b,_,_,_,_) -> b
+| _ -> failwith "loopBody on non loop"
+let loopLocation loopStatement = match loopStatement.skind with 
+| Loop (_,l,_,_,_) -> l
+| _ -> failwith "loopLocation on non loop" 
+
+type assignment = 
+  | NoAssign
+  | Const of int
+  | Other
+
+let classifyInstruction var = function
+  | Set (((Var info), NoOffset), Const(CInt (i,_,_)), _,_) when info.vid = var.vid -> Const (cilint_to_int i)
+  | Set (((Var info), NoOffset), _                       , _,_) when info.vid = var.vid -> Other
+  | _ -> NoAssign
+
+let lastAssignToVar var insList = 
+  let reverse = List.rev_map (classifyInstruction var) insList in
+  let rec firstAssign = function
+    | NoAssign::rest -> firstAssign rest
+    | s::_ -> s
+    | [] -> NoAssign
+  in firstAssign reverse 
+
+(*find the last assignment to var before loop in f*)
+(*return it if it is a constant and not inside a conditional branch*)
+let constBefore var loop f = 
+  let targetLocation = loopLocation loop
+  in let rec lastAssignmentToVarBeforeLoop (current: (int option)) (statements: stmt list) = match statements with
+    | st::stmts -> (
+      let current' = if st.labels <> [] then (print_endline "has Label"; (None)) else current in
+      match st.skind with
+        | Instr list -> (
+          match lastAssignToVar var list with 
+            | NoAssign -> lastAssignmentToVarBeforeLoop current' stmts
+            | Other -> lastAssignmentToVarBeforeLoop (None) stmts
+            | Const i -> lastAssignmentToVarBeforeLoop (Some i) stmts
+        )
+        | If (_, t, e, _, _) -> (
+          match lastAssignmentToVarBeforeLoop current' t.bstmts with 
+            | (_, false) -> (
+              match lastAssignmentToVarBeforeLoop current' e.bstmts with 
+                | (_, false) -> (*neither the then nor the else part contain loop*)
+                  if hasAssignmentTo var t || hasAssignmentTo var e then
+                    lastAssignmentToVarBeforeLoop (None) stmts (*because we do not know which path has been taken, invalidate previous assignment*)
+                  else
+                    lastAssignmentToVarBeforeLoop (current') stmts
+                | c -> c
+            )
+            | c -> c
+        )
+        | Loop (block, loc,_,_,_) -> (      
+          if CilType.Location.equal loc targetLocation then ( (*sid is not initialised at this point-> use location to identify loop*)
+          (current', true) (*Stop iteration at the searched for loop*)
+        ) else
+          match lastAssignmentToVarBeforeLoop current' block.bstmts with 
+            | (_, false) -> (
+              if hasAssignmentTo var block then
+                lastAssignmentToVarBeforeLoop (None) stmts
+              else
+                lastAssignmentToVarBeforeLoop (current') stmts
+            )
+            | c -> c
+          )
+        | Block block ->
+          let (l, f) = lastAssignmentToVarBeforeLoop current' block.bstmts in
+          if f then
+            (l,f)
+          else 
+            lastAssignmentToVarBeforeLoop l stmts
+        | Switch _ -> (None, false) (*TODO handle switch*)
+        | _-> lastAssignmentToVarBeforeLoop (None) stmts (*the control flow could only go further if a goto jumps to this*)
+      )
+    | [] -> (current, false) (*we did not have the loop inside these statements*)
+  in
+  fst @@ lastAssignmentToVarBeforeLoop (Some 0) f.sbody.bstmts (*the top level call should never return false*)
+
+let rec loopIterations start diff comp = 
+  let flip = function
+    | Lt -> Gt
+    | Gt -> Lt
+    | Ge -> Le
+    | Le -> Ge
+    | s -> s
+  in let loopIterations' goal shouldBeExact =
+    let range = goal - start in 
+    if diff = 0 || range = 0 || (diff > 0 && range < 0) ||  (diff < 0 && range > 0) then 
+      None (*unfitting parameters*)
+    else (  
+      let roundedDown = range / diff in
+      let isExact = roundedDown * diff = range in
+      if isExact then
+        Some roundedDown
+      else if shouldBeExact then 
+        None
+      else
+        Some (roundedDown +1)
+    )
+  in 
+  match comp with 
+    | BinOp (op, (Const _ as c), var, t) -> loopIterations start diff (BinOp (flip op, var, c, t))
+    | BinOp (Lt, _, (Const (CInt (cint,_,_) )), _) -> if diff < 0 then None else loopIterations' (cilint_to_int cint) false
+    | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if diff > 0 then None else loopIterations' (cilint_to_int cint) false
+    | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if diff < 0 then None else loopIterations' (cilint_to_int cint + 1) false
+    | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if diff > 0 then None else loopIterations' (cilint_to_int cint - 1) false
+    | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' (cilint_to_int cint) false
+    | _ -> failwith "unexpected comparison in loopIterations"
+
+let ( >>= ) = Option.bind
+let fixedLoopSize loopStatement func = 
+  let findBreakComparison = try (*find a single break in the else branch of a toplevel if*)
+    let compOption = ref None in
+    let visitor = new findBreakVisitor(compOption) in
+    ignore @@ visitCilBlock visitor (loopBody loopStatement);
+    !compOption
+    with | WrongOrMultiple ->  None
+  in let getLoopVar = function
+    | BinOp (op, (Const (CInt _ )), Lval ((Var info), NoOffset), (TInt _))
+    | BinOp (op, Lval ((Var info), NoOffset), (Const (CInt _ )), (TInt _)) when isCompare op ->
+      Some info
+    | _ -> None
+  in let getsPointedAt var = try
+    let visitor = new isPointedAtVisitor(var) in
+    ignore  @@ visitCilFunction visitor func;
+    false
+    with | Found -> true
+  in let assignmentDifference loop var = try
+    let diff = ref None in
+    let visitor = new findAssignmentConstDiff(diff, var) in
+    ignore @@ visitCilStmt visitor loop;
+    !diff
+    with | WrongOrMultiple ->  None
+  in let ( >>= ) = Option.bind
+  in
+
+  findBreakComparison >>= fun comparison ->
+  getLoopVar comparison >>= fun var ->
+  if getsPointedAt var then 
+    None
+  else
+    constBefore var loopStatement func >>= fun start ->
+  assignmentDifference loopStatement var >>= fun diff ->
+  print_endline "comparison: ";
+  Pretty.fprint stdout (dn_exp () comparison) ~width:50;
+  print_endline "";
+  print_endline "variable: ";
+  print_endline var.vname;
+  print_endline "start:";
+  print_endline @@ string_of_int start;
+  print_endline "diff:";
+  print_endline @@ string_of_int diff;
+  let iterations = loopIterations start diff comparison in
+  (match iterations with 
+    |None -> print_endline "iterations failed";
+    | Some s ->  
+      print_endline "iterations:";
+      print_endline @@ string_of_int s
+  );
+  iterations
 
 (*unroll loops that handle locks, threads and mallocs*)
-(*used if autoselect is activated*)
-exception UnrollReasonFound
-class loopUnrollingFactorVisitor = object
+class loopUnrollingCallVisitor = object
   inherit nopCilVisitor
 
   method! vinst = function
@@ -117,63 +396,72 @@ class loopUnrollingFactorVisitor = object
         | Unlock _
         | ThreadCreate _
         | ThreadJoin _ -> 
-          raise UnrollReasonFound;
+          raise Found;
         | _ -> ();
       DoChildren;)
     | _ -> DoChildren
 
 end
 
-let loop_unrolling_factor loopStatement = 
+let loop_unrolling_factor loopStatement func = 
   let configFactor = get_int "exp.unrolling-factor" in
-  if get_bool "ana.autoselect" then (
-    let thisVisitor = new loopUnrollingFactorVisitor in
-    try 
+  let unrollFunctionCalled = try
+      let thisVisitor = new loopUnrollingCallVisitor in
       ignore (visitCilStmt thisVisitor loopStatement);
-      configFactor; (*fallback to explicit setting, 0 by default*)
+      false;
     with
-      UnrollReasonFound -> Int.max configFactor 10 (*unroll loops further, but not less than "exp.unrolling-factor"*)
-  ) 
-  else configFactor
+    Found -> true 
+  in
+  (*unroll up to near an instruction count, higher if the loop uses malloc/lock/threads *)
+  let targetInstructions = if unrollFunctionCalled then 50 else 25 in
+  let loopStats = AutoSelect.collectFactors visitCilStmt loopStatement in
+  let targetFactor = if loopStats.instructions > 0 then targetInstructions / loopStats.instructions else 0 in (* Don't unroll empty (= while(1){}) loops*)
+  let fixedLoop = fixedLoopSize loopStatement func in
+  if not @@ get_bool "ana.autoselect" then 
+    configFactor 
+  else 
+    match fixedLoop with 
+      | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else targetFactor
+      | _ -> targetFactor
+  
 
-class loopUnrollingVisitor = object
+class loopUnrollingVisitor(func) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
   inherit nopCilVisitor
 
   method! vstmt s =
     match s.skind with
     | Loop (b,loc, loc2, break , continue) ->
-      let factor = loop_unrolling_factor s in
       let duplicate_and_rem_labels s =
-        match s.skind with
-        | Loop (b,loc, loc2, break , continue) ->
-          (* We copy the statement to later be able to modify it without worrying about invariants *)
-          let s = { s with sid = s.sid } in
-          
-          (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
-          let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, true)]} in
-          (* continues should go to the next unrolling *)
-          let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, true)]} in
-          (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
-          let current_continue_target = ref dummyStmt in
-          let patcher = new copyandPatchLabelsVisitor (ref break_target, ref current_continue_target) in
-          let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
-          let copies = List.init (factor) (fun i ->
-              current_continue_target := continue_target i;
-              mkStmt (Block (mkBlock [one_copy (); !current_continue_target])))
-          in
-          mkStmt (Block (mkBlock (copies@[s]@[break_target])))
-        | _ -> failwith "invariant broken"
-      in
-      if(factor > 0) then
-        ChangeDoChildrenPost({s with sid = s.sid},duplicate_and_rem_labels)
-      else
-        DoChildren
+        let factor = loop_unrolling_factor s func in
+        if(factor > 0) then (
+          print_endline @@ "unrolling loop at " ^ CilType.Location.show loc ^" with factor " ^ string_of_int factor;
+          match s.skind with
+          | Loop (b,loc, loc2, break , continue) ->
+            (* We copy the statement to later be able to modify it without worrying about invariants *)
+            let s = { s with sid = s.sid } in
+            
+            (* top-level breaks should immediately go to the end of the loop, and not just break out of the current iteration *)
+            let break_target = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel "loop_end",loc, true)]} in
+            (* continues should go to the next unrolling *)
+            let continue_target i = { (Cil.mkEmptyStmt ()) with labels = [Label (Cil.freshLabel ("loop_continue_" ^ (string_of_int i)),loc, true)]} in
+            (* passed as a reference so we can reuse the patcher for all unrollings of the current loop *)
+            let current_continue_target = ref dummyStmt in
+            let patcher = new copyandPatchLabelsVisitor (ref break_target, ref current_continue_target) in
+            let one_copy () = visitCilStmt patcher (mkStmt (Block (mkBlock b.bstmts))) in
+            let copies = List.init (factor) (fun i ->
+                current_continue_target := continue_target i;
+                mkStmt (Block (mkBlock [one_copy (); !current_continue_target])))
+            in
+            mkStmt (Block (mkBlock (copies@[s]@[break_target])))
+          | _ -> failwith "invariant broken"
+        ) else s (*no change*)
+      in ChangeDoChildrenPost({s with sid = s.sid},duplicate_and_rem_labels);
     | _ -> DoChildren
 end
 
 let loop_unrolling fd =
-  let thisVisitor = new loopUnrollingVisitor in
+  let thisVisitor = new loopUnrollingVisitor(fd) in
   ignore (visitCilFunction thisVisitor fd)
 
 
