@@ -334,13 +334,13 @@ struct
     in
     let r =
       if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
-      then ((*Messages.warn "No PT-set: switching to types ";*) type_may_change_apt a )
+      then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
     (*    if r
-          then (Messages.warn ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          else (Messages.warn ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          Messages.warn ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
+          then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
     *)    r
 
   (* Remove elements, that would change if the given lval would change.*)
