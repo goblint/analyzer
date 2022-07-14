@@ -254,10 +254,11 @@ struct
     in
     (* The main function! *)
     match a1,a2 with
-    (* For the integer values, we apply the domain operator *)
+    (* For the integer values, we apply the int domain operator *)
     | `Int v1, `Int v2 ->
       let result_ik = Cilfacade.get_ikind t in
       `Int (ID.cast_to result_ik (binop_ID result_ik op v1 v2))
+    (* For the float values, we apply the float domain operators *)
     | `Float v1, `Float v2 when is_int_returning_binop_FD op ->
       let result_ik = Cilfacade.get_ikind t in
       `Int (ID.cast_to result_ik (int_returning_binop_FD op v1 v2))
@@ -694,9 +695,9 @@ struct
       | _ -> eval_next ()
     in
     let r =
-    match exp with
-    | BinOp (op,arg1,arg2,_) when Cil.isIntegralType (Cilfacade.typeOf exp) -> binop op arg1 arg2
-    | _ -> eval_next ()
+      match exp with
+      | BinOp (op,arg1,arg2,_) when Cil.isIntegralType (Cilfacade.typeOf exp) -> binop op arg1 arg2
+      | _ -> eval_next ()
     in
     if M.tracing then M.traceu "evalint" "base eval_rv_ask_mustbeequal %a -> %a\n" d_exp exp VD.pretty r;
     r
@@ -2063,8 +2064,8 @@ struct
         | _ -> false
       in
       let itv = (* int abstraction for tv *)
-        (* when using floats without explicit cast, we can actually get a non-integer type -> this produces a warning *)
-        let ik = Cilfacade.get_ikind_exp exp in
+        (* when using floats without explicit cast, we can actually get a non-integer type *)
+        let ik = try Cilfacade.get_ikind_exp exp with Invalid_argument _ -> IInt in
         if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
           ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
         else

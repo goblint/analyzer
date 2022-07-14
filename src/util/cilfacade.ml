@@ -328,9 +328,7 @@ let get_fkind t =
   (* important to unroll the type here, otherwise problems with typedefs *)
   match Cil.unrollType t with
   | TFloat (fk,_) -> fk
-  | _ ->
-    Messages.warn "Something that we expected to be a float type has a different type, assuming it is an FDouble";
-    Cil.FDouble
+  | _ -> invalid_arg ("Cilfacade.get_fkind: non-float type " ^ CilType.Typ.show t)
 
 let ptrdiff_ikind () = get_ikind !ptrdiffType
 
