@@ -259,8 +259,9 @@ struct
     | TInt (ik,_), TFloat (fk,_) (* does a1 fit into ik's range? *)
     | TFloat (fk,_), TInt (ik,_) (* can a1 be represented as fk? *)
       -> false (* TODO precision *)
-    | _ -> IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
-  (*| _ -> false*)
+    | (TInt _ | TEnum _ | TPtr _) , (TInt _ | TEnum _ | TPtr _) ->
+      IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
+    | _ -> false
 
   let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
 
