@@ -20,6 +20,8 @@ module type FloatArith = sig
   (** Division: [x / y] *)
 
   (** {unary functions} *)
+  val fabs : t -> t
+  (** fabs(x) *)
   val acos : t -> t
   (** acos(x) *)
   val asin : t -> t
@@ -408,6 +410,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   (**This Constant overapproximates pi to use as bounds for the return values of trigonometric functions *)
   let overapprox_pi = 3.1416
 
+  let eval_fabs = function
+    | (l, h) when l > Float_t.zero -> Interval (l, h)
+    | (l, h) when h < Float_t.zero -> neg (Interval (l, h))
+    | (l, h) -> Interval (Float_t.zero, max (Float_t.fabs l) (Float_t.fabs h))
+
   let eval_acos = function
     | (l, h) when l = h && l = Float_t.of_float Nearest 1. -> of_const 0. (*acos(1) = 0*)
     | (l, h) ->
@@ -444,6 +451,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
   let isnormal = eval_unop unknown_IInt eval_isnormal
   let signbit = eval_unop unknown_IInt eval_signbit
 
+  let fabs = eval_unop (top ()) eval_fabs
   let acos = eval_unop (top ()) eval_acos
   let asin = eval_unop (top ()) eval_asin
   let atan = eval_unop (top ()) eval_atan
@@ -535,6 +543,7 @@ module FloatIntervalImplLifted = struct
       failwith "unsupported fkind"
 
   let neg = lift (F1.neg, F2.neg)
+  let fabs = lift (F1.fabs, F2.fabs)
   let acos = lift (F1.acos, F2.acos)
   let asin = lift (F1.asin, F2.asin)
   let atan = lift (F1.atan, F2.atan)
@@ -738,6 +747,8 @@ module FloatDomTupleImpl = struct
   let neg =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.neg); }
   (* f1: unary functions *)
+  let fabs =
+    map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.fabs); }
   let acos =
     map { f1= (fun (type a) (module F : FloatDomain with type t = a) -> F.acos); }
   let asin =
