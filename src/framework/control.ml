@@ -160,10 +160,11 @@ struct
       printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled_fn_loc); (* We can only give total LoC if we counted dead code *)
     );
     let str = function true -> "then" | false -> "else" in
+    let cilinserted = function true -> "(inserted by CIL) " | false -> "" in
     let report tv (loc, dead) =
       match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
-      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
+      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch %sover expression '%a' is dead" (str tv) (cilinserted loc.synthetic) d_exp exp
+      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch %sis dead" (str tv)  (cilinserted loc.synthetic)
       | _ -> ()
     in
     if get_bool "dbg.print_dead_code" then (
