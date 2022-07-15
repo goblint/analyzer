@@ -179,6 +179,13 @@
       "type": "integer",
       "default": 1
     },
+    "alldeadcode": {
+      "title": "alldeadcode",
+      "description":
+        "Report on all dead code, disables removing of dead branches over constants in CIL",
+      "type": "boolean",
+      "default": false
+    },
     "goblint-dir": {
       "title": "goblint-dir",
       "description": "Directory used for intermediate data.",
