@@ -22,14 +22,17 @@ invalid_solver = 0
 introduced_changes = 0
 renamed_a_function = 0
 
+# to support library headers, first clone https://github.com/eliben/pycparser to the directory next of the analyzer folder.
+# Then comment the lines out and in that are described that way.
+
 def main():
     regression_folder = Path("./tests/regression")
 
-    task = TaskRenameFunction()
+    task = TaskRenameLocals(False)
 
-    # test = regression_folder / "23-partitioned_arrays_last/06-interprocedural.c"
-    # execute_validation_test(test.parent, test, task)
-    # return
+    test = regression_folder / "25-vla/02-loop.c"
+    execute_validation_test(test.parent, test, task)
+    return
 
     excluded = [
         "44-trier_analyzer/33-recA.c",
@@ -110,6 +113,7 @@ def execute_validation_test(folder: Path, test_file: Path, task):
             print("Skipped test.")
             skips += 1
             return False
+        # comment this if out if you want to support library headers
         if any(x.startswith("#include") for x in lines):
             print("Skipped test because of include")
             includes += 1
@@ -140,6 +144,16 @@ def execute_validation_test(folder: Path, test_file: Path, task):
     base = "./"
 
     args = f"--enable dbg.debug --enable printstats -v {extra_params}"
+
+    # uncomment to support library headers.
+    # with tempfile.NamedTemporaryFile() as t:
+    #     subprocess.run(f"cpp -E -I../pycparser/utils/fake_libc_include {test_file} > {t.name}", shell=True)
+    #
+    #
+    #     x = subprocess.run(f"./goblint {args} --enable incremental.save {t.name}", shell=True, text=True, capture_output=True)
+    #     if x.returncode != 0:
+    #         includes += 1
+    #         return False
 
     subprocess.run(f"./goblint {args} --enable incremental.save {test_file}", shell=True, capture_output=True)
 
@@ -349,6 +363,10 @@ class RenameFunctionVisitor(c_ast.NodeVisitor):
 
 def create_modified_file(source_file: Path, task):
     try:
+        # uncommet to support library headers.
+        # gcc = subprocess.run(f"cpp -E -I../pycparser/utils/fake_libc_include {source_file}", shell=True, capture_output=True, text=True)
+
+        # ast = c_parser.CParser().parse(gcc.stdout)
         ast = parse_file(source_file, use_cpp=True)
 
         introduced_change = False
@@ -389,7 +407,7 @@ def create_modified_file(source_file: Path, task):
 
             introduced_change = False
 
-        print(CGenerator().visit(ast))
+        # print(CGenerator().visit(ast))
 
         tmp = tempfile.NamedTemporaryFile()
         with open(tmp.name, "w") as f:
