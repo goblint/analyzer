@@ -34,7 +34,7 @@ module ParamParser (R : Request) = struct
   let parse params =
     let maybe_params =
       params
-      |> Option.map_default Message.Structured.to_json `Null
+      |> Option.map_default Structured.yojson_of_t `Null
       |> R.params_of_yojson
     in
     match maybe_params with
@@ -46,25 +46,25 @@ module ParamParser (R : Request) = struct
       | _ -> Error err
 end
 
-let handle_request (serv: t) (message: Message.either) (id: Id.t) =
-  let req = Hashtbl.find_option registry message.method_ in
+let handle_request (serv: t) (request: Request.t) =
+  let req = Hashtbl.find_option registry request.method_ in
   let response = match req with
     | Some (module R) ->
       let module Parser = ParamParser (R) in (
-        match Parser.parse message.params with
+        match Parser.parse request.params with
         | Ok params -> (
             try
               Maingoblint.reset_stats ();
               let r =
                 R.process params serv
                 |> R.response_to_yojson
-                |> Response.ok id
+                |> Response.ok request.id
               in
               Maingoblint.do_stats ();
               r
-            with Failure (code, message) -> Response.Error.(make ~code ~message () |> Response.error id))
-        | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error id))
-    | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:message.method_ () |> Response.error id)
+            with Failure (code, message) -> Response.Error.(make ~code ~message () |> Response.error request.id))
+        | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error request.id))
+    | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:request.method_ () |> Response.error request.id)
   in
   Response.yojson_of_t response |> Yojson.Safe.to_string |> IO.write_line serv.output;
   IO.flush serv.output
@@ -74,10 +74,10 @@ let serve serv =
   |> Lexing.from_channel
   |> Yojson.Safe.seq_from_lexbuf (Yojson.init_lexer ())
   |> Seq.iter (fun json ->
-      let message = Message.either_of_yojson json in
-      match message.id with
-      | Some id -> handle_request serv message id
-      | _ -> () (* We just ignore notifications for now. *)
+      let packet = Packet.t_of_yojson json in
+      match packet with
+      | Request request -> handle_request serv request
+      | _ -> () (* We just ignore others for now. *)
     )
 
 let make ?(input=stdin) ?(output=stdout) file : t =

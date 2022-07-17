@@ -42,7 +42,7 @@
     fpath
     dune-site
     json-data-encoding
-    (jsonrpc (< 1.12))
+    (jsonrpc (>= 1.12))
     (sha (>= 1.12))
     cpu
     arg-complete

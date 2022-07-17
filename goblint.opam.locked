@@ -54,7 +54,7 @@ depends: [
   "goblint-cil" {= "1.8.2"}
   "integers" {= "0.7.0"}
   "json-data-encoding" {= "0.11"}
-  "jsonrpc" {= "1.10.3"}
+  "jsonrpc" {= "1.12.4"}
   "logs" {= "0.7.0"}
   "mlgmpidl" {= "1.2.14"}
   "num" {= "1.4"}
