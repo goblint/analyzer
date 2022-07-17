@@ -46,7 +46,7 @@ module ParamParser (R : Request) = struct
       | _ -> Error err
 end
 
-let handle_request (serv: t) (request: Request.t) =
+let handle_request (serv: t) (request: Request.t): Response.t =
   let req = Hashtbl.find_option registry request.method_ in
   let response = match req with
     | Some (module R) ->
@@ -66,19 +66,31 @@ let handle_request (serv: t) (request: Request.t) =
         | Error message -> Response.Error.(make ~code:Code.InvalidParams ~message () |> Response.error request.id))
     | _ -> Response.Error.(make ~code:Code.MethodNotFound ~message:request.method_ () |> Response.error request.id)
   in
-  Response.yojson_of_t response |> Yojson.Safe.to_string |> IO.write_line serv.output;
-  IO.flush serv.output
+  response
+
+let handle_packet (serv: t) (packet: Packet.t) =
+  let response_packet: Packet.t option = match packet with
+    | Request request -> Some (Response (handle_request serv request))
+    | Batch_call subpackets ->
+      let responses = List.filter_map (function
+          | `Request request -> Some (handle_request serv request)
+          | _ -> None (* ignore others for now *)
+        ) subpackets in
+      Some (Batch_response responses)
+    | _ -> None (* ignore others for now *)
+  in
+  match response_packet with
+  | Some response_packet ->
+    Packet.yojson_of_t response_packet |> Yojson.Safe.to_string |> IO.write_line serv.output;
+    IO.flush serv.output
+  | None -> ()
 
 let serve serv =
   serv.input
   |> Lexing.from_channel
   |> Yojson.Safe.seq_from_lexbuf (Yojson.init_lexer ())
-  |> Seq.iter (fun json ->
-      let packet = Packet.t_of_yojson json in
-      match packet with
-      | Request request -> handle_request serv request
-      | _ -> () (* We just ignore others for now. *)
-    )
+  |> Seq.map Packet.t_of_yojson
+  |> Seq.iter (handle_packet serv)
 
 let make ?(input=stdin) ?(output=stdout) file : t =
   let max_ids = MaxIdUtil.get_file_max_ids file in
