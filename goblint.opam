@@ -24,6 +24,7 @@ depends: [
   "goblint-cil" {>= "1.8.2"}
   "batteries" {>= "3.4.0"}
   "zarith" {>= "1.8"}
+  "yojson" {>= "2.0.0"}
   "qcheck-core"
   "ppx_distr_guards" {>= "0.2"}
   "ppx_deriving"
@@ -37,7 +38,7 @@ depends: [
   "fpath"
   "dune-site"
   "json-data-encoding"
-  "jsonrpc" {< "1.12"}
+  "jsonrpc" {>= "1.12"}
   "sha" {>= "1.12"}
   "cpu"
   "arg-complete"
