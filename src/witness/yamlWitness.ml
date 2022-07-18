@@ -225,10 +225,16 @@ struct
       ) nh []
     in
 
-    (* Mapping of (reachable) functions to *)
-    let fun_contexts : con_inv list FMap.t = FMap.create 103 in
 
-    (* Generate precondition invariants *)
+    (* Generate precondition invariants.
+       We do this in three steps:
+       1. Collect contexts for each function
+       2. For each function context, find "matching"/"weaker" contexts that may satisfy its invariant
+       3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states.
+    *)
+
+    (* 1. Collect contexts for functions *)
+    let fun_contexts : con_inv list FMap.t = FMap.create 103 in
     LHT.iter (fun (n, c) local ->
         begin match n with
           | FunctionEntry f ->
@@ -241,12 +247,11 @@ struct
         end
       ) lh;
 
-    (* Group contexts together *)
+    (* 2. Group contexts together *)
     let fc_map : con_inv list FCMap.t = FCMap.create 103 in
-
     FMap.iter (fun f con_invs ->
         List.iter (fun current_c ->
-            (* compare all invariants with current_c *)
+            (* Collect all start states with current_c *)
             List.iter (fun c ->
                 begin match current_c.invariant with
                   | Some c_inv ->
@@ -258,33 +263,52 @@ struct
                       (* Insert c into the list of weaker contexts of f *)
                       FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
                     end
-                  | None -> ()
+                  | None ->
+                    (* If the context invariant is None, we will not generate a precondition invariant,
+                       so we don't have to do anything here. *)
+                    ()
                 end
               ) con_invs;
           ) con_invs;
-        (* compare and group invariants *)
       ) fun_contexts;
 
+    (** Given [(n,c)] retrieves all [(n,c')], with [c'] such that [(f, c')] may satisfy the precondition generated for [c].*)
+    let find_matching_states ((n, c) : LHT.key) =
+      let f = Node.find_fundec n in
+      let contexts =  FCMap.find fc_map (f, c) in
+      List.filter_map (fun c -> LHT.find_option lh (n, c.context)) contexts
+    in
 
-    (* Generate precondition invariants *)
+    (* 3. Generate precondition invariants *)
     let entries = LHT.fold (fun (n, c) local acc ->
         if is_invariant_node n then begin
           let context = node_context n in
-          begin match Spec.C.invariant context c, Spec.D.invariant context local with
-            | Some c_inv, Some inv ->
+          begin match Spec.C.invariant context c with
+            | Some c_inv ->
               let loc = Node.location n in
-              (* TODO: group by precondition *)
-              let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
-              let invs = WitnessUtil.InvariantExp.process_exp inv in
-              List.fold_left (fun acc inv ->
-                  let location_function = (Node.find_fundec n).svar.vname in
-                  let location = Entry.location ~location:loc ~location_function in
-                  let precondition = Entry.invariant (CilType.Exp.show c_inv) in
-                  let invariant = Entry.invariant (CilType.Exp.show inv) in
-                  let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
-                  entry :: acc
-                ) acc invs
-            | _, _ -> (* TODO: handle some other combination? *)
+              (* Find contexts/state that also satisfy the precondtion *)
+              let xs = find_matching_states (n, c) in
+              let invs = List.map (fun local -> Spec.D.invariant context local) xs in
+              (* TODO: Check what happens when invariant generation may fail for some states *)
+              begin match invs with
+                | [] -> acc
+                | x::xs ->
+                  begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
+                    | Some inv ->
+                      let invs = WitnessUtil.InvariantExp.process_exp inv in
+                      let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
+                      List.fold_left (fun acc inv ->
+                          let location_function = (Node.find_fundec n).svar.vname in
+                          let location = Entry.location ~location:loc ~location_function in
+                          let precondition = Entry.invariant (CilType.Exp.show c_inv) in
+                          let invariant = Entry.invariant (CilType.Exp.show inv) in
+                          let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
+                          entry :: acc
+                        ) acc invs
+                    | None -> acc
+                  end
+              end
+            | _ -> (* Do not construct precondition invariants if we cannot express precondition *)
               acc
           end
         end else begin
