@@ -55,13 +55,13 @@ struct
   module ThreadNode = struct
     include Printable.Prod3 (ThreadIdDomain.ThreadLifted) (Node) (Chain)
 
-    (* Description that gets appended to the varinfo-name in user ouptut. *)
+    (* Description that gets appended to the varinfo-name in user output. *)
     let describe_varinfo (v: varinfo) (t, node, c) =
       let loc = UpdateCil.getLoc node in
       CilType.Location.show loc
 
     let name_varinfo (t, node, c) =
-      Format.asprintf "(allocs@%s@%s(#%s))" (ThreadLifted.show t) (Node.show node) (Chain.show c)
+      Format.asprintf "(alloc@sid:%s@tid:%s(#%s))" (Node.show_id node) (ThreadLifted.show t) (Chain.show c)
 
   end
 
