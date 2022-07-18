@@ -110,12 +110,12 @@ let yaml_entries_to_file yaml_entries file =
   Batteries.output_file ~filename:(Fpath.to_string file) ~text
 
 module Query
-  (Spec : Spec)
-  (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
-                          and module GVar = GVarF (Spec.V)
-                          and module D = Spec.D
-                          and module G = Spec.G)
-  (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+    (Spec : Spec)
+    (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
+                            and module GVar = GVarF (Spec.V)
+                            and module D = Spec.D
+                            and module G = Spec.G)
+    (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
 struct
   let ask_local (gh: Spec.G.t GHT.t) (lvar:EQSys.LVar.t) local =
     (* build a ctx for using the query system *)
