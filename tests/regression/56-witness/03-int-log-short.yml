@@ -8,7 +8,7 @@
       version: heads/int-log-0-g5f8473450-dirty
       command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''03-int-log-short.c''
         ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
-        ''printstats'' ''true'' ''--enable'' ''dbg.print_dead_code'' ''--set'' ''goblint-dir''
+        ''printstats'' ''true'' ''--set'' ''goblint-dir''
         ''.goblint-56-03'''
     task:
       input_files:
@@ -37,7 +37,7 @@
       version: heads/int-log-0-g5f8473450-dirty
       command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''03-int-log-short.c''
         ''--enable'' ''witness.yaml.enabled'' ''--set'' ''dbg.debug'' ''true'' ''--set''
-        ''printstats'' ''true'' ''--enable'' ''dbg.print_dead_code'' ''--set'' ''goblint-dir''
+        ''printstats'' ''true'' ''--set'' ''goblint-dir''
         ''.goblint-56-03'''
     task:
       input_files:

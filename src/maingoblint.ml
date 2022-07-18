@@ -51,7 +51,9 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
       set_string "outfile" "result";
     if get_string "exp.g2html_path" = "" then
       set_string "exp.g2html_path" (Fpath.to_string exe_dir);
-    set_bool "dbg.print_dead_code" true;
+    set_bool "ana.dead-code.lines" true;
+    set_bool "ana.dead-code.branches" true;
+    set_bool "ana.dead-code.functions" true;
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
     set_string "result" "fast_xml"
@@ -59,7 +61,9 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let configure_sarif () =
     if (get_string "outfile" = "") then
       set_string "outfile" "goblint.sarif";
-    set_bool "dbg.print_dead_code" true;
+    set_bool "ana.dead-code.lines" true;
+    set_bool "ana.dead-code.branches" true;
+    set_bool "ana.dead-code.functions" true;
     set_string "result" "sarif"
   in
   let complete_option_value option s =
