@@ -23,7 +23,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
             |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
-            |> lift (get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches") (module DeadBranchLifter)
+            |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
