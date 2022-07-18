@@ -40,12 +40,6 @@ struct
         |> add malloc (count + 1)
   end
 
-  module Domain = struct
-    include Lattice.Prod (MallocCounter) (PL)
-
-    let get_count (counter, _) node = MallocCounter.find (`Lifted node) counter
-  end
-
   module ThreadNode = struct
     include Printable.Prod3 (ThreadIdDomain.ThreadLifted) (Node) (Chain)
 
@@ -61,8 +55,8 @@ struct
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
   let name () = "mallocWrapper"
-    
-  module D = Domain
+
+  module D = Lattice.Prod (MallocCounter) (PL)
   module C = D
 
   module Q = Queries
@@ -119,14 +113,15 @@ struct
 
 
   let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Queries.result =
-    let _, wrapper_node = ctx.local in
+    let counter, wrapper_node = ctx.local in
     match q with
     | Q.HeapVar ->
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
         | _ -> ctx.prev_node
       in
-      let var = get_heap_var (ctx.ask Q.CurrentThreadId, node, D.get_count ctx.local node) in
+      let count = MallocCounter.find (`Lifted node) counter in
+      let var = get_heap_var (ctx.ask Q.CurrentThreadId, node, count) in
       var.vdecl <- UpdateCil.getLoc node; (* TODO: does this do anything bad for incremental? *)
       `Lifted var
     | Q.IsHeapVar v ->
