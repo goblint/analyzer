@@ -1,4 +1,4 @@
-// PARAM: --set ana.activated ["'base'","'mallocWrapper'"]  --enable exp.earlyglobs
+// PARAM: --set ana.activated ["'base'","'mallocWrapper'"]  --enable exp.earlyglobs --set ana.base.privatization none
 // same as 32-earlyglobs.c but only using the base analysis instead of all default analyses
 // earlyglobs was unsound without the threadflag analysis
 // https://github.com/goblint/analyzer/issues/177

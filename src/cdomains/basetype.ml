@@ -1,109 +1,54 @@
 module GU = Goblintutil
 open Cil
-open Deriving.Cil
-open Pretty
 
-module ProgLines : Printable.S with type t = location =
+
+(** Location with special alphanumeric output for extraction. *)
+module ExtractLocation : Printable.S with type t = location =
 struct
-  include Printable.Std
-  type t = location [@@deriving to_yojson]
-  let copy x = x
-  let equal x y =
-    x.line = y.line && x.file = y.file (* ignores byte field *)
-  let compare x y = compare (x.file, x.line) (y.file, y.line) (* ignores byte field *)
-  let hash x = Hashtbl.hash (x.line, x.file)
-  let show x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "??"
-  let pretty () x = text (show x)
-  let name () = "proglines"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-end
+  include CilType.Location
 
-module ProgLocation : Printable.S with type t = location =
-struct
-  include Printable.Std (* for default invariant, tag, ... *)
-
-  open Pretty
-  type t = location [@@deriving to_yojson]
-  let equal = (=)
-  let compare = compare
-  let hash = Hashtbl.hash
-  (* let short _ x = if x <> locUnknown then Filename.basename x.file ^ ":" ^ string_of_int x.line else "S" *)
   let show loc =
     let f i = (if i < 0 then "n" else "") ^ string_of_int (abs i) in
     f loc.line ^ "b" ^ f loc.byte
-  let show x = show x
-  let pretty () x = text (show x)
-  let name () = "proglines_byte"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-end
-
-module ProgLinesFun: Printable.S with type t = location * MyCFG.node * fundec =
-struct
-  include Printable.Std
-  type t = location * MyCFG.node * fundec [@@deriving to_yojson]
-  let copy x = x
-  let equal (x,a,_) (y,b,_) = ProgLines.equal x y && MyCFG.Node.equal a b (* ignores fundec component *)
-  let compare (x,a,_) (y,b,_) = match ProgLines.compare x y with 0 -> MyCFG.node_compare a b | x -> x (* ignores fundec component *)
-  let hash (x,a,f) = ProgLines.hash x * MyCFG.Node.hash a (* ignores fundec component *)
-  let pretty_node () (l,x) =
-    match x with
-    | MyCFG.Statement     s -> dprintf "statement \"%a\" at %a" dn_stmt s ProgLines.pretty l
-    | MyCFG.Function      f -> dprintf "result of %s at %a" f.svar.vname ProgLines.pretty l
-    | MyCFG.FunctionEntry f -> dprintf "entry state of %s at %a" f.svar.vname ProgLines.pretty l
-
-  let show (x,a,f) = ProgLines.show x ^ "(" ^ f.svar.vname ^ ")"
-  let pretty () x = text (show x)
-  let name () = "proglinesfun"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
+  include Printable.SimpleShow (
+    struct
+      type nonrec t = t
+      let show = show
+    end
+    )
 end
 
 module Variables =
 struct
   include CilType.Varinfo
   let trace_enabled = true
-  let is_global v = v.vglob
-  let copy x = x
-  let show x = GU.demangle x.vname
+  let show x =
+    if RichVarinfo.BiVarinfoMap.Collection.mem_varinfo x then
+      let description = RichVarinfo.BiVarinfoMap.Collection.describe_varinfo x in
+      "(" ^ x.vname ^ ", " ^ description ^ ")"
+    else x.vname
   let pretty () x = Pretty.text (show x)
-  let pretty_trace () x = Pretty.dprintf "%s on %a" x.vname ProgLines.pretty x.vdecl
-  let get_location x = x.vdecl
-  type group = Global | Local | Context | Parameter | Temp [@@deriving show { with_path = false }]
+  type group = Global | Local | Parameter | Temp [@@deriving show { with_path = false }]
   let (%) = Batteries.(%)
   let to_group = Option.some % function
     | x when x.vglob -> Global
     | x when x.vdecl.line = -1 -> Temp
-    | x when x.vdecl.line = -3 -> Parameter
-    | x when x.vdecl.line = -4 -> Context
+    | x when Cilfacade.is_varinfo_formal x -> Parameter
     | _ -> Local
   let name () = "variables"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let category _ = -1
-  let line_nr a = a.vdecl.line
-  let file_name a = a.vdecl.file
-  let description n = sprint 80 (pretty_trace () n)
-  let context () _ = Pretty.nil
-  let loopSep _ = true
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-  let var_id _ = "globals"
-  let node _ = MyCFG.Function Cil.dummyFunDec
 
   let arbitrary () = MyCheck.Arbitrary.varinfo
 end
 
-
 module RawStrings: Printable.S with type t = string =
 struct
-  include Printable.StdPolyCompare
+  include Printable.Std
   open Pretty
-  type t = string [@@deriving eq, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
+  type t = string [@@deriving eq, ord, hash, to_yojson]
   let show x = "\"" ^ x ^ "\""
   let pretty () x = text (show x)
   let name () = "raw strings"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
 end
 
@@ -115,14 +60,12 @@ module Strings: Lattice.S with type t = [`Bot | `Lifted of string | `Top] =
 
 module RawBools: Printable.S with type t = bool =
 struct
-  include Printable.StdPolyCompare
+  include Printable.Std
   open Pretty
-  type t = bool [@@deriving eq, to_yojson]
-  let hash (x:t) = Hashtbl.hash x
+  type t = bool [@@deriving eq, ord, hash, to_yojson]
   let show (x:t) =  if x then "true" else "false"
   let pretty () x = text (show x)
   let name () = "raw bools"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (show x)
 end
 
@@ -135,7 +78,6 @@ module Bools: Lattice.S with type t = [`Bot | `Lifted of bool | `Top] =
 module CilExp =
 struct
   include CilType.Exp
-  let copy x = x
 
   let name () = "expressions"
 
@@ -153,10 +95,20 @@ struct
     match e with
     | Lval l -> occurs_lv l
     | AddrOf l -> occurs_lv l
-    | UnOp (_,e,_) -> occurs x e
+    | StartOf l -> occurs_lv l
+    | UnOp (_,e,_)
+    | Real e
+    | Imag e
+    | SizeOfE e
+    | AlignOfE e -> occurs x e
     | BinOp (_,e1,e2,_) -> occurs x e1 || occurs x e2
     | CastE (_,e) -> occurs x e
-    | _ -> false
+    | Question (b, t, f, _) -> occurs x b || occurs x t || occurs x f
+    | Const _
+    | SizeOf _
+    | SizeOfStr _
+    | AlignOf _
+    | AddrOfLabel _ -> false
 
   let replace (x:varinfo) (exp: exp) (e:exp): exp =
     let rec replace_lv (v,offs): lval =
@@ -172,11 +124,21 @@ struct
       match e with
       | Lval (Var y, NoOffset) when Variables.equal x y -> exp
       | Lval l -> Lval (replace_lv l)
-      | AddrOf l -> Lval (replace_lv l)
+      | AddrOf l -> Lval (replace_lv l) (* TODO: should be AddrOf? *)
+      | StartOf l -> StartOf (replace_lv l)
       | UnOp (op,e,t) -> UnOp (op, replace_rv e, t)
       | BinOp (op,e1,e2,t) -> BinOp (op, replace_rv e1, replace_rv e2, t)
       | CastE (t,e) -> CastE(t, replace_rv e)
-      | x -> x
+      | Real e -> Real (replace_rv e)
+      | Imag e -> Imag (replace_rv e)
+      | SizeOfE e -> SizeOfE (replace_rv e)
+      | AlignOfE e -> AlignOfE (replace_rv e)
+      | Question (b, t, f, typ) -> Question (replace_rv b, replace_rv t, replace_rv f, typ)
+      | Const _
+      | SizeOf _
+      | SizeOfStr _
+      | AlignOf _
+      | AddrOfLabel _ -> e
     in
     constFold true (replace_rv e)
 
@@ -191,7 +153,7 @@ struct
     | AlignOf _
     | Question _
     | AddrOf _
-    | StartOf _ -> []
+    | StartOf _ -> [] (* TODO: return not empty, some may contain vars! *)
     | UnOp (_, e, _ )
     | CastE (_, e)
     | Real e
@@ -199,105 +161,20 @@ struct
     | BinOp (_, e1, e2, _) -> (get_vars e1)@(get_vars e2)
     | Lval (Var v, _) -> [v]
     | Lval (Mem e',_) -> (get_vars e')
-
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilStmt: Printable.S with type t = stmt =
 struct
   include CilType.Stmt
-  let copy x = x
   let show x = "<stmt>"
-  let pretty () x =
-    match x.skind with
-    | Instr (y::ys) -> dn_instr () y
-    | If (exp,_,_,_) -> dn_exp () exp
-    | _ -> dn_stmt () x
+  let pretty = Cilfacade.stmt_pretty_short
 
   let name () = "expressions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-end
-
-module CilFun: Printable.S with type t = varinfo =
-struct
-  include CilType.Varinfo
-  let copy x = x
-  let name () = "functions"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-end
-
-module CilFundec =
-struct
-  include CilType.Fundec
-  let copy x = x
-  let name () = "function decs"
-  let dummy = dummyFunDec
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end
 
 module CilField =
 struct
   include Printable.Std (* for default MapDomain.Groupable *)
   include CilType.Fieldinfo
-  let copy x = x
-
-  let name () = "field"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-end
-
-module FieldVariables =
-struct
-  include Printable.Std
-
-  type t = varinfo*fieldinfo option [@@deriving to_yojson]
-
-  let gen v = (v,None)
-  let gen_f v f = (v,Some f)
-
-  let get_var x = fst x
-  let get_field x = snd x
-
-  let has_field x = match get_field x with
-    | Some x -> true
-    | _ -> false
-
-  let apply_field f default v = match get_field v with
-    | Some x -> f x
-    | _ -> default
-
-  let is_global v = (get_var v).vglob
-  let copy x = x
-  let equal x y = CilType.Varinfo.equal (get_var x) (get_var y) && (apply_field (fun v->v.fname) "" x)=(apply_field (fun v->v.fname) "" y)
-
-  let show x = GU.demangle (get_var x).vname^
-                  (*"("^string_of_int (get_var x).vid ^")"^*)
-                  (apply_field (fun x->"::"^x.fname) "" x)
-
-  let compare x y = let cmp = CilType.Varinfo.compare (get_var x) (get_var y) in
-    if cmp = 0 then
-      compare (apply_field (fun v->v.fname) "" x) (apply_field (fun v->v.fname) "" y)
-    else
-      cmp
-
-  let hash x = Hashtbl.hash ((get_var x).vid,(apply_field (fun x->"::"^x.fname) "" x))
-
-  let pretty () x = Pretty.text (show x)
-  let pretty_trace () x = let name = show x in
-    Pretty.dprintf "%s on %a" name ProgLines.pretty (get_var x).vdecl
-
-  let get_location x = (get_var x).vdecl
-  let to_group x = Variables.to_group (get_var x)
-
-  let name () = "variables and fields"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
-  let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
-end
-
-module CilType =
-struct
-  include CilType.Typ
-
-  let name () = "types"
-  let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
 end

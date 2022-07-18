@@ -4,12 +4,12 @@
 
 open Prelude.Ana
 open Analyses
+open Cilint
 
 module Spec : Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
   module D = Lattice.Unit
-  module G = Lattice.Unit
   module C = Lattice.Unit
 
   let name () = "expRelation"
@@ -47,38 +47,40 @@ struct
       | x -> x
 
   let isFloat e =
-    match Cil.unrollTypeDeep (Cil.typeOf e) with
+    match Cil.unrollTypeDeep (Cilfacade.typeOf e) with
     | TFloat _ -> true
     | _ -> false
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
     let lvalsEq l1 l2 = CilType.Lval.equal l1 l2 in (* == would be wrong here *)
     match q with
-    | Queries.MustBeEqual (e1, e2) when not (isFloat e1) ->
-      Basetype.CilExp.equal (canonize e1) (canonize e2)
-    | Queries.MayBeLess (e1, e2) when not (isFloat e1) ->
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) && Basetype.CilExp.equal (canonize e1) (canonize e2) ->
+      Queries.ID.of_bool (Cilfacade.get_ikind t) true
+    | Queries.EvalInt (BinOp (Lt, e1, e2, t)) when not (isFloat e1) ->
       begin
+        (* Compare the cilint first in the hope that it is cheaper than the LVal comparison *)
         match e1, e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-            false  (* c > 0 => (! x+c < x) *)
-        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-            false  (* c < 0 => (! x < x+c )*)
-        | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2 when (lvalsEq l1 l2 && Int64.compare i Int64.zero < 0) ->
-            false  (* c < 0 => (! x-c < x) *)
-        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2 && Int64.compare i Int64.zero > 0) ->
-            false  (* c < 0 => (! x < x-c) *)
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c > 0 => (! x+c < x) *)
+        | Lval l1, BinOp(PlusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x < x+c )*)
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2 when (compare_cilint i zero_cilint < 0 && lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c < 0 => (! x-c < x) *)
+        | Lval l1, BinOp(MinusA, Lval l2, Const(CInt(i,_,_)), _) when (compare_cilint i zero_cilint > 0 && lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false  (* c > 0 => (! x < x-c) *)
         | _ ->
-            true
+          Queries.ID.top ()
       end
-    | Queries.MayBeEqual (e1,e2) when not (isFloat e1) ->
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when not (isFloat e1) ->
       begin
         match e1,e2 with
-        | BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt64(i,_,_)), _)
-        | BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _), Lval l2
-        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt64(i,_,_)), _) when (lvalsEq l1 l2) && Int64.compare i Int64.zero <> 0  ->
-            false
-        | _ -> true
+        | BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
+        | Lval l2, BinOp(PlusA, Lval l1, Const(CInt(i,_,_)), _)
+        | BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _), Lval l2
+        | Lval l2, BinOp(MinusA, Lval l1, Const(CInt(i,_,_)), _) when compare_cilint i zero_cilint <> 0 && (lvalsEq l1 l2) ->
+          Queries.ID.of_bool (Cilfacade.get_ikind t) false
+        | _ ->
+          Queries.ID.top ()
       end
     | _ -> Queries.Result.top q
 

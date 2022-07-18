@@ -10,7 +10,7 @@ let narrow f = if GobConfig.get_bool "exp.no-narrow" then (fun a b -> a) else f
 (** the SLR3 box solver *)
 module SLR3 =
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     include Generic.SolverStats (S) (HM)
@@ -18,8 +18,7 @@ module SLR3 =
 
     module P =
     struct
-      type t = S.Var.t * S.Var.t [@@deriving eq]
-      let hash  (x1,x2)         = (S.Var.hash x1 * 13) + S.Var.hash x2
+      type t = S.Var.t * S.Var.t [@@deriving eq, hash]
     end
 
     module HPM = Hashtbl.Make (P)
@@ -149,23 +148,6 @@ module SLR3 =
       while (H.size !q <> 0) do
         solve (extract_min q)
       done;
-
-      let reachability xs =
-        let reachable = HM.create (HM.length rho) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then begin
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constaint x
-          end
-        and one_constaint f =
-          ignore (f (fun x -> one_var x; try HM.find rho x with Not_found -> S.Dom.bot ()) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove rho x) rho
-      in
-      reachability vs;
       stop_event ();
 
       if GobConfig.get_bool "dbg.print_wpoints" then (
@@ -191,7 +173,7 @@ module type Version = sig val ver : int end
 module Make =
   functor (V:Version) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
 
     let h_find_option h x =
@@ -220,7 +202,7 @@ module Make =
           HM.find keys x
         with Not_found ->
           incr Goblintutil.vars;
-          last_key := !last_key - 1;
+          decr last_key;
           HM.add keys x !last_key;
           !last_key
 
@@ -228,7 +210,7 @@ module Make =
         try (HM.find keys c, true)
         with Not_found ->
           incr Goblintutil.vars;
-          last_key := !last_key - 1;
+          decr last_key;
           HM.add keys c !last_key;
           (!last_key, false)
 
@@ -240,8 +222,7 @@ module Make =
     struct
       module P =
       struct
-        type t = S.Var.t * S.Var.t [@@deriving eq]
-        let hash (x1,x2) = (S.Var.hash x1 - 800) * S.Var.hash x2
+        type t = S.Var.t * S.Var.t [@@deriving eq, hash]
       end
       module HPM = Hashtbl.Make (P)
       let hpm_find_default h x d =
@@ -289,7 +270,6 @@ module Make =
     module P =
     struct
       let single x = tap (fun s -> HM.add s x ()) (HM.create 10)
-      let rem_item = HM.remove
       let to_list s = HM.fold (fun x y z -> x :: z ) s []
       let has_item = HM.mem
       let rem_item = HM.remove
@@ -310,7 +290,6 @@ module Make =
       include S.Dom
       let eq = equal
       let cup = join
-      let cap = meet
     end
 
     let infl   = HM.create 1024
@@ -415,7 +394,7 @@ module Make =
 
           let tmp = do_side x (eq x (eval x) (side x)) in
           let use_box = (not (V.ver>1)) || HM.mem wpoint x in
-          let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "exp.solver.slr4.restart_count") in
+          let restart_mode_x = h_find_default restart_mode x (2*GobConfig.get_int "solvers.slr4.restart_count") in
           let rstrt = use_box && (V.ver>3) && D.leq tmp old && restart_mode_x <> 0 in
           if tracing then trace "sol" "Var: %a\n" S.Var.pretty_trace x ;
           if tracing then trace "sol" "Contrib:%a\n" S.Dom.pretty tmp;
@@ -463,23 +442,6 @@ module Make =
 
       let _ = loop () in
 
-      let reachability xs =
-        let reachable = HM.create (HM.length X.vals) in
-        let rec one_var x =
-          if not (HM.mem reachable x) then begin
-            HM.replace reachable x ();
-            match S.system x with
-            | None -> ()
-            | Some x -> one_constaint x
-          end
-        and one_constaint f =
-          ignore (f (fun x -> one_var x; h_find_default X.vals x (D.bot ())) (fun x _ -> one_var x))
-        in
-        List.iter one_var xs;
-        HM.iter (fun x _ -> if not (HM.mem reachable x) then HM.remove X.vals x) X.vals
-      in
-      reachability list;
-
       if GobConfig.get_bool "dbg.print_wpoints" then (
         Printf.printf "\nWidening points:\n";
         HM.iter (fun k () -> ignore @@ Pretty.printf "%a\n" S.Var.pretty_trace k) wpoint;
@@ -493,12 +455,11 @@ module Make =
 
 module type MyGenericEqBoxSolver =
   functor (S:EqConstrSys) ->
-  functor (H:Hash.H with type key = S.v) ->
+  functor (H:Hashtbl.S with type key = S.v) ->
   sig
     val solve : (S.v -> S.d -> S.d -> S.d) -> (S.v*S.d) list -> S.v list -> S.d H.t
     val wpoint : unit H.t
     val infl :  S.v list H.t
-    val h_find_default : 'a H.t -> S.v -> 'a -> 'a
     module X :
     sig
       val keys : int H.t
@@ -508,7 +469,7 @@ module type MyGenericEqBoxSolver =
 module PrintInfluence =
   functor (Sol:MyGenericEqBoxSolver) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     module S1 = Sol (S) (HM)
     let solve box x y =
@@ -516,7 +477,7 @@ module PrintInfluence =
       let r = S1.solve box x y in
       let f k _ =
         let q = if HM.mem S1.wpoint k then " shape=box style=rounded" else "" in
-        let s = Pretty.sprint 80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
+        let s = Pretty.sprint ~width:80 (S.Var.pretty_trace () k) ^ " " ^ string_of_int (try HM.find S1.X.keys k with Not_found -> 0) in
         ignore (Pretty.fprintf ch "%d [label=\"%s\"%s];\n" (S.Var.hash k) (XmlUtil.escape s) q);
         let f y =
           if try HM.find S1.X.keys k > HM.find S1.X.keys y with Not_found -> false then
@@ -533,34 +494,11 @@ module PrintInfluence =
       r
   end
 
-module JoinContr (Sol: GenericEqBoxSolver) =
-  functor (S:IneqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
-  struct
-    include Sol (Generic.SimpleSysConverter (S)) (HM)
-  end
-
-module MoreVars (Sol: GenericEqBoxSolver) =
-  functor (S:IneqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
-  struct
-    module HM1   = Hashtbl.Make (Generic.ExtendInt (S.Var))
-    module EqSys = Generic.NormalSysConverter (S)
-    include Sol (EqSys) (HM1)
-    let solve box is iv =
-      let box' (k,_) x y = box k x y in
-      let is' = List.map (fun (k,v) -> EqSys.conv k, v) is in
-      let iv' = List.map (fun k -> EqSys.conv k) iv in
-      let r = solve box' is' iv' in
-      let r' = HM.create (HM1.length r) in
-      HM1.iter (fun (k,_) v -> HM.replace r' k (try S.Dom.join v (HM.find r' k) with Not_found -> v)) r;
-      r'
-  end
 
 module TwoPhased =
   functor (V:Version) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Make (V) (S) (HM)
     let narrow = narrow S.Dom.narrow
@@ -577,7 +515,7 @@ module TwoPhased =
 module JustWiden =
   functor (V:Version) ->
   functor (S:EqConstrSys) ->
-  functor (HM:Hash.H with type key = S.v) ->
+  functor (HM:Hashtbl.S with type key = S.v) ->
   struct
     include Make (V) (S) (HM)
     let solve box is iv =
@@ -585,48 +523,32 @@ module JustWiden =
   end
 
 let _ =
-  let module W1 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 1 end))) in
-  let module W2 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 2 end))) in
-  let module W3 = GlobSolverFromIneqSolver (JoinContr (JustWiden (struct let ver = 3 end))) in
-  Selector.add_solver ("widen1",  (module W1 : GenericGlobSolver));
-  Selector.add_solver ("widen2",  (module W2 : GenericGlobSolver));
-  Selector.add_solver ("widen3",  (module W3 : GenericGlobSolver));
-  let module S2 = GlobSolverFromIneqSolver (JoinContr (TwoPhased (struct let ver = 1 end))) in
-  Selector.add_solver ("two",  (module S2 : GenericGlobSolver));
-  let module S1 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 1 end))) in
-  Selector.add_solver ("new",  (module S1 : GenericGlobSolver));
-  Selector.add_solver ("slr+", (module S1 : GenericGlobSolver))
+  let module W1 = JustWiden (struct let ver = 1 end) in
+  let module W2 = JustWiden (struct let ver = 2 end) in
+  let module W3 = JustWiden (struct let ver = 3 end) in
+  Selector.add_solver ("widen1",  (module EqIncrSolverFromEqSolver (W1)));
+  Selector.add_solver ("widen2",  (module EqIncrSolverFromEqSolver (W2)));
+  Selector.add_solver ("widen3",  (module EqIncrSolverFromEqSolver (W3)));
+  let module S2 = TwoPhased (struct let ver = 1 end) in
+  Selector.add_solver ("two",  (module EqIncrSolverFromEqSolver (S2)));
+  let module S1 = Make (struct let ver = 1 end) in
+  Selector.add_solver ("new",  (module EqIncrSolverFromEqSolver (S1)));
+  Selector.add_solver ("slr+", (module EqIncrSolverFromEqSolver (S1)))
 
 let _ =
-  let module S1 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 1 end))) in
-  let module S2 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 2 end))) in
-  let module S3 = GlobSolverFromIneqSolver (JoinContr (SLR3)) in
-  let module S4 = GlobSolverFromIneqSolver (JoinContr (Make (struct let ver = 4 end))) in
-  Selector.add_solver ("slr1", (module S1 : GenericGlobSolver)); (* W&N at every program point *)
-  Selector.add_solver ("slr2", (module S2 : GenericGlobSolver)); (* W&N dynamic at certain points, growing number of W-points *)
-  Selector.add_solver ("slr3", (module S3 : GenericGlobSolver)); (* same as S2 but number of W-points may also shrink *)
-  Selector.add_solver ("slr4", (module S4 : GenericGlobSolver)); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
-  let module S1p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 1 end)))) in
-  let module S2p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 2 end)))) in
-  let module S3p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 3 end)))) in
-  let module S4p = GlobSolverFromIneqSolver (JoinContr (PrintInfluence (Make (struct let ver = 4 end)))) in
-  Selector.add_solver ("slr1p", (module S1p : GenericGlobSolver)); (* same as S1-4 above but with side-effects *)
-  Selector.add_solver ("slr2p", (module S2p : GenericGlobSolver));
-  Selector.add_solver ("slr3p", (module S3p : GenericGlobSolver));
-  Selector.add_solver ("slr4p", (module S4p : GenericGlobSolver));
-  let module S1 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 1 end))) in
-  let module S2 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 2 end))) in
-  let module S3 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 3 end))) in
-  let module S4 = GlobSolverFromIneqSolver (MoreVars (Make (struct let ver = 4 end))) in
-  Selector.add_solver ("slr1x", (module S1 : GenericGlobSolver)); (* alias for S1-4 *)
-  Selector.add_solver ("slr2x", (module S2 : GenericGlobSolver));
-  Selector.add_solver ("slr3x", (module S3 : GenericGlobSolver));
-  Selector.add_solver ("slr4x", (module S4 : GenericGlobSolver));
-  let module S1p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 1 end)))) in
-  let module S2p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 2 end)))) in
-  let module S3p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 3 end)))) in
-  let module S4p = GlobSolverFromIneqSolver (MoreVars (PrintInfluence (Make (struct let ver = 4 end)))) in
-  Selector.add_solver ("slr1xp", (module S1p : GenericGlobSolver)); (* alias for S1p-4p *)
-  Selector.add_solver ("slr2xp", (module S2p : GenericGlobSolver));
-  Selector.add_solver ("slr3xp", (module S3p : GenericGlobSolver));
-  Selector.add_solver ("slr4xp", (module S4p : GenericGlobSolver));
+  let module S1 = Make (struct let ver = 1 end) in
+  let module S2 = Make (struct let ver = 2 end) in
+  let module S3 = SLR3 in
+  let module S4 = Make (struct let ver = 4 end) in
+  Selector.add_solver ("slr1", (module EqIncrSolverFromEqSolver (S1))); (* W&N at every program point *)
+  Selector.add_solver ("slr2", (module EqIncrSolverFromEqSolver (S2))); (* W&N dynamic at certain points, growing number of W-points *)
+  Selector.add_solver ("slr3", (module EqIncrSolverFromEqSolver (S3))); (* same as S2 but number of W-points may also shrink *)
+  Selector.add_solver ("slr4", (module EqIncrSolverFromEqSolver (S4))); (* restarting: set influenced variables to bot and start up-iteration instead of narrowing *)
+  let module S1p = PrintInfluence (Make (struct let ver = 1 end)) in
+  let module S2p = PrintInfluence (Make (struct let ver = 2 end)) in
+  let module S3p = PrintInfluence (Make (struct let ver = 3 end)) in
+  let module S4p = PrintInfluence (Make (struct let ver = 4 end)) in
+  Selector.add_solver ("slr1p", (module EqIncrSolverFromEqSolver (S1p))); (* same as S1-4 above but with side-effects *)
+  Selector.add_solver ("slr2p", (module EqIncrSolverFromEqSolver (S2p)));
+  Selector.add_solver ("slr3p", (module EqIncrSolverFromEqSolver (S3p)));
+  Selector.add_solver ("slr4p", (module EqIncrSolverFromEqSolver (S4p)));

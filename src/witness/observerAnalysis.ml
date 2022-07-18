@@ -28,7 +28,6 @@ struct
     let names x = "state " ^ string_of_int x
   end
   module D = Lattice.Flat (Printable.Chain (ChainParams)) (Printable.DefaultNames)
-  module G = Lattice.Unit
   module C = D
 
   let should_join x y = D.equal x y (* fully path-sensitive *)
@@ -88,7 +87,7 @@ module MakePathSpec (Arg: PathArg) : Analyses.MCPSpec =
 struct
   module KMP = ObserverAutomaton.KMP (
     struct
-      type t = node * node [@@deriving eq]
+      type t = Node.t * Node.t [@@deriving eq]
       let pattern = Array.of_list Arg.path
     end
   )

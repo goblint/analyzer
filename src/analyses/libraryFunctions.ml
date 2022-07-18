@@ -5,6 +5,73 @@ open GobConfig
 
 module M = Messages
 
+(** C standard library functions.
+    These are specified by the C standard. *)
+let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+    ("__builtin_memset", special [__ "dest" [w]; __ "ch" []; __ "count" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+    ("__builtin___memset_chk", special [__ "dest" [w]; __ "ch" []; __ "count" []; drop "os" []] @@ fun dest ch count -> Memset { dest; ch; count; });
+    ("malloc", special [__ "size" []] @@ fun size -> Malloc size);
+    ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
+    ("abort", special [] Abort);
+    ("exit", special [drop "exit_code" []] Abort);
+    ("assert", special [__ "cond" []] @@ fun cond -> Assert cond);
+  ]
+
+(** C POSIX library functions.
+    These are {e not} specified by the C standard, but available on POSIX systems. *)
+let posix_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+    ("__builtin_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+    ("explicit_bzero", special [__ "dest" [w]; __ "count" []] @@ fun dest count -> Bzero { dest; count; });
+    ("__explicit_bzero_chk", special [__ "dest" [w]; __ "count" []; drop "os" []] @@ fun dest count -> Bzero { dest; count; });
+  ]
+
+(** Pthread functions. *)
+let pthread_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("pthread_create", special [__ "thread" [w]; drop "attr" [r]; __ "start_routine" [s]; __ "arg" []] @@ fun thread start_routine arg -> ThreadCreate { thread; start_routine; arg }); (* For precision purposes arg is not considered accessed here. Instead all accesses (if any) come from actually analyzing start_routine. *)
+    ("pthread_exit", special [__ "retval" []] @@ fun retval -> ThreadExit { ret_val = retval }); (* Doesn't dereference the void* itself, but just passes to pthread_join. *)
+  ]
+
+(** GCC builtin functions.
+    These are not builtin versions of functions from other lists. *)
+let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__builtin_object_size", unknown [drop "ptr" [r]; drop' []]);
+  ]
+
+(** Linux kernel functions. *)
+let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
+
+  ]
+
+(** Goblint functions. *)
+let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("__goblint_unknown", unknown [drop' [w]]);
+    ("__goblint_check", unknown [drop' []]);
+    ("__goblint_commit", unknown [drop' []]);
+    ("__goblint_assert", unknown [drop' []]);
+  ]
+
+(** zstd functions.
+    Only used with extraspecials. *)
+let zstd_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
+    ("ZSTD_customMalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Malloc size);
+    ("ZSTD_customCalloc", special [__ "size" []; drop "customMem" [r]] @@ fun size -> Calloc { size; count = Cil.one });
+    ("ZSTD_customFree", unknown [drop "ptr" [f]; drop "customMem" [r]]);
+  ]
+
+(* TODO: allow selecting which lists to use *)
+let library_descs = Hashtbl.of_list (List.concat [
+    c_descs_list;
+    posix_descs_list;
+    pthread_descs_list;
+    gcc_descs_list;
+    linux_descs_list;
+    goblint_descs_list;
+    zstd_descs_list;
+  ])
+
+
 type categories = [
   | `Malloc       of exp
   | `Calloc       of exp * exp
@@ -16,161 +83,185 @@ type categories = [
   | `ThreadJoin   of exp * exp (* id * ret_var *)
   | `Unknown      of string ]
 
-let osek_renames = ref false
 
-let classify' fn exps =
+let classify fn exps: categories =
+  let strange_arguments () =
+    M.warn "%s arguments are strange!" fn;
+    `Unknown fn
+  in
   match fn with
-  | "pthread_create" ->
-    begin match exps with
-      | [id;_;fn;x] -> `ThreadCreate (id, fn, x)
-      | _ -> M.bailwith "pthread_create arguments are strange."
-    end
   | "pthread_join" ->
     begin match exps with
       | [id; ret_var] -> `ThreadJoin (id, ret_var)
-      | _ -> M.bailwith "pthread_join arguments are strange!"
+      | _ -> strange_arguments ()
     end
-  | "malloc" | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
+  | "kmalloc" | "__kmalloc" | "usb_alloc_urb" | "__builtin_alloca" ->
     begin match exps with
       | size::_ -> `Malloc size
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> strange_arguments ()
     end
   | "kzalloc" ->
     begin match exps with
       | size::_ -> `Calloc (Cil.one, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
+      | _ -> strange_arguments ()
     end
   | "calloc" ->
     begin match exps with
       | n::size::_ -> `Calloc (n, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
-    end
-  | "realloc" ->
-    begin match exps with
-      | p::size::_ -> `Realloc (p, size)
-      | _ -> M.bailwith (fn^" arguments are strange!")
-    end
-  | "assert" ->
-    begin match exps with
-      | [e] -> `Assert e
-      | _ -> M.bailwith "Assert argument mismatch!"
+      | _ -> strange_arguments ()
     end
   | "_spin_trylock" | "spin_trylock" | "mutex_trylock" | "_spin_trylock_irqsave"
+  | "down_trylock"
     -> `Lock(true, true, true)
   | "pthread_mutex_trylock" | "pthread_rwlock_trywrlock"
     -> `Lock (true, true, false)
-  | "GetSpinlock" -> `Lock (false, true, true)
-  | "ReleaseSpinlock" -> `Unlock
   | "LAP_Se_WaitSemaphore" (* TODO: only handle those when arinc analysis is enabled? *)
   | "_spin_lock" | "_spin_lock_irqsave" | "_spin_lock_bh" | "down_write"
   | "mutex_lock" | "mutex_lock_interruptible" | "_write_lock" | "_raw_write_lock"
   | "pthread_rwlock_wrlock" | "GetResource" | "_raw_spin_lock"
-  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave"
-    -> `Lock (get_bool "exp.failing-locks", true, true)
+  | "_raw_spin_lock_flags" | "_raw_spin_lock_irqsave" | "_raw_spin_lock_irq" | "_raw_spin_lock_bh"
+  | "spin_lock_irqsave" | "spin_lock"
+    -> `Lock (get_bool "sem.lock.fail", true, true)
   | "pthread_mutex_lock" | "__pthread_mutex_lock"
-    -> `Lock (get_bool "exp.failing-locks", true, false)
+    -> `Lock (get_bool "sem.lock.fail", true, false)
   | "pthread_rwlock_tryrdlock" | "pthread_rwlock_rdlock" | "_read_lock"  | "_raw_read_lock"
   | "down_read"
-    -> `Lock (get_bool "exp.failing-locks", false, true)
+    -> `Lock (get_bool "sem.lock.fail", false, true)
   | "LAP_Se_SignalSemaphore"
   | "__raw_read_unlock" | "__raw_write_unlock"  | "raw_spin_unlock"
-  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh"
-  | "mutex_unlock" | "ReleaseResource" | "_write_unlock" | "_read_unlock"
+  | "_spin_unlock" | "spin_unlock" | "_spin_unlock_irqrestore" | "_spin_unlock_bh" | "_raw_spin_unlock_bh"
+  | "mutex_unlock" | "_write_unlock" | "_read_unlock" | "_raw_spin_unlock_irqrestore"
   | "pthread_mutex_unlock" | "__pthread_mutex_unlock" | "spin_unlock_irqrestore" | "up_read" | "up_write"
+  | "up"
     -> `Unlock
   | x -> `Unknown x
 
-let classify fn exps =
-  if not(!osek_renames) then classify' fn exps else classify' (OilUtil.get_api_names fn) exps
 
-type action = [ `Write | `Read ]
+module Invalidate =
+struct
+  [@@@warning "-unused-value-declaration"] (* some functions are not used below *)
+  open AccessKind
 
-let drop = List.drop
-let keep ns = List.filteri (fun i _ -> List.mem i ns)
+  let drop = List.drop
+  let keep ns = List.filteri (fun i _ -> List.mem i ns)
 
-let partition ns x =
-  let rec go n =
-    function
-    | [] -> ([],[])
-    | y :: ys ->
-      let (i,o) = go (n + 1) ys in
-      if List.mem n ns
-      then (y::i,   o)
-      else (   i,y::o)
-  in
-  go 1 x
+  let partition ns x =
+    let rec go n =
+      function
+      | [] -> ([],[])
+      | y :: ys ->
+        let (i,o) = go (n + 1) ys in
+        if List.mem n ns
+        then (y::i,   o)
+        else (   i,y::o)
+    in
+    go 1 x
 
-let writesAllButFirst n f a x =
-  match a with
-  | `Write -> f a x @ drop n x
-  | `Read  -> f a x
+  let writesAllButFirst n f a x =
+    match a with
+    | Write | Spawn -> f a x @ drop n x
+    | Read  -> f a x
+    | Free  -> []
 
-let readsAllButFirst n f a x =
-  match a with
-  | `Write -> f a x
-  | `Read  -> f a x @ drop n x
+  let readsAllButFirst n f a x =
+    match a with
+    | Write | Spawn -> f a x
+    | Read  -> f a x @ drop n x
+    | Free  -> []
 
-let reads ns a x =
-  let i, o = partition ns x in
-  match a with
-  | `Write -> o
-  | `Read  -> i
+  let reads ns a x =
+    let i, o = partition ns x in
+    match a with
+    | Write | Spawn -> o
+    | Read  -> i
+    | Free  -> []
 
-let writes ns a x =
-  let i, o = partition ns x in
-  match a with
-  | `Write -> i
-  | `Read  -> o
+  let writes ns a x =
+    let i, o = partition ns x in
+    match a with
+    | Write | Spawn -> i
+    | Read  -> o
+    | Free  -> []
 
-let onlyReads ns a x =
-  match a with
-  | `Write -> []
-  | `Read  -> keep ns x
+  let frees ns a x =
+    let i, o = partition ns x in
+    match a with
+    | Write | Spawn -> []
+    | Read  -> o
+    | Free  -> i
 
-let onlyWrites ns a x =
-  match a with
-  | `Write -> keep ns x
-  | `Read  -> []
+  let readsFrees rs fs a x =
+    match a with
+    | Write | Spawn -> []
+    | Read  -> keep rs x
+    | Free  -> keep fs x
 
-let readsWrites rs ws a x =
-  match a with
-  | `Write -> keep ws x
-  | `Read  -> keep rs x
+  let onlyReads ns a x =
+    match a with
+    | Write | Spawn -> []
+    | Read  -> keep ns x
+    | Free  -> []
 
-let readsAll a x =
-  match a with
-  | `Write -> []
-  | `Read  -> x
+  let onlyWrites ns a x =
+    match a with
+    | Write | Spawn -> keep ns x
+    | Read  -> []
+    | Free  -> []
 
-let writesAll a x =
-  match a with
-  | `Write -> x
-  | `Read  -> []
+  let readsWrites rs ws a x =
+    match a with
+    | Write | Spawn -> keep ws x
+    | Read  -> keep rs x
+    | Free  -> []
+
+  let readsAll a x =
+    match a with
+    | Write | Spawn -> []
+    | Read  -> x
+    | Free  -> []
+
+  let writesAll a x =
+    match a with
+    | Write | Spawn -> x
+    | Read  -> []
+    | Free  -> []
+end
+
+open Invalidate
 
 (* Data races: which arguments are read/written?
  * We assume that no known functions that are reachable are executed/spawned. For that we use ThreadCreate above. *)
 (* WTF: why are argument numbers 1-indexed (in partition)? *)
-let invalidate_actions = ref [
-    "GetResource", readsAll;
-    "ReleaseResource", readsAll;
-    "GetSpinlock", readsAll;
-    "ReleaseSpinlock", readsAll;
+let invalidate_actions = [
     "atoi", readsAll;             (*safe*)
-    "bzero", writes [1]; (*keep 1*)
+    "__builtin_ctz", readsAll;
+    "__builtin_ctzl", readsAll;
+    "__builtin_ctzll", readsAll;
+    "__builtin_clz", readsAll;
     "connect", readsAll;          (*safe*)
     "fclose", readsAll;           (*safe*)
     "fflush", writesAll;          (*unsafe*)
     "fopen", readsAll;            (*safe*)
+    "fdopen", readsAll;           (*safe*)
+    "setvbuf", writes[1;2];       (* TODO: if this is used to set an input buffer, the buffer (second argument) would need to remain TOP, *)
+                                  (* as any future write (or flush) of the stream could result in a write to the buffer *)
     "fprintf", writes [1];          (*keep [1]*)
-    "fread", writes [1];            (*keep [1]*)
-    "free", writesAll; (*unsafe*)
+    "__fprintf_chk", writes [1];    (*keep [1]*)
+    "fread", writes [1;4];
+    "__fread_alias", writes [1;4];
+    "__fread_chk", writes [1;4];
+    "utimensat", readsAll;
+    "free", frees [1]; (*unsafe*)
     "fwrite", readsAll;(*safe*)
     "getopt", writes [2];(*keep [2]*)
     "localtime", readsAll;(*safe*)
     "memcpy", writes [1];(*keep [1]*)
+    "__builtin_memcpy", writes [1];(*keep [1]*)
+    "mempcpy", writes [1];(*keep [1]*)
     "__builtin___memcpy_chk", writes [1];
-    "memset", writesAll;(*unsafe*)
+    "__builtin___mempcpy_chk", writes [1];
     "printf", readsAll;(*safe*)
+    "__printf_chk", readsAll;(*safe*)
     "printk", readsAll;(*safe*)
     "perror", readsAll;(*safe*)
     "pthread_mutex_lock", readsAll;(*safe*)
@@ -190,12 +281,15 @@ let invalidate_actions = ref [
     "_spin_unlock_irqrestore", readsAll;(*safe*)
     "pthread_mutex_init", readsAll;(*safe*)
     "pthread_mutex_destroy", readsAll;(*safe*)
+    "pthread_mutexattr_settype", readsAll;(*safe*)
+    "pthread_mutexattr_init", readsAll;(*safe*)
     "pthread_self", readsAll;(*safe*)
     "read", writes [2];(*keep [2]*)
     "recv", writes [2];(*keep [2]*)
     "scanf",  writesAllButFirst 1 readsAll;(*drop 1*)
     "send", readsAll;(*safe*)
     "snprintf", writes [1];(*keep [1]*)
+    "__builtin___snprintf_chk", writes [1];(*keep [1]*)
     "sprintf", writes [1];(*keep [1]*)
     "sscanf", writesAllButFirst 2 readsAll;(*drop 2*)
     "strcmp", readsAll;(*safe*)
@@ -209,6 +303,7 @@ let invalidate_actions = ref [
     "tolower", readsAll;(*safe*)
     "time", writesAll;(*unsafe*)
     "vfprintf", writes [1];(*keep [1]*)
+    "__vfprintf_chk", writes [1];(*keep [1]*)
     "vprintf", readsAll;(*safe*)
     "vsprintf", writes [1];(*keep [1]*)
     "write", readsAll;(*safe*)
@@ -225,12 +320,15 @@ let invalidate_actions = ref [
     "getopt_long", writesAllButFirst 2 readsAll;(*drop 2*)
     "__strdup", readsAll;(*safe*)
     "strtoul__extinline", readsAll;(*safe*)
+    "strtol", writes [2];
     "geteuid", readsAll;(*safe*)
     "opendir", readsAll;  (*safe*)
     "readdir_r", writesAll;(*unsafe*)
     "atoi__extinline", readsAll;(*safe*)
     "getpid", readsAll;(*safe*)
     "fgetc", writesAll;(*unsafe*)
+    "getc", writesAll;(*unsafe*)
+    "_IO_getc", writesAll;(*unsafe*)
     "closedir", writesAll;(*unsafe*)
     "setrlimit", readsAll;(*safe*)
     "chdir", readsAll;(*safe*)
@@ -246,10 +344,12 @@ let invalidate_actions = ref [
     "pthread_cond_wait", readsAll; (*safe*)
     "pthread_cond_signal", readsAll;(*safe*)
     "pthread_cond_broadcast", readsAll;(*safe*)
+    "pthread_cond_destroy", readsAll;(*safe*)
     "__pthread_cond_init", readsAll; (*safe*)
     "__pthread_cond_wait", readsAll; (*safe*)
     "__pthread_cond_signal", readsAll;(*safe*)
     "__pthread_cond_broadcast", readsAll;(*safe*)
+    "__pthread_cond_destroy", readsAll;(*safe*)
     "pthread_key_create", writesAll;(*unsafe*)
     "sigemptyset", writesAll;(*unsafe*)
     "sigaddset", writesAll;(*unsafe*)
@@ -265,16 +365,22 @@ let invalidate_actions = ref [
     "lstat__extinline", writesAllButFirst 1 readsAll;(*drop 1*)
     "__builtin_strchr", readsAll;(*safe*)
     "strcpy", writes [1];(*keep [1]*)
+    "__builtin___strcpy", writes [1];(*keep [1]*)
+    "__builtin___strcpy_chk", writes [1];(*keep [1]*)
     "strcat", writes [2];(*keep [2]*)
     "getpgrp", readsAll;(*safe*)
     "umount2", readsAll;(*safe*)
     "memchr", readsAll;(*safe*)
     "memmove", writes [2;3];(*keep [2;3]*)
+    "__builtin_memmove", writes [2;3];(*keep [2;3]*)
+    "__builtin___memmove_chk", writes [2;3];(*keep [2;3]*)
     "waitpid", readsAll;(*safe*)
     "statfs", writes [1;3;4];(*keep [1;3;4]*)
     "mkdir", readsAll;(*safe*)
     "mount", readsAll;(*safe*)
     "open", readsAll;(*safe*)
+    "__open_alias", readsAll;(*safe*)
+    "__open_2", readsAll;(*safe*)
     "fcntl", readsAll;(*safe*)
     "ioctl", writesAll;(*unsafe*)
     "fstat__extinline", writesAll;(*unsafe*)
@@ -292,11 +398,17 @@ let invalidate_actions = ref [
     "textdomain", readsAll;(*safe*)
     "dcgettext", readsAll;(*safe*)
     "syscall", writesAllButFirst 1 readsAll;(*drop 1*)
+    "sysconf", readsAll;
     "fputs", readsAll;(*safe*)
     "fputc", readsAll;(*safe*)
+    "fseek", writes[1];
+    "fileno", readsAll;
+    "ferror", readsAll;
+    "ftell", readsAll;
     "putc", readsAll;(*safe*)
     "putw", readsAll;(*safe*)
     "putchar", readsAll;(*safe*)
+    "getchar", readsAll;(*safe*)
     "feof", readsAll;(*safe*)
     "__getdelim", writes [3];(*keep [3]*)
     "vsyslog", readsAll;(*safe*)
@@ -327,6 +439,8 @@ let invalidate_actions = ref [
     "dup", readsAll; (*safe*)
     "__builtin_expect", readsAll; (*safe*)
     "vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
+    "__builtin___vsnprintf", writesAllButFirst 3 readsAll; (*drop 3*)
+    "__builtin___vsnprintf_chk", writesAllButFirst 3 readsAll; (*drop 3*)
     "syslog", readsAll; (*safe*)
     "strcasecmp", readsAll; (*safe*)
     "strchr", readsAll; (*safe*)
@@ -335,7 +449,6 @@ let invalidate_actions = ref [
     "__maskrune", writesAll; (*unsafe*)
     "inet_addr", readsAll; (*safe*)
     "gethostbyname", readsAll; (*safe*)
-    "__builtin_bzero", writes [1]; (*keep [1]*)
     "setsockopt", readsAll; (*safe*)
     "listen", readsAll; (*safe*)
     "getsockname", writes [1;3]; (*keep [1;3]*)
@@ -345,15 +458,22 @@ let invalidate_actions = ref [
     "accept", writesAll; (*keep [1]*)
     "getpeername", writes [1]; (*keep [1]*)
     "times", writesAll; (*unsafe*)
+    "timespec_get", writes [1];
     "fgets", writes [1;3]; (*keep [3]*)
+    "__fgets_alias", writes [1;3]; (*keep [3]*)
+    "__fgets_chk", writes [1;3]; (*keep [3]*)
     "strtoul", readsAll; (*safe*)
     "__tolower", readsAll; (*safe*)
     "signal", writesAll; (*unsafe*)
+    "strsignal", readsAll;
     "popen", readsAll; (*safe*)
     "BF_cfb64_encrypt", writes [1;3;4;5]; (*keep [1;3;4,5]*)
     "BZ2_bzBuffToBuffDecompress", writes [3;4]; (*keep [3;4]*)
     "uncompress", writes [3;4]; (*keep [3;4]*)
-    "stat", writes [1]; (*keep [1]*)
+    "stat", writes [2]; (*keep [1]*)
+    "__xstat", writes [3]; (*keep [1]*)
+    "__lxstat", writes [3]; (*keep [1]*)
+    "remove", readsAll;
     "BZ2_bzBuffToBuffCompress", writes [3;4]; (*keep [3;4]*)
     "compress2", writes [3]; (*keep [3]*)
     "__toupper", readsAll; (*safe*)
@@ -365,7 +485,6 @@ let invalidate_actions = ref [
     "rand", readsAll; (*safe*)
     "gethostname", writesAll; (*unsafe*)
     "fork", readsAll; (*safe*)
-    "realloc", writesAll;(*unsafe*)
     "setrlimit", readsAll; (*safe*)
     "getrlimit", writes [2]; (*keep [2]*)
     "sem_init", readsAll; (*safe*)
@@ -381,6 +500,7 @@ let invalidate_actions = ref [
     "htons", readsAll; (*safe*)
     "munmap", readsAll;(*safe*)
     "mmap", readsAll;(*safe*)
+    "clock", readsAll;
     "pthread_rwlock_wrlock", readsAll;
     "pthread_rwlock_trywrlock", readsAll;
     "pthread_rwlock_rdlock", readsAll;
@@ -390,13 +510,17 @@ let invalidate_actions = ref [
     "pthread_rwlock_destroy", readsAll;
     "pthread_rwlock_init", readsAll;
     "pthread_rwlock_unlock", readsAll;
-    "__builtin_object_size", readsAll;
+    "__builtin_bswap16", readsAll;
+    "__builtin_bswap32", readsAll;
+    "__builtin_bswap64", readsAll;
+    "__builtin_bswap128", readsAll;
+    "__builtin_va_arg_pack_len", readsAll;
+    "__open_too_many_args", readsAll;
     "usb_submit_urb", readsAll; (* first argument is written to but according to specification must not be read from anymore *)
     "dev_driver_string", readsAll;
     "dev_driver_string", readsAll;
     "__spin_lock_init", writes [1];
     "kmem_cache_create", readsAll;
-    "pthread_create", onlyWrites [1];
     "__builtin_prefetch", readsAll;
     "idr_pre_get", readsAll;
     "zil_replay", writes [1;2;3;5];
@@ -407,9 +531,21 @@ let invalidate_actions = ref [
     (* prevent base from spawning ARINC processes early, handled by arinc/extract_arinc *)
     (* "LAP_Se_SetPartitionMode", writes [2]; *)
     "LAP_Se_CreateProcess", writes [2; 3];
-    "LAP_Se_CreateErrorHandler", writes [2; 3]
+    "LAP_Se_CreateErrorHandler", writes [2; 3];
+    "isatty", readsAll;
+    "setpriority", readsAll;
+    "getpriority", readsAll;
+    (* ddverify *)
+    "spin_lock_init", readsAll;
+    "spin_lock", readsAll;
+    "spin_unlock", readsAll;
+    "spin_unlock_irqrestore", readsAll;
+    "spin_lock_irqsave", readsAll;
+    "sema_init", readsAll;
+    "down_trylock", readsAll;
+    "up", readsAll;
   ]
-let add_invalidate_actions xs = invalidate_actions := xs @ !invalidate_actions
+
 
 (* used by get_invalidate_action to make sure
  * that hash of invalidates is built only once
@@ -423,7 +559,7 @@ let get_invalidate_action name =
     | None -> begin
         let hash = Hashtbl.create 113 in
         let f (k, v) = Hashtbl.add hash k v in
-        List.iter f !invalidate_actions;
+        List.iter f invalidate_actions;
         processed_table := (Some hash);
         hash
       end
@@ -433,34 +569,8 @@ let get_invalidate_action name =
   then Some (Hashtbl.find tbl name)
   else None
 
-let threadSafe =
-  let rec threadSafe n ns xs =
-    match ns, xs with
-    | n'::ns, x::xs when n=n' -> mone::threadSafe (n+1) ns xs
-    | n'::ns, x::xs -> x::threadSafe (n+1) (n'::ns) xs
-    | _ -> xs
-  in
-  threadSafe 1
 
-let thread_safe_fn =
-  ["strerror", threadSafe [1];
-   "fprintf",  threadSafe [1];
-   "fgets",    threadSafe [3];
-   "strerror_r", threadSafe [1];
-   "fclose", threadSafe [1]
-  ]
-
-let get_threadsafe_inv_ac name =
-  try
-    let f = List.assoc name thread_safe_fn in
-    match get_invalidate_action name with
-    | Some g -> Some (fun a xs -> g a (f xs))
-    | None -> Some (fun a xs -> f xs)
-  with Not_found -> get_invalidate_action name
-
-
-
-let lib_funs = ref (Set.String.of_list ["list_empty"; "__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
+let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
 
@@ -473,3 +583,41 @@ let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]
 let is_safe_uncalled fn_name =
   Set.String.mem fn_name kernel_safe_uncalled ||
   List.exists (fun r -> Str.string_match r fn_name 0) kernel_safe_uncalled_regex
+
+
+let unknown_desc ~f name = (* TODO: remove name argument, unknown function shouldn't have classify *)
+  let old_accesses (kind: AccessKind.t) args = match kind with
+    | Write when GobConfig.get_bool "sem.unknown_function.invalidate.args" -> args
+    | Write -> []
+    | Read -> args
+    | Free -> []
+    | Spawn when get_bool "sem.unknown_function.spawn" -> args
+    | Spawn -> []
+  in
+  let attrs: LibraryDesc.attr list =
+    if GobConfig.get_bool "sem.unknown_function.invalidate.globals" then
+      [InvalidateGlobals]
+    else
+      []
+  in
+  let classify_name args =
+    match classify name args with
+    | `Unknown _ as category ->
+      (* TODO: remove hack when all classify are migrated *)
+      if not (CilType.Varinfo.equal f dummyFunDec.svar) && not (use_special f.vname) then
+        M.error ~category:Imprecise ~tags:[Category Unsound] "Function definition missing for %s" f.vname;
+      category
+    | category -> category
+  in
+  LibraryDesc.of_old ~attrs old_accesses classify_name
+
+let find f =
+  let name = f.vname in
+  match Hashtbl.find_option library_descs name with
+  | Some desc -> desc
+  | None ->
+    match get_invalidate_action name with
+    | Some old_accesses ->
+      LibraryDesc.of_old old_accesses (classify name)
+    | None ->
+      unknown_desc ~f name

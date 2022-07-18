@@ -31,7 +31,7 @@ sig
   val for_all: (key -> value -> bool) -> t -> bool
   val map2: (value -> value -> value) -> t -> t -> t
   val long_map2: (value -> value -> value) -> t -> t -> t
-  val merge : (key -> value option -> value option -> value option) -> t -> t -> t
+  val merge : (key -> value option -> value option -> value option) -> t -> t -> t (* TODO: unused, remove? *)
 
   val cardinal: t -> int
   val choose: t -> key * value
@@ -68,43 +68,23 @@ module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
 struct
-  module M = Deriving.Map.Make (Domain)
+  module M = Map.Make (Domain)
 
   include Printable.Std
+  include M
   type key = Domain.t
   type value = Range.t
   type t = Range.t M.t (* key -> value  mapping *)
 
   let trace_enabled = Domain.trace_enabled
 
-  (* And some braindead definitions, because I would want to do
-   * include Map.Make (Domain) with type t = Range.t t *)
-  let add = M.add
-  let remove = M.remove
-  let find = M.find
-  let find_opt = M.find_opt
-  let mem = M.mem
-  let iter = M.iter
-  let map = M.map
-  let mapi = M.mapi
-  let fold = M.fold
-  let filter = M.filter
   (* And one less brainy definition *)
   let for_all2 = M.equal
   let equal x y = x == y || for_all2 Range.equal x y
   let compare x y = if equal x y then 0 else M.compare Range.compare x y
-  let merge = M.merge
-  let for_all = M.for_all
-  let find_first = M.find_first
   let hash xs = fold (fun k v a -> a + (Domain.hash k * Range.hash v)) xs 0
 
-  let cardinal = M.cardinal
-  let choose = M.choose
-  let singleton = M.singleton
   let empty () = M.empty
-  let is_empty = M.is_empty
-  let exists = M.exists
-  let bindings = M.bindings
 
 
   let add_list keyvalues m =
@@ -165,8 +145,6 @@ struct
   (* uncomment to easily check pretty's grouping during a normal run, e.g. ./regtest 01 01: *)
   (* let add k v m = let _ = Pretty.printf "%a\n" pretty m in M.add k v m *)
 
-  let pretty_diff () ((x:t),(y:t)): Pretty.doc =
-    Pretty.dprintf "PMap: %a not leq %a" pretty x pretty y
   let printXml f xs =
     let print_one k v =
       BatPrintf.fprintf f "<key>\n%s</key>\n%a" (XmlUtil.escape (Domain.show k)) Range.printXml v
@@ -302,7 +280,6 @@ struct
   let pretty_diff = M.pretty_diff
   let printXml = M.printXml
   let arbitrary = M.arbitrary
-  let invariant = M.invariant
 
   (* Lattice.S *)
   let top () = time "top" M.top ()

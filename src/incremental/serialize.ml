@@ -1,78 +1,105 @@
 open Prelude
 
-let goblint_dirname = ".gob"
+(* TODO: GoblintDir *)
+let incremental_data_file_name = "analysis.data"
+let results_dir = "results"
 
-let version_map_filename = "version.data"
+type operation = Save | Load
 
-let cilFileName = "ast.data"
+(** Returns the name of the directory used for loading/saving incremental data *)
+let incremental_dirname op = match op with
+  | Load -> GobConfig.get_string "incremental.load-dir"
+  | Save -> GobConfig.get_string "incremental.save-dir"
 
-let src_direcotry = ref ""
+let gob_directory op =
+  GobFpath.cwd_append (Fpath.v (incremental_dirname op))
 
-let gob_directory () = let src_dir = !src_direcotry in
-  Filename.concat src_dir goblint_dirname
+let gob_results_dir op =
+  Fpath.(gob_directory op / results_dir)
 
-let current_commit () =
-  Git.current_commit (!src_direcotry)
-
-let commit_dir src_files commit =
-  let gob_dir = gob_directory src_files in
-  Filename.concat gob_dir commit
-
-let current_commit_dir () = match current_commit () with
-  | Some commit -> (
-      try
-        let gob_dir = gob_directory () in
-        let _path  = Goblintutil.create_dir gob_dir in
-        let dir = Filename.concat gob_dir commit in
-        Some (Goblintutil.create_dir dir)
-      with e -> let error_message = (Printexc.to_string e) in
-        print_newline ();
-        print_string "The following error occurred while creating a directory: ";
-        print_endline error_message;
-        None)
-  | None -> None (* git-directory not clean *)
-
-(** A list of commits previously analyzed for the given src directory *)
-let get_analyzed_commits src_files =
-  let src_dir = gob_directory src_files in
-  Sys.readdir src_dir
-
-let last_analyzed_commit () =
-  try
-    let src_dir = !src_direcotry in
-    let commits = Git.git_log src_dir in
-    let commitList = String.split_on_char '\n' commits in
-    let analyzed = get_analyzed_commits () in
-    let analyzed_set = Set.of_array analyzed in
-    Some (List.hd @@ List.drop_while (fun el -> not @@ Set.mem el analyzed_set) commitList)
-  with e -> None
+let server () = GobConfig.get_bool "server.enabled"
 
 let marshal obj fileName  =
-  let chan = open_out_bin fileName in
+  let chan = open_out_bin (Fpath.to_string fileName) in
   Marshal.output chan obj;
   close_out chan
 
 let unmarshal fileName =
-  if GobConfig.get_bool "dbg.verbose" then print_endline ("Unmarshalling " ^ fileName ^ "... If type of content changed, this will result in a segmentation fault!");
-  Marshal.input (open_in_bin fileName)
+  if GobConfig.get_bool "dbg.verbose" then
+    (* Do NOT replace with Printf because of Gobview: https://github.com/goblint/gobview/issues/10 *)
+    print_endline ("Unmarshalling " ^ Fpath.to_string fileName ^ "... If type of content changed, this will result in a segmentation fault!");
+  Marshal.input (open_in_bin (Fpath.to_string fileName))
 
 let results_exist () =
-  last_analyzed_commit () <> None
+  (* If Goblint did not crash irregularly, the existence of the result directory indicates that there are results *)
+  let r = gob_results_dir Load in
+  let r_str = Fpath.to_string r in
+  Sys.file_exists r_str && Sys.is_directory r_str
 
-let last_analyzed_commit_dir (src_files: string list) =
-  match last_analyzed_commit () with
-  | Some commit -> commit_dir () commit
-  | None -> failwith "No previous analysis results"
+(** Module to cache the data for incremental analaysis during a run, before it is stored to disk, as well as for the server mode *)
+module Cache = struct
+  type t = {
+    mutable solver_data: Obj.t option;
+    mutable analysis_data: Obj.t option;
+    mutable version_data: MaxIdUtil.max_ids option;
+    mutable cil_file: Cil.file option;
+  }
 
-let load_latest_cil (src_files: string list) =
-  try
-    let dir = last_analyzed_commit_dir src_files in
-    let cil = Filename.concat dir cilFileName in
-    Some (unmarshal cil)
-  with e -> None
+  let data = ref {
+      solver_data = None;
+      analysis_data = None;
+      version_data = None;
+      cil_file = None;
+    }
 
-let save_cil (file: Cil.file) = match current_commit_dir () with
-  | Some dir ->
-    let cilFile = Filename.concat dir cilFileName in
-    marshal file cilFile
-  | None -> print_endline "Failed saving cil: working directory is dirty"
+  (** GADT that may be used to query data from and pass data to the cache. *)
+  type _ data_query =
+    | SolverData : _ data_query
+    | CilFile : Cil.file data_query
+    | VersionData : MaxIdUtil.max_ids data_query
+    | AnalysisData : _ data_query
+
+  (** Loads data for incremental runs from the appropriate file *)
+  let load_data () =
+    let p = Fpath.(gob_results_dir Load / incremental_data_file_name) in
+    let loaded_data = unmarshal p in
+    data := loaded_data
+
+  (** Stores data for future incremental runs at the appropriate file. *)
+  let store_data () =
+    GobSys.mkdir_or_exists (gob_directory Save);
+    let d = gob_results_dir Save in
+    GobSys.mkdir_or_exists d;
+    let p = Fpath.(d / incremental_data_file_name) in
+    marshal !data p
+
+  (** Update the incremental data in the in-memory cache *)
+  let update_data: type a. a data_query -> a -> unit = fun q d -> match q with
+    | SolverData -> !data.solver_data <- Some (Obj.repr d)
+    | AnalysisData -> !data.analysis_data <- Some (Obj.repr d)
+    | VersionData -> !data.version_data <- Some d
+    | CilFile -> !data.cil_file <- Some d
+
+  (** Reset some incremental data in the in-memory cache to [None]*)
+  let reset_data : type a. a data_query -> unit = function
+    | SolverData -> !data.solver_data <- None
+    | AnalysisData -> !data.analysis_data <- None
+    | VersionData -> !data.version_data <- None
+    | CilFile -> !data.cil_file <- None
+
+  (** Get incremental data from the in-memory cache wrapped in an optional.
+      To populate the in-memory cache with data, call [load_data] first. *)
+  let get_opt_data : type a. a data_query -> a option = function
+    | SolverData -> Option.map Obj.obj !data.solver_data
+    | AnalysisData -> Option.map Obj.obj !data.analysis_data
+    | VersionData -> !data.version_data
+    | CilFile -> !data.cil_file
+
+  (** Get incremental data from the in-memory cache.
+      Same as [get_opt_data], except not yielding an optional and failing when the requested data is not present. *)
+  let get_data : type a. a data_query -> a =
+    fun a ->
+    match get_opt_data a with
+    | Some d -> d
+    | None -> failwith "Requested data is not loaded."
+end

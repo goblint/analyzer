@@ -27,6 +27,11 @@ struct
       | [] -> [e]
       | x::xs -> try op e x :: xs with Lattice.Uncomparable -> x :: join op e xs
 
+    (* widen new(!) element e with old(!) bucket using op *)
+    let rec widen op e = function
+      | [] -> []
+      | x::xs -> try if E.leq x e then [op x e] else widen op e xs with Lattice.Uncomparable -> widen op e xs (* only widen if valid *)
+
     (* meet element e with bucket using op *)
     let rec meet op e = function
       | [] -> []
@@ -43,6 +48,7 @@ struct
   let elements m = Map.values m |> List.of_enum |> List.flatten
 
   (* merge elements in x and y by f *)
+  (* TODO: unused, remove? *)
   let merge op f x y =
     let g = match op with
       | `Join -> B.join
@@ -60,8 +66,17 @@ struct
   let merge_meet f x y =
     Map.merge (fun i a b -> match a, b with
         | Some a, Some b ->
-          let r = List.concat @@ List.map (fun x -> B.meet f x a) b in
+          let r = List.concat_map (fun x -> B.meet f x a) b in
           if r = [] then None else Some r
+        | _ -> None
+      ) x y
+  let merge_widen f x y =
+    Map.merge (fun i a b -> match a, b with
+        | Some a, Some b ->
+          let r = List.concat_map (fun x -> B.widen f x a) b in
+          let r = List.fold_left (fun r x -> B.join E.join x r) r b in (* join b per bucket *)
+          if r = [] then None else Some r
+        | None, Some b -> Some b (* join b per bucket *)
         | _ -> None
       ) x y
 
@@ -72,15 +87,13 @@ struct
     List.fold_left (flip (B.merge_element (B.join f))) y (elements x)
 
   let join   x y = merge_join E.join x y
-  let widen  x y = merge_join E.widen x y
+  let widen  x y = merge_widen E.widen x y
   let meet   x y = merge_meet E.meet x y
-  let narrow x y = merge_meet E.narrow x y
+  let narrow x y = merge_meet E.narrow x y (* TODO: fix narrow like widen? see Set *)
 
   (* Set *)
   let of_list_by f es = List.fold_left (flip (B.merge_element (B.join f))) Map.empty es
   let of_list es = of_list_by E.join es
-  let keep_apart x y = raise Lattice.Uncomparable
-  let of_list_apart es = of_list_by keep_apart es
   let singleton e = of_list [e]
   let exists p m = List.exists p (elements m)
   let for_all p m = List.for_all p (elements m)
@@ -91,7 +104,7 @@ struct
     (* Map.map (List.map f) m *)
     (* since hashes might change we need to rebuild: *)
     apply_list (List.map f) m
-  let filter f m = apply_list (List.filter f) m (* TODO do something better? *)
+  let filter f m = apply_list (List.filter f) m (* TODO do something better? unused *)
   let remove x m =
     let ngreq x y = not (E.leq y x) in
     B.merge_element (fun _ -> List.filter (ngreq x)) x m
@@ -173,10 +186,10 @@ struct
   let reduce s = filter (fun x -> not (exists (le x) s)) s
   let product_bot op a b =
     let a,b = elements a, elements b in
-    List.map (fun x -> List.map (fun y -> op x y) b) a |> List.flatten |> fun x -> reduce (of_list x)
+    List.concat_map (fun x -> List.map (fun y -> op x y) b) a |> fun x -> reduce (of_list x)
   let product_widen op a b = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.map (fun x -> List.map (fun y -> op x y) ys) xs |> List.flatten |> fun x -> reduce (union b (of_list x))
+    List.concat_map (fun x -> List.map (fun y -> op x y) ys) xs |> fun x -> reduce (union b (of_list x))
   let widen = product_widen (fun x y -> if B.leq x y then B.widen x y else B.bot ())
   let narrow = product_bot (fun x y -> if B.leq y x then B.narrow x y else x)
 
@@ -189,7 +202,6 @@ struct
   let subset _ _ = unsupported "Set.subset"
   let map f a = map f a |> reduce
   let min_elt a = B.bot ()
-  let split x a = unsupported "Set.split"
   let apply_list f s = elements s |> f |> of_list
   let diff a b = apply_list (List.filter (fun x -> not (mem x b))) a
   let of_list xs = List.fold_right add xs (empty ()) |> reduce (* TODO: why not use Make's of_list if reduce anyway, right now add also is special *)
@@ -210,7 +222,7 @@ struct
           fold (fun other acc ->
               (dprintf "not leq %a because %a\n" B.pretty other B.pretty_diff (evil, other)) ++ acc
             ) s2 nil
-      with _ ->
+      with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)
@@ -246,9 +258,7 @@ struct
   let filter' = filter
   let filter (p: key -> bool) (s: t): t = filter (fun x _ -> p x) s
   let iter' = iter
-  let iter (f: key -> unit) (s: t): unit = iter (fun x _ -> f x) s
   let for_all' = for_all
-  let for_all (p: key -> bool) (s: t): bool = for_all (fun x _ -> p x) s
   let exists' = exists
   let exists (p: key -> bool) (s: t): bool = exists (fun x _ -> p x) s
   let fold' = fold
@@ -284,20 +294,26 @@ struct
     maximals
   let product_bot op op2 a b =
     let a,b = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
+    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) b) a |> fun x -> reduce (of_list x)
   let product_bot2 op2 a b =
     let a,b = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> List.flatten |> fun x -> reduce (of_list x)
+    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) b) a |> fun x -> reduce (of_list x)
   (* why are type annotations needed for product_widen? *)
+  (* TODO: unused now *)
   let product_widen op op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
     let xs,ys = elements a, elements b in
-    List.map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> List.flatten |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
+    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> (op x y, op2 xr yr)) ys) xs |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
+  let product_widen2 op2 (a:t) (b:t): t = (* assumes b to be bigger than a *)
+    let xs,ys = elements a, elements b in
+    List.concat_map (fun (x,xr) -> List.map (fun (y,yr) -> op2 (x, xr) (y, yr)) ys) xs |> fun x -> reduce (join b (of_list x)) (* join instead of union because R is HoareDomain.Set for witness generation *)
   let join a b = join a b |> reduce
   let meet = product_bot SpecD.meet R.inter
   (* let narrow = product_bot (fun x y -> if SpecD.leq y x then SpecD.narrow x y else x) R.narrow *)
   (* TODO: move PathSensitive3-specific narrow out of HoareMap *)
   let narrow = product_bot2 (fun (x, xr) (y, yr) -> if SpecD.leq y x then (SpecD.narrow x y, yr) else (x, xr))
-  let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen
+  (* let widen = product_widen (fun x y -> if SpecD.leq x y then SpecD.widen x y else SpecD.bot ()) R.widen *)
+  (* TODO: move PathSensitive3-specific widen out of HoareMap *)
+  let widen = product_widen2 (fun (x, xr) (y, yr) -> if SpecD.leq x y then (SpecD.widen x y, yr) else (y, yr)) (* TODO: is this right now? *)
 
   (* TODO: shouldn't this also reduce? *)
   let apply_list f s = elements s |> f |> of_list
@@ -316,7 +332,7 @@ struct
           fold' (fun other otherr acc ->
               (dprintf "not leq %a because %a\nand not mem %a because %a\n" SpecD.pretty other SpecD.pretty_diff (evil, other) R.pretty otherr R.pretty_diff (R.singleton evilr', otherr)) ++ acc
             ) s2 nil
-      with _ ->
+      with Not_found ->
         dprintf "choose failed b/c of empty set s1: %d s2: %d"
         (cardinal s1)
         (cardinal s2)

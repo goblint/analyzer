@@ -13,9 +13,9 @@ elif [ $ana == "arinc" ]; then
 else
     spec=$ana
     ana="spec"
-    opt="--sets ana.spec.file $spec"
+    opt="--set ana.spec.file $spec"
 fi
-cmd="./goblint --sets ana.activated[0][+] $ana $opt --html --enable dbg.showtemps --set dbg.debug $debug $file"
+cmd="./goblint --set ana.activated[0][+] $ana $opt --html --set dbg.debug $debug $file"
 echo -e "$(tput setaf 6)$cmd$(tput sgr 0)"
 $cmd
 

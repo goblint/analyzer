@@ -4,21 +4,7 @@
       "def_exc": true,
       "interval": false,
       "enums": true
-    }
-  },
-  "sem": {
-    "unknown_function": {
-      "invalidate": {
-        "globals": false
-      },
-      "spawn": true
     },
-    "builtin_unreachable": {
-      "dead_code": true
-    }
-  },
-  "exp": {
-    "priv-distr-init": false,
     "malloc": {
       "wrappers": [
         "kmalloc",
@@ -39,5 +25,19 @@
         "ldv_calloc"
       ]
     }
+  },
+  "sem": {
+    "unknown_function": {
+      "invalidate": {
+        "globals": false
+      },
+      "spawn": true
+    },
+    "builtin_unreachable": {
+      "dead_code": true
+    }
+  },
+  "exp": {
+    "priv-distr-init": false
   }
 }

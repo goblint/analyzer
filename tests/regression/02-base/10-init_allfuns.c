@@ -1,5 +1,4 @@
-// PARAM: --enable allfuns --set ana.activated "['base','threadid','threadflag','escape','mutex','mallocWrapper']"
-
+// PARAM: --enable allfuns --set ana.activated "['base','threadid','threadflag','escape','mutexEvents','mutex','access','mallocWrapper']"
 int glob1 = 5;
 int glob2 = 7;
 

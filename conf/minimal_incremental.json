@@ -5,25 +5,22 @@
     ],
     "int": {
       "interval": false,
-      "trier ": true
+      "def_exc": true
     },
-    "hashcons": true
-  },
-  "exp": {
-    "earlyglobs": true,
-    "addr-context": true,
-    "widen-context": true,
-    "solver": {
-      "td3": {
-        "term": true,
-        "space": true,
-        "space_cache": true,
-        "space_restore": true
+    "opt": {
+      "hashcons": true
+    },
+    "base": {
+      "context": {
+        "non-ptr": false
       }
     },
-    "incremental": {
-      "mode": "incremental"
+    "context": {
+      "widen": true
     }
+  },
+  "exp": {
+    "earlyglobs": true
   },
   "dbg": {
     "verbose": true,
@@ -35,5 +32,17 @@
   "printstats": true,
   "result": "none",
   "solver": "td3",
-  "verify": true
+  "solvers": {
+    "td3": {
+      "term": true,
+      "space": true,
+      "space_cache": true,
+      "space_restore": true
+    }
+  },
+  "verify": true,
+  "incremental": {
+    "load": true,
+    "save": true
+  }
 }

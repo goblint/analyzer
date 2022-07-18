@@ -1,5 +1,4 @@
-open OUnit
-open Pretty
+open OUnit2
 
 module GroupableDriver : MapDomain.Groupable with type t = string  =
 struct
@@ -25,7 +24,7 @@ struct
       | false -> M.is_bot x
 
 
-  let test_add_remove_find () =
+  let test_add_remove_find _ =
     let map = ref (get_empty ()) in
       begin
 	assert_bool "can't get empty map" (is_empty !map);
@@ -47,7 +46,7 @@ struct
 
       end
 
-  let test_iter () =
+  let test_iter _ =
     let map = ref (get_empty ()) in
     let values = ["1","1";"2","2";"3","3";"4","4"]  in
     let fun1 k v =
@@ -60,7 +59,7 @@ struct
 	assert_bool "iter does not work" (is_empty !map)
       end
 
-  let test_fold () =
+  let test_fold _ =
     let map = ref (get_empty ()) in
     let values = ["1","2";"2","3";"3","4";"4","5"]  in
     let result = "45342312" in
@@ -70,7 +69,7 @@ struct
 	assert_equal result (M.fold fun1 !map "")
       end
 
-  let test_add_list () =
+  let test_add_list _ =
     let map = ref (get_empty ()) in
     let values = ["1","2";"2","3";"3","4";"4","5"]  in
       map := M.add_list values !map;
@@ -79,7 +78,7 @@ struct
       assert_equal "4" (M.find "3" !map);
       assert_equal "5" (M.find "4" !map)
 
-  let test_map () =
+  let test_map _ =
     let map = ref (get_empty ()) in
     let values = ["1","2";"2","3";"3","4";"4","5"]  in
     let fun1 n = n^"1" in
@@ -90,7 +89,7 @@ struct
       assert_equal "41" (M.find "3" !map);
       assert_equal "51" (M.find "4" !map)
 
-  let test_add_list_set () =
+  let test_add_list_set _ =
     let map = ref (get_empty ()) in
     let keys = ["1";"2";"3"] in
       map := M.add_list_set keys "v" !map;
@@ -98,7 +97,7 @@ struct
       assert_equal "v" (M.find "2" !map);
       assert_equal "v" (M.find "3" !map)
 
-  let test_add_list_fun () =
+  let test_add_list_fun _ =
     let map = ref (get_empty ()) in
     let fun1 k = k^"1" in
     let keys = ["1";"2";"3";"4"] in
@@ -109,7 +108,7 @@ struct
       assert_equal "41" (M.find "4" !map)
 
 
-  let test_for_all () =
+  let test_for_all _ =
     let map = ref (get_empty ()) in
     let values = ["1","1";"2","2";"3","3";"4","4"] in
     let fun1 k v = k = v in
@@ -117,7 +116,7 @@ struct
       assert_bool "for_all broken" (M.for_all fun1 !map)
 
 
-  let test_map2 () =
+  let test_map2 _ =
     let map1 = ref (get_empty ()) in
     let map2 = ref (get_empty ()) in
     let values1 = ["1","a";"2","b";"3","c";"4","d"] in
@@ -130,7 +129,7 @@ struct
       assert_equal "111" (M.fold fun2 (M.map2 fun1 !map2 !map1) "")
 
 
-  let test_long_map2 () =
+  let test_long_map2 _ =
     let map1 = ref (get_empty ()) in
     let map2 = ref (get_empty ()) in
     let values1 = ["1","a";"2","b";"3","c";"4","d"] in
@@ -167,7 +166,7 @@ module Tbot = TestMap (Mbot)
 module Ttop = TestMap (Mtop)
 
 
-let test_Mbot_join_meet () =
+let test_Mbot_join_meet _ =
   let assert_eq =
     let printer a = Pretty.sprint ~width:80 (Mbot.pretty () a) in
     let cmp = Mbot.equal in
@@ -203,7 +202,7 @@ let test_Mbot_join_meet () =
     assert_eq mtwo  (Mbot.meet m21   mtwo);
     ()
 
-let test_Mtop_join_meet () =
+let test_Mtop_join_meet _ =
   let assert_eq =
     let printer a = Pretty.sprint ~width:80 (Mtop.pretty () a) in
     let cmp = Mtop.equal in

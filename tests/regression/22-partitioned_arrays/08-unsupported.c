@@ -1,4 +1,4 @@
-// PARAM: --sets solver td3 --enable ana.int.interval --disable exp.fast_global_inits --enable exp.partition-arrays.enabled  --set ana.activated "['base','threadid','threadflag','expRelation','mallocWrapper']"
+// PARAM: --set solver td3 --enable ana.int.interval --disable exp.fast_global_inits --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
 
 // This is just to test that the analysis does not cause problems for features that are not explicitly dealt with
 int main(void) {

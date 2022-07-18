@@ -1,5 +1,5 @@
-//PARAM: --enable ana.int.wrap_on_signed_overflow
-// Enabling ana.int.wrap_on_signed_overflow here, to retain precision for cases when a signed overflow might occcur
+//PARAM: --set sem.int.signed_overflow assume_wraparound
+// Setting sem.int.signed_overflow to assume_wraparound here, to retain precision for cases when a signed overflow might occur
 #include<stdio.h>
 #include<assert.h>
 

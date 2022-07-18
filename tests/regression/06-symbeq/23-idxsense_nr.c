@@ -1,4 +1,4 @@
-// PARAM: --sets ana.activated[+] symb_locks --sets ana.activated[+] var_eq
+// PARAM: --set ana.activated[+] symb_locks --set ana.activated[+] var_eq
 // Copy of 05/10 with symb_locks enabled
 #include <pthread.h>
 

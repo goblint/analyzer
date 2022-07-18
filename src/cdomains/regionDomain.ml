@@ -23,7 +23,6 @@ struct
   let leq (v1,f1) (v2,f2) = V.equal v1 v2 && F.leq f1 f2
   (* Joins the fields, assuming the vars are equal. *)
   let join (v1,f1) (v2,f2) = (v1,F.join f1 f2)
-  let is_glob (v,f) = v.vglob
   let kill x (v,f) = v, F.kill x f
   let replace x exp (v,fd) = v, F.replace x exp fd
 end
@@ -200,7 +199,8 @@ struct
 
   let assign (lval: lval) (rval: exp) (st: t): t =
     (*    let _ = printf "%a = %a\n" (printLval plainCilPrinter) lval (printExp plainCilPrinter) rval in *)
-    if isPointerType (typeOf rval) then begin
+    let t = Cilfacade.typeOf rval in
+    if isPointerType t then begin (* TODO: this currently allows function pointers, e.g. in iowarrior, but should it? *)
       match eval_exp (Lval lval), eval_exp rval with
       (* TODO: should offs_x matter? *)
       | Some (deref_x, x,offs_x), Some (deref_y,y,offs_y) ->
@@ -227,7 +227,7 @@ struct
               add_set (RS.join (RS.single_vf x) (RegMap.find y m)) [y] st
           end
       | _ -> st
-    end else if isIntegralType (typeOf rval) then begin
+    end else if isIntegralType t then begin
       match lval with
       | Var x, NoOffset -> update x rval st
       | _ -> st
@@ -251,7 +251,7 @@ struct
         else
           RegMap.find vfd m
       in
-      (*           Messages.report ("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd)));  *)
+      (*           Messages.warn ~msg:("ok? "^sprint 80 (V.pretty () (fst vfd)++F.pretty () (snd vfd))) ();  *)
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []

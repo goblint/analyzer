@@ -1,4 +1,4 @@
-// PARAM: --enable ana.int.interval --enable exp.partition-arrays.enabled --set ana.activated "['base', 'threadflag', 'mallocWrapper']"
+// PARAM: --enable ana.int.interval --set ana.base.arrays.domain partitioned --set ana.activated "['base', 'threadflag', 'mallocWrapper']" --set ana.base.privatization none
 struct rtl8169_private {
    unsigned int features ;
 };

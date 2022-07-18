@@ -12,7 +12,6 @@ struct
   let name()  = "spec"
   module D = SpecDomain.Dom
   module C = SpecDomain.Dom
-  module G = Lattice.Unit
 
   (* special variables *)
   let return_var    = Goblintutil.create_var @@ Cil.makeVarinfo false "@return"    Cil.voidType, `NoOffset
@@ -24,7 +23,7 @@ struct
 
   let load_specfile () =
     let specfile = GobConfig.get_string "ana.spec.file" in
-    if String.length specfile < 1 then failwith "You need to specify a specification file using --sets ana.spec.file path/to/file.spec when using the spec analysis!";
+    if String.length specfile < 1 then failwith "You need to specify a specification file using --set ana.spec.file path/to/file.spec when using the spec analysis!";
     if not (Sys.file_exists specfile) then failwith @@ "The given spec-file ("^specfile^") doesn't exist (CWD is "^Sys.getcwd ()^").";
     let _nodes, _edges = SpecUtil.parseFile specfile in
     nodes := _nodes; edges := _edges (* don't change -> no need to save them in domain *)
@@ -57,32 +56,31 @@ struct
         warn key m msg;
         m (* no goto == implicit back edge *)
       | None ->
-        M.debug_each @@ "GOTO "^D.string_of_key key^": "^D.string_of_state key m^" -> "^state;
+        M.debug "GOTO %s: %s -> %s" (D.string_of_key key) (D.string_of_state key m) state;
         if not change_state then m
         else if may then D.may_goto key loc state m else D.goto key loc state m
 
-    (* match spec_exp, cil_exp *)
-    let equal_exp ctx = function
+    let equal_exp ctx spec_exp cil_exp = match spec_exp, cil_exp with
       (* TODO match constants right away to avoid queries? *)
-      | `String a, Const(CStr b) -> M.debug_each @@ "EQUAL String Const: "^a^" = "^b; a=b
+      | `String a, Const(CStr (b,_)) -> M.debug "EQUAL String Const: %s = %s" a b; a=b
       (* | `String a, Const(CWStr xs as c) -> failwith "not implemented" *)
       (* CWStr is done in base.ml, query only returns `Str if it's safe *)
       | `String a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | `Lifted b -> M.debug_each @@ "EQUAL String Query: "^a^" = "^b; a=b
-          | _      -> M.debug_each "EQUAL String Query: no result!"; false
+          | `Lifted b -> M.debug "EQUAL String Query: %s = %s" a b; a=b
+          | _      -> M.debug "EQUAL String Query: no result!"; false
         )
       | `Regex a, e -> (match ctx.ask (Queries.EvalStr e) with
-          | `Lifted b -> M.debug_each @@ "EQUAL Regex String Query: "^a^" = "^b; Str.string_match (Str.regexp a) b 0
-          | _      -> M.debug_each "EQUAL Regex String Query: no result!"; false
+          | `Lifted b -> M.debug "EQUAL Regex String Query: %s = %s" a b; Str.string_match (Str.regexp a) b 0
+          | _      -> M.debug "EQUAL Regex String Query: no result!"; false
         )
       | `Bool a, e -> (match ctx.ask (Queries.EvalInt e) with
           | b -> (match Queries.ID.to_bool b with Some b -> a=b | None -> false)
         )
       | `Int a, e  -> (match ctx.ask (Queries.EvalInt e) with
-          | b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=b | None -> false)
+          | b -> (match Queries.ID.to_int b with Some b -> (Int64.of_int a)=(IntOps.BigIntOps.to_int64 b) | None -> false)
         )
       | `Float a, Const(CReal (b, fkind, str_opt)) -> a=b
-      | `Float a, _ -> M.warn_each "EQUAL Float: unsupported!"; false
+      | `Float a, _ -> M.warn "EQUAL Float: unsupported!"; false
       (* arg is a key. currently there can only be one key per constraint, so we already used it for lookup. TODO multiple keys? *)
       | `Var a, b  -> true
       (* arg is a identifier we use for matching constraints. TODO save in domain *)
@@ -90,7 +88,7 @@ struct
       | `Error s, b -> failwith @@ "Spec error: "^s
       (* wildcard matches anything *)
       | `Free, b    -> true
-      | a,b -> M.warn_each @@ "EQUAL? Unmatched case - assume true..."; true
+      | a,b -> M.warn "EQUAL? Unmatched case - assume true..."; true
 
     let check_constraint ctx get_key matches m new_a old_key (a,ws,fwd,b,c as edge) =
       (* If we have come to a wildcard, we match it instantly, but since there is no way of determining a key
@@ -117,7 +115,7 @@ struct
         (* get possible keys that &lval may point to *)
         let keys = D.keys_from_lval key (Analyses.ask_of_ctx ctx) in (* does MayPointTo query *)
         let check_key (m,n) var =
-          (* M.debug_each @@ "check_key: "^f.vname^"(...): "^D.string_of_entry var m; *)
+          (* M.debug @@ "check_key: "^f.vname^"(...): "^D.string_of_entry var m; *)
           let wildcard = SC.is_wildcard c && fwd && b<>"end" in
           (* skip transitions we can't take b/c we're not in the right state *)
           (* i.e. if not in map, we must be at the start node or otherwise we must be in one of the possible saved states *)
@@ -130,10 +128,10 @@ struct
           (* everything matches the constraint -> go to new state and increase counter *)
           else
             (* TODO if #Queries.MayPointTo > 1: each result is May, but all combined are Must *)
-            let may = (List.length keys > 1) in
+            let may = (List.compare_length_with keys 1 > 0) in
             (* do not change state for reflexive edges where the key is not assigned to (e.g. *$p = _) *)
             let change_state = not (old_a=b && SC.get_lval c <> Some `Var) in
-            M.debug @@ "GOTO ~may:"^string_of_bool may^" ~change_state:"^string_of_bool change_state^". "^a^" -> "^b^": "^SC.stmt_to_string c;
+            M.debug "GOTO ~may:%B ~change_state:%B. %s -> %s: %s" may change_state a b (SC.stmt_to_string c);
             let new_m = goto ~may:may ~change_state:change_state var b m ws in
             (new_m,n+1)
         in
@@ -152,13 +150,13 @@ struct
       try
         let rec check_fwd_loop m new_a old_key = (* TODO cycle detection? *)
           let new_m,fwd,new_a,key = List.find_map (check_constraint ctx get_key matches m new_a old_key) !edges in
-          (* List.iter (fun x -> M.debug_each (x^"\n")) (D.string_of_map new_m); *)
-          if fwd then M.debug_each @@ "FWD: "^string_of_bool fwd^", new_a: "^dump new_a^", old_key: "^dump old_key;
+          (* List.iter (fun x -> M.debug (x^"\n")) (D.string_of_map new_m); *)
+          if fwd then M.debug "FWD: %B, new_a: %s, old_key: %s" fwd (dump new_a) (dump old_key);
           if fwd then check_fwd_loop new_m new_a key else new_m,key
         in
         (* now we get the new domain and the latest key that was used *)
         let new_m,key = check_fwd_loop m None None in
-        (* List.iter (fun x -> M.debug_each (x^"\n")) (D.string_of_map new_m); *)
+        (* List.iter (fun x -> M.debug (x^"\n")) (D.string_of_map new_m); *)
         (* next we have to check if there is a branch() transition we could take *)
         let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c) !edges in
         (* just for the compiler: key is initialized with None, but changes once some constaint matches. If none match, we wouldn't be here but at catch Not_found. *)
@@ -168,7 +166,7 @@ struct
           let check_branch branches var =
             (* only keep those branch_edges for which our key might be in the right state *)
             let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> D.may_in_state var a new_m) branch_edges in
-            (* M.debug_each @@ D.string_of_entry var new_m^" -> branch_edges: "^String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges; *)
+            (* M.debug @@ D.string_of_entry var new_m^" -> branch_edges: "^String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges; *)
             (* count should be a multiple of 2 (true/false), otherwise the spec is malformed *)
             if List.length branch_edges mod 2 <> 0 then failwith "Spec is malformed: branch-transitions always need a true and a false case!" else
               (* if nothing matches, just return new_m without branching *)
@@ -217,7 +215,7 @@ struct
     (* ignore(printf "%a = %a\n" d_plainlval lval d_plainexp rval); *)
     let get_key c = match SC.get_key_variant c with
       | `Lval s ->
-        M.debug_each @@ "Key variant assign `Lval "^s^"; "^SC.stmt_to_string c;
+        M.debug "Key variant assign `Lval %s; %s" s (SC.stmt_to_string c);
         (match SC.get_lval c, lval with
          | Some `Var, _ -> Some lval
          | Some `Ptr, (Mem Lval x, o) -> Some x (* TODO offset? *)
@@ -228,9 +226,9 @@ struct
       SC.equal_form (Some lval) c &&
       (* check for constraints *p = _ where p is the key *)
       match lval, SC.get_lval c with
-      | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c, rval) ->
+      | (Mem Lval x, o), Some `Ptr  when SpecCheck.equal_exp ctx (SC.get_rval c) rval ->
         let keys = D.keys_from_lval x (Analyses.ask_of_ctx ctx) in
-        if List.length keys <> 1 then failwith "not implemented"
+        if List.compare_length_with keys 1 <> 0 then failwith "not implemented"
         else true
       | _ -> false (* nothing to do *)
     in
@@ -242,23 +240,23 @@ struct
     match key_from_exp (Lval lval), key_from_exp (stripCasts rval) with (* TODO for now we just care about Lval assignments -> should use Queries.MayPointTo *)
     | Some k1, Some k2 when k1=k2 -> m (* do nothing on self-assignment *)
     | Some k1, Some k2 when D.mem k1 m && D.mem k2 m -> (* both in D *)
-      M.debug @@ "assign (both in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      M.debug "assign (both in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       (* saveOpened k1 *) m |> D.remove' k1 |> D.alias k1 k2
     | Some k1, Some k2 when D.mem k1 m -> (* only k1 in D *)
-      M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      M.debug "assign (only k1 in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       (* saveOpened k1 *) m |> D.remove' k1
     | Some k1, Some k2 when D.mem k2 m -> (* only k2 in D *)
-      M.debug @@ "assign (only k2 in D): " ^ D.string_of_key k1 ^ " = " ^ D.string_of_key k2;
+      M.debug "assign (only k2 in D): %s = %s" (D.string_of_key k1) (D.string_of_key k2);
       let m = D.alias k1 k2 m in (* point k1 to k2 *)
       if Lval.CilLval.class_tag k2 = `Temp (* check if k2 is a temporary Lval introduced by CIL *)
       then D.remove' k2 m (* if yes we need to remove it from our map *)
       else m (* otherwise no change *)
     | Some k1, _ when D.mem k1 m -> (* k1 in D and assign something unknown *)
-      M.debug @@ "assign (only k1 in D): " ^ D.string_of_key k1 ^ " = " ^ sprint d_exp rval;
+      M.debug "assign (only k1 in D): %s = %a" (D.string_of_key k1) d_exp rval;
       D.warn @@ "changed pointer "^D.string_of_key k1^" (no longer safe)";
       (* saveOpened ~unknown:true k1 *) m |> D.unknown k1
     | _ -> (* no change in D for other things *)
-      M.debug @@ "assign (none in D): " ^ sprint d_lval lval ^ " = " ^ sprint d_exp rval ^ " [" ^ sprint d_plainexp rval ^ "]";
+      M.debug "assign (none in D): %a = %a [%a]" d_lval lval d_exp rval d_plainexp rval;
       m
 
   (*
@@ -288,24 +286,24 @@ struct
        for pointers this won't help since it always returns `Top *)
     ( let i = ctx.ask (Queries.EvalInt exp) in (* when (Queries.ID.is_bool i) *)
       (match Queries.ID.to_bool i with
-      | Some b when b<>tv -> M.debug_each "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
-      | _ -> M.debug_each "EvalInt: `Int no bool")
+      | Some b when b<>tv -> M.debug "EvalInt: `Int bool" (* D.remove k m TODO where to get the key?? *)
+      | _ -> M.debug "EvalInt: `Int no bool")
     );
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
       match a, b with
-      | Const (CInt64(i, kind, str)), Lval lval
-      | Lval lval, Const (CInt64(i, kind, str)) ->
+      | Const (CInt(i, kind, str)), Lval lval
+      | Lval lval, Const (CInt(i, kind, str)) ->
         (* let binop = BinOp (Eq, a, b, Cil.intType) in *)
         (* standardize the format of the expression to 'lval==i'. -> spec needs to follow that format, the code is mapped to it. *)
-        let binop = BinOp (Eq, Lval lval, Const (CInt64(i, kind, str)), Cil.intType) in
+        let binop = BinOp (Eq, Lval lval, Const (CInt(i, kind, str)), Cil.intType) in
         let key = D.key_from_lval lval in
         let value = D.find key m in
-        if i = Int64.zero && tv then (
-          M.debug_each "error-branch";
+        if Cilint.is_zero_cilint i && tv then (
+          M.debug "error-branch";
           (* D.remove key m *)
         )else(
-          M.debug_each "success-branch";
+          M.debug "success-branch";
           (* m *)
         );
         (* there should always be an entry in our domain for key *)
@@ -332,14 +330,14 @@ struct
           (* filter those edges that are branches, start with a state from states and have the same branch expression and the same tv *)
           let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem a states && branch_exp_eq c exp tv) !edges in
           (* there should be only one such edge or none *)
-          if List.length branch_edges <> 1 then ( (* call of branch for an actual branch *)
-            M.debug_each "branch: branch_edges length is not 1! -> actual branch";
-            M.debug_each ((D.string_of_entry key m)^" -> branch_edges1: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
+          if List.compare_length_with branch_edges 1 <> 0 then ( (* call of branch for an actual branch *)
+            M.debug "branch: branch_edges length is not 1! -> actual branch";
+            M.debug "%s -> branch_edges1: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun () x -> Pretty.text (SC.def_to_string (SC.Edge x)))) branch_edges;
             (* filter those edges that are branches, end with a state from states have the same branch expression and the same tv *)
             (* TODO they should end with any predecessor of the current state, not only the direct predecessor *)
             let branch_edges = List.filter (fun (a,ws,fwd,b,c) -> SC.is_branch c && List.mem b states && branch_exp_eq c exp tv) !edges in
-            M.debug_each ((D.string_of_entry key m)^" -> branch_edges2: "^(String.concat "\n " @@ List.map (fun x -> SC.def_to_string (SC.Edge x)) branch_edges));
-            if List.length branch_edges <> 1 then m else
+            M.debug "%s -> branch_edges2: %a" (D.string_of_entry key m) (Pretty.d_list "\n " (fun () x -> Pretty.text (SC.def_to_string (SC.Edge x)))) branch_edges;
+            if List.compare_length_with branch_edges 1 <> 0 then m else
               (* meet current value with the target state. this is tricky: we can not simply take the target state, since there might have been more than one element already before the branching.
                  -> find out what the alternative branch target was and remove it *)
               let (a,ws,fwd,b,c) = List.hd branch_edges in
@@ -351,15 +349,15 @@ struct
               if D.V.length value = (1,1) then m else (* XX *)
                 (* there are multiple possible states -> remove b *)
                 let v2 = D.V.remove_state b value in
-                (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
+                (* M.debug @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
                 D.add key v2 m
           ) else (* call of branch directly after splitting *)
             let (a,ws,fwd,b,c) = List.hd branch_edges in
             (* TODO may etc. *)
             let v2 = D.V.set_state b value in
-            (* M.debug_each @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
+            (* M.debug @@ "branch: changed state from "^D.V.string_of value^" to "^D.V.string_of v2; *)
             D.add key v2 m
-      | _ -> M.debug @@ "nothing matched the given BinOp: "^sprint d_plainexp a^" = "^sprint d_plainexp b; m
+      | _ -> M.debug "nothing matched the given BinOp: %a = %a" d_plainexp a d_plainexp b; m
     in
     match stripCasts (constFold true exp) with
     (* somehow there are a lot of casts inside the BinOp which stripCasts only removes when called on the subparts
@@ -369,15 +367,15 @@ struct
     | UnOp (LNot, a, _)   -> check (stripCasts a) (integer 0)    tv
     (* TODO makes 2 tests fail. probably check changes something it shouldn't *)
     (* | Lval _ as a         -> check (stripCasts a) (integer 0)    (not tv) *)
-    | e -> M.debug @@ "branch: nothing matched the given exp: "^sprint d_plainexp e; m
+    | e -> M.debug "branch: nothing matched the given exp: %a" d_plainexp e; m
 
   let body ctx (f:fundec) : D.t =
     ctx.local
 
   let return ctx (exp:exp option) (f:fundec) : D.t =
     let m = ctx.local in
-    (* M.debug_each @@ "return: ctx.local="^D.short 50 m^D.string_of_callstack m; *)
-    (* if f.svar.vname <> "main" && BatList.is_empty (D.callstack m) then M.debug_each @@ "\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"; *)
+    (* M.debug @@ "return: ctx.local="^D.short 50 m^D.string_of_callstack m; *)
+    (* if f.svar.vname <> "main" && BatList.is_empty (D.callstack m) then M.debug @@ "\n\t!!! call stack is empty for function "^f.svar.vname^" !!!"; *)
     if f.svar.vname = "main" then (
       let warn_main msg_loc msg_end = (* there is an end warning for local, return or both *)
         (* find edges that have 'end' as a target *)
@@ -418,14 +416,14 @@ struct
     List.fold_left (fun m var -> D.remove' (var, `NoOffset) m) au (f.sformals @ f.slocals)
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
-    (* M.debug_each @@ "entering function "^f.vname^D.string_of_callstack ctx.local; *)
+    (* M.debug @@ "entering function "^f.vname^D.string_of_callstack ctx.local; *)
     if f.svar.vname = "main" then load_specfile ();
     let m = if f.svar.vname <> "main" then
         D.edit_callstack (BatList.cons !Tracing.current_loc) ctx.local
       else ctx.local in [m, m]
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    (* M.debug_each @@ "leaving function "^f.vname^D.string_of_callstack au; *)
+    (* M.debug @@ "leaving function "^f.vname^D.string_of_callstack au; *)
     let au = D.edit_callstack List.tl au in
     let return_val = D.find_option return_var au in
     match lval, return_val with
@@ -453,10 +451,10 @@ struct
     let arglist = List.map (Cil.stripCasts) arglist in (* remove casts, TODO safe? *)
     let get_key c = match SC.get_key_variant c with
       | `Lval s ->
-        M.debug_each @@ "Key variant special `Lval "^s^"; "^SC.stmt_to_string c;
+        M.debug "Key variant special `Lval %s; %s" s (SC.stmt_to_string c);
         lval
       | `Arg(s, i) ->
-        M.debug_each @@ "Key variant special `Arg("^s^", "^string_of_int i^")"^". "^SC.stmt_to_string c;
+        M.debug "Key variant special `Arg(%s, %d). %s" s i (SC.stmt_to_string c);
         (try
            let arg = List.at arglist i in
            match arg with
@@ -464,20 +462,20 @@ struct
            | AddrOf x -> Some x
            | _      -> None
          with Invalid_argument s ->
-           M.debug_each @@ "Key out of bounds! Msg: "^s; (* TODO what to do if spec says that there should be more args... *)
+           M.debug "Key out of bounds! Msg: %s" s; (* TODO what to do if spec says that there should be more args... *)
            None
         )
       | _ -> None (* `Rval or `None *)
     in
     let matches (a,ws,fwd,b,c) =
       let equal_args spec_args cil_args =
-        if List.length spec_args = 1 && List.hd spec_args = `Free then
+        if List.compare_length_with spec_args 1 = 0 && List.hd spec_args = `Free then
           true (* wildcard as an argument matches everything *)
-        else if List.length arglist <> List.length spec_args then (
-          M.debug_each "SKIP the number of arguments doesn't match the specification!";
+        else if List.compare_lengths arglist spec_args <> 0 then (
+          M.debug "SKIP the number of arguments doesn't match the specification!";
           false
         )else
-          List.for_all (SpecCheck.equal_exp ctx) (List.combine spec_args cil_args) (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
+          List.for_all2 (SpecCheck.equal_exp ctx) spec_args cil_args (* TODO Cil.constFold true arg. Test: Spec and c-file: 1+1 *)
       in
       (* function name must fit the constraint *)
       SC.fname_is f.vname c &&

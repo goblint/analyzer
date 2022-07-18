@@ -6,50 +6,41 @@ open Analyses
 module Node: Printable.S with type t = MyCFG.node =
 struct
   include Var
-  let to_yojson = MyCFG.node_to_yojson
+  let to_yojson = Node.to_yojson
 
-  let pretty_diff () (x,y) = dprintf "Unsupported"
   (* let short n x = Pretty.sprint n (pretty () x) *)
   (* let short _ x = var_id x *)
-  let show x =
-    let open MyCFG in
-    match x with
-    | Statement stmt  -> string_of_int stmt.sid
-    | Function f      -> "return of " ^ f.svar.vname ^ "()"
-    | FunctionEntry f -> f.svar.vname ^ "()"
+  let show = Node.show_cfg
+  let pretty = Node.pretty_trace
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
-  let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"
   let arbitrary () = failwith "PrintableVar: no arbitrary"
 end
 
 module Edge: Printable.S with type t = MyARG.inline_edge =
 struct
-  type t = MyARG.inline_edge [@@deriving to_yojson]
+  type t = MyARG.inline_edge [@@deriving to_yojson] (* TODO: deriving gets overridden *)
 
   let equal = Util.equals
   let compare = Stdlib.compare
   let hash = Hashtbl.hash
 
-  let show x = Pretty.sprint ~width:max_int (MyARG.pretty_inline_edge () x)
   let name () = "edge"
 
-  include Printable.PrintSimple (
+  let pretty = MyARG.pretty_inline_edge
+  include Printable.SimplePretty (
     struct
-      type t' = t
-      let show = show
-      let name = name
+      type nonrec t = t
+      let pretty = pretty
     end
     )
 
-  let invariant _ _ = Invariant.none
   let tag _ = failwith "Edge: no tag"
   let arbitrary () = failwith "Edge: no arbitrary"
   let relift x = x
 end
 
-module N = struct let topname = "Top" end
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive3 (Spec:Spec)
@@ -93,6 +84,16 @@ struct
     let is_top _ = failwith "VIE is_top"
     let bot () = failwith "VIE bot"
     let is_bot _ = failwith "VIE is_bot"
+
+    let pretty_diff () (((v, c, x'), e), ((w, d, y'), f)) =
+      if not (Node.equal v w) then
+        Pretty.dprintf "%a not equal %a" Node.pretty v Node.pretty w
+      else if not (Spec.C.equal c d) then
+        Pretty.dprintf "%a not equal %a" Spec.C.pretty c Spec.C.pretty d
+      else if not (Edge.equal e f) then
+        Pretty.dprintf "%a not equal %a" Edge.pretty e Edge.pretty f
+      else
+        I.pretty_diff () (x', y')
   end
   (* Bot is needed for Hoare widen *)
   (* TODO: could possibly rewrite Hoare to avoid introducing bots in widen which get reduced away anyway? *)
@@ -134,12 +135,6 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
-
-    let invariant c s =
-      (* TODO: optimize indexing, using inner hashcons somehow? *)
-      (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (elements s) in
-      Spec.D.invariant c d
   end
 
   (* Additional dependencies component between values before and after sync.
@@ -156,9 +151,11 @@ struct
 
   module G = Spec.G
   module C = Spec.C
+  module V = Spec.V
 
   let name () = "PathSensitive3("^Spec.name ()^")"
 
+  type marshal = Spec.marshal
   let init = Spec.init
   let finalize = Spec.finalize
 
@@ -170,12 +167,11 @@ struct
 
   let call_descr = Spec.call_descr
 
-  let val_of c = (Dom.singleton (Spec.val_of c) (R.bot ()), Sync.bot ())
-  let context (l, _) =
+  let context fd (l, _) =
     if Dom.cardinal l <> 1 then
       failwith "PathSensitive3.context must be called with a singleton set."
     else
-      Spec.context @@ Dom.choose l
+      Spec.context fd @@ Dom.choose l
 
   let conv ctx x =
     (* TODO: R.bot () isn't right here *)
@@ -205,14 +201,6 @@ struct
     let d = Dom.fold h (fst ctx.local) (Dom.empty ()) |> Dom.reduce in
     if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
 
-  let fold ctx f g h a =
-    let k x a =
-      try h a @@ g @@ f @@ conv ctx x
-      with Deadcode -> a
-    in
-    let d = Dom.fold k (fst ctx.local) a in
-    if Dom.is_bot d then raise Deadcode else (d, Sync.bot ())
-
   let fold' ctx f g h a =
     let k x a =
       try h a x @@ g @@ f @@ conv ctx x
@@ -232,7 +220,6 @@ struct
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
@@ -281,6 +268,11 @@ struct
           f (I.to_int x)
         ) (fst ctx.local);
       ()
+    | Queries.Invariant ({path=Some i; _} as c) ->
+      (* TODO: optimize indexing, using inner hashcons somehow? *)
+      (* let (d, _) = List.at (S.elements s) i in *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.elements (fst ctx.local)) in
+      Spec.query (conv ctx d) (Invariant c)
     | _ ->
       (* join results so that they are sound for all paths *)
       let module Result = (val Queries.Result.lattice q) in
@@ -318,7 +310,7 @@ struct
         if should_inline f then
           let nosync = (Sync.singleton x (SyncSet.singleton x)) in
           (* returns already post-sync in FromSpec *)
-          step (Function f) fc x (InlineReturn l) nosync
+          step (Function f) (Option.get fc) x (InlineReturn l) nosync (* fc should be Some outside of MCP *)
         else
           step_ctx_edge ctx cd
       in

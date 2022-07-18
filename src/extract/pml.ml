@@ -90,10 +90,10 @@ let nop = (), ""
 module Chan = struct (* channels *)
   let create len content = Chan { capacity = len; content = []; content_type = content }
 
-  let full   (c,s) = List.length c.content >= fst c.capacity, "full("^s^")"
-  let nfull  (c,s) = List.length c.content < fst c.capacity, "nfull("^s^")"
-  let empty  (c,s) = List.length c.content = 0, "empty("^s^")"
-  let nempty (c,s) = List.length c.content > 0, "nempty("^s^")"
+  let full   (c,s) = List.compare_length_with c.content (fst c.capacity) >= 0, "full("^s^")"
+  let nfull  (c,s) = List.compare_length_with c.content (fst c.capacity) < 0, "nfull("^s^")"
+  let empty  (c,s) = c.content = [], "empty("^s^")"
+  let nempty (c,s) = c.content <> [], "nempty("^s^")"
   let len    (c,s) = List.length c.content, "len("^s^")"
 
   (*  ? = first, ?? = any, no <> = consume, <> = remain, TODO eval, !! *)
@@ -123,11 +123,11 @@ let (>>=) = bind
 let (let*) = bind (* introduced in OCaml 4.08.0: https://ocaml.org/manual/bindingops.html *)
 let return x = x (* ? *)
 
-let indent x = String.split_on_string "\n" x |> List.map (fun x -> "  "^x) |> String.concat "\n"
+let indent x = String.split_on_string ~by:"\n" x |> List.map (fun x -> "  "^x) |> String.concat "\n"
 
 let surround a b (v,s) = v, a^"\n"^indent s^"\n"^b
 let _match xs =
-  assert (List.length xs > 0);
+  assert (xs <> []);
   let s = String.concat "\n" @@ List.map (fun (c,b) -> ":: "^snd c^" -> "^snd b) xs in
   (*List.find (fst%fst) xs, s*)
   (), s

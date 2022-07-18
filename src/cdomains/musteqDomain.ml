@@ -2,7 +2,22 @@ open Cil
 open Pretty
 
 module V = Basetype.Variables
-module F = Lval.Fields
+module F =
+struct
+  include Lval.Fields
+
+  let rec prefix x y = match x,y with
+    | (x::xs), (y::ys) when FI.equal x y -> prefix xs ys
+    | [], ys -> Some ys
+    | _ -> None
+
+  let append x y: t = x @ y
+
+  let rec occurs v fds = match fds with
+    | (`Left x::xs) -> occurs v xs
+    | (`Right x::xs) -> I.occurs v x || occurs v xs
+    | [] -> false
+end
 
 module EquAddr =
 struct

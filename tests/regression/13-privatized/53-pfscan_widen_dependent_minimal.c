@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.interval --enable exp.priv-distr-init
+extern int __VERIFIER_nondet_int();
+
 #include <pthread.h>
 #include <assert.h>
 
@@ -29,7 +31,7 @@ int pqueue_put(PQUEUE *qp)
   while (qp->occupied >= qp->qsize) {
 
   }
-  assert(qp->occupied >= 0); // TODO
+  assert(qp->occupied >= 0); // precise privatization fails
   (qp->occupied) ++;
   pthread_mutex_unlock(& qp->mtx);
   return (1);
@@ -42,7 +44,7 @@ int pqueue_get(PQUEUE *qp)
   while (qp->occupied <= 0) {
 
   }
-  assert(qp->occupied > 0); // TODO
+  assert(qp->occupied > 0); // precise privatization fails
   if (qp->occupied > 0) {
     (qp->occupied) --;
     got = 1;
@@ -65,7 +67,7 @@ void *worker(void *arg )
 int main(int argc , char **argv )
 {
   pthread_t tid;
-  int qsize;
+  int qsize = __VERIFIER_nondet_int();
 
   PQUEUE *qp = &pqb;
   pqueue_init(& pqb, qsize);

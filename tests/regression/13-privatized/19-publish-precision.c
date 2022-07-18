@@ -7,7 +7,6 @@ pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
-  int t;
   pthread_mutex_lock(&mutex1);
   pthread_mutex_lock(&mutex2);
   glob1 = 5;

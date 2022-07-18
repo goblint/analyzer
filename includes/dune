@@ -1,0 +1,14 @@
+
+(install
+  (section (site (goblint includes)))
+  (files
+    assert.h
+    stdlib.c
+    pthread.c
+    linuxlight.h
+    sv-comp.c
+    (linux/goblint_preconf.h as linux/goblint_preconf.h) ; must repeat directory, otherwise gets stripped from target
+
+    ; no way to glob here...
+  )
+)

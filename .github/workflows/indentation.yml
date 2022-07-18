@@ -1,0 +1,46 @@
+name: indentation
+
+on: [ push, pull_request]
+
+jobs:
+  indentation:
+    strategy: # remove?
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 4.14.0 # setup-ocaml@v1 does not support 4.14.x for ocaml-version
+
+    runs-on: ${{ matrix.os }}
+
+    if: ${{ github.event.before != '0000000000000000000000000000000000000000' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # reuse tests.yml or depend on it to not have to setup OCaml? https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#example-using-an-action-in-the-same-repository-as-the-workflow
+
+      # rely on cache for now
+      - name: Cache opam switch # https://github.com/marketplace/actions/cache
+        uses: actions/cache@v3
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: |
+            ~/.opam
+            _opam
+          # Key for restoring and saving the cache
+          key: opam-ocp-indent-${{ runner.os }}-${{ matrix.ocaml-compiler }}
+
+      - name: Set up OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v1 # intentionally use v1 instead of v2 because it's faster with manual caching: https://github.com/goblint/analyzer/pull/308#issuecomment-887805857
+        with:
+          ocaml-version: ${{ matrix.ocaml-compiler }}
+
+      - name: Install ocp-indent
+        run: opam install -y ocp-indent
+
+      - name: Run pre-commit hook on changes since last push
+        run: git reset --soft ${{ github.event.before }} && eval $(opam env) && ./scripts/hooks/pre-commit

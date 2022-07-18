@@ -17,17 +17,18 @@ module PartialEval = struct
   class visitor ask = object
     inherit nopCilVisitor
     method! vstmt s =
-      loc := get_stmtLoc s.skind;
-      (* ignore @@ Pretty.printf "Set loc at stmt %a to %a\n" d_stmt s d_loc !loc; *)
+      loc := Cilfacade.get_stmtLoc s;
+      (* ignore @@ Pretty.printf "Set loc at stmt %a to %a\n" d_stmt s CilType.Location.pretty !loc; *)
       DoChildren
     method! vexpr e =
       let eval e = match (ask !loc).Queries.f (Queries.EvalInt e) with
-        | `Lifted i ->
-          let e' = integer @@ i64_to_int i in
-          ignore @@ Pretty.printf "Replacing non-constant expression %a with %a at %a\n" d_exp e d_exp e' d_loc !loc;
+        | x when Queries.ID.is_int x ->
+          let i = Option.get @@ Queries.ID.to_int x in
+          let e' = integer @@ IntOps.BigIntOps.to_int i in
+          ignore @@ Pretty.printf "Replacing non-constant expression %a with %a at %a\n" d_exp e d_exp e' CilType.Location.pretty !loc;
           e'
         | _ ->
-          ignore @@ Pretty.printf "Can't replace expression %a at %a\n" d_exp e d_loc !loc; e
+          ignore @@ Pretty.printf "Can't replace expression %a at %a\n" d_exp e CilType.Location.pretty !loc; e
       in
       match e with
       | Const _ -> SkipChildren
