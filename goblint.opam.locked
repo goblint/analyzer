@@ -62,7 +62,6 @@ depends: [
   "ocaml-base-compiler" {= "4.14.0"}
   "ocaml-compiler-libs" {= "v0.12.4"}
   "ocaml-config" {= "2"}
-  "ocaml-monadic" {= "0.5"}
   "ocaml-options-vanilla" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocamlbuild" {= "0.14.1"}
