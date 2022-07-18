@@ -39,6 +39,7 @@ let isCharType = function
 
 let init () =
   initCIL ();
+  removeBranchingOnConstants := false;
   lowerConstants := true;
   Mergecil.ignore_merge_conflicts := true;
   Mergecil.merge_inlines := get_bool "cil.merge.inlines";

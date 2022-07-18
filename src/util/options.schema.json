@@ -881,6 +881,31 @@
             }
           },
           "additionalProperties": false
+        },
+        "dead-code" : {
+          "title": "ana.dead-code",
+          "type": "object",
+          "properties": {
+            "lines": {
+              "title": "ana.dead-code.lines",
+              "description": "Print information about lines of dead code.",
+              "type": "boolean",
+              "default": true
+            },
+            "branches": {
+              "title": "ana.dead-code.branches",
+              "description": "Print information about dead branches.",
+              "type": "boolean",
+              "default": true
+            },
+            "functions": {
+              "title": "ana.dead-code.functions",
+              "description": "Print information about dead (uncalled) functions.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1373,12 +1398,6 @@
           },
           "additionalProperties": false
         },
-        "uncalled": {
-          "title": "dbg.uncalled",
-          "description": "Display uncalled functions.",
-          "type": "boolean",
-          "default": true
-        },
         "dump": {
           "title": "dbg.dump",
           "description": "Dumps the results to the given path",
@@ -1430,12 +1449,6 @@
           "title": "dbg.print_wpoints",
           "description":
             "Print the widening points after solving (does not include the removed wpoints during solving by the slr solvers). Currently only implemented in: slr*, td3.",
-          "type": "boolean",
-          "default": false
-        },
-        "print_dead_code": {
-          "title": "dbg.print_dead_code",
-          "description": "Print information about dead code",
           "type": "boolean",
           "default": false
         },
