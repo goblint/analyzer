@@ -149,28 +149,28 @@ struct
 
     let nh = join_contexts lh in
 
-    (* Yields some context if the node is of interest. *)
-    let node_context (n: Node.t)=
+    let is_invariant_node (n : Node.t) =
       let loc = Node.location n in
       match n with
-      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
-        let context: Invariant.context = {
+      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n -> true
+      | _ -> false
+    in
+
+    let node_context (n: Node.t) : Invariant.context =
+       {
           scope=Node.find_fundec n;
           i = -1;
           lval=None;
           offset=Cil.NoOffset;
           deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
         }
-        in
-        Some context
-      | _ -> None
     in
 
     (* Generate location invariants (wihtout precondition) *)
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
-        match node_context n with
-        | Some context ->
+        if is_invariant_node n then begin
+          let context = node_context n in
           begin match Spec.D.invariant context local with
             | Some inv ->
               let invs = WitnessUtil.InvariantExp.process_exp inv in
@@ -184,14 +184,17 @@ struct
             | None ->
               acc
           end
-        | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
+        end else begin
+          (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
           acc
+        end
       ) nh []
     in
 
+    (* Generate precondition invariants *)
     let entries = LHT.fold (fun (n, c) local acc ->
-        match node_context n with
-        | Some context ->
+        if is_invariant_node n then begin
+          let context = node_context n in
           begin match Spec.C.invariant context c, Spec.D.invariant context local with
             | Some c_inv, Some inv ->
               let loc = Node.location n in
@@ -209,8 +212,10 @@ struct
             | _, _ -> (* TODO: handle some other combination? *)
               acc
           end
-        | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
+        end else begin
+          (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
           acc
+        end
       ) lh entries
     in
 
