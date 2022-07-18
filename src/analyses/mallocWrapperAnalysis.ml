@@ -43,10 +43,7 @@ struct
   module Domain = struct
     include Lattice.Prod (MallocCounter) (PL)
 
-    let has_wrapper_node (_, wrapper_node) = not @@ PL.is_top wrapper_node
-
     let get_count (counter, _) node = MallocCounter.find (`Lifted node) counter
-
   end
 
   module ThreadNode = struct
@@ -89,10 +86,11 @@ struct
     let counter, wrapper_node = ctx.local in
     let new_wrapper_node =
       if Hashtbl.mem wrappers f.svar.vname then
-        if not @@ D.has_wrapper_node ctx.local then
-          (`Lifted ctx.prev_node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
-        else wrapper_node (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
-      else PL.top () (* if an uninteresting callee is called, then we forget what was called before *)
+        match wrapper_node with
+        | `Lifted _ ->  wrapper_node (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
+        | _ ->  (`Lifted ctx.prev_node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+      else
+        PL.top () (* if an uninteresting callee is called, then we forget what was called before *)
     in
     let callee = (counter, new_wrapper_node) in
     [(ctx.local, callee)]
