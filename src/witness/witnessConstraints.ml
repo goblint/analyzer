@@ -14,7 +14,6 @@ struct
   let pretty = Node.pretty_trace
   let printXml f x = BatPrintf.fprintf f "<value>\n<data>\n%s\n</data>\n</value>\n" (XmlUtil.escape (show x))
   let name () = "var"
-  let invariant _ _ = Invariant.none
   let tag _ = failwith "PrintableVar: no tag"
   let arbitrary () = failwith "PrintableVar: no arbitrary"
 end
@@ -37,13 +36,11 @@ struct
     end
     )
 
-  let invariant _ _ = Invariant.none
   let tag _ = failwith "Edge: no tag"
   let arbitrary () = failwith "Edge: no arbitrary"
   let relift x = x
 end
 
-module N = struct let topname = "Top" end
 
 (** Add path sensitivity to a analysis *)
 module PathSensitive3 (Spec:Spec)
@@ -138,12 +135,6 @@ struct
     let meet = binop meet
     let widen = binop widen
     let narrow = binop narrow
-
-    let invariant c s =
-      (* TODO: optimize indexing, using inner hashcons somehow? *)
-      (* let (d, _) = List.at (S.elements s) c.Invariant.i in *)
-      let (d, _) = List.find (fun (x, _) -> I.to_int x = c.Invariant.i) (elements s) in
-      Spec.D.invariant c d
   end
 
   (* Additional dependencies component between values before and after sync.
@@ -229,7 +220,6 @@ struct
   let body   ctx f      = map ctx Spec.body    (fun h -> h f   )
   let return ctx e f    = map ctx Spec.return  (fun h -> h e f )
   let branch ctx e tv   = map ctx Spec.branch  (fun h -> h e tv)
-  let intrpt ctx        = map ctx Spec.intrpt  identity
   let asm ctx           = map ctx Spec.asm     identity
   let skip ctx          = map ctx Spec.skip    identity
   let special ctx l f a = map ctx Spec.special (fun h -> h l f a)
@@ -278,6 +268,11 @@ struct
           f (I.to_int x)
         ) (fst ctx.local);
       ()
+    | Queries.Invariant ({path=Some i; _} as c) ->
+      (* TODO: optimize indexing, using inner hashcons somehow? *)
+      (* let (d, _) = List.at (S.elements s) i in *)
+      let (d, _) = List.find (fun (x, _) -> I.to_int x = i) (Dom.elements (fst ctx.local)) in
+      Spec.query (conv ctx d) (Invariant c)
     | _ ->
       (* join results so that they are sound for all paths *)
       let module Result = (val Queries.Result.lattice q) in

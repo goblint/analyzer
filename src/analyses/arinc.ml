@@ -625,11 +625,12 @@ struct
       | _ -> d
 
   let query ctx (type a) (q: a Queries.t): a Queries.result =
-    let d = ctx.local in
+    (* let d = ctx.local in *)
     match q with
-    | Queries.Priority _ ->
-      if Pri.is_int d.pri then Queries.ID.of_int IInt @@ BI.of_int64 @@ Option.get @@ Pri.to_int d.pri (* TODO: what ikind to use for priorities? *)
-      else if Pri.is_top d.pri then Queries.Result.top q else Queries.Result.bot q (* TODO: remove bot *)
+    (* had this query but nobody asked for it *)
+    (* | Queries.Priority _ ->
+       if Pri.is_int d.pri then Queries.ID.of_int IInt @@ BI.of_int64 @@ Option.get @@ Pri.to_int d.pri (* TODO: what ikind to use for priorities? *)
+       else if Pri.is_top d.pri then Queries.Result.top q else Queries.Result.bot q (* TODO: remove bot *) *)
     (* | Queries.MayBePublic _ -> *)
     (*   `Bool ((PrE.to_int d.pre = Some 0L || PrE.to_int d.pre = None) && (not (mode_is_init d.pmo))) *)
     | _ -> Queries.Result.top q

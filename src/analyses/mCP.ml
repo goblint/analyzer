@@ -4,9 +4,6 @@ open Prelude.Ana
 open GobConfig
 open Analyses
 
-module QuerySet = Set.Make (Queries.Any)
-module QueryHash = Hashtbl.Make (Queries.Any)
-
 include MCPRegistry
 
 module MCP2 : Analyses.Spec
@@ -243,16 +240,16 @@ struct
     if q then raise Deadcode else d
 
   (* Explicitly polymorphic type required here for recursive GADT call in ask. *)
-  and query': type a. querycache:Obj.t QueryHash.t -> QuerySet.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
+  and query': type a. querycache:Obj.t Queries.Hashtbl.t -> Queries.Set.t -> (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ~querycache asked ctx q ->
     let anyq = Queries.Any q in
-    match QueryHash.find_option querycache anyq with
+    match Queries.Hashtbl.find_option querycache anyq with
     | Some r -> Obj.obj r
     | None ->
       let module Result = (val Queries.Result.lattice q) in
-      if QuerySet.mem anyq asked then
+      if Queries.Set.mem anyq asked then
         Result.top () (* query cycle *)
       else
-        let asked' = QuerySet.add anyq asked in
+        let asked' = Queries.Set.add anyq asked in
         let sides = ref [] in
         let ctx'' = outer_ctx "query" ~sides ctx in
         let f ~q a (n,(module S:MCPSpec),d) =
@@ -268,9 +265,6 @@ struct
           Result.meet a @@ S.query ctx' q
         in
         match q with
-        | Queries.PrintFullState ->
-          ignore (Pretty.printf "Current State:\n%a\n\n" D.pretty ctx.local);
-          ()
         | Queries.WarnGlobal g ->
           (* WarnGlobal is special: it only goes to corresponding analysis and the argument variant is unlifted for it *)
           let (n, g): V.t = Obj.obj g in
@@ -284,12 +278,12 @@ struct
         | _ ->
           let r = fold_left (f ~q) (Result.top ()) @@ spec_list ctx.local in
           do_sideg ctx !sides;
-          QueryHash.replace querycache anyq (Obj.repr r);
+          Queries.Hashtbl.replace querycache anyq (Obj.repr r);
           r
 
   and query: type a. (D.t, G.t, C.t, V.t) ctx -> a Queries.t -> a Queries.result = fun ctx q ->
-    let querycache = QueryHash.create 13 in
-    query' ~querycache QuerySet.empty ctx q
+    let querycache = Queries.Hashtbl.create 13 in
+    query' ~querycache Queries.Set.empty ctx q
 
   and access (ctx:(D.t, G.t, C.t, V.t) ctx) a: MCPAccess.A.t =
     let ctx'' = outer_ctx "access" ctx in
@@ -312,10 +306,10 @@ struct
       | Some emits -> (fun e -> emits := e :: !emits)
       | None -> (fun _ -> failwith ("Cannot \"emit\" in " ^ tfname ^ " context."))
     in
-    let querycache = QueryHash.create 13 in
+    let querycache = Queries.Hashtbl.create 13 in
     (* TODO: make rec? *)
     { ctx with
-      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache QuerySet.empty ctx q)
+      ask    = (fun (type a) (q: a Queries.t) -> query' ~querycache Queries.Set.empty ctx q)
     ; emit
     ; presub = assoc_sub ctx.local
     ; spawn
@@ -331,7 +325,6 @@ struct
     { ctx with
       local  = obj d
     ; context = (fun () -> ctx.context () |> assoc n |> obj)
-    ; postsub= assoc_sub post_all
     ; global = (fun v      -> ctx.global (v_of n v) |> g_to n |> obj)
     ; split
     ; sideg  = (fun v g    -> ctx.sideg (v_of n v) (g_of n g))
@@ -406,22 +399,6 @@ struct
     let d = do_emits ctx !emits d in
     if q then raise Deadcode else d
 
-  let intrpt (ctx:(D.t, G.t, C.t, V.t) ctx) =
-    let spawns = ref [] in
-    let splits = ref [] in
-    let sides  = ref [] in
-    let emits = ref [] in
-    let ctx'' = outer_ctx "interpt" ~spawns ~sides ~emits ctx in
-    let f post_all (n,(module S:MCPSpec),d) =
-      let ctx' : (S.D.t, S.G.t, S.C.t, S.V.t) ctx = inner_ctx "interpt" ~splits ~post_all ctx'' n d in
-      n, repr @@ S.intrpt ctx'
-    in
-    let d, q = map_deadcode f @@ spec_list ctx.local in
-    do_sideg ctx !sides;
-    do_spawns ctx !spawns;
-    do_splits ctx d !splits;
-    let d = do_emits ctx !emits d in
-    if q then raise Deadcode else d
 
   let asm (ctx:(D.t, G.t, C.t, V.t) ctx) =
     let spawns = ref [] in

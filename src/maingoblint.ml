@@ -46,11 +46,6 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
     if Messages.tracing then Tracing.addsystem sys
     else (prerr_endline "Goblint has been compiled without tracing, recompile in trace profile (./scripts/trace_on.sh)"; raise Exit)
   in
-  let oil file =
-    set_string "ana.osek.oil" file;
-    set_auto "ana.activated" "['base','threadid','threadflag','escape','OSEK','OSEK2','stack_trace_set','fmode','flag','mallocWrapper']";
-    set_auto "mainfun" "[]"
-  in
   let configure_html () =
     if (get_string "outfile" = "") then
       set_string "outfile" "result";
@@ -115,16 +110,6 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   ; "--html"               , Arg_complete.Unit (fun _ -> configure_html ()),""
   ; "--sarif"               , Arg_complete.Unit (fun _ -> configure_sarif ()),""
   ; "--compare_runs"       , Arg_complete.Tuple [Arg_complete.Set_string (tmp_arg, Arg_complete.empty); Arg_complete.String ((fun x -> set_auto "compare_runs" (sprintf "['%s','%s']" !tmp_arg x)), Arg_complete.empty)], ""
-  ; "--oil"                , Arg_complete.String (oil, Arg_complete.empty), ""
-  (*     ; "--tramp"              , Arg_complete.String (set_string "ana.osek.tramp"), ""  *)
-  ; "--osekdefaults"       , Arg_complete.Unit (fun () -> set_bool "ana.osek.defaults" false), ""
-  ; "--osektaskprefix"     , Arg_complete.String (set_string "ana.osek.taskprefix", Arg_complete.empty), ""
-  ; "--osekisrprefix"      , Arg_complete.String (set_string "ana.osek.isrprefix", Arg_complete.empty), ""
-  ; "--osektasksuffix"     , Arg_complete.String (set_string "ana.osek.tasksuffix", Arg_complete.empty), ""
-  ; "--osekisrsuffix"      , Arg_complete.String (set_string "ana.osek.isrsuffix", Arg_complete.empty), ""
-  ; "--osekcheck"          , Arg_complete.Unit (fun () -> set_bool "ana.osek.check" true), ""
-  ; "--oseknames"          , Arg_complete.Set_string (OilUtil.osek_renames, Arg_complete.empty), ""
-  ; "--osekids"            , Arg_complete.Set_string (OilUtil.osek_ids, Arg_complete.empty), ""
   ; "--complete"           , Arg_complete.Rest_all_compat.spec (Lazy.force rest_all_complete), ""
   ] @ defaults_spec_list (* lowest priority *)
 )
@@ -154,8 +139,6 @@ let parse_arguments () =
 
 (** Initialize some globals in other modules. *)
 let handle_flags () =
-  let has_oil = get_string "ana.osek.oil" <> "" in
-  if has_oil then Osek.Spec.parse_oil ();
 
   if get_bool "dbg.verbose" then (
     Printexc.record_backtrace true;
@@ -235,8 +218,6 @@ let preprocess_files () =
 
   (* fill include flags *)
   let one_include_f f x = include_dirs := f x :: !include_dirs in
-  if get_string "ana.osek.oil" <> "" then include_files := Fpath.(GoblintDir.preprocessed () / OilUtil.header) :: !include_files;
-  (* if get_string "ana.osek.tramp" <> "" then include_files := get_string "ana.osek.tramp" :: !include_files; *)
   get_string_list "pre.includes" |> List.map Fpath.v |> List.iter (one_include_f identity);
 
   include_dirs := custom_include_dirs @ !include_dirs;
@@ -394,6 +375,14 @@ let do_stats () =
     flush_all ()
   )
 
+let reset_stats () =
+  Goblintutil.vars := 0;
+  Goblintutil.evals := 0;
+  (* TODO: uncomment on interactive *)
+  (* Goblintutil.narrow_reuses := 0; *)
+  (* Goblintutil.aborts := 0; *)
+  Stats.reset SoftwareTimer
+
 (** Perform the analysis over the merged AST.  *)
 let do_analyze change_info merged_AST =
   (* direct the output to file if requested  *)
@@ -504,7 +493,6 @@ let check_arguments () =
   let warn m = eprint_color ("{yellow}Option warning: "^m) in
   if get_bool "allfuns" && not (get_bool "exp.earlyglobs") then (set_bool "exp.earlyglobs" true; warn "allfuns enables exp.earlyglobs.\n");
   if not @@ List.mem "escape" @@ get_string_list "ana.activated" then warn "Without thread escape analysis, every local variable whose address is taken is considered escaped, i.e., global!";
-  if get_string "ana.osek.oil" <> "" && not (get_string "ana.base.privatization" = "protection-vesal" || get_string "ana.base.privatization" = "protection-old") then (set_string "ana.base.privatization" "protection-vesal"; warn "oil requires protection-old/protection-vesal privatization, setting ana.base.privatization to protection-vesal");
   if get_bool "ana.base.context.int" && not (get_bool "ana.base.context.non-ptr") then (set_bool "ana.base.context.int" false; warn "ana.base.context.int implicitly disabled by ana.base.context.non-ptr");
   (* order matters: non-ptr=false, int=true -> int=false cascades to interval=false with warning *)
   if get_bool "ana.base.context.interval" && not (get_bool "ana.base.context.int") then (set_bool "ana.base.context.interval" false; warn "ana.base.context.interval implicitly disabled by ana.base.context.int");
@@ -524,9 +512,10 @@ let diff_and_rename current_file =
     end;
     let (changes, old_file, max_ids) =
       if Serialize.results_exist () && GobConfig.get_bool "incremental.load" then begin
-        let old_file = Serialize.load_data Serialize.CilFile in
+        Serialize.Cache.load_data ();
+        let old_file = Serialize.Cache.(get_data CilFile) in
         let changes = CompareCIL.compareCilFiles old_file current_file in
-        let max_ids = MaxIdUtil.load_max_ids () in
+        let max_ids = Serialize.Cache.(get_data VersionData) in
         let max_ids = UpdateCil.update_ids old_file max_ids current_file changes in
         (changes, Some old_file, max_ids)
       end else begin
@@ -535,18 +524,18 @@ let diff_and_rename current_file =
       end
     in
     let solver_data = if Serialize.results_exist () && GobConfig.get_bool "incremental.load" && not (GobConfig.get_bool "incremental.only-rename")
-      then Some (Serialize.load_data Serialize.SolverData)
+      then Some Serialize.Cache.(get_data SolverData)
       else None
     in
     if GobConfig.get_bool "incremental.save" then begin
-      Serialize.store_data current_file Serialize.CilFile;
-      Serialize.store_data max_ids Serialize.VersionData
+      Serialize.Cache.(update_data CilFile current_file);
+      Serialize.Cache.(update_data VersionData max_ids);
     end;
     let old_data = match old_file, solver_data with
-      | Some cil_file, Some solver_data -> Some ({cil_file; solver_data}: Analyses.analyzed_data)
+      | Some cil_file, Some solver_data -> Some ({solver_data}: Analyses.analyzed_data)
       | _, _ -> None
     in
-    {Analyses.changes = changes; old_data; new_file = current_file}
+    {server = false; Analyses.changes = changes; old_data}
   in change_info
 
 let () = (* signal for printing backtrace; other signals in Generic.SolverStats and Timeout *)

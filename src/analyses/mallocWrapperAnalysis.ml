@@ -67,7 +67,7 @@ struct
 
   module NodeVarinfoMap = RichVarinfo.BiVarinfoMap.Make(ThreadNode)
   let name () = "mallocWrapper"
-  
+    
   module D = Domain
   module C = D
 
@@ -111,8 +111,9 @@ struct
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let counter, wrapper_node = ctx.local in
-    match LibraryFunctions.classify f.vname arglist with
-    | `Malloc _ | `Calloc _ | `Realloc _ -> (MallocCounter.add_malloc counter ctx.prev_node, wrapper_node)
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist, f.vname with
+    | Malloc _, _ | Calloc _, _ | Realloc _, _ -> (MallocCounter.add_malloc counter ctx.prev_node, wrapper_node)
     | _ -> ctx.local
 
   let startstate v = D.bot ()

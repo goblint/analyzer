@@ -63,7 +63,7 @@ struct
       (* TODO: Should it happen in the first place that RegMap has empty value? Happens in 09-regions/34-escape_rc *)
       | Some r1, _ when Lvals.is_empty r1 -> true
       | _, Some r2 when Lvals.is_empty r2 -> true
-      | Some r1, Some r2 when Lvals.is_empty (Lvals.inter r1 r2) -> false
+      | Some r1, Some r2 when Lvals.disjoint r1 r2 -> false
       | _, _ -> true
     let should_print r = match r with
       | Some r when Lvals.is_empty r -> false
@@ -150,11 +150,13 @@ struct
     | _ -> au
 
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    match LibraryFunctions.classify f.vname arglist with
-    | `Malloc _ | `Calloc _ -> begin
+    let desc = LibraryFunctions.find f in
+    match desc.special arglist with
+    | Malloc _ | Calloc _ | Realloc _ -> begin
         match ctx.local, lval with
         | `Lifted reg, Some lv ->
           let old_regpart = ctx.global () in
+          (* TODO: should realloc use arg region if failed/in-place? *)
           let regpart, reg = Reg.assign_bullet lv (old_regpart, reg) in
           if not (RegPart.leq regpart old_regpart) then
             ctx.sideg () regpart;

@@ -111,7 +111,11 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
         `Struct (s1, o1)
       | _ -> `Type t
     end
-  | _ -> `Type fb
+  | Const _
+  | Lval _
+  | Real _
+  | Imag _ ->
+    `Type fb (* TODO: is this right? *)
 
 let get_type fb e =
   (* printf "e = %a\n" d_plainexp e; *)
@@ -121,27 +125,6 @@ let get_type fb e =
   | `Type (TPtr (t,a)) -> `Type t
   | x -> x
 
-
-module Ht =
-struct
-  include Hashtbl
-
-  let find_def ht k z : 'b =
-    try
-      find ht k
-    with Not_found ->
-      let v = Lazy.force z in
-      add ht k v;
-      v
-
-  let modify_def ht k z f: unit =
-    let g = function
-      | None -> Some (f (Lazy.force z))
-      | Some b -> Some (f b)
-    in
-    modify_opt k g ht
-
-end
 
 
 type var_o = varinfo option
@@ -227,7 +210,7 @@ let add_propagate side e kind conf ty ls a =
       | _ -> failwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
-    let vars = Ht.find_all typeVar ts in
+    let vars = Hashtbl.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
     let add_vars v = add_struct side e kind conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
     List.iter add_vars vars;
@@ -244,61 +227,67 @@ let add_propagate side e kind conf ty ls a =
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
-    let incl = Ht.find_all typeIncl (typeSig t) in
+    let incl = Hashtbl.find_all typeIncl (typeSig t) in
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset))) incl;
-    let vars = Ht.find_all typeVar (typeSig t) in
+    let vars = Hashtbl.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
-let rec distribute_access_lval f kind r c lv =
+let rec distribute_access_lval f c lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
-  (* f kind r c (mkAddrOf lv); *)
-  f kind r c (AddrOf lv);
-  distribute_access_lval_addr f kind r c lv
+  (* f c (mkAddrOf lv); *)
+  f c (AddrOf lv);
+  distribute_access_lval_addr f c lv
 
-and distribute_access_lval_addr f kind r c lv =
+and distribute_access_lval_addr f c lv =
   match lv with
   | (Var v, os) ->
     distribute_access_offset f c os
   | (Mem e, os) ->
     distribute_access_offset f c os;
-    distribute_access_exp f `Read false c e
+    distribute_access_exp f c e
 
 and distribute_access_offset f c = function
   | NoOffset -> ()
   | Field (_,os) ->
     distribute_access_offset f c os
   | Index (e,os) ->
-    distribute_access_exp f `Read false c e;
+    distribute_access_exp f c e;
     distribute_access_offset f c os
 
-and distribute_access_exp f kind r c = function
+and distribute_access_exp f c = function
   (* Variables and address expressions *)
   | Lval lval ->
-    distribute_access_lval f kind r c lval;
+    distribute_access_lval f c lval;
 
     (* Binary operators *)
   | BinOp (op,arg1,arg2,typ) ->
-    distribute_access_exp f kind r c arg1;
-    distribute_access_exp f kind r c arg2
+    distribute_access_exp f c arg1;
+    distribute_access_exp f c arg2
 
-  (* Unary operators *)
-  | UnOp (op,arg1,typ) -> distribute_access_exp f kind r c arg1
+  | UnOp (_,e,_)
+  | Real e
+  | Imag e
+  | SizeOfE e
+  | AlignOfE e ->
+    distribute_access_exp f c e
 
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval ->
-    if r then
-      distribute_access_lval f kind r c lval
-    else
-      distribute_access_lval_addr f `Read r c lval
+    distribute_access_lval_addr f c lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
   | CastE  (t, exp) ->
-    distribute_access_exp f kind r c exp
+    distribute_access_exp f c exp
   | Question (b,t,e,_) ->
-    distribute_access_exp f `Read r c b;
-    distribute_access_exp f kind r c t;
-    distribute_access_exp f kind r c e
-  | _ -> ()
+    distribute_access_exp f c b;
+    distribute_access_exp f c t;
+    distribute_access_exp f c e
+  | Const _
+  | SizeOf _
+  | SizeOfStr _
+  | AlignOf _
+  | AddrOfLabel _ ->
+    ()
 
 let add side e kind conf vo oo a =
   let ty = get_val_type e vo oo in
@@ -370,10 +359,10 @@ module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
 
 (* Check if two accesses may race and if yes with which confidence *)
-let may_race (conf,kind,loc,e,a) (conf2,kind2,loc2,e2,a2) =
-  if kind = `Read && kind2 = `Read then
+let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),loc2,e2,a2) =
+  if kind = Read && kind2 = Read then
     false (* two read/read accesses do not race *)
-  else if not (get_bool "ana.race.free") && (kind = `Free || kind2 = `Free) then
+  else if not (get_bool "ana.race.free") && (kind = Free || kind2 = Free) then
     false
   else if not (MCPAccess.A.may_race a a2) then
     false (* analysis-specific information excludes race *)

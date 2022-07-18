@@ -7,30 +7,6 @@ module H = NodeH
 module NH = NodeH
 
 
-(* TODO: refactor duplication with find_loop_heads *)
-module NS = Set.Make (Node)
-let find_loop_heads_fun (module Cfg:CfgForward) (fd:Cil.fundec): unit NH.t =
-  let loop_heads = NH.create 100 in
-  let global_visited_nodes = NH.create 100 in
-
-  (* DFS *)
-  let rec iter_node path_visited_nodes node =
-    if NS.mem node path_visited_nodes then
-      NH.replace loop_heads node ()
-    else if not (NH.mem global_visited_nodes node) then begin
-      NH.replace global_visited_nodes node ();
-      let new_path_visited_nodes = NS.add node path_visited_nodes in
-      List.iter (fun (_, to_node) ->
-          iter_node new_path_visited_nodes to_node
-        ) (Cfg.next node)
-    end
-  in
-
-  let entry_node = FunctionEntry fd in
-  iter_node NS.empty entry_node;
-
-  loop_heads
-
 let find_backwards_reachable ~initial_size (module Cfg:CfgBackward) (node:node): unit NH.t =
   let reachable = NH.create initial_size in
 
@@ -611,16 +587,6 @@ let getCFG (file: file) : cfg * cfg =
   (fun n -> H.find_default cfgF n []), (fun n -> H.find_default cfgB n [])
 
 
-(* TODO: unused *)
-let generate_irpt_edges cfg =
-  let make_irpt_edge toNode (_, fromNode) =
-    match toNode with
-    | FunctionEntry f -> let _ = print_endline ( " Entry " ) in ()
-    | _ -> H.add cfg toNode (SelfLoop, toNode)
-  in
-  H.iter make_irpt_edge cfg
-
-
 let iter_fd_edges (module Cfg : CfgBackward) fd =
   let ready      = NH.create 113 in
   let rec printNode (toNode : node) f =
@@ -710,7 +676,7 @@ let getGlobalInits (file: file) : edges  =
   iterGlobals file f;
   let initfun = emptyFunction "__goblint_dummy_init" in
   (* order is not important since only compile-time constants can be assigned *)
-  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1;}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
+  ({line = 0; file="initfun"; byte= 0; column = 0; endLine = -1; endByte = -1; endColumn = -1; synthetic = true}, Entry initfun) :: (BatHashtbl.keys inits |> BatList.of_enum)
 
 
 let numGlobals file =
