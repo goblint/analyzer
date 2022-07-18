@@ -86,18 +86,18 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
           _ift (poll `Any (!semas_chan j) id) (recv `Any (!semas_chan j) id)
         )
     else let* () = nop in
-    waiting_for := id, e NONE show_waiting_for
+      waiting_for := id, e NONE show_waiting_for
   in
 
   (* preemption *)
   let mode,_ = var (Enum (COLD_START, show_partition_mode)) "mode" in
   let* () = extract "LockPreemption" @@ A0 (
-    let* () = incr lock_level in
-    exclusive := !tid (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
-  ) in
+      let* () = incr lock_level in
+      exclusive := !tid (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
+    ) in
   let* () = extract "UnlockPreemption" @@ A0 (
-    _ift (!lock_level > i 0) (decr lock_level)
-  ) in
+      _ift (!lock_level > i 0) (decr lock_level)
+    ) in
   let* () = extract "SetPartitionMode" @@ A1 (mode, fun mode ->
       partition_mode := !mode
     ) in
@@ -127,10 +127,10 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   let* () = extract "Resume" @@ A1 (id, fun id ->
       let* () = _assert (!status !id != e NOTCREATED show_status) in
       let* () = _ift (!status !id == e SUSPENDED show_status) (
-        _ifte (!waiting_for !id == e NONE show_waiting_for)
-          (status := !id, e READY show_status)
-          (status := !id, e WAITING show_status)
-      ) in
+          _ifte (!waiting_for !id == e NONE show_waiting_for)
+            (status := !id, e READY show_status)
+            (status := !id, e WAITING show_status)
+        ) in
       status := !id, e SUSPENDED show_status
     ) in
 
@@ -188,4 +188,4 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
       ]
     )
 
-  (* events *)
+(* events *)
