@@ -284,13 +284,21 @@ struct
           begin match Spec.C.invariant context c with
             | Some c_inv ->
               let loc = Node.location n in
-              (* Find contexts/state that also satisfy the precondtion *)
+              (* Find unknowns for which the preceding start state satisfies the precondtion *)
               let xs = find_matching_states (n, c) in
-              let invs = List.map (fun local -> Spec.D.invariant context local) xs in
-              (* TODO: Check what happens when invariant generation may fail for some states *)
+
+              (* Generate invariants. Give up in case one invariant could not be generated. *)
+              let invs = GobList.fold_while_some
+                  (fun acc local ->
+                     match Spec.D.invariant context local with
+                     | Some c -> Some ((Some c)::acc)
+                     | _ -> None)
+                  [] xs
+              in
               begin match invs with
-                | [] -> acc
-                | x::xs ->
+                | None
+                | Some [] -> acc
+                | Some (x::xs) ->
                   begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
                     | Some inv ->
                       let invs = WitnessUtil.InvariantExp.process_exp inv in
