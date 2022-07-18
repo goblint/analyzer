@@ -109,6 +109,34 @@ let yaml_entries_to_file yaml_entries file =
   let text = Yaml.to_string_exn ~len:(List.length yaml_entries * 2048 + 2048) yaml in
   Batteries.output_file ~filename:(Fpath.to_string file) ~text
 
+module Query
+  (Spec : Spec)
+  (EQSys : GlobConstrSys with module LVar = VarF (Spec.C)
+                          and module GVar = GVarF (Spec.V)
+                          and module D = Spec.D
+                          and module G = Spec.G)
+  (GHT : BatHashtbl.S with type key = EQSys.GVar.t) =
+struct
+  let ask_local (gh: Spec.G.t GHT.t) (lvar:EQSys.LVar.t) local =
+    (* build a ctx for using the query system *)
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
+      ; node   = fst lvar
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = Obj.repr (fun () -> snd lvar)
+      ; context = (fun () -> snd lvar)
+      ; edge    = MyCFG.Skip
+      ; local  = local
+      ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+      ; presub = (fun _ -> raise Not_found)
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+      }
+    in
+    Spec.query ctx
+end
 
 module Make
     (File: WitnessUtil.File)
@@ -124,6 +152,11 @@ struct
 
   module NH = BatHashtbl.Make (Node)
   module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
+  module FMap = Prelude.Hashtbl.Make (CilType.Fundec)
+  module FCMap = Prelude.Hashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
+  module Query = Query (Spec) (EQSys) (GHT)
+
+  type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
 
   (* copied from Constraints.CompareNode *)
   let join_contexts (lh: Spec.D.t LHT.t): Spec.D.t NH.t =
@@ -135,6 +168,7 @@ struct
     nh
 
   let write lh gh =
+    let ask_local = Query.ask_local gh in
     let input_files = GobConfig.get_string_list "files" in
     let data_model = match GobConfig.get_string "exp.architecture" with
       | "64bit" -> "LP64"
@@ -157,13 +191,13 @@ struct
     in
 
     let node_context (n: Node.t) : Invariant.context =
-       {
-          scope=Node.find_fundec n;
-          i = -1;
-          lval=None;
-          offset=Cil.NoOffset;
-          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-        }
+      {
+        scope=Node.find_fundec n;
+        i = -1;
+        lval=None;
+        offset=Cil.NoOffset;
+        deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+      }
     in
 
     (* Generate location invariants (wihtout precondition) *)
@@ -190,6 +224,47 @@ struct
         end
       ) nh []
     in
+
+    (* Mapping of (reachable) functions to *)
+    let fun_contexts : con_inv list FMap.t = FMap.create 103 in
+
+    (* Generate precondition invariants *)
+    LHT.iter (fun (n, c) local ->
+        begin match n with
+          | FunctionEntry f ->
+            let context = node_context n in
+            let invariant = Spec.C.invariant context c in
+            FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
+          | _ ->
+            (* Only collect on function entries *)
+            ()
+        end
+      ) lh;
+
+    (* Group contexts together *)
+    let fc_map : con_inv list FCMap.t = FCMap.create 103 in
+
+    FMap.iter (fun f con_invs ->
+        List.iter (fun current_c ->
+            (* compare all invariants with current_c *)
+            List.iter (fun c ->
+                begin match current_c.invariant with
+                  | Some c_inv ->
+                    let x = ask_local (c.node, c.context) c.state (Queries.EvalInt c_inv) in
+                    if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
+                      failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
+                    else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satiesfy the predicate of current_c *)
+                    else begin
+                      (* Insert c into the list of weaker contexts of f *)
+                      FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
+                    end
+                  | None -> ()
+                end
+              ) con_invs;
+          ) con_invs;
+        (* compare and group invariants *)
+      ) fun_contexts;
+
 
     (* Generate precondition invariants *)
     let entries = LHT.fold (fun (n, c) local acc ->
@@ -260,6 +335,7 @@ struct
   module LvarS = Locator.ES
   module InvariantParser = WitnessUtil.InvariantParser
   module VR = ValidationResult
+  module Query = Query (Spec) (EQSys) (GHT)
 
   let loc_of_location (location: YamlWitnessType.Location.t): Cil.location = {
     file = location.file_name;
@@ -282,26 +358,7 @@ struct
 
     let inv_parser = InvariantParser.create file in
 
-    let ask_local (lvar:EQSys.LVar.t) local =
-      (* build a ctx for using the query system *)
-      let rec ctx =
-        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
-        ; node   = fst lvar
-        ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> snd lvar)
-        ; context = (fun () -> snd lvar)
-        ; edge    = MyCFG.Skip
-        ; local  = local
-        ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
-        ; presub = (fun _ -> raise Not_found)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        }
-      in
-      Spec.query ctx
-    in
+    let ask_local = Query.ask_local gh in
 
     let yaml = Yaml_unix.of_file_exn (Fpath.v (GobConfig.get_string "witness.yaml.validate")) in
     let yaml_entries = yaml |> GobYaml.list |> BatResult.get_ok in
