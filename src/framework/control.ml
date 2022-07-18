@@ -82,7 +82,7 @@ struct
     let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
     let module NH = Hashtbl.Make (Node) in
     let live_nodes : unit NH.t = NH.create 10 in
-    let count = ref 0 in (* Is only populated if "ana.dead-code.lines" is true *)
+    let count = ref 0 in (* Is only populated if "ana.dead-code.lines" or "ana.dead-code.branches" is true *)
     let module StringMap = BatMap.Make (String) in
     let open BatPrintf in
     let live_lines = ref StringMap.empty in
