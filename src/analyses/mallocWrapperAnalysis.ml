@@ -5,7 +5,7 @@ open Analyses
 open GobConfig
 open ThreadIdDomain
 
-module Spec () : Analyses.MCPSpec =
+module Spec: Analyses.MCPSpec =
 struct
   include Analyses.DefaultSpec
 
@@ -15,13 +15,13 @@ struct
     end)
 
   module Chain = Lattice.Chain (struct
-      let n =
+      let n () =
         let p = get_int "ana.malloc.unique_address_count" in
         if p < 0 then
           failwith "Option ana.malloc.unique_address_count has to be non-negative"
         else p + 1 (* Unique addresses + top address *)
 
-      let names x = if Int.equal x (n - 1) then "top" else Format.asprintf "%d" x
+      let names x = if x = (n () - 1) then "top" else Format.asprintf "%d" x
 
     end)
 
@@ -154,8 +154,5 @@ struct
     NodeVarinfoMap.marshal ()
 end
 
-let after_config () =
-  MCP.register_analysis (module Spec ())
-
 let _ =
-  AfterConfig.register after_config
+  MCP.register_analysis (module Spec)
