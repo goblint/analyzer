@@ -233,7 +233,7 @@ struct
        3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states.
     *)
 
-    (* 1. Collect contexts for functions *)
+    (* 1. Collect contexts for each function *)
     let fun_contexts : con_inv list FMap.t = FMap.create 103 in
     LHT.iter (fun (n, c) local ->
         begin match n with
@@ -242,12 +242,11 @@ struct
             let invariant = Spec.C.invariant context c in
             FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
           | _ ->
-            (* Only collect on function entries *)
             ()
         end
       ) lh;
 
-    (* 2. Group contexts together *)
+    (* 2. For all contexts and their invariants, find all contexts such that their start state may satisfy the invariant. *)
     let fc_map : con_inv list FCMap.t = FCMap.create 103 in
     FMap.iter (fun f con_invs ->
         List.iter (fun current_c ->
@@ -258,14 +257,13 @@ struct
                     let x = ask_local (c.node, c.context) c.state (Queries.EvalInt c_inv) in
                     if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                       failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
-                    else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satiesfy the predicate of current_c *)
+                    else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
                     else begin
                       (* Insert c into the list of weaker contexts of f *)
                       FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
                     end
                   | None ->
-                    (* If the context invariant is None, we will not generate a precondition invariant,
-                       so we don't have to do anything here. *)
+                    (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
                     ()
                 end
               ) con_invs;
