@@ -91,7 +91,7 @@ struct
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) : D.t =
     (* Keep (potentially higher) counter from callee and keep wrapper node from caller *)
-    let lcounter, lnode = ctx.local in
+    let _, lnode = ctx.local in
     (counter, lnode)
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
