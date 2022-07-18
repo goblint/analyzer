@@ -4,6 +4,7 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 open ThreadIdDomain
+module Q = Queries
 
 module Spec: Analyses.MCPSpec =
 struct
@@ -58,8 +59,6 @@ struct
   module D = Lattice.Prod (MallocCounter) (PL)
   module C = D
 
-  module Q = Queries
-
   let wrappers = Hashtbl.create 13
 
   (* transfer functions *)
@@ -111,7 +110,7 @@ struct
   let get_heap_var = NodeVarinfoMap.to_varinfo
 
 
-  let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Queries.result =
+  let query (ctx: (D.t, G.t, C.t, V.t) ctx) (type a) (q: a Q.t): a Q.result =
     let counter, wrapper_node = ctx.local in
     match q with
     | Q.HeapVar ->
