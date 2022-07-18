@@ -87,11 +87,6 @@ struct
 
   let enter ctx (lval: lval option) (f:fundec) (args:exp list) : (D.t * D.t) list =
     let counter, wrapper_node = ctx.local in
-    let new_counter =
-      if Hashtbl.mem wrappers f.svar.vname then
-        MallocCounter.add_malloc counter ctx.prev_node
-      else counter
-    in
     let new_wrapper_node =
       if Hashtbl.mem wrappers f.svar.vname then
         if not @@ D.has_wrapper_node ctx.local then
@@ -99,9 +94,8 @@ struct
         else wrapper_node (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
       else PL.top () (* if an uninteresting callee is called, then we forget what was called before *)
     in
-    let caller_ctx = (new_counter, wrapper_node) in
-    let callee_ctx = (new_counter, new_wrapper_node) in
-    [(caller_ctx, callee_ctx)]
+    let callee = (counter, new_wrapper_node) in
+    [(ctx.local, callee)]
 
   let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) : D.t =
     (* Keep (potentially higher) counter from callee and keep wrapper node from caller *)
@@ -109,10 +103,11 @@ struct
     (counter, lnode)
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
-    let counter, wrapper_node = ctx.local in
     let desc = LibraryFunctions.find f in
     match desc.special arglist, f.vname with
-    | Malloc _, _ | Calloc _, _ | Realloc _, _ -> (MallocCounter.add_malloc counter ctx.prev_node, wrapper_node)
+    | Malloc _, _ | Calloc _, _ | Realloc _, _ ->
+      let counter, wrapper_node = ctx.local in
+      (MallocCounter.add_malloc counter ctx.prev_node, wrapper_node)
     | _ -> ctx.local
 
   let startstate v = D.bot ()
