@@ -458,7 +458,7 @@ struct
             (e,(xl,a,xr))
           else
             let left = if equals_zero i then Val.bot () else Val.join xl @@ Val.join
-              (match Q.may_be_equal ask e' i' with (* TODO: untested *)
+                  (match Q.may_be_equal ask e' i' with (* TODO: untested *)
               | false -> Val.bot()
               | _ -> xm) (* if e' may be equal to i', but e' may not be smaller than i' then we only need xm *)
               (
@@ -475,7 +475,7 @@ struct
               )
             in
             let right = if equals_maxIndex i then Val.bot () else  Val.join xr @@  Val.join
-              (match Q.may_be_equal ask e' i' with (* TODO: untested *)
+                  (match Q.may_be_equal ask e' i' with (* TODO: untested *)
               | false -> Val.bot()
               | _ -> xm)
 
