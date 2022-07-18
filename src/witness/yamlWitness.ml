@@ -149,18 +149,28 @@ struct
 
     let nh = join_contexts lh in
 
+    (* Yields some context if the node is of interest. *)
+    let node_context (n: Node.t)=
+      let loc = Node.location n in
+      match n with
+      | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
+        let context: Invariant.context = {
+          scope=Node.find_fundec n;
+          i = -1;
+          lval=None;
+          offset=Cil.NoOffset;
+          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
+        }
+        in
+        Some context
+      | _ -> None
+    in
+
+    (* Generate location invariants (wihtout precondition) *)
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
-        match n with
-        | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
-          let context: Invariant.context = {
-            scope=Node.find_fundec n;
-            i = -1;
-            lval=None;
-            offset=Cil.NoOffset;
-            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-          }
-          in
+        match node_context n with
+        | Some context ->
           begin match Spec.D.invariant context local with
             | Some inv ->
               let invs = WitnessUtil.InvariantExp.process_exp inv in
@@ -179,19 +189,9 @@ struct
       ) nh []
     in
 
-    (* TODO: deduplicate *)
     let entries = LHT.fold (fun (n, c) local acc ->
-        let loc = Node.location n in
-        match n with
-        | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
-          let context: Invariant.context = {
-            scope=Node.find_fundec n;
-            i = -1;
-            lval=None;
-            offset=Cil.NoOffset;
-            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-          }
-          in
+        match node_context n with
+        | Some context ->
           begin match Spec.C.invariant context c, Spec.D.invariant context local with
             | Some c_inv, Some inv ->
               let loc = Node.location n in
