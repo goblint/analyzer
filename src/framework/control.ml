@@ -151,12 +151,11 @@ struct
     let warn_file f = StringMap.iter (warn_func f) in
     if get_bool "dbg.print_dead_code" then (
       if StringMap.is_empty !dead_lines
-      then printf "No lines with dead code found by solver%s.\n" (if GobConfig.get_bool "alldeadcode" then "" else "(there might still be dead code removed by CIL, try running with --enable alldeadcode to see all) ") (* TODO https://github.com/goblint/analyzer/issues/94 *)
+      then printf "No lines with dead code found by solver.\n"
       else (
         StringMap.iter warn_file !dead_lines; (* populates count by side-effect *)
         let total_dead = !count + uncalled_fn_loc in
-        printf "Found dead code on %d line%s%s!\n" total_dead (if total_dead>1 then "s" else "") (if uncalled_fn_loc > 0 then Printf.sprintf " (including %d in uncalled functions)" uncalled_fn_loc else "");
-        (if not @@ GobConfig.get_bool "alldeadcode" then printf "There might still be more dead code removed by CIL, try running with --enable alldeadcode to see all.\n")
+        printf "Found dead code on %d line%s%s!\n" total_dead (if total_dead>1 then "s" else "") (if uncalled_fn_loc > 0 then Printf.sprintf " (including %d in uncalled functions)" uncalled_fn_loc else "")
       );
       printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled_fn_loc); (* We can only give total LoC if we counted dead code *)
     );
