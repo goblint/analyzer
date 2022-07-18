@@ -36,8 +36,7 @@ struct
       if Chain.is_top count then
         counter
       else
-        remove malloc counter
-        |> add malloc (count + 1)
+        remove malloc counter |> add malloc (count + 1)
   end
 
   module ThreadNode = struct
