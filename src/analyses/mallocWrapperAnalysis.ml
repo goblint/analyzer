@@ -43,9 +43,6 @@ struct
   module Domain = struct
     include Lattice.Prod (MallocCounter) (PL)
 
-    let join (counter1, node1) (counter2, node2) =
-      (MallocCounter.join counter1 counter2, node1)
-
     let has_wrapper_node (_, wrapper_node) = not @@ PL.is_top wrapper_node
 
     let get_count (counter, _) node = MallocCounter.find (`Lifted node) counter
@@ -106,8 +103,10 @@ struct
     let callee_ctx = (new_counter, new_wrapper_node) in
     [(caller_ctx, callee_ctx)]
 
-  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc (au:D.t) : D.t =
-    D.join ctx.local au
+  let combine ctx (lval:lval option) fexp (f:fundec) (args:exp list) fc ((counter, _):D.t) : D.t =
+    (* Keep (potentially higher) counter from callee and keep wrapper node from caller *)
+    let lcounter, lnode = ctx.local in
+    (counter, lnode)
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let counter, wrapper_node = ctx.local in
