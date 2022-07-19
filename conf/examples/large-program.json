@@ -1,0 +1,21 @@
+{
+    "ana": {
+      "activated": [
+        "base", "mallocWrapper","escape"
+      ],
+      "base": {
+        "privatization": "none",
+        "context": {
+          "non-ptr": false
+        }
+      },
+      "thread": {
+        "domain": "plain",
+        "include-node": false
+      }
+    },
+    "exp": {
+      "earlyglobs": true
+    },
+    "printstats": true
+  }

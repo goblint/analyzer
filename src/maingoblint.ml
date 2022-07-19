@@ -36,6 +36,7 @@ let print_help ch =
   fprintf ch " are used instead of double-quotes (\").\n\n";
   fprintf ch "A <jpath> is a path in a json structure. E.g. 'field.another_field[42]';\n";
   fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n";
+  fprintf ch "Some common configurations to start from can be found in conf/examples/*\n";
   exit 0
 
 (** [Arg] option specification *)
