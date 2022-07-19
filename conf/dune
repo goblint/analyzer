@@ -1,0 +1,10 @@
+
+(install
+  (section (site (goblint conf)))
+  (files
+    (examples/large-program.json as examples/large-program.json) ; must repeat directory, otherwise gets stripped from target
+    (examples/medium-program.json as examples/medium-program.json) ; must repeat directory, otherwise gets stripped from target
+    (examples/very-precise.json as examples/very-precise.json) ; must repeat directory, otherwise gets stripped from target
+    ; no way to glob here...
+  )
+)

@@ -351,7 +351,15 @@ struct
 
   (** Merge configurations form a file with current. *)
   let merge_file fn =
-    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in (Fpath.to_string fn) in
+    let file = Fpath.to_string fn in
+    let path = if Sys.file_exists file then file else
+        let configs = List.map Fpath.v Goblint_sites.conf in
+        let r = List.find_opt (fun v -> Fpath.filename fn = Fpath.filename v) configs in
+        match r with
+        | Some r -> Fpath.to_string r
+        | _ -> file
+    in
+    let v = Yojson.Safe.from_channel % BatIO.to_input_channel |> File.with_file_in path in
     merge v;
     if tracing then trace "conf" "Merging with '%a', resulting\n%a.\n" GobFpath.pretty fn GobYojson.pretty !json_conf
 end
