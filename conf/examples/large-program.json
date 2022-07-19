@@ -1,7 +1,7 @@
 {
     "ana": {
       "activated": [
-        "base", "mallocWrapper","escape","mutex"
+        "base", "mallocWrapper","escape","mutex","mutexEvents","access"
       ],
       "base": {
         "privatization": "none",
