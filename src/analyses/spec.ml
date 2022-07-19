@@ -281,9 +281,6 @@ struct
   let branch ctx (exp:exp) (tv:bool) : D.t =
     let m = ctx.local in
     (* ignore(printf "if %a = %B (line %i)\n" d_plainexp exp tv (!Tracing.current_loc).line); *)
-    (* try to evaluate the expression using query
-       -> if the result is the same as tv, do the corresponding transition, otherwise remove the entry from the domain
-       for pointers this won't help since it always returns `Top *)
     let check a b tv =
       (* ignore(printf "check: %a = %a\n" d_plainexp a d_plainexp b); *)
       match a, b with
