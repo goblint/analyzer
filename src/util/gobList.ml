@@ -25,4 +25,5 @@ let rec fold_while_some (f : 'a -> 'b -> 'a option) (acc: 'a) (xs: 'b list): 'a 
       | Some acc' -> fold_while_some f acc' xs
       | None -> None
     end
+
 let equal = List.eq

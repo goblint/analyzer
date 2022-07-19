@@ -230,8 +230,7 @@ struct
        We do this in three steps:
        1. Collect contexts for each function
        2. For each function context, find "matching"/"weaker" contexts that may satisfy its invariant
-       3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states.
-    *)
+       3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states. *)
 
     (* 1. Collect contexts for each function *)
     let fun_contexts : con_inv list FMap.t = FMap.create 103 in
@@ -241,8 +240,7 @@ struct
             let context = node_context n in
             let invariant = Spec.C.invariant context c in
             FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
-          | _ ->
-            ()
+          | _ -> ()
         end
       ) lh;
 
@@ -250,7 +248,7 @@ struct
     let fc_map : con_inv list FCMap.t = FCMap.create 103 in
     FMap.iter (fun f con_invs ->
         List.iter (fun current_c ->
-            (* Collect all start states with current_c *)
+            (* Collect all start states that may satisfy the invariant of current_c *)
             List.iter (fun c ->
                 begin match current_c.invariant with
                   | Some c_inv ->
