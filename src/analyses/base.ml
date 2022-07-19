@@ -1021,14 +1021,17 @@ struct
     | _ -> None
 
   let eval_funvar ctx fval: varinfo list =
+    let exception OnlyUnknown in
     try
       let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
       if AD.mem Addr.UnknownPtr fp then begin
+        let others = AD.to_var_may fp in
+        if others = [] then raise OnlyUnknown;
         M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;
-        dummyFunDec.svar :: AD.to_var_may fp
+        dummyFunDec.svar :: others
       end else
         AD.to_var_may fp
-    with SetDomain.Unsupported _ ->
+    with SetDomain.Unsupported _ | OnlyUnknown ->
       M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;
       [dummyFunDec.svar]
 
