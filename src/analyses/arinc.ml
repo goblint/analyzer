@@ -150,13 +150,13 @@ struct
     | a when not (Queries.LS.is_top a) && Queries.LS.cardinal a > 0 ->
       let top_elt = (dummyFunDec.svar, `NoOffset) in
       let a' = if Queries.LS.mem top_elt a then (
-          M.debug ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
+          M.info ~category:Unsound "mayPointTo: query result for %a contains TOP!" d_exp exp; (* UNSOUND *)
           Queries.LS.remove top_elt a
         ) else a
       in
       Queries.LS.elements a'
     | v ->
-      M.debug ~category:Unsound "mayPointTo: query result for %a is %a, ignoring it" d_exp exp Queries.LS.pretty v;
+      M.info ~category:Unsound "mayPointTo: query result for %a is %a, ignoring it" d_exp exp Queries.LS.pretty v;
       (*failwith "mayPointTo"*)
       []
   let iterMayPointTo ctx exp f = mayPointTo ctx exp |> List.iter f
@@ -175,7 +175,7 @@ struct
       (* OPT: this matching is just for speed up to avoid querying on every assign *)
       match lval with Var _, _ when not @@ is_return_code_type (Lval lval) -> ctx.local | _ ->
         (* TODO why is it that current_node can be None here, but not in other transfer functions? *)
-        if not @@ Option.is_some !MyCFG.current_node then (M.debug ~category:Unsound "assign: MyCFG.current_node not set :("; ctx.local) else
+        if not @@ Option.is_some !MyCFG.current_node then (M.info ~category:Unsound ~tags:[Category Analyzer] "assign: MyCFG.current_node not set :("; ctx.local) else
         if D.is_bot1 ctx.local then ctx.local else
           let env = get_env ctx in
           let edges_added = ref false in

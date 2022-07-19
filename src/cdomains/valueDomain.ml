@@ -452,7 +452,7 @@ struct
     | (_, `Top) -> `Top
     | (`Bot, x) -> x
     | (x, `Bot) -> x
-    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer "%s" m; `Top)
+    | (`Int x, `Int y) -> (try `Int (ID.join x y) with IntDomain.IncompatibleIKinds m -> Messages.warn ~category:Analyzer ~tags:[Category Imprecise] "%s" m; `Top)
     | (`Int x, `Address y)
     | (`Address y, `Int x) -> `Address (match ID.to_int x with
         | Some x when BI.equal x BI.zero -> AD.join AD.null_ptr y
@@ -813,8 +813,8 @@ struct
               let x = Structs.get str fld in
               let l', o' = shift_one_over l o in
               do_eval_offset ask f x offs exp l' o' v t
-            | `Top -> M.debug ~category:Imprecise "Trying to read a field, but the struct is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise "Trying to read a field, but was not given a struct"; top ()
+            | `Top -> M.info ~category:Imprecise "Trying to read a field, but the struct is unknown"; top ()
+            | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a struct"; top ()
           end
         | `Field (fld, offs) -> begin
             match x with
@@ -823,8 +823,8 @@ struct
               let l', o' = shift_one_over l o in
               do_eval_offset ask f x offs exp l' o' v t
             | `Union (_, valu) -> top ()
-            | `Top -> M.debug ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise "Trying to read a field, but was not given a union"; top ()
+            | `Top -> M.info ~category:Imprecise "Trying to read a field, but the union is unknown"; top ()
+            | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read a field, but was not given a union"; top ()
           end
         | `Index (idx, offs) -> begin
             let l', o' = shift_one_over l o in
@@ -837,8 +837,8 @@ struct
                 do_eval_offset ask f x offs exp l' o' v t (* this used to be `blob `address -> we ignore the index *)
               end
             | x when GobOption.exists (BI.equal (BI.zero)) (IndexDomain.to_int idx) -> eval_offset ask f x offs exp v t
-            | `Top -> M.debug ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
-            | _ -> M.warn ~category:Imprecise "Trying to read an index, but was not given an array (%a)" pretty x; top ()
+            | `Top -> M.info ~category:Imprecise "Trying to read an index, but the array is unknown"; top ()
+            | _ -> M.warn ~category:Imprecise ~tags:[Category Program] "Trying to read an index, but was not given an array (%a)" pretty x; top ()
           end
     in
     let l, o = match exp with

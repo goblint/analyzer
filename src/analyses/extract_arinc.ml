@@ -264,7 +264,7 @@ struct
           match ctx.ask (Queries.MayPointTo exp) with
           | x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
-            if LS.mem top_elt x then M.debug ~category:Unsound "Query result for MayPointTo contains top!";
+            if LS.mem top_elt x then M.info ~category:Unsound "Query result for MayPointTo contains top!";
             let xs = LS.remove top_elt x |> LS.elements in
             List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
           | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
@@ -341,7 +341,7 @@ struct
             | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail (M.debug ~category:Analyzer "%s") (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local (* TODO: f *)
           end
         | _ -> match Pml.special_fun fname with
-          | None -> M.debug ~category:Unsound "extract_arinc: unhandled function %s" fname; ctx.local
+          | None -> M.info ~category:Unsound "extract_arinc: unhandled function %s" fname; ctx.local
           | Some eval_args ->
             if M.tracing then M.trace "extract_arinc" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
             let rec combine_opt f a b = match a, b with

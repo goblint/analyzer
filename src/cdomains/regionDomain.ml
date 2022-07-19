@@ -255,7 +255,7 @@ struct
       List.map (add_o os) (RS.to_vf_list vfd_class)
     | Some (false, vfd, os) ->
       if is_global vfd then [vfd] else []
-    | None -> Messages.warn ~category:Unsound "Access to unknown address could be global"; []
+    | None -> Messages.info ~category:Unsound "Access to unknown address could be global"; []
 end
 
 (* TODO: remove Lift *)

@@ -88,7 +88,7 @@ struct
       | `Error s, b -> failwith @@ "Spec error: "^s
       (* wildcard matches anything *)
       | `Free, b    -> true
-      | a,b -> M.warn ~category:Unsound "EQUAL? Unmatched case - assume true..."; true
+      | a,b -> M.info ~category:Unsound "EQUAL? Unmatched case - assume true..."; true
 
     let check_constraint ctx get_key matches m new_a old_key (a,ws,fwd,b,c as edge) =
       (* If we have come to a wildcard, we match it instantly, but since there is no way of determining a key
