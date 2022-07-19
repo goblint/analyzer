@@ -11,8 +11,7 @@ import multiprocessing as mp
 
 
 ################################################################################
-# Usage: python3 incremental_smallcommits.py <full_path_analyzer_dir> <repo_url> <repo_name> <name_of_build_script>
-#     <name_of_config> <begin> <from_commit_index> <to_commit_index>
+# Usage: python3 incremental_smallcommits.py <full_path_analyzer_dir> <number_of_cores>
 # Executing the script will overwrite the directory 'result_precision' in the cwd.
 # The script for building the compilation database is assumed to be found in the analyzers script directory and the
 # config file is assumed to be found in the conf directory of the analyzers repository.

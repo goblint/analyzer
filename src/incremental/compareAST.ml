@@ -161,9 +161,9 @@ and eq_lval (a: lval) (b: lval) = match a, b with
     (host1, off1), (host2, off2) -> eq_lhost host1 host2 && eq_offset off1 off2
 
 let eq_instr (a: instr) (b: instr) =
-  let skip_int_args_funs = GobConfig.get_string_list("incremental.ignore-const-args") in
+  let skip_const_args_funs = GobConfig.get_string_list("incremental.ignore-const-args") in
   let comp_args f1 args1 args2 = match f1 with
-    | Lval (Var v1,_) when List.mem v1.vname skip_int_args_funs ->
+    | Lval (Var v1,_) when List.mem v1.vname skip_const_args_funs ->
       GobList.equal (eq_exp ~no_const_vals:true) args1 args2
     | _ -> GobList.equal eq_exp args1 args2
   in

@@ -968,7 +968,7 @@
         },
         "ignore-const-args": {
           "title": "incremental.ignore-const-args",
-          "description": "List of functions for which constant parameters are not compared",
+          "description": "List of functions for which constant parameters are not compared. Useful when __LINE__ preprocessor macro is used as function parameter.",
           "type": "array",
           "items": {
             "type": "string"

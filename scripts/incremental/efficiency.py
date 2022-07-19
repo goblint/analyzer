@@ -12,16 +12,17 @@ import sys
 import pandas as pd
 
 ################################################################################
-# Usage: python3 incremental_smallcommits.py <full_path_analyzer_dir> <repo_url> <repo_name> <name_of_build_script>
-#     <name_of_config> <begin> <from_commit_index> <to_commit_index>
+# Usage: python3 incremental_smallcommits.py <full_path_analyzer_dir> <number_of_cores>
 # Executing the script will overwrite the directory 'result_efficiency' in the cwd.
 # The script for building the compilation database is assumed to be found in the analyzers script directory and the
 # config file is assumed to be found in the conf directory of the analyzers repository.
+# The single test runs are mapped to processors according to the coremapping. The one specified in the section below
+# should work for Intel machines, otherwise you might need to adapt it according to the description.
 if len(sys.argv) != 3:
       print("Wrong number of parameters.\nUse script like this: python3 parallel_benchmarking.py <path to goblint directory> <number of processes>")
       exit()
-result_dir    = os.path.join(os.getcwd(), 'result_efficiency') # 2) for the comparison "result_efficiency_baseline"
-maxCLOC       = 50
+result_dir    = os.path.join(os.getcwd(), 'result_efficiency')
+maxCLOC       = 50 # can be deactivated with None
 url           = "https://github.com/facebook/zstd"
 repo_name     = "zstd"
 build_compdb  = "build_compdb_zstd.sh"
@@ -31,12 +32,25 @@ begin         = datetime(2021,8,1)
 to            = datetime(2022,2,1) # minimal subset: datetime(2021,8,4)
 diff_exclude  = ["build", "doc", "examples", "tests", "zlibWrapper", "contrib"]
 analyzer_dir  = sys.argv[1]
+only_collect_results = False # can be turned on to collect results, if data collection was aborted before the creation of result tables
+################################################################################
 try:
     numcores = int(sys.argv[2])
 except ValueError:
     print("Parameter should be a number.\nUse script like this: python3 parallel_benchmarking.py <absolute path to goblint directory> <number of processes>")
     exit()
-only_collect_results = False # can be turned on to collect results, if data collection was aborted before the creation of result tables
+avail_phys_cores = psutil.cpu_count(logical=False)
+allowedcores = avail_phys_cores - 1
+if not only_collect_results and numcores > allowedcores:
+    print("Not enough physical cores on this machine (exist: ", avail_phys_cores, " allowed: ", allowedcores, ")")
+    exit()
+# For equal load distribution, choose a processes to core mapping,
+# use only physical cores and have an equal number of processes per cache.
+# The layout of physical/logical cores and sharing of caches is machine dependent. To find out use: 'lscpu --all --extended'.
+# For our test server:
+coremapping1 = [i for i in range(numcores - numcores//2)]
+coremapping2 = [i for i in range(avail_phys_cores//2, avail_phys_cores//2 + numcores//2)]
+coremapping = [coremapping1[i//2] if i%2==0 else coremapping2[i//2] for i in range(len(coremapping1) + len(coremapping2))]
 ################################################################################
 
 def filter_commits_false_pred(repo_path):
@@ -169,18 +183,6 @@ def runperprocess(core, from_c, to_c):
     df.to_csv('results.csv', sep =';')
 
 def analyze_chunks_of_commits_in_parallel():
-    avail_phys_cores = psutil.cpu_count(logical=False)
-    allowedcores = avail_phys_cores - 2
-    if not only_collect_results and numcores > allowedcores:
-        print("Not enough physical cores on this maching (exist: ", avail_phys_cores, " allowed: ", allowedcores, ")")
-        exit()
-    # For equal load distribution, choose a processes to core mapping,
-    # use only physical cores and have an equal number of processes per cache.
-    # The layout of physical/logical cores and sharing of caches is machine dependent. To find out use: 'lscpu --all --extended'.
-    # For our test server:
-    coremapping1 = [i for i in range(numcores - numcores//2)]
-    coremapping2 = [i for i in range(avail_phys_cores//2, avail_phys_cores//2 + numcores//2)]
-    coremapping = [coremapping1[i//2] if i%2==0 else coremapping2[i//2] for i in range(len(coremapping1) + len(coremapping2))]
     processes = []
 
     # calculate actual number of interesting commits up-front to allow for similar load distribution
