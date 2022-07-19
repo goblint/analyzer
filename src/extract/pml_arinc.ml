@@ -17,40 +17,42 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   let nsema   = fst @@ var (Byte nsema) "nsema" in
   let nevent  = fst @@ var (Byte nevent) "nevent" in
   let nbboard = fst @@ var (Byte nbboard) "nbboard" in
+
   (* Pml.do_; (* ppx_monadic: from now on ; is bind *) *)
   (* switched to ocaml-monadic because ppx_monadic was constraining us to ocaml <4.08, now have to use ;%bind instead of just ; and `let%bind x = e in` instead of `x <-- e;` *)
+  (* Dropped ocaml-monadic and used let* syntax introduced in OCaml 4.08. Use `let* () = e in` instead of `e;%bind` *)
 
   (* type delcarations, TODO generate this? *)
   (* TODO might need adjustment if there are enums with gaps or enums not starting at 0 *)
-  enum return_code_of_enum show_return_code "return_code";%bind
-  enum partition_mode_of_enum show_partition_mode "partition_mode";%bind
-  enum status_of_enum show_status "status";%bind
-  enum waiting_for_of_enum show_waiting_for "waiting_for";%bind
-  enum queuing_discipline_of_enum show_queuing_discipline "queuing_discipline";%bind
+  let* () = enum return_code_of_enum show_return_code "return_code" in
+  let* () = enum partition_mode_of_enum show_partition_mode "partition_mode" in
+  let* () = enum status_of_enum show_status "status" in
+  let* () = enum waiting_for_of_enum show_waiting_for "waiting_for" in
+  let* () = enum queuing_discipline_of_enum show_queuing_discipline "queuing_discipline" in
   (* variable declarations *)
   (* TODO inject: let%s status = arr nprocNOTCREATED in *)
-  let%bind partition_mode = var (Enum (COLD_START, show_partition_mode)) "partition_mode" in
-  let%bind lock_level  = var (Byte 0) "lock_level" in (* scheduling only takes place if this is 0 *)
-  let%bind exclusive   = var (Byte 0) "exclusive" in (* id of process that has exclusive privilige toecute if lockLevel > 0 *)
-  let%bind status      = arr !nproc (Enum (NOTCREATED, show_status)) "status" in
+  let* partition_mode = var (Enum (COLD_START, show_partition_mode)) "partition_mode" in
+  let* lock_level  = var (Byte 0) "lock_level" in (* scheduling only takes place if this is 0 *)
+  let* exclusive   = var (Byte 0) "exclusive" in (* id of process that has exclusive privilige toecute if lockLevel > 0 *)
+  let* status      = arr !nproc (Enum (NOTCREATED, show_status)) "status" in
   (* TODO type for structured data types *)
-  let%bind waiting_for = arr !nproc (Enum (NONE, show_waiting_for)) "waiting_for" in
-  let%bind waiting_id  = arr !nproc (Byte 0) "waiting_id" in
-  Macro._if !nsema;%bind
-  let%bind semas       = arr !nsema (Byte 0) "semas" in
-  let%bind semas_max   = arr !nsema (Byte 0) "semas_max" in
-  let%bind semas_chan  = arr !nsema (Chan.create !nproc (Byte 0)) "semas_chan" in
-  Macro._endif;%bind
-  Macro._if !nevent;%bind
-  let%bind events      = arr !nevent (Bool false) "events" in
-  Macro._endif;%bind
-  Macro._if !nbboard;%bind
-  let%bind bboards     = arr !nbboard (Bool false) "bboards" in
-  Macro._endif;%bind
+  let* waiting_for = arr !nproc (Enum (NONE, show_waiting_for)) "waiting_for" in
+  let* waiting_id  = arr !nproc (Byte 0) "waiting_id" in
+  let* () = Macro._if !nsema in
+  let* semas       = arr !nsema (Byte 0) "semas" in
+  let* semas_max   = arr !nsema (Byte 0) "semas_max" in
+  let* semas_chan  = arr !nsema (Chan.create !nproc (Byte 0)) "semas_chan" in
+  let* () = Macro._endif in
+  let* () = Macro._if !nevent in
+  let* events      = arr !nevent (Bool false) "events" in
+  let* () = Macro._endif in
+  let* () = Macro._if !nbboard in
+  let* bboards     = arr !nbboard (Bool false) "bboards" in
+  let* () = Macro._endif in
 
   (* just for asserts *)
-  let%bind tasks_created = var (Byte 0) "tasks_created" in
-  let%bind semas_created = var (Byte 0) "semas_created" in
+  let* tasks_created = var (Byte 0) "tasks_created" in
+  let* semas_created = var (Byte 0) "semas_created" in
 
   (* dummy variables for use in arguments *)
   let tid,tid_decl = var (Byte 0) "tid" in (* this is the id we give out for every new task *)
@@ -60,21 +62,21 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
   (*let r,_    = var (Enum (SUCCESS, show_return_code)) "r" in*)
 
   (* macros - used in extracted pml *)
-  Macro.define "can_run" @@ A1 (id, fun id -> (!status !id == e READY show_status) && (!lock_level == i 0 || !exclusive == !id) && (!partition_mode == e NORMAL show_partition_mode || !id == i 0));%bind
+  let* () = Macro.define "can_run" @@ A1 (id, fun id -> (!status !id == e READY show_status) && (!lock_level == i 0 || !exclusive == !id) && (!partition_mode == e NORMAL show_partition_mode || !id == i 0)) in
 
   (* helpers - these get inlined *)
   let task_info id = s "status["^i2s id^s "] = "^e2s (!status id)^s ", waiting_for[] = "^e2s (!waiting_for id)^s ", waiting_id[] = "^i2s (!waiting_id id) in
   let sema_info id = s "semas["^i2s id^s "] = "^i2s (!semas id) in
   let set_waiting id wfor wid =
-    println (s "set_waiting: process "^i2s id^s " will wait for "^i2s wid);%bind
-    waiting_for := id, (e wfor show_waiting_for);%bind
-    waiting_id  := id, wid;%bind
+    let* () = println (s "set_waiting: process "^i2s id^s " will wait for "^i2s wid) in
+    let* () = waiting_for := id, (e wfor show_waiting_for) in
+    let* () = waiting_id  := id, wid in
     status      := id, (e WAITING show_status)
   in
   let set_ready id =
-    println (s "set_ready: process "^i2s id^s " set to ready. "^task_info id);%bind
-    waiting_for := id, (e NONE show_waiting_for);%bind
-    waiting_id  := id, i 0;%bind
+    let* () = println (s "set_ready: process "^i2s id^s " set to ready. "^task_info id) in
+    let* () = waiting_for := id, (e NONE show_waiting_for) in
+    let* () = waiting_id  := id, i 0 in
     status      := id, (e READY show_status)
   in
   let is_waiting id wfor wid = !status id == e WAITING show_status && !waiting_for id == e wfor show_waiting_for && !waiting_id id == wid in
@@ -83,68 +85,68 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
       _foreach semas (fun j _ ->
           _ift (poll `Any (!semas_chan j) id) (recv `Any (!semas_chan j) id)
         )
-    else nop;%bind
-    waiting_for := id, e NONE show_waiting_for
+    else let* () = nop in
+      waiting_for := id, e NONE show_waiting_for
   in
 
   (* preemption *)
   let mode,_ = var (Enum (COLD_START, show_partition_mode)) "mode" in
-  extract "LockPreemption" @@ A0 (
-    incr lock_level;%bind
-    exclusive := !tid (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
-  );%bind
-  extract "UnlockPreemption" @@ A0 (
-    _ift (!lock_level > i 0) (decr lock_level)
-  );%bind
-  extract "SetPartitionMode" @@ A1 (mode, fun mode ->
+  let* () = extract "LockPreemption" @@ A0 (
+      let* () = incr lock_level in
+      exclusive := !tid (* TODO is this really changed if lock_level > 0? if yes, it is probably also restored... *)
+    ) in
+  let* () = extract "UnlockPreemption" @@ A0 (
+      _ift (!lock_level > i 0) (decr lock_level)
+    ) in
+  let* () = extract "SetPartitionMode" @@ A1 (mode, fun mode ->
       partition_mode := !mode
-    );%bind
+    ) in
 
   (* processes *)
-  extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id ->
-      _assert (!status !id == e NOTCREATED show_status);%bind
-      status := !id, e STOPPED show_status;%bind
-      waiting_for := !id, e NONE show_waiting_for;%bind
+  let* () = extract "CreateProcess" @@ A1 (id(*; pri; per; cap]*), fun id ->
+      let* () = _assert (!status !id == e NOTCREATED show_status) in
+      let* () = status := !id, e STOPPED show_status in
+      let* () = waiting_for := !id, e NONE show_waiting_for in
       incr tasks_created
-    );%bind
+    ) in
   (* CreateErrorHandler *)
-  extract "Start" @@ A1 (id, fun id ->
-      _assert (!status !id != e NOTCREATED show_status);%bind
-      remove_waiting !id;%bind
+  let* () = extract "Start" @@ A1 (id, fun id ->
+      let* () = _assert (!status !id != e NOTCREATED show_status) in
+      let* () = remove_waiting !id in
       status := !id, e READY show_status
-    );%bind
-  extract "Stop" @@ A1 (id, fun id ->
-      _assert (!status !id != e NOTCREATED show_status);%bind
-      remove_waiting !id;%bind
+    ) in
+  let* () = extract "Stop" @@ A1 (id, fun id ->
+      let* () = _assert (!status !id != e NOTCREATED show_status) in
+      let* () = remove_waiting !id in
       status := !id, e STOPPED show_status
-    );%bind
-  extract "Suspend" @@ A1 (id, fun id ->
-      _assert (!status !id != e NOTCREATED show_status);%bind
+    ) in
+  let* () = extract "Suspend" @@ A1 (id, fun id ->
+      let* () = _assert (!status !id != e NOTCREATED show_status) in
       status := !id, e SUSPENDED show_status
-    );%bind
-  extract "Resume" @@ A1 (id, fun id ->
-      _assert (!status !id != e NOTCREATED show_status);%bind
-      _ift (!status !id == e SUSPENDED show_status) (
-        _ifte (!waiting_for !id == e NONE show_waiting_for)
-          (status := !id, e READY show_status)
-          (status := !id, e WAITING show_status)
-      );%bind
+    ) in
+  let* () = extract "Resume" @@ A1 (id, fun id ->
+      let* () = _assert (!status !id != e NOTCREATED show_status) in
+      let* () = _ift (!status !id == e SUSPENDED show_status) (
+          _ifte (!waiting_for !id == e NONE show_waiting_for)
+            (status := !id, e READY show_status)
+            (status := !id, e WAITING show_status)
+        ) in
       status := !id, e SUSPENDED show_status
-    );%bind
+    ) in
 
   (* semaphores *)
   let cur,_   = var (Byte 0) "cur" in
   let max,_   = var (Byte 0) "max" in
   let queuing,_ = var (Enum (FIFO, show_queuing_discipline)) "queuing" in
-  extract "CreateSemaphore" ~id:(4,0,"sema") @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id ->
-      println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing);%bind
-      _assert (!queuing == e FIFO show_queuing_discipline);%bind
-      semas := !id, !cur;%bind
-      semas_max := !id, !max;%bind
+  let* () = extract "CreateSemaphore" ~id:(4,0,"sema") @@ A5 (name,cur,max,queuing,id, fun name cur max queuing id ->
+      let* () = println (s "CreateSemaphore: " ^ !name ^s ", "^ i2s !cur ^s ", "^ i2s !max ^s ", "^ e2s !queuing) in
+      let* () = _assert (!queuing == e FIFO show_queuing_discipline) in
+      let* () = semas := !id, !cur in
+      let* () = semas_max := !id, !max in
       incr semas_created
-    );%bind
-  extract "GetSemaphoreId" ~id:(1,0,"sema") @@ A2 (name, id, fun name id -> skip);%bind
-  extract "WaitSemaphore" @@ A1 (id, fun id ->
+    ) in
+  let* () = extract "GetSemaphoreId" ~id:(1,0,"sema") @@ A2 (name, id, fun name id -> skip) in
+  let* () = extract "WaitSemaphore" @@ A1 (id, fun id ->
       let id = !id in
       let sema = !semas id in
       let chan = !semas_chan id in
@@ -162,7 +164,7 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
         sema < i 0,
         fail (s "WaitSema: count<0: "^sema_info id)
       ]
-    );%bind
+    ) in
   extract "SignalSemaphore" @@ A1 (id, fun id ->
       let id = !id in
       let sema = !semas id in
@@ -186,4 +188,4 @@ let init ?(nproc=99) ?(nsema=99) ?(nevent=99) ?(nbboard=99) () = (* TODO better 
       ]
     )
 
-  (* events *)
+(* events *)
