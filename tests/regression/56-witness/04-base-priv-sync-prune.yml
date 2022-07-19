@@ -9,7 +9,7 @@
       command_line: '''/home/simmo/dev/goblint/sv-comp/goblint/goblint'' ''04-base-priv-sync-prune.c''
         ''--enable'' ''ana.int.interval'' ''--enable'' ''witness.yaml.enabled'' ''--set''
         ''witness.yaml.path'' ''04-base-priv-sync-prune.yml'' ''--set'' ''dbg.debug''
-        ''true'' ''--set'' ''printstats'' ''true'' ''--enable'' ''dbg.print_dead_code''
+        ''true'' ''--set'' ''printstats'' ''true''
         ''--set'' ''goblint-dir'' ''.goblint-56-03'''
     task:
       input_files:
