@@ -86,7 +86,7 @@ type categories = [
 
 let classify fn exps: categories =
   let strange_arguments () =
-    M.warn "%s arguments are strange!" fn;
+    M.warn ~category:Program "%s arguments are strange!" fn;
     `Unknown fn
   in
   match fn with

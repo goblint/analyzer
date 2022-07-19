@@ -415,7 +415,7 @@ struct
     match value with
     | `Top ->
       if VD.is_immediate_type t then () else M.info ~category:Unsound "Unknown value in %s could be an escaped pointer address!" description; empty
-    | `Bot -> (*M.debug "A bottom value when computing reachable addresses!";*) empty
+    | `Bot -> (*M.debug ~category:Analyzer "A bottom value when computing reachable addresses!";*) empty
     | `Address adrs when AD.is_top adrs ->
       M.info ~category:Unsound "Unknown address in %s has escaped." description; AD.remove Addr.NullPtr adrs (* return known addresses still to be a bit more sane (but still unsound) *)
     (* The main thing is to track where pointers go: *)
@@ -766,7 +766,7 @@ struct
                     if contains_vla t || contains_vla (get_type_addr (x, o)) then
                       begin
                         (* TODO: Is this ok? *)
-                        M.warn "Casting involving a VLA is assumed to work";
+                        M.info ~category:Unsound "Casting involving a VLA is assumed to work";
                         true
                       end
                     else
@@ -994,7 +994,6 @@ struct
     let r = match eval_rv_no_ask_evalint ask gs st e with
       | `Int i -> `Lifted i (* cast should be unnecessary, eval_rv should guarantee right ikind already *)
       | `Bot   -> Queries.ID.top () (* out-of-scope variables cause bot, but query result should then be unknown *)
-      (* | v      -> M.warn ("Query function answered " ^ (VD.show v)); Queries.Result.top q *)
       | v      -> M.debug ~category:Analyzer "Base EvalInt %a query answering bot instead of %a" d_exp e VD.pretty v; Queries.ID.bot ()
     in
     if M.tracing then M.traceu "evalint" "base query_evalint %a -> %a\n" d_exp e Queries.ID.pretty r;
@@ -1022,15 +1021,18 @@ struct
     | _ -> None
 
   let eval_funvar ctx fval: varinfo list =
+    let exception OnlyUnknown in
     try
       let fp = eval_fv (Analyses.ask_of_ctx ctx) ctx.global ctx.local fval in
       if AD.mem Addr.UnknownPtr fp then begin
-        M.warn "Function pointer %a may contain unknown functions." d_exp fval;
-        dummyFunDec.svar :: AD.to_var_may fp
+        let others = AD.to_var_may fp in
+        if others = [] then raise OnlyUnknown;
+        M.warn ~category:Imprecise "Function pointer %a may contain unknown functions." d_exp fval;
+        dummyFunDec.svar :: others
       end else
         AD.to_var_may fp
-    with SetDomain.Unsupported _ ->
-      M.warn "Unknown call to function %a." d_exp fval;
+    with SetDomain.Unsupported _ | OnlyUnknown ->
+      M.warn ~category:Unsound "Unknown call to function %a." d_exp fval;
       [dummyFunDec.svar]
 
   (** Evaluate expression as address.
@@ -1161,7 +1163,6 @@ struct
     | Q.EvalFunvar e ->
       begin
         let fs = eval_funvar ctx e in
-        (*          Messages.warn ~msg:("Base: I should know it! "^string_of_int (List.length fs)) ();*)
         List.fold_left (fun xs v -> Q.LS.add (v,`NoOffset) xs) (Q.LS.empty ()) fs
       end
     | Q.EvalInt e ->
@@ -1322,7 +1323,7 @@ struct
             with Cilfacade.TypeOfError _ ->
               (* If we cannot determine the correct type here, we go with the one of the LVal *)
               (* This will usually lead to a type mismatch in the ValueDomain (and hence supertop) *)
-              M.warn "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
+              M.debug ~category:Analyzer "Cilfacade.typeOfLval failed Could not obtain the type of %a" d_lval (Var x, cil_offset);
               lval_type
       in
       let update_offset old_value =
@@ -1455,7 +1456,7 @@ struct
     (* If any of the addresses are unknown, we ignore it!?! *)
     | SetDomain.Unsupported x ->
       (* if M.tracing then M.tracel "set" ~var:firstvar "set got an exception '%s'\n" x; *)
-      M.warn "Assignment to unknown address"; st
+      M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
 
   let set_many ~ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
@@ -1659,7 +1660,7 @@ struct
     let inv_bin_int (a, b) ikind c op =
       let warn_and_top_on_zero x =
         if GobOption.exists (BI.equal BI.zero) (ID.to_int x) then
-          (M.warn "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
+          (M.error ~category:M.Category.Integer.div_by_zero ~tags:[CWE 369] "Must Undefined Behavior: Second argument of div or mod is 0, continuing with top";
           ID.top_of ikind)
         else
           x
@@ -1922,7 +1923,7 @@ struct
     let rval_val = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local rval in
     let lval_val = eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval in
     (* let sofa = AD.short 80 lval_val^" = "^VD.short 80 rval_val in *)
-    (* M.debug @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
+    (* M.debug ~category:Analyzer @@ sprint ~width:80 @@ dprintf "%a = %a\n%s" d_plainlval lval d_plainexp rval sofa; *)
     let not_local xs =
       let not_local x =
         match Addr.to_var_may x with
@@ -1983,7 +1984,6 @@ struct
       match ctx.ask (Queries.CondVars exp) with
       | s when Queries.ES.cardinal s = 1 ->
         let e = Queries.ES.choose s in
-        M.debug "CondVars result for expression %a is %a" d_exp exp d_exp e;
         invariant ctx (Analyses.ask_of_ctx ctx) ctx.global res e tv
       | _ -> res
     in
@@ -2039,7 +2039,7 @@ struct
       | None -> nst
       | Some exp ->
         let t_override = match Cilfacade.fundec_return_type fundec with
-          | TVoid _ -> M.warn "Returning a value from a void function"; assert false
+          | TVoid _ -> M.warn ~category:M.Category.Program "Returning a value from a void function"; assert false
           | ret -> ret
         in
         let rv = eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local exp in
@@ -2261,12 +2261,12 @@ struct
       if not change then ctx.local else begin
         let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
         (* if check_assert e newst <> `Lifted true then
-            M.warn ~msg:("Invariant \"" ^ expr ^ "\" does not stick.") (); *)
+            M.warn ~category:Assert ~msg:("Invariant \"" ^ expr ^ "\" does not stick.") (); *)
         newst
       end
 
   let special_unknown_invalidate ctx ask gs st f args =
-    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn "Unknown function ptr called");
+    (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise "Unknown function ptr called");
     let desc = LF.find f in
     let shallow_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = false } args in
     let deep_addrs = LibraryDesc.Accesses.find desc.accs { kind = Write; deep = true } args in
