@@ -8,7 +8,7 @@ int foo(int* ptr1, int* ptr2){
     } else {
         result = 1;
     }
-    // Look at the generated witness.yml to check whether there contradictory precondition_loop_invariant[s]
+    // Look at the generated witness.yml to check whether there are contradictory precondition_loop_invariant[s]
     return result;
 }
 
