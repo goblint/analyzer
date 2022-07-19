@@ -30,7 +30,7 @@ jobs:
           sed -i 's|"$schema": "http://json-schema.org/draft-04/schema#",||' src/util/options.schema.json
 
       - name: Validate conf
-        run: ajv validate -s src/util/options.schema.json -d "conf/*.json"
+        run: ajv validate -s src/util/options.schema.json -d "conf/**/*.json"
 
       - name: Validate incremental tests
         run: ajv validate -s src/util/options.schema.json -d "tests/incremental/*/*.json"
