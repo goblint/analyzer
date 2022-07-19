@@ -267,9 +267,14 @@ struct
   let is_safe_cast t2 t1 = match t2, t1 with
     (*| TPtr _, t -> bitsSizeOf t <= bitsSizeOf !upointType
       | t, TPtr _ -> bitsSizeOf t >= bitsSizeOf !upointType*)
-    | TInt (ik,_), TFloat (fk,_) (* does a1 fit into ik's range? *)
-    | TFloat (fk,_), TInt (ik,_) (* can a1 be represented as fk? *)
-      -> false (* TODO precision *)
+    | TFloat (fk1,_), TFloat (fk2,_) when fk1 = fk2 -> true
+    | TFloat (FDouble,_), TFloat (FFloat,_) -> true
+    | TFloat (FLongDouble,_), TFloat (FFloat,_) -> true
+    | TFloat (FLongDouble,_), TFloat (FDouble,_) -> true
+    | _, TFloat _ -> false (* casting float to an integral type always looses the decimals *)
+    | TFloat ((FFloat | FDouble | FLongDouble), _), TInt((IBool | IChar | IUChar | ISChar | IShort | IUShort), _) -> true (* resonably small integers can be stored in all fkinds *)
+    | TFloat ((FDouble | FLongDouble), _), TInt((IInt | IUInt | ILong | IULong), _) -> true (* values stored in between 16 and 32 bits can only be stored in at least doubles *)
+    | TFloat _, _ -> false (* all wider integers can not be completly put into a float, partially because our internal representation of long double is the same as for doubles *)
     | _ -> IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
   (*| _ -> false*)
 
