@@ -36,6 +36,9 @@ sig
   val enter_multithreaded: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseComponents (D).t -> BaseComponents (D).t
   val threadenter: Q.ask -> BaseComponents (D).t -> BaseComponents (D).t
 
+  val thread_join: Q.ask -> (V.t -> G.t) -> Cil.exp -> BaseComponents (D).t -> BaseComponents (D).t
+  val thread_return: Q.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseComponents (D).t -> BaseComponents (D).t
+
   val init: unit -> unit
   val finalize: unit -> unit
 end
@@ -112,6 +115,9 @@ struct
     in
     (* We fold over the local state, and side effect the globals *)
     CPA.fold side_var st.cpa st
+
+  let thread_join ask get e st = st
+  let thread_return ask get set tid st = st
 end
 
 module PerMutexPrivBase =
@@ -178,6 +184,9 @@ struct
     {st with cpa = cpa'}
 
   let threadenter = old_threadenter
+
+  let thread_join ask get e st = st
+  let thread_return ask get set tid st = st
 end
 
 module PerMutexOplusPriv: S =
@@ -462,6 +471,9 @@ struct
       ) st.cpa st
 
   let threadenter = startstate_threadenter startstate
+
+  let thread_join ask get e st = st
+  let thread_return ask get set tid st = st
 end
 
 module AbstractLockCenteredGBase (WeakRange: Lattice.S) (SyncRange: Lattice.S) =
@@ -509,6 +521,9 @@ struct
   include NoFinalize
   include ConfCheck.RequireMutexPathSensInit
   include MutexGlobals (* explicit not needed here because G is Prod anyway? *)
+
+  let thread_join ask get e st = st
+  let thread_return ask get set tid st = st
 end
 
 module MineNaivePrivBase =
@@ -1214,6 +1229,9 @@ struct
   let escape ask getg sideg st escaped = time "escape" (Priv.escape ask getg sideg st) escaped
   let enter_multithreaded ask getg sideg st = time "enter_multithreaded" (Priv.enter_multithreaded ask getg sideg) st
   let threadenter ask st = time "threadenter" (Priv.threadenter ask) st
+
+  let thread_join ask get e st = time "thread_join" (Priv.thread_join ask) get e st
+  let thread_return ask get set tid st = time "thread_return" (Priv.thread_return ask) get set tid st
 
   let init () = time "init" (Priv.init) ()
   let finalize () = time "finalize" (Priv.finalize) ()

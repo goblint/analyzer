@@ -22,6 +22,9 @@ sig
   val enter_multithreaded: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
   val threadenter: Queries.ask -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
 
+  val thread_join: Queries.ask -> (V.t -> G.t) -> Cil.exp -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
+  val thread_return: Queries.ask -> (V.t -> G.t) -> (V.t -> G.t -> unit) -> ThreadIdDomain.Thread.t -> BaseDomain.BaseComponents (D).t -> BaseDomain.BaseComponents (D).t
+
   val init: unit -> unit
   val finalize: unit -> unit
 end
