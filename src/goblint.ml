@@ -24,7 +24,7 @@ let main () =
       print_endline Goblintutil.command_line;
     );
     let file = Fun.protect ~finally:GoblintDir.finalize preprocess_and_merge in
-    if get_bool "ana.autoselect" then AutoSelect.chooseConfig file;
+    if get_bool "ana.autotune.enabled" then AutoTune.chooseConfig file;
     if get_bool "server.enabled" then Server.start file else (
       let changeInfo = if GobConfig.get_bool "incremental.load" || GobConfig.get_bool "incremental.save" then diff_and_rename file else Analyses.empty_increment_data () in
       file|> do_analyze changeInfo;

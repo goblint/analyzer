@@ -523,12 +523,27 @@
           },
           "additionalProperties": false
         },
-        "autoselect": {
-          "title": "ana.autoselect",
-          "description":
-            "Try to intelligently select analyses based on analysed file",
-          "type": "boolean",
-          "default": false
+        "autotune": {
+          "title": "ana.autotune",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "ana.autotune.enabled",
+              "description": "Try to intelligently select analyses based on analysed file",
+              "type": "boolean",
+              "default": false
+            },
+            "activated": {
+              "title": "ana.autotune.activated",
+              "description": "Lists of activated tuning options",
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [
+                "congruence", "singleThreaded", "specification", "mallocWrappers", "noRecursiveIntervals", "enums"
+              ]
+            }
+          },
+          "additionalProperties": false
         },
         "sv-comp": {
           "title": "ana.sv-comp",

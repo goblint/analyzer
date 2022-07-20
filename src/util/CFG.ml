@@ -100,7 +100,7 @@ class copyandPatchLabelsVisitor(loopEnd,currentIterationEnd) = object
 end
 
 (*loop unroll heuristics*)
-(*used if autoselect is activated*)
+(*used if AutoTune is activated*)
 
 (*simple fixed loop iterations: 
   - one single break with a comparison of a single integral local variable against a constant
@@ -403,7 +403,7 @@ class loopUnrollingCallVisitor = object
 
 end
 
-let loop_unrolling_factor loopStatement func = 
+let loop_unrolling_factor loopStatement func = 0 (*
   let configFactor = get_int "exp.unrolling-factor" in
   let unrollFunctionCalled = try
       let thisVisitor = new loopUnrollingCallVisitor in
@@ -414,16 +414,16 @@ let loop_unrolling_factor loopStatement func =
   in
   (*unroll up to near an instruction count, higher if the loop uses malloc/lock/threads *)
   let targetInstructions = if unrollFunctionCalled then 50 else 25 in
-  let loopStats = AutoSelect.collectFactors visitCilStmt loopStatement in
+  let loopStats = AutoTune.collectFactors visitCilStmt loopStatement in
   let targetFactor = if loopStats.instructions > 0 then targetInstructions / loopStats.instructions else 0 in (* Don't unroll empty (= while(1){}) loops*)
   let fixedLoop = fixedLoopSize loopStatement func in
-  if not @@ get_bool "ana.autoselect" then 
+  if not @@ get_bool "ana.autotune.enabled" then 
     configFactor 
   else 
     match fixedLoop with 
       | Some i -> if i * loopStats.instructions < 100 then (print_endline "fixed loop size"; i) else targetFactor
       | _ -> targetFactor
-  
+  *)
 
 class loopUnrollingVisitor(func) = object
   (* Labels are simply handled by giving them a fresh name. Jumps coming from outside will still always go to the original label! *)
@@ -497,7 +497,7 @@ let createCFG (fileAST: file) =
       match glob with
       | GFun(fd,_) ->
         (* before prepareCfg so continues still appear as such *)
-        if (get_int "exp.unrolling-factor")>0 || get_bool "ana.autoselect" then loop_unrolling fd;
+        if (get_int "exp.unrolling-factor")>0 || get_bool "ana.autotune.enabled" then loop_unrolling fd;
         prepareCFG fd;
         computeCFGInfo fd true
       | _ -> ()

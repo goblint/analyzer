@@ -96,8 +96,8 @@ module FunctionSet = Set.Make(CilType.Varinfo)
 module FunctionCallMap = Map.Make(CilType.Varinfo)
 
 let addOrCreateMap fd = function
-  | Some set -> Some (FunctionSet.add fd set)
-  | None     -> Some (FunctionSet.singleton fd) 
+  | Some (set, i) -> Some (FunctionSet.add fd set, i+1)
+  | None     -> Some (FunctionSet.singleton fd, 1) 
 
 class collectFunctionCallsVisitor(callSet, calledBy, argLists, fd) = object
   inherit nopCilVisitor
@@ -140,8 +140,28 @@ let functionCallMaps = ResettableLazy.from_fun (fun () ->
 (* Only considers static calls!*)
 (*TODO Extend to dynamic calls?*)
 let calledFunctions fd = ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty
-let callingFunctions fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:FunctionSet.empty
+let callingFunctions fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> fst
+let timesCalled fd = ResettableLazy.force functionCallMaps |> fun (_,x,_) -> x |> FunctionCallMap.find_opt fd |> Option.value ~default:(FunctionSet.empty, 0) |> snd
 let functionArgs fd = ResettableLazy.force functionCallMaps |> fun (_,_,x) -> x |> FunctionCallMap.find_opt fd
+
+let findMallocWrappers () = 
+  let isMalloc f = 
+    let desc = LibraryFunctions.find f in
+    match (functionArgs f) with
+      | None -> false
+      | Some args -> 
+        match desc.special args with
+        | Malloc _ -> true (*TODO also others?*)
+        | _ -> false
+  in
+  ResettableLazy.force functionCallMaps 
+  |> fun (x,_,_) -> x
+  |> FunctionCallMap.filter (fun _ allCalled -> FunctionSet.exists isMalloc allCalled)
+  |> FunctionCallMap.filter (fun f _ -> timesCalled f > 10) (*TODO too many false positives? what is the benefit/loss*)
+  |> FunctionCallMap.bindings
+  |> List.map (fun (v,_) -> v.vname)
+  |> List.iter (fun n -> print_endline ("Set as malloc wrapper: " ^ n); GobConfig.set_auto "ana.malloc.wrappers[+]" n)
+
 
 (*Functions for determining if the congruence analysis should be enabled *)
 let isExtern = function
@@ -216,7 +236,7 @@ let reduceThreadAnalyses () =
     ResettableLazy.force functionCallMaps 
     |> fun (_,x,_) -> x  (*every function that is called*)
     |> FunctionCallMap.exists
-      (fun var callers ->
+      (fun var (callers,_) ->
         let desc = LibraryFunctions.find var in
           match (functionArgs var) with
             | None -> false;
@@ -273,18 +293,29 @@ let hasEnums file =
 (*      how to better display changed/selected settings?*)
 (*      tune all constants*)
 let chooseConfig file = 
-  set_bool "annotation.int.enabled" true;
-  addModAttributes file;
+  let isActivated a = List.mem a @@ get_string_list "ana.autotune.activated" in
+
+  if isActivated "congruence" then (
+    set_bool "annotation.int.enabled" true;
+    addModAttributes file
+  );
+
+  if isActivated "noRecursiveIntervals" then 
+    disableIntervalContextsInRecursiveFunctions ();
+
+  if isActivated "noRecursiveIntervals" then 
+    findMallocWrappers ();
+  
+  if isActivated "specification" && get_string "ana.specification" <> "" then 
+    focusOnSpecification ();
+  
+  if isActivated "enums" && hasEnums file then
+    set_bool "ana.int.enums" true;
+
+  if isActivated "singleThreaded" then 
+    reduceThreadAnalyses ();
+  
   set_bool "ana.int.interval_threshold_widening" true; (*Do not do this all the time?*)
-
-  disableIntervalContextsInRecursiveFunctions ();
-
-  (*crashes because sometimes bigints are needed?
-  print_endline @@ "Upper thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.upper_thresholds ();
-  print_endline @@ "Lower thresholds: " ^ String.concat " " @@ List.map (fun z -> string_of_int (Z.to_int z)) @@ WideningThresholds.lower_thresholds ();*)
-  if get_string "ana.specification" <> "" then focusOnSpecification ();
-  if hasEnums file then set_bool "ana.int.enums" true;
-  reduceThreadAnalyses ();
   printFactors @@ collectFactors visitCilFileSameGlobals file(*;
   ignore (dumpFile plainCilPrinter stdout "?" file)*)
 

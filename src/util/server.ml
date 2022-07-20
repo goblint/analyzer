@@ -149,7 +149,7 @@ let analyze ?(reset=false) (s: t) =
   WideningThresholds.reset_lazy ();
   IntDomain.reset_lazy ();
   ApronDomain.reset_lazy ();
-  AutoSelect.reset_lazy ();
+  AutoTune.reset_lazy ();
   Access.reset ();
   s.file <- file;
   GobConfig.set_bool "incremental.load" (not fresh);
