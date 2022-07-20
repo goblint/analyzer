@@ -234,7 +234,11 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     match v1, v2 with (**we cannot distinguish between the lower bound beeing -inf or the upper bound beeing inf. Also there is nan *)
     | Bot, _ | _, Bot -> Bot
     | Top, _ -> v2
-    | _, _ -> v1
+    | Interval (l1, h1), Interval (l2, h2) ->
+      let low = if l1 = Float_t.lower_bound then l2 else l1 in
+      let high = if h1 = Float_t.upper_bound then h2 else h1 in
+      norm @@ Interval (low, high)
+    | Interval _, Top -> v1
 
   (** evaluation of the unary and binary operations *)
   let eval_unop onTop eval_operation op =
