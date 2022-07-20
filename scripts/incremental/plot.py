@@ -100,6 +100,7 @@ def paper_efficiency_graphs(dir_results, csv_filename, outdir, filterRelCLOC=Fal
 def paper_precision_graph(results_precision, filename, outdir):
     df = utils.get_data_from_json(os.path.join(results_precision, filename))
 
+    # Plot precision loss after x commits, where x is in {1, 2, 5, 10, 15}
     lessprec1 = 'intermediate precision.1.precision.lessprec'
     lessprec2 = 'intermediate precision.2.precision.lessprec'
     lessprec5 = 'intermediate precision.5.precision.lessprec'
