@@ -346,6 +346,164 @@ struct
       st
 end
 
+module PerMutexMeetTIDPriv: S =
+struct
+  include PerMutexPrivBase
+  include PerMutexTidG(CPA)
+
+  let long_meet m1 m2 = CPA.long_map2 VD.meet m1 m2
+
+  let get_mutex_global_g_with_mutex_inits inits ask getg g =
+    let get_mutex_global_g = get_relevant_writes_nofilter ask @@ G.mutex @@ getg (V.global g) in
+    let r = if not inits then
+        get_mutex_global_g
+      else
+        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+        let get_mutex_inits' = CPA.filter (fun k v -> k.vid = g.vid) get_mutex_inits in
+        CPA.join get_mutex_global_g get_mutex_inits'
+    in
+    r
+
+  let get_relevant_writes (ask:Q.ask) m v =
+    let current = ThreadId.get_current ask in
+    let must_joined = ask.f Queries.MustJoinedThreads in
+    let is_in_Gm x _ = is_protected_by ask m x in
+    GMutex.fold (fun k v acc ->
+        if compatible ask current must_joined k then
+          CPA.join acc (CPA.filter is_in_Gm v)
+        else
+          acc
+      ) v (CPA.bot ())
+
+  let get_m_with_mutex_inits inits ask getg m =
+    let get_m = get_relevant_writes ask m (G.mutex @@ getg (V.mutex m)) in
+    let r =
+      if not inits then
+        get_m
+      else
+        let get_mutex_inits = merge_all @@ G.mutex @@ getg V.mutex_inits in
+        let is_in_Gm x _ = is_protected_by ask m x in
+        let get_mutex_inits' = CPA.filter is_in_Gm get_mutex_inits in
+        CPA.join get_m get_mutex_inits'
+    in
+    r
+
+  let read_global ask getg (st: BaseComponents (D).t) x =
+    let _,lmust,l = st.priv in
+    let lm = LLock.global x in
+    let tmp = get_mutex_global_g_with_mutex_inits (not (LMust.mem lm lmust)) ask getg x in
+    let local_m = BatOption.default (CPA.bot ()) (L.find_opt lm l) in
+    CPA.find x (long_meet st.cpa (CPA.join tmp local_m))
+
+  let read_global ask getg st x =
+    let v = read_global ask getg st x in
+    if M.tracing then M.tracel "priv" "READ GLOBAL %a %B %a = %a\n" d_varinfo x (is_unprotected ask x) CPA.pretty st.cpa VD.pretty v;
+    v
+
+  let write_global ?(invariant=false) ask getg sideg (st: BaseComponents (D).t) x v =
+    let w,lmust,l = st.priv in
+    let lm = LLock.global x in
+    let cpa' =
+      if is_unprotected ask x then
+        st.cpa
+      else
+        CPA.add x v st.cpa
+    in
+    if M.tracing then M.tracel "priv" "WRITE GLOBAL SIDE %a = %a\n" d_varinfo x VD.pretty v;
+    let tid = ThreadId.get_current ask in
+    let sidev = GMutex.singleton tid (CPA.singleton x v) in
+    let l' = L.add lm (CPA.singleton x v) l in
+    sideg (V.global x) (G.create_global sidev);
+    {st with cpa = cpa'; priv = (W.add x w,LMust.add lm lmust,l')}
+
+  let lock (ask: Queries.ask) getg (st: BaseComponents (D).t) m =
+    if Locksets.(not (Lockset.mem m (current_lockset ask))) then (
+      let _,lmust,l = st.priv in
+      let lm = LLock.mutex m in
+      let get_m = get_m_with_mutex_inits (not (LMust.mem lm lmust)) ask getg m in
+      let meet = long_meet st.cpa get_m in
+      {st with cpa = meet}
+    )
+    else
+      st (* sound w.r.t. recursive lock *)
+
+  let unlock ask getg sideg (st: BaseComponents (D).t) m =
+    let w,lmust,l = st.priv in
+    let cpa' = CPA.fold (fun x v cpa ->
+        if is_protected_by ask m x && is_unprotected_without ask x m then
+          CPA.remove x cpa
+        else
+          cpa
+      ) st.cpa st.cpa
+    in
+    let w' = W.filter (fun v -> not (is_unprotected_without ask v m)) w in
+    let side_needed = W.exists (fun v -> is_protected_by ask m v) w in
+    if not side_needed then
+      {st with cpa = cpa'; priv = (w',lmust,l)}
+    else
+      let is_in_Gm x _ = is_protected_by ask m x in
+      let tid = ThreadId.get_current ask in
+      let sidev = GMutex.singleton tid (CPA.filter is_in_Gm st.cpa) in
+      sideg (V.mutex m) (G.create_mutex sidev);
+      let lm = LLock.mutex m in
+      let l' = L.add lm (CPA.filter is_in_Gm st.cpa) l in
+      {st with cpa = cpa'; priv = (w',LMust.add lm lmust,l')}
+
+  let thread_join (ask:Q.ask) getg exp (st: BaseComponents (D).t) =
+    let w,lmust,l = st.priv in
+    let tids = ask.f (Q.EvalThread exp) in
+    match ConcDomain.ThreadSet.elements tids with
+    | [tid] ->
+      let lmust',l' = G.thread (getg (V.thread tid)) in
+      {st with priv = (w, LMust.union lmust' lmust, L.join l l')}
+    | _ ->
+      (* To match the paper more closely, one would have to join in the non-definite case too *)
+      (* Given how we handle lmust (for initialization), doing this might actually be beneficial given that it grows lmust *)
+      st
+    | exception _ ->
+      (* elements throws if the thread set is top *)
+      st
+
+  let thread_return ask getg sideg tid (st: BaseComponents (D).t) =
+    let _,lmust,l = st.priv in
+    sideg (V.thread tid) (G.create_thread (lmust,l));
+    st
+
+  let sync (ask:Q.ask) getg sideg (st: BaseComponents (D).t) reason =
+    (* TODO: Is more needed here? *)
+    st
+
+  let escape ask getg sideg (st: BaseComponents (D).t) escaped =
+    let escaped_cpa = CPA.filter (fun x _ -> EscapeDomain.EscapedVars.mem x escaped) st.cpa in
+    let tid = ThreadId.get_current ask in
+    let sidev = GMutex.singleton tid escaped_cpa in
+    sideg V.mutex_inits (G.create_mutex sidev);
+    let cpa' = CPA.fold (fun x v acc ->
+        if EscapeDomain.EscapedVars.mem x escaped (* && is_unprotected ask x *) then (
+          if M.tracing then M.tracel "priv" "ESCAPE SIDE %a = %a\n" d_varinfo x VD.pretty v;
+          let sidev = GMutex.singleton tid (CPA.singleton x v) in
+          sideg (V.global x) (G.create_global sidev);
+          CPA.remove x acc
+        )
+        else
+          acc
+      ) st.cpa st.cpa
+    in
+    {st with cpa = cpa'}
+
+  let enter_multithreaded ask getg sideg (st: BaseComponents (D).t) =
+    let cpa = st.cpa in
+    let cpa_side = CPA.filter (fun k v -> k.vglob) cpa in
+    let tid = ThreadId.get_current ask in
+    let sidev = GMutex.singleton tid cpa_side in
+    sideg V.mutex_inits (G.create_mutex sidev);
+    (* Introduction into local state not needed, will be read via initializer *)
+    (* Also no side-effect to mutex globals needed, the value here will either by read via the initializer, *)
+    (* or it will be locally overwitten and in LMust in which case these values are irrelevant anyway *)
+    let cpa_local = CPA.filter (fun k v -> not k.vglob) cpa in
+    {st with cpa= cpa_local }
+end
+
 
 module type PerGlobalPrivParam =
 sig
@@ -1382,6 +1540,7 @@ let priv_module: (module S) Lazy.t =
         | "none" -> (module NonePriv: S)
         | "mutex-oplus" -> (module PerMutexOplusPriv)
         | "mutex-meet" -> (module PerMutexMeetPriv)
+        | "mutex-meet-tid" -> (module PerMutexMeetTIDPriv)
         | "protection" -> (module ProtectionBasedPriv (struct let check_read_unprotected = false end))
         | "protection-read" -> (module ProtectionBasedPriv (struct let check_read_unprotected = true end))
         | "mine" -> (module MinePriv)
