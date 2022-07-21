@@ -4,6 +4,9 @@ open Cil
 open GobConfig
 
 
+let arg = "top_value"
+
+
 (** Outputs information about what the goblin is doing *)
 (* let verbose = ref false *)
 
@@ -54,6 +57,11 @@ let postsolving = ref false
 let verified : bool option ref = ref None
 
 let escape = XmlUtil.escape (* TODO: inline everywhere *)
+
+
+let trim (x:string): string =
+  let len = String.length x in
+  if x.[len-1] = ' ' then String.sub x 0 (len-1) else x
 
 
 (** Creates a directory and returns the absolute path **)

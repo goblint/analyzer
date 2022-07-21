@@ -4,6 +4,7 @@ open Prelude.Ana
 open Analyses
 open GobConfig
 open BaseUtil
+open TypeDomain
 module A = Analyses
 module H = Hashtbl
 module Q = Queries
@@ -24,8 +25,25 @@ module CPA    = BaseDomain.CPA
 module Dep    = BaseDomain.PartDeps
 module WeakUpdates   = BaseDomain.WeakUpdates
 module BaseComponents = BaseDomain.BaseComponents
+module LvalMap = BaseDomain.LvalMap
 
+let is_heap_var (a: Q.ask) (v: varinfo): bool = a.f (Q.IsHeapVar v)
 
+  (* TODO: There should be is_heap_var and is_arg_var *)
+let is_allocated_var (a: Q.ask) (v: varinfo): bool = a.f (Q.IsAllocatedVar v)
+
+let is_arg_var (a: Q.ask) (v: varinfo): bool = is_heap_var a v && not (is_allocated_var a v)
+
+let is_always_unknown (variable: varinfo) = variable.vstorage = Extern || Ciltools.is_volatile_tp variable.vtype
+
+let is_static (v:varinfo): bool = v.vstorage == Static
+
+module type VB =
+sig
+  include Printable.S
+  val priv : CilType.Varinfo.t -> t
+  val thread : ThreadIdDomain.Thread.t -> t
+end
 
 module MainFunctor (Priv:BasePriv.S) (RVEval:BaseDomain.ExpEvaluator with type t = BaseComponents (Priv.D).t) =
 struct
@@ -101,11 +119,20 @@ struct
   let return_lval (): lval = (Var (return_varinfo ()), NoOffset)
 
   let heap_var ctx =
-    let info = match (ctx.ask Q.HeapVar) with
+    let info = match ctx.ask Q.HeapVar with
       | `Lifted vinfo -> vinfo
       | _ -> failwith("Ran without a malloc analysis.") in
     info
 
+  let arg_value (ask: Q.ask) (t:  typ) : Addr.t list BatMap.Int.t =
+    match ask.f (Q.ArgVarTyp t) with
+    | `Lifted v -> (AD.from_var v)
+    | _ -> failwith "Ran without heap analysis"
+
+  let create_val (f: varinfo) (ask: Q.ask) t : value * (address * typ * value) list =
+    let map = ask.f (Q.TypeCasts f) in
+    M.tracel "args" "For function %s got map %a\n" f.vname TypeCastMap.pretty map;
+    VD.arg_value map (arg_value ask) t
   (* hack for char a[] = {"foo"} or {'f','o','o', '\000'} *)
   let char_array : (lval, bytes) Hashtbl.t = Hashtbl.create 500
 
@@ -389,7 +416,6 @@ struct
     if M.tracing then M.traceu "get" "Result: %a\n" VD.pretty res;
     res
 
-
   (**************************************************************************
    * Auxiliary functions for function calls
    **************************************************************************)
@@ -456,14 +482,100 @@ struct
       (* ok, let's visit all the variables in the workset and collect the new variables *)
       let visit_and_collect var (acc: address): address =
         let var = AD.singleton var in (* Very bad hack! Pathetic really! *)
-        AD.union (reachable_from_address ask gs st var) acc in
-      let collected = AD.fold visit_and_collect !workset empty in
+        let reachable_from_ad = Stats.time "reachable_from_address" (reachable_from_address ask gs st) var in
+        Stats.time "AD.union" (AD.union (reachable_from_ad)) acc in
+      let collected = Stats.time "fold visit" (fun () -> AD.fold visit_and_collect !workset empty) () in
       (* And here we remove the already visited variables *)
       workset := AD.diff collected !visited
     done;
     (* Return the list of elements that have been visited. *)
     if M.tracing then M.traceu "reachability" "All reachable vars: %a\n" AD.pretty !visited;
     List.map AD.singleton (AD.elements !visited)
+
+  let reachable_vars (ask: Q.ask) (args: address list) (gs:glob_fun) (st: store): address list =
+    Stats.time "reachable_vars" (reachable_vars ask args gs) st
+
+  let get_concretes (symb, offset: varinfo * Offs.t) (st: store) (reachable_vars: Addr.t list BatMap.Int.t list) =
+    let sa = Addr.Addr (symb, offset) in
+    M.tracel "concretes" "Concrete value for symbolic address %a \n" Addr.pretty sa;
+    List.iter (fun a -> M.tracel "concretes" "Selecting from reachable values %a" AD.pretty a) reachable_vars;
+    let ts = typeSig (Addr.get_type sa) in
+    let concretes = List.filter (fun a -> ts = (typeSig (AD.get_type a))) reachable_vars in
+    (* Passing the address sets with smaller cardinality as the first parameter to join significantly improves performance *)
+    Stats.time "fold AD.join" (List.fold (fun acc a -> AD.join a acc) (AD.bot ())) concretes
+
+  let symb_address_set_to_concretes (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (addr: AD.t) (reachable_vars: Addr.t list BatMap.Int.t list) =
+    let sym_address_to_conretes (addr: Addr.t) = (* Returns a list of concrete addresses and a list of addresses of memory blocks that are added to the heap *)
+      match addr with
+      | Addr  (v, _) ->
+        if is_allocated_var a v then (* Address has been allocated within the function, we add it to our heap *)
+          [addr], Some addr
+        else if is_heap_var a v then
+          let concretes = AD.elements (Stats.time "get_concretes" (get_concretes (v, `NoOffset) st) reachable_vars) in
+          concretes, None
+        else
+          [addr],None
+      | StrPtr _
+      | NullPtr
+      | UnknownPtr -> [addr],None
+    in
+    let concrete_and_new_addresses = List.map sym_address_to_conretes (AD.elements addr) in
+    let concrete_addrs = AD.of_list @@ List.flatten @@ List.map Tuple2.first concrete_and_new_addresses in
+    let new_addrs = List.filter_map Tuple2.second concrete_and_new_addresses in
+    (concrete_addrs, new_addrs)
+
+  let get_concrete_value_and_new_blocks (a: Q.ask) (g: glob_fun) (symb: address) (st: store) (fun_st: store) (reachable_vars: AD.t list) (writtenMap: LvalMap.t) =
+    let rec get_concrete_value_and_new_blocks_from_value symb_value = match symb_value with
+      | `Address addr ->
+        let (concrete_addrs, new_addrs) = Stats.time "symb_address_set_to_concretes" (symb_address_set_to_concretes a g symb st fun_st addr) reachable_vars in
+        (`Address concrete_addrs, new_addrs)
+      | `Struct s ->
+        let (s', na) = ValueDomain.Structs.fold (fun field field_val (s', naddrs) ->
+          let concrete_val, new_adresses = Stats.time "get_concrete_value_and_new_blocks_from_value" get_concrete_value_and_new_blocks_from_value field_val in
+          ValueDomain.Structs.replace s' field concrete_val,  new_adresses::naddrs) s (s, []) in
+          `Struct s', List.flatten na
+      | `Blob _
+      | `Top
+      | `Union _
+      | `Int _
+      | `Array _
+      | `Thread _
+      | `Bot ->
+        symb_value, []
+    in
+    let writtenVal = (match AD.to_var_may symb with
+    | [x] ->
+      let lval = x, `NoOffset in
+      LvalMap.find_opt lval writtenMap
+    | _ -> None)
+    in
+    let symb_value = match writtenVal with Some x -> x | _ -> get a g fun_st symb None in
+    if M.tracing then M.tracel "concretes2" "Got symbolic value %a for address %a with writtenMap %a\n" VD.pretty symb_value AD.pretty symb LvalMap.pretty writtenMap;
+    let (r, n) = get_concrete_value_and_new_blocks_from_value symb_value in
+    (* Going from bot to top is here for the case that we did not create an symbolic abstraction, and therefore did not gather potential writes. If we always generate such a symbolic representation, in particular for the cases of casts, this should not be a problem. *)
+    (* let r = if VD.is_bot r then `Top else r in *)
+    M.tracel "concretes" "Got concrete value %a for address %a \n" VD.pretty r AD.pretty symb;
+    (r, n)
+
+  let get_symbolic_address (a: Q.ask) (g: glob_fun) (concrete: Addr.t) (fun_st: store): address =
+    match Addr.to_var_may concrete with
+    | Some base_var ->
+      begin
+        let base_addr_var = base_var in
+        if base_addr_var.vglob && not (is_heap_var a base_addr_var) then
+          AD.singleton concrete
+        else begin
+          if M.tracing then M.tracel "concretes" "concrete address: %a\n" Addr.pretty concrete;
+          let offset_concrete = Tuple2.second @@ Option.get (Addr.to_var_offset concrete) in
+          let ts = typeSig @@ base_addr_var.vtype in
+          let cpa_symb_vars_of_right_type = CPA.filter (fun k v ->  is_heap_var a k && ts = (typeSig k.vtype)) fun_st.cpa in
+          let base_symb_addr = CPA.fold (fun k v acc -> AD.join acc (AD.from_var k)) cpa_symb_vars_of_right_type (AD.bot ()) in
+          if M.tracing then M.trace "concretes" "Getting symbolic address %a for concrete %a with typesig %a in state %a \n" AD.pretty base_symb_addr Addr.pretty concrete Cil.d_typsig ts D.pretty fun_st;
+          let symb_addr = AD.map (add_offset_varinfo offset_concrete) base_symb_addr in
+          symb_addr
+        end
+      end
+    | _ -> M.warn "Could not get varinfo for address %s\n" (Addr.show concrete); AD.unknown_ptr
 
   let drop_non_ptrs (st:CPA.t) : CPA.t =
     if CPA.is_top st then st else
@@ -746,12 +858,11 @@ struct
           | _ -> false
         in
         let b = Mem e, NoOffset in (* base pointer *)
-        let t = Cilfacade.typeOfLval b in (* static type of base *)
+        let t = typeOfLval b in (* static type of base *)
         let p = eval_lv a gs st b in (* abstract base addresses *)
         let v = (* abstract base value *)
           let open Addr in
-          (* pre VLA: *)
-          (* let cast_ok = function Addr a -> sizeOf t <= sizeOf (get_type_addr a) | _ -> false in *)
+          (* check whether dereferencing one address casted to the type t might yield something better than top *)
           let cast_ok = function
             | Addr (x, o) ->
               begin
@@ -778,7 +889,13 @@ struct
           if AD.for_all cast_ok p then
             get ~top:(VD.top_value t) a gs st p (Some exp)  (* downcasts are safe *)
           else
-            VD.top () (* upcasts not! *)
+            let ok_addrs = AD.filter cast_ok p in
+            let base = get a gs st ok_addrs (Some exp) in
+            (* upcasts not! -- check whether we want to treat them in an optimistic manner. *)
+            if GobConfig.get_bool "sem.assume-casts-ok" then
+              base
+            else
+              VD.join base (VD.top_value t) (* By joining the top_value with the base value, we retain some information on pointer values *)
         in
         let v' = VD.cast t v in (* cast to the expected type (the abstract type might be something other than t since we don't change addresses upon casts!) *)
         if M.tracing then M.tracel "cast" "Ptr-Deref: cast %a to %a = %a!\n" VD.pretty v d_type t VD.pretty v';
@@ -890,7 +1007,24 @@ struct
       | CastE (t, Const (CStr (x,e))) -> (* VD.top () *) eval_rv a gs st (Const (CStr (x,e))) (* TODO safe? *)
       | CastE  (t, exp) ->
         let v = eval_rv a gs st exp in
-        VD.cast ~torg:(Cilfacade.typeOf exp) t v
+        let cast = VD.cast ~torg:(typeOf exp) t v in
+        if GobConfig.get_bool "ana.library" then
+          begin
+            match v, t with
+            | `Address adrs, TPtr (pointed_to_t,_) ->
+              begin
+                (* if we cast an address of some symbolic argument value to some type t, we add an abstraction of this type t to the result
+                 We do not handle allocated symbolic values here, because we assume that they are always directly cast to the right type. *)
+                let vars = List.filter (is_arg_var a) (AD.to_var_may adrs) in
+                let type_based_adresses = List.map
+                  (fun v -> match (arg_value a pointed_to_t) with v -> Some v | exception Failure _ -> None) vars in
+                (* Join type based adresses into abstract value *)
+                `Address (List.fold (fun acc a -> match a with Some a -> AD.union acc a | _ -> acc) adrs type_based_adresses)
+              end
+            | _ -> cast
+          end
+        else
+          VD.cast ~torg:(Cilfacade.typeOf exp) t v
       | SizeOf _
       | Real _
       | Imag _
@@ -1268,8 +1402,8 @@ struct
     | Q.Invariant context -> query_invariant ctx context
     | _ -> Q.Result.top q
 
-  let update_variable variable typ value cpa =
-    if ((get_bool "exp.volatiles_are_top") && (is_always_unknown variable)) then
+  let update_variable ?(force_update=false) (a: Q.ask) variable typ value cpa  =
+    if get_bool "exp.volatiles_are_top" && is_always_unknown variable && not force_update then
       CPA.add variable (VD.top_value typ) cpa
     else
       CPA.add variable value cpa
@@ -1296,10 +1430,10 @@ struct
   (** [set st addr val] returns a state where [addr] is set to [val]
   * it is always ok to put None for lval_raw and rval_raw, this amounts to not using/maintaining
   * precise information about arrays. *)
-  let set (a: Q.ask) ~(ctx: _ ctx) ?(invariant=false) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
+  let set (a: Q.ask) ~ctx ?(invariant=false) ?(force_update=false) ?lval_raw ?rval_raw ?t_override (gs:glob_fun) (st: store) (lval: AD.t) (lval_type: Cil.typ) (value: value) : store =
     let update_variable x t y z =
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\n\n" x.vname VD.pretty y CPA.pretty z;
-      let r = update_variable x t y z in (* refers to defintion that is outside of set *)
+      let r = update_variable ~force_update a x t y z  in (* refers to defintion that is outside of set *)
       if M.tracing then M.tracel "set" ~var:x.vname "update_variable: start '%s' '%a'\nto\n%a\nresults in\n%a\n" x.vname VD.pretty y CPA.pretty z CPA.pretty r;
       r
     in
@@ -1313,7 +1447,7 @@ struct
       let t = match t_override with
         | Some t -> t
         | None ->
-          if a.f (Q.IsHeapVar x) then
+          if is_heap_var a x then
             (* the vtype of heap vars will be TVoid, so we need to trust the pointer we got to this to be of the right type *)
             (* i.e. use the static type of the pointer here *)
             lval_type
@@ -1330,6 +1464,8 @@ struct
         (* Projection to highest Precision *)
         let projected_value = project_val None value (is_global a x) in
         let new_value = VD.update_offset a old_value offs projected_value lval_raw ((Var x), cil_offset) t in
+        (* If we do library analysis, we always have to do non-destructive updates for globals, so join with value here. *)
+        let new_value = if get_bool "ana.library" && x.vglob && not force_update then VD.join new_value old_value else new_value in
         if WeakUpdates.mem x st.weak then
           VD.join old_value new_value
         else if invariant then
@@ -1458,13 +1594,73 @@ struct
       (* if M.tracing then M.tracel "set" ~var:firstvar "set got an exception '%s'\n" x; *)
       M.info ~category:Unsound "Assignment to unknown address, assuming no write happened."; st
 
-  let set_many ~ctx a (gs:glob_fun) (st: store) lval_value_list: store =
+  let set_many ?(force_update=false) ~ctx a (gs:glob_fun) (st: store) lval_value_list: store =
     (* Maybe this can be done with a simple fold *)
     let f (acc: store) ((lval:AD.t),(typ:Cil.typ),(value:value)): store =
-      set ~ctx a gs acc lval typ value
+      set ~ctx ~force_update a gs acc lval typ value
     in
     (* And fold over the list starting from the store turned wstore: *)
     List.fold_left f st lval_value_list
+
+
+  (* Given a state st of the current function and the return state fun_st of another function, the reachable vars of this function for the called function,
+     and a list of new addresses that the called function generated, compute a closure that integrates new addresses into the state st *)
+  let integrate_new_addresses ask ~ctx gs st fun_st reachable_vars new_addresses writtenMap =
+    let empty = AD.empty () in
+    let visited = ref empty in
+    let workset = ref (AD.of_list (List.flatten new_addresses)) in
+    let st = ref st in
+    while not (AD.is_empty !workset) do
+      visited := AD.union !visited !workset;
+      (* visit a memory block and at the newly created memory blocks it references to the collected set  *)
+      let visit_and_collect var (acc, st) =
+        let sa = AD.singleton var in
+        let (concrete_value, new_addresses) = get_concrete_value_and_new_blocks ask gs sa st fun_st reachable_vars writtenMap in
+        if M.tracing then M.tracel "library" "Updating new address %a to value %a\n" AD.pretty sa VD.pretty concrete_value;
+        let st = set ask ~ctx gs st sa (AD.get_type sa) concrete_value in
+        let addrs = AD.union (AD.of_list new_addresses) acc in
+        (addrs, st)
+      in
+      let collected, state = AD.fold visit_and_collect !workset (empty, !st) in
+      (* Update workset with not yet visited addresses *)
+      workset := AD.diff collected !visited;
+      st := state;
+    done;
+    !st
+
+  (* Update the state st by adding the state fun_st  *)
+  let update_reachable_written_vars (ask: Q.ask) ~ctx (reachable_vars: address list) (gs:glob_fun) (st: store) (fun_st: store) (writtenMap: LvalMap.t): store =
+    let written_lvals = Q.LS.of_list (List.map fst (LvalMap.bindings writtenMap)) in
+    let reachable_written_vars = (match written_lvals with
+      | `Top -> reachable_vars
+      | `Lifted s ->
+        let written_lvals = List.map (fun lv -> Lval.CilLval.to_lval lv) (Q.LS.elements written_lvals) in
+        let written_type_sigs = Set.of_list @@ List.map (fun (lhost, offset) -> match lhost with Var v -> (typeSig v.vtype, offset) | _ -> failwith "Should never happen!") written_lvals in
+        let get_addrs_with_offs addrs =
+          let addr_ts = typeSig (AD.get_type addrs) in
+          (* For one concrete address, get the set of written (typesigs, offset) pairs, where the typesig fits with the address. *)
+          let matches = Set.filter (fun (ts, offset) -> ts = addr_ts) written_type_sigs in
+          if M.tracing then M.tracel "update" "Found %i matches for type %a. \n" (Set.cardinal matches) Cil.d_typsig addr_ts;
+          let address_with_offs = Set.map (fun (_,offset) -> AD.map (fun a -> add_offset_varinfo (Offs.from_cil_offset offset) a) addrs)
+          matches |> Set.to_list in
+          List.fold (fun acc a -> AD.join a acc) (AD.bot ()) address_with_offs
+        in
+        let addrs_with_offs = Stats.time "get_addrs_with_offs" (List.map get_addrs_with_offs) reachable_vars in
+        let addrs_with_offs = List.filter_map (fun ad -> if AD.is_bot ad then None else Some ad) addrs_with_offs in
+        addrs_with_offs
+    ) in
+    let reachable_written_vars = Stats.time "concat reachable_written_vars" List.concat (Stats.time "reachable_written_vars" (List.map AD.elements) reachable_written_vars) in
+    let update_written_address (st, addr_list) (addr: Addr.t) =
+      let sa = Stats.time "get_symbolic_address" (get_symbolic_address ask gs addr) fun_st in
+      let typ = Addr.get_type addr in
+      let (concrete_value, new_addresses) = Stats.time "get_concrete_value_and_new_blocks" (get_concrete_value_and_new_blocks ask gs sa st fun_st reachable_vars) writtenMap in
+      (* For the existing memory blocks, we have to join the old and the new value *)
+      let old_value = get ask gs st (AD.singleton addr) None in
+      let value = VD.join old_value concrete_value in
+      set ~ctx ask gs st (AD.singleton addr) typ value, new_addresses::addr_list
+    in
+    let (st, new_addresses) = Stats.time "update_written_address" (List.fold update_written_address (st, [])) reachable_written_vars in
+    Stats.time "integrate_new_addresses" (integrate_new_addresses  ~ctx ask  gs st fun_st reachable_vars new_addresses) writtenMap
 
   let rem_many a (st: store) (v_list: varinfo list): store =
     let f acc v = CPA.remove v acc in
@@ -1482,7 +1678,7 @@ struct
       let effect_on_array arr st =
         let v = CPA.find arr st in
         let nval = VD.affect_move ~replace_with_const:(get_bool ("ana.base.partition-arrays.partition-by-const-on-return")) a v x (fun _ -> None) in (* Having the function for movement return None here is equivalent to forcing the partitioning to be dropped *)
-        update_variable arr arr.vtype nval st
+        update_variable a arr arr.vtype nval st
       in
       { st with cpa = List.fold_left (fun x y -> effect_on_array y x) st.cpa affected_arrays }
     in
@@ -2015,7 +2211,122 @@ struct
          For example, 50-juliet/08-CWE570_Expression_Always_False__02. *)
       refine ()
 
-  let body ctx f =
+  (** Library analysis: Initialization of a address with a symbolic memory block representation for the given type
+      If addr is None, the heap objects will still be created, but no addr is set to point to them. *)
+  let init_address_with_symbolic_value ctx (f: (* varinfo of function we analyze *) varinfo) global local (addr: address option) (t: typ) : store =
+    (* let t = unrollType v.vtype in *)
+    let ask = Analyses.ask_of_ctx ctx in
+    let value = create_val f ask t in
+    let st = match addr with
+      | Some addr -> set ~ctx ask ~force_update:true global local addr t (fst value)
+      | None -> local
+    in
+    List.fold (fun st (a, t, v) -> set ~ctx ask ~force_update:true global st a t v) st (snd value)
+
+  let init_vars_with_symbolic_values ctx (f: varinfo) globals local (vs: (varinfo option * typ) list) : store =
+    List.fold (fun st (v,t) -> init_address_with_symbolic_value ctx f globals st v t) local (List.map (fun (v,t) -> BatOption.map AD.from_var v, t) vs)
+
+  (* Creates the abstract heap objects for a list of types and inserts them into the store *)
+  let init_types_with_symbolic_values ctx (f: varinfo) globals local (ts: typ list) : store =
+    let ts = List.map (fun t -> None, t) ts in
+    init_vars_with_symbolic_values ctx f globals local ts
+
+  (* Creates the abstract heap objects for a list of varinfos, and maps the varinfos to those heap objects *)
+  let init_vars_with_symbolic_values ctx (f: varinfo) globals local (vs: varinfo list) : store =
+    let vars_with_types = List.map (fun v -> Some v, unrollType (v.vtype)) vs in
+    init_vars_with_symbolic_values ctx f globals local vars_with_types
+
+  (** Module for maps with typesigs as keys  *)
+  module TM = Map.Make(struct type t = Cil.typsig let compare = Stdlib.compare end)
+
+  let extract_type_to_address_map_from_state (st: D.t): AD.t TM.t =
+    let add_to_map k (v: Addr.t) m =
+      let v = match TM.find_opt k m with
+      | Some addr -> AD.join (AD.singleton v) addr
+      | None -> AD.singleton v
+      in
+      TM.add k v m
+    in
+    (* recursive for structs, but does not need to follow pointers! *)
+    let rec extract_type_to_addr_map_from_addr  (m: AD.t TM.t) (x: Addr.t): AD.t TM.t =
+      match unrollType (Addr.get_type x) with
+      | TVoid _ -> m
+      | TInt (ik, _) -> add_to_map (typeSig (TInt (ik, []))) x m
+      | TFloat (fk, _) -> add_to_map (typeSig (TFloat (fk, []))) x m
+      | TPtr (t, _) -> add_to_map (typeSig (TPtr (t, []))) x m
+      | TFun (t, args, b, _) -> add_to_map (typeSig (TFun (t, args, b, []))) x m
+      | TComp (c, _) ->
+        let m = add_to_map (typeSig (TComp (c, []))) x m in
+        let addrs = List.map (fun field -> add_offset_varinfo (`Field (field, `NoOffset)) x) c.cfields in
+        List.fold extract_type_to_addr_map_from_addr m addrs
+      | TArray (t, _, _) ->
+        let m = add_to_map (typeSig (TArray (t, None, []))) x m in
+        let addrs = add_offset_varinfo (`Index (ID.top_of (Cilfacade.ptrdiff_ikind ()), `NoOffset)) x in
+        extract_type_to_addr_map_from_addr m addrs
+      | TEnum (t, _) -> add_to_map (typeSig (TEnum (t, []))) x m
+      | TBuiltin_va_list _ -> M.warn "Analyzing a function that has a unhandled builtin_va_list as parameter!"; m
+      | t ->
+        M.trace "entry" "type %a not handled\n" Cil.d_type t;
+        failwith "unimplemented extract"
+    in
+    let extract_type_to_addr_from_varinfo (x: varinfo) (v: value) (m: AD.t TM.t) : AD.t TM.t =
+      extract_type_to_addr_map_from_addr m (Addr.from_var x)
+    in
+    let m : AD.t TM.t = TM.empty in
+    CPA.fold extract_type_to_addr_from_varinfo st.cpa m
+
+  let find_pointers (st: D.t) : Addr.t list =
+    let rec extract_pointers_from_addr (l: Addr.t list) (x: Addr.t) : Addr.t list =
+      let res = match unrollType (Addr.get_type x) with
+      | TPtr (t, _) -> [x]
+      | TComp (c, _) when c.cstruct ->
+        let addrs = List.map (fun field -> add_offset_varinfo (`Field (field, `NoOffset)) x) c.cfields in
+        List.fold extract_pointers_from_addr ([]: Addr.t list) addrs
+      | _ -> []
+      in
+      List.append res l
+    in
+    let extract_pointers_from_varinfo (x: varinfo) (v: value) (l: Addr.t list)=
+      extract_pointers_from_addr l (Addr.from_var x)
+    in
+    CPA.fold extract_pointers_from_varinfo st.cpa []
+
+  let update_pointer ~ctx (a: Q.ask) (gs: glob_fun) (m: AD.t TM.t) (st: D.t) (p: Addr.t) : D.t =
+    match unrollType (Addr.get_type p) with
+      | TPtr (pointed_to_t, _) as t ->
+        let ts = typeSig pointed_to_t in
+        if TM.mem ts m then
+          let addr = AD.singleton p in
+          let old_value = get a gs st addr None in
+          let new_value = VD.join old_value (`Address (TM.find ts m)) in
+          set ~ctx a gs st addr t new_value
+        else st
+      | _ -> st
+
+  let body_library ctx fn args: D.t =
+    match Cilfacade.find_varinfo_fundec fn with
+    | fundec ->
+      (* Get the types of varargs and create heap obects for them *)
+      let varargs = TypeSetTopped.elements @@ ctx.ask (Q.VarArgSet fn) in
+      let st = init_types_with_symbolic_values ctx fn ctx.global (D.bot ()) varargs in
+      M.tracel "body_library" "Updated state with varargs to %a\n" D.pretty st;
+      (* Initialize arguments with symbolic values *)
+      let st = init_vars_with_symbolic_values ctx fn ctx.global st fundec.sformals in
+      (* Inititalize globals with symbolic values *)
+      let globals = (List.filter_map (fun g -> match g with GVar (v,_,_) -> if not (isFunctionType v.vtype) then Some v else None | _ -> None)) (!Cilfacade.current_file).globals in
+      let st = init_vars_with_symbolic_values ctx fn ctx.global st globals in
+      let map = extract_type_to_address_map_from_state st in
+      TM.iter (fun t a -> M.tracel "entry" "typesig %a has possible address: %a \n" Cil.d_typsig t AD.pretty a) map;
+      let pointers = find_pointers st in
+      List.iter (fun a -> M.tracel "entry" "found pointer %a. \n" Addr.pretty a) pointers;
+      List.fold (update_pointer ~ctx (Analyses.ask_of_ctx ctx) ctx.global map) st pointers
+    | exception Not_found ->
+      M.warn "Did not find defintion of function %s"  fn.vname; D.bot () (* TODO: is this ok? *)
+
+  let body ctx (f: fundec) =
+    let args = List.map (fun v -> Lval (var v)) f.sformals in
+    let st = if GobConfig.get_bool "ana.library" then body_library ctx f.svar args else ctx.local in
+    let ctx = {ctx with local = st} in
     (* First we create a variable-initvalue pair for each variable *)
     let init_var v = (AD.from_var v, v.vtype, VD.init_value v.vtype) in
     (* Apply it to all the locals and then assign them all *)
@@ -2158,9 +2469,9 @@ struct
     {st' with cpa = new_cpa; weak = new_weak}
 
   let enter ctx lval fn args : (D.t * D.t) list =
-    [ctx.local, make_entry ctx fn args]
-
-
+    (* make_entry has special treatment for args that are equal to MyCFG.unknown_exp *)
+    let callee_st = if GobConfig.get_bool "ana.library" then D.bot () else make_entry ctx fn args in
+    [ctx.local, callee_st]
 
   let forkfun (ctx:(D.t, G.t, C.t, V.t) Analyses.ctx) (lv: lval option) (f: varinfo) (args: exp list) : (lval option * varinfo * exp list) list =
     let create_thread lval arg v =
@@ -2265,6 +2576,84 @@ struct
         newst
       end
 
+  (* when the value is definitely a non-symbolic one, return true. Might return false in some cases even if the value is "concrete" *)
+  let is_non_symbolic (v: VD.t): bool =
+    match v with
+    | `Int _ | `Bot | `Top -> true
+    | _ -> false
+
+  (* The writtenMap is provided when this analysis is wrapped by writtenLvals *)
+  let combine_get_return ctx (writtenMap: LvalMap.t option) (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) :(D.t * VD.t option) =
+    let combine_one (st: D.t) (fun_st: D.t) :(D.t * VD.t option) =
+      if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
+      let update_lvals (ask: Q.ask) (st: D.t) (fun_st: D.t) (globs: glob_fun) (exps: exp list) =
+        (match writtenMap with
+        | Some writtenMap ->
+          if LvalMap.is_bot writtenMap
+            then (
+              (* No need to update if the called function did not write anything *)
+              st
+            ) else
+              let addresses = Stats.time "collect_funargs" (collect_funargs ask globs st) exps in
+              Stats.time "update_reachable_written_vars" (update_reachable_written_vars ~ctx ask addresses globs st fun_st) writtenMap
+        | None ->
+          st)
+      in
+      let globals = CPA.fold (fun k v acc -> if k.vglob then (Cil.AddrOf (Cil.var k))::acc else acc) st.cpa [] in
+      (* This function does miscellaneous things, but the main task was to give the
+       * handle to the global state to the state return from the function, but now
+       * the function tries to add all the context variables back to the callee.
+       * Note that, the function return above has to remove all the local
+       * variables of the called function from cpa_s. *)
+      let add_globals (st: store) (fun_st: store) =
+          (* Remove the return value as this is dealt with separately. *)
+          let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
+          let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
+          let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
+          { fun_st with cpa = cpa' }
+      in
+      let return_var = return_var () in
+      (* Projection to Precision of the Caller *)
+      let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
+      let return_val = project_val (Some p) (`Address return_var) (is_privglob (return_varinfo ())) in
+      let cpa' = project (Some p) st.cpa in
+
+      let st = { st with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
+      let st = if get_bool "ana.library"
+        then Stats.time "update_lvals" (update_lvals (Analyses.ask_of_ctx ctx) st after ctx.global) (args@globals) (* Update locations that are pointed to by arguments and were possibly written by the called function *)
+        else add_globals st fun_st
+      in
+      match lval with
+      | None      -> st, None
+      | Some lval ->
+        begin
+          let add_return_val r st =
+            set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) r, Some r
+          in
+          if CPA.mem (return_varinfo ()) fun_st.cpa
+          then
+            let return_val = get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None in
+            if GobConfig.get_bool "ana.library" then
+              if is_non_symbolic return_val then
+                add_return_val return_val st
+              else
+                let ask = Analyses.ask_of_ctx ctx in
+                let reachable_addresses = collect_funargs ask ctx.global st args in
+                let reachable_addresses = (collect_funargs ask ctx.global st globals)@reachable_addresses in
+                let writtenMap = match writtenMap with Some w -> w | _ -> LvalMap.bot () in
+                let (value, new_addresses) = get_concrete_value_and_new_blocks ask ctx.global  return_var st fun_st reachable_addresses writtenMap in
+                let st, _ = add_return_val value st in
+                integrate_new_addresses ~ctx ask ctx.global st fun_st reachable_addresses [new_addresses] writtenMap, Some value
+            else
+              add_return_val return_val st
+          else add_return_val (VD.top ()) st
+        end
+    in
+    Stats.time "Base.combine" (combine_one ctx.local) after
+
+  let combine ctx lval fexp f args fc after =
+    fst (combine_get_return ctx None lval fexp f args fc after)
+
   let special_unknown_invalidate ctx ask gs st f args =
     (if CilType.Varinfo.equal f dummyFunDec.svar then M.warn ~category:Imprecise "Unknown function ptr called");
     let desc = LF.find f in
@@ -2298,8 +2687,30 @@ struct
     in
     let forks = forkfun ctx lv f args in
     if M.tracing then if not (List.is_empty forks) then M.tracel "spawn" "Base.special %s: spawning functions %a\n" f.vname (d_list "," d_varinfo) (List.map BatTuple.Tuple3.second forks);
-    List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
-    let st: store = ctx.local in
+    let st: store = if GobConfig.get_bool "ana.library" && not (List.is_empty forks) then
+      begin
+        let enter_combine st (_, forked_fun, args) =
+          try
+            let ctx = {ctx with local = st} in
+            (* As we defer the initialization to body for the library analysis, we use body instead of enter *)
+            let forked_fun_dec = Cilfacade.find_varinfo_fundec forked_fun in
+            let entered = body ctx forked_fun_dec in
+            (* TODO: This is not really the right thing to do, because we don't obtain the state of the function at the return.
+              To do something somewhat more reasonable, one could e.g. store the analysis results for the return node in some global. *)
+            combine ctx lv () forked_fun_dec args () entered
+          with Not_found ->
+            M.warn "Spawning of thread with unknown function!";
+            st
+        in
+        M.warn "Thread creation is treated as function call!";
+        List.fold enter_combine ctx.local forks
+      end
+    else
+      begin
+        List.iter (BatTuple.Tuple3.uncurry ctx.spawn) forks;
+        ctx.local
+      end
+    in
     let gs = ctx.global in
     let desc = LF.find f in
     match desc.special args, f.vname with
@@ -2415,8 +2826,13 @@ struct
             then AD.join (AD.from_var (heap_var ctx)) AD.null_ptr
             else AD.from_var (heap_var ctx)
           in
-          (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
-          set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
+          if get_bool "ana.library" then
+            let typ = AD.get_type heap_var in
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, typ, `Blob (VD.bot_value typ, eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
+                                    (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address heap_var)]
+          else
+            (* ignore @@ printf "malloc will allocate %a bytes\n" ID.pretty (eval_int ctx.ask gs st size); *)
+            set_many ~ctx (Analyses.ask_of_ctx ctx) gs st [(heap_var, TVoid [], `Blob (VD.bot (), eval_int (Analyses.ask_of_ctx ctx) gs st size, true));
                                   (eval_lv (Analyses.ask_of_ctx ctx) gs st lv, (Cilfacade.typeOfLval lv), `Address heap_var)]
         | _ -> st
       end
@@ -2471,7 +2887,35 @@ struct
     | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) false true
     | Unknown, "__goblint_assert" -> assert_fn ctx (List.hd args) true true
     | Assert e, _ -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
-    | _, _ -> begin
+    | Unknown, "__builtin_va_arg" when GobConfig.get_bool "ana.library" ->
+      if List.length args <> 3 then
+        begin
+          M.warn "Unexpected number of arguments passed to __builtin_va_arg.";
+          st
+        end
+      else
+        begin
+          match List.nth args 1, List.nth args 2 with
+          | SizeOf t, target ->
+            begin
+              match eval_rv (Analyses.ask_of_ctx ctx) ctx.global ctx.local target with
+              | `Address addr ->
+                begin
+                  let current_fun = Node.find_fundec ctx.node in
+                  let st = init_address_with_symbolic_value ctx current_fun.svar ctx.global st (Some addr) (unrollType t) in
+                  M.tracel "var_args" "Set state to %a \n" D.pretty st;
+                  st
+                end
+              | v ->
+                M.warn "Expected an address to which the result of __builtin_va_arg is written, but got %s\n"  (VD.show v);
+                st
+            end
+          | e, _ -> begin
+              M.warn "Unexpected second argument to __builtin_va_arg, was %a\n" Cil.d_exp e;
+              st
+            end
+        end
+    | _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
           (*
@@ -2494,41 +2938,6 @@ struct
 
         (* List.map (fun f -> f (fun lv -> (fun x -> set ~ctx:(Some ctx) ctx.ask ctx.global st (eval_lv ctx.ask ctx.global st lv) (Cilfacade.typeOfLval lv) x))) (LF.effects_for f.vname args) |> BatList.fold_left D.meet st *)
       end
-
-  let combine ctx (lval: lval option) fexp (f: fundec) (args: exp list) fc (after: D.t) : D.t =
-    let combine_one (st: D.t) (fun_st: D.t) =
-      if M.tracing then M.tracel "combine" "%a\n%a\n" CPA.pretty st.cpa CPA.pretty fun_st.cpa;
-      (* This function does miscellaneous things, but the main task was to give the
-       * handle to the global state to the state return from the function, but now
-       * the function tries to add all the context variables back to the callee.
-       * Note that, the function return above has to remove all the local
-       * variables of the called function from cpa_s. *)
-      let add_globals (st: store) (fun_st: store) =
-        (* Remove the return value as this is dealt with separately. *)
-        let cpa_noreturn = CPA.remove (return_varinfo ()) fun_st.cpa in
-        let cpa_local = CPA.filter (fun x _ -> not (is_global (Analyses.ask_of_ctx ctx) x)) st.cpa in
-        let cpa' = CPA.fold CPA.add cpa_noreturn cpa_local in (* add cpa_noreturn to cpa_local *)
-        { fun_st with cpa = cpa' }
-      in
-      let return_var = return_var () in
-      let return_val =
-        if CPA.mem (return_varinfo ()) fun_st.cpa
-        then get (Analyses.ask_of_ctx ctx) ctx.global fun_st return_var None
-        else VD.top ()
-      in
-      let nst = add_globals st fun_st in
-
-      (* Projection to Precision of the Caller *)
-      let p = PrecisionUtil.precision_from_node () in (* Since f is the fundec of the Callee we have to get the fundec of the current Node instead *)
-      let return_val = project_val (Some p) return_val (is_privglob (return_varinfo ())) in
-      let cpa' = project (Some p) nst.cpa in
-
-      let st = { nst with cpa = cpa'; weak = st.weak } in (* keep weak from caller *)
-      match lval with
-      | None      -> st
-      | Some lval -> set_savetop ~ctx (Analyses.ask_of_ctx ctx) ctx.global st (eval_lv (Analyses.ask_of_ctx ctx) ctx.global st lval) (Cilfacade.typeOfLval lval) return_val
-    in
-    combine_one ctx.local after
 
   let call_descr f (st: store) =
     let short_fun x =
@@ -2599,26 +3008,29 @@ module type MainSpec = sig
   val context_cpa: fundec -> D.t -> BaseDomain.CPA.t
 end
 
+
+open BaseDomain
 let main_module: (module MainSpec) Lazy.t =
   lazy (
     let module Priv = (val BasePriv.get_priv ()) in
     let module Main =
     struct
       (* Only way to locally define a recursive module. *)
-      module rec Main:MainSpec with type t = BaseComponents (Priv.D).t = MainFunctor (Priv) (Main)
+      module rec Main: MainSpec with type t = BaseComponents (Priv.D).t = MainFunctor (Priv) (Main)
       include Main
     end
     in
+    MCP.register_analysis (module WrittenLvals.Spec (Priv.D) (Main) : MCPSpec);
     (module Main)
   )
 
-let get_main (): (module MainSpec) =
+let get_main (): (module BaseDomain.MainSpec) =
   Lazy.force main_module
 
 let after_config () =
   let module Main = (val get_main ()) in
   (* add ~dep:["expRelation"] after modifying test cases accordingly *)
-  MCP.register_analysis ~dep:["mallocWrapper"] (module Main : MCPSpec)
+  MCP.register_analysis (module Main : MCPSpec)
 
 let _ =
-  AfterConfig.register after_config
+  AfterConfig.register after_config;

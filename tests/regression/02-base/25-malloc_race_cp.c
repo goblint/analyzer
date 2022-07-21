@@ -9,8 +9,8 @@ pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&m);
-  *x = 3; // NORACE
-  *y = 8; // RACE!
+  *x = 3;
+  *y = 8;
   pthread_mutex_unlock(&m);
   return NULL;
 }
@@ -26,7 +26,7 @@ int main() {
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&m);
-  printf("%d\n",*x); // NORACE
+  printf("%d\n",*x);
   pthread_mutex_unlock(&m);
   printf("%d\n",*z); // RACE!
 

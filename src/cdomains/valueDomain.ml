@@ -1,6 +1,7 @@
 open Cil
 open Pretty
 open GobConfig
+open TypeDomain
 open PrecisionUtil
 
 include PreValueDomain
@@ -12,6 +13,8 @@ module Q = Queries
 module BI = IntOps.BigIntOps
 module AddrSetDomain = SetDomain.ToppedSet(Addr)(struct let topname = "All" end)
 module ArrIdxDomain = IndexDomain
+
+type address = AD.t
 
 module type S =
 sig
@@ -33,6 +36,7 @@ sig
   val is_bot_value: t -> bool
   val init_value: typ -> t
   val top_value: typ -> t
+  val arg_value: TypeCastMap.t -> (typ -> AddrSetDomain.elt list BatMap.Int.t) -> typ -> t * (address * typ * t) list
   val is_top_value: t -> typ -> bool
   val zero_init_value: typ -> t
 
@@ -147,6 +151,7 @@ struct
     | TNamed ({ttype=t; _}, _) -> init_value t
     | _ -> `Top
 
+
   let rec top_value (t: typ): t =
     match t with
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
@@ -161,6 +166,140 @@ struct
     | TNamed ({ttype=t; _}, _) -> top_value t
     | _ -> `Top
 
+  (* Create the "canonical" argument value for a type,
+     and a list of addresses for which target objects have to be created.
+     For compound types, descend into the elements.
+     Do not descend into objects reachable via pointers;
+     another function will take care of that logic *)
+  let rec create_immediate_arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ) : t * TypeSet.t =
+    let empty = TypeSet.empty () in
+    let init_comp compinfo =
+      let init_field (stru, adrs) fd =
+        let (v, adrs) = create_immediate_arg_value cast_map heap_var fd.ftype in
+        (Structs.replace stru fd v, adrs)
+      in
+      let stru = Structs.top () in
+      let stru, todos = List.fold_left (init_field) (stru, empty) compinfo.cfields in
+      M.tracel "argvar" "Created struct %a \n" Structs.pretty stru;
+      stru, todos
+    in
+    let typ = Cil.unrollTypeDeep typ in
+    match typ with
+    | TInt (ik, _) -> `Int (ID.top_of ik), empty
+    | TPtr (t, _) ->
+      let types = TypeSet.singleton t in
+      let types = match TypeCastMap.find_opt (TPtr (t, [])) cast_map with
+        | Some casted_to_types ->
+          (* If there was a cast a* -> b*, b* will be in the casted_to_types; we now extract the b (i.e. remove the pointer type around it) *)
+          let casted_to_types = TypeSet.elements casted_to_types |> List.filter_map (fun t -> match t with TPtr (pt, a) -> Some pt | _ -> None) |> TypeSet.of_list in
+          TypeSet.join types casted_to_types
+        | None -> types
+      in
+      let heap_var = TypeSet.fold (fun t acc -> AD.join acc (heap_var t)) types AD.null_ptr in
+      `Address heap_var, types
+    | TComp ({cstruct=true; _} as ci,_) ->
+      let v, adrs = init_comp ci in `Struct (v), adrs
+    | TComp ({cstruct=false; _},_) ->
+      (* Redo handling of unions. Reachable objects have to be created and marked as reachable from the returned objects *)
+      `Union (Unions.top ()), empty
+    | TArray (ai, None, _) ->
+      let v, adrs = create_immediate_arg_value cast_map heap_var ai in
+      `Array (CArrays.make (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) v ), adrs
+    | TArray (ai, Some exp, _) ->
+      let v, adrs = create_immediate_arg_value cast_map heap_var ai in
+      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+      (`Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) v)), adrs
+    | TNamed ({ttype=t; _}, _) -> create_immediate_arg_value cast_map heap_var t
+    | _ -> `Top, empty
+
+  let arg_value (cast_map: TypeCastMap.t) (heap_var : typ -> address) (typ: typ): t * (address * typ * t) list =
+    (* Create object for typ, and get a set of types the object points to *)
+    let v, todos = create_immediate_arg_value cast_map heap_var typ in
+    let already_exists typ map =
+      List.exists (fun (_, t, _) -> Type.equal t typ) map
+    in
+    (* Recursively create the heap of objects in todos and all types they depend upon *)
+    let rec create_heap (todos: TypeSet.t) (map: (address * typ * t) list) =
+      match TypeSet.choose todos with
+      | typ ->
+        let todos = TypeSet.remove typ todos in
+        (* TODO: Make map a Map.t instead of a list. *)
+        let todos, map = if not (already_exists typ map) then
+          let v, d' = create_immediate_arg_value cast_map heap_var typ in
+          let addr = heap_var typ in
+          let map = (addr, typ, v) :: map in
+          let todos = TypeSet.union d' todos in
+          todos, map
+        else
+          todos, map
+        in
+        create_heap todos map
+      | exception Not_found ->
+        (* Finished with todos :) *)
+        map
+    in
+    let map = create_heap todos [] in
+    v, map
+
+  (* let arg_value (map: TypeCastMap.t) (heap_var : typ -> address) (t: typ) : t * (address * typ * t) list =
+    let ts (t: Cil.typ): Cil.typsig =
+      typeSigWithAttrs (fun _ -> []) t
+      in
+      (* Record mapping from types to addresses created for blocks with corresponding type *)
+      let type_to_symbolic_address = Hashtbl.create 113 in
+      let rec arg_comp compinfo l : Structs.t * (address * typ * t) list =
+        let nstruct = Structs.top () in
+        let arg_field (nstruct, adrs) fd = let (v, adrs) = arg_val fd.ftype adrs in
+          (Structs.replace nstruct fd v, adrs)
+        in
+        List.fold_left (arg_field) (nstruct, l) compinfo.cfields
+      and arg_val t (l: (address * typ * t) list) = match t with
+        | TInt (ik, _) -> `Int (ID.top_of ik), l
+        | TPtr (pointed_to_t, attr) ->
+          (* Check whether we already have created an address for the pointed-to-type.
+             If we already have an address, we just return it.
+
+             If this is not the case, we create an address, store it in the hashtable,
+             and recursively construct a value for the pointed to type.
+          *)
+          begin
+            match Hashtbl.find type_to_symbolic_address (ts pointed_to_t) with
+            | v -> `Address v, l
+            | exception Not_found ->
+              begin
+                let types = TypeSet.singleton pointed_to_t in
+                let types = match TypeCastMap.find_opt (TPtr (pointed_to_t, attr)) map with
+                  | Some casted_to_types ->
+                    (* If there was a cast a* -> b*, b* will be in the casted_to_types; we now extract the b (i.e. remove the pointer type around it) *)
+                    let casted_to_types = TypeSet.elements casted_to_types |> List.filter_map (fun t -> match t with TPtr (pt, a) -> Some pt | _ -> None) |> TypeSet.of_list in
+                    TypeSet.join types casted_to_types
+                  | None -> types
+                in
+                (* Creates the memory abstraction for type t, collects memory
+                 that is directly and indirectly reachable from the pointer to this types abstraction *)
+                let do_typ t (acc_dir,acc_ind) =
+                  let heap_var = heap_var t in
+                  let heap_var_or_NULL = AD.join (heap_var) AD.null_ptr in
+                  Hashtbl.add type_to_symbolic_address (ts t) heap_var_or_NULL;
+                  let (tval, l2) = arg_val t l in
+                  (heap_var, t, `Blob (tval, IndexDomain.top_of (Cilfacade.ptrdiff_ikind ()), false))::acc_dir, l2@acc_ind
+                in
+                let (direct, indirect) = TypeSet.fold do_typ types ([],[]) in
+                let addr = List.fold_left (fun acc (ad,_,_) -> AD.join acc ad) AD.null_ptr direct in
+                `Address addr, direct@indirect
+              end
+            end
+        | TComp ({cstruct=true; _} as ci,_) -> let v, adrs = arg_comp ci l in `Struct (v), adrs
+        | TComp ({cstruct=false; _},_) -> `Union (Unions.top ()), l
+        | TArray (ai, None, _) -> let v, adrs = arg_val ai l in
+          `Array (CArrays.make (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) v ), adrs
+        | TArray (ai, Some exp, _) ->
+          let v, adrs = arg_val ai l in
+          let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+          (`Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) v)), adrs
+        | TNamed ({ttype=t; _}, _) -> arg_val t l
+        | _ -> `Top, l
+      in arg_val (Cil.unrollTypeDeep t) [] *)
   let is_top_value x (t: typ) =
     match x with
     | `Int x -> ID.is_top_of (Cilfacade.get_ikind (t)) x
@@ -196,6 +335,7 @@ struct
       (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
       | TNamed ({ttype=t; _}, _) -> zero_init_value t
       | _ -> `Top
+
 
   let tag_name : t -> string = function
     | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Bot -> "Bot"
@@ -372,6 +512,7 @@ struct
           )
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
         | TPtr (t,_) ->
+           (* TODO: Do something here  ? *)
           `Address (match v with
               | `Int x when ID.to_int x = Some BI.zero -> AD.null_ptr
               | `Int x -> AD.top_ptr
@@ -409,7 +550,6 @@ struct
                 | `Union x (* when same (Unions.keys x) *) -> x
                 | _ -> log_top __POS__; Unions.top ()
               )
-        (* | _ -> log_top (); `Top *)
         | TVoid _ -> log_top __POS__; `Top
         | TBuiltin_va_list _ ->
           (* cast to __builtin_va_list only happens in preprocessed SV-COMP files where vararg declarations are more explicit *)

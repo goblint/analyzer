@@ -509,6 +509,11 @@
           },
           "additionalProperties": false
         },
+        "library": {
+          "title": "ana.library",
+          "type": "boolean",
+          "default": false
+        },
         "mutex": {
           "title": "ana.mutex",
           "type": "object",
@@ -1014,6 +1019,11 @@
       "description": "Options for semantics",
       "type": "object",
       "properties": {
+        "assume-casts-ok": {
+          "title": "sem.assume-casts-ok",
+          "type": "boolean",
+          "default": false
+        },
         "unknown_function": {
           "title": "sem.unknown_function",
           "type": "object",

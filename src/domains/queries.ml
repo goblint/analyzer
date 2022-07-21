@@ -1,6 +1,7 @@
 (** Structures for the querying subsystem. *)
 
 open Cil
+open TypeDomain
 
 module GU = Goblintutil
 module ID =
@@ -95,6 +96,7 @@ type _ t =
   | CurrentThreadId: ThreadIdDomain.ThreadLifted.t t
   | MayBeThreadReturn: MayBool.t t
   | EvalFunvar: exp -> LS.t t
+  | WrittenLvals: varinfo -> LS.t t
   | EvalInt: exp -> ID.t t
   | EvalStr: exp -> SD.t t
   | EvalLength: exp -> ID.t t (* length of an array or string *)
@@ -104,6 +106,10 @@ type _ t =
   | IterPrevVars: iterprevvar -> Unit.t t
   | IterVars: itervar -> Unit.t t
   | HeapVar: VI.t t
+  | ArgVarTyp: typ -> VI.t t
+  | IsAllocatedVar: varinfo -> MustBool.t t
+  | TypeCasts: varinfo -> TypeCastMap.t t
+  | VarArgSet: varinfo -> TypeSetTopped.t t
   | IsHeapVar: varinfo -> MayBool.t t (* TODO: is may or must? *)
   | IsMultiple: varinfo -> MustBool.t t (* Is no other copy of this local variable reachable via pointers? *)
   | EvalThread: exp -> ConcDomain.ThreadSet.t t
@@ -134,12 +140,14 @@ struct
     | Regions _ -> (module LS)
     | MustLockset -> (module LS)
     | EvalFunvar _ -> (module LS)
+    | WrittenLvals _ -> (module LS)
     | ReachableUkTypes _ -> (module TS)
     | MayEscape _ -> (module MayBool)
     | MayBePublic _ -> (module MayBool)
     | MayBePublicWithout _ -> (module MayBool)
     | MayBeThreadReturn -> (module MayBool)
-    | IsHeapVar _ -> (module MayBool)
+    | IsHeapVar _ -> (module MustBool)
+    | IsAllocatedVar _ -> (module MustBool)
     | MustBeProtectedBy _ -> (module MustBool)
     | MustBeAtomic -> (module MustBool)
     | MustBeSingleThreaded -> (module MustBool)
@@ -149,10 +157,13 @@ struct
     | BlobSize _ -> (module ID)
     | CurrentThreadId -> (module ThreadIdDomain.ThreadLifted)
     | HeapVar -> (module VI)
+    | ArgVarTyp _ -> (module VI)
     | EvalStr _ -> (module SD)
     | IterPrevVars _ -> (module Unit)
     | IterVars _ -> (module Unit)
     | PartAccess _ -> Obj.magic (module Unit: Lattice.S) (* Never used, MCP handles PartAccess specially. Must still return module (instead of failwith) here, but the module is never used. *)
+    | TypeCasts _ -> (module TypeCastMap)
+    | VarArgSet _ -> (module TypeSetTopped)
     | IsMultiple _ -> (module MustBool) (* see https://github.com/goblint/analyzer/pull/310#discussion_r700056687 on why this needs to be MustBool *)
     | EvalThread _ -> (module ConcDomain.ThreadSet)
     | CreatedThreads ->  (module ConcDomain.ThreadSet)
@@ -181,12 +192,14 @@ struct
     | Regions _ -> LS.top ()
     | MustLockset -> LS.top ()
     | EvalFunvar _ -> LS.top ()
+    | WrittenLvals _ -> LS.top ()
     | ReachableUkTypes _ -> TS.top ()
     | MayEscape _ -> MayBool.top ()
     | MayBePublic _ -> MayBool.top ()
     | MayBePublicWithout _ -> MayBool.top ()
     | MayBeThreadReturn -> MayBool.top ()
-    | IsHeapVar _ -> MayBool.top ()
+    | IsHeapVar _ -> MustBool.top ()
+    | IsAllocatedVar _ -> MustBool.top ()
     | MustBeProtectedBy _ -> MustBool.top ()
     | MustBeAtomic -> MustBool.top ()
     | MustBeSingleThreaded -> MustBool.top ()
@@ -196,10 +209,13 @@ struct
     | BlobSize _ -> ID.top ()
     | CurrentThreadId -> ThreadIdDomain.ThreadLifted.top ()
     | HeapVar -> VI.top ()
+    | ArgVarTyp _ -> VI.top ()
     | EvalStr _ -> SD.top ()
     | IterPrevVars _ -> Unit.top ()
     | IterVars _ -> Unit.top ()
     | PartAccess _ -> failwith "Queries.Result.top: PartAccess" (* Never used, MCP handles PartAccess specially. *)
+    | TypeCasts _ -> TypeCastMap.top ()
+    | VarArgSet _ -> TypeSetTopped.top  ()
     | IsMultiple _ -> MustBool.top ()
     | EvalThread _ -> ConcDomain.ThreadSet.top ()
     | CreatedThreads -> ConcDomain.ThreadSet.top ()
@@ -250,6 +266,11 @@ struct
     | Any MustJoinedThreads -> 34
     | Any (WarnGlobal _) -> 35
     | Any (Invariant _) -> 36
+    | Any (WrittenLvals _) -> 37
+    | Any (ArgVarTyp _) -> 38
+    | Any (IsAllocatedVar _) -> 39
+    | Any (TypeCasts _) -> 40
+    | Any (VarArgSet _) -> 41
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
@@ -276,6 +297,11 @@ struct
       | Any (IterPrevVars ip1), Any (IterPrevVars ip2) -> compare_iterprevvar ip1 ip2
       | Any (IterVars i1), Any (IterVars i2) -> compare_itervar i1 i2
       | Any (IsHeapVar v1), Any (IsHeapVar v2) -> CilType.Varinfo.compare v1 v2
+      | Any (WrittenLvals v1), Any (WrittenLvals v2) -> CilType.Varinfo.compare v1 v2
+      | Any (ArgVarTyp t1), Any (ArgVarTyp t2) -> CilType.Typ.compare t1 t2
+      | Any (IsAllocatedVar v1), Any (IsAllocatedVar v2) -> CilType.Varinfo.compare v1 v2
+      | Any (TypeCasts v1), Any (TypeCasts v2)-> CilType.Varinfo.compare v1 v2
+      | Any (VarArgSet v1), Any (VarArgSet v2) -> CilType.Varinfo.compare v1 v2
       | Any (IsMultiple v1), Any (IsMultiple v2) -> CilType.Varinfo.compare v1 v2
       | Any (EvalThread e1), Any (EvalThread e2) -> CilType.Exp.compare e1 e2
       | Any (WarnGlobal vi1), Any (WarnGlobal vi2) -> compare (Hashtbl.hash vi1) (Hashtbl.hash vi2)

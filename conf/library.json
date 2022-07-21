@@ -1,0 +1,9 @@
+{
+    "ana" : {
+      "activated" : ["expRelation", "base", "mallocWrapperTypeBased", "writtenLvals", "typecasts", "varArgs"],
+      "library" : {
+        "enabled": true,
+        "all": true
+      }
+    }
+}

@@ -118,6 +118,12 @@ struct
     | `Field (f1,o1), `Field (f2,o2) when CilType.Fieldinfo.equal f1 f2 -> leq o1 o2
     | _ -> false
 
+  let should_join a b = match a, b with
+    | `NoOffset, `NoOffset -> true
+    | `NoOffset, _
+    | _, `NoOffset -> false
+    | _ -> true
+
   let rec merge cop x y =
     let op = match cop with `Join -> Idx.join | `Meet -> Idx.meet | `Widen -> Idx.widen | `Narrow -> Idx.narrow in
     match x, y with
@@ -130,6 +136,18 @@ struct
     | `Field (x1,y1), `Field (x2,y2) when CilType.Fieldinfo.equal x1 x2 -> `Field (x1, merge cop y1 y2)
     | `Index (x1,y1), `Index (x2,y2) -> `Index (op x1 x2, merge cop y1 y2)
     | _ -> raise Lattice.Uncomparable
+
+  let rec to_cil_offset (x:t) =
+    match x with
+    | `NoOffset -> NoOffset
+    | `Field(f,o) -> Field(f, to_cil_offset o)
+    | `Index(i,o) -> NoOffset (* array domain can not deal with this -> leads to being handeled as access to unknown part *)
+
+  let rec from_cil_offset (o: offset) :t =
+    match o with
+    | NoOffset -> `NoOffset
+    | Field(f,o) -> `Field(f,(from_cil_offset o))
+    | Index(e, o) ->  `NoOffset (* TODO: OK? *)
 
   let join x y = merge `Join x y
   let meet x y = merge `Meet x y
@@ -297,14 +315,21 @@ struct
   let arbitrary () = QCheck.always UnknownPtr (* S TODO: non-unknown *)
 end
 
+let prefix_non_definite_mem = "(nd-alloc"
+
 module NormalLat (Idx: IntDomain.Z) =
 struct
   include Normal (Idx)
   module Offs = Offset (Idx)
 
-  let is_definite = function
+  let is_definite =
+    let not_definite_mem v =
+      BatString.starts_with v.vname prefix_non_definite_mem
+    in
+    function
     | NullPtr | StrPtr _ -> true
-    | Addr (v,o) when Offs.is_definite o -> true
+    | Addr (v,_) when not_definite_mem v -> false (* Some memory representations are inherently not definite *)
+    | Addr (v,o) when Offs.is_definite o -> true (* This does not hold for typebasedheaps *)
     | _ -> false
 
   let leq x y = match x, y with
@@ -321,7 +346,10 @@ struct
     | UnknownPtr, UnknownPtr -> UnknownPtr
     | NullPtr   , NullPtr -> NullPtr
     | StrPtr a  , StrPtr b when a=b -> StrPtr a
-    | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y -> Addr (x, Offs.merge cop o u)
+    (* We can join if addresses refer to the same varinfo and the offsets should be joined. *)
+    (* In the Base.reachable_vars we have to keep all the v,`NoOffset addresses, because from these, all the fields can be accessed.
+       So, offsets should not be joined if exactly one of them is a `NoOffset *)
+    | Addr (x,o), Addr (y,u) when CilType.Varinfo.equal x y && Offs.should_join o u -> Addr (x, Offs.merge cop o u)
     | _ -> raise Lattice.Uncomparable
 
   let join = merge `Join
