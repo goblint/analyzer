@@ -511,8 +511,22 @@
         },
         "library": {
           "title": "ana.library",
-          "type": "boolean",
-          "default": false
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "ana.library.enabled",
+              "description": "Enable the the library analysis for summary computation.",
+              "type": "boolean",
+              "default": false
+            },
+            "all": {
+              "title": "ana.library.all",
+              "description": "Analyse all functions in the code, when running with ana.library.enabled.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
         },
         "mutex": {
           "title": "ana.mutex",
