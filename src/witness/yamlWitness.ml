@@ -238,7 +238,7 @@ struct
         begin match n with
           | FunctionEntry f ->
             let context = node_context n in
-            let invariant = Spec.C.invariant context c in
+            let invariant = Spec.D.invariant context local in
             FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
           | _ -> ()
         end
