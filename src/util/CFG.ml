@@ -110,7 +110,6 @@ end
 
   We can't use succs/preds, because they get computed with the CFG, and the loop unrolling has to happen before
   TODO: gotos inside the loop could make the iteration not fixed, but are ignored for now
-  TODO: some parts do not support switch statements yet 
   *)
 
 (*exceptions to break out of visitors. two to make purpose clear*)
@@ -291,7 +290,16 @@ let constBefore var loop f =
             (l,f)
           else 
             lastAssignmentToVarBeforeLoop l stmts
-        | Switch _ -> (None, false) (*TODO handle switch*)
+        | Switch (_, block, _,_,_) -> (
+          match lastAssignmentToVarBeforeLoop current' block.bstmts with 
+          | (_, false) -> (
+            if hasAssignmentTo var block then
+              lastAssignmentToVarBeforeLoop (None) stmts
+            else
+              lastAssignmentToVarBeforeLoop (current') stmts
+          )
+          | c -> c
+        ) 
         | _-> lastAssignmentToVarBeforeLoop (None) stmts (*the control flow could only go further if a goto jumps to this*)
       )
     | [] -> (current, false) (*we did not have the loop inside these statements*)
@@ -326,7 +334,7 @@ let rec loopIterations start diff comp =
     | BinOp (Gt, _, (Const (CInt (cint,_,_) )), _) -> if diff > 0 then None else loopIterations' (cilint_to_int cint) false
     | BinOp (Le, _, (Const (CInt (cint,_,_) )), _) -> if diff < 0 then None else loopIterations' (cilint_to_int cint + 1) false
     | BinOp (Ge, _, (Const (CInt (cint,_,_) )), _) -> if diff > 0 then None else loopIterations' (cilint_to_int cint - 1) false
-    | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' (cilint_to_int cint) false
+    | BinOp (Ne, _, (Const (CInt (cint,_,_) )), _) -> loopIterations' (cilint_to_int cint) true
     | _ -> failwith "unexpected comparison in loopIterations"
 
 let ( >>= ) = Option.bind
@@ -339,7 +347,7 @@ let fixedLoopSize loopStatement func =
     with | WrongOrMultiple ->  None
   in let getLoopVar = function
     | BinOp (op, (Const (CInt _ )), Lval ((Var info), NoOffset), (TInt _))
-    | BinOp (op, Lval ((Var info), NoOffset), (Const (CInt _ )), (TInt _)) when isCompare op ->
+    | BinOp (op, Lval ((Var info), NoOffset), (Const (CInt _ )), (TInt _)) when isCompare op && not info.vglob->
       Some info
     | _ -> None
   in let getsPointedAt var = try

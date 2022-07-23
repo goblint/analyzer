@@ -288,6 +288,29 @@ let hasEnums file =
     false;
   with EnumFound -> true
 
+(*For testing: choose random domains for all arrays *)
+let choose l = 
+  let rand = Random.int (List.length l) in 
+  List.nth l rand
+
+class arrayVisitor = object 
+  inherit nopCilVisitor
+
+  method! vvdec info = 
+    let d = choose ["partitioned"; "trivial"; "unroll"] in
+    if isArrayType info.vtype then 
+      info.vattr <- addAttribute (Attr ("goblint_array_domain", [AStr d])) info.vattr;
+    SkipChildren 
+end
+
+
+let randomArrays file = 
+  Random.init 1124; (*seed for consistency*)
+  set_bool "annotation.array" true;
+  let visitor = new arrayVisitor in
+  ignore (visitCilFileSameGlobals visitor file)
+
+
 (*TODO: does calling this at a late point cause any problems?*)
 (*      do not overwrite explicit settings?*)
 (*      how to better display changed/selected settings?*)

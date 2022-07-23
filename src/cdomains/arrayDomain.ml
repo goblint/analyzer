@@ -18,7 +18,8 @@ sig
 
   val get: Q.ask -> t -> ExpDomain.t * idx -> value
   val set: Q.ask -> t -> ExpDomain.t * idx -> value -> t
-  val make: idx -> value -> t
+  val make: ?varAttr:attributes -> ?typAttr:attributes -> idx -> value -> t
+  val get_domain: ?varAttr:attributes -> ?typAttr:attributes -> unit -> string
   val length: t -> idx option
 
   val move_if_affected: ?replace_with_const:bool -> Q.ask -> t -> Cil.varinfo -> (Cil.exp -> int option) -> t
@@ -52,7 +53,8 @@ struct
   let pretty_diff () (x,y) = dprintf "%s: %a not leq %a" (name ()) pretty x pretty y
   let get (ask: Q.ask) a i = a
   let set (ask: Q.ask) a i v = join a v
-  let make i v = v
+  let make ?(varAttr=[]) ?(typAttr=[])  i v = v
+  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "trivial"
   let length _ = None
 
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
@@ -135,10 +137,11 @@ struct
     if Z.geq min_i f then (xl, (Val.join xr v))
     else if Z.lt max_i f then ((update_unrolled_values min_i max_i), xr)
     else ((update_unrolled_values min_i (Z.of_int ((factor ())-1))), (Val.join xr v))
-  let make _ v =
+  let make ?(varAttr=[]) ?(typAttr=[]) _ v =
     let xl = BatList.make (factor ()) v in
     (xl,Val.bot ())
   let length _ = None
+  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "unroll"
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let get_vars_in_e _ = []
   let map f (xl, xr) = ((List.map f xl), f xr)
@@ -512,13 +515,15 @@ struct
 
   (* leq needs not be given explicitly, leq from product domain works here *)
 
-  let make i v =
+  let make ?(varAttr=[]) ?(typAttr=[])  i v =
     if Idx.to_int i = Some BI.one  then
       (`Lifted (Cil.integer 0), (v, v, v))
     else if Val.is_bot v then
       (Expp.top(), (Val.bot(), Val.bot(), Val.bot()))
     else
       (Expp.top(), (v, v, v))
+
+  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "partitioned"
 
   let length _ = None
 
@@ -695,8 +700,10 @@ struct
     (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
-  let make l x = Base.make l x, l
+  let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
+  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "trivial"
+
 
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
   let map f (x, l):t = (Base.map f x, l)
@@ -733,8 +740,9 @@ struct
     (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set ask (x,l) i v = Base.set_with_length (Some l) ask x i v, l
-  let make l x = Base.make l x, l
+  let make ?(varAttr=[]) ?(typAttr=[])  l x = Base.make l x, l
   let length (_,l) = Some l
+  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "partitioned"
 
   let move_if_affected ?replace_with_const ask (x,l) v i =
     (Base.move_if_affected_with_length ?replace_with_const (Some l) ask x v i), l
@@ -780,7 +788,8 @@ struct
     (array_oob_check (module Idx) (x, l) (e, v));
     Base.get ask x (e, v)
   let set (ask: Q.ask) (x,l) i v = Base.set ask x i v, l
-  let make l x = Base.make l x, l
+  let make ?(varAttr=[]) ?(typAttr=[]) l x = Base.make l x, l
+  let get_domain ?(varAttr=[]) ?(typAttr=[]) () = "unroll"
   let length (_,l) = Some l
 
   let move_if_affected ?(replace_with_const=false) _ x _ _ = x
@@ -806,7 +815,7 @@ struct
   let to_yojson (x, y) = `Assoc [ (Base.name (), Base.to_yojson x); ("length", Idx.to_yojson y) ]
 end
 
-module FlagConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
+module AttributeConfiguredArrayDomain(Val: LatticeWithSmartOps) (Idx:IntDomain.Z):S with type value = Val.t and type idx = Idx.t =
 struct
   module P = PartitionedWithLength(Val)(Idx)
   module T = TrivialWithLength(Val)(Idx)
@@ -816,15 +825,15 @@ struct
   type value = Val.t
 
   module K = struct
-    let msg = "FlagConfiguredArrayDomain received a value where not exactly one component is set"
-    let name = "FlagConfiguredArrayDomain"
+    let msg = "AttributeConfiguredArrayDomain received a value where not exactly one component is set"
+    let name = "AttributeConfiguredArrayDomain"
   end
 
   let to_t = function
     | (Some p, None, None) -> (Some p, None)
     | (None, Some t, None) -> (None, Some (Some t, None))
     | (None, None, Some u) -> (None, Some (None, Some u))
-    | _ -> failwith "FlagConfiguredArrayDomain received a value where not exactly one component is set"
+    | _ -> failwith "AttributeConfiguredArrayDomain received a value where not exactly one component is set"
 
   module I = struct include LatticeFlagHelper (T) (U) (K) let name () = "" end
   include LatticeFlagHelper (P) (I) (K)
@@ -850,37 +859,54 @@ struct
   let move_if_affected ?(replace_with_const=false) (ask:Q.ask) x v f = unop_to_t' (fun x -> P.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> T.move_if_affected ~replace_with_const:replace_with_const ask x v f) (fun x -> U.move_if_affected ~replace_with_const:replace_with_const ask x v f) x
   let get_vars_in_e = unop' P.get_vars_in_e T.get_vars_in_e U.get_vars_in_e
   let smart_join f g = binop_to_t' (P.smart_join f g) (T.smart_join f g) (U.smart_join f g)
-  let smart_widen f g = binop_to_t' (P.smart_widen f g) (T.smart_widen f g) (U.smart_widen f g)
+  let smart_widen f g =  binop_to_t' (P.smart_widen f g) (T.smart_widen f g) (U.smart_widen f g)
   let smart_leq f g = binop' (P.smart_leq f g) (T.smart_leq f g) (U.smart_leq f g)
   let update_length newl x = unop_to_t' (P.update_length newl) (T.update_length newl) (U.update_length newl) x
 
-  (* Functions that make use of the configuration flag *)
-  let chosen_domain () = get_string "ana.base.arrays.domain"
+  (*determines the domain based on variable, type and flag*)
+  let get_domain ?(varAttr=[]) ?(typAttr=[]) () =
+    (*TODO add options?*)
+    (*TODO let attribute determine unrolling factor?*)
+    let from_attributes = List.find_map (
+      fun (Attr (s,ps) )->
+        if s = "goblint_array_domain" then 
+          List.find_map (fun p -> match p with 
+            | AStr x -> Some x
+            | _ -> None
+          ) ps
+        else None
+    ) in 
+    if get_bool "annotation.array" then
+      match from_attributes varAttr, from_attributes typAttr with 
+        | Some x, _ -> x
+        | _, Some x -> x
+        | _ -> get_string "ana.base.arrays.domain"
+    else get_string "ana.base.arrays.domain"
 
-  let name () = "FlagConfiguredArrayDomain: " ^ match chosen_domain () with
-    | "trivial" -> T.name ()
-    | "partitioned" -> P.name ()
-    | "unroll" -> U.name ()
-    | _ -> failwith "FlagConfiguredArrayDomain cannot name an array from set option"
+  let name () = "AttributeConfiguredArrayDomain"
 
-  let bot () =
-    to_t @@ match chosen_domain () with
-    | "partitioned" -> (Some (P.bot ()), None, None)
-    | "trivial" -> (None, Some (T.bot ()), None)
-    | "unroll" -> (None, None, Some (U.bot ()))
-    | _ -> failwith "FlagConfiguredArrayDomain cannot construct a bot array from set option"
+  (*TODO is it possible for two different domains to intersect?
+    can bot, top, ValueDomain.top_value,bot_value,zero_init_value have different domains than a later binop?*)
+  (*unroll crashes with Z.Overflow exception independetly from this code:     
+    let search_unrolled_values min_i max_i =
+      let mi = Z.to_int min_i in
+      let ma = Z.to_int max_i in*)
 
-  let top () =
-    to_t @@ match chosen_domain () with
-    | "partitioned" -> (Some (P.top ()), None, None)
-    | "trivial" -> (None, Some (T.top ()), None)
-    | "unroll" -> (None, None, Some (U.top ()))
-    | _ -> failwith "FlagConfiguredArrayDomain cannot construct a top array from set option"
+  let bot () = to_t @@ match get_domain () with
+  | "partitioned" -> (Some (P.top ()), None, None)
+  | "trivial" -> (None, Some (T.top ()), None)
+  | "unroll" -> (None, None, Some (U.top ()))
+  | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in bot "
 
-  let make i v =
-    to_t @@ match chosen_domain () with
-    | "partitioned" -> (Some (P.make i v), None, None)
-    | "trivial" -> (None, Some (T.make i v), None)
-    | "unroll" -> (None, None, Some (U.make i v))
-    | _ -> failwith "FlagConfiguredArrayDomain cannot construct an array from set option"
+  let top () = to_t @@ match get_domain () with
+  | "partitioned" -> (Some (P.top ()), None, None)
+  | "trivial" -> (None, Some (T.top ()), None)
+  | "unroll" -> (None, None, Some (U.top ()))
+  | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in top "
+
+  let make ?(varAttr=[]) ?(typAttr=[]) i v = to_t @@ match get_domain ~varAttr ~typAttr () with
+  | "partitioned" -> (Some (P.make i v), None, None)
+  | "trivial" -> (None, Some (T.make i v), None)
+  | "unroll" -> (None, None, Some (U.make i v))
+  | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in make"
 end

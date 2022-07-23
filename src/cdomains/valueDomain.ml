@@ -29,12 +29,12 @@ sig
   val smart_widen: (exp -> BI.t option) -> (exp -> BI.t option) ->  t -> t -> t
   val smart_leq: (exp -> BI.t option) -> (exp -> BI.t option) -> t -> t -> bool
   val is_immediate_type: typ -> bool
-  val bot_value: typ -> t
+  val bot_value: ?varAttr:attributes -> typ -> t
   val is_bot_value: t -> bool
-  val init_value: typ -> t
-  val top_value: typ -> t
+  val init_value: ?varAttr:attributes -> typ -> t
+  val top_value: ?varAttr:attributes -> typ -> t
   val is_top_value: t -> typ -> bool
-  val zero_init_value: typ -> t
+  val zero_init_value: ?varAttr:attributes -> typ -> t
 
   val project: precision -> t -> t
 end
@@ -106,19 +106,19 @@ struct
     | TNamed ({tname = "pthread_t"; _}, _) -> true
     | _ -> false
 
-  let rec bot_value (t: typ): t =
+  let rec bot_value ?(varAttr=[]) (t: typ): t =
     match t with
     | TInt _ -> `Bot (*`Int (ID.bot ()) -- should be lower than any int or address*)
     | TPtr _ -> `Address (AD.bot ())
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value fd.ftype) ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> bot_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.bot ())
-    | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.bot ()) (bot_value ai))
-    | TArray (ai, Some exp, _) ->
+    | TArray (ai, None, typAttr) ->
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (bot_value ai))
+    | TArray (ai, Some exp, typAttr) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (bot_value ai))
     | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ())
-    | TNamed ({ttype=t; _}, _) -> bot_value t
+    | TNamed ({ttype=t; _}, _) -> bot_value ~varAttr (unrollType t)
     | _ -> `Bot
 
   let is_bot_value x =
@@ -133,34 +133,38 @@ struct
     | `Bot -> true
     | `Top -> false
 
-  let rec init_value (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
+  let rec init_value ?(varAttr=[]) (t: typ): t = (* top_value is not used here because structs, blob etc will not contain the right members *)
     match t with
     | t when is_mutex_type t -> `Top
     | TInt (ik,_) -> `Int (ID.top_of ik)
     | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value fd.ftype) ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> init_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
-    | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.bot ())  (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (init_value ai) else (bot_value ai)))
-    | TArray (ai, Some exp, _) ->
+    | TArray (ai, None, typAttr) ->
+      let domain = CArrays.get_domain ~varAttr ~typAttr () in
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.bot ()) (if (domain="partitioned" || domain="unroll") then (init_value ai) else (bot_value ai)))
+    | TArray (ai, Some exp, typAttr) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (init_value ai) else (bot_value ai)))
+      let domain = CArrays.get_domain ~varAttr ~typAttr () in
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.bot ()) l) (if (domain="partitioned" || domain="unroll") then (init_value ai) else (bot_value ai)))
     (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
-    | TNamed ({ttype=t; _}, _) -> init_value t
+    | TNamed ({ttype=t; _}, _) -> init_value ~varAttr t
     | _ -> `Top
 
-  let rec top_value (t: typ): t =
+  let rec top_value ?(varAttr=[]) (t: typ): t =
     match t with
     | TInt (ik,_) -> `Int (ID.(cast_to ik (top_of ik)))
     | TPtr _ -> `Address AD.top_ptr
-    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value fd.ftype) ci)
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci)
     | TComp ({cstruct=false; _},_) -> `Union (Unions.top ())
-    | TArray (ai, None, _) ->
-      `Array (CArrays.make (IndexDomain.top ()) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (top_value ai) else (bot_value ai)))
-    | TArray (ai, Some exp, _) ->
+    | TArray (ai, None, typAttr) ->
+      let domain = CArrays.get_domain ~varAttr ~typAttr () in
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top ()) (if (domain="partitioned" || domain="unroll") then (top_value ai) else (bot_value ai)))
+    | TArray (ai, Some exp, typAttr) ->
       let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-      `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (get_string "ana.base.arrays.domain"="partitioned" || get_string "ana.base.arrays.domain"="unroll") then (top_value ai) else (bot_value ai)))
-    | TNamed ({ttype=t; _}, _) -> top_value t
+      let domain = CArrays.get_domain ~varAttr ~typAttr () in
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (if (domain="partitioned" || domain="unroll") then (top_value ai) else (bot_value ai)))
+    | TNamed ({ttype=t; _}, _) -> top_value ~varAttr t
     | _ -> `Top
 
   let is_top_value x (t: typ) =
@@ -175,28 +179,28 @@ struct
     | `Top -> true
     | `Bot -> false
 
-    let rec zero_init_value (t:typ): t =
+    let rec zero_init_value ?(varAttr=[]) (t:typ): t =
       match t with
       | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
       | TPtr _ -> `Address AD.null_ptr
-      | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value fd.ftype) ci)
+      | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
       | TComp ({cstruct=false; _} as ci,_) ->
         let v = try
           (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
           let firstmember = List.hd ci.cfields in
-          `Lifted firstmember, zero_init_value firstmember.ftype
+          `Lifted firstmember, zero_init_value ~varAttr:firstmember.fattr firstmember.ftype
         with
           (* Union with no members ò.O *)
           Failure _ -> Unions.top ()
         in
         `Union(v)
-      | TArray (ai, None, _) ->
-        `Array (CArrays.make (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
-      | TArray (ai, Some exp, _) ->
+      | TArray (ai, None, typAttr) ->
+        `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
+      | TArray (ai, Some exp, typAttr) ->
         let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-        `Array (CArrays.make (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
+        `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
       (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
-      | TNamed ({ttype=t; _}, _) -> zero_init_value t
+      | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
       | _ -> `Top
 
   let tag_name : t -> string = function
@@ -403,8 +407,8 @@ struct
                 | `Struct x when same_struct x -> x
                 | `Struct x when ci.cfields <> [] ->
                   let first = List.hd ci.cfields in
-                  Structs.(replace (Structs.create (fun fd -> top_value fd.ftype) ci) first (get x first))
-                | _ -> log_top __POS__; Structs.create (fun fd -> top_value fd.ftype) ci
+                  Structs.(replace (Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci) first (get x first))
+                | _ -> log_top __POS__; Structs.create (fun fd -> top_value ~varAttr:fd.fattr fd.ftype) ci
               )
           else
             `Union (match v with
@@ -927,7 +931,7 @@ struct
                 else begin
                   match offs with
                   | `Field (fldi, _) when fldi.fcomp.cstruct ->
-                    (top_value fld.ftype), offs
+                    (top_value ~varAttr:fld.fattr fld.ftype), offs
                   | `Field (fldi, _) -> `Union (Unions.top ()), offs
                   | `NoOffset -> top (), offs
                   | `Index (idx, _) when Cil.isArrayType fld.ftype ->
@@ -1114,6 +1118,6 @@ and Unions: Lattice.S with type t = UnionDomain.Field.t * Compound.t =
   UnionDomain.Simple (Compound)
 
 and CArrays: ArrayDomain.S with type value = Compound.t and type idx = ArrIdxDomain.t =
-  ArrayDomain.FlagConfiguredArrayDomain(Compound)(ArrIdxDomain)
+  ArrayDomain.AttributeConfiguredArrayDomain(Compound)(ArrIdxDomain)
 
 and Blobs: Blob with type size = ID.t and type value = Compound.t and type origin = ZeroInit.t = Blob (Compound) (ID)
