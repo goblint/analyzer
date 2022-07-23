@@ -1,5 +1,7 @@
 open OUnit2
 
+module Pretty = GoblintCil.Pretty
+
 module GroupableDriver : MapDomain.Groupable with type t = string  =
 struct
   include Printable.Strings

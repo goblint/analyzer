@@ -1,4 +1,5 @@
 open OUnit2
+open GoblintCil
 
 let memset_desc: LibraryDesc.t = LibraryDsl.(
     unknown [drop "dest" [w]; drop "ch" []; drop "count" []]
