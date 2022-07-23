@@ -1,5 +1,6 @@
 (** Some things are not quite lattices ... *)
 
+module Pretty = GoblintCil.Pretty
 open Pretty
 
 module type S =

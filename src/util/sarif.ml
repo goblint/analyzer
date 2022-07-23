@@ -48,7 +48,7 @@ let getCategoryInformationID (tags:Messages.Tags.t) =
 
 
 
-let location_of_cil_location ({file; line; column; endLine; endColumn; _}: Cil.location): Location.t = {
+let location_of_cil_location ({file; line; column; endLine; endColumn; _}: GoblintCil.location): Location.t = {
   physicalLocation = {
     artifactLocation = { uri = file };
     region = {

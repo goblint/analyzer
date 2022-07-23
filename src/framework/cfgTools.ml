@@ -1,5 +1,5 @@
 open MyCFG
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 

@@ -1,7 +1,7 @@
 (** How to generate constraints for a solver using specifications described in [Analyses]. *)
 
 open Prelude
-open Cil
+open GoblintCil
 open MyCFG
 open Analyses
 open GobConfig

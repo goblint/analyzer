@@ -1,7 +1,7 @@
 (** Signatures for analyzers, analysis specifications, and result output.  *)
 
 open Prelude
-open Cil
+open GoblintCil
 open Pretty
 open GobConfig
 

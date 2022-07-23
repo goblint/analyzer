@@ -1,4 +1,5 @@
 (** Library function descriptor (specification). *)
+module Cil = GoblintCil
 
 (** Pointer argument access specification. *)
 module Access =

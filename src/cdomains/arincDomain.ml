@@ -1,4 +1,5 @@
 open Prelude
+module Pretty = GoblintCil.Pretty
 
 (* Information for one task *)
 (* Process ID *)

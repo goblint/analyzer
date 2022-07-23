@@ -1,6 +1,7 @@
 open Prelude
 open Analyses
 open GobConfig
+module Pretty = GoblintCil.Pretty
 
 (** Postsolver with hooks. *)
 module type S =
@@ -211,7 +212,7 @@ struct
     Goblintutil.postsolving := false
 
   let post xs vs vh =
-    Stats.time "postsolver" (post xs vs) vh
+    GoblintCil.Stats.time "postsolver" (post xs vs) vh
 end
 
 (** List of postsolvers. *)

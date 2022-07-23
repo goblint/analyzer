@@ -1,5 +1,5 @@
 open Prelude
-open Cil
+open GoblintCil
 (* we don't want to use M.debug because everything here should be done after the analysis, so the location would be some old value for all invocations *)
 let debug_each msg = print_endline @@ MessageUtil.colorize ~fd:Unix.stdout @@ "{blue}"^msg
 

@@ -1,4 +1,5 @@
 open MyCFG
+open GoblintCil
 
 module NH = Hashtbl.Make (Node)
 module NS = Set.Make (Node)
