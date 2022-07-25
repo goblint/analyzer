@@ -34,8 +34,7 @@
     )
   )
   (preprocess
-    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson
-      ppx_distr_guards ocaml-monadic ppx_blob))
+    (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
   (preprocessor_deps (file util/options.schema.json))
 )
 
@@ -53,7 +52,7 @@
   (modes byte native) ; https://dune.readthedocs.io/en/stable/dune-files.html#linking-modes
   (modules goblint mainarinc mainspec)
   (libraries goblint.lib goblint.sites.dune)
-  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall)
 )
 
@@ -61,7 +60,7 @@
   (name privPrecCompare)
   (modules privPrecCompare)
   (libraries goblint.lib goblint.sites.dune)
-  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall)
 )
 
@@ -69,7 +68,7 @@
   (name apronPrecCompare)
   (modules apronPrecCompare)
   (libraries goblint.lib goblint.sites.dune)
-  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall)
 )
 
@@ -77,7 +76,7 @@
   (name messagesCompare)
   (modules messagesCompare)
   (libraries goblint.lib goblint.sites.dune)
-  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_distr_guards ocaml-monadic))
+  (preprocess (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson))
   (flags :standard -linkall)
 )
 

@@ -130,20 +130,33 @@ struct
 
     let nh = join_contexts lh in
 
+    let ask_local_node (n: Node.t) local =
+      (* build a ctx for using the query system *)
+      let rec ctx =
+        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
+        ; node   = n
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
+        ; context = (fun () -> ctx_failwith "No context in witness context.")
+        ; edge    = MyCFG.Skip
+        ; local  = local
+        ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+        ; presub = (fun _ -> raise Not_found)
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+        }
+      in
+      Spec.query ctx
+    in
+
     let yaml_entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
         match n with
         | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n ->
-          let context: Invariant.context = {
-            scope=Node.find_fundec n;
-            i = -1;
-            lval=None;
-            offset=Cil.NoOffset;
-            deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-          }
-          in
-          begin match Spec.D.invariant context local with
-            | Some inv ->
+          begin match ask_local_node n local (Invariant Invariant.default_context) with
+            | `Lifted inv ->
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
                   let location_function = (Node.find_fundec n).svar.vname in
@@ -151,7 +164,7 @@ struct
                   let entry = Entry.yaml_loop_invariant ~yaml_task ~location:loc ~location_function ~invariant in
                   entry :: acc
                 ) acc invs
-            | None ->
+            | `Bot | `Top -> (* TODO: 0 for bot? *)
               acc
           end
         | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
