@@ -49,6 +49,18 @@ static void change_round_mode(int mode)
 
 UNARY_OP(sqrt, double, sqrt);
 UNARY_OP(sqrt, float, sqrtf);
+UNARY_OP(acos, double, acos);
+UNARY_OP(acos, float, acosf);
+UNARY_OP(asin, double, asin);
+UNARY_OP(asin, float, asinf);
+UNARY_OP(atan, double, atan);
+UNARY_OP(atan, float, atanf);
+UNARY_OP(cos, double, cos);
+UNARY_OP(cos, float, cosf);
+UNARY_OP(sin, double, sin);
+UNARY_OP(sin, float, sinf);
+UNARY_OP(tan, double, tan);
+UNARY_OP(tan, float, tanf);
 
 #define BINARY_OP(name, type, op)                                \
     CAMLprim value name##_##type(value mode, value x, value y)   \
