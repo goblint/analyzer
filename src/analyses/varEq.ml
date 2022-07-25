@@ -19,7 +19,7 @@ struct
   struct
     include PartitionDomain.ExpPartitions
 
-    let invariant c ss =
+    let invariant ~scope ss =
       fold (fun s a ->
           if B.mem MyCFG.unknown_exp s then
             a
@@ -27,15 +27,15 @@ struct
             let module B_prod = BatSet.Make2 (Exp) (Exp) in
             let s_prod = B_prod.cartesian_product s s in
             let i = B_prod.Product.fold (fun (x, y) a ->
-                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope c.Invariant.scope x && InvariantCil.exp_is_in_scope c.Invariant.scope y then (* each equality only one way, no self-equalities *)
+                if Exp.compare x y < 0 && not (InvariantCil.exp_contains_tmp x) && not (InvariantCil.exp_contains_tmp y) && InvariantCil.exp_is_in_scope scope x && InvariantCil.exp_is_in_scope scope y then (* each equality only one way, no self-equalities *)
                   let eq = BinOp (Eq, x, y, intType) in
                   Invariant.(a && of_exp eq)
                 else
                   a
-              ) s_prod Invariant.none
+              ) s_prod (Invariant.top ())
             in
             Invariant.(a && i)
-        ) ss Invariant.none
+        ) ss (Invariant.top ())
   end
 
   module C = D
@@ -228,9 +228,6 @@ struct
     let rec type_may_change_apt a =
       (* With abstract points-to (like in type invariants in accesses).
          Here we implement it in part --- minimum to protect local integers. *)
-      (*       Messages.warn ~msg:("a: "^sprint 80 (d_plainexp () a)) (); *)
-      (*       Messages.warn ~msg:("b: "^sprint 80 (d_plainexp () b)) (); *)
-      (* ignore (printf "may_change %a %a\n*%a\n*%a\n\n" d_exp a d_exp b d_plainexp a d_plainexp b); *)
       match a, b with
       | Lval (Var _,NoOffset), AddrOf (Mem(Lval _),Field(_, _)) ->
         (* lval *.field changes -> local var stays the same *)
@@ -252,12 +249,7 @@ struct
         | TPtr (t,a) -> t
         | at -> at
       in
-      (*      Messages.warn
-              ( sprint 80 (d_type () at)
-              ^ " : "
-              ^ sprint 80 (d_type () bt)
-              ^ (if bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt then ": yes" else ": no"));
-      *)      bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
+      bt = voidType || (isIntegralType at && isIntegralType bt) || (deref && typ_equal (TPtr (at,[]) ) bt) || typ_equal at bt ||
               match a with
               | Const _
               | SizeOf _
@@ -273,9 +265,9 @@ struct
               | Lval (Var _,o)
               | AddrOf (Var _,o)
               | StartOf (Var _,o) -> may_change_t_offset o
-              | Lval (Mem e,o)    -> (*Messages.warn "Lval" ;*) may_change_t_offset o || type_may_change_t true e
-              | AddrOf (Mem e,o)  -> (*Messages.warn "Addr" ;*) may_change_t_offset o || type_may_change_t false e
-              | StartOf (Mem e,o) -> (*Messages.warn "Start";*) may_change_t_offset o || type_may_change_t false e
+              | Lval (Mem e,o)    -> may_change_t_offset o || type_may_change_t true e
+              | AddrOf (Mem e,o)  -> may_change_t_offset o || type_may_change_t false e
+              | StartOf (Mem e,o) -> may_change_t_offset o || type_may_change_t false e
               | CastE (t,e) -> type_may_change_t deref e
               | Question (b, t, f, _) -> type_may_change_t deref b || type_may_change_t deref t || type_may_change_t deref f
 
@@ -316,14 +308,7 @@ struct
           let als = pt e in
           (als, lval_is_not_disjoint bl als)
       in
-      (*      Messages.warn
-              ( sprint 80 (Lval.CilLval.pretty () bl)
-              ^ " in PT("
-              ^ sprint 80 (d_exp () a)
-              ^ ") = "
-              ^ sprint 80 (Queries.LS.pretty () als)
-              ^ (if Queries.LS.is_top als || test then ": yes" else ": no"));
-      *)      if (Queries.LS.is_top als) || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als
+      if (Queries.LS.is_top als) || Queries.LS.mem (dummyFunDec.svar, `NoOffset) als
       then type_may_change_apt a
       else test ||
            match a with
@@ -349,13 +334,13 @@ struct
     in
     let r =
       if Queries.LS.is_top bls || Queries.LS.mem (dummyFunDec.svar, `NoOffset) bls
-      then ((*Messages.warn "No PT-set: switching to types ";*) type_may_change_apt a )
+      then ((*Messages.warn ~category:Analyzer "No PT-set: switching to types ";*) type_may_change_apt a )
       else Queries.LS.exists (lval_may_change_pt a) bls
     in
     (*    if r
-          then (Messages.warn ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          else (Messages.warn ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
-          Messages.warn ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
+          then (Messages.warn ~category:Analyzer ~msg:("Kill " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          else (Messages.warn ~category:Analyzer ~msg:("Keep " ^sprint 80 (Exp.pretty () a)^" because of "^sprint 80 (Exp.pretty () b)) (); r)
+          Messages.warn ~category:Analyzer ~msg:(sprint 80 (Exp.pretty () b) ^" changed lvalues: "^sprint 80 (Queries.LS.pretty () bls)) ();
     *)    r
 
   (* Remove elements, that would change if the given lval would change.*)
@@ -405,12 +390,7 @@ struct
 
   (* Set given lval equal to the result of given expression. On doubt do nothing. *)
   let add_eq ask (lv:lval) (rv:Exp.t) st =
-    (*    let is_local x =
-          match x with (Var v,_) -> not v.vglob | _ -> false
-          in
-          let st =
-    *)  let lvt = unrollType @@ Cilfacade.typeOfLval lv in
-    (*     Messages.warn ~msg:(sprint 80 (d_type () lvt)) (); *)
+    let lvt = unrollType @@ Cilfacade.typeOfLval lv in
     if is_global_var ask (Lval lv) = Some false
     && interesting rv
     && is_global_var ask rv = Some false
@@ -581,12 +561,12 @@ struct
 
   let query ctx (type a) (x: a Queries.t): a Queries.result =
     match x with
-    | Queries.MustBeEqual (e1,e2) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
-      true
-    | Queries.EqualSet e ->
-      let r = eq_set_clos e ctx.local in
-      (*          Messages.warn ~msg:("equset of "^(sprint 80 (d_exp () e))^" is "^(Queries.ES.short 80 r)) ();  *)
-      r
+    | Queries.EvalInt (BinOp (Eq, e1, e2, t)) when query_exp_equal (Analyses.ask_of_ctx ctx) e1 e2 ctx.global ctx.local ->
+      Queries.ID.of_bool (Cilfacade.get_ikind t) true
+    | Queries.EqualSet e -> eq_set_clos e ctx.local
+    | Queries.Invariant context ->
+      let scope = Node.find_fundec ctx.node in
+      D.invariant ~scope ctx.local
     | _ -> Queries.Result.top x
 
 end

@@ -63,7 +63,7 @@ struct
   let op_scheme op1 op2 op3 op4 op5 op6 op7 op8 x y: t = { pid = op1 x.pid y.pid; pri = op2 x.pri y.pri; per = op3 x.per y.per; cap = op4 x.cap y.cap; pmo = op5 x.pmo y.pmo; pre = op6 x.pre y.pre; pred = op7 x.pred y.pred; ctx = op8 x.ctx y.ctx }
   let join x y = let r = op_scheme Pid.join Pri.join Per.join Cap.join Pmo.join PrE.join Pred.join Ctx.join x y in
     (* let s x = if is_top x then "TOP" else if is_bot x then "BOT" else short 0 x in M.debug @@ "JOIN\t" ^ if equal x y then "EQUAL" else s x ^ "\n\t" ^ s y ^ "\n->\t" ^ s r; *)
-    if Pred.cardinal r.pred > 5 then (Messages.debug "Pred.cardinal r.pred = %d with value %a" (Pred.cardinal r.pred) pretty r(* ; failwith "STOP" *));
+    if Pred.cardinal r.pred > 5 then (Messages.debug ~category:Analyzer "Pred.cardinal r.pred = %d with value %a" (Pred.cardinal r.pred) pretty r(* ; failwith "STOP" *));
     r
   let widen = join
   let meet = op_scheme Pid.meet Pri.meet Per.meet Cap.meet Pmo.meet PrE.meet Pred.meet Ctx.meet

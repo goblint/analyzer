@@ -1,0 +1,2 @@
+a is renamed to c, but the usage of a is replaced by b.
+Semantic changes.

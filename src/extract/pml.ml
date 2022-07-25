@@ -120,6 +120,7 @@ end
 let (>>) a b = fst b, snd a^"\n"^snd b
 let bind x f = x >> f (fst x)
 let (>>=) = bind
+let (let*) = bind (* introduced in OCaml 4.08.0: https://ocaml.org/manual/bindingops.html *)
 let return x = x (* ? *)
 
 let indent x = String.split_on_string ~by:"\n" x |> List.map (fun x -> "  "^x) |> String.concat "\n"
