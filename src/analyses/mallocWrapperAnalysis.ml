@@ -80,7 +80,7 @@ struct
       if Hashtbl.mem wrappers f.svar.vname then
         match wrapper_node with
         | `Lifted _ ->  wrapper_node (* if an interesting callee is called by an interesting caller, then we remember the caller context *)
-        | _ ->  (`Lifted ctx.prev_node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
+        | _ ->  (`Lifted ctx.node) (* if an interesting callee is called by an uninteresting caller, then we remember the callee context *)
       else
         PL.top () (* if an uninteresting callee is called, then we forget what was called before *)
     in
@@ -97,7 +97,7 @@ struct
     match desc.special arglist with
     | Malloc _ | Calloc _ | Realloc _ ->
       let counter, wrapper_node = ctx.local in
-      (MallocCounter.add_malloc counter ctx.prev_node, wrapper_node)
+      (MallocCounter.add_malloc counter ctx.node, wrapper_node)
     | _ -> ctx.local
 
   let startstate v = D.bot ()
@@ -120,7 +120,7 @@ struct
     | Q.HeapVar ->
       let node = match wrapper_node with
         | `Lifted wrapper_node -> wrapper_node
-        | _ -> ctx.prev_node
+        | _ -> ctx.node
       in
       let count = MallocCounter.find (`Lifted node) counter in
       let var = get_heap_var (ctx.ask Q.CurrentThreadId, node, count) in
