@@ -54,5 +54,5 @@
     apron
     z3
   )
-  (sites (share includes))
+  (sites (share includes) (share conf))
 )
