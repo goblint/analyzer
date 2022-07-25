@@ -172,7 +172,7 @@ struct
                   acc
               end
             | (`Lifted _) as es ->
-              AccessDomain.EventSet.fold (fun e acc ->
+              let acc = AccessDomain.EventSet.fold (fun e acc ->
                   match e with
                   | {var_opt = Some var; kind = Write} ->
                     let context = {Invariant.default_context with lval = Some (Cil.var var)} in
@@ -191,6 +191,37 @@ struct
                   | _ ->
                     acc
                 ) es acc
+              in
+              let acc =
+                Cfg.next n
+                |> BatList.enum
+                |> BatEnum.filter_map (fun (_, next_n) ->
+                    let next_local = NH.find nh next_n in
+                    match ask_local_node next_n next_local MayAccessed with
+                    | `Top -> None
+                    | `Lifted _ as es -> Some es)
+                |> BatEnum.reduce AccessDomain.EventSet.union
+                |> fun es -> AccessDomain.EventSet.fold (fun e acc ->
+                    match e with
+                    | {var_opt = Some var; kind = Read} ->
+                      let context = {Invariant.default_context with lval = Some (Cil.var var)} in
+                      begin match ask_local_node n local (Invariant context) with
+                        | `Lifted inv ->
+                          let invs = WitnessUtil.InvariantExp.process_exp inv in
+                          List.fold_left (fun acc inv ->
+                              let location_function = (Node.find_fundec n).svar.vname in
+                              let invariant = CilType.Exp.show inv in
+                              let entry = Entry.yaml_loop_invariant ~yaml_task ~location:loc ~location_function ~invariant in
+                              entry :: acc
+                            ) acc invs
+                        | `Bot | `Top -> (* TODO: 0 for bot? *)
+                          acc
+                      end
+                    | _ ->
+                      acc
+                  ) es acc
+              in
+              acc
           end
         | _ -> (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
           acc
