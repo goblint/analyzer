@@ -136,6 +136,26 @@ struct
       }
     in
     Spec.query ctx
+
+  let ask_local_node (gh: Spec.G.t GHT.t) (n: Node.t) local =
+    (* build a ctx for using the query system *)
+    let rec ctx =
+      { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+      ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
+      ; node   = n
+      ; prev_node = MyCFG.dummy_node
+      ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
+      ; context = (fun () -> ctx_failwith "No context in witness context.")
+      ; edge    = MyCFG.Skip
+      ; local  = local
+      ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+      ; presub = (fun _ -> raise Not_found)
+      ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+      ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
+      ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+      }
+    in
+    Spec.query ctx
 end
 
 module Make
@@ -169,6 +189,8 @@ struct
 
   let write lh gh =
     let ask_local = Query.ask_local gh in
+    let ask_local_node = Query.ask_local_node gh in
+
     let input_files = GobConfig.get_string_list "files" in
     let data_model = match GobConfig.get_string "exp.architecture" with
       | "64bit" -> "LP64"
@@ -191,27 +213,6 @@ struct
     in
 
     (* Generate location invariants (wihtout precondition) *)
-    let ask_local_node (n: Node.t) local =
-      (* build a ctx for using the query system *)
-      let rec ctx =
-        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
-        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
-        ; node   = n
-        ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
-        ; context = (fun () -> ctx_failwith "No context in witness context.")
-        ; edge    = MyCFG.Skip
-        ; local  = local
-        ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
-        ; presub = (fun _ -> raise Not_found)
-        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
-        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
-        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
-        }
-      in
-      Spec.query ctx
-    in
-
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
         if is_invariant_node n then begin
