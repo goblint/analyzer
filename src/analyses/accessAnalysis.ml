@@ -14,24 +14,7 @@ struct
 
   let name () = "access"
 
-  module EventAccess =
-  struct
-    include Printable.Std
-    type t = Events.access [@@deriving eq, ord, hash]
-    let name () = "eventaccess"
-
-    let pretty () ({var_opt; kind}: t) =
-      dprintf "{var_opt=%a, kind=%a}" (docOpt (CilType.Varinfo.pretty ())) var_opt AccessKind.pretty kind
-
-    include Printable.SimplePretty (
-      struct
-        type nonrec t = t
-        let pretty = pretty
-      end
-      )
-  end
-
-  module D = SetDomain.Make (EventAccess)
+  module D = AccessDomain.EventSet
   module C = Lattice.Unit
 
   module G =
@@ -235,6 +218,8 @@ struct
       (* ignore (Pretty.printf "WarnGlobal %a\n" CilType.Varinfo.pretty g); *)
       let accs = ctx.global g in
       Stats.time "access" (Access.warn_global safe vulnerable unsafe g) accs
+    | MayAccessed ->
+      (ctx.local: D.t)
     | _ -> Queries.Result.top q
 
   let sync reason ctx: D.t =

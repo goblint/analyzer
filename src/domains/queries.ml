@@ -111,6 +111,7 @@ type _ t =
   | MustJoinedThreads: ConcDomain.MustThreadSet.t t
   | Invariant: invariant_context -> Invariant.t t
   | WarnGlobal: Obj.t -> Unit.t t (** Argument must be of corresponding [Spec.V.t]. *)
+  | MayAccessed: AccessDomain.EventSet.t t
 
 type 'a result = 'a
 
@@ -159,6 +160,7 @@ struct
     | MustJoinedThreads -> (module ConcDomain.MustThreadSet)
     | Invariant _ -> (module Invariant)
     | WarnGlobal _ -> (module Unit)
+    | MayAccessed -> (module AccessDomain.EventSet)
 
   (** Get bottom result for query. *)
   let bot (type a) (q: a t): a result =
@@ -206,6 +208,7 @@ struct
     | MustJoinedThreads -> ConcDomain.MustThreadSet.top ()
     | Invariant _ -> Invariant.top ()
     | WarnGlobal _ -> Unit.top ()
+    | MayAccessed -> AccessDomain.EventSet.top ()
 end
 
 (* The type any_query can't be directly defined in Any as t,
@@ -250,6 +253,7 @@ struct
     | Any MustJoinedThreads -> 34
     | Any (WarnGlobal _) -> 35
     | Any (Invariant _) -> 36
+    | Any MayAccessed -> 37
 
   let compare a b =
     let r = Stdlib.compare (order a) (order b) in
