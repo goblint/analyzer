@@ -188,9 +188,6 @@ struct
     nh
 
   let write lh gh =
-    let ask_local = Query.ask_local gh in
-    let ask_local_node = Query.ask_local_node gh in
-
     let input_files = GobConfig.get_string_list "files" in
     let data_model = match GobConfig.get_string "exp.architecture" with
       | "64bit" -> "LP64"
@@ -216,7 +213,7 @@ struct
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
         if is_invariant_node n then begin
-          begin match ask_local_node n local (Invariant Invariant.default_context) with
+          begin match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
             | `Lifted inv ->
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
@@ -245,10 +242,10 @@ struct
 
     (* 1. Collect contexts for each function *)
     let fun_contexts : con_inv list FMap.t = FMap.create 103 in
-    LHT.iter (fun (n, c) local ->
+    LHT.iter (fun ((n, c) as lvar) local ->
         begin match n with
           | FunctionEntry f ->
-            let invariant = ask_local_node n local (Invariant Invariant.default_context) in
+            let invariant = Query.ask_local gh lvar local (Invariant Invariant.default_context) in
             FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
           | _ -> ()
         end
@@ -262,7 +259,7 @@ struct
             List.iter (fun c ->
                 begin match current_c.invariant with
                   | `Lifted c_inv ->
-                    let x = ask_local (c.node, c.context) c.state (Queries.EvalInt c_inv) in
+                    let x = Query.ask_local gh (c.node, c.context) c.state (Queries.EvalInt c_inv) in
                     if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                       failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
                     else if Queries.ID.to_bool x = Some false then () (* Nothing to do, the c does definitely not satisfy the predicate of current_c *)
@@ -286,22 +283,22 @@ struct
     in
 
     (* 3. Generate precondition invariants *)
-    let entries = LHT.fold (fun (n, c) local acc ->
+    let entries = LHT.fold (fun ((n, c) as lvar) local acc ->
         if is_invariant_node n then begin
           let fundec = Node.find_fundec n in
-          let pre_node = Node.FunctionEntry fundec in
-          let pre_local = LHT.find lh (pre_node, c) in
+          let pre_lvar = (Node.FunctionEntry fundec, c) in
+          let pre_local = LHT.find lh pre_lvar in
           let query = Queries.Invariant Invariant.default_context in
-          begin match ask_local_node pre_node pre_local query with
+          begin match Query.ask_local gh pre_lvar pre_local query with
             | `Lifted c_inv ->
               let loc = Node.location n in
               (* Find unknowns for which the preceding start state satisfies the precondtion *)
-              let xs = find_matching_states (n, c) in
+              let xs = find_matching_states lvar in
 
               (* Generate invariants. Give up in case one invariant could not be generated. *)
               let invs = GobList.fold_while_some
                   (fun acc local ->
-                     match ask_local_node n local (Invariant Invariant.default_context) with
+                     match Query.ask_local_node gh n local (Invariant Invariant.default_context) with
                      | `Lifted c -> Some ((`Lifted c)::acc)
                      | `Bot | `Top -> None)
                   [] xs
