@@ -546,6 +546,23 @@ struct
       st
 
   let sync ctx reason =
+    let apr = match ctx.node with
+      | Statement {sid=82; _} ->
+        let fd = Node.find_fundec ctx.node in
+        ignore (Pretty.printf "@@82: %a\n" D.pretty ctx.local);
+        let a = AD.bot () in
+        let ax = Var.of_string "i#1623" in
+        let a = AD.add_vars a [ax] in
+        let x = ApronDomain.V.to_cil_varinfo fd ax |> Option.get in
+        let a = AD.assert_inv a Cil.(BinOp (LAnd, BinOp (Ge, Lval (var x), integer 0, intType), BinOp (Lt, Lval (var x), integer 100, intType), intType)) false in
+        ignore (Pretty.printf "%a\n" AD.pretty a);
+        let a' = AD.join ctx.local.apr a in
+        ignore (Pretty.printf "%a\n" AD.pretty a');
+        a'
+      | _ ->
+        ctx.local.apr
+    in
+
     (* After the solver is finished, store the results (for later comparison) *)
     if !GU.postsolving then begin
       let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
@@ -557,13 +574,13 @@ struct
         | Some Local -> keep_local
         | _ -> false
       in
-      let st = keep_filter ctx.local.apr var_filter in
+      let st = keep_filter apr var_filter in
 
       let old_value = RH.find_default results ctx.node (AD.bot ()) in
       let new_value = AD.join old_value st in
       RH.replace results ctx.node new_value;
     end;
-    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg {ctx.local with apr} (reason :> [`Normal | `Join | `Return | `Init | `Thread])
 
   let init marshal =
     Priv.init ()
