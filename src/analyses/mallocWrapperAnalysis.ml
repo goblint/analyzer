@@ -26,7 +26,7 @@ struct
 
     end)
 
-  (* Map for counting malloc node visits up to n. *)
+  (* Map for counting malloc node visits up to n (of the current thread). *)
   module MallocCounter = struct
     include MapDomain.MapBot_LiftTop(PL)(Chain)
 
@@ -101,7 +101,11 @@ struct
     | _ -> ctx.local
 
   let startstate v = D.bot ()
-  let threadenter ctx lval f args = [D.bot ()]
+
+  let threadenter ctx lval f args =
+    (* The new thread receives a fresh counter *)
+    [D.bot ()]
+
   let threadspawn ctx lval f args fctx = ctx.local
   let exitstate  v = D.top ()
 
