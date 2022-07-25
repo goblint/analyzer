@@ -269,57 +269,7 @@ struct
   let entry_type = "precondition_loop_invariant_certificate"
 end
 
-(* module type EntryType =
-sig
-  type t
-  val entry_type: string
-  val to_yaml': t -> (string * Yaml.value) list
-end
-
-module EntryType =
-struct
-  type _ t =
-    | LoopInvariant: LoopInvariant.t -> LoopInvariant.t t
-    | PreconditionLoopInvariant: PreconditionLoopInvariant.t -> PreconditionLoopInvariant.t t
-    | LoopInvariantCertificate: LoopInvariantCertificate.t -> LoopInvariantCertificate.t t
-
-  let module_ (type a) (e: a t): (module EntryType with type t = a) =
-    match e with
-    | LoopInvariant _ -> (module LoopInvariant)
-    | PreconditionLoopInvariant _ -> (module PreconditionLoopInvariant)
-    | LoopInvariantCertificate _ -> (module LoopInvariantCertificate)
-
-  let value (type a) (e: a t): a =
-    match e with
-    | LoopInvariant x -> x
-    | PreconditionLoopInvariant x -> x
-    | LoopInvariantCertificate x -> x
-
-  type any = Any: _ t -> any
-end
-
-module Entry =
-struct
-  type t = {
-    entry_type: EntryType.any;
-    metadata: Metadata.t;
-  }
-
-  let make metadata entry_type = {
-    entry_type = Any entry_type;
-    metadata;
-  }
-
-  let to_yaml {entry_type; metadata} =
-    let (Any entry_type') = entry_type in
-    let module ET = (val EntryType.module_ entry_type') in
-    let x = EntryType.value entry_type' in
-    `O ([
-      ("entry_type", `String ET.entry_type);
-      ("metadata", Metadata.to_yaml metadata);
-      ] @ ET.to_yaml' x)
-end *)
-
+(* TODO: could maybe use GADT, but adds ugly existential layer to entry type pattern matching *)
 module EntryType =
 struct
   type t =
