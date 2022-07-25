@@ -23,6 +23,7 @@ sig
   val inter: t -> t -> t
   val diff: t -> t -> t
   val subset: t -> t -> bool
+  val disjoint: t -> t -> bool
   val iter: (elt -> unit) -> t -> unit
   val map: (elt -> elt) -> t -> t
   val fold: (elt -> 'a -> 'a) -> t -> 'a -> 'a
@@ -36,38 +37,8 @@ sig
   val min_elt: t -> elt
   val max_elt: t -> elt
   val choose: t -> elt
-  val split: elt -> t -> t * bool * t
 end
 
-(** A functor for creating a simple set domain, there is no top element, and
-  * calling [top ()] will raise an exception *)
-module Blank =
-struct
-  let empty _ = unsupported "empty"
-  let is_empty _ = unsupported "is_empty"
-  let mem _ _ = unsupported "mem"
-  let add _ _ = unsupported "add"
-  let singleton _ = unsupported "singleton"
-  let remove _ _ = unsupported "remove"
-  let union _ _ = unsupported "union"
-  let inter _ _ = unsupported "inter"
-  let diff _ _ = unsupported "diff"
-  let subset _ _ = unsupported "subset"
-  let iter _ _ = unsupported "iter"
-  let map _ _ = unsupported "map"
-  let fold _ _ _ = unsupported "fold"
-  let for_all _ _ = unsupported "for_all"
-  let exists _ _ = unsupported "exists"
-  let filter _ _ = unsupported "filter"
-  let partition _ _ = unsupported "partition"
-  let cardinal _ = unsupported "cardinal"
-  let elements _ = unsupported "elements"
-  let of_list _ = unsupported "of_list"
-  let min_elt _ = unsupported "min_elt"
-  let max_elt _ = unsupported "max_elt"
-  let choose _ = unsupported "choose"
-  let split _ _ = unsupported "split"
-end
 
 (** A functor for creating a simple set domain, there is no top element, and
   * calling [top ()] will raise an exception *)
@@ -245,6 +216,12 @@ struct
     | _, `Top -> true
     | `Top, _ -> false
     | `Lifted x, `Lifted y -> S.subset x y
+  let disjoint x y =
+    match x, y with
+    | `Top, `Top -> false
+    | `Lifted x, `Top
+    | `Top, `Lifted x -> S.is_empty x
+    | `Lifted x, `Lifted y -> S.disjoint x y
 
   let schema normal abnormal x =
     match x with
@@ -273,8 +250,6 @@ struct
   let choose = schema S.choose "choose on `Top"
   let partition f = schema (fun t -> match S.partition f t
                              with (a,b) -> (`Lifted a, `Lifted b)) "filter on `Top"
-  let split e = schema (fun t -> match S.split e t
-                         with (a,tv,b) -> (`Lifted a,tv,`Lifted b)) "split on `Top"
 
 
   (* The printable implementation *)
@@ -326,10 +301,6 @@ struct
     | x, `Top -> x
     | `Lifted x, `Lifted y -> `Lifted (S.narrow x y)
 
-  let invariant c = function
-    | `Top -> Invariant.none
-    | `Lifted s -> S.invariant c s
-
   let arbitrary () = QCheck.set_print show (arbitrary ())
 end
 
@@ -374,4 +345,23 @@ module Reverse (Base: S) =
 struct
   include Base
   include Lattice.Reverse (Base)
+end
+
+module type FiniteSetElems =
+sig
+  type t
+  val elems: t list
+end
+
+module FiniteSet (E:Printable.S) (Elems:FiniteSetElems with type t = E.t) =
+struct
+  module E =
+  struct
+    include E
+    let arbitrary () = QCheck.oneofl Elems.elems
+  end
+
+  include Make (E)
+  let top () = of_list Elems.elems
+  let is_top x = equal x (top ())
 end

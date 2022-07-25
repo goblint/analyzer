@@ -227,7 +227,7 @@ int t5(){
 
 	x = y;
 	*a = 3;
-	assert(x == y); // UNKNOWN
+	assert(x == y); // TODO (a and x or y may not alias)
 
 	return 0;
 }
@@ -238,7 +238,7 @@ int t4(){
 
 	x = y;
 	*a = 3;
-	assert(x == y); // UNKNOWN
+	assert(x == y);  // TODO (a and x or y may not alias)
 	assert(a == &z); // UNKNOWN
 
 	return 0;

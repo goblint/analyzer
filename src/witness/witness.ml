@@ -1,5 +1,4 @@
 open MyCFG
-open WitnessUtil
 open Graphml
 open Svcomp
 open GobConfig
@@ -8,15 +7,7 @@ module type WitnessTaskResult = TaskResult with module Arg.Edge = MyARG.InlineEd
 
 let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult): unit =
   let module Cfg = Task.Cfg in
-  let loop_heads = find_loop_heads (module Cfg) Task.file in
-
-  let is_invariant_node cfgnode =
-    match get_string "witness.invariant.nodes" with
-    | "all" -> true
-    | "loop_heads" -> WitnessUtil.NH.mem loop_heads cfgnode
-    | "none" -> false
-    | _ -> failwith "witness.invariant.nodes: invalid value"
-  in
+  let module Invariant = WitnessUtil.Invariant (struct let file = Task.file end) (Cfg) in
 
   let module TaskResult =
     (val if get_bool "witness.stack" then
@@ -38,18 +29,18 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
       let to_cfgnode = N.cfgnode to_node in
       if TaskResult.is_violation to_node || TaskResult.is_sink to_node then
         true
-      else if WitnessUtil.NH.mem loop_heads to_cfgnode then
+      else if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
         true
       else begin match edge with
         | MyARG.CFGEdge (Test _) -> true
         | _ -> false
-      end || begin if is_invariant_node to_cfgnode then
-            match to_cfgnode, TaskResult.invariant to_node with
-            | Statement _, Some _ -> true
-            | _, _ -> false
-          else
-            false
-        end || begin match from_cfgnode, to_cfgnode with
+      end || begin if Invariant.is_invariant_node to_cfgnode then
+               match to_cfgnode, TaskResult.invariant to_node with
+               | Statement _, `Lifted _ -> true
+               | _, _ -> false
+             else
+               false
+           end || begin match from_cfgnode, to_cfgnode with
           | _, FunctionEntry f -> true
           | Function f, _ -> true
           | _, _ -> false
@@ -142,9 +133,9 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
             []
         end;
         begin
-          if is_invariant_node cfgnode then
+          if Invariant.is_invariant_node cfgnode then
             match cfgnode, TaskResult.invariant node with
-            | Statement _, Some i ->
+            | Statement _, `Lifted i ->
               let i = InvariantCil.exp_replace_original_name i in
               [("invariant", CilType.Exp.show i);
               ("invariant.scope", (Node.find_fundec cfgnode).svar.vname)]
@@ -200,7 +191,7 @@ let write_file filename (module Task:Task) (module TaskResult:WitnessTaskResult)
           else
             []
         end;
-        begin if WitnessUtil.NH.mem loop_heads to_cfgnode then
+        begin if WitnessUtil.NH.mem Invariant.loop_heads to_cfgnode then
             [("enterLoopHead", "true")]
           else
             []
@@ -305,7 +296,6 @@ struct
         ; local  = local
         ; global = GHT.find gh
         ; presub = (fun _ -> raise Not_found)
-        ; postsub= (fun _ -> raise Not_found)
         ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
         ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
         ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
@@ -405,15 +395,8 @@ struct
     in
 
     let find_invariant (n, c, i) =
-      let context: Invariant.context = {
-          scope=CfgNode.find_fundec n;
-          i;
-          lval=None;
-          offset=Cil.NoOffset;
-          deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-        }
-      in
-      Spec.D.invariant context (get (n, c))
+      let context = {Invariant.default_context with path = Some i} in
+      ask_local (n, c) (get (n, c)) (Invariant context)
     in
 
     match Task.specification with
@@ -591,7 +574,8 @@ struct
 
     print_task_result (module TaskResult);
 
-    if TaskResult.result <> Result.Unknown || get_bool "witness.unknown" then (
+    (* TODO: use witness.enabled elsewhere as well *)
+    if get_bool "witness.enabled" && (TaskResult.result <> Result.Unknown || get_bool "witness.unknown") then (
       let witness_path = get_string "witness.path" in
       Stats.time "write" (write_file witness_path (module Task)) (module TaskResult)
     )

@@ -26,13 +26,13 @@ int main(){
   check(j==6); // assert UNKNOWN
 
   unknown(&k);
-  commit(k==4); // assert SUCCESS
+  commit(k==4); // TODO? assert SUCCESS
   check(k==4);  // assert SUCCESS
 
   unknown(&k);
-  commit(k+1==n); // FAIL
+  commit(k+1==n); // TODO? FAIL
 
-  commit(n==5);  // NOWARN
+  commit(n==5);  // TODO? NOWARN
   assert(0);     // NOWARN
 
   return 0;

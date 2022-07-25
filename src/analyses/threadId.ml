@@ -34,7 +34,7 @@ struct
   let name () = "threadid"
 
   let startstate v = (ThreadLifted.bot (), TD.bot ())
-  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:true), TD.bot ())
+  let exitstate  v = (`Lifted (Thread.threadinit v ~multiple:false), TD.bot ())
 
   let morphstate v _ =
     let tid = Thread.threadinit v ~multiple:false in
@@ -56,13 +56,7 @@ struct
 
   let branch ctx exp tv = ctx.local
 
-  let return ctx exp fundec  =
-    match fundec.svar.vname with
-    | "StartupHook" ->
-      (* TODO: is this necessary? *)
-      (ThreadLifted.top (), TD.bot ()) (* TODO: what should TD be? *)
-    | _ ->
-      ctx.local
+  let return ctx exp fundec = ctx.local
 
   let assign ctx (lval:lval) (rval:exp) : D.t  =
     ctx.local
@@ -104,7 +98,7 @@ struct
     let should_print = Option.is_some
   end
 
-  let access ctx e vo w =
+  let access ctx _ =
     if is_unique ctx then
       let tid = fst ctx.local in
       Some tid

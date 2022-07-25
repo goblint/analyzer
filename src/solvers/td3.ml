@@ -46,14 +46,22 @@ module WP =
       stable = HM.create 10
     }
 
-    let clear_data data =
-      HM.clear data.infl;
-      HM.clear data.stable
-
     let print_data data str =
       if GobConfig.get_bool "dbg.verbose" then
         Printf.printf "%s:\n|rho|=%d\n|stable|=%d\n|infl|=%d\n|wpoint|=%d\n"
           str (HM.length data.rho) (HM.length data.stable) (HM.length data.infl) (HM.length data.wpoint)
+
+    let verify_data data =
+      if GobConfig.get_bool "solvers.td3.verify" then (
+        (* every variable in (pruned) rho should be stable *)
+        HM.iter (fun x _ ->
+            if not (HM.mem data.stable x) then (
+              ignore (Pretty.printf "unstable in rho: %a\n" S.Var.pretty_trace x);
+              assert false
+            )
+          ) data.rho
+        (* vice versa doesn't currently hold, because stable is not pruned *)
+      )
 
     let exists_key f hm = HM.fold (fun k _ a -> a || f k) hm false
 
@@ -85,7 +93,10 @@ module WP =
         print_context_stats rho
       in
 
-      if GobConfig.get_bool "incremental.load" then print_data data "Loaded data for incremental analysis";
+      if GobConfig.get_bool "incremental.load" then (
+        print_data data "Loaded data for incremental analysis";
+        verify_data data
+      );
 
       let cache_sizes = ref [] in
 
@@ -168,7 +179,7 @@ module WP =
         | Some f -> f get set
       and simple_solve l x y =
         if tracing then trace "sol2" "simple_solve %a (rhs: %b)\n" S.Var.pretty_trace y (S.system y <> None);
-        if S.system y = None then (init y; HM.find rho y) else
+        if S.system y = None then (init y; HM.replace stable y (); HM.find rho y) else
         if HM.mem rho y || not space then (solve y Widen; HM.find rho y) else
         if HM.mem called y then (init y; HM.remove l y; HM.find rho y) else
         (* if HM.mem called y then (init y; let y' = HM.find_default l y (S.Dom.bot ()) in HM.replace rho y y'; HM.remove l y; y') else *)
@@ -436,6 +447,7 @@ module WP =
 
       Post.post st vs rho; (* TODO: add side_infl postsolver *)
 
+      verify_data data;
       {st; infl; sides; rho; wpoint; stable}
 
     let solve box st vs =
@@ -461,7 +473,14 @@ module WP =
          * - If we destabilized a node with a call, we will also destabilize all vars of the called function. However, if we end up with the same state at the caller node, without hashcons we would only need to go over all vars in the function once to restabilize them since we have
          *   the old values, whereas with hashcons, we would get a context with a different tag, could not find the old value for that var, and have to recompute all vars in the function (without access to old values).
          *)
-        if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
+        if loaded && S.increment.server then (
+          data.rho <- HM.copy data.rho;
+          data.stable <- HM.copy data.stable;
+          data.wpoint <- HM.copy data.wpoint;
+          data.infl <- HM.copy data.infl;
+          (* data.st is immutable, no need to copy *)
+        )
+        else if loaded && GobConfig.get_bool "ana.opt.hashcons" then (
           let rho' = HM.create (HM.length data.rho) in
           HM.iter (fun k v ->
             (* call hashcons on contexts and abstract values; results in new tags *)

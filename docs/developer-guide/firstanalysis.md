@@ -55,7 +55,7 @@ We first need to design the abstract domain. It may help if you have read some t
 1. `of_int i` should abstract integers to their best representation in our abstract domain. Our sign domain can distinguish positive, negative and zero values, so do it right!
 2. `gt x y` should answer true if the value represented by `x` is definitely greater than the value represented by `y`. There seems to be a crucial case missing here in the otherwise excellent implementation...
 
-We will represent tha abstract state of the program as a map from variables to the newly created sign domain.
+We will represent the abstract state of the program as a map from variables to the newly created sign domain.
 
 ```ocaml
 module D = MapDomain.MapBot (Basetype.Variables) (SL)
@@ -79,4 +79,4 @@ For example, have a look at the following program: `tests/regression/99-tutorial
 _Hint:_
 The easiest way to do this is to use the powerset lattice of `{-, 0, +}`.
 For example, "non-negative" is represented by `{0, +}`, while negative is represented by `{-}`.
-To do this, modify `SL` by using `SetDomain.Make` instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.
+To do this, modify `SL` by using `SetDomain.FiniteSet` (takes a `struct` with a list of finite elements as second parameter) instead of `Lattice.Flat` and reimplementing the two functions using `singleton` and `for_all`.

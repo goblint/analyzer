@@ -13,5 +13,5 @@ let _ =
     | [_; conf; path] -> conf, open_in_bin path
     | _ -> print_endline @@ "usage: " ^ Sys.argv.(0) ^ " <conf.json> <arinc.out or - for stdin>"; exit 1
   in
-  merge_file conf;
+  merge_file (Fpath.v conf);
   save_all cin

@@ -2,6 +2,13 @@
 
 open Cil
 
+module type Arg =
+sig
+  include Lattice.S
+  val is_bot_value: t -> bool
+  val is_top_value: t -> typ -> bool
+end
+
 module type S =
 sig
   include Lattice.S
@@ -20,21 +27,15 @@ sig
   val widen_with_fct: (value -> value -> value) -> t -> t -> t
   val join_with_fct: (value -> value -> value) -> t -> t -> t
   val leq_with_fct: (value -> value -> bool) -> t -> t -> bool
+  val invariant: value_invariant:(offset:Cil.offset -> Invariant.context -> value -> Invariant.t) -> offset:Cil.offset -> Invariant.context -> t -> Invariant.t
 end
 
-module type LatticeWithIsTopBotValue =
-sig
-  include Lattice.S
-  val is_bot_value: t -> bool
-  val is_top_value: t -> typ -> bool
-end
-
-module Simple (Val: Lattice.S): S with type value = Val.t and type field = fieldinfo
+module Simple (Val: Arg): S with type value = Val.t and type field = fieldinfo
 (** Creates a simple structure domain by mapping fieldnames to their values
   * using the {!MapDomain.InfMap} functor *)
 
-module Sets (Val: LatticeWithIsTopBotValue): S with type value = Val.t and type field = fieldinfo
+module Sets (Val: Arg): S with type value = Val.t and type field = fieldinfo
 
-module KeyedSets (Val: LatticeWithIsTopBotValue): S with type value = Val.t and type field = fieldinfo
+module KeyedSets (Val: Arg): S with type value = Val.t and type field = fieldinfo
 
-module FlagConfiguredStructDomain (Val: LatticeWithIsTopBotValue): S with type value = Val.t and type field = fieldinfo
+module FlagConfiguredStructDomain (Val: Arg): S with type value = Val.t and type field = fieldinfo

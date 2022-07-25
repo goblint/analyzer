@@ -13,7 +13,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         ocaml-compiler:
-          - 4.13.1 # matches opam lock file
+          - 4.14.0 # matches opam lock file
           # don't add any other because they won't be used
 
     runs-on: ${{ matrix.os }}
@@ -41,8 +41,9 @@ jobs:
         run: ./make.sh headers testci
 
       - name: Test apron regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
-        run:  ruby scripts/update_suite.rb group apron -s;
-
+        run: |
+          ruby scripts/update_suite.rb group apron -s
+          ruby scripts/update_suite.rb group apron2 -s
       - name: Test apron octagon regression # skipped by default but CI has apron, so explicitly test group (which ignores skipping -- it's now a feature!)
         run:  ruby scripts/update_suite.rb group octagon -s
 
@@ -62,7 +63,7 @@ jobs:
         os:
           - ubuntu-latest
         ocaml-compiler:
-          - 4.13.1 # matches opam lock file
+          - 4.14.0 # matches opam lock file
           # don't add any other because they won't be used
         node-version:
           - 14

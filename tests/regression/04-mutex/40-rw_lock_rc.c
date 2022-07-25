@@ -24,7 +24,7 @@ static ssize_t my_read(struct file *file, char __user *buf, size_t count, loff_t
 
 static ssize_t my_write(struct file *fp, const char __user *buf, size_t len, loff_t *off) {
   write_lock(&rwlock1);
-  data1 = data1==1 ? 0 : 1; //RACE!
+  data1 = data1==1 ? 0 : 1; //NORACE
   write_unlock(&rwlock1);
 
   write_lock(&rwlock2);

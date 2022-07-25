@@ -1,8 +1,8 @@
 open GobConfig
 
-let root () = get_string "goblint-dir"
+let root () = Fpath.v (get_string "goblint-dir")
 
-let preprocessed () = Filename.concat (root ()) "preprocessed"
+let preprocessed () = Fpath.(root () / "preprocessed")
 
 let init () =
   (* TODO: generalize .goblint for everything *)

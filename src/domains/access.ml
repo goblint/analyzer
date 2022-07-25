@@ -10,7 +10,7 @@ module M = Messages
 
 let is_ignorable_type (t: typ): bool =
   match t with
-  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "spinlock_t"; _ }, _) -> true
+  | TNamed ({ tname = "atomic_t" | "pthread_mutex_t" | "pthread_rwlock_t" | "spinlock_t" | "pthread_cond_t"; _ }, _) -> true
   | TComp ({ cname = "lock_class_key"; _ }, _) -> true
   | TInt (IInt, attr) when hasAttribute "mutex" attr -> true
   | t when hasAttribute "atomic" (typeAttrs t) -> true (* C11 _Atomic *)
@@ -45,6 +45,10 @@ let init (f:file) =
   in
   List.iter visit_glob f.globals
 
+let reset () =
+  Hashtbl.clear typeVar;
+  Hashtbl.clear typeIncl
+
 
 type offs = [`NoOffset | `Index of offs | `Field of CilType.Fieldinfo.t * offs] [@@deriving eq, ord, hash]
 
@@ -70,19 +74,9 @@ let d_acct () = function
   | `Type t -> dprintf "(%a)" d_type t
   | `Struct (s,o) -> dprintf "(struct %s)%a" s.cname d_offs o
 
-let file_re = Str.regexp "\\(.*/\\|\\)\\([^/]*\\)"
-let d_loc () loc =
-  let loc =
-    if Str.string_match file_re loc.file 0 then
-      {loc with file = Str.matched_group 2 loc.file}
-    else
-      loc
-  in
-  CilType.Location.pretty () loc
-
 let d_memo () (t, lv) =
   match lv with
-  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o d_loc v.vdecl
+  | Some (v,o) -> dprintf "%a%a@@%a" Basetype.Variables.pretty v d_offs o CilType.Location.pretty v.vdecl
   | None       -> dprintf "%a" d_acct t
 
 let rec get_type (fb: typ) : exp -> acc_typ = function
@@ -117,7 +111,11 @@ let rec get_type (fb: typ) : exp -> acc_typ = function
         `Struct (s1, o1)
       | _ -> `Type t
     end
-  | _ -> `Type fb
+  | Const _
+  | Lval _
+  | Real _
+  | Imag _ ->
+    `Type fb (* TODO: is this right? *)
 
 let get_type fb e =
   (* printf "e = %a\n" d_plainexp e; *)
@@ -127,27 +125,6 @@ let get_type fb e =
   | `Type (TPtr (t,a)) -> `Type t
   | x -> x
 
-
-module Ht =
-struct
-  include Hashtbl
-
-  let find_def ht k z : 'b =
-    try
-      find ht k
-    with Not_found ->
-      let v = Lazy.force z in
-      add ht k v;
-      v
-
-  let modify_def ht k z f: unit =
-    let g = function
-      | None -> Some (f (Lazy.force z))
-      | Some b -> Some (f b)
-    in
-    modify_opt k g ht
-
-end
 
 
 type var_o = varinfo option
@@ -163,10 +140,10 @@ let get_val_type e (vo: var_o) (oo: off_o) : acc_typ =
     end
   | exception (Cilfacade.TypeOfError _) -> get_type voidType e
 
-let add_one side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
+let add_one side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv:(varinfo*offs) option) a: unit =
   if is_ignorable lv then () else begin
     let loc = !Tracing.current_loc in
-    side ty lv (conf, w, loc, e, a)
+    side ty lv (conf, kind, loc, e, a)
   end
 
 let type_from_type_offset : acc_typ -> typ = function
@@ -186,12 +163,15 @@ let type_from_type_offset : acc_typ -> typ = function
     in
     unrollType (type_from_offs (TComp (s, []), o))
 
-let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
+let add_struct side (e:exp) (kind:AccessKind.t) (conf:int) (ty:acc_typ) (lv: (varinfo * offs) option) a: unit =
   let rec dist_fields ty =
     match unrollType ty with
     | TComp (ci,_)   ->
       let one_field fld =
-        List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
+        if is_ignorable_type fld.ftype then
+          []
+        else
+          List.map (fun x -> `Field (fld,x)) (dist_fields fld.ftype)
       in
       List.concat_map one_field ci.cfields
     | TArray (t,_,_) ->
@@ -206,17 +186,17 @@ let add_struct side (e:exp) (w:bool) (conf:int) (ty:acc_typ) (lv: (varinfo * off
     in
     begin try
         let oss = dist_fields (type_from_type_offset ty) in
-        List.iter (fun os -> add_one side e w conf (`Struct (s,addOffs os2 os)) (add_lv os) a) oss
+        List.iter (fun os -> add_one side e kind conf (`Struct (s,addOffs os2 os)) (add_lv os) a) oss
       with Failure _ ->
-        add_one side e w conf ty lv a
+        add_one side e kind conf ty lv a
     end
   | _ when lv = None && !unsound ->
     (* don't recognize accesses to locations such as (long ) and (int ). *)
     ()
   | _ ->
-    add_one side e w conf ty lv a
+    add_one side e kind conf ty lv a
 
-let add_propagate side e w conf ty ls a =
+let add_propagate side e kind conf ty ls a =
   (* ignore (printf "%a:\n" d_exp e); *)
   let rec only_fields = function
     | `NoOffset -> true
@@ -230,16 +210,16 @@ let add_propagate side e w conf ty ls a =
       | _ -> failwith "add_propagate: no field found"
     in
     let ts = typeSig (TComp (fi.fcomp,[])) in
-    let vars = Ht.find_all typeVar ts in
+    let vars = Hashtbl.find_all typeVar ts in
     (* List.iter (fun v -> ignore (printf " * %s : %a" v.vname d_typsig ts)) vars; *)
-    let add_vars v = add_struct side e w conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
+    let add_vars v = add_struct side e kind conf (`Struct (fi.fcomp, f)) (Some (v, f)) a in
     List.iter add_vars vars;
-    add_struct side e w conf (`Struct (fi.fcomp, f)) None a;
+    add_struct side e kind conf (`Struct (fi.fcomp, f)) None a;
   in
   let just_vars t v =
-    add_struct side e w conf (`Type t) (Some (v, `NoOffset)) a;
+    add_struct side e kind conf (`Type t) (Some (v, `NoOffset)) a;
   in
-  add_struct side e w conf ty None a;
+  add_struct side e kind conf ty None a;
   match ty with
   | `Struct (c,os) when only_fields os && os <> `NoOffset ->
     (* ignore (printf "  * type is a struct\n"); *)
@@ -247,73 +227,79 @@ let add_propagate side e w conf ty ls a =
   | _ ->
     (* ignore (printf "  * type is NOT a struct\n"); *)
     let t = type_from_type_offset ty in
-    let incl = Ht.find_all typeIncl (typeSig t) in
+    let incl = Hashtbl.find_all typeIncl (typeSig t) in
     List.iter (fun fi -> struct_inv (`Field (fi,`NoOffset))) incl;
-    let vars = Ht.find_all typeVar (typeSig t) in
+    let vars = Hashtbl.find_all typeVar (typeSig t) in
     List.iter (just_vars t) vars
 
-let rec distribute_access_lval f w r c lv =
+let rec distribute_access_lval f c lv =
   (* Use unoptimized AddrOf so RegionDomain.Reg.eval_exp knows about dereference *)
-  (* f w r c (mkAddrOf lv); *)
-  f w r c (AddrOf lv);
-  distribute_access_lval_addr f w r c lv
+  (* f c (mkAddrOf lv); *)
+  f c (AddrOf lv);
+  distribute_access_lval_addr f c lv
 
-and distribute_access_lval_addr f w r c lv =
+and distribute_access_lval_addr f c lv =
   match lv with
   | (Var v, os) ->
     distribute_access_offset f c os
   | (Mem e, os) ->
     distribute_access_offset f c os;
-    distribute_access_exp f false false c e
+    distribute_access_exp f c e
 
 and distribute_access_offset f c = function
   | NoOffset -> ()
   | Field (_,os) ->
     distribute_access_offset f c os
   | Index (e,os) ->
-    distribute_access_exp f false false c e;
+    distribute_access_exp f c e;
     distribute_access_offset f c os
 
-and distribute_access_exp f w r c = function
+and distribute_access_exp f c = function
   (* Variables and address expressions *)
   | Lval lval ->
-    distribute_access_lval f w r c lval;
+    distribute_access_lval f c lval;
 
     (* Binary operators *)
   | BinOp (op,arg1,arg2,typ) ->
-    distribute_access_exp f w r c arg1;
-    distribute_access_exp f w r c arg2
+    distribute_access_exp f c arg1;
+    distribute_access_exp f c arg2
 
-  (* Unary operators *)
-  | UnOp (op,arg1,typ) -> distribute_access_exp f w r c arg1
+  | UnOp (_,e,_)
+  | Real e
+  | Imag e
+  | SizeOfE e
+  | AlignOfE e ->
+    distribute_access_exp f c e
 
   (* The address operators, we just check the accesses under them *)
   | AddrOf lval | StartOf lval ->
-    if r then
-      distribute_access_lval f w r c lval
-    else
-      distribute_access_lval_addr f false r c lval
+    distribute_access_lval_addr f c lval
 
   (* Most casts are currently just ignored, that's probably not a good idea! *)
   | CastE  (t, exp) ->
-    distribute_access_exp f w r c exp
+    distribute_access_exp f c exp
   | Question (b,t,e,_) ->
-    distribute_access_exp f false r c b;
-    distribute_access_exp f w     r c t;
-    distribute_access_exp f w     r c e
-  | _ -> ()
+    distribute_access_exp f c b;
+    distribute_access_exp f c t;
+    distribute_access_exp f c e
+  | Const _
+  | SizeOf _
+  | SizeOfStr _
+  | AlignOf _
+  | AddrOfLabel _ ->
+    ()
 
-let add side e w conf vo oo a =
+let add side e kind conf vo oo a =
   let ty = get_val_type e vo oo in
   (* let loc = !Tracing.current_loc in *)
   (* ignore (printf "add %a %b -- %a\n" d_exp e w d_loc loc); *)
   match vo, oo with
-  | Some v, Some o -> add_struct side e w conf ty (Some (v, remove_idx o)) a
+  | Some v, Some o -> add_struct side e kind conf ty (Some (v, remove_idx o)) a
   | _ ->
     if !unsound && isArithmeticType (type_from_type_offset ty) then
-      add_struct side e w conf ty None a
+      add_struct side e kind conf ty None a
     else
-      add_propagate side e w conf ty None a
+      add_propagate side e kind conf ty None a
 
 
 (* Access table as Lattice. *)
@@ -321,10 +307,10 @@ let add side e w conf vo oo a =
 module A =
 struct
   include Printable.Std
-  type t = int * bool * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
+  type t = int * AccessKind.t * CilType.Location.t * CilType.Exp.t * MCPAccess.A.t [@@deriving eq, ord, hash]
 
-  let pretty () (conf, w, loc, e, lp) =
-    Pretty.dprintf "%d, %B, %a, %a, %a" conf w CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
+  let pretty () (conf, kind, loc, e, lp) =
+    Pretty.dprintf "%d, %a, %a, %a, %a" conf AccessKind.pretty kind CilType.Location.pretty loc CilType.Exp.pretty e MCPAccess.A.pretty lp
 
   include Printable.SimplePretty (
     struct
@@ -373,9 +359,11 @@ module LVOpt = Printable.Option (LV) (struct let name = "NONE" end)
 
 
 (* Check if two accesses may race and if yes with which confidence *)
-let may_race (conf,w,loc,e,a) (conf2,w2,loc2,e2,a2) =
-  if not w && not w2 then
+let may_race (conf,(kind: AccessKind.t),loc,e,a) (conf2,(kind2: AccessKind.t),loc2,e2,a2) =
+  if kind = Read && kind2 = Read then
     false (* two read/read accesses do not race *)
+  else if not (get_bool "ana.race.free") && (kind = Free || kind2 = Free) then
+    false
   else if not (MCPAccess.A.may_race a a2) then
     false (* analysis-specific information excludes race *)
   else
@@ -447,10 +435,10 @@ let incr_summary safe vulnerable unsafe (lv, ty) grouped_accs =
 let print_accesses (lv, ty) grouped_accs =
   let allglobs = get_bool "allglobs" in
   let debug = get_bool "dbg.debug" in
+  let race_threshold = get_int "warn.race-threshold" in
   let msgs race_accs =
-    let h (conf,w,loc,e,a) =
-      let atyp = if w then "write" else "read" in
-      let d_msg () = dprintf "%s with %a (conf. %d)" atyp MCPAccess.A.pretty a conf in
+    let h (conf,kind,loc,e,a) =
+      let d_msg () = dprintf "%a with %a (conf. %d)" AccessKind.pretty kind MCPAccess.A.pretty a conf in
       let doc =
         if debug then
           dprintf "%t  (exp: %a)" d_msg d_exp e
@@ -468,7 +456,13 @@ let print_accesses (lv, ty) grouped_accs =
       | None ->
         AS.union safe_accs accs (* group all safe accs together for allglobs *)
       | Some conf ->
-        M.msg_group Warning ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
+        let severity: Messages.Severity.t =
+          if conf >= race_threshold then
+            Warning
+          else
+            Info
+        in
+        M.msg_group severity ~category:Race "Memory location %a (race with conf. %d)" d_memo (ty,lv) conf (msgs accs);
         safe_accs
     ) (AS.empty ())
   |> (fun safe_accs ->

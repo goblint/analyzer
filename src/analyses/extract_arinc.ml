@@ -264,7 +264,7 @@ struct
           match ctx.ask (Queries.MayPointTo exp) with
           | x when not (LS.is_top x) ->
             let top_elt = dummyFunDec.svar, `NoOffset in
-            if LS.mem top_elt x then M.debug "Query result for MayPointTo contains top!";
+            if LS.mem top_elt x then M.info ~category:Unsound "Query result for MayPointTo contains top!";
             let xs = LS.remove top_elt x |> LS.elements in
             List.map (fun (v,o) -> string_of_int (Res.i_by_v v)) xs
           | _ -> failwith @@ "Could not evaluate id-argument "^sprint d_plainexp exp
@@ -338,10 +338,10 @@ struct
               let v,i = Res.get ("process", name) in
               assign_id pid' v;
               List.fold_left (fun d f -> extract_fun ~info_args:[f.vname] [string_of_int i]) ctx.local funs
-            | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail (M.debug "%s") (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local (* TODO: f *)
+            | _ -> let f (type a) (x: a Queries.result) = "TODO" in struct_fail (M.debug ~category:Analyzer "%s") (`Result (f name, f entry_point, f pri, f per, f cap)); ctx.local (* TODO: f *)
           end
         | _ -> match Pml.special_fun fname with
-          | None -> M.debug "extract_arinc: unhandled function %s" fname; ctx.local
+          | None -> M.info ~category:Unsound "extract_arinc: unhandled function %s" fname; ctx.local
           | Some eval_args ->
             if M.tracing then M.trace "extract_arinc" "extract %s, args: %i code, %i pml\n" f.vname (List.length arglist) (List.length eval_args);
             let rec combine_opt f a b = match a, b with
@@ -382,14 +382,14 @@ struct
     ignore @@ List.map (fun name -> Res.get ("process", name)) mainfuns;
     assert (List.compare_length_with mainfuns 1 = 0); (* TODO? *)
     List.iter (fun fname -> Pfuns.add "main" fname) mainfuns;
-    if GobConfig.get_bool "ana.arinc.export" then output_file ~filename:(Goblintutil.create_dir "result/" ^ "arinc.os.pml") ~text:(snd (Pml_arinc.init ()))
+    if GobConfig.get_bool "ana.arinc.export" then output_file ~filename:Fpath.(to_string @@ Goblintutil.create_dir (v "result") / "arinc.os.pml") ~text:(snd (Pml_arinc.init ()))
 
   let finalize () = (* writes out collected cfg *)
     (* TODO call Pml_arinc.init again with the right number of resources to find out of bounds accesses? *)
     if GobConfig.get_bool "ana.arinc.export" then (
-      let path = Goblintutil.create_dir "result" ^ "/arinc.pml" in (* returns abs. path *)
-      output_file ~filename:path ~text:(codegen ());
-      print_endline @@ "Model saved as " ^ path;
+      let path = Fpath.(Goblintutil.create_dir (v "result") / "arinc.pml") in (* returns abs. path *)
+      output_file ~filename:(Fpath.to_string path) ~text:(codegen ());
+      print_endline @@ "Model saved as " ^ (Fpath.to_string path);
       print_endline "Run ./spin/check.sh to verify."
     )
 

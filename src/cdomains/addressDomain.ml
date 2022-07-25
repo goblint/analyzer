@@ -1,7 +1,6 @@
 open Cil
 open Pretty
 open IntOps
-let fast_addr_sets = false (* unknown addresses for fast sets == top, for slow == {?}*)
 
 module GU = Goblintutil
 module M = Messages
@@ -41,7 +40,6 @@ struct
   let unknown_ptr    = singleton Addr.UnknownPtr
   let not_null       = unknown_ptr
   let top_ptr        = of_list Addr.([UnknownPtr; NullPtr])
-  let is_unknown x   = is_element Addr.UnknownPtr x
   let may_be_unknown x = exists (fun e -> e = Addr.UnknownPtr) x
   let is_null x      = is_element Addr.NullPtr x
   let is_not_null x  = for_all (fun e -> e <> Addr.NullPtr) x
@@ -117,6 +115,7 @@ struct
       | false, false -> join x y
   *)
 
+  (* TODO: overrides is_top, but not top? *)
   let is_top a = mem Addr.UnknownPtr a
 
   let merge uop cop x y =
@@ -132,51 +131,4 @@ struct
 
   let meet x y   = merge join meet x y
   let narrow x y = merge (fun x y -> widen x (join x y)) narrow x y
-
-  let invariant c x =
-    let c_exp = Cil.(Lval (BatOption.get c.Invariant.lval)) in
-    let i_opt = fold (fun addr acc_opt ->
-        BatOption.bind acc_opt (fun acc ->
-            match addr with
-            | Addr.UnknownPtr ->
-              None
-            | Addr.Addr (vi, offs) when Addr.Offs.is_definite offs ->
-              let rec offs_to_offset = function
-                | `NoOffset -> NoOffset
-                | `Field (f, offs) -> Field (f, offs_to_offset offs)
-                | `Index (i, offs) ->
-                  (* Addr.Offs.is_definite implies Idx.is_int *)
-                  let i_definite = BatOption.get (Idx.to_int i) in
-                  let i_exp = Cil.(kinteger64 ILongLong (BigIntOps.to_int64 i_definite)) in
-                  Index (i_exp, offs_to_offset offs)
-              in
-              let offset = offs_to_offset offs in
-
-              let i =
-                if not (InvariantCil.var_is_heap vi) then
-                  let addr_exp = AddrOf (Var vi, offset) in (* AddrOf or Lval? *)
-                  Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-                else
-                  Invariant.none
-              in
-              let i_deref =
-                c.Invariant.deref_invariant vi offset (Mem c_exp, NoOffset)
-              in
-
-              Some (Invariant.(acc || (i && i_deref)))
-            | Addr.NullPtr ->
-              let i =
-                let addr_exp = integer 0 in
-                Invariant.of_exp Cil.(BinOp (Eq, c_exp, addr_exp, intType))
-              in
-              Some (Invariant.(acc || i))
-            (* TODO: handle Addr.StrPtr? *)
-            | _ ->
-              None
-          )
-      ) x (Some Invariant.none)
-    in
-    match i_opt with
-    | Some i -> i
-    | None -> Invariant.none
 end

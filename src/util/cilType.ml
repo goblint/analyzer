@@ -16,6 +16,7 @@ module Location:
 sig
   include S with type t = location
   val pp: Format.formatter -> t -> unit (* for Messages *)
+  val of_yojson: Yojson.Safe.t -> (t, string) result
 end =
 struct
   include Std
@@ -60,17 +61,34 @@ struct
         ("file", `String x.file);
         ("line", `Int x.line);
         ("column", `Int x.column);
+        ("byte", `Int x.byte);
       ]
       @
       if x.endByte >= 0 then
         [
           ("endLine", `Int x.endLine);
           ("endColumn", `Int x.endColumn);
+          ("endByte", `Int x.endByte);
         ]
       else
         []
     )
   let pp fmt x = Format.fprintf fmt "%s" (show x) (* for Messages *)
+
+  let of_yojson = function
+    | `Assoc l ->
+      begin match List.assoc_opt "file" l, List.assoc_opt "line" l, List.assoc_opt "column" l, List.assoc_opt "byte" l with
+        | Some (`String file), Some (`Int line), Some (`Int column), Some (`Int byte) ->
+          let loc = {file; line; column; byte; endLine = -1; endColumn = -1; endByte = -1; synthetic = false} in
+          begin match List.assoc_opt "endLine" l, List.assoc_opt "endColumn" l, List.assoc_opt "endByte" l with
+            | Some (`Int endLine), Some (`Int endColumn), Some (`Int endByte) ->
+              Result.Ok {loc with endLine; endColumn; endByte}
+            | _, _, _ ->
+              Result.Ok loc
+          end
+        | _, _, _, _ -> Result.Error "CilType.Location.of_yojson"
+      end
+    | _ -> Result.Error "CilType.Location.of_yojson"
 end
 
 module Varinfo:
@@ -148,7 +166,11 @@ struct
     )
 end
 
-module Typ: S with type t = typ =
+module Typ:
+sig
+  include S with type t = typ
+  val pp: Format.formatter -> t -> unit (* for deriving show *)
+end =
 struct
   include Std
 
@@ -170,6 +192,8 @@ struct
       let pretty = pretty
     end
     )
+
+  let pp fmt x = Format.fprintf fmt "%s" (show x) (* for deriving show *)
 end
 
 module Compinfo: S with type t = compinfo =
