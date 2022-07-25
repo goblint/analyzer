@@ -14,7 +14,24 @@ struct
 
   let name () = "access"
 
-  module D = Lattice.Unit
+  module EventAccess =
+  struct
+    include Printable.Std
+    type t = Events.access [@@deriving eq, ord, hash]
+    let name () = "eventaccess"
+
+    let pretty () ({var_opt; kind}: t) =
+      dprintf "{var_opt=%a, kind=%a}" (docOpt (CilType.Varinfo.pretty ())) var_opt AccessKind.pretty kind
+
+    include Printable.SimplePretty (
+      struct
+        type nonrec t = t
+        let pretty = pretty
+      end
+      )
+  end
+
+  module D = SetDomain.Make (EventAccess)
   module C = Lattice.Unit
 
   module G =
@@ -121,9 +138,10 @@ struct
     if M.tracing then M.traceu "access" "access_one_top %a %b %a\n" AccessKind.pretty kind reach d_exp exp
 
   (** We just lift start state, global and dependency functions: *)
-  let startstate v = ()
-  let threadenter ctx lval f args = [()]
-  let exitstate  v = ()
+  let startstate v = D.empty ()
+  let threadenter ctx lval f args = [D.empty ()]
+  let exitstate  v = D.empty ()
+  let context fd d = ()
 
 
   (** Transfer functions: *)
@@ -218,6 +236,16 @@ struct
       let accs = ctx.global g in
       Stats.time "access" (Access.warn_global safe vulnerable unsafe g) accs
     | _ -> Queries.Result.top q
+
+  let sync reason ctx: D.t =
+    D.empty ()
+
+  let event ctx e octx =
+    match e with
+    | Events.Access access ->
+      D.add access ctx.local
+    | _ ->
+      ctx.local
 
   let finalize () =
     let total = !safe + !unsafe + !vulnerable in
