@@ -1,0 +1,14 @@
+--- tests/incremental/04-var-rename/08-2_incremental_runs_1.c
++++ tests/incremental/04-var-rename/08-2_incremental_runs_1.c
+@@ -1,8 +1,8 @@
+ int main() {
+-    int varSecondIteration = 0;
++    int varThirdIteration = 0;
+     
+-    varSecondIteration++;
++    varThirdIteration++;
+     
+-    assert(varSecondIteration < 10);
++    assert(varThirdIteration < 10);
+     return 0;
+ }

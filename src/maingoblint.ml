@@ -36,6 +36,7 @@ let print_help ch =
   fprintf ch " are used instead of double-quotes (\").\n\n";
   fprintf ch "A <jpath> is a path in a json structure. E.g. 'field.another_field[42]';\n";
   fprintf ch "in addition to the normal syntax you can use 'field[+]' append to an array.\n\n";
+  fprintf ch "Some common configurations to start from can be found in conf/examples/*\n";
   exit 0
 
 (** [Arg] option specification *)
@@ -51,7 +52,6 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
       set_string "outfile" "result";
     if get_string "exp.g2html_path" = "" then
       set_string "exp.g2html_path" (Fpath.to_string exe_dir);
-    set_bool "dbg.print_dead_code" true;
     set_bool "exp.cfgdot" true;
     set_bool "g2html" true;
     set_string "result" "fast_xml"
@@ -59,7 +59,6 @@ let rec option_spec_list: Arg_complete.speclist Lazy.t = lazy (
   let configure_sarif () =
     if (get_string "outfile" = "") then
       set_string "outfile" "goblint.sarif";
-    set_bool "dbg.print_dead_code" true;
     set_string "result" "sarif"
   in
   let complete_option_value option s =
@@ -417,7 +416,7 @@ let do_analyze change_info merged_AST =
         with e ->
           let backtrace = Printexc.get_raw_backtrace () in (* capture backtrace immediately, otherwise the following loses it (internal exception usage without raise_notrace?) *)
           let loc = !Tracing.current_loc in
-          Messages.error ~loc "About to crash!"; (* TODO: move severity coloring to Messages *)
+          Messages.error ~category:Analyzer ~loc "About to crash!"; (* TODO: move severity coloring to Messages *)
           (* trigger Generic.SolverStats...print_stats *)
           Goblintutil.(self_signal (signal_of_string (get_string "dbg.solver-signal")));
           do_stats ();

@@ -691,6 +691,32 @@
               "type": "string",
               "enum": ["none", "mutex-oplus", "mutex-meet", "protection", "protection-read", "mine", "mine-nothread", "mine-W", "mine-W-noinit", "lock", "write", "write+lock"],
               "default": "protection-read"
+            },
+            "invariant": {
+              "title": "ana.base.invariant",
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "title": "ana.base.invariant.enabled",
+                  "description": "Generate base analysis invariants",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
+            },
+            "eval": {
+              "title": "ana.base.eval",
+              "type": "object",
+              "properties": {
+                "deep-query": {
+                  "title": "ana.base.eval.deep-query",
+                  "description": "Perform EvalInt queries on all subexpressions, not just the outermost expression.",
+                  "type": "boolean",
+                  "default": true
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
@@ -782,6 +808,24 @@
                   "description": "Generate invariants with only one variable",
                   "type": "boolean",
                   "default": false
+                },
+                "local": {
+                  "title": "ana.apron.invariant.local",
+                  "description": "Keep local variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "global": {
+                  "title": "ana.apron.invariant.global",
+                  "description": "Keep global variables in invariants",
+                  "type": "boolean",
+                  "default": true
+                },
+                "diff-box": {
+                  "title": "ana.apron.invariant.diff-box",
+                  "description": "Only generate truly relational invariants by subtracting non-relational box invariants",
+                  "type": "boolean",
+                  "default": false
                 }
               },
               "additionalProperties": false
@@ -832,6 +876,31 @@
             "free": {
               "title": "ana.race.free",
               "description": "Consider memory free as racing write.",
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "dead-code" : {
+          "title": "ana.dead-code",
+          "type": "object",
+          "properties": {
+            "lines": {
+              "title": "ana.dead-code.lines",
+              "description": "Print information about lines of dead code.",
+              "type": "boolean",
+              "default": true
+            },
+            "branches": {
+              "title": "ana.dead-code.branches",
+              "description": "Print information about dead branches.",
+              "type": "boolean",
+              "default": true
+            },
+            "functions": {
+              "title": "ana.dead-code.functions",
+              "description": "Print information about dead (uncalled) functions.",
               "type": "boolean",
               "default": true
             }
@@ -1329,12 +1398,6 @@
           },
           "additionalProperties": false
         },
-        "uncalled": {
-          "title": "dbg.uncalled",
-          "description": "Display uncalled functions.",
-          "type": "boolean",
-          "default": true
-        },
         "dump": {
           "title": "dbg.dump",
           "description": "Dumps the results to the given path",
@@ -1386,12 +1449,6 @@
           "title": "dbg.print_wpoints",
           "description":
             "Print the widening points after solving (does not include the removed wpoints during solving by the slr solvers). Currently only implemented in: slr*, td3.",
-          "type": "boolean",
-          "default": false
-        },
-        "print_dead_code": {
-          "title": "dbg.print_dead_code",
-          "description": "Print information about dead code",
           "type": "boolean",
           "default": false
         },

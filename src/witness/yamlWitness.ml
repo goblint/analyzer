@@ -190,23 +190,33 @@ struct
       | _ -> false
     in
 
-    let node_context (n: Node.t) : Invariant.context =
-      {
-        scope=Node.find_fundec n;
-        i = -1;
-        lval=None;
-        offset=Cil.NoOffset;
-        deref_invariant=(fun _ _ _ -> Invariant.none) (* TODO: should throw instead? *)
-      }
+    (* Generate location invariants (wihtout precondition) *)
+    let ask_local_node (n: Node.t) local =
+      (* build a ctx for using the query system *)
+      let rec ctx =
+        { ask    = (fun (type a) (q: a Queries.t) -> Spec.query ctx q)
+        ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
+        ; node   = n
+        ; prev_node = MyCFG.dummy_node
+        ; control_context = Obj.repr (fun () -> ctx_failwith "No context in witness context.")
+        ; context = (fun () -> ctx_failwith "No context in witness context.")
+        ; edge    = MyCFG.Skip
+        ; local  = local
+        ; global = (fun v -> try GHT.find gh v with Not_found -> Spec.G.bot ()) (* TODO: how can be missing? *)
+        ; presub = (fun _ -> raise Not_found)
+        ; spawn  = (fun v d    -> failwith "Cannot \"spawn\" in witness context.")
+        ; split  = (fun d es   -> failwith "Cannot \"split\" in witness context.")
+        ; sideg  = (fun v g    -> failwith "Cannot \"sideg\" in witness context.")
+        }
+      in
+      Spec.query ctx
     in
 
-    (* Generate location invariants (wihtout precondition) *)
     let entries = NH.fold (fun n local acc ->
         let loc = Node.location n in
         if is_invariant_node n then begin
-          let context = node_context n in
-          begin match Spec.D.invariant context local with
-            | Some inv ->
+          begin match ask_local_node n local (Invariant Invariant.default_context) with
+            | `Lifted inv ->
               let invs = WitnessUtil.InvariantExp.process_exp inv in
               List.fold_left (fun acc inv ->
                   let location_function = (Node.find_fundec n).svar.vname in
@@ -215,7 +225,7 @@ struct
                   let entry = Entry.loop_invariant ~task ~location ~invariant in
                   entry :: acc
                 ) acc invs
-            | None ->
+            | `Bot | `Top -> (* TODO: 0 for bot? *)
               acc
           end
         end else begin
@@ -237,8 +247,7 @@ struct
     LHT.iter (fun (n, c) local ->
         begin match n with
           | FunctionEntry f ->
-            let context = node_context n in
-            let invariant = Spec.D.invariant context local in
+            let invariant = ask_local_node n local (Invariant Invariant.default_context) in
             FMap.modify_def [] f (fun acc -> {context = c; invariant; node = n; state = local}::acc) fun_contexts
           | _ -> ()
         end
@@ -251,7 +260,7 @@ struct
             (* Collect all start states that may satisfy the invariant of current_c *)
             List.iter (fun c ->
                 begin match current_c.invariant with
-                  | Some c_inv ->
+                  | `Lifted c_inv ->
                     let x = ask_local (c.node, c.context) c.state (Queries.EvalInt c_inv) in
                     if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                       failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
@@ -260,7 +269,7 @@ struct
                       (* Insert c into the list of weaker contexts of f *)
                       FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
                     end
-                  | None ->
+                  | `Bot | `Top ->
                     (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
                     ()
                 end
@@ -278,9 +287,12 @@ struct
     (* 3. Generate precondition invariants *)
     let entries = LHT.fold (fun (n, c) local acc ->
         if is_invariant_node n then begin
-          let context = node_context n in
-          begin match Spec.C.invariant context c with
-            | Some c_inv ->
+          let fundec = Node.find_fundec n in
+          let pre_node = Node.FunctionEntry fundec in
+          let pre_local = LHT.find lh (pre_node, c) in
+          let query = Queries.Invariant Invariant.default_context in
+          begin match ask_local_node pre_node pre_local query with
+            | `Lifted c_inv ->
               let loc = Node.location n in
               (* Find unknowns for which the preceding start state satisfies the precondtion *)
               let xs = find_matching_states (n, c) in
@@ -288,9 +300,9 @@ struct
               (* Generate invariants. Give up in case one invariant could not be generated. *)
               let invs = GobList.fold_while_some
                   (fun acc local ->
-                     match Spec.D.invariant context local with
-                     | Some c -> Some ((Some c)::acc)
-                     | _ -> None)
+                     match ask_local_node n local (Invariant Invariant.default_context) with
+                     | `Lifted c -> Some ((`Lifted c)::acc)
+                     | `Bot | `Top -> None)
                   [] xs
               in
               begin match invs with
@@ -298,7 +310,7 @@ struct
                 | Some [] -> acc
                 | Some (x::xs) ->
                   begin match List.fold_left (fun acc inv -> Invariant.(acc || inv)) x xs with
-                    | Some inv ->
+                    | `Lifted inv ->
                       let invs = WitnessUtil.InvariantExp.process_exp inv in
                       let c_inv = InvariantCil.exp_replace_original_name c_inv in (* cannot be split *)
                       List.fold_left (fun acc inv ->
@@ -309,7 +321,7 @@ struct
                           let entry = Entry.precondition_loop_invariant ~task ~location ~precondition ~invariant in
                           entry :: acc
                         ) acc invs
-                    | None -> acc
+                    | `Bot | `Top -> acc
                   end
               end
             | _ -> (* Do not construct precondition invariants if we cannot express precondition *)

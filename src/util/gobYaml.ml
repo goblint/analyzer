@@ -18,17 +18,9 @@ let rec list_map (f: 'a -> ('b, 'e) result) (l: 'a list): ('b list, 'e) result =
     y :: ys
 
 let find s y =
-  (* let* y' = Yaml.Util.find s y in
-  match y' with
-  | Some y'' -> Ok y''
-  | None -> Error (`Msg ("find " ^ s)) *)
   match Yaml.Util.find s y with
-  | Ok y' ->
-    begin
-      match y' with
-      | Some y'' -> Ok y''
-      | None -> Error (`Msg ("find " ^ s))
-    end
+  | Ok (Some y'') -> Ok y''
+  | Ok None -> Error (`Msg ("find " ^ s))
   | Error `Msg e ->
     Error (`Msg ("find " ^ s ^ ": " ^ e))
 
