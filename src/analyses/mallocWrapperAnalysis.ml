@@ -94,8 +94,8 @@ struct
 
   let special (ctx: (D.t, G.t, C.t, V.t) ctx) (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
-    match desc.special arglist, f.vname with
-    | Malloc _, _ | Calloc _, _ | Realloc _, _ ->
+    match desc.special arglist with
+    | Malloc _ | Calloc _ | Realloc _ ->
       let counter, wrapper_node = ctx.local in
       (MallocCounter.add_malloc counter ctx.prev_node, wrapper_node)
     | _ -> ctx.local
