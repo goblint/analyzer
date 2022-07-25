@@ -393,11 +393,8 @@ module Size = struct (* size in bits as int, range as int64 *)
   open Cil open Big_int_Z
   let sign x = if BI.compare x BI.zero < 0 then `Signed else `Unsigned
 
-  let max = function
-    | `Signed -> ILongLong
-    | `Unsigned -> IULongLong
   let top_typ = TInt (ILongLong, [])
-  let min_for x = intKindForValue (fst (truncateCilint (max (sign x)) x)) (sign x = `Unsigned)
+  let min_for x = intKindForValue x (sign x = `Unsigned)
   let bit = function (* bits needed for representation *)
     | IBool -> 1
     | ik -> bytesSizeOfInt ik * 8
@@ -2805,7 +2802,7 @@ module IntDomTupleImpl = struct
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
-      if n>1 then Messages.warn "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort, but we need some unsound category *)
+      if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
       None
     )
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_int }

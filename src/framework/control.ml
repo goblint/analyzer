@@ -23,7 +23,7 @@ let spec_module: (module Spec) Lazy.t = lazy (
             |> lift (get_bool "ana.sv-comp.enabled") (module HashconsLifter)
             |> lift (get_bool "ana.sv-comp.enabled") (module WitnessConstraints.PathSensitive3)
             |> lift (not (get_bool "ana.sv-comp.enabled")) (module PathSensitive2)
-            |> lift (get_bool "dbg.print_dead_code") (module DeadBranchLifter)
+            |> lift (get_bool "ana.dead-code.branches") (module DeadBranchLifter)
             |> lift true (module DeadCodeLifter)
             |> lift (get_bool "dbg.slice.on") (module LevelSliceLifter)
             |> lift (get_int "dbg.limit.widen" > 0) (module LimitLifter)
@@ -82,7 +82,7 @@ struct
     let dead_locations : unit Deadcode.Locmap.t = Deadcode.Locmap.create 10 in
     let module NH = Hashtbl.Make (Node) in
     let live_nodes : unit NH.t = NH.create 10 in
-    let count = ref 0 in (* Is only populated if "dbg.print_dead_code" is true *)
+    let count = ref 0 in (* Is only populated if "ana.dead-code.lines" or "ana.dead-code.branches" is true *)
     let module StringMap = BatMap.Make (String) in
     let open BatPrintf in
     let live_lines = ref StringMap.empty in
@@ -149,9 +149,9 @@ struct
       M.msg_group Warning ~category:Deadcode "Function '%s' has dead code" f msgs
     in
     let warn_file f = StringMap.iter (warn_func f) in
-    if get_bool "dbg.print_dead_code" then (
+    if get_bool "ana.dead-code.lines" then (
       if StringMap.is_empty !dead_lines
-      then printf "No lines with dead code found by solver (there might still be dead code removed by CIL).\n" (* TODO https://github.com/goblint/analyzer/issues/94 *)
+      then printf "No lines with dead code found by solver.\n"
       else (
         StringMap.iter warn_file !dead_lines; (* populates count by side-effect *)
         let total_dead = !count + uncalled_fn_loc in
@@ -160,13 +160,14 @@ struct
       printf "Total lines (logical LoC): %d\n" (live_count + !count + uncalled_fn_loc); (* We can only give total LoC if we counted dead code *)
     );
     let str = function true -> "then" | false -> "else" in
+    let cilinserted = function true -> "(possibly inserted by CIL) " | false -> "" in
     let report tv (loc, dead) =
       match dead, Deadcode.Locmap.find_option Deadcode.dead_branches_cond loc with
-      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch over expression '%a' is dead" (str tv) d_exp exp
-      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch is dead" (str tv)
+      | true, Some exp -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "the %s branch %sover expression '%a' is dead" (str tv) (cilinserted loc.synthetic) d_exp exp
+      | true, None     -> M.warn ~loc ~category:Deadcode ~tags:[CWE (if tv then 570 else 571)] "an %s branch %sis dead" (str tv)  (cilinserted loc.synthetic)
       | _ -> ()
     in
-    if get_bool "dbg.print_dead_code" then (
+    if get_bool "ana.dead-code.branches" then (
       let by_fst (a,_) (b,_) = Stdlib.compare a b in
       Deadcode.Locmap.to_list Deadcode.dead_branches_then |> List.sort by_fst |> List.iter (report true) ;
       Deadcode.Locmap.to_list Deadcode.dead_branches_else |> List.sort by_fst |> List.iter (report false) ;
@@ -197,7 +198,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.warn "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
+          Messages.warn ~category:Analyzer "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
     in
     LHT.iter add_local_var h;
     res
@@ -549,7 +550,7 @@ struct
         | GFun (fn, loc) when is_bad_uncalled fn.svar loc->
             let cnt = Cilfacade.countLoc fn in
             uncalled_dead := !uncalled_dead + cnt;
-            if get_bool "dbg.uncalled" then
+            if get_bool "ana.dead-code.functions" then
               M.warn ~loc ~category:Deadcode "Function \"%a\" will never be called: %dLoC" CilType.Fundec.pretty fn cnt
         | _ -> ()
       in
@@ -624,7 +625,7 @@ struct
     let local_xml = solver2source_result lh in
 
     let liveness =
-      if get_bool "dbg.print_dead_code" then
+      if get_bool "ana.dead-code.lines" || get_bool "ana.dead-code.branches" then
         print_dead_code local_xml !uncalled_dead
       else
         fun _ -> true (* TODO: warn about conflicting options *)

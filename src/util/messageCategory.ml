@@ -11,6 +11,7 @@ type undefined_behavior =
   | ArrayOutOfBounds of array_oob
   | NullPointerDereference
   | UseAfterFree
+  | Uninitialized
 [@@deriving eq, ord, hash]
 
 type behavior =
@@ -37,6 +38,7 @@ type category =
   | Unsound
   | Imprecise
   | Witness
+  | Program
 [@@deriving eq, ord, hash]
 
 type t = category [@@deriving eq, ord, hash]
@@ -58,6 +60,7 @@ struct
     let array_out_of_bounds e: category = create @@ ArrayOutOfBounds e
     let nullpointer_dereference: category = create @@ NullPointerDereference
     let use_after_free: category = create @@ UseAfterFree
+    let uninitialized: category = create @@ Uninitialized
 
     module ArrayOutOfBounds =
     struct
@@ -91,6 +94,7 @@ struct
         | "array_out_of_bounds" -> ArrayOutOfBounds.from_string_list t
         | "nullpointer_dereference" -> nullpointer_dereference
         | "use_after_free" -> use_after_free
+        | "uninitialized" -> uninitialized
         | _ -> Unknown
 
     let path_show (e: t) =
@@ -98,6 +102,7 @@ struct
       | ArrayOutOfBounds e -> "ArrayOutOfBounds" :: ArrayOutOfBounds.path_show e
       | NullPointerDereference -> ["NullPointerDereference"]
       | UseAfterFree -> ["UseAfterFree"]
+      | Uninitialized -> ["Uninitialized"]
   end
 
   let from_string_list (s: string list): category =
@@ -173,6 +178,7 @@ let should_warn e =
     | Unsound -> "unsound"
     | Imprecise -> "imprecise"
     | Witness -> "witness"
+    | Program -> "program"
   in get_bool ("warn." ^ (to_string e))
 
 let path_show e =
@@ -190,6 +196,7 @@ let path_show e =
   | Unsound -> ["Unsound"]
   | Imprecise -> ["Imprecise"]
   | Witness -> ["Witness"]
+  | Program -> ["Program"]
 
 let show x = String.concat " > " (path_show x)
 
@@ -199,6 +206,7 @@ let behaviorName = function
   |Undefined u -> match u with
     |NullPointerDereference -> "NullPointerDereference"
     |UseAfterFree -> "UseAfterFree"
+    |Uninitialized -> "Uninitialized"
     | ArrayOutOfBounds aob -> match aob with
       | PastEnd -> "PastEnd"
       | BeforeStart -> "BeforeStart"
@@ -215,6 +223,7 @@ let categoryName = function
   | Unsound -> "Unsound"
   | Imprecise -> "Imprecise"
   | Witness -> "Witness"
+  | Program -> "Program"
 
   | Behavior x -> behaviorName x
   | Integer x -> (match x with

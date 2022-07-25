@@ -1,0 +1,10 @@
+--- tests/incremental/04-var-rename/06-renamed_param_usage_changed.c
++++ tests/incremental/04-var-rename/06-renamed_param_usage_changed.c
+@@ -1,6 +1,6 @@
+ //This test should mark foo and main as changed
+ 
+-void foo(int a, int b) {
++void foo(int b, int a) {
+     int x = a;
+     int y = b;
+ }
