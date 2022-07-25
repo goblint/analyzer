@@ -48,7 +48,7 @@ class extractInvariantsVisitor (exps) = object
              DoChildren
          end *)
       begin match f.vname, args with
-        | "assert", [e] ->
+        | "__goblint_assert", [e] ->
           EH.replace exps e ();
           DoChildren
         | _, _ ->
