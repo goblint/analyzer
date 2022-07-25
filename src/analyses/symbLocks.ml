@@ -85,7 +85,7 @@ struct
     | Unlock _, _ ->
       D.remove (Analyses.ask_of_ctx ctx) (List.hd arglist) ctx.local
     | Unknown, fn when VarEq.safe_fn fn ->
-      Messages.warn "Assume that %s does not change lockset." fn;
+      Messages.info ~category:Unsound "Analyzer assuming that %s does not change lockset." fn;
       ctx.local
     | _, _ ->
       let st =
@@ -153,7 +153,7 @@ struct
         let lock = ILock.from_var_offset (v, o) in
         A.add (`Right lock) xs
       | _ ->
-        Messages.warn "Internal error: found a strange lockstep pattern.";
+        Messages.info ~category:Unsound "Internal error: found a strange lockstep pattern.";
         xs
     in
     let do_perel e xs =
