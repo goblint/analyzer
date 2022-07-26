@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <assert.h>
 
 int main() {
   int *r; // rand

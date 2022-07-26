@@ -1,4 +1,5 @@
 // PARAM: --set otherfun "['f']" --enable exp.earlyglobs
+#include <assert.h>
 
 int glob;
 

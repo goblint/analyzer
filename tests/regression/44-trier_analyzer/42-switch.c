@@ -1,3 +1,5 @@
+#include <assert.h>
+
 extern int printf();
 extern int scanf();
 int g;

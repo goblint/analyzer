@@ -15,7 +15,6 @@ let c_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("realloc", special [__ "ptr" [r; f]; __ "size" []] @@ fun ptr size -> Realloc { ptr; size });
     ("abort", special [] Abort);
     ("exit", special [drop "exit_code" []] Abort);
-    ("assert", special [__ "cond" []] @@ fun cond -> Assert cond);
   ]
 
 (** C POSIX library functions.
@@ -49,7 +48,7 @@ let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_unknown", unknown [drop' [w]]);
     ("__goblint_check", unknown [drop' []]);
     ("__goblint_commit", unknown [drop' []]);
-    ("__goblint_assert", unknown [drop' []]);
+    ("__goblint_assert", special [__ "cond" []] @@ fun cond -> Assert cond);
   ]
 
 (** zstd functions.
@@ -573,10 +572,6 @@ let get_invalidate_action name =
 let lib_funs = ref (Set.String.of_list ["__raw_read_unlock"; "__raw_write_unlock"; "spin_trylock"])
 let add_lib_funs funs = lib_funs := List.fold_right Set.String.add funs !lib_funs
 let use_special fn_name = Set.String.mem fn_name !lib_funs
-
-let effects: (string -> Cil.exp list -> (Cil.lval * ValueDomain.Compound.t) list option) list ref = ref []
-let add_effects f = effects := f :: !effects
-let effects_for fname args = List.filter_map (fun f -> f fname args) !effects
 
 let kernel_safe_uncalled = Set.String.of_list ["__inittest"; "init_module"; "__exittest"; "cleanup_module"]
 let kernel_safe_uncalled_regex = List.map Str.regexp ["__check_.*"]

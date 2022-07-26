@@ -1,4 +1,6 @@
 // PARAM: --set solver td3 --enable ana.int.interval --set exp.unrolling-factor 5
+#include <assert.h>
+
 int global;
 
 int main(void)
@@ -76,13 +78,13 @@ void example4(void)
         a[i] = 0;
         i++;
     }
-    
+
     assert(a[0] == 0);
     assert(first_iteration == 0);
 }
 
 
-// Example where the precision increase can be appreciated by a variable that 
+// Example where the precision increase can be appreciated by a variable that
 // is modified in the loop other than the ones used in the loop head
 void example5(void)
 {

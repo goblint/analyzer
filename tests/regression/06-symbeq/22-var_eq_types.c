@@ -1,5 +1,6 @@
 // PARAM: --disable ana.mutex.disjoint_types --set ana.activated[+] "'var_eq'"
 #include <stdio.h>
+#include <assert.h>
 
 extern short * anShortPlease();
 extern int * anIntPlease();

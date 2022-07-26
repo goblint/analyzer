@@ -1,5 +1,5 @@
 //PARAM: --enable ana.int.interval --enable ana.int.enums --ana.base.privatization "write" -v
-
+#include <assert.h>
 #include<pthread.h>
 
 // Test case that shows how avoiding reading integral globals can reduce the number of solver evaluations.

@@ -51,7 +51,7 @@ struct
 
   let init marshal =
     LibraryFunctions.add_lib_funs Functions.special;
-    LibraryFunctions.add_effects Functions.effects
+    LibraryFunctionEffects.add_effects Functions.effects
 
   (* ARINC types and Hashtables for collecting CFG *)
   type id = varinfo

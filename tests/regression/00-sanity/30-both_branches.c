@@ -1,4 +1,6 @@
 // PARAM: --set ana.base.privatization none --enable exp.earlyglobs --disable exp.fast_global_inits
+#include <assert.h>
+
 union bloirg {
    int iValdue ;
 };

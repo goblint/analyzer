@@ -1,4 +1,5 @@
 #include<limits.h>
+#include <assert.h>
 
 int main(void) {
     int x = INT_MAX + 1;

@@ -1,4 +1,6 @@
 // PARAM: --sets ana.activated[+] "var_eq"
+#include <assert.h>
+
 int rec(int i,int* ptr) {
     int top;
     int x = 17;

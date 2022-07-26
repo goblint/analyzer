@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.def_exc --enable ana.int.interval
+#include <assert.h>
+
 int main(void) {
     int i = 1;
     int v = 8;

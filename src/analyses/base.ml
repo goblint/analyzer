@@ -2467,10 +2467,10 @@ struct
       end
     (* Handling the assertions *)
     | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
+    (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
     | Unknown, "__goblint_check" -> assert_fn ctx (List.hd args) true false
     | Unknown, "__goblint_commit" -> assert_fn ctx (List.hd args) false true
-    | Unknown, "__goblint_assert" -> assert_fn ctx (List.hd args) true true
-    | Assert e, _ -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug"))
+    | Assert e, _ -> assert_fn ctx e (get_bool "dbg.debug") (not (get_bool "dbg.debug")) (* __goblint_assert previously had [true true] and Assert should too, but cannot until #278 *)
     | _, _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args
@@ -2484,7 +2484,7 @@ struct
         (* invalidate lhs in case of assign *)
         let st = invalidate_ret_lv st in
         (* apply all registered abstract effects from other analysis on the base value domain *)
-        LF.effects_for f.vname args
+        LibraryFunctionEffects.effects_for f.vname args
         |> List.map (fun sets ->
             List.fold_left (fun acc (lv, x) ->
                 set ~ctx (Analyses.ask_of_ctx ctx) ctx.global acc (eval_lv (Analyses.ask_of_ctx ctx) ctx.global acc lv) (Cilfacade.typeOfLval lv) x
