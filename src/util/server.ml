@@ -252,10 +252,9 @@ let () =
     type params = { fname: string }  [@@deriving of_yojson]
     type response = { cfg : string } [@@deriving to_yojson]
     let process { fname } serv = 
-      let (module CFG) = Control.compute_cfg serv.file in 
       let fundec = Cilfacade.find_name_fundec fname in
       let live _ = true in (* TODO: fix this *)
-      let cfg = CfgTools.sprint_fundec_html_dot (module CFG) live fundec in
+      let cfg = CfgTools.sprint_fundec_html_dot !MyCFG.current_cfg live fundec in
       { cfg }
       (* TODO: also filter and include states info (as json) in the response for the requested function *)
   end);
