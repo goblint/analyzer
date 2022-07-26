@@ -2022,7 +2022,7 @@ struct
          | `Int c -> update_lval c x (match t with
              | TPtr _ -> `Address (AD.of_int (module ID) c)
              | TInt (ik, _)
-             | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c )
+             | TEnum ({ekind = ik; _}, _) -> `Int (ID.cast_to ik c)
              | TFloat (fk, _) -> `Float (FD.of_int fk c)
              | _ -> `Int c) ID.pretty
          | `Float c -> update_lval c x (match t with
