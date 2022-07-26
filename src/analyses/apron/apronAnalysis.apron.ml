@@ -178,6 +178,7 @@ struct
   (* Basic transfer functions. *)
 
   let assign ctx (lv:lval) e =
+    ctx.emit Unassume;
     let st = ctx.local in
     if !GU.global_initialization && e = MyCFG.unknown_exp then
       st (* ignore extern inits because there's no body before assign, so the apron env is empty... *)
@@ -542,11 +543,29 @@ struct
       Priv.enter_multithreaded (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
+    | Events.Unassume ->
+      let apr = match ctx.node with
+      | Statement {sid=82; _} ->
+        let fd = Node.find_fundec ctx.node in
+        ignore (Pretty.printf "@@82: %a\n" D.pretty ctx.local);
+        let a = AD.bot () in
+        let ax = Var.of_string "i#1623" in
+        let a = AD.add_vars a [ax] in
+        let x = ApronDomain.V.to_cil_varinfo fd ax |> Option.get in
+        let a = AD.assert_inv a Cil.(BinOp (LAnd, BinOp (Ge, Lval (var x), integer 0, intType), BinOp (Le, Lval (var x), integer 100, intType), intType)) false in
+        ignore (Pretty.printf "%a\n" AD.pretty a);
+        let a' = AD.join ctx.local.apr a in
+        ignore (Pretty.printf "%a\n" AD.pretty a');
+        a'
+      | _ ->
+        ctx.local.apr
+      in
+      {ctx.local with apr}
     | _ ->
       st
 
   let sync ctx reason =
-    let apr = match ctx.node with
+    (* let apr = match ctx.node with
       | Statement {sid=82; _} ->
         let fd = Node.find_fundec ctx.node in
         ignore (Pretty.printf "@@82: %a\n" D.pretty ctx.local);
@@ -561,7 +580,9 @@ struct
         a'
       | _ ->
         ctx.local.apr
-    in
+    in *)
+    let apr = ctx.local.apr in
+    (* ctx.emit Unassume; *)
 
     (* After the solver is finished, store the results (for later comparison) *)
     if !GU.postsolving then begin
