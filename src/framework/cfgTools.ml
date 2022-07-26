@@ -570,7 +570,9 @@ let fprint_hash_dot cfg  =
   in
   let out = open_out "cfg.dot" in
   let iter_edges f = H.iter (fun n es -> List.iter (f n) es) cfg in
-  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges (Format.formatter_of_out_channel out);
+  let ppf = Format.formatter_of_out_channel out in
+  fprint_dot (module CfgPrinters (NoExtraNodeStyles)) iter_edges ppf;
+  Format.pp_print_flush ppf ();
   close_out out
 
 

@@ -248,7 +248,7 @@ let () =
   end);
 
   register (module struct
-    let name = "cfgs"
+    let name = "cfg"
     type params = { fname: string }  [@@deriving of_yojson]
     type response = { cfg : string } [@@deriving to_yojson]
     let process { fname } serv = 
