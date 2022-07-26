@@ -172,8 +172,8 @@ struct
 
   module NH = BatHashtbl.Make (Node)
   module WitnessInvariant = WitnessUtil.Invariant (File) (Cfg)
-  module FMap = Prelude.Hashtbl.Make (CilType.Fundec)
-  module FCMap = Prelude.Hashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
+  module FMap = BatHashtbl.Make (CilType.Fundec)
+  module FCMap = BatHashtbl.Make (Printable.Prod (CilType.Fundec) (Spec.C))
   module Query = Query (Spec) (EQSys) (GHT)
 
   type con_inv = {node: Node.t; context: Spec.C.t; invariant: Invariant.t; state: Spec.D.t}
