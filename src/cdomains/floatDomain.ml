@@ -9,7 +9,7 @@ module type FloatArith = sig
   type t
 
   val neg : t -> t
-  (** Negating an flaot value: [-x] *)
+  (** Negating an float value: [-x] *)
   val add : t -> t -> t
   (** Addition: [x + y] *)
   val sub : t -> t -> t
