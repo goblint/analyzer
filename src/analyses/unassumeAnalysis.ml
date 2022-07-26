@@ -103,6 +103,14 @@ struct
         | Ok entry -> unassume_entry entry
         | Error (`Msg e) -> M.info_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
+
+  let assign ctx lv e =
+    match NH.find_all invs ctx.node with
+    | x :: xs ->
+      let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
+      ctx.emit (Unassume e)
+    | [] ->
+      ()
 end
 
 let _ =
