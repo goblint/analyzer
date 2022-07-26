@@ -592,3 +592,55 @@ struct
   let pretty_diff () ((x:t),(y:t)): Pretty.doc =
     Pretty.dprintf "%a not leq %a" pretty x pretty y
 end
+
+module TimedPO (B: PO) =
+struct
+  include Printable.TimedPrintable (B)
+
+  let leq_string = time_string "leq"
+  let join_string = time_string "join"
+  let meet_string = time_string "meet"
+  let widen_string = time_string "widen"
+  let narrow_string = time_string "narrow"
+  let pretty_diff_string = time_string "pretty_diff"
+
+  let leq x y =
+    Stats.time leq_string (B.leq x) y
+
+  let join x y =
+    Stats.time join_string (B.join x) y
+
+  let meet x y =
+    Stats.time meet_string (B.meet x) y
+
+  let widen x y =
+    Stats.time widen_string (B.widen x) y
+
+  let narrow x y =
+    Stats.time narrow_string (B.narrow x) y
+
+  let pretty_diff x y =
+    Stats.time pretty_diff_string (B.pretty_diff x) y
+end
+
+module TimedLattice (B: S) : S =
+struct
+  include TimedPO (B)
+
+  let bot_string = time_string "bot"
+  let is_bot_string = time_string "is_bot"
+  let top_string = time_string "top"
+  let is_top_string = time_string "is_top"
+
+  let bot () =
+    Stats.time bot_string B.bot ()
+
+  let is_bot x =
+    Stats.time is_bot_string B.is_bot x
+
+  let top () =
+    Stats.time top_string B.top ()
+
+  let is_top x =
+    Stats.time is_top_string B.is_top x
+end

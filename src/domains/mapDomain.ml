@@ -64,7 +64,7 @@ sig
   val trace_enabled: bool (* Just a global hack for tracing individual variables. *)
 end
 
-module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
+ module PMap (Domain: Groupable) (Range: Lattice.S) : PS with
   type key = Domain.t and
   type value = Range.t =
 struct

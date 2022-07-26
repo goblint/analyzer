@@ -594,3 +594,58 @@ let get_short_list begin_str end_str list =
 
   let str = String.concat separator cut_str_list in
   begin_str ^ str ^ end_str
+
+(* Functor for timing functions of a printable using [Stats.time] *)
+module TimedPrintable (B: S) =
+struct
+  type t = B.t
+  let base_name = B.name ()
+
+  let time_string function_name = Printf.sprintf "%s.%s" base_name function_name
+
+  (* Create strings here such that they only need to be evaluated once per functor application. *)
+  let equal_string = time_string "equal"
+  let hash_string = time_string "hash"
+  let compare_string = time_string "compare"
+  let show_string = time_string "show"
+  let pretty_string = time_string "pretty"
+  let printXML_string = time_string "printXML"
+  let name_string = time_string "name"
+  let to_yojson_string = time_string "to_yojson"
+  let tag_string = time_string "tag"
+  let arbitrary_string = time_string "arbitrary"
+  let relift_string = time_string "relift"
+
+  let equal x y =
+    Stats.time equal_string (B.equal x) y
+
+  let hash x =
+   Stats.time hash_string B.hash x
+
+  let compare x y =
+    Stats.time compare_string (B.compare x) y
+
+  let show x =
+    Stats.time show_string B.show x
+
+  let pretty () x =
+    Stats.time pretty_string (B.pretty ()) x
+
+  let printXml o x =
+    Stats.time printXML_string (B.printXml o) x
+
+  let name () =
+    Stats.time name_string B.name ()
+
+  let to_yojson x =
+    Stats.time to_yojson_string B.to_yojson x
+
+  let tag x =
+    Stats.time tag_string B.tag x
+
+  let arbitrary x =
+    Stats.time arbitrary_string B.arbitrary x
+
+  let relift x =
+    Stats.time relift_string B.relift x
+end
