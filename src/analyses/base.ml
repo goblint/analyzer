@@ -2065,16 +2065,18 @@ struct
       let is_cmp = function
         | BinOp ((Lt | Gt | Le | Ge | Eq | Ne), _, _, t) -> true
         | _ -> false
-      in
-      let itv = (* int abstraction for tv *)
-        (* when using floats without explicit cast, we can actually get a non-integer type *)
-        let ik = try Cilfacade.get_ikind_exp exp with Invalid_argument _ -> IInt in
-        if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
-          ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
-        else
-          ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
-      in
-      inv_exp (`Int itv) exp st
+    in
+        try
+          let ik = Cilfacade.get_ikind_exp exp in
+          let itv = if not tv || is_cmp exp then (* false is 0, but true can be anything that is not 0, except for comparisons which yield 1 *)
+            ID.of_bool ik tv (* this will give 1 for true which is only ok for comparisons *)
+          else
+            ID.of_excl_list ik [BI.zero] (* Lvals, Casts, arithmetic operations etc. should work with true = non_zero *)
+          in
+          inv_exp (`Int itv) exp st
+        with Invalid_argument _ ->
+          inv_exp (`Float (FD.top_of (Cilfacade.get_fkind_exp exp))) exp st
+
 
   let set_savetop ~ctx ?lval_raw ?rval_raw ask (gs:glob_fun) st adr lval_t v : store =
     if M.tracing then M.tracel "set" "savetop %a %a %a\n" AD.pretty adr d_type lval_t VD.pretty v;
