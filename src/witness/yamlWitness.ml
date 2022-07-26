@@ -206,7 +206,9 @@ struct
       let loc = Node.location n in
       match n with
       | Statement _ when not loc.synthetic && WitnessInvariant.is_invariant_node n -> true
-      | _ -> false
+      | _ ->
+        (* avoid FunctionEntry/Function, because their locations are not inside the function where asserts could be inserted *)
+        false
     in
 
     (* Generate location invariants (wihtout precondition) *)
@@ -227,7 +229,6 @@ struct
               acc
           end
         end else begin
-          (* avoid FunctionEntry/Function because their locations are not inside the function where assert could be inserted *)
           acc
         end
       ) nh []
