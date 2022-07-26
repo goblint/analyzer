@@ -322,8 +322,12 @@ struct
       else
         None
     in
+
+    (* Some happen in init, so enable this temporarily (if required by option). *)
+    Goblintutil.should_warn := PostSolverArg.should_warn;
     Spec.init marshal;
     Access.init file;
+    Goblintutil.should_warn := false;
 
     let test_domain (module D: Lattice.S): unit =
       let module DP = DomainProperties.All (D) in
@@ -530,7 +534,7 @@ struct
         compare_with (Selector.choose_solver (get_string "comparesolver"))
       );
 
-      (* Most warnings happen before durin postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
+      (* Most warnings happen before during postsolver, but some happen later (e.g. in finalize), so enable this for the rest (if required by option). *)
       Goblintutil.should_warn := PostSolverArg.should_warn;
 
       let insrt k _ s = match k with
