@@ -14,6 +14,10 @@ let globalElemName elem = match elem with
   | Fundec(f) -> f.svar.vname
   | GlobalVar(v) -> v.vname
 
+let globalElemName2 elem = match elem with
+  | Fundec(f) -> "Fundec(" ^ f.svar.vname ^ ")"
+  | GlobalVar(v) -> "GlobalVar(" ^ v.vname ^ ")"
+
 module GlobalElemForMap = struct
   type t = globalElem
 
@@ -78,6 +82,13 @@ type carryType = {
   reverseMapping: globalElem GlobalElemMap.t;
 }
 
+let emptyCarryType = {
+  statusForOldElem = GlobalElemMap.empty;
+  statusForNowElem = GlobalElemMap.empty;
+  mapping = GlobalElemMap.empty;
+  reverseMapping = GlobalElemMap.empty;
+}
+
 (*Carry type manipulation functions.*)
 
 let registerStatusForOldF f status data =
@@ -136,10 +147,13 @@ let doAllDependenciesMatch (dependencies: functionDependencies)
       let globalElem = getGlobal old in
       let knownMapping = GlobalElemMap.find_opt globalElem data.mapping in
 
+      (*let _ = Printf.printf "Dep: %s -> %s\n" (globalElemName2 globalElem) nowName in*)
+
       (*To avoid inconsitencies, if a function has already been mapped to a function, that mapping is reused again.*)
       match knownMapping with
       | Some(knownElem) ->
         (*This function has already been mapped*)
+        (*let _ = Printf.printf "Already mapped. %s = %s\n" (globalElemName2 knownElem) nowName in*)
         globalElemName knownElem = nowName, data
       | None ->
         let nowElemOption = getNowOption nowName in
@@ -161,11 +175,6 @@ let doAllDependenciesMatch (dependencies: functionDependencies)
 
             let doMatch, function_dependencies, global_var_dependencies, renamesOnSuccess = compare globalElem nowElem in
 
-            (*let _ = Printf.printf "%s <-> %s: %b %b %b\n" (getName old) (globalElemName nowElem) doMatch (StringMap.is_empty function_dependencies) (VarinfoMap.is_empty global_var_dependencies) in
-
-              let _ = Printf.printf "%s\n" (rename_mapping_to_string (StringMap.empty, function_dependencies, global_var_dependencies)) in
-            *)
-
             (*Having a dependency on yourself is ok.*)
             let hasNoExternalDependency = VarinfoMap.is_empty function_dependencies || (
                 VarinfoMap.cardinal function_dependencies = 1 && (
@@ -173,13 +182,19 @@ let doAllDependenciesMatch (dependencies: functionDependencies)
                 )
               ) in
 
+            (*let _ = Printf.printf "%s <-> %s: %b %b %b\n" (globalElemName2 globalElem) (globalElemName2 nowElem) doMatch hasNoExternalDependency (VarinfoMap.is_empty global_var_dependencies) in
+
+              let _ = Printf.printf "%s\n" (rename_mapping_to_string (StringMap.empty, function_dependencies, global_var_dependencies, ([], []))) in*)
+
             if doMatch && hasNoExternalDependency && areGlobalVarRenameAssumptionsEmpty global_var_dependencies then
               let _ = performRenames renamesOnSuccess in
               true, registerMapping globalElem nowElem data
             else false, data
           )
         | None ->
-          false, data
+          (*Printf.printf "No elem with name %s found \n" nowName;*)
+          (*Return true assumes external globs never change. Which is ok for now*)
+          true, data
     else false, data
   in
 
@@ -226,75 +241,62 @@ let assignStatusToUnassignedElem data f registerStatus statusMap mapping status 
   else
     data
 
-let detectRenamedFunctions (oldAST: file) (newAST: file) : output GlobalElemMap.t = begin
-  let oldFunctionMap, oldGVarMap = getFunctionAndGVarMap oldAST in
-  let nowFunctionMap, nowGVarMap = getFunctionAndGVarMap newAST in
+let findSameNameMatchingGVars oldGVarMap nowGVarMap data =
+  StringMap.fold (fun _ (v, _, _) (data: carryType) ->
+      let matchingNowGvar = StringMap.find_opt v.vname nowGVarMap in
+      match matchingNowGvar with
+      | Some (nowGvar, _, _) -> (
+          let identical, _ = eq_varinfo v nowGvar emptyRenameMapping in
 
-  let initialData: carryType = {statusForOldElem = GlobalElemMap.empty;
-                                statusForNowElem = GlobalElemMap.empty;
-                                mapping=GlobalElemMap.empty;
-                                reverseMapping=GlobalElemMap.empty;
-                               } in
+          let oldG, nowG = GlobalVar v, GlobalVar nowGvar in
 
-  (*Go through all functions, for all that have not been renamed *)
-  let finalData =
-    StringMap.fold (fun _ (f, _) (data: carryType) ->
-        let matchingNewFundec = StringMap.find_opt f.svar.vname nowFunctionMap in
-        match matchingNewFundec with
-        | Some (newFun, _) ->
-          (*Compare if they are similar*)
-          let doMatch, unchangedHeader, _, function_dependencies, global_var_dependencies, renamesOnSuccess =
-            CompareGlobals.eqF f newFun None VarinfoMap.empty VarinfoMap.empty in
-
-          (*Before renamesOnSuccess, functions with the same name have always been compared.
-            In this comparison, the renaming on compinfo and enum was always performed, no matter if the comparison
-            was a success or not. This call mimics this behaviour.*)
-          let _ = performRenames renamesOnSuccess in
-
-          let _ = Pretty.printf "%s <-> %s: %b %s\n" f.svar.vname newFun.svar.vname doMatch (rename_mapping_to_string (StringMap.empty, function_dependencies, global_var_dependencies, ([], []))) in
-
-          let _ = Pretty.printf "old locals: %s\n" (String.concat ", " (List.map (fun x -> x.vname) f.slocals)) in
-          let _ = Pretty.printf "now locals: %s\n" (String.concat ", " (List.map (fun x -> x.vname) newFun.slocals)) in
-
-
-          let actDependencies = getDependencies function_dependencies in
-
-          let oldG = Fundec(f) in
-          let nowG = Fundec(newFun) in
-
-
-          if doMatch then
-            let doDependenciesMatch, updatedData = doAllDependenciesMatch actDependencies global_var_dependencies oldFunctionMap nowFunctionMap oldGVarMap nowGVarMap data in
-            if doDependenciesMatch then
-              registerBiStatus oldG nowG (SameName(oldG)) updatedData
-            else
-              registerStatusForOldF oldG (Modified(nowG, unchangedHeader)) data |>
-              registerStatusForNowF nowG (Modified(oldG, unchangedHeader))
+          if identical then
+            registerBiStatus (GlobalVar v) (GlobalVar nowGvar) (SameName (GlobalVar nowGvar)) data
           else
-            registerStatusForOldF oldG (Modified(nowG, unchangedHeader)) data |>
-            registerStatusForNowF nowG (Modified(oldG, unchangedHeader))
-        | None -> data
-      ) oldFunctionMap initialData |>
-    (*At this point we already know of the functions that have changed and stayed the same. We now assign the correct status to all the functions that
-       have been mapped. The functions that have not been mapped are added/removed.*)
-    (*Now go through all old functions again. Those who have not been assigned a status are removed*)
-    StringMap.fold (fun _ (f, _) (data: carryType) ->
-        assignStatusToUnassignedElem data (Fundec(f)) registerStatusForOldF data.statusForOldElem data.mapping Deleted
-      ) oldFunctionMap |>
-    (*now go through all new functions. Those have have not been assigned a mapping are added.*)
-    StringMap.fold (fun _ (nowF, _) (data: carryType) ->
-        assignStatusToUnassignedElem data (Fundec(nowF)) registerStatusForNowF data.statusForNowElem data.reverseMapping Created
-      ) nowFunctionMap |>
-    StringMap.fold (fun _ (v, _, _) data ->
-        assignStatusToUnassignedElem data (GlobalVar(v)) registerStatusForOldF data.statusForOldElem data.mapping Deleted
-      ) oldGVarMap |>
-    StringMap.fold (fun _ (nowV, _, _) (data: carryType) ->
-        assignStatusToUnassignedElem data (GlobalVar(nowV)) registerStatusForNowF data.statusForNowElem data.reverseMapping Created
-      ) nowGVarMap
-  in
+            registerStatusForOldF oldG (Modified(nowG, false)) data |>
+            registerStatusForNowF nowG (Modified(oldG, false))
+        )
+      | None -> data
+    ) oldGVarMap data
 
-  (*Done with the analyis, the following just adjusts the output types.*)
+(*Goes through all old functions and looks for now-functions with the same name. If a pair has been found, onMatch is called with the comparison result.
+   On match then modifies the carryType. Returns (list of the functions that have the same name and match, the updated carry type)*)
+let findSameNameMatchingFunctions
+    oldFunctionMap
+    nowFunctionMap
+    (initialData: 'a)
+    (onMatch: fundec -> fundec -> bool -> bool -> string VarinfoMap.t -> CompareGlobals.glob_var_rename_assumptions -> CompareGlobals.renamesOnSuccess -> 'a -> 'a) : 'a =
+  StringMap.fold (fun _ (f, _) (data: 'a) ->
+      let matchingNewFundec = StringMap.find_opt f.svar.vname nowFunctionMap in
+      match matchingNewFundec with
+      | Some (newFun, _) ->
+        (*Compare if they are similar*)
+        let doMatch, unchangedHeader, _, function_dependencies, global_var_dependencies, renamesOnSuccess = CompareGlobals.eqF f newFun None VarinfoMap.empty VarinfoMap.empty in
 
+        let actDependencies = getDependencies function_dependencies in
+
+        onMatch f newFun doMatch unchangedHeader actDependencies global_var_dependencies renamesOnSuccess data
+      | None -> data
+    ) oldFunctionMap initialData
+
+let fillStatusForUnassignedElems oldFunctionMap nowFunctionMap oldGVarMap nowGVarMap (data: carryType) =
+  data |>
+  (*Now go through all old functions again. Those who have not been assigned a status are removed*)
+  StringMap.fold (fun _ (f, _) (data: carryType) ->
+      assignStatusToUnassignedElem data (Fundec f) registerStatusForOldF data.statusForOldElem data.mapping Deleted
+    ) oldFunctionMap |>
+  (*now go through all new functions. Those have have not been assigned a mapping are added.*)
+  StringMap.fold (fun _ (nowF, _) (data: carryType) ->
+      assignStatusToUnassignedElem data (Fundec nowF) registerStatusForNowF data.statusForNowElem data.reverseMapping Created
+    ) nowFunctionMap |>
+  StringMap.fold (fun _ (v, _, _) data ->
+      assignStatusToUnassignedElem data (GlobalVar(v)) registerStatusForOldF data.statusForOldElem data.mapping Deleted
+    ) oldGVarMap |>
+  StringMap.fold (fun _ (nowV, _, _) (data: carryType) ->
+      assignStatusToUnassignedElem data (GlobalVar(nowV)) registerStatusForNowF data.statusForNowElem data.reverseMapping Created
+    ) nowGVarMap
+
+let mapAnalysisResultToOutput oldFunctionMap nowFunctionMap oldGVarMap nowGVarMap (data: carryType) : output GlobalElemMap.t =
   (*Map back to GFun and exposed function status*)
   let extractOutput funMap invertedFunMap gvarMap invertedGvarMap f (s: status) =
     let getGlobal gT fundecMap gVarMap =
@@ -323,6 +325,47 @@ let detectRenamedFunctions (oldAST: file) (newAST: file) : output GlobalElemMap.
       else if Option.is_some b then b
       else None
     )
-    (GlobalElemMap.mapi (extractOutput oldFunctionMap nowFunctionMap oldGVarMap nowGVarMap) finalData.statusForOldElem)
-    (GlobalElemMap.mapi (extractOutput nowFunctionMap oldFunctionMap nowGVarMap oldGVarMap) finalData.statusForNowElem)
+    (GlobalElemMap.mapi (extractOutput oldFunctionMap nowFunctionMap oldGVarMap nowGVarMap) data.statusForOldElem)
+    (GlobalElemMap.mapi (extractOutput nowFunctionMap oldFunctionMap nowGVarMap oldGVarMap) data.statusForNowElem)
+
+let detectRenamedFunctions (oldAST: file) (newAST: file) : output GlobalElemMap.t = begin
+  let oldFunctionMap, oldGVarMap = getFunctionAndGVarMap oldAST in
+  let nowFunctionMap, nowGVarMap = getFunctionAndGVarMap newAST in
+
+  (*let show x = [%show: (string * string) list] (StringMap.to_seq x |> Seq.map (fun (name, (v, _, _)) -> (name, v.vname)) |> List.of_seq) in
+
+    let _ = Printf.printf "oldGvarMap: %s" (show oldGVarMap) in
+    let _ = Printf.printf "nowGvarMap: %s" (show nowGVarMap) in*)
+
+
+  let initialData: carryType = findSameNameMatchingGVars oldGVarMap nowGVarMap emptyCarryType in
+
+  (*Go through all functions, for all that have not been renamed *)
+  let finalData = findSameNameMatchingFunctions oldFunctionMap nowFunctionMap initialData (fun oldF nowF doMatch unchangedHeader functionDependencies global_var_dependencies renamesOnSuccess data ->
+      let oldG = Fundec(oldF) in
+      let nowG = Fundec(nowF) in
+
+      (*let _ = Printf.printf "1. Same Name: %s <-> %s: %b, %b\n" oldF.svar.vname nowF.svar.vname doMatch unchangedHeader in*)
+
+      if doMatch then
+        let doDependenciesMatch, updatedData = doAllDependenciesMatch functionDependencies global_var_dependencies oldFunctionMap nowFunctionMap oldGVarMap nowGVarMap data in
+
+        (*let _ = Printf.printf "2. Same Name: %s <-> %s: %b\n" oldF.svar.vname nowF.svar.vname doDependenciesMatch in*)
+
+        if doDependenciesMatch then
+          registerBiStatus oldG nowG (SameName(oldG)) updatedData
+        else
+          registerStatusForOldF oldG (Modified(nowG, unchangedHeader)) data |>
+          registerStatusForNowF nowG (Modified(oldG, unchangedHeader))
+      else
+        registerStatusForOldF oldG (Modified(nowG, unchangedHeader)) data |>
+        registerStatusForNowF nowG (Modified(oldG, unchangedHeader))
+    ) |>
+                  (*At this point we already know of the functions that have changed and stayed the same. We now assign the correct status to all the functions that
+                     have been mapped. The functions that have not been mapped are added/removed.*)
+                  fillStatusForUnassignedElems oldFunctionMap nowFunctionMap oldGVarMap nowGVarMap
+  in
+
+  (*Done with the analyis, the following just adjusts the output types.*)
+  mapAnalysisResultToOutput oldFunctionMap nowFunctionMap oldGVarMap nowGVarMap finalData
 end

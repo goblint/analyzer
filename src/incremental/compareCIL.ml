@@ -10,12 +10,11 @@ let empty_change_info () : change_info = {added = []; removed = []; changed = []
 
 let eq_glob (a: global) (b: global) (cfgs : (cfg * (cfg * cfg)) option) = match a, b with
   | GFun (f,_), GFun (g,_) ->
-    let identical, unchangedHeader, diffOpt, _, _, renamesOnSuccess = CompareGlobals.eqF f g cfgs VarinfoMap.empty VarinfoMap.empty in
+    let identical, unchangedHeader, diffOpt, funDep, globVarDep, renamesOnSuccess = CompareGlobals.eqF f g cfgs VarinfoMap.empty VarinfoMap.empty in
     (*Perform renames no matter what.*)
     let _ = performRenames renamesOnSuccess in
 
-
-    identical, unchangedHeader, diffOpt
+    identical && VarinfoMap.is_empty funDep && areGlobalVarRenameAssumptionsEmpty globVarDep, unchangedHeader, diffOpt
   | GVar (x, init_x, _), GVar (y, init_y, _) -> eq_varinfo x y emptyRenameMapping |> fst, false, None (* ignore the init_info - a changed init of a global will lead to a different start state *)
   | GVarDecl (x, _), GVarDecl (y, _) -> eq_varinfo x y emptyRenameMapping |> fst, false, None
   | _ -> ignore @@ Pretty.printf "Not comparable: %a and %a\n" Cil.d_global a Cil.d_global b; false, false, None
@@ -102,6 +101,18 @@ let compareCilFiles ?(eq=eq_glob) (oldAST: file) (newAST: file) =
   Cil.iterGlobals newAST
     (fun glob -> findChanges oldMap glob);
 
+  if not (GobConfig.get_bool "incremental.detect-global-renames") then (
+    let newMap = Cil.foldGlobals newAST addGlobal GlobalMap.empty in
+
+    let checkExists map global =
+      match identifier_of_global global with
+      | name -> GlobalMap.mem name map
+      | exception Not_found -> true (* return true, so isn't considered a change *)
+    in
+
+    Cil.iterGlobals newAST (fun glob -> if not (checkExists oldMap glob) then (changes.added <- (glob::changes.added)));
+    Cil.iterGlobals oldAST (fun glob -> if not (checkExists newMap glob) then (changes.removed <- (glob::changes.removed)));
+  );
   changes
 
 (** Given an (optional) equality function between [Cil.global]s, an old and a new [Cil.file], this function computes a [change_info],
