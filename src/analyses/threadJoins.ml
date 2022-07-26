@@ -16,18 +16,21 @@ struct
   module G = MustTIDs
   module V = TID
 
-  (* transfer functions *)
-  let return ctx (exp:exp option) (f:fundec) : D.t =
+  let threadexit ctx =
     (
       match ctx.ask CurrentThreadId with
-      | `Lifted tid -> ctx.sideg tid ctx.local
+      | `Lifted tid when ThreadReturn.is_current (Analyses.ask_of_ctx ctx) -> ctx.sideg tid ctx.local
       | _ -> () (* correct? *)
     );
     ctx.local
 
+  (* transfer functions *)
+  let return ctx (exp:exp option) (f:fundec) : D.t = threadexit ctx
+
   let special ctx (lval: lval option) (f:varinfo) (arglist:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special arglist with
+    | ThreadExit _ ->  threadexit ctx
     | ThreadJoin { thread = id; ret_var } ->
       let threads = ctx.ask (Queries.EvalThread id) in
       if TIDs.is_top threads then
