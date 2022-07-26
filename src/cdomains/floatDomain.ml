@@ -116,7 +116,7 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
     | Interval (l, h) when ik = IBool -> IntDomain.IntDomTuple.top_of IBool
     | Interval (l, h) ->
       (* as converting from float to integer is (exactly) defined as leaving out the fractional part,
-         (value is truncated towrad zero) we do not require specific rounding here *)
+         (value is truncated toward zero) we do not require specific rounding here *)
       IntDomain.IntDomTuple.of_interval ik (Float_t.to_big_int l, Float_t.to_big_int h)
 
   let of_int x =
