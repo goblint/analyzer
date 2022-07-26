@@ -1364,6 +1364,12 @@
             "Sets the unrolling factor for the loopUnrollingVisitor.",
           "type": "integer",
           "default": 0
+        },
+        "hide-std-globals": {
+          "title": "exp.hide-std-globals",
+          "description": "Hide standard extern globals from cluttering local states, e.g. stdout.",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false
