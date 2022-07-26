@@ -543,47 +543,18 @@ struct
     | Events.Escape escaped ->
       Priv.escape ctx.node (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg st escaped
     | Events.Unassume e ->
-      let apr =
-        (* let fd = Node.find_fundec ctx.node in *)
-        (* ignore (Pretty.printf "@@82 %a: %a\n" d_exp e D.pretty ctx.local); *)
-        let a = AD.bot () in
-        (* let ax = Var.of_string "i#1623" in *)
-        (* let a = AD.add_vars a [ax] in *)
-        let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal in
-        let a = AD.add_vars a (vars |> List.map V.local) in
-        let a = List.fold_left assert_type_bounds a vars in (* type bounds to avoid overflow in top state *)
-        (* let x = ApronDomain.V.to_cil_varinfo fd ax |> Option.get in *)
-        (* let a = AD.assert_inv a Cil.(BinOp (LAnd, BinOp (Ge, Lval (var x), integer 0, intType), BinOp (Le, Lval (var x), integer 100, intType), intType)) false in *)
-        let a = AD.assert_inv a e false in
-        (* ignore (Pretty.printf "%a\n" AD.pretty a); *)
-        let a' = AD.join ctx.local.apr a in
-        (* ignore (Pretty.printf "%a\n" AD.pretty a'); *)
-        a'
-      in
-      {ctx.local with apr}
+      let apr = AD.bot () in (* empty env *)
+      (* add only relevant vars to env *)
+      let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal in
+      let apr = AD.add_vars apr (List.map V.local vars) in
+      let apr = List.fold_left assert_type_bounds apr vars in (* add type bounds to avoid overflow in top state *)
+      let apr = AD.assert_inv apr e false in
+      let apr' = AD.join ctx.local.apr apr in
+      {ctx.local with apr = apr'}
     | _ ->
       st
 
   let sync ctx reason =
-    (* let apr = match ctx.node with
-      | Statement {sid=82; _} ->
-        let fd = Node.find_fundec ctx.node in
-        ignore (Pretty.printf "@@82: %a\n" D.pretty ctx.local);
-        let a = AD.bot () in
-        let ax = Var.of_string "i#1623" in
-        let a = AD.add_vars a [ax] in
-        let x = ApronDomain.V.to_cil_varinfo fd ax |> Option.get in
-        let a = AD.assert_inv a Cil.(BinOp (LAnd, BinOp (Ge, Lval (var x), integer 0, intType), BinOp (Lt, Lval (var x), integer 100, intType), intType)) false in
-        ignore (Pretty.printf "%a\n" AD.pretty a);
-        let a' = AD.join ctx.local.apr a in
-        ignore (Pretty.printf "%a\n" AD.pretty a');
-        a'
-      | _ ->
-        ctx.local.apr
-    in *)
-    let apr = ctx.local.apr in
-    (* ctx.emit Unassume; *)
-
     (* After the solver is finished, store the results (for later comparison) *)
     if !GU.postsolving then begin
       let keep_local = GobConfig.get_bool "ana.apron.invariant.local" in
@@ -595,13 +566,13 @@ struct
         | Some Local -> keep_local
         | _ -> false
       in
-      let st = keep_filter apr var_filter in
+      let st = keep_filter ctx.local.apr var_filter in
 
       let old_value = RH.find_default results ctx.node (AD.bot ()) in
       let new_value = AD.join old_value st in
       RH.replace results ctx.node new_value;
     end;
-    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg {ctx.local with apr} (reason :> [`Normal | `Join | `Return | `Init | `Thread])
+    Priv.sync (Analyses.ask_of_ctx ctx) ctx.global ctx.sideg ctx.local (reason :> [`Normal | `Join | `Return | `Init | `Thread])
 
   let init marshal =
     Priv.init ()
