@@ -2577,35 +2577,38 @@ struct
   let unassume (ctx: (D.t, _, _, _) ctx) e =
     let e_cpa = CPA.bot () in
     let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal in
-    assert (List.for_all (fun v -> not v.vglob) vars);
-    let e_cpa = List.fold_left (fun e_cpa v ->
-        CPA.add v (VD.top_value v.vtype) e_cpa
-      ) e_cpa vars
-    in
-    (* TODO: structural unassume instead of invariant hack *)
-    let e_d =
-      (* The usual recursion trick for ctx. *)
-      (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
-      (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
-      let local: D.t = {ctx.local with cpa = e_cpa} in
-      let rec ctx' asked =
-        { ctx with
-          ask = (fun (type a) (q: a Queries.t) -> query' asked q)
-        ; local
-        }
-      and query': type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
-        let anyq = Queries.Any q in
-        if Queries.Set.mem anyq asked then
-          Queries.Result.top q (* query cycle *)
-        else (
-          let asked' = Queries.Set.add anyq asked in
-          query (ctx' asked') q
-        )
+    if List.for_all (fun v -> not v.vglob) vars then (
+      let e_cpa = List.fold_left (fun e_cpa v ->
+          CPA.add v (VD.top_value v.vtype) e_cpa
+        ) e_cpa vars
       in
-      let ctx = ctx' Queries.Set.empty in
-      invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
-    in
-    D.join ctx.local e_d
+      (* TODO: structural unassume instead of invariant hack *)
+      let e_d =
+        (* The usual recursion trick for ctx. *)
+        (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
+        (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
+        let local: D.t = {ctx.local with cpa = e_cpa} in
+        let rec ctx' asked =
+          { ctx with
+            ask = (fun (type a) (q: a Queries.t) -> query' asked q)
+          ; local
+          }
+        and query': type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
+          let anyq = Queries.Any q in
+          if Queries.Set.mem anyq asked then
+            Queries.Result.top q (* query cycle *)
+          else (
+            let asked' = Queries.Set.add anyq asked in
+            query (ctx' asked') q
+          )
+        in
+        let ctx = ctx' Queries.Set.empty in
+        invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
+      in
+      D.join ctx.local e_d
+    )
+    else
+      ctx.local (* TODO: support unassume with globals *)
 
   let event ctx e octx =
     let st: store = ctx.local in

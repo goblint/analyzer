@@ -545,13 +545,16 @@ struct
     | Events.Unassume e ->
       let apr = AD.bot () in (* empty env *)
       (* add only relevant vars to env *)
-      let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal in
-      assert (List.for_all (fun v -> not v.vglob) vars);
-      let apr = AD.add_vars apr (List.map V.local vars) in
-      let apr = List.fold_left assert_type_bounds apr vars in (* add type bounds to avoid overflow in top state *)
-      let apr = AD.assert_inv apr e false in
-      let apr' = AD.join ctx.local.apr apr in
-      {ctx.local with apr = apr'}
+      let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal |> List.filter AD.varinfo_tracked in
+      if List.for_all (fun v -> not v.vglob) vars then (
+        let apr = AD.add_vars apr (List.map V.local vars) in
+        let apr = List.fold_left assert_type_bounds apr vars in (* add type bounds to avoid overflow in top state *)
+        let apr = AD.assert_inv apr e false in
+        let apr' = AD.join ctx.local.apr apr in
+        {ctx.local with apr = apr'}
+      )
+      else
+        ctx.local (* TODO: support unassume with globals *)
     | _ ->
       st
 
