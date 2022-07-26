@@ -551,10 +551,13 @@ struct
         let apr = List.fold_left assert_type_bounds apr vars in (* add type bounds to avoid overflow in top state *)
         let apr = AD.assert_inv apr e false in
         let apr' = AD.join ctx.local.apr apr in
+        M.info ~category:Witness "apron unassumed invariant: %a" d_exp e;
         {ctx.local with apr = apr'}
       )
-      else
+      else (
+        M.info ~category:Witness "apron didn't unassume invariant: %a" d_exp e;
         ctx.local (* TODO: support unassume with globals *)
+      )
     | _ ->
       st
 

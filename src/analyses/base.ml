@@ -2605,10 +2605,13 @@ struct
         let ctx = ctx' Queries.Set.empty in
         invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
       in
+      M.info ~category:Witness "base unassumed invariant: %a" d_exp e;
       D.join ctx.local e_d
     )
-    else
+    else (
+      M.info ~category:Witness "base didn't unassume invariant: %a" d_exp e;
       ctx.local (* TODO: support unassume with globals *)
+    )
 
   let event ctx e octx =
     let st: store = ctx.local in
