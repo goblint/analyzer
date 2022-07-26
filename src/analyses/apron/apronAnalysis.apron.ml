@@ -409,7 +409,6 @@ struct
     | Assert expression, _ -> st
     | Unknown, "__goblint_check" -> st
     | Unknown, "__goblint_commit" -> st
-    | Unknown, "__goblint_assert" -> st
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (
         (* Forget value that thread return is assigned to *)
