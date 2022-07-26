@@ -1887,6 +1887,12 @@
               "type": "string",
               "default": ""
             },
+            "unassume": {
+              "title": "witness.yaml.unassume",
+              "description": "YAML witness input path",
+              "type": "string",
+              "default": ""
+            },
             "certificate": {
               "title": "witness.yaml.certificate",
               "description": "YAML witness certificate output path",
