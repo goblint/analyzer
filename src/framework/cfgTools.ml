@@ -629,7 +629,9 @@ let dead_code_cfg (file:file) (module Cfg : CfgBidir) live =
         let file_dir = Goblintutil.create_dir Fpath.(base_dir / c_file_name) in
         let fname = Fpath.(file_dir / dot_file_name) in
         let out = open_out (Fpath.to_string fname) in
-        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd (Format.formatter_of_out_channel out);
+        let ppf = Format.formatter_of_out_channel out in
+        fprint_fundec_html_dot (module Cfg : CfgBidir) live fd ppf;
+        Format.pp_print_flush ppf ();
         close_out out
       | _ -> ()
     )

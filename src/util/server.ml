@@ -47,11 +47,11 @@ end
 module Function = struct
   type t = {
     funName: string;
-    location: CilType.Location.t option;
+    location: CilType.Location.t;
   } [@@deriving eq, ord, hash, yojson]
 
   let filterFunctions = function
-    | Cil.GFun (fd, loc) -> Some {funName = fd.svar.vname; location = Some loc}
+    | Cil.GFun (fd, loc) -> Some {funName = fd.svar.vname; location = loc}
     | _ -> None
 
   let getFunctionsList files = List.filter_map filterFunctions files
