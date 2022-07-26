@@ -1773,6 +1773,11 @@ struct
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         (* Be careful: inv_exp performs a meet on both arguments of the BOr / BXor. *)
         a, b
+      | LAnd ->
+        if ID.to_bool c = Some true then
+          meet_bin c c
+        else
+          a, b
       | op ->
         if M.tracing then M.tracel "inv" "Unhandled operator %a\n" d_binop op;
         a, b
@@ -1805,7 +1810,7 @@ struct
         | `Int a, `Int b ->
           let ikind = Cilfacade.get_ikind_exp e1 in (* both operands have the same type (except for Shiftlt, Shiftrt)! *)
           let a', b' = inv_bin_int (a, b) ikind c op in
-          if M.tracing then M.tracel "inv" "binop: %a, a': %a, b': %a\n" d_exp e ID.pretty a' ID.pretty b';
+          if M.tracing then M.tracel "inv" "binop: %a, c: %a, a': %a, b': %a\n" d_exp e ID.pretty c ID.pretty a' ID.pretty b';
           let st' = inv_exp a' e1 st in
           let st'' = inv_exp b' e2 st' in
           st''
@@ -2569,6 +2574,39 @@ struct
     (* D.join ctx.local @@ *)
     ctx.local
 
+  let unassume (ctx: (D.t, _, _, _) ctx) e =
+    let e_cpa = CPA.bot () in
+    let vars = Basetype.CilExp.get_vars e |> List.unique ~eq:CilType.Varinfo.equal in
+    assert (List.for_all (fun v -> not v.vglob) vars);
+    let e_cpa = List.fold_left (fun e_cpa v ->
+        CPA.add v (VD.top_value v.vtype) e_cpa
+      ) e_cpa vars
+    in
+    (* TODO: structural unassume instead of invariant hack *)
+    let e_d =
+      (* The usual recursion trick for ctx. *)
+      (* Must change ctx used by ask to also use new st (not ctx.local), otherwise recursive EvalInt queries use outdated state. *)
+      (* Note: query is just called on base, but not any other analyses. Potentially imprecise, but seems to be sufficient for now. *)
+      let local: D.t = {ctx.local with cpa = e_cpa} in
+      let rec ctx' asked =
+        { ctx with
+          ask = (fun (type a) (q: a Queries.t) -> query' asked q)
+        ; local
+        }
+      and query': type a. Queries.Set.t -> a Queries.t -> a Queries.result = fun asked q ->
+        let anyq = Queries.Any q in
+        if Queries.Set.mem anyq asked then
+          Queries.Result.top q (* query cycle *)
+        else (
+          let asked' = Queries.Set.add anyq asked in
+          query (ctx' asked') q
+        )
+      in
+      let ctx = ctx' Queries.Set.empty in
+      invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true
+    in
+    D.join ctx.local e_d
+
   let event ctx e octx =
     let st: store = ctx.local in
     match e with
@@ -2586,6 +2624,8 @@ struct
     | Events.AssignSpawnedThread (lval, tid) ->
       (* TODO: is this type right? *)
       set ~ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local (eval_lv (Analyses.ask_of_ctx ctx) ctx.global ctx.local lval) (Cilfacade.typeOfLval lval) (`Thread (ValueDomain.Threads.singleton tid))
+    | Events.Unassume e ->
+      unassume ctx e
     | _ ->
       ctx.local
 end
