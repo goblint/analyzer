@@ -210,7 +210,7 @@ struct
     | _      -> None
 
   (* strings *)
-  let from_string x = StrPtr x
+  let from_string x = StrPtr "DummyStrPtr"
   let to_string = function
     | StrPtr x -> Some x
     | _        -> None
