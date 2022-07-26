@@ -495,7 +495,7 @@ class ProjectWitness < Project
     run_testset(@testset, cmd1, starttime)
     starttime = Time.now
     run_testset(@testset, cmd2, starttime)
-    FileUtils.rm('witness.yml')
+    FileUtils.rm_f('witness.yml')
     end
 end
 
