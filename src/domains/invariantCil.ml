@@ -18,7 +18,7 @@ let exp_replace_original_name e =
 
 let var_is_in_scope scope vi =
   match Cilfacade.find_scope_fundec vi with
-  | None -> true
+  | None -> vi.vstorage <> Static (* CIL pulls static locals into globals, but they aren't syntactically in global scope *)
   | Some fd -> CilType.Fundec.equal fd scope
 
 class exp_is_in_scope_visitor (scope: fundec) (acc: bool ref) = object
