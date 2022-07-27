@@ -418,6 +418,16 @@ struct
         | Some lv -> invalidate_one ask ctx st' lv
         | None -> st'
       )
+    | ThreadExit _, _ ->
+      begin match ThreadId.get_current ask with
+        | `Lifted tid ->
+          (* value returned from the thread is not used in thread_join or any Priv.thread_join, *)
+          (* thus no handling like for returning from functions required *)
+          ignore @@ Priv.thread_return ask ctx.global ctx.sideg tid st;
+          raise Deadcode
+        | _ ->
+          raise Deadcode
+      end
     | _, _ ->
       let lvallist e =
         let s = ask.f (Queries.MayPointTo e) in
