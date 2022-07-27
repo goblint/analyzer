@@ -406,6 +406,20 @@
           },
           "additionalProperties": false
         },
+        "float": {
+          "title": "ana.float",
+          "type": "object",
+          "properties": {
+            "interval": {
+              "title": "ana.float.interval",
+              "description":
+                "Use FloatDomain: (float * float) option.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "file": {
           "title": "ana.file",
           "type": "object",
@@ -1177,6 +1191,20 @@
           },
           "additionalProperties": false
         },
+        "float": {
+          "title": "annotation.float",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "annotation.float.enabled",
+              "description":
+                "Enable manual annotation of functions with desired precision, i.e. the activated FloatDomains.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "goblint_context": {
           "title": "annotation.goblint_context",
           "type": "object",
@@ -1611,6 +1639,12 @@
         "integer": {
           "title": "warn.integer",
           "description": "integer (Overflow, Div_by_zero) warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "float": {
+          "title": "warn.float",
+          "description": "float warnings",
           "type": "boolean",
           "default": true
         },

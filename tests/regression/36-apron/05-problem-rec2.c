@@ -1,5 +1,6 @@
 // SKIP PARAM: --set ana.activated[+] apron
 // Example from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/recursive-simple/afterrec_2calls-1.c
+#include <assert.h>
 
 void f(int);
 void f2(int);

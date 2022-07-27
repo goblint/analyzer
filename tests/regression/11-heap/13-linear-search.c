@@ -1,4 +1,5 @@
 // PARAM: --set ana.malloc.unique_address_count 3  --enable ana.sv-comp.functions
+#include <assert.h>
 extern void *calloc(unsigned int num, unsigned int size);
 
 void __VERIFIER_as(int cond) {

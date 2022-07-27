@@ -1,5 +1,7 @@
 // PARAM: --set ana.activated[-] escape
 #include <pthread.h>
+#include <assert.h>
+
 int g = 10;
 
 void* t(void *v) {

@@ -11,10 +11,6 @@ let has_escaped (ask: Queries.ask) (v: varinfo): bool =
     false (* Cannot have escaped without taking address. Override provides extra precision for degenerate ask in base eval_exp used for partitioned arrays. *)
   else
     ask.f (Queries.MayEscape v)
-    (* | Top ->
-      M.warn @@ "Variable " ^ v.vname ^ " considered escaped since its address is taken somewhere and the thread escape analysis is not active!";
-      true *)
-
 
 module Spec =
 struct

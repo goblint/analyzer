@@ -1,4 +1,5 @@
 // PARAM: --set kernel true
+#include <assert.h>
 #include <linux/device.h>
 
 int __init start (unsigned count) {

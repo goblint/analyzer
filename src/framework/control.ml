@@ -198,7 +198,7 @@ struct
         (* If the function is not defined, and yet has been included to the
           * analysis result, we generate a warning. *)
         with Not_found ->
-          Messages.warn "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
+          Messages.warn ~category:Analyzer "Calculated state for undefined function: unexpected node %a" Node.pretty_plain n
     in
     LHT.iter add_local_var h;
     res
@@ -711,4 +711,5 @@ let compute_cfg file =
 let analyze change_info (file: file) fs =
   if (get_bool "dbg.verbose") then print_endline "Generating the control flow graph.";
   let (module CFG) = compute_cfg file in
+  MyCFG.current_cfg := (module CFG);
   analyze_loop (module CFG) file fs change_info

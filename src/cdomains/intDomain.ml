@@ -163,7 +163,7 @@ sig
   val refine_with_excl_list: Cil.ikind -> t -> (int_t list * (int64 * int64)) option -> t
   val refine_with_incl_list: Cil.ikind -> t -> int_t list option -> t
 
-  val project: Cil.ikind -> precision -> t -> t
+  val project: Cil.ikind -> int_precision -> t -> t
   val arbitrary: Cil.ikind -> t QCheck.arbitrary
 end
 (** Interface of IntDomain implementations taking an ikind for arithmetic operations *)
@@ -182,7 +182,7 @@ sig
   val ending     : Cil.ikind -> int_t -> t
   val is_top_of: Cil.ikind -> t -> bool
 
-  val project: precision -> t -> t
+  val project: int_precision -> t -> t
   val invariant: Cil.exp -> t -> Invariant.t
 end
 
@@ -2562,16 +2562,16 @@ module IntDomTupleImpl = struct
   type poly1 = {f1: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a} (* needed b/c above 'b must be different from 'a *)
   type poly2 = {f2: 'a. 'a m -> ?no_ov:bool -> 'a -> 'a -> 'a}
   type 'b poly3 = { f3: 'a. 'a m -> 'a option } (* used for projection to given precision *)
-  let create r x ((p1, p2, p3, p4): precision) =
+  let create r x ((p1, p2, p3, p4): int_precision) =
     let f b g = if b then Some (g x) else None in
     f p1 @@ r.fi (module I1), f p2 @@ r.fi (module I2), f p3 @@ r.fi (module I3), f p4 @@ r.fi (module I4)
   let create r x = (* use where values are introduced *)
-    create r x (precision_from_node_or_config ())
-  let create2 r x ((p1, p2, p3, p4): precision) =
+    create r x (int_precision_from_node_or_config ())
+  let create2 r x ((p1, p2, p3, p4): int_precision) =
     let f b g = if b then Some (g x) else None in
     f p1 @@ r.fi2 (module I1), f p2 @@ r.fi2 (module I2), f p3 @@ r.fi2 (module I3), f p4 @@ r.fi2 (module I4)
   let create2 r x = (* use where values are introduced *)
-    create2 r x (precision_from_node_or_config ())
+    create2 r x (int_precision_from_node_or_config ())
 
   let opt_map2 f ?no_ov =
     curry @@ function Some x, Some y -> Some (f ?no_ov x y) | _ -> None
@@ -2802,7 +2802,7 @@ module IntDomTupleImpl = struct
   let same show x = let xs = to_list_some x in let us = List.unique xs in let n = List.length us in
     if n = 1 then Some (List.hd xs)
     else (
-      if n>1 then Messages.warn "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort, but we need some unsound category *)
+      if n>1 then Messages.info ~category:Unsound "Inconsistent state! %a" (Pretty.docList ~sep:(Pretty.text ",") (Pretty.text % show)) us; (* do not want to abort *)
       None
     )
   let to_int = same BI.to_string % mapp2 { fp2 = fun (type a) (module I:S with type t = a and type int_t = int_t) -> I.to_int }
@@ -2839,7 +2839,7 @@ module IntDomTupleImpl = struct
    * ~keep:true will keep elements that are `Some x` but should be set to `None` by p.
    *  This way we won't loose any information for the refinement.
    * ~keep:false will set the elements to `None` as defined by p *)
-  let project ik (p: precision) t =
+  let project ik (p: int_precision) t =
     let t_padded = map ~keep:true { f3 = fun (type a) (module I:S with type t = a) -> Some (I.top_of ik) } t p in
     let t_refined = refine ik t_padded in
     map ~keep:false { f3 = fun (type a) (module I:S with type t = a) -> None } t_refined p

@@ -1,4 +1,6 @@
 // PARAM: --enable ana.int.congruence --set sem.int.signed_overflow assume_none
+#include <assert.h>
+
 int main() {
     int top;
     int i = 0;

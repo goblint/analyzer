@@ -2,6 +2,7 @@
 // Copy of 04/45 with var_eq enabled
 #include <pthread.h>
 #include <stdio.h>
+#include <assert.h>
 
 pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex2 = PTHREAD_MUTEX_INITIALIZER;

@@ -5,6 +5,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <assert.h>
 
 void* myalloc(size_t s) {
     return malloc(s);

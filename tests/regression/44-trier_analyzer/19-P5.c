@@ -1,3 +1,5 @@
+#include <assert.h>
+
 void proc(int *x, int *y) {}
 
 main () {

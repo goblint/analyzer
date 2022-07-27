@@ -1,3 +1,5 @@
+#include <assert.h>
+
 extern int scanf(char *, ...);
 
 int *rec(int i) {
