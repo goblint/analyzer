@@ -2426,9 +2426,9 @@ struct
       if addrs <> [] then M.debug ~category:Analyzer "Spawning functions from unknown function: %a" (d_list ", " d_varinfo) addrs;
       List.filter_map (create_thread None None) addrs
 
-  let assert_fn ctx e change =
+  let assert_fn ctx e refine =
     (* make the state meet the assertion in the rest of the code *)
-    if not change then ctx.local else begin
+    if not refine then ctx.local else begin
       let newst = invariant ctx (Analyses.ask_of_ctx ctx) ctx.global ctx.local e true in
       (* if check_assert e newst <> `Lifted true then
           M.warn ~category:Assert ~msg:("Invariant \"" ^ expr ^ "\" does not stick.") (); *)
@@ -2680,7 +2680,7 @@ struct
       end
     (* Handling the assertions *)
     | Unknown, "__assert_rtn" -> raise Deadcode (* gcc's built-in assert *)
-    | Assert { exp; change; _ }, _ -> assert_fn ctx exp change
+    | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | _, _ -> begin
         let st =
           special_unknown_invalidate ctx (Analyses.ask_of_ctx ctx) gs st f args

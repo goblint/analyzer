@@ -30,7 +30,7 @@ struct
   let combine ctx (lval:lval option) fexp (fd:fundec) (args:exp list) fc (au:D.t) : D.t =
     au
 
-  let assert_fn ctx e should_warn change =
+  let assert_fn ctx e check refine =
 
     let check_assert e st =
       match ctx.ask (Queries.EvalInt e) with
@@ -44,7 +44,7 @@ struct
       | _ -> `Top
     in
     let expr = sprint d_exp e in
-    let warn warn_fn ?annot msg = if should_warn then
+    let warn warn_fn ?annot msg = if check then
         if get_bool "dbg.regression" then ( (* This only prints unexpected results (with the difference) as indicated by the comment behind the assert (same as used by the regression test script). *)
           let loc = !M.current_loc in
           let line = List.at (List.of_enum @@ File.lines_of loc.file) (loc.line-1) in
@@ -64,7 +64,7 @@ struct
     match check_assert e ctx.local with
     | `Lifted false ->
       warn (M.error ~category:Assert "%s") ~annot:"FAIL" ("Assertion \"" ^ expr ^ "\" will fail.");
-      if change then raise Analyses.Deadcode else ctx.local
+      if refine then raise Analyses.Deadcode else ctx.local
     | `Lifted true ->
       warn (M.success ~category:Assert "%s") ("Assertion \"" ^ expr ^ "\" will succeed");
       ctx.local
@@ -78,7 +78,7 @@ struct
   let special ctx (lval: lval option) (f:varinfo) (args:exp list) : D.t =
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    | Assert { exp; should_warn; change }, _ -> assert_fn ctx exp should_warn change
+    | Assert { exp; check; refine }, _ -> assert_fn ctx exp check refine
     | _, _ -> ctx.local
 
   let startstate v = D.bot ()

@@ -46,9 +46,9 @@ let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_unknown", unknown [drop' [w]]);
-    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp; should_warn = true; change = false });
-    ("__goblint_commit", special [__ "exp" []] @@ fun exp -> Assert { exp; should_warn = false; change = true });
-    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; should_warn = true; change = get_bool "sem.assert.refine" });
+    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = false });
+    ("__goblint_commit", special [__ "exp" []] @@ fun exp -> Assert { exp; check = false; refine = true });
+    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
   ]
 
 (** zstd functions.

@@ -401,8 +401,8 @@ struct
         invalidate_one ask ctx st lval
       ) st rs
 
-  let assert_fn ctx e change =
-    if not change then
+  let assert_fn ctx e refine =
+    if not refine then
       ctx.local
     else
       (* copied from branch *)
@@ -420,7 +420,7 @@ struct
     let st = ctx.local in
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    | Assert { exp; change; _ }, _ -> assert_fn ctx exp change
+    | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (
         (* Forget value that thread return is assigned to *)
