@@ -1,9 +1,9 @@
-extern void __goblint_check(int);
+extern void __goblint_check(int); // NOWARN
 extern void __goblint_commit(int);
 extern void __goblint_assert(int);      // NOWARN
 extern void __goblint_unknown(void*);
 
-#define check(x)   __goblint_check(x)
+#define check(x)   __goblint_check(x) // NOWARN
 #define commit(x)  __goblint_commit(x)
 #define assert(x)  __goblint_assert(x)  // NOWARN
 #define unknown(x) __goblint_unknown(x)
