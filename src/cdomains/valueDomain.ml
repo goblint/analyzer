@@ -915,15 +915,15 @@ struct
           let l', o' = shift_one_over l o in
           let x = zero_init_calloced_memory orig x t in
           (* Strong update of scalar variable is possible if the variable is unique and size of written value matches size of blob being written to. *)
-        let do_strong_update =
+          let do_strong_update =
             begin match v with
-            | (Var var, _) ->
-              let blob_size_opt = ID.to_int s in
-              not @@ ask.f (Q.IsMultiple var)
-              && not @@ Cil.isVoidType t      (* Size of value is known *)
-              && Option.is_some blob_size_opt (* Size of blob is known *)
-              && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)
-            | _ -> false
+              | (Var var, _) ->
+                let blob_size_opt = ID.to_int s in
+                not @@ ask.f (Q.IsMultiple var)
+                && not @@ Cil.isVoidType t      (* Size of value is known *)
+                && Option.is_some blob_size_opt (* Size of blob is known *)
+                && BI.equal (Option.get blob_size_opt) (BI.of_int @@ Cil.alignOf_int t)
+              | _ -> false
             end
           in
           if do_strong_update then
