@@ -242,6 +242,7 @@ struct
        3. Generate precondition invariants. The postcondition is a disjunction over the invariants for matching states. *)
 
     (* 1. Collect contexts for each function *)
+    (* TODO: Use [IterSysVars] for this when #391 is merged. *)
     let fun_contexts : con_inv list FMap.t = FMap.create 103 in
     LHT.iter (fun ((n, c) as lvar) local ->
         begin match n with
