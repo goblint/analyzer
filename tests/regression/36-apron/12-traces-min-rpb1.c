@@ -13,7 +13,7 @@ void *t_fun(void *arg) {
   pthread_mutex_lock(&A);
   g = x;
   h = x;
-  assert(g == h);
+  __goblint_check(g == h);
   pthread_mutex_unlock(&A);
   pthread_mutex_lock(&A);
   pthread_mutex_unlock(&A);
@@ -24,9 +24,9 @@ int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
 
-  assert(g == h); // UNKNOWN!
+  __goblint_check(g == h); // UNKNOWN!
   pthread_mutex_lock(&A);
-  assert(g == h);
+  __goblint_check(g == h);
   pthread_mutex_unlock(&A);
   return 0;
 }

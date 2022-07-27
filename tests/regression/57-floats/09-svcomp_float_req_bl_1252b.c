@@ -83,9 +83,9 @@ int main()
     float y = -0.0f;
     float res = fmax_float(x, y);
     // y is -0 and x is +0, the result shall be +0
-    assert(res == 0.0f);                                 // SUCCESS
-    assert(__signbit_float(res) == 1);                   // UNKNOWN!
-    assert(!(res == 0.0f && __signbit_float(res) == 0)); // UNKNOWN!
+    __goblint_check(res == 0.0f);                                 // SUCCESS
+    __goblint_check(__signbit_float(res) == 1);                   // UNKNOWN!
+    __goblint_check(!(res == 0.0f && __signbit_float(res) == 0)); // UNKNOWN!
 
     return 0;
 }

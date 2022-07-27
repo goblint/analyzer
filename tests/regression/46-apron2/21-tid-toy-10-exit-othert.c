@@ -53,7 +53,7 @@ int main(void) {
   pthread_join(id2, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == 10); //UNKNOWN!
+  __goblint_check(g == 10); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   return 0;

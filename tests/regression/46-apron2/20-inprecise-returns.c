@@ -50,7 +50,7 @@ int main(void) {
   pthread_join(id2, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h);
+  __goblint_check(g == h);
   pthread_mutex_unlock(&A);
 
   return 0;

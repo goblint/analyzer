@@ -12,6 +12,6 @@ void main(void)
         i++;
     }
 
-    assert(a[0] == 0);
-    assert(a[3] == 3);
+    __goblint_check(a[0] == 0);
+    __goblint_check(a[3] == 3);
 }

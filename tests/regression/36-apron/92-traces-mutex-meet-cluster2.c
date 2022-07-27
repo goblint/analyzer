@@ -38,7 +38,7 @@ int main(void) {
 
   pthread_mutex_lock(&A);
   int z = h;
-  assert(z != 31);
+  __goblint_check(z != 31);
   pthread_mutex_unlock(&A);
   return 0;
 }

@@ -12,5 +12,5 @@ char rec (int x) {
 
 main () {
   char c = rec(1);
-  assert(c == 'b');
+  __goblint_check(c == 'b');
 }

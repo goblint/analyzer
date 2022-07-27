@@ -14,13 +14,13 @@ int main(){
     x = y;
 
     int z = *ptr == x;
-    assert(x==y);
-    assert(z == 1);
-    assert(*ptr == x);
-    assert(*ptr == y);
-    assert(y == y);
+    __goblint_check(x==y);
+    __goblint_check(z == 1);
+    __goblint_check(*ptr == x);
+    __goblint_check(*ptr == y);
+    __goblint_check(y == y);
 
-    assert(arr[*ptr == x] == 4);
+    __goblint_check(arr[*ptr == x] == 4);
 
 
     return 0;

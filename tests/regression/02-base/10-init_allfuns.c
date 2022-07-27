@@ -10,7 +10,7 @@ int f() {
 }
 
 int g() {
-  assert(glob1 == 5);
-  assert(glob2 == 7);
+  __goblint_check(glob1 == 5);
+  __goblint_check(glob2 == 7);
   return 0;
 }

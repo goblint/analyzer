@@ -34,7 +34,7 @@ int main(void) {
   pthread_mutex_lock(&A);
   x = g;
   y = h;
-  assert(x >= y); // write would fail this due to disjunctive reading from local and global
+  __goblint_check(x >= y); // write would fail this due to disjunctive reading from local and global
   pthread_mutex_unlock(&A);
   return 0;
 }

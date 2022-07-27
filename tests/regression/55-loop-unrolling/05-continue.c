@@ -16,5 +16,5 @@ void main(void)
         j++;
     }
 
-    assert(j==3);
+    __goblint_check(j==3);
 }

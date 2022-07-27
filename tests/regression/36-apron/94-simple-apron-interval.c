@@ -11,15 +11,15 @@ void main(void) {
     X++;
   }
 
-  assert(X-N == 0); //UNKNOWN
-  assert(X == N); //UNKNOWN
+  __goblint_check(X-N == 0); //UNKNOWN
+  __goblint_check(X == N); //UNKNOWN
 
   if(X == N) {
     N = 8;
   } else {
     N = 42;
   }
-  assert(N == 8); // UNKNOWN
-  assert(N >= 8);
-  assert(N <= 42);
+  __goblint_check(N == 8); // UNKNOWN
+  __goblint_check(N >= 8);
+  __goblint_check(N <= 42);
 }

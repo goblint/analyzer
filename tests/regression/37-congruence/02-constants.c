@@ -9,11 +9,11 @@ int main() {
     int c = -1;
     int d = -2;
 
-    assert (a + b == 3); assert (a + d == -1);
-    assert (a * b == 2); assert (b * c == -2);
-    assert (a / b == 0); assert (d / c == 2);
-    assert (b % a == 0); assert (d % c == 0);
-    assert (-a == -1); assert (-d == 2);
+    __goblint_check(a + b == 3); __goblint_check(a + d == -1);
+    __goblint_check(a * b == 2); __goblint_check(b * c == -2);
+    __goblint_check(a / b == 0); __goblint_check(d / c == 2);
+    __goblint_check(b % a == 0); __goblint_check(d % c == 0);
+    __goblint_check(-a == -1); __goblint_check(-d == 2);
 
     // logical operators
     int zero = 0;
@@ -23,20 +23,20 @@ int main() {
 
     //arithmetic operations
 
-    assert ((zero || one) == 1); assert ((zero || zero) == 0); assert ((one || one) == 1);
-    assert ((zero && one) == 0); assert ((zero && zero) == 0); assert ((one && one) == 1);
-    assert (!one == 0); assert (!zero == 1);
+    __goblint_check((zero || one) == 1); __goblint_check((zero || zero) == 0); __goblint_check((one || one) == 1);
+    __goblint_check((zero && one) == 0); __goblint_check((zero && zero) == 0); __goblint_check((one && one) == 1);
+    __goblint_check(!one == 0); __goblint_check(!zero == 1);
 
     // bitwise operators
-    assert ((zero & zero) == 0); assert ((zero & one) == 0); assert ((one & zero) == 0); assert ((one & one) == 1);
-    assert ((zero | zero) == 0); assert ((zero | one) == 1); assert ((one | zero) == 1); assert ((one | one) == 1);
-    assert ((zero ^ zero) == 0); assert ((zero ^ one) == 1); assert ((one ^ zero) == 1); assert ((one ^ one) == 0);
+    __goblint_check((zero & zero) == 0); __goblint_check((zero & one) == 0); __goblint_check((one & zero) == 0); __goblint_check((one & one) == 1);
+    __goblint_check((zero | zero) == 0); __goblint_check((zero | one) == 1); __goblint_check((one | zero) == 1); __goblint_check((one | one) == 1);
+    __goblint_check((zero ^ zero) == 0); __goblint_check((zero ^ one) == 1); __goblint_check((one ^ zero) == 1); __goblint_check((one ^ one) == 0);
 
     // comparisons
-    assert ((a < b) == 1);
-    assert ((a > b) == 0);
-    assert ((a == b) == 0);
-    assert ((a != b) == 1);
+    __goblint_check((a < b) == 1);
+    __goblint_check((a > b) == 0);
+    __goblint_check((a == b) == 0);
+    __goblint_check((a != b) == 1);
 
     return 0;
 }

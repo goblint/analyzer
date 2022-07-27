@@ -9,5 +9,5 @@ int main(void) {
     x += 2;
   }
 
-  assert(1);
+  __goblint_check(1);
 }

@@ -21,6 +21,6 @@ int main() {
   *x = 2;
   *y = 3;
 
-  assert (*x == 2);
-  assert (*y == 3); // UNKNOWN!
+  __goblint_check(*x == 2);
+  __goblint_check(*y == 3); // UNKNOWN!
 }

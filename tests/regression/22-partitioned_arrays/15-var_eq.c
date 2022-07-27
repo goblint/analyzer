@@ -27,5 +27,5 @@ void example1(void)
 
     arr[top] = 42;
     top2 = top;
-    assert(arr[top2] == 42);
+    __goblint_check(arr[top2] == 42);
 }

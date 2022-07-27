@@ -20,7 +20,7 @@ int main(void) {
   int i = 0;
   pthread_create(&id, NULL, t_fun, (void *) &i);
   pthread_mutex_lock(&mutex2);
-  assert(i == 0); // UNKNOWN!
+  __goblint_check(i == 0); // UNKNOWN!
   pthread_mutex_unlock(&mutex2);
   pthread_join (id, NULL);
   return 0;

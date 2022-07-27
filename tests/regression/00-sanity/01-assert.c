@@ -6,9 +6,10 @@ int main() {
   int silence = 1;
   int fail = 0;
   int unknown;
-  assert(success);
-  assert(fail); // FAIL!
-  assert(unknown == 4); // UNKNOWN!
+  // TODO: change back to assert?
+  __goblint_check(success);
+  __goblint_check(fail); // FAIL!
+  __goblint_check(unknown == 4); // UNKNOWN!
   return 0;
-  assert(silence); // NOWARN!
+  __goblint_check(silence); // NOWARN!
 }

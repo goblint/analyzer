@@ -56,13 +56,13 @@ int main(void) {
   pthread_create(&id2, NULL, t_benign, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //UNKNOWN!
+  __goblint_check(g == h); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   pthread_join(id2, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h); // UNKNOWN!
+  __goblint_check(g == h); // UNKNOWN!
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
@@ -70,7 +70,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == h);
+  __goblint_check(g == h);
   pthread_mutex_unlock(&A);
 
   return 0;

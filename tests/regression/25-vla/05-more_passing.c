@@ -4,29 +4,29 @@
 
 void foo(int n, int a[n]) {
   int x = a[7];
-  assert(x == 42);
+  __goblint_check(x == 42);
 }
 
 void fooo(int n, int a[n][n]) {
-  assert(a[29][7] == 42);
+  __goblint_check(a[29][7] == 42);
   int *ptr = a[29];
   int x = *(ptr+7);
   printf("x is %d", x);
-  assert(x == 42);
+  __goblint_check(x == 42);
 }
 
 void foo2(int n, int a[50][n]) {
-  assert(a[29][7] == 42);
-  assert(a[29][7] == 0); //FAIL
+  __goblint_check(a[29][7] == 42);
+  __goblint_check(a[29][7] == 0); //FAIL
 }
 
 // This is quite ugly, but valid C99
 void foo3(int n, int b[n], int a[n][b[0]]) {
-  assert(a[29][7] == 42);
+  __goblint_check(a[29][7] == 42);
 }
 
 void foo4(int n, int m, int r, int a[n][m][r]) {
-  assert(a[3][3][2] == 42);
+  __goblint_check(a[3][3][2] == 42);
 }
 
 int main(void)

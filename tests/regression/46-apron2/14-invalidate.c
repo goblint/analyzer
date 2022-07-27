@@ -10,6 +10,6 @@ void munge(int* ptr);
 int main(void) {
     int p = 5;
     munge(&p);
-    assert(p == 5); //UNKNOWN!
+    __goblint_check(p == 5); //UNKNOWN!
     return 0;
 }

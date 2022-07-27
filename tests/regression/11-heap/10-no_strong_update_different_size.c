@@ -16,5 +16,5 @@ int main() {
   *y = 1;
   *x = 2; // Size of written value is shorter than blob
 
-  assert (*x == 2); // UNKNOWN!
+  __goblint_check(*x == 2); // UNKNOWN!
 }

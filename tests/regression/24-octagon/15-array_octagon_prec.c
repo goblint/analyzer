@@ -68,11 +68,11 @@ void example1(void) {
   }
 
   // Values that may be read are 1 or 2
-  assert(a[z] == 1); //UNKNOWN
-  assert(a[z] == 2); //UNKNOWN
+  __goblint_check(a[z] == 1); //UNKNOWN
+  __goblint_check(a[z] == 2); //UNKNOWN
 
   // Relies on option sem.int.signed_overflow assume_none
-  assert(a[z] != 0);
+  __goblint_check(a[z] != 0);
 }
 
 void example2(void) {
@@ -112,11 +112,11 @@ void example2(void) {
   }
 
   // Values that may be read are 1 or 0
-  assert(a[z] == 1); //UNKNOWN
-  assert(a[z] == 0); //UNKNOWN
+  __goblint_check(a[z] == 1); //UNKNOWN
+  __goblint_check(a[z] == 0); //UNKNOWN
 
   // Relies on option sem.int.signed_overflow assume_none
-  assert(a[z] != 2);
+  __goblint_check(a[z] != 2);
 }
 
 // Simple example (employing MustBeEqual)
@@ -129,7 +129,7 @@ void example3(void) {
     a[i] = 0;
     int v = i;
     x = a[v];
-    assert(x == 0);
+    __goblint_check(x == 0);
     i++;
   }
 }
@@ -145,15 +145,15 @@ void example4(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    __goblint_check(a[i] == 9);
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
       int k = a[i-1];
-      assert(k == 9);
+      __goblint_check(k == 9);
 
       int l = a[0];
-      assert(l == 9);
+      __goblint_check(l == 9);
     }
 
     i++;
@@ -171,11 +171,11 @@ void example4a(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    __goblint_check(a[i] == 9);
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
-      assert(a[i-1] == 9);
+      __goblint_check(a[i-1] == 9);
     }
 
     i++;
@@ -194,11 +194,11 @@ void example4b(void) {
     a[j] = 42;
 
     // Here we know a[i] is 9 when we have MayBeEqual
-    assert(a[i] == 9);
+    __goblint_check(a[i] == 9);
 
     // but only about the part to the left of i if we also have MayBeSmaller
     if(i>0) {
-      assert(a[i-1] == 9);
+      __goblint_check(a[i-1] == 9);
     }
 
     i++;
@@ -216,7 +216,7 @@ void example4c(void) {
     a[i-2] = 31;
 
     if(i < 41) {
-      assert(a[i+1] == 7);
+      __goblint_check(a[i+1] == 7);
     }
 
     i--;
@@ -237,14 +237,14 @@ void example5(void) {
     a[j] = 0;
     i++;
 
-    assert(a[i] == 0); //UNKNOWN
+    __goblint_check(a[i] == 0); //UNKNOWN
 
-    assert(a[i-1] == 0);
-    assert(a[j] == 0);
+    __goblint_check(a[i-1] == 0);
+    __goblint_check(a[j] == 0);
 
     if (i>1) {
-      assert(a[i-2] == 0);
-      assert(a[j-1] == 0);
+      __goblint_check(a[i-2] == 0);
+      __goblint_check(a[j-1] == 0);
     }
   }
 }
@@ -258,11 +258,11 @@ void example6(void) {
     a[i] = 0;
     i++;
 
-    assert(a[top] == 0); //UNKNOWN
+    __goblint_check(a[top] == 0); //UNKNOWN
 
     int j=0;
     while(j<i) {
-      assert(a[j] == 0);
+      __goblint_check(a[j] == 0);
       j++;
     }
   }
@@ -287,7 +287,7 @@ void example7(void) {
         j = i-7;
       }
 
-      assert(a[j] == 0);
+      __goblint_check(a[j] == 0);
     }
   }
 }
@@ -316,13 +316,13 @@ void example8(void) {
     j++;      // Octagon knows -1 <= i-j <= -1
     i = j;    // Without octagons, we lose partitioning here because we don't know how far the move has been
 
-    assert(a[i-1] == 0);
-    assert(a[i-2] == 0);
+    __goblint_check(a[i-1] == 0);
+    __goblint_check(a[i-2] == 0);
   }
 
   j = 0;
   while(j < N) {
-    assert(a[j] == 0);
+    __goblint_check(a[j] == 0);
     j++;
   }
 }
@@ -337,8 +337,8 @@ void mineEx1(void) {
     X++;
   }
 
-  assert(X-N == 0);
-  // assert(X == N); // Currently not able to assert this because octagon doesn't handle it
+  __goblint_check(X-N == 0);
+  // __goblint_check(X == N); // Currently not able to assert this because octagon doesn't handle it
 
   if(X == N) {
     N = 8;

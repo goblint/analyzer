@@ -11,11 +11,11 @@ int main(){
     int y;
     x = y;
     fun2();
-    assert(x==y);
+    __goblint_check(x==y);
     fun(&x);
-    assert(x==y);
+    __goblint_check(x==y);
     fun3(&myblorg);
-    assert(x==y);
+    __goblint_check(x==y);
     return 0;
 }
 

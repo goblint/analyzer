@@ -6,6 +6,6 @@ int main(void) {
 
     if(a != -1) {
         int s = a+1;
-        assert(s != 0);
+        __goblint_check(s != 0);
     }
 }

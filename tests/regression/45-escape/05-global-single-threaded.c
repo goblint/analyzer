@@ -3,7 +3,7 @@ int* ptr;
 int nine = 9;
 
 int other() {
-    assert(*ptr == 8); //UNKNOWN!
+    __goblint_check(*ptr == 8); //UNKNOWN!
 }
 
 int main()

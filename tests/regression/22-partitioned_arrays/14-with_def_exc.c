@@ -18,7 +18,7 @@ void t1() {
     for(i=0; i < 9;i++) { }
 
     int j = arr[i];
-    assert(j == 5); //UNKNOWN
+    __goblint_check(j == 5); //UNKNOWN
 }
 
 
@@ -287,5 +287,5 @@ void t2() {
 
     for(i=0; i < 511; i++) { }
     int j = arr[i];
-    assert(j==5); //UNKNOWN
+    __goblint_check(j==5); //UNKNOWN
 }

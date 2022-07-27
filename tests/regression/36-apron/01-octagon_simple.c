@@ -11,8 +11,8 @@ void main(void) {
     X++;
   }
 
-  assert(X-N == 0);
-  assert(X == N);
+  __goblint_check(X-N == 0);
+  __goblint_check(X == N);
 
   if(X == N) {
     N = 8;
@@ -21,7 +21,7 @@ void main(void) {
     N = 42;
   }
 
-  assert(N == 8);
+  __goblint_check(N == 8);
   two();
 }
 
@@ -39,7 +39,7 @@ void two() {
     N = 0;
   }
 
-  assert(X <= N);
+  __goblint_check(X <= N);
 
   while (1) {
     while_continue: /* CIL Label */ ;
@@ -50,6 +50,6 @@ void two() {
   }
   while_break: /* CIL Label */ ;
 
-  assert(X - N == 0);
-  assert(X == N);
+  __goblint_check(X - N == 0);
+  __goblint_check(X == N);
 }

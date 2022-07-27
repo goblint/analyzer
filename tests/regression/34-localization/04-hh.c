@@ -14,7 +14,7 @@ void main()
          j=j+1;
       }
       i = i-j+1;
-      assert(i <= j+3); // UNKNOWN
+      __goblint_check(i <= j+3); // UNKNOWN
    }
    return ;
 }

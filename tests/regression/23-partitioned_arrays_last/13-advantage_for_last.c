@@ -15,6 +15,6 @@ void example1(void) {
         i++;
     }
 
-    assert(a[2] == 0);
-    assert(a[3] == 0);
+    __goblint_check(a[2] == 0);
+    __goblint_check(a[3] == 0);
 }

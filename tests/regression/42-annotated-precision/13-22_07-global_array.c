@@ -10,8 +10,8 @@ int main(void) {
   some_func();
 
   int x = global_array[5];
-  assert(x == 0); //UNKNOWN
-  assert(x == 42); //UNKNOWN
+  __goblint_check(x == 0); //UNKNOWN
+  __goblint_check(x == 42); //UNKNOWN
 }
 
 
@@ -23,5 +23,5 @@ void some_func(void) {
   }
 
   int x = global_array[0];
-  assert(x == 42); //FAIL
+  __goblint_check(x == 42); //FAIL
 }

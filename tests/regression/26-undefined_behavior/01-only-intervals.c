@@ -4,6 +4,6 @@
 int main() {
   for(int i=2; i < 42; i++) {
     int x = i==2; // NOWARN
-    assert(1);
+    __goblint_check(1);
   }
 }

@@ -14,6 +14,6 @@ int main(void) {
 		break;
 	}
 
-	assert(r==17);
+	__goblint_check(r==17);
 	return 0;
 }

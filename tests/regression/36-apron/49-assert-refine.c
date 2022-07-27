@@ -11,7 +11,7 @@ void main() {
   __goblint_commit(3 <= x); // U NKNOWN! (refines)
   __goblint_commit(z <= 5); // U NKNOWN! (refines)
 
-  assert(x == 3);
-  assert(y == 4);
-  assert(z == 5);
+  __goblint_check(x == 3);
+  __goblint_check(y == 4);
+  __goblint_check(z == 5);
 }

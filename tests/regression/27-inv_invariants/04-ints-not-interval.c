@@ -6,6 +6,6 @@ int main() {
 
     if(!x) {
     } else {
-        assert(x==1); //UNKNOWN!
+        __goblint_check(x==1); //UNKNOWN!
     }
 }

@@ -7,13 +7,13 @@ void foo2(int n , int (*a)[n] )
   int y ;
 
   int *ptr = *(a+7);
-  assert(ptr[13] == 23);
+  __goblint_check(ptr[13] == 23);
 
   x = (*(a + 29))[7];
-  assert(x == 23); //FAIL
+  __goblint_check(x == 23); //FAIL
 
   y = (*(a + 7))[13];
-  assert(y == 23);
+  __goblint_check(y == 23);
 
   return;
 }

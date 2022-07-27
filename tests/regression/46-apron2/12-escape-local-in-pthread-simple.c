@@ -20,10 +20,10 @@ int main(){
     pthread_t thread;
     pthread_create(&thread, NULL, foo, xp);
     sleep(4); // to make sure that we actually fail the assert when running.
-    assert(x == 42); //UNKNOWN!
-    assert(x == 0); //UNKNOWN!
-    assert(x <= 50);
-    assert(g == 8);
+    __goblint_check(x == 42); //UNKNOWN!
+    __goblint_check(x == 0); //UNKNOWN!
+    __goblint_check(x <= 50);
+    __goblint_check(g == 8);
     pthread_join(thread, NULL);
     return 0;
 }

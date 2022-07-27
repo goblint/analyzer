@@ -8,7 +8,7 @@ void change(int *p) {
     int a;
     (*p)++;
     a++;
-    assert(a == 7); //UNKNOWN!
+    __goblint_check(a == 7); //UNKNOWN!
 }
 
 int g;
@@ -17,7 +17,7 @@ int main() {
     int a = 5;
     int *p = &a;
     change(p);
-    assert(a == 5); //FAIL
-    assert(a - 6 == 0); // Apron used to find \bot here (!)
+    __goblint_check(a == 5); //FAIL
+    __goblint_check(a - 6 == 0); // Apron used to find \bot here (!)
     return 0;
 }

@@ -13,7 +13,7 @@ void rec (int **u, int i) {
     i++;
     u = &a;
     rec(u, i);
-    assert(u == &a); // Holds here, we are not dereferencing u
+    __goblint_check(u == &a); // Holds here, we are not dereferencing u
     return;
   }
 }

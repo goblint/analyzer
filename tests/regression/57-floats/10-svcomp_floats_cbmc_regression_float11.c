@@ -39,12 +39,12 @@ int main()
   if(!(0<1)) {success = 0;}
   if(!(1>-0)) {success = 0;}
   if(!(-0<1)) {success = 0;}
-  
+
   if(!(!(0.999f<0.0f))) {success = 0;}
   if(!(!(-0.999f>-0.0f))) {success = 0;}
   if(!(!(0.999f<=0.0f))) {success = 0;}
   if(!(!(-0.999f>=-0.0f))) {success = 0;}
 
-  assert(success); // SUCCESS
-  assert(unknown); // UNKNOWN
+  __goblint_check(success); // SUCCESS
+  __goblint_check(unknown); // UNKNOWN
 }

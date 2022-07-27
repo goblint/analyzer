@@ -11,8 +11,8 @@ void main(void) {
     X++;
   }
 
-  assert(X-N == 0);
-  assert(X == N);
+  __goblint_check(X-N == 0);
+  __goblint_check(X == N);
 
   if(X == N) {
     N = 8;

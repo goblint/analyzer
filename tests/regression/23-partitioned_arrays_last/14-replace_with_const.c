@@ -12,15 +12,15 @@ void example1() {
 
   init_array(a, 42);
 
-  assert(a[2] == 42);
-  assert(a[10] == 42);
+  __goblint_check(a[2] == 42);
+  __goblint_check(a[10] == 42);
 
   do_first(a);
-  assert(a[0] == 3);
+  __goblint_check(a[0] == 3);
 
   init_array(b,12);
-  assert(b[2] == 12);
-  assert(b[10] == 12);
+  __goblint_check(b[2] == 12);
+  __goblint_check(b[10] == 12);
 }
 
 void do_first(int* arr) {
@@ -33,6 +33,6 @@ void init_array(int* arr, int val) {
       arr[i] = val;
   }
 
-  assert(arr[2] == val);
-  assert(arr[10] == val);
+  __goblint_check(arr[2] == val);
+  __goblint_check(arr[10] == val);
 }

@@ -25,9 +25,9 @@ int main(void) {
 
         v = (int*)malloc(sizeof(*v));
         if (v == 0){
-                assert(0); // FAIL
+                __goblint_check(0); // FAIL
   } else {
-                assert(0); // FAIL
+                __goblint_check(0); // FAIL
                 *v != 0; // NOWARN
         }
 
@@ -37,7 +37,7 @@ int main(void) {
         if (v == 0)
                 exit(0);
 
-        assert(0); // NOWARN
+        __goblint_check(0); // NOWARN
 
   return 0;
 }

@@ -8,6 +8,6 @@ void c(){
 }
 
 int main(){
-	assert(g==10);
+	__goblint_check(g==10);
 	return 0;
 }

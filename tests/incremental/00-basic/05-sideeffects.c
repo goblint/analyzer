@@ -9,7 +9,7 @@ void f() {
 
 int main() {
     f();
-    assert(g == 2); // UNKNOWN!
-    assert(g == 1); // UNKNOWN! (when wrongly overriding the start state of start functions this did succeed in the incremental run)
+    __goblint_check(g == 2); // UNKNOWN!
+    __goblint_check(g == 1); // UNKNOWN! (when wrongly overriding the start state of start functions this did succeed in the incremental run)
     return 0;
 }

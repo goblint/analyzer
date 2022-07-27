@@ -70,7 +70,7 @@ void P1(void){
   while (1){
      LAP_Se_LockPreemption(&ll,&r);
      g = 1;
-     assert(g==1); // TODO: privatization by preemption?
+     __goblint_check(g==1); // TODO: privatization by preemption?
      LAP_Se_UnlockPreemption(&ll,&r);
   }
   return;

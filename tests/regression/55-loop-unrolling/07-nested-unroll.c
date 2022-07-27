@@ -11,7 +11,7 @@ int main(void) {
 
     for(int i=0;i<5; i++) {
         for(int j=0;j <5; j++) {
-            assert(arr[i][j] == i+j);
+            __goblint_check(arr[i][j] == i+j);
         }
     }
 }

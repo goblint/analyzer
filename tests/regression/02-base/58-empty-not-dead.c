@@ -4,7 +4,7 @@
 
 int main() {
     // state: {bot}, because no locals/globals
-    assert(1); // state: {bot}, because Hoare set add (in PathSensitive2 map) keeps bot, while reduce would remove
-    assert(1); // state: {bot}, because Hoare set add (in PathSensitive2 map) keeps bot, while reduce would remove
+    __goblint_check(1); // state: {bot}, because Hoare set add (in PathSensitive2 map) keeps bot, while reduce would remove
+    __goblint_check(1); // state: {bot}, because Hoare set add (in PathSensitive2 map) keeps bot, while reduce would remove
     return 0;
 }

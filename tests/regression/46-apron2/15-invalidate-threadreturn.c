@@ -15,6 +15,6 @@ int main(){
     int y = 8;
     pthread_create(&thread, NULL, foo, NULL);
     pthread_join(thread, &y);
-    assert(y==8); //UNKNOWN!
+    __goblint_check(y==8); //UNKNOWN!
     return 0;
 }

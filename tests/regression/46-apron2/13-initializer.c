@@ -15,9 +15,9 @@ int main(){
     int y;
     g = y;
     h = y;
-    assert(g == h);
+    __goblint_check(g == h);
     pthread_create(&thread, NULL, foo, NULL);
-    assert(g == h); //TODO We would like to be able to prove that this holds (but can't as we lose g = h)
+    __goblint_check(g == h); //TODO We would like to be able to prove that this holds (but can't as we lose g = h)
     pthread_join(thread, NULL);
     return 0;
 }

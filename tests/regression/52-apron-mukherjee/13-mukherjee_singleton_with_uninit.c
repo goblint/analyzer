@@ -29,6 +29,6 @@ int main() {
     pthread_join(t1, 0);
     pthread_join(t2, 0);
 
-	assert(x <= 5);
+	__goblint_check(x <= 5);
 	return 0;
 }
