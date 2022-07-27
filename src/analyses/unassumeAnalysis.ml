@@ -3,6 +3,7 @@ open Analyses
 
 module NH = CfgTools.NH
 module FH = Hashtbl.Make (CilType.Fundec)
+module EH = Hashtbl.Make (CilType.Exp)
 
 module Spec =
 struct
@@ -26,7 +27,7 @@ struct
   let invs: Cil.exp NH.t = NH.create 100
 
   let fun_pres: Cil.exp FH.t = FH.create 100
-  let pre_invs: (Cil.exp * Cil.exp) NH.t = NH.create 100
+  let pre_invs: Cil.exp EH.t NH.t = NH.create 100
 
   let init _ =
     locator := Locator.create (); (* TODO: add Locator.clear *)
@@ -122,7 +123,9 @@ struct
                 begin match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
                   | Ok inv_exp ->
                     M.debug ~category:Witness ~loc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
-                    NH.add pre_invs n (pre_exp, inv_exp)
+                    if not (NH.mem pre_invs n) then
+                      NH.replace pre_invs n (EH.create 10);
+                    EH.add (NH.find pre_invs n) pre_exp inv_exp
                   | Error e ->
                     M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
                     M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv
@@ -171,14 +174,11 @@ struct
 
   let emit_unassume ctx =
     let es = NH.find_all invs ctx.node in
-    let es =
-      NH.find_all pre_invs ctx.node
-      |> List.fold_left (fun acc (pre, inv) ->
-          if D.mem pre ctx.local then
-            inv :: acc
-          else
-            acc
-        ) es
+    let es = D.fold (fun pre acc ->
+        match NH.find_option pre_invs ctx.node with
+        | Some eh -> EH.find_all eh pre @ acc
+        | None -> acc
+      ) ctx.local es
     in
     begin match es with
       | x :: xs ->
