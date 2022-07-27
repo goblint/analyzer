@@ -21,7 +21,7 @@ int main()
     int i;
     long l;
     unsigned u;
-    // TODO: add declarations for __goblint functions
+
     // Casts from double/float/long double into different variants of ints
     __goblint_check((int)0.0);       // FAIL
     __goblint_check((long)0.0);      // FAIL

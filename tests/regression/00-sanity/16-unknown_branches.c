@@ -15,7 +15,7 @@ int main() {
   __goblint_check(x);            // UNKNOWN
   __goblint_check(y);            // UNKNOWN
   __goblint_check(x == y);       // UNKNOWN
-  // TODO: add declarations for __goblint functions
+
   __goblint_check(p);            // UNKNOWN
   __goblint_check(q);            // UNKNOWN
   __goblint_check(p == q);       // UNKNOWN
