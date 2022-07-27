@@ -1540,7 +1540,7 @@ struct
     | `Bot -> false (* HACK: bot is here due to typing conflict (we do not cast appropriately) *)
     | _ -> VD.is_bot_value x
 
-  let invariant ctx a (gs:glob_fun) st exp tv =
+  let invariant_fallback ctx a (gs:glob_fun) st exp tv =
     (* We use a recursive helper function so that x != 0 is false can be handled
      * as x == 0 is true etc *)
     let rec helper (op: binop) (lval: lval) (value: value) (tv: bool) =
@@ -1695,7 +1695,7 @@ struct
   let invariant ctx a gs st exp tv: store =
     let fallback reason st =
       if M.tracing then M.tracel "inv" "Can't handle %a.\n%s\n" d_plainexp exp reason;
-      invariant ctx a gs st exp tv
+      invariant_fallback ctx a gs st exp tv
     in
     (* inverse values for binary operation a `op` b == c *)
     (* ikind is the type of a for limiting ranges of the operands a, b. The only binops which can have different types for a, b are Shiftlt, Shiftrt (not handled below; don't use ikind to limit b there). *)
@@ -1822,10 +1822,10 @@ struct
     let inv_bin_float (a, b) c op =
       let open Stdlib in
       let meet_bin a' b'  = FD.meet a a', FD.meet b b' in
-      (* Refining the abstract values based on branching is rougly based on the idea in [Symbolic execution of floating-point computations](https://hal.inria.fr/inria-00540299/document)
+      (* Refining the abstract values based on branching is roughly based on the idea in [Symbolic execution of floating-point computations](https://hal.inria.fr/inria-00540299/document)
          However, their approach is only applicable to the "nearest" rounding mode. Here we use a more general approach covering all possible rounding modes and therefore
          use the actual `pred c_min`/`succ c_max` for the outer-bounds instead of the middles between `c_min` and `pred c_min`/`c_max` and `succ c_max` as suggested in the paper.
-         This also removes the necessarity of computing those expressions with higher precise than in the concrete.
+         This also removes the necessity of computing those expressions with higher precise than in the concrete.
       *)
       try
         match op with
@@ -1919,7 +1919,7 @@ struct
            | Ne, Some false -> both (FD.meet a b) (* def. equal: if they compare equal, both values must be from the meet *)
            | Eq, Some false
            | Ne, Some true -> (* def. unequal *)
-             (* M.debug ~category:Analyzer "Can't use uneqal information about float value in expression \"%a\"." d_plainexp exp; *)
+             (* M.debug ~category:Analyzer "Can't use unequal information about float value in expression \"%a\"." d_plainexp exp; *)
              a, b
            | _, _ -> a, b
           )
