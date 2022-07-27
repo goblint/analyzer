@@ -325,6 +325,12 @@ let rec get_ikind t =
   | TPtr _ -> get_ikind !Cil.upointType
   | _ -> invalid_arg ("Cilfacade.get_ikind: non-integer type " ^ CilType.Typ.show t)
 
+let get_fkind t =
+  (* important to unroll the type here, otherwise problems with typedefs *)
+  match Cil.unrollType t with
+  | TFloat (fk,_) -> fk
+  | _ -> invalid_arg ("Cilfacade.get_fkind: non-float type " ^ CilType.Typ.show t)
+
 let ptrdiff_ikind () = get_ikind !ptrdiffType
 
 
@@ -454,6 +460,7 @@ let mkCast ~(e: exp) ~(newt: typ) =
   Cil.mkCastT ~e ~oldt ~newt
 
 let get_ikind_exp e = get_ikind (typeOf e)
+let get_fkind_exp e = get_fkind (typeOf e)
 
 (** Make {!Cil.BinOp} with correct implicit casts inserted. *)
 let makeBinOp binop e1 e2 =
