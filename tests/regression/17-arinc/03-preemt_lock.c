@@ -1,4 +1,5 @@
-// SKIP PARAM: --set ana.activated[+] extract_arinc --set ana.activated[+] thread --disable ana.arinc.export
+// SKIP PARAM: --set ana.activated[+] arinc --set ana.activated[+] thread --disable ana.arinc.export
+#include <assert.h>
 
 typedef char * SEMAPHORE_NAME_TYPE;
 typedef int    SEMAPHORE_ID_TYPE;
@@ -60,7 +61,6 @@ extern void LAP_Se_SetPartitionMode (
 
 // -----------------------
 
-extern void assert(int);
 int g;
 
 void P1(void){
