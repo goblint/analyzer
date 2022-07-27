@@ -104,13 +104,37 @@ struct
         | Error (`Msg e) -> M.info_noloc ~category:Witness "couldn't parse entry: %s" e
       ) yaml_entries
 
-  let assign ctx lv e =
+  let emit_unassume ctx =
     match NH.find_all invs ctx.node with
     | x :: xs ->
       let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
       ctx.emit (Unassume e)
     | [] ->
       ()
+
+  let assign ctx lv e =
+    emit_unassume ctx
+
+  let branch ctx e tv =
+    emit_unassume ctx
+
+  let body ctx fd =
+    emit_unassume ctx
+
+  let asm ctx =
+    emit_unassume ctx
+
+  let skip ctx =
+    emit_unassume ctx
+
+  let special ctx lv f args =
+    emit_unassume ctx
+
+  let combine ctx lv fe f args fc fd =
+    emit_unassume ctx
+
+  (* not in sync, query, entry, threadenter because they aren't final transfer function on edge *)
+  (* not in vdecl, return, threadspawn because unnecessary targets for invariants? *)
 end
 
 let _ =
