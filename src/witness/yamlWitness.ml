@@ -257,10 +257,10 @@ struct
     let fc_map : con_inv list FCMap.t = FCMap.create 103 in
     FMap.iter (fun f con_invs ->
         List.iter (fun current_c ->
-            (* Collect all start states that may satisfy the invariant of current_c *)
-            List.iter (fun c ->
-                begin match current_c.invariant with
-                  | `Lifted c_inv ->
+            begin match current_c.invariant with
+              | `Lifted c_inv ->
+                (* Collect all start states that may satisfy the invariant of current_c *)
+                List.iter (fun c ->
                     let x = Query.ask_local gh (c.node, c.context) c.state (Queries.EvalInt c_inv) in
                     if Queries.ID.is_bot x || Queries.ID.is_bot_ikind x then (* dead code *)
                       failwith "Bottom not expected when querying context state" (* Maybe this is reachable, failwith for now so we see when this happens *)
@@ -269,11 +269,11 @@ struct
                       (* Insert c into the list of weaker contexts of f *)
                       FCMap.modify_def [] (f, current_c.context) (fun cs -> c::cs) fc_map;
                     end
-                  | `Bot | `Top ->
-                    (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
-                    ()
-                end
-              ) con_invs;
+                  ) con_invs;
+              | `Bot | `Top ->
+                (* If the context invariant is None, we will not generate a precondition invariant. Nothing to do here. *)
+                ()
+            end
           ) con_invs;
       ) fun_contexts;
 
