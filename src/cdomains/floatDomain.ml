@@ -542,7 +542,7 @@ module FloatIntervalImplLifted = struct
     | FDouble -> F64 (op64 ())
     | FLongDouble -> FLong (op64 ())
     | _ ->
-      (* this sould never be reached, as we have to check for invalid fkind elsewhere,
+      (* this should never be reached, as we have to check for invalid fkind elsewhere,
          however we could instead of crashing also return top_of some fkind to avoid this and nonetheless have no actual information about anything*)
       failwith "unsupported fkind"
 
