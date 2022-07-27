@@ -266,12 +266,12 @@ module FloatIntervalImpl(Float_t : CFloatType) = struct
        | Interval (r1, r2) when not (is_exact result) && is_exact_before ->
          Messages.warn
            ~category:Messages.Category.Float
-           ~tags:[CWE 197; CWE 681; CWE 1339]
+           ~tags:[CWE 1339]
            "The result of this operation is not exact, even though the inputs were exact";
        | Top ->
          Messages.warn
            ~category:Messages.Category.Float
-           ~tags:[CWE 197; CWE 681; CWE 1339]
+           ~tags:[CWE 1339]
            "The result of this operation could be +/-infinity or Nan";
        | _ -> ());
       result
