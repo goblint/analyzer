@@ -1,0 +1,89 @@
+- entry_type: loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 26e6d2de-13a6-4610-9b08-ee3d9e6b9338
+    creation_time: 2022-07-27T09:38:32Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g4c8a7374d-dirty
+      command_line: '''../../../goblint'' ''--enable'' ''dbg.debug'' ''--enable''
+        ''ana.int.interval'' ''14-base-unassume-precondition.c'' ''--enable'' ''witness.yaml.enabled'''
+    task:
+      input_files:
+      - 14-base-unassume-precondition.c
+      input_file_hashes:
+        14-base-unassume-precondition.c: 67e6b56700825db19b04a972291f7b05465b5ec2f797799026fae5c0d83e536f
+      data_model: LP64
+      language: C
+  location:
+    file_name: 14-base-unassume-precondition.c
+    file_hash: 67e6b56700825db19b04a972291f7b05465b5ec2f797799026fae5c0d83e536f
+    line: 6
+    column: 2
+    function: foo
+  loop_invariant:
+    string: 0 <= i
+    type: assertion
+    format: C
+- entry_type: precondition_loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 9511f3ea-4c5c-48a9-9df3-c69def7c53b0
+    creation_time: 2022-07-27T09:38:32Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g4c8a7374d-dirty
+      command_line: '''../../../goblint'' ''--enable'' ''dbg.debug'' ''--enable''
+        ''ana.int.interval'' ''14-base-unassume-precondition.c'' ''--enable'' ''witness.yaml.enabled'''
+    task:
+      input_files:
+      - 14-base-unassume-precondition.c
+      input_file_hashes:
+        14-base-unassume-precondition.c: 67e6b56700825db19b04a972291f7b05465b5ec2f797799026fae5c0d83e536f
+      data_model: LP64
+      language: C
+  location:
+    file_name: 14-base-unassume-precondition.c
+    file_hash: 67e6b56700825db19b04a972291f7b05465b5ec2f797799026fae5c0d83e536f
+    line: 6
+    column: 2
+    function: foo
+  loop_invariant:
+    string: i <= 100
+    type: assertion
+    format: C
+  precondition:
+    string: n == 100
+    type: assertion
+    format: C
+- entry_type: precondition_loop_invariant
+  metadata:
+    format_version: "0.1"
+    uuid: 57e21ea2-5bc3-4adc-a703-159d9733049e
+    creation_time: 2022-07-27T09:38:32Z
+    producer:
+      name: Goblint
+      version: heads/yaml-witness-unassume-0-g4c8a7374d-dirty
+      command_line: '''../../../goblint'' ''--enable'' ''dbg.debug'' ''--enable''
+        ''ana.int.interval'' ''14-base-unassume-precondition.c'' ''--enable'' ''witness.yaml.enabled'''
+    task:
+      input_files:
+      - 14-base-unassume-precondition.c
+      input_file_hashes:
+        14-base-unassume-precondition.c: 67e6b56700825db19b04a972291f7b05465b5ec2f797799026fae5c0d83e536f
+      data_model: LP64
+      language: C
+  location:
+    file_name: 14-base-unassume-precondition.c
+    file_hash: 67e6b56700825db19b04a972291f7b05465b5ec2f797799026fae5c0d83e536f
+    line: 6
+    column: 2
+    function: foo
+  loop_invariant:
+    string: i <= 50
+    type: assertion
+    format: C
+  precondition:
+    string: n == 50
+    type: assertion
+    format: C

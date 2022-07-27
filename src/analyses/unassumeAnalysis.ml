@@ -2,17 +2,31 @@
 open Analyses
 
 module NH = CfgTools.NH
+module FH = Hashtbl.Make (CilType.Fundec)
 
 module Spec =
 struct
-  include UnitAnalysis.Spec
+  include Analyses.IdentitySpec
   let name () = "unassume"
+
+  module C = Printable.Unit
+  module D = SetDomain.Make (CilType.Exp)
+
+  let startstate _ = D.empty ()
+  let morphstate _ _ = D.empty ()
+  let exitstate _ = D.empty ()
+
+  let context _ _ = ()
+  let should_join _ _ = false
 
   module Locator = WitnessUtil.Locator (Node)
 
   let locator: Locator.t ref = ref (Locator.create ()) (* empty default, so don't have to use option everywhere *)
 
   let invs: Cil.exp NH.t = NH.create 100
+
+  let fun_pres: Cil.exp FH.t = FH.create 100
+  let pre_invs: (Cil.exp * Cil.exp) NH.t = NH.create 100
 
   let init _ =
     locator := Locator.create (); (* TODO: add Locator.clear *)
@@ -56,6 +70,8 @@ struct
     let inv_parser = InvariantParser.create !Cilfacade.current_file in
 
     NH.clear invs;
+    FH.clear fun_pres;
+    NH.clear pre_invs;
 
     let unassume_entry (entry: YamlWitnessType.Entry.t) =
 
@@ -91,9 +107,58 @@ struct
           M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
       in
 
+      let unassume_precondition_nodes_invariant ~loc ~nodes pre inv =
+        match InvariantParser.parse_cabs pre, InvariantParser.parse_cabs inv with
+        | Ok pre_cabs, Ok inv_cabs ->
+
+          Locator.ES.iter (fun n ->
+              let fundec = Node.find_fundec n in
+
+              match InvariantParser.parse_cil inv_parser ~fundec ~loc pre_cabs with
+              | Ok pre_exp ->
+                M.debug ~category:Witness ~loc "located precondition to %a: %a" CilType.Fundec.pretty fundec Cil.d_exp pre_exp;
+                FH.add fun_pres fundec pre_exp;
+
+                begin match InvariantParser.parse_cil inv_parser ~fundec ~loc inv_cabs with
+                  | Ok inv_exp ->
+                    M.debug ~category:Witness ~loc "located invariant to %a: %a" Node.pretty n Cil.d_exp inv_exp;
+                    NH.add pre_invs n (pre_exp, inv_exp)
+                  | Error e ->
+                    M.error ~category:Witness ~loc "CIL couldn't parse invariant: %s" inv;
+                    M.info ~category:Witness ~loc "invariant has undefined variables or side effects: %s" inv
+                end
+
+              | Error e ->
+                M.error ~category:Witness ~loc "CIL couldn't parse precondition: %s" pre;
+                M.info ~category:Witness ~loc "precondition has undefined variables or side effects: %s" pre
+            ) nodes;
+
+        | Error e, _ ->
+          M.error ~category:Witness ~loc "Frontc couldn't parse precondition: %s" pre;
+          M.info ~category:Witness ~loc "precondition has invalid syntax: %s" pre
+
+        | _, Error e ->
+          M.error ~category:Witness ~loc "Frontc couldn't parse invariant: %s" inv;
+          M.info ~category:Witness ~loc "invariant has invalid syntax: %s" inv
+      in
+
+      let unassume_precondition_loop_invariant (precondition_loop_invariant: YamlWitnessType.PreconditionLoopInvariant.t) =
+        let loc = loc_of_location precondition_loop_invariant.location in
+        let pre = precondition_loop_invariant.precondition.string in
+        let inv = precondition_loop_invariant.loop_invariant.string in
+
+        match Locator.find_opt !locator loc with
+        | Some nodes ->
+          unassume_precondition_nodes_invariant ~loc ~nodes pre inv
+        | None ->
+          M.warn ~category:Witness ~loc "couldn't locate invariant: %s" inv
+      in
+
       match entry.entry_type with
       | LoopInvariant x ->
         unassume_loop_invariant x
+      | PreconditionLoopInvariant x ->
+        unassume_precondition_loop_invariant x
       | entry_type ->
         M.info_noloc ~category:Witness "cannot unassume entry of type %s" (YamlWitnessType.EntryType.entry_type entry_type)
     in
@@ -105,12 +170,24 @@ struct
       ) yaml_entries
 
   let emit_unassume ctx =
-    match NH.find_all invs ctx.node with
-    | x :: xs ->
-      let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
-      ctx.emit (Unassume e)
-    | [] ->
-      ()
+    let es = NH.find_all invs ctx.node in
+    let es =
+      NH.find_all pre_invs ctx.node
+      |> List.fold_left (fun acc (pre, inv) ->
+          if D.mem pre ctx.local then
+            inv :: acc
+          else
+            acc
+        ) es
+    in
+    begin match es with
+      | x :: xs ->
+        let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
+        ctx.emit (Unassume e)
+      | [] ->
+        ()
+    end;
+    ctx.local
 
   let assign ctx lv e =
     emit_unassume ctx
@@ -119,7 +196,18 @@ struct
     emit_unassume ctx
 
   let body ctx fd =
-    emit_unassume ctx
+    let pres = FH.find_all fun_pres fd in
+    let st = List.fold_left (fun acc pre ->
+        let v = ctx.ask (EvalInt pre) in
+        (* M.debug ~category:Witness "%a precondition %a evaluated to %a" CilType.Fundec.pretty fd CilType.Exp.pretty pre Queries.ID.pretty v; *)
+        if Queries.ID.to_bool v = Some true then
+          D.add pre acc
+        else
+          acc
+      ) (D.empty ()) pres
+    in
+
+    emit_unassume {ctx with local = st} (* doesn't query, so no need to redefine ask *)
 
   let asm ctx =
     emit_unassume ctx
@@ -129,6 +217,9 @@ struct
 
   let special ctx lv f args =
     emit_unassume ctx
+
+  let enter ctx lv f args =
+    [(ctx.local, D.empty ())]
 
   let combine ctx lv fe f args fc fd =
     emit_unassume ctx
