@@ -82,6 +82,11 @@ struct
             ctx.split () [Events.Unlock (remove_fn e)]
           ) (eval_exp_addr (Analyses.ask_of_ctx ctx) arg);
         raise Analyses.Deadcode
+      | "LAP_Se_SignalSemaphore", [Lval arg; _] ->
+        List.iter (fun e ->
+            ctx.split () [Events.Unlock (remove_fn e)]
+          ) (eval_exp_addr (Analyses.ask_of_ctx ctx) (Cil.mkAddrOf arg));
+        raise Analyses.Deadcode
       | _ -> failwith "unlock has multiple arguments"
     in
     let desc = LF.find f in
@@ -96,6 +101,9 @@ struct
         | "spin_lock_irqsave", [arg; _] ->
           (*print_endline @@ "Mutex `Lock "^f.vname;*)
           lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv arg
+        | "LAP_Se_WaitSemaphore", [Lval arg; _; _]  ->
+          (*print_endline @@ "Mutex `Lock "^f.vname;*)
+          lock ctx rw failing nonzero_return_when_aquired (Analyses.ask_of_ctx ctx) lv (Cil.mkAddrOf arg)
         | _ -> failwith "lock has multiple arguments"
       end
     | Unlock _, "__raw_read_unlock"
