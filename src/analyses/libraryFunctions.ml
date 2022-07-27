@@ -41,7 +41,7 @@ let gcc_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
 (** Linux kernel functions. *)
 let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
 
-  ]
+]
 
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[

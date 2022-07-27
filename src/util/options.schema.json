@@ -749,6 +749,12 @@
                 "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
                 "kzalloc"
               ]
+            },
+            "unique_address_count": {
+                "title": "ana.malloc.unique_address_count",
+                "description": "Number of unique memory addresses allocated for each malloc node.",
+                "type": "integer",
+                "default": 0
             }
           },
           "additionalProperties": false
