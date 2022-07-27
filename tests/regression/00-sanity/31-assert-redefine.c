@@ -1,5 +1,5 @@
 // from zstd
-#define __goblint_check(expression) ((void)0) // NOWARN (stupid script)
+#define assert(expression) ((void)0) // NOWARN (stupid script)
 #include <assert.h>
 
 int main() {
@@ -7,10 +7,10 @@ int main() {
   int silence = 1;
   int fail = 0;
   int unknown;
-  // TODO: change back to assert?
-  __goblint_check(success);
-  __goblint_check(fail); // FAIL!
-  __goblint_check(unknown == 4); // UNKNOWN!
+  // intentionally using assert, specific order to work with assert refine
+  assert(success);
+  assert(unknown == 4); // UNKNOWN!
+  assert(fail); // FAIL!
   return 0;
-  __goblint_check(silence); // NOWARN!
+  assert(silence); // NOWARN!
 }
