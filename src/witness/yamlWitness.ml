@@ -420,8 +420,8 @@ struct
                   else
                     false
                 | Error e ->
-                  M.error ~category:Witness ~loc "CIL couldn't parse precondition: %s" inv;
-                  M.info ~category:Witness ~loc "precondition has undefined variables or side effects: %s" inv;
+                  M.error ~category:Witness ~loc "CIL couldn't parse precondition: %s" pre;
+                  M.info ~category:Witness ~loc "precondition has undefined variables or side effects: %s" pre;
                   false
               in
 
