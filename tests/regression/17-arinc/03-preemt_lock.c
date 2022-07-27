@@ -1,4 +1,5 @@
 // SKIP PARAM: --set ana.activated[+] arinc --set ana.activated[+] thread --disable ana.arinc.export
+// probably doesn't pass because some preemption-based privatization was removed in b2fba1f43c402d3a3811502d6ea1079f22fe8d21
 #include <assert.h>
 
 typedef char * SEMAPHORE_NAME_TYPE;
@@ -69,7 +70,7 @@ void P1(void){
   while (1){
      LAP_Se_LockPreemption(&ll,&r);
      g = 1;
-     assert(g==1);
+     assert(g==1); // TODO: privatization by preemption?
      LAP_Se_UnlockPreemption(&ll,&r);
   }
   return;
