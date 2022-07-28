@@ -929,12 +929,14 @@ struct
     | Index (CastE (TInt(IInt,[]), Const (CStr ("unknown",No_encoding))), ofs) -> (* special offset added by convertToQueryLval *)
       `Index (IdxDom.top (), convert_offset a gs st ofs)
     | Index (exp, ofs) ->
-      let exp_rv = eval_rv a gs st exp in
-      match exp_rv with
-      | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
-      | `Top   -> `Index (IdxDom.top (), convert_offset a gs st ofs)
-      | `Bot -> `Index (IdxDom.bot (), convert_offset a gs st ofs)
-      | _ -> failwith "Index not an integer value"
+      let rec from_exp e = match e with
+        | `Int i -> `Index (iDtoIdx i, convert_offset a gs st ofs)
+        | `Address add -> from_exp @@ VD.cast (TInt(Cilfacade.ptrdiff_ikind (),[])) e
+        | `Top   -> `Index (IdxDom.top (), convert_offset a gs st ofs)
+        | `Bot -> `Index (IdxDom.bot (), convert_offset a gs st ofs)
+        | _ -> failwith "Index not an integer value"
+      in
+      from_exp (eval_rv a gs st exp)
   (* Evaluation of lvalues to our abstract address domain. *)
   and eval_lv (a: Q.ask) (gs:glob_fun) st (lval:lval): AD.t =
     let eval_rv = eval_rv_back_up in
