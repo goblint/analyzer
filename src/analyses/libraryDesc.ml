@@ -11,6 +11,23 @@ struct
   }
 end
 
+type math =
+  | Nan of (Cil.fkind * Cil.exp)
+  | Inf of Cil.fkind
+  | Isfinite of Cil.exp
+  | Isinf of Cil.exp
+  | Isnan of Cil.exp
+  | Isnormal of Cil.exp
+  | Signbit of Cil.exp
+  | Fabs of (Cil.fkind * Cil.exp)
+  | Acos of (Cil.fkind * Cil.exp)
+  | Asin of (Cil.fkind * Cil.exp)
+  | Atan of (Cil.fkind * Cil.exp)
+  | Atan2 of (Cil.fkind * Cil.exp * Cil.exp)
+  | Cos of (Cil.fkind * Cil.exp)
+  | Sin of (Cil.fkind * Cil.exp)
+  | Tan of (Cil.fkind * Cil.exp)
+
 (** Type of special function, or {!Unknown}. *)
 (* Use inline record if not single {!Cil.exp} argument. *)
 type special =
@@ -23,6 +40,7 @@ type special =
   | ThreadCreate of { thread: Cil.exp; start_routine: Cil.exp; arg: Cil.exp; }
   | ThreadJoin of { thread: Cil.exp; ret_var: Cil.exp; }
   | ThreadExit of { ret_val: Cil.exp; }
+  | Math of { fun_args: math; }
   | Memset of { dest: Cil.exp; ch: Cil.exp; count: Cil.exp; }
   | Bzero of { dest: Cil.exp; count: Cil.exp; }
   | Abort

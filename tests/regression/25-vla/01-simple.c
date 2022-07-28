@@ -1,4 +1,6 @@
 // PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+#include <assert.h>
+
 int main(void)
 {
   int a[40];

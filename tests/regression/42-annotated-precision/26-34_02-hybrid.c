@@ -2,6 +2,8 @@
 // Example from Amato-Scozzari, SAS 2013
 // Localized narrowing with restart policy should be able to prove that
 // 0 <= i <= 10 inside the inner loop.
+#include <assert.h>
+
 void main() __attribute__((goblint_precision("no-def_exc","interval")));
 
 void main()

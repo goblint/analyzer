@@ -1,5 +1,6 @@
 //PARAM: --enable ana.int.interval
 #include <pthread.h>
+#include <assert.h>
 
 extern int printf();
 

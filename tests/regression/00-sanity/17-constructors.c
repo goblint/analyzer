@@ -1,3 +1,5 @@
+#include <assert.h>
+
 int g=0;
 
 void c()  __attribute__((__constructor__)) ;

@@ -1,5 +1,6 @@
 // PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']" --set ana.base.privatization none
 #include <stdlib.h>
+#include <assert.h>
 
 void *smalloc(size_t x){
         void * p = malloc(x);

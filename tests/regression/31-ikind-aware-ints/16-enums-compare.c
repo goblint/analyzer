@@ -1,4 +1,6 @@
 //PARAM: --enable ana.int.enums --disable ana.int.def_exc
+#include <assert.h>
+
 int main(){
     int top = rand();
     int top2 = rand();

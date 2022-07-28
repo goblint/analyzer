@@ -1,4 +1,6 @@
 //PARAM: --enable ana.int.interval
+#include <assert.h>
+
 extern int printf();
 
 void add (int *a, int *b) {

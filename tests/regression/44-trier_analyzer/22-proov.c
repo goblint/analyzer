@@ -1,3 +1,5 @@
+#include <assert.h>
+
 extern int printf();
 
 int abi1(int x) {

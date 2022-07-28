@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <assert.h>
 
 int main(){
 	errno = 1;

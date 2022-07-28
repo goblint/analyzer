@@ -406,6 +406,20 @@
           },
           "additionalProperties": false
         },
+        "float": {
+          "title": "ana.float",
+          "type": "object",
+          "properties": {
+            "interval": {
+              "title": "ana.float.interval",
+              "description":
+                "Use FloatDomain: (float * float) option.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
         "file": {
           "title": "ana.file",
           "type": "object",
@@ -735,6 +749,12 @@
                 "kmalloc", "__kmalloc", "usb_alloc_urb", "__builtin_alloca",
                 "kzalloc"
               ]
+            },
+            "unique_address_count": {
+                "title": "ana.malloc.unique_address_count",
+                "description": "Number of unique memory addresses allocated for each malloc node.",
+                "type": "integer",
+                "default": 0
             }
           },
           "additionalProperties": false
@@ -1167,6 +1187,20 @@
                 "Enables handling of privatized globals, by setting the precision to the heighest value, when annotation.int.enabled is true.",
               "type": "boolean",
               "default": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "float": {
+          "title": "annotation.float",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "title": "annotation.float.enabled",
+              "description":
+                "Enable manual annotation of functions with desired precision, i.e. the activated FloatDomains.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -1611,6 +1645,12 @@
         "integer": {
           "title": "warn.integer",
           "description": "integer (Overflow, Div_by_zero) warnings",
+          "type": "boolean",
+          "default": true
+        },
+        "float": {
+          "title": "warn.float",
+          "description": "float warnings",
           "type": "boolean",
           "default": true
         },
