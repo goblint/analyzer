@@ -33,6 +33,6 @@ int main(){
 
     // When passing a union to an unknown function, reachable memory should be invalidated
     mutate_either(e);
-    assert(second.val == 2); //UNKNOWN!
+    __goblint_check(second.val == 2); //UNKNOWN!
     return 0;
 }

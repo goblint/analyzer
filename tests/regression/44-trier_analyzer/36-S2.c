@@ -9,7 +9,7 @@ struct bad {int cont; int *away;};
 
 void p (int *i) {
   if (*i) {
-    assert(i != 0);
+    __goblint_check(i != 0);
     printf ("%d\n",*i);
   }
   else {

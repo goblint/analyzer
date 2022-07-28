@@ -4,8 +4,8 @@ int main() {
     int x;
 
     if(!x) {
-        assert(x==0);
+        __goblint_check(x==0);
     } else {
-        assert(x==1); //UNKNOWN!
+        __goblint_check(x==1); //UNKNOWN!
     }
 }

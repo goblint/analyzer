@@ -9,8 +9,8 @@ void main(void) {
 
   X = 2 * N;
 
-  assert(X - 2 * N == 0);
-  assert(X == 2 * N);
+  __goblint_check(X - 2 * N == 0);
+  __goblint_check(X == 2 * N);
 
   if(X == 2 * N) {
     N = 8;

@@ -14,5 +14,5 @@ void main()
      for (int j = 0; j < 10 ; j++) ;
    }
 
-   assert(i == 10);
+   __goblint_check(i == 10);
 }

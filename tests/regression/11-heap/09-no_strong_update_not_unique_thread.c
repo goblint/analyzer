@@ -17,8 +17,8 @@ void *thread(void *v)
     *x = 2;
     *y = 3;
 
-    assert (*x == 2); // UNKNOWN!
-    assert (*y == 3); // UNKNOWN!
+    __goblint_check(*x == 2); // UNKNOWN!
+    __goblint_check(*y == 3); // UNKNOWN!
 }
 
 int main(int argc, char **argv)

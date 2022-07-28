@@ -18,7 +18,7 @@ void* fn1(void* agr)
     i = 5;
   }
   pthread_mutex_lock(&mt);
-  assert(i == 0); //UNKNOWN!
+  __goblint_check(i == 0); //UNKNOWN!
   i = 0;
   pthread_mutex_unlock(&mt);
   pthread_mutex_unlock(&mt);
@@ -33,7 +33,7 @@ void* fn2(void* agr)
     i = 5;
   }
   top = pthread_mutex_lock(&mt);
-  assert(i == 0); //UNKNOWN!
+  __goblint_check(i == 0); //UNKNOWN!
   i = 0;
   pthread_mutex_unlock(&mt);
   pthread_mutex_unlock(&mt);

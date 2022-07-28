@@ -8,6 +8,6 @@ int main(void) {
 
   tmp = __ctype_b_loc();
   i = (int)(*((*tmp) + 13));
-  assert(i == 5); // UNKNOWN
+  __goblint_check(i == 5); // UNKNOWN
   return 0;
 }

@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.def_exc  --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --set solver td3 --enable ana.int.def_exc  --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper','assert']" --set ana.base.privatization none
 #include <assert.h>
 
 int main(void) {
@@ -18,7 +18,7 @@ void t1() {
     for(i=0; i < 9;i++) { }
 
     int j = arr[i];
-    assert(j == 5); //UNKNOWN
+    __goblint_check(j == 5); //UNKNOWN
 }
 
 
@@ -287,5 +287,5 @@ void t2() {
 
     for(i=0; i < 511; i++) { }
     int j = arr[i];
-    assert(j==5); //UNKNOWN
+    __goblint_check(j==5); //UNKNOWN
 }

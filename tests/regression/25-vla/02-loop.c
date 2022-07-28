@@ -1,4 +1,4 @@
-// PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --set solver td3 --enable ana.int.interval --disable ana.int.def_exc --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper','assert']" --set ana.base.privatization none
 #include <assert.h>
 
 int main(void)
@@ -13,7 +13,7 @@ void example1(void) {
   for(int i=1;i<10;i++) {
       int a[i];
       a[i-1] = 0;
-      assert(a[i-1] == 0);
+      __goblint_check(a[i-1] == 0);
   }
 }
 
@@ -25,7 +25,7 @@ void example2(void) {
       a[j] = 0;
     }
 
-    assert(a[0] == 0);
+    __goblint_check(a[0] == 0);
   }
 }
 
@@ -38,7 +38,7 @@ void example3(void) {
       a[0] = 42;
     }
 
-    assert(a[0] == 42); //UNKNOWN
+    __goblint_check(a[0] == 42); //UNKNOWN
   }
 }
 
@@ -57,6 +57,6 @@ void example4(void) {
   }
 
   for(int i=0; i < 4; i++) {
-    assert(a[i] == 42);
+    __goblint_check(a[i] == 42);
   }
 }

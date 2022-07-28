@@ -10,6 +10,6 @@ main() {
     sum += i;
     i++;
   }
-  assert(i == 11);
+  __goblint_check(i == 11);
   printf("%d\n",sum);
 }

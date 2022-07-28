@@ -9,9 +9,9 @@ void *t_fun(void *arg) {
   int t;
   pthread_mutex_lock(&mutex1);
   t = glob1;
-  assert(t == 5); // UNKNOWN
+  __goblint_check(t == 5); // UNKNOWN
   glob1 = -10;
-  assert(glob1 == -10); // UNKNOWN
+  __goblint_check(glob1 == -10); // UNKNOWN
   glob1 = t;
   pthread_mutex_unlock(&mutex1);
   return NULL;
@@ -19,11 +19,11 @@ void *t_fun(void *arg) {
 
 int main(void) {
   pthread_t id;
-  assert(glob1 == 5);
+  __goblint_check(glob1 == 5);
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_mutex_lock(&mutex2);
-  glob1++; 
-  assert(glob1 == 6); // UNKNOWN
+  glob1++;
+  __goblint_check(glob1 == 6); // UNKNOWN
   glob1--;
   pthread_mutex_unlock(&mutex2);
   pthread_join (id, NULL);

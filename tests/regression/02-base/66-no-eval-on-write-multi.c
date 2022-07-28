@@ -29,7 +29,7 @@ int main() {
   bar();
   pthread_mutex_unlock(&mutex);
   pthread_join(t, NULL);
-  assert(glob >= 1);
-  assert(glob <= 10);
+  __goblint_check(glob >= 1);
+  __goblint_check(glob <= 10);
   return 0;
 }

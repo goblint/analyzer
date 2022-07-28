@@ -22,7 +22,7 @@ int main() {
 
   pthread_create(&id2, NULL, t_fun, p); // i should escape, even if p contains unknown
 
-  assert(i == 5); // UNKNOWN!
+  __goblint_check(i == 5); // UNKNOWN!
 
   return 0;
 }

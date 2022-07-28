@@ -38,7 +38,7 @@ int main(void) {
   pthread_join(id2, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == 12); //UNKNOWN!
+  __goblint_check(g == 12); //UNKNOWN!
   pthread_mutex_unlock(&A);
 
   return 0;

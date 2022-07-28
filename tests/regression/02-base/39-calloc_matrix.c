@@ -8,5 +8,5 @@ int main(void) {
     r[0][1] = 3;
     int* z = &r[0][1];
 
-    assert(*z == 3); //UNKNOWN
+    __goblint_check(*z == 3); //UNKNOWN
 }

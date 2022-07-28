@@ -11,6 +11,6 @@ void *awful(int **u) {
 main () {
   int *p;
   awful(&p);
-  assert(*p == 5); //UNKNOWN!
+  __goblint_check(*p == 5); //UNKNOWN!
   printf("%d\n", *p);
 }

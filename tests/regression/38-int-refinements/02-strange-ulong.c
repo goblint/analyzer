@@ -12,7 +12,7 @@ int withint() {
     bla = &main;
   }
 
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }
 
@@ -25,7 +25,7 @@ int withuint() {
     bla = &main;
   }
 
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }
 
@@ -38,7 +38,7 @@ int withlong() {
     bla = &main;
   }
 
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }
 
@@ -51,7 +51,7 @@ int withlonglong() {
     bla = &main;
   }
 
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }
 
@@ -64,7 +64,7 @@ int withulonglong() {
     bla = &main;
   }
 
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }
 
@@ -83,6 +83,6 @@ int main() {
     bla = &main;
   }
 
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }

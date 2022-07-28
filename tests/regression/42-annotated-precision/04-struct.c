@@ -19,12 +19,12 @@ int main() {
 
   a1.name = "John";
   a1.i = 6;
-  assert(a1.i == 6);
+  __goblint_check(a1.i == 6);
 
   f(&a1);
-  assert(a1.i == 10);
-  assert(a1.i == b1.i); // FAIL!
+  __goblint_check(a1.i == 10);
+  __goblint_check(a1.i == b1.i); // FAIL!
   b1.i = a1.i % 5;
-  assert(b1.i); // FAIL!
+  __goblint_check(b1.i); // FAIL!
   return 0;
 }

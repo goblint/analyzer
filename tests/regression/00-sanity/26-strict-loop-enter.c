@@ -17,6 +17,6 @@ int main() {
     for(int i=0; i<=0; i--){
       g = 57;
     }
-    assert(1); // NOWARN (unreachable)
+    __goblint_check(1); // NOWARN (unreachable)
   }
 }

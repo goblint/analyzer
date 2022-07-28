@@ -19,6 +19,6 @@ int main() {
   *y = 1;
   *z = 0;
 
-  assert(*x == 0);
-  assert(*y == 1); // UNKNOWN!
+  __goblint_check(*x == 0);
+  __goblint_check(*y == 1); // UNKNOWN!
 }

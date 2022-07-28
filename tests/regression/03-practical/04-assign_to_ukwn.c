@@ -6,7 +6,7 @@ int main(){
   if (errno == ENOENT) {
     x = 9;
   }
-  assert(x == 5); // UNKNOWN
+  __goblint_check(x == 5); // UNKNOWN
   return 0;
 }
 

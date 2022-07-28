@@ -40,7 +40,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(g == 12); //TODO
+  __goblint_check(g == 12); //TODO
   pthread_mutex_unlock(&A);
 
 // ---------------------------------------------------------------------------
@@ -63,7 +63,7 @@ int main(void) {
   pthread_mutex_unlock(&A);
 
   pthread_mutex_lock(&A);
-  assert(h == 12);
+  __goblint_check(h == 12);
   pthread_mutex_unlock(&A);
 
   return 0;

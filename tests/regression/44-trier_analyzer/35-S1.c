@@ -5,7 +5,7 @@ extern int printf(char *, ...);
 struct bad {int cont; struct bad *next;};
 
 void proc (struct bad *z) {
-  assert(z->cont == 1);
+  __goblint_check(z->cont == 1);
   printf ("%d\n",z -> cont);
 }
 

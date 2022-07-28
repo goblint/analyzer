@@ -41,8 +41,8 @@ class extractInvariantsVisitor (exps) = object
     | Call (_, Lval (Var f, NoOffset), args, _, _) ->
       let desc = LibraryFunctions.find f in
       begin match desc.special args with
-        | Assert e ->
-          EH.replace exps e ();
+        | Assert { exp; _ } ->
+          EH.replace exps exp ();
           DoChildren
         | _ ->
           DoChildren

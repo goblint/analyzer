@@ -29,6 +29,6 @@ int main(void) {
   int v = *((int*) pptr);
   // If we don't have the threadreturn analysis running, all returns from all functions called by the t_fun thread, as well as of t_fun itself are joined together
   // But we still should get a value better than top!
-  assert(v!=2);
+  __goblint_check(v!=2);
   return 0;
 }

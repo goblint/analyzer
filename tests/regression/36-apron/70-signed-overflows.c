@@ -6,7 +6,7 @@ int main(void) {
     int x = 0;
     while(x != 42) {
         x++;
-        assert(x >= 1);
+        __goblint_check(x >= 1);
     }
 
 }

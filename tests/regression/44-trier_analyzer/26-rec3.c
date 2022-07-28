@@ -13,7 +13,7 @@ void rec (int *p) {
     i = (*p);
     p = &i;
     rec(p);
-    assert(p == &i); //UNKNOWN!
+    __goblint_check(p == &i); //UNKNOWN!
     return;
   }
 }

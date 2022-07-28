@@ -23,15 +23,15 @@ int main() {
 	b = d % 2;
 
     // c is unknown
-	assert (c == 4); // UNKNOWN
+	__goblint_check(c == 4); // UNKNOWN
 	// d should be 12 in the concrete domain and  4Z in the congr. domain
-	assert (d != 1); assert (d != 2); assert (d != 3);
-	assert (d == 12); // UNKNOWN
+	__goblint_check(d != 1); __goblint_check(d != 2); __goblint_check(d != 3);
+	__goblint_check(d == 12); // UNKNOWN
 	// a should be 6 in the concrete domain and 2Z in the congr. domain
-	assert (a == 6); // UNKNOWN
+	__goblint_check(a == 6); // UNKNOWN
 	// e should be -8 in the concrete domain and 4Z in the congr. domain
-	assert (e == -8); // UNKNOWN
-	assert (b == 0);
+	__goblint_check(e == -8); // UNKNOWN
+	__goblint_check(b == 0);
 
 	return 0;
 }

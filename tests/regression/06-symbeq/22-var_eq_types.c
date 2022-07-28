@@ -43,10 +43,10 @@ int t17(){
 	struct s ss[6], *ps;
 
 	ps = &ss[i];
-	assert(ps == &ss[i]);
+	__goblint_check(ps == &ss[i]);
 
 	i = 2;
-	assert(ps == &ss[i]); // UNKNOWN
+	__goblint_check(ps == &ss[i]); // UNKNOWN
 
 	return 0;
 }
@@ -57,10 +57,10 @@ int t16(){
 	struct s ss,ss2;
 	// UB: deref uninit ptr pt
 	pt->ss->i = i;
-	assert(pt->ss->i == i); // UNKNOWN?
+	__goblint_check(pt->ss->i == i); // UNKNOWN?
 
 	tt = tt2;
-	assert(pt->ss->i == i); // UNKNOWN
+	__goblint_check(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -74,10 +74,10 @@ int t15(){
 	tt.ss = &ss;
 	// UB: deref uninit ptr pt
 	pt->ss->i = i;
-	assert(pt->ss->i == i); // UNKNOWN?
+	__goblint_check(pt->ss->i == i); // UNKNOWN?
 
 	ss = ss2;
-	assert(pt->ss->i == i); // UNKNOWN
+	__goblint_check(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -91,9 +91,9 @@ int t14(){
 //	tt.ss = &ss;
 	// UB: deref uninit ptr pt
 	pt->ss->i = i;
-	assert(pt->ss->i == i); // UNKNOWN?
+	__goblint_check(pt->ss->i == i); // UNKNOWN?
 	ss.i = 1;
-	assert(pt->ss->i == i); // UNKNOWN
+	__goblint_check(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -107,9 +107,9 @@ int t13(){
 	tt.ss = &ss;
 
 	pt->ss->i = i;
-	assert(pt->ss->i == i);
+	__goblint_check(pt->ss->i == i);
 	ss = ss2;
-	assert(pt->ss->i == i); // UNKNOWN
+	__goblint_check(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -123,9 +123,9 @@ int t12(){
 	tt.ss = &ss;
 
 	pt->ss->i = i;
-	assert(pt->ss->i == i);
+	__goblint_check(pt->ss->i == i);
 	ss.i = 1;
-	assert(pt->ss->i == i); // UNKNOWN
+	__goblint_check(pt->ss->i == i); // UNKNOWN
 
 	return 0;
 }
@@ -141,9 +141,9 @@ int t11(){
 	z.i = 8;
 	*(get_s()) = a;
 
-	assert(q == &a->i); // ???
-	assert(y == a->cp); // UNKNOWN
-	assert(z.i == 8);
+	__goblint_check(q == &a->i); // ???
+	__goblint_check(y == a->cp); // UNKNOWN
+	__goblint_check(z.i == 8);
 
 	return 0;
 }
@@ -159,9 +159,9 @@ int t10(){
 	z.i = 8;
 	a = b;
 
-	assert(q == &a->i); // UNKNOWN
-	assert(y == a->cp); // UNKNOWN
-	assert(z.i == 8);
+	__goblint_check(q == &a->i); // UNKNOWN
+	__goblint_check(y == a->cp); // UNKNOWN
+	__goblint_check(z.i == 8);
 
 	return 0;
 }
@@ -177,8 +177,8 @@ int t9(){
 	y = b->cp;
 	z.i = 8;
 
-	assert(q == &b->i);
-//	assert(y == b->cp);
+	__goblint_check(q == &b->i);
+//	__goblint_check(y == b->cp);
 
 	return 0;
 }
@@ -190,7 +190,7 @@ int t8(){
 
 	a = &z;
 	x = 8;
-	assert(a == &z);
+	__goblint_check(a == &z);
 
 	return 0;
 }
@@ -202,7 +202,7 @@ int t7(){
 
 	x = y;
 	a = b;
-	assert(x == y);
+	__goblint_check(x == y);
 
 	return 0;
 }
@@ -215,7 +215,7 @@ int t6(){
 
 	x = y;
 	*a = *b;
-	assert(x == y);
+	__goblint_check(x == y);
 
 	return 0;
 }
@@ -227,7 +227,7 @@ int t5(){
 
 	x = y;
 	*a = 3;
-	assert(x == y); // TODO (a and x or y may not alias)
+	__goblint_check(x == y); // TODO (a and x or y may not alias)
 
 	return 0;
 }
@@ -238,8 +238,8 @@ int t4(){
 
 	x = y;
 	*a = 3;
-	assert(x == y);  // TODO (a and x or y may not alias)
-	assert(a == &z); // UNKNOWN
+	__goblint_check(x == y);  // TODO (a and x or y may not alias)
+	__goblint_check(a == &z); // UNKNOWN
 
 	return 0;
 }
@@ -252,8 +252,8 @@ int t3(){
 
 	x = y;
 	*a = 3;
-	assert(x == y);
-	assert(a == &z);
+	__goblint_check(x == y);
+	__goblint_check(a == &z);
 
 
 	return 0;
@@ -266,10 +266,10 @@ int t2(){
 
 	a = &y;
 
-	x = y;	assert(x == y);
+	x = y;	__goblint_check(x == y);
 	*a = 3;
-	assert(x == y); // UNKNOWN
-	assert(a == &y);
+	__goblint_check(x == y); // UNKNOWN
+	__goblint_check(a == &y);
 
 	return 0;
 }
@@ -281,10 +281,10 @@ int t1(){
 	a = &y;
 
 	x = y;
-	assert(x == y);
+	__goblint_check(x == y);
 	f(a);
-	assert(x == y); // UNKNOWN
-	assert(a == &y);
+	__goblint_check(x == y); // UNKNOWN
+	__goblint_check(a == &y);
 
 	return 0;
 }

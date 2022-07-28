@@ -7,7 +7,7 @@ int main()
 
   if(z) {
     // z may NOT be refined to range only in the values of int here(!)
-    assert(__builtin_isfinite(z)); //UNKNOWN!
+    __goblint_check(__builtin_isfinite(z)); //UNKNOWN!
   } else {
 
   }
