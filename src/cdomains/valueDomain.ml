@@ -263,8 +263,6 @@ struct
       IntDomain.Size.is_cast_injective ~from_type:t1 ~to_type:t2 && bitsSizeOf t2 >= bitsSizeOf t1
     | _ -> false
 
-  let ptr_ikind () = match !upointType with TInt (ik,_) -> ik | _ -> assert false
-
   exception CastError of string
 
   let typ_eq t1 t2 = match typeSig t1, typeSig t2 with
@@ -352,8 +350,7 @@ struct
         | TInt (ik,_) ->
           `Int (ID.cast_to ?torg ik (match v with
               | `Int x -> x
-              | `Address x when AD.equal x AD.null_ptr -> ID.of_int (ptr_ikind ()) BI.zero
-              | `Address x when AD.is_not_null x -> ID.of_excl_list (ptr_ikind ()) [BI.zero]
+              | `Address x -> AD.to_int (module ID) x
               (*| `Struct x when Structs.cardinal x > 0 ->
                 let some  = List.hd (Structs.keys x) in
                 let first = List.hd some.fcomp.cfields in
@@ -368,7 +365,7 @@ struct
         | TPtr (t,_) when isVoidType t || isVoidPtrType t ->
           (match v with
           | `Address a -> v
-          | `Int i -> `Int(ID.cast_to ?torg (ptr_ikind ()) i)
+          | `Int i -> `Int(ID.cast_to ?torg (Cilfacade.ptr_ikind ()) i)
           | _ -> v (* TODO: Does it make sense to have things here that are neither `Address nor `Int? *)
           )
           (* cast to voidPtr are ignored TODO what happens if our value does not fit? *)
@@ -575,7 +572,7 @@ struct
     | (`Top, x) -> x
     | (x, `Top) -> x
     | (`Int x, `Int y) -> `Int (ID.meet x y)
-    | (`Int _, `Address _) -> meet x (cast (TInt(ptr_ikind (),[])) y)
+    | (`Int _, `Address _) -> meet x (cast (TInt(Cilfacade.ptr_ikind (),[])) y)
     | (`Address x, `Int y) -> `Address (AD.meet x (AD.of_int (module ID:IntDomain.Z with type t = ID.t) y))
     | (`Address x, `Address y) -> `Address (AD.meet x y)
     | (`Struct x, `Struct y) -> `Struct (Structs.meet x y)
