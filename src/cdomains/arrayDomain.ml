@@ -864,24 +864,32 @@ struct
   let update_length newl x = unop_to_t' (P.update_length newl) (T.update_length newl) (U.update_length newl) x
 
   (*determines the domain based on variable, type and flag*)
-  let get_domain ?(varAttr=[]) ?(typAttr=[]) () =
+  let get_domain' ?(varAttr=[]) ?(typAttr=[]) () =
     (*TODO add options?*)
     (*TODO let attribute determine unrolling factor?*)
     let from_attributes = List.find_map (
-      fun (Attr (s,ps) )->
-        if s = "goblint_array_domain" then 
-          List.find_map (fun p -> match p with 
-            | AStr x -> Some x
-            | _ -> None
-          ) ps
-        else None
-    ) in 
+        fun (Attr (s,ps) )->
+          if s = "goblint_array_domain" then (
+            List.find_map (fun p -> match p with 
+                | AStr x -> Some x
+                | _ -> None
+              ) ps
+          )
+          else None
+      ) in 
     if get_bool "annotation.array" then
       match from_attributes varAttr, from_attributes typAttr with 
-        | Some x, _ -> x
-        | _, Some x -> x
-        | _ -> get_string "ana.base.arrays.domain"
+      | Some x, _ -> x
+      | _, Some x -> x
+      | _ -> get_string "ana.base.arrays.domain"
     else get_string "ana.base.arrays.domain"
+
+  let get_domain ?(varAttr=[]) ?(typAttr=[]) () =
+    let s = get_domain' ~varAttr ~typAttr () in
+    ignore (Pretty.printf "var: %a\n" d_attrlist varAttr);
+    ignore (Pretty.printf "typ: %a\n" d_attrlist typAttr);
+    print_endline s;
+    s
 
   let name () = "AttributeConfiguredArrayDomain"
 
@@ -893,20 +901,20 @@ struct
       let ma = Z.to_int max_i in*)
 
   let bot () = to_t @@ match get_domain () with
-  | "partitioned" -> (Some (P.top ()), None, None)
-  | "trivial" -> (None, Some (T.top ()), None)
-  | "unroll" -> (None, None, Some (U.top ()))
-  | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in bot "
+    | "partitioned" -> (Some (P.bot ()), None, None)
+    | "trivial" -> (None, Some (T.bot ()), None)
+    | "unroll" ->  (None, None, Some (U.bot ()))
+    | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in bot "
 
   let top () = to_t @@ match get_domain () with
-  | "partitioned" -> (Some (P.top ()), None, None)
-  | "trivial" -> (None, Some (T.top ()), None)
-  | "unroll" -> (None, None, Some (U.top ()))
-  | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in top "
+    | "partitioned" -> (Some (P.top ()), None, None)
+    | "trivial" -> (None, Some (T.top ()), None)
+    | "unroll" -> (None, None, Some (U.top ()))
+    | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in top "
 
   let make ?(varAttr=[]) ?(typAttr=[]) i v = to_t @@ match get_domain ~varAttr ~typAttr () with
-  | "partitioned" -> (Some (P.make i v), None, None)
-  | "trivial" -> (None, Some (T.make i v), None)
-  | "unroll" -> (None, None, Some (U.make i v))
-  | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in make"
+    | "partitioned" -> (Some (P.make i v), None, None)
+    | "trivial" -> (None, Some (T.make i v), None)
+    | "unroll" -> (None, None, Some (U.make i v))
+    | _ -> failwith "AttributeConfiguredArrayDomain: domain unknown in make"
 end

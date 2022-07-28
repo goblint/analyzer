@@ -179,29 +179,29 @@ struct
     | `Top -> true
     | `Bot -> false
 
-    let rec zero_init_value ?(varAttr=[]) (t:typ): t =
-      match t with
-      | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
-      | TPtr _ -> `Address AD.null_ptr
-      | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
-      | TComp ({cstruct=false; _} as ci,_) ->
-        let v = try
+  let rec zero_init_value ?(varAttr=[]) (t:typ): t =
+    match t with
+    | TInt (ikind, _) -> `Int (ID.of_int ikind BI.zero)
+    | TPtr _ -> `Address AD.null_ptr
+    | TComp ({cstruct=true; _} as ci,_) -> `Struct (Structs.create (fun fd -> zero_init_value ~varAttr:fd.fattr fd.ftype) ci)
+    | TComp ({cstruct=false; _} as ci,_) ->
+      let v = try
           (* C99 6.7.8.10: the first named member is initialized (recursively) according to these rules *)
           let firstmember = List.hd ci.cfields in
           `Lifted firstmember, zero_init_value ~varAttr:firstmember.fattr firstmember.ftype
         with
-          (* Union with no members ò.O *)
+        (* Union with no members ò.O *)
           Failure _ -> Unions.top ()
-        in
-        `Union(v)
-      | TArray (ai, None, typAttr) ->
-        `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
-      | TArray (ai, Some exp, typAttr) ->
-        let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
-        `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
-      (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
-      | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
-      | _ -> `Top
+      in
+      `Union(v)
+    | TArray (ai, None, typAttr) ->
+      `Array (CArrays.make ~varAttr ~typAttr (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) (zero_init_value ai))
+    | TArray (ai, Some exp, typAttr) ->
+      let l = BatOption.map Cilint.big_int_of_cilint (Cil.getInteger (Cil.constFold true exp)) in
+      `Array (CArrays.make ~varAttr ~typAttr (BatOption.map_default (IndexDomain.of_int (Cilfacade.ptrdiff_ikind ())) (IndexDomain.top_of (Cilfacade.ptrdiff_ikind ())) l) (zero_init_value ai))
+    (* | t when is_thread_type t -> `Thread (ConcDomain.ThreadSet.empty ()) *)
+    | TNamed ({ttype=t; _}, _) -> zero_init_value ~varAttr t
+    | _ -> `Top
 
   let tag_name : t -> string = function
     | `Top -> "Top" | `Int _ -> "Int" | `Address _ -> "Address" | `Struct _ -> "Struct" | `Union _ -> "Union" | `Array _ -> "Array" | `Blob _ -> "Blob" | `Thread _ -> "Thread" | `Bot -> "Bot"

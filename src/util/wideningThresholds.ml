@@ -70,18 +70,18 @@ class extractThresholdsFromConditionsVisitor(upper_thresholds,lower_thresholds, 
 end
 
 let default_thresholds = Thresholds.of_list (
-  let thresh_pos = List.map ( Int.pow 2) [0;2;4;8;16;32;48] in
-  let thresh_neg = List.map (fun x -> -x) thresh_pos in
-  List.map Z.of_int (thresh_neg @ thresh_pos @ [0])
-)
+    let thresh_pos = List.map ( Int.pow 2) [0;2;4;8;16;32;48] in
+    let thresh_neg = List.map (fun x -> -x) thresh_pos in
+    List.map Z.of_int (thresh_neg @ thresh_pos @ [0])
+  )
 
 let conditional_widening_thresholds = ResettableLazy.from_fun (fun () ->
-  let upper = ref default_thresholds in
-  let lower = ref default_thresholds in
-  let octagon = ref default_thresholds in
-  let thisVisitor = new extractThresholdsFromConditionsVisitor(upper,lower,octagon) in
-  visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-  Thresholds.elements !upper, List.rev (Thresholds.elements !lower), Thresholds.elements !octagon )
+    let upper = ref default_thresholds in
+    let lower = ref default_thresholds in
+    let octagon = ref default_thresholds in
+    let thisVisitor = new extractThresholdsFromConditionsVisitor(upper,lower,octagon) in
+    visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
+    Thresholds.elements !upper, List.rev (Thresholds.elements !lower), Thresholds.elements !octagon )
 
 let upper_thresholds () = 
   let (u,_,_) = ResettableLazy.force conditional_widening_thresholds in u;;

@@ -36,11 +36,11 @@ class collectComplexityFactorsVisitor(factors) = object
   method! vvdec var =
     let incVar (g,l) = if var.vglob then (g + 1, l) else (g, l+1) in
     (if isIntegralType var.vtype then 
-      factors.integralVars <- incVar factors.integralVars
-    else if isPointerType var.vtype then 
-      factors.pointerVars <- incVar factors.pointerVars 
-    else if isArrayType var.vtype then 
-      factors.arrayVars <- incVar factors.arrayVars
+       factors.integralVars <- incVar factors.integralVars
+     else if isPointerType var.vtype then 
+       factors.pointerVars <- incVar factors.pointerVars 
+     else if isArrayType var.vtype then 
+       factors.arrayVars <- incVar factors.arrayVars
     ); DoChildren
 
   method! vexpr _ = factors.expressions <- factors.expressions + 1; DoChildren
@@ -110,32 +110,32 @@ class collectFunctionCallsVisitor(callSet, calledBy, argLists, fd) = object
       (*We collect the argument list so we can use LibraryFunctions.find to classify functions*)
       argLists := FunctionCallMap.add info args !argLists;
       (*print_endline @@ fd.vname ^ " -> " ^ info.vname;
-      Pretty.fprint stdout (Pretty.d_list "\n" (fun () e -> printExp defaultCilPrinter () e) () args) ~width:50;
-      print_endline "\n";*)
+        Pretty.fprint stdout (Pretty.d_list "\n" (fun () e -> printExp defaultCilPrinter () e) () args) ~width:50;
+        print_endline "\n";*)
       DoChildren
     | _ -> DoChildren
 end
 
 class functionVisitor(calling, calledBy, argLists) = object
   inherit nopCilVisitor
-  
-    method! vfunc fd = 
-      let callSet = ref FunctionSet.empty in
-      let callVisitor = new collectFunctionCallsVisitor (callSet, calledBy, argLists, fd.svar) in
-      ignore @@ Cil.visitCilFunction callVisitor fd;
-      calling := FunctionCallMap.add fd.svar !callSet !calling;
-      (*print_endline fd.svar.vname;
+
+  method! vfunc fd = 
+    let callSet = ref FunctionSet.empty in
+    let callVisitor = new collectFunctionCallsVisitor (callSet, calledBy, argLists, fd.svar) in
+    ignore @@ Cil.visitCilFunction callVisitor fd;
+    calling := FunctionCallMap.add fd.svar !callSet !calling;
+    (*print_endline fd.svar.vname;
       ignore (dumpGlobal plainCilPrinter stdout (GFun (fd, !currentLoc)));*)
-      SkipChildren
-  end
+    SkipChildren
+end
 
 let functionCallMaps = ResettableLazy.from_fun (fun () ->
-  let calling = ref FunctionCallMap.empty in
-  let calledBy = ref FunctionCallMap.empty in
-  let argLists = ref FunctionCallMap.empty in
-  let thisVisitor = new functionVisitor(calling,calledBy, argLists) in
-  visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
-  !calling, !calledBy, !argLists)
+    let calling = ref FunctionCallMap.empty in
+    let calledBy = ref FunctionCallMap.empty in
+    let argLists = ref FunctionCallMap.empty in
+    let thisVisitor = new functionVisitor(calling,calledBy, argLists) in
+    visitCilFileSameGlobals thisVisitor (!Cilfacade.current_file);
+    !calling, !calledBy, !argLists)
 
 (* Only considers static calls!*)
 (*TODO Extend to dynamic calls?*)
@@ -148,19 +148,19 @@ let findMallocWrappers () =
   let isMalloc f = 
     let desc = LibraryFunctions.find f in
     match (functionArgs f) with
-      | None -> false
-      | Some args -> 
-        match desc.special args with
-        | Malloc _ -> true (*TODO also others?*)
-        | _ -> false
+    | None -> false
+    | Some args -> 
+      match desc.special args with
+      | Malloc _ -> true (*TODO also others?*)
+      | _ -> false
   in
   ResettableLazy.force functionCallMaps 
   |> fun (x,_,_) -> x
-  |> FunctionCallMap.filter (fun _ allCalled -> FunctionSet.exists isMalloc allCalled)
-  |> FunctionCallMap.filter (fun f _ -> timesCalled f > 10) (*TODO too many false positives? what is the benefit/loss*)
-  |> FunctionCallMap.bindings
-  |> List.map (fun (v,_) -> v.vname)
-  |> List.iter (fun n -> print_endline ("Set as malloc wrapper: " ^ n); GobConfig.set_auto "ana.malloc.wrappers[+]" n)
+                    |> FunctionCallMap.filter (fun _ allCalled -> FunctionSet.exists isMalloc allCalled)
+                    |> FunctionCallMap.filter (fun f _ -> timesCalled f > 10) (*TODO too many false positives? what is the benefit/loss*)
+                    |> FunctionCallMap.bindings
+                    |> List.map (fun (v,_) -> v.vname)
+                    |> List.iter (fun n -> print_endline ("Set as malloc wrapper: " ^ n); GobConfig.set_auto "ana.malloc.wrappers[+]" n)
 
 
 (*Functions for determining if the congruence analysis should be enabled *)
@@ -173,12 +173,12 @@ let rec setCongruenceRecursive fd depth neigbourFunction =
     fd.svar.vattr <- addAttributes (fd.svar.vattr) [Attr ("goblint_precision",[AStr "congruence"])];
     FunctionSet.iter 
       (fun vinfo -> 
-        print_endline ("    " ^ vinfo.vname);
-        setCongruenceRecursive (Cilfacade.find_varinfo_fundec vinfo) (depth -1) neigbourFunction
+         print_endline ("    " ^ vinfo.vname);
+         setCongruenceRecursive (Cilfacade.find_varinfo_fundec vinfo) (depth -1) neigbourFunction
       ) 
       (FunctionSet.filter 
-        (fun x -> not (isExtern x.vstorage || String.starts_with ~prefix:"__builtin" x.vname)) (*for extern and builtin functions there is no function definition in CIL*)
-        (neigbourFunction fd.svar) 
+         (fun x -> not (isExtern x.vstorage || String.starts_with ~prefix:"__builtin" x.vname)) (*for extern and builtin functions there is no function definition in CIL*)
+         (neigbourFunction fd.svar) 
       )
     ;
   );;
@@ -199,30 +199,30 @@ class modFunctionAnnotatorVisitor = object
   method! vfunc fd = 
     let thisVisitor = new modVisitor in
     try ignore (visitCilFunction thisVisitor fd) with 
-      | ModFound -> 
-        print_endline ("function " ^ (CilType.Fundec.show fd) ^" uses mod, enable Congruence recursively for:");
-        print_endline ("  \"down\":");
-        setCongruenceRecursive fd 6 calledFunctions; (* depth? don't do it repeatedly for same function?*)
-        print_endline ("  \"up\":");
-        setCongruenceRecursive fd 3 callingFunctions;
-        (*ignore (dumpGlobal plainCilPrinter stdout (GFun (fd, !currentLoc)))*)
-    ;
-    SkipChildren
+    | ModFound -> 
+      print_endline ("function " ^ (CilType.Fundec.show fd) ^" uses mod, enable Congruence recursively for:");
+      print_endline ("  \"down\":");
+      setCongruenceRecursive fd 6 calledFunctions; (* depth? don't do it repeatedly for same function?*)
+      print_endline ("  \"up\":");
+      setCongruenceRecursive fd 3 callingFunctions;
+      (*ignore (dumpGlobal plainCilPrinter stdout (GFun (fd, !currentLoc)))*)
+      ;
+      SkipChildren
 end
 
 let addModAttributes file =
   let thisVisitor = new modFunctionAnnotatorVisitor in
   ignore (visitCilFileSameGlobals thisVisitor file)
-  (*TODO: Overflow analysis has to be enabled/assumed to not occur, otherwise the congruence analysis could be wrong*)
+(*TODO: Overflow analysis has to be enabled/assumed to not occur, otherwise the congruence analysis could be wrong*)
 
 let disableIntervalContextsInRecursiveFunctions () =
   ResettableLazy.force functionCallMaps |> fun (x,_,_) -> x |> FunctionCallMap.iter (fun f set ->
-    (*detect direct recursion and recursion with one indirection*)
-    if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
-      print_endline ("function " ^ (f.vname) ^" is recursive, disable interval analysis");
-      f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"])];
+      (*detect direct recursion and recursion with one indirection*)
+      if FunctionSet.mem f set || (not @@ FunctionSet.disjoint (calledFunctions f) (callingFunctions f)) then (
+        print_endline ("function " ^ (f.vname) ^" is recursive, disable interval analysis");
+        f.vattr <- addAttributes (f.vattr) [Attr ("goblint_context",[AStr "base.no-interval"])];
+      )
     )
-  )
 
 (*If only one thread is used in the program, we can disable most thread analyses*)
 (*The exceptions are analyses that are depended on by others: base -> mutex -> mutexEvents, access*)
@@ -235,39 +235,39 @@ let reduceThreadAnalyses () =
   let hasThreadCreate () = 
     ResettableLazy.force functionCallMaps 
     |> fun (_,x,_) -> x  (*every function that is called*)
-    |> FunctionCallMap.exists
-      (fun var (callers,_) ->
-        let desc = LibraryFunctions.find var in
-          match (functionArgs var) with
-            | None -> false;
-            | Some args -> 
-              match desc.special args with
-              | ThreadCreate _ -> 
-                print_endline @@ "thread created in " ^ var.vname ^ ", called by:"; 
-                FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
-                true;
-              | _ -> false; 
-      ) 
+                      |> FunctionCallMap.exists
+                        (fun var (callers,_) ->
+                           let desc = LibraryFunctions.find var in
+                           match (functionArgs var) with
+                           | None -> false;
+                           | Some args -> 
+                             match desc.special args with
+                             | ThreadCreate _ -> 
+                               print_endline @@ "thread created in " ^ var.vname ^ ", called by:"; 
+                               FunctionSet.iter ( fun c -> print_endline @@ "  " ^ c.vname) callers;
+                               true;
+                             | _ -> false; 
+                        ) 
   in
 
   (*TODO is there a way to specify only the thread analyses to keep?  *)
   if not @@ hasThreadCreate () then (
-      print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
-      let disableAnalysis = GobConfig.set_auto "ana.activated[-]" in
-      List.iter disableAnalysis notNeccessaryThreadAnalyses;
+    print_endline @@ "no thread creation -> disabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    let disableAnalysis = GobConfig.set_auto "ana.activated[-]" in
+    List.iter disableAnalysis notNeccessaryThreadAnalyses;
 
-    )
+  )
 
 let focusOnSpecification () = 
   match Svcomp.Specification.of_option () with 
-    | UnreachCall s -> () (*TODO?*)
-    | NoDataRace -> (*enable all thread analyses*)
-      print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
-      let enableAnalysis = GobConfig.set_auto "ana.activated[+]" in
-      List.iter enableAnalysis notNeccessaryThreadAnalyses;
-    | NoOverflow -> (*We focus on integer analysis*)
-      set_bool "ana.int.def_exc" true;
-      set_bool "ana.int.interval" true
+  | UnreachCall s -> () (*TODO?*)
+  | NoDataRace -> (*enable all thread analyses*)
+    print_endline @@ "Specification: NoDataRace -> enabeling thread analyses \"" ^ (String.concat ", " notNeccessaryThreadAnalyses) ^ "\"";
+    let enableAnalysis = GobConfig.set_auto "ana.activated[+]" in
+    List.iter enableAnalysis notNeccessaryThreadAnalyses;
+  | NoOverflow -> (*We focus on integer analysis*)
+    set_bool "ana.int.def_exc" true;
+    set_bool "ana.int.interval" true
 
 (*Detect enumerations and enable the "ana.int.enums" option*)
 exception EnumFound
@@ -324,12 +324,12 @@ let chooseFromOptions costTarget options =
   let compareRatio o1 o2 = Float.compare (ratio o1) (ratio o2) in
   let rec takeFitting remainingTarget options =
     if remainingTarget < 0 then [] else match options with 
-    | o::os ->
-      if o.cost < remainingTarget + costTarget / 20 then (*because we are already estimating, we allow 5% overshooting *) 
-        o::takeFitting (remainingTarget - o.cost) os
-      else
-        takeFitting (remainingTarget - o.cost) os
-    | [] -> []
+      | o::os ->
+        if o.cost < remainingTarget + costTarget / 20 then (*because we are already estimating, we allow 5% overshooting *) 
+          o::takeFitting (remainingTarget - o.cost) os
+        else
+          takeFitting (remainingTarget - o.cost) os
+      | [] -> []
   in
   takeFitting costTarget @@ List.sort compareRatio options
 
@@ -350,10 +350,10 @@ let chooseConfig file =
 
   if isActivated "mallocWrappers" then 
     findMallocWrappers ();
-  
+
   if isActivated "specification" && get_string "ana.specification" <> "" then 
     focusOnSpecification ();
-  
+
   if isActivated "enums" && hasEnums file then
     set_bool "ana.int.enums" true;
 
@@ -363,7 +363,7 @@ let chooseConfig file =
   let options = [] in 
 
   List.iter (fun o -> o.activate ()) @@ chooseFromOptions 1000 options;
-  
+
   set_bool "annotation.array" true;
   set_bool "ana.int.interval_threshold_widening" true; (*Do not do this all the time?*)
   printFactors @@ collectFactors visitCilFileSameGlobals file
