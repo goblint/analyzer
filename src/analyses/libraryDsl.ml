@@ -1,4 +1,5 @@
 open LibraryDesc
+module Access = LibraryDesc.Access (* avoid spurious dependency cycle due to ocamldep overapprox ambiguity between Access and LibraryDesc.Access *)
 
 (** First-class patterns for arguments matching.
     @see <https://github.com/ocaml-ppx/ppxlib/blob/main/src/ast_pattern.ml> for inspiration from ppxlib. *)

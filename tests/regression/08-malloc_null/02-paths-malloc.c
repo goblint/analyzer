@@ -1,6 +1,7 @@
-// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --set ana.activated "['base','threadid','threadflag','escape','malloc_null','mallocWrapper','assert']" --set ana.base.privatization none
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 
 int main(void) {
@@ -39,7 +40,6 @@ int main(void) {
       exit(-1);
   }
 
-  assert(0); // FAIL
   *u = 40; // NOWARN
   *v = 40; // NOWARN
 

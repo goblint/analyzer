@@ -9,7 +9,7 @@ main () {
   strcpy (t, "Bye-bye!\n");
   y = strcpy (s, t);
 
-  assert(*y == 'B'); //TODO
+  __goblint_check(*y == 'B'); //TODO
   char c = *y;
 
   printf ("%s", y);

@@ -295,7 +295,7 @@ class Project
         tests[i] = "fail"
       elsif obj =~ /UNKNOWN/ then
         tests[i] = "unknown"
-      elsif obj =~ /assert.*\(/ then
+      elsif obj =~ /(assert|__goblint_check).*\(/ then
         if obj =~ /FAIL/ then
           tests[i] = "fail"
         elsif obj =~ /UNKNOWN/ then

@@ -33,6 +33,8 @@
       (-> violationZ3.no-z3.ml)
     )
   )
+  (foreign_stubs (language c) (names stubs))
+  (ocamlopt_flags :standard -no-float-const-prop)
   (preprocess
     (pps ppx_deriving.std ppx_deriving_hash ppx_deriving_yojson ppx_blob))
   (preprocessor_deps (file util/options.schema.json))

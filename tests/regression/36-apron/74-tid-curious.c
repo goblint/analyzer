@@ -22,7 +22,7 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
 
   pthread_mutex_lock(&A);
-  assert(g == h); //This succeeds as it can only be entered before t_fun grabs &A and never releases it again
+  __goblint_check(g == h); //This succeeds as it can only be entered before t_fun grabs &A and never releases it again
   pthread_mutex_unlock(&A);
 
   return 0;

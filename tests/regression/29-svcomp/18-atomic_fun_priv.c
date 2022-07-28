@@ -6,11 +6,11 @@ int myglobal = 5;
 
 // atomic by function name prefix
 void __VERIFIER_atomic_fun() {
-  assert(myglobal == 5);
+  __goblint_check(myglobal == 5);
   myglobal++;
-  assert(myglobal == 6);
+  __goblint_check(myglobal == 6);
   myglobal--;
-  assert(myglobal == 5);
+  __goblint_check(myglobal == 5);
 }
 
 void *t_fun(void *arg) {
@@ -21,9 +21,9 @@ void *t_fun(void *arg) {
 int main(void) {
   pthread_t id;
   pthread_create(&id, NULL, t_fun, NULL);
-  assert(myglobal == 5); // TODO
+  __goblint_check(myglobal == 5); // TODO
   __VERIFIER_atomic_begin();
-  assert(myglobal == 5);
+  __goblint_check(myglobal == 5);
   __VERIFIER_atomic_end();
   pthread_join (id, NULL);
   return 0;

@@ -1,4 +1,6 @@
-// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper']" --set ana.base.privatization none
+// PARAM: --set solver td3 --enable ana.int.interval --set ana.base.arrays.domain partitioned  --set ana.activated "['base','threadid','threadflag','escape','expRelation','mallocWrapper','assert']" --set ana.base.privatization none
+#include <assert.h>
+
 int main(int argc, char **argv)
 {
   int unLo;
@@ -27,6 +29,6 @@ int main(int argc, char **argv)
     int y = 27;
  }
 
-  assert(1 == 1); // Was reported as unreachable before
+  __goblint_check(1 == 1); // Was reported as unreachable before
   return 0;
 }

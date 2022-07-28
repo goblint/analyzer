@@ -29,7 +29,7 @@ int main(void) {
 
   // This one succeeds despite what is described in the paper, and even without the must-join analysis :)
   pthread_mutex_lock(&A);
-  assert(g == h);
+  __goblint_check(g == h);
   pthread_mutex_unlock(&A);
 
   return 0;

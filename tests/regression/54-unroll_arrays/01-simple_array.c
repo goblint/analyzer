@@ -14,13 +14,13 @@ void example1() {
     a[4] = 4;
     a[6] = 6;
     a[10] = 10;
-    assert(a[0] == 0); //UNKNOWN
-    assert(a[4] == 4);
-    assert(a[6] == 6); //UNKNOWN
+    __goblint_check(a[0] == 0); //UNKNOWN
+    __goblint_check(a[4] == 4);
+    __goblint_check(a[6] == 6); //UNKNOWN
 
     int i = 4;
     a[i] = 7;
-    assert(a[4] == 7);
+    __goblint_check(a[4] == 7);
 }
 
 //array same length of factor
@@ -32,10 +32,10 @@ void example2() {
     a[3] = 4;
     a[4] = 5;
 
-    assert(a[0] == 1);
-    assert(a[1] == 2);
-    assert(a[2] == 3);
-    assert(a[3] == 0); //FAIL
-    assert(a[4] == 0); //FAIL
+    __goblint_check(a[0] == 1);
+    __goblint_check(a[1] == 2);
+    __goblint_check(a[2] == 3);
+    __goblint_check(a[3] == 0); //FAIL
+    __goblint_check(a[4] == 0); //FAIL
 }
 

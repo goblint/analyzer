@@ -27,6 +27,6 @@ int* ZSTD_createCCtx_advanced(ZSTD_customMem customMem)
 
 int main() {
   int *p = ZSTD_createCCtx_advanced(ZSTD_defaultCMem);
-  assert(p != NULL);
+  __goblint_check(p != NULL);
   return 0;
 }

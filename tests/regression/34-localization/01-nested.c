@@ -2,6 +2,7 @@
 // Example from Amato-Scozzari, SAS 2013
 // Localized widening should be able to prove that i=10 at the end
 // of the nested loops.
+#include <assert.h>
 
 void main()
 {
@@ -11,5 +12,5 @@ void main()
      for (int j = 0; j < 10 ; j++) ;
    }
 
-   assert(i == 10);
+   __goblint_check(i == 10);
 }

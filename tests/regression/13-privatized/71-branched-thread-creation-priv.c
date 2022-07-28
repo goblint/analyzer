@@ -23,7 +23,7 @@ int main() {
   // sync join needs to publish global also to protected/mutex_inits like enter_multithreaded
 
   pthread_mutex_lock(&m);
-  assert(global == 5); // UNKNOWN!
+  __goblint_check(global == 5); // UNKNOWN!
   pthread_mutex_unlock(&m);
 
   return 0;
