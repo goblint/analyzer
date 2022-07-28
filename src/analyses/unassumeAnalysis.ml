@@ -11,14 +11,14 @@ struct
   let name () = "unassume"
 
   module C = Printable.Unit
+  module D = SetDomain.Make (CilType.Exp)
 
-  module ED = SetDomain.Make (CilType.Exp)
-  module UD = SetDomain.Make (Basetype.RawStrings)
-  module D = Lattice.Prod (ED) (UD)
+  module V = Printable.Prod (Node) (ControlC)
+  module G = SetDomain.Make (Basetype.RawStrings)
 
-  let startstate _ = D.bot ()
-  let morphstate _ _ = D.bot ()
-  let exitstate _ = D.bot ()
+  let startstate _ = D.empty ()
+  let morphstate _ _ = D.empty ()
+  let exitstate _ = D.empty ()
 
   let context _ _ = ()
   let should_join _ _ = false
@@ -177,26 +177,31 @@ struct
       ) yaml_entries
 
   let emit_unassume ctx =
-    let (pres, used) = ctx.local in
     let uuid_invs = NH.find_all invs ctx.node in
-    let uuid_invs = ED.fold (fun pre acc ->
+    let uuid_invs = D.fold (fun pre acc ->
         match NH.find_option pre_invs ctx.node with
         | Some eh -> EH.find_all eh pre @ acc
         | None -> acc
-      ) pres uuid_invs
+      ) ctx.local uuid_invs
     in
-    let uuid_invs = List.filter (fun (uuid, _) -> not (UD.mem uuid used)) uuid_invs in
+    let used =
+      try ctx.global (ctx.node, ctx.control_context ())
+      with Ctx_failure _ -> G.empty ()
+    in
+    let uuid_invs = List.filter (fun (uuid, _) -> not (G.mem uuid used)) uuid_invs in
     let (uuids, invs) = GobList.uncombine uuid_invs in
     if M.tracing then M.tracel "unassume" "unassuming: %a\n" (Pretty.docList Pretty.text) uuids;
     begin match invs with
       | x :: xs ->
         let e = List.fold_left (fun a b -> Cil.(BinOp (LAnd, a, b, intType))) x xs in
-        ctx.emit (Unassume e)
+        ctx.emit (Unassume e);
+        begin try ctx.sideg (ctx.node, ctx.control_context ()) (G.of_list uuids)
+          with Ctx_failure _ -> ()
+        end;
       | [] ->
         ()
     end;
-    let used' = UD.union used (UD.of_list uuids) in
-    (pres, used')
+    ctx.local
 
   let assign ctx lv e =
     emit_unassume ctx
@@ -206,17 +211,15 @@ struct
 
   let body ctx fd =
     let pres = FH.find_all fun_pres fd in
-    let pres = List.fold_left (fun acc pre ->
+    let st = List.fold_left (fun acc pre ->
         let v = ctx.ask (EvalInt pre) in
         (* M.debug ~category:Witness "%a precondition %a evaluated to %a" CilType.Fundec.pretty fd CilType.Exp.pretty pre Queries.ID.pretty v; *)
         if Queries.ID.to_bool v = Some true then
-          ED.add pre acc
+          D.add pre acc
         else
           acc
-      ) (ED.empty ()) pres
+      ) (D.empty ()) pres
     in
-    let (_, used) = ctx.local in
-    let st = (pres, used) in
     emit_unassume {ctx with local = st} (* doesn't query, so no need to redefine ask *)
 
   let asm ctx =
@@ -229,7 +232,7 @@ struct
     emit_unassume ctx
 
   let enter ctx lv f args =
-    [(ctx.local, D.bot ())]
+    [(ctx.local, D.empty ())]
 
   let combine ctx lv fe f args fc fd =
     emit_unassume ctx
