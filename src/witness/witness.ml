@@ -290,7 +290,7 @@ struct
         ; emit   = (fun _ -> failwith "Cannot \"emit\" in witness context.")
         ; node   = fst lvar
         ; prev_node = MyCFG.dummy_node
-        ; control_context = Obj.repr (fun () -> snd lvar)
+        ; control_context = (fun () -> Obj.magic (snd lvar))
         ; context = (fun () -> snd lvar)
         ; edge    = MyCFG.Skip
         ; local  = local
