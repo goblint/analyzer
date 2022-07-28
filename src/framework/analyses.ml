@@ -269,8 +269,15 @@ struct
 end
 
 
-let control_spec_c: (module Printable.S) ref = ref (module Printable.Unit: Printable.S) (* TODO: some failing printable instead *)
 (** Reference to top-level Control Spec context first-class module. *)
+let control_spec_c: (module Printable.S) ref =
+  let module Failwith = Printable.Failwith (
+    struct
+      let message = "uninitialized control_spec_c"
+    end
+    )
+  in
+  ref (module Failwith: Printable.S)
 
 (** Top-level Control Spec context as static module, which delegates to {!control_spec_c}.
     This allows using top-level context values inside individual analyses. *)
