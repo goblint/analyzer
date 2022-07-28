@@ -7,6 +7,6 @@ main () {
   a = 0;
   b = 0;
   b = scanf("%d",&a);
-  assert(a == 0); //UNKNOWN!
-  assert(b == 0); //UNKNOWN!
+  __goblint_check(a == 0); //UNKNOWN!
+  __goblint_check(b == 0); //UNKNOWN!
 }

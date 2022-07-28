@@ -6,6 +6,6 @@ int main() {
   bool y;
   x = 4;
   y = true;
-  assert(y);
+  __goblint_check(y);
   return x;
 }

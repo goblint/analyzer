@@ -28,5 +28,5 @@ int main() {
   int i;
   scanf("%d",&i);
   printf("%d\n",proov(i));
-  assert(g == 0); //FAIL
+  __goblint_check(g == 0); //FAIL
 }

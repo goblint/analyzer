@@ -20,5 +20,5 @@ main () {
   int a;
   scanf("%d",&a);
   rec(&a, a);
-  assert(a != 0);
+  __goblint_check(a != 0);
 }

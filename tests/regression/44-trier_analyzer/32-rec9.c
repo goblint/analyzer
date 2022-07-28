@@ -16,5 +16,5 @@ main() {
     ind = 1;
   }
 
-  assert(ind == 0);
+  __goblint_check(ind == 0);
 }

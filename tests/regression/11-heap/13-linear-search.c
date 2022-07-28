@@ -4,7 +4,7 @@ extern void *calloc(unsigned int num, unsigned int size);
 
 void __VERIFIER_as(int cond) {
   if (!(cond)) {
-    assert(1); // reachable
+    __goblint_check(1); // reachable
   }
   return;
 }

@@ -4,5 +4,5 @@
 int main() {
   int* arr = calloc(5,sizeof(int));
   arr[0] = 3;
-  assert(arr[2] == 0); //UNKNOWN
+  __goblint_check(arr[2] == 0); //UNKNOWN
 }

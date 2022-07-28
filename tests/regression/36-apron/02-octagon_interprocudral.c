@@ -15,17 +15,17 @@ int f1() {
 
     one = two;
 
-    assert(one - two == 0);
-    assert(one == two);
+    __goblint_check(one - two == 0);
+    __goblint_check(one == two);
     x = f2(one,two);
-    assert(one - two == 0);
-    assert(one == two);
-    assert(x == 48);
+    __goblint_check(one - two == 0);
+    __goblint_check(one == two);
+    __goblint_check(x == 48);
 }
 
 int f2(int a, int b) {
-    assert(a-b == 0);
-    assert(a == b);
+    __goblint_check(a-b == 0);
+    __goblint_check(a == b);
 
     return 48;
 }

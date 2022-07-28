@@ -326,7 +326,8 @@
           "items": { "type": "string" },
           "default": [
             "expRelation", "base", "threadid", "threadflag", "threadreturn",
-            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp"
+            "escape", "mutexEvents", "mutex", "access", "mallocWrapper", "mhp",
+            "assert"
           ]
         },
         "path_sens": {
@@ -1122,6 +1123,19 @@
                 "Takes the possible failing of locking operations into account.",
               "type": "boolean",
               "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "assert": {
+          "title": "sem.assert",
+          "type": "object",
+          "properties": {
+            "refine": {
+              "title": "sem.assert.refine",
+              "description": "Standard assert refines state",
+              "type": "boolean",
+              "default": true
             }
           },
           "additionalProperties": false

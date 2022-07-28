@@ -6,7 +6,7 @@ int main(){
 
     unsigned int y = -x;
 
-    assert(y == 4294967295);
+    __goblint_check(y == 4294967295);
     printf("y: %u\n", y);
     return 0;
 }

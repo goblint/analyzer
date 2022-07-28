@@ -18,40 +18,40 @@ int main(){
         y = 0;
     }
 
-    assert(x < 2);
-    assert(x < 1); // UNKNOWN!
-    assert(x < 0); // FAIL
+    __goblint_check(x < 2);
+    __goblint_check(x < 1); // UNKNOWN!
+    __goblint_check(x < 0); // FAIL
 
-    assert(x <= 2);
-    assert(x <= 1);
-    assert(x <= 0); // UNKNOWN!
-    assert(x <= -1); //FAIL
+    __goblint_check(x <= 2);
+    __goblint_check(x <= 1);
+    __goblint_check(x <= 0); // UNKNOWN!
+    __goblint_check(x <= -1); //FAIL
 
-    assert(x > -1);
-    assert(x > 0); //UNKNOWN!
-    assert(x > 1); //FAIL
+    __goblint_check(x > -1);
+    __goblint_check(x > 0); //UNKNOWN!
+    __goblint_check(x > 1); //FAIL
 
-    assert(x >= -1);
-    assert(x >= 0);
-    assert(x >= 1); //UNKNOWN!
-    assert(x >= 2); //FAIL
+    __goblint_check(x >= -1);
+    __goblint_check(x >= 0);
+    __goblint_check(x >= 1); //UNKNOWN!
+    __goblint_check(x >= 2); //FAIL
 
-    assert(x == y); // UNKNOWN
-    assert(x == 1); // UNKNOWN
-    assert(x == 2); // FAIL
+    __goblint_check(x == y); // UNKNOWN
+    __goblint_check(x == 1); // UNKNOWN
+    __goblint_check(x == 2); // FAIL
 
-    assert(x != y); // UNKNOWN
-    assert(x != 1); // UNKNOWN
-    assert(x != 2);
+    __goblint_check(x != y); // UNKNOWN
+    __goblint_check(x != 1); // UNKNOWN
+    __goblint_check(x != 2);
 
     int z = rand();
     y = 3;
     if(z==3){
-        assert(y==z);
-        assert(y!=z); //FAIL
+        __goblint_check(y==z);
+        __goblint_check(y!=z); //FAIL
     } else {
-        assert(y==z); //FAIL
-        assert(y!=z);
+        __goblint_check(y==z); //FAIL
+        __goblint_check(y!=z);
     }
 
     return 0;

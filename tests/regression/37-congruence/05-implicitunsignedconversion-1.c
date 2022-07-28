@@ -12,10 +12,10 @@ int main() {
 
   if(plus_one < minus_one) {
     v1 = 1;
-    assert(1);
+    __goblint_check(1);
   }
 
-  assert(v1==1);
+  __goblint_check(v1==1);
 
   // from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/integerpromotion-3.c
   unsigned char port = 0x5a;
@@ -24,7 +24,7 @@ int main() {
     v2 = 2;
   }
 
-  assert(v2==2); // UNKNOWN
+  __goblint_check(v2==2); // UNKNOWN
 
   // from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/signextension-1.c
   unsigned short int allbits = -1;
@@ -46,7 +46,7 @@ int main() {
     v3=3;
   }
 
-  assert(v3==3);
+  __goblint_check(v3==3);
 
   // from https://github.com/sosy-lab/sv-benchmarks/blob/master/c/bitvector-regression/signextension2-2.c
   unsigned int allOne = -1;
@@ -61,7 +61,7 @@ int main() {
     v4=4;
   }
 
-  assert(v4==4);
+  __goblint_check(v4==4);
 
   return (0);
 }

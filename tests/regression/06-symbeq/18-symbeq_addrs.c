@@ -13,17 +13,17 @@ int main () {
 
   x = y = z;
 
-  assert(x == y);
-  assert(x == z);
-  assert(z == y);
+  __goblint_check(x == y);
+  __goblint_check(x == z);
+  __goblint_check(z == y);
 
   x = uk+10; y = uk+20; z = uk+30;
 
   x = y;
   x = z;
 
-  assert(x == z);
-  assert(x == y); // UNKNOWN
+  __goblint_check(x == z);
+  __goblint_check(x == y); // UNKNOWN
   x = 40+uk;
 
   if (uk) {
@@ -35,15 +35,15 @@ int main () {
   }
 
   y = *p;
-  assert(y == *p);
+  __goblint_check(y == *p);
   p = &z;
-  assert(y == *p); // UNKNOWN
+  __goblint_check(y == *p); // UNKNOWN
   p = NULL+10;
 
   r = &ps->x;
-  assert(r == &ps->x);
+  __goblint_check(r == &ps->x);
   ps = &a;
-  assert(r == &ps->x);//UNKNOWN
+  __goblint_check(r == &ps->x);//UNKNOWN
 
   return 0;
 }

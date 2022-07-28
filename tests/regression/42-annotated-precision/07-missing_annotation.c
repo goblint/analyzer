@@ -11,7 +11,7 @@ int f(int in) {
 
 int main() {
   int a = 1;
-  assert(a); // UNKNOWN!
+  __goblint_check(a); // UNKNOWN!
   a = f(a);
   return 0;
 }

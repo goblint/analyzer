@@ -24,10 +24,10 @@ int main(){
 
     // When passing a struct to an unknown function, reachable memory should be invalidated
     mutate_list(first);
-    assert(second.val == 2); //UNKNOWN!
+    __goblint_check(second.val == 2); //UNKNOWN!
 
     // Passing a pointer to the struct here.
     mutate_list2(&first);
-    assert(second.val == 2); //UNKNOWN!
+    __goblint_check(second.val == 2); //UNKNOWN!
     return 0;
 }

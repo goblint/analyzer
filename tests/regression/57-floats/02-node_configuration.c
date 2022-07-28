@@ -7,7 +7,7 @@ void test() __attribute__((goblint_precision("float-interval")));
 int main()
 {
     double a = 2.;
-    assert(a == 2.); // UNKNOWN
+    __goblint_check(a == 2.); // UNKNOWN
     test();
     return 0;
 }
@@ -15,5 +15,5 @@ int main()
 void test()
 {
     double b = 2.;
-    assert(b == 2.); // SUCCESS
+    __goblint_check(b == 2.); // SUCCESS
 }

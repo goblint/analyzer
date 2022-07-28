@@ -14,7 +14,7 @@ int main() {
 
   if (unsignedtosigned == 65535 && unsignedtounsigned == 65535
       && signedtosigned == -1 && signedtounsigned == 4294967295) {
-    assert(1); // reachable
+    __goblint_check(1); // reachable
   }
 
   return (0);

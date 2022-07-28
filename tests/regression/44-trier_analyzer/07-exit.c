@@ -11,7 +11,7 @@ main () {
     printf("Immediate exit.\n");
     exit(0);
   }
-  assert (x !=0);
+  __goblint_check(x !=0);
   printf("The number was not zero.\n");
   return 0;
 }

@@ -3,6 +3,7 @@
 open Prelude.Ana
 open Analyses
 open ApronDomain
+open GobConfig
 
 module M = Messages
 
@@ -400,15 +401,26 @@ struct
         invalidate_one ask ctx st lval
       ) st rs
 
+  let assert_fn ctx e refine =
+    if not refine then
+      ctx.local
+    else
+      (* copied from branch *)
+      let st = ctx.local in
+      let res = assign_from_globals_wrapper (Analyses.ask_of_ctx ctx) ctx.global st e (fun apr' e' ->
+          (* not an assign, but must remove g#in-s still *)
+          AD.assert_inv apr' e' false
+        )
+      in
+      if AD.is_bot_env res then raise Deadcode;
+      {st with apr = res}
+
   let special ctx r f args =
     let ask = Analyses.ask_of_ctx ctx in
     let st = ctx.local in
     let desc = LibraryFunctions.find f in
     match desc.special args, f.vname with
-    (* TODO: assert handling from https://github.com/goblint/analyzer/pull/278 *)
-    | Assert expression, _ -> st
-    | Unknown, "__goblint_check" -> st
-    | Unknown, "__goblint_commit" -> st
+    | Assert { exp; refine; _ }, _ -> assert_fn ctx exp refine
     | ThreadJoin { thread = id; ret_var = retvar }, _ ->
       (
         (* Forget value that thread return is assigned to *)

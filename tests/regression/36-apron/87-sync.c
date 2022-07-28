@@ -9,7 +9,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *t_fun(void *arg) {
   pthread_mutex_lock(&mutex);
-  assert(g==h);
+  __goblint_check(g==h);
   pthread_mutex_unlock(&mutex);
   return NULL;
 }
@@ -33,7 +33,7 @@ int main(void) {
   pthread_mutex_unlock(&mutex);
 
   pthread_mutex_lock(&mutex);
-  assert(g==h);
+  __goblint_check(g==h);
   pthread_mutex_unlock(&mutex);
 
   return 0;

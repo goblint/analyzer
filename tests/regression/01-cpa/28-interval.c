@@ -11,22 +11,22 @@ int main () {
   int true = 42;
 
   if (x){
-    assert(x != 0);
+    __goblint_check(x != 0);
   } else {
-    assert(x == 0);
+    __goblint_check(x == 0);
   }
 
-  assert(!! true);
-  assert(!  false);
+  __goblint_check(!! true);
+  __goblint_check(!  false);
 
   if (a){
     a = a;
   } else
-    assert(0); // NOWARN
+    __goblint_check(0); // NOWARN
 
 
   if (!a)
-    assert(0); // NOWARN
+    __goblint_check(0); // NOWARN
   else
     a = a;
 
@@ -38,22 +38,22 @@ int main () {
     b = 8;
   }
 
-  assert(a);
-  assert(a!=b); //UNKNOWN
-  assert(a<10);
-  assert(a<=9);
-  assert(!(a<8));
-  assert(a==8); //UNKNOWN
-  assert(b>7);
-  assert(b>=8);
-  assert(!(a>9));
-  assert(b==8); //UNKNOWN
+  __goblint_check(a);
+  __goblint_check(a!=b); //UNKNOWN
+  __goblint_check(a<10);
+  __goblint_check(a<=9);
+  __goblint_check(!(a<8));
+  __goblint_check(a==8); //UNKNOWN
+  __goblint_check(b>7);
+  __goblint_check(b>=8);
+  __goblint_check(!(a>9));
+  __goblint_check(b==8); //UNKNOWN
 
   for(x = 0; x < 10; x++){
-    assert(x >= 0);
-    assert(x <= 9);
+    __goblint_check(x >= 0);
+    __goblint_check(x <= 9);
   }
-  assert(x == 10);
+  __goblint_check(x == 10);
 
   if (0 <= w)
   {
@@ -65,8 +65,8 @@ int main () {
 
   if (w > 0)
   {
-      assert(1);
+      __goblint_check(1);
   }
-  
+
   return 0;
 }

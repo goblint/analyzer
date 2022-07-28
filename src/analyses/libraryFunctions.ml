@@ -46,9 +46,9 @@ let linux_descs_list: (string * LibraryDesc.t) list = (* LibraryDsl. *) [
 (** Goblint functions. *)
 let goblint_descs_list: (string * LibraryDesc.t) list = LibraryDsl.[
     ("__goblint_unknown", unknown [drop' [w]]);
-    ("__goblint_check", unknown [drop' []]);
-    ("__goblint_commit", unknown [drop' []]);
-    ("__goblint_assert", special [__ "cond" []] @@ fun cond -> Assert cond);
+    ("__goblint_check", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = false });
+    ("__goblint_assume", special [__ "exp" []] @@ fun exp -> Assert { exp; check = false; refine = true });
+    ("__goblint_assert", special [__ "exp" []] @@ fun exp -> Assert { exp; check = true; refine = get_bool "sem.assert.refine" });
   ]
 
 (** zstd functions.
@@ -125,7 +125,6 @@ type categories = [
   | `Malloc       of exp
   | `Calloc       of exp * exp
   | `Realloc      of exp * exp
-  | `Assert       of exp
   | `Lock         of bool * bool * bool  (* try? * write? * return  on success *)
   | `Unlock
   | `ThreadCreate of exp * exp * exp (* id * f  * x       *)

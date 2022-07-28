@@ -3,28 +3,28 @@
 #include <assert.h>
 
 int cmp1(const void *a, const void *b) {
-  assert(1); // reachable
+  __goblint_check(1); // reachable
   return 0;
 }
 
 int cmp2(const void *a, const void *b) {
-  assert(a != NULL);
-  assert(b != NULL);
+  __goblint_check(a != NULL);
+  __goblint_check(b != NULL);
   return 0;
 }
 
 int cmp3(const void *a, const void *b) {
-  assert(1); // NOWARN (unreachable)
+  __goblint_check(1); // NOWARN (unreachable)
   return 0;
 }
 
 int cmp4(const void *a, const void *b) {
   int x = *((const int*) a);
   int y = *((const int*) b);
-  assert(-3 <= x);
-  assert(x <= 10);
-  assert(-3 <= y);
-  assert(y <= 10);
+  __goblint_check(-3 <= x);
+  __goblint_check(x <= 10);
+  __goblint_check(-3 <= y);
+  __goblint_check(y <= 10);
   return 0;
 }
 

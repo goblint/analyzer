@@ -9,14 +9,14 @@ void f(int n) {
   if (n<3) return;
   n--;
   f2(n);
-  assert(1);
+  __goblint_check(1);
 }
 
 void f2(int n) {
   if (n<3) return;
   n--;
   f(n);
-  assert(1);
+  __goblint_check(1);
 }
 
 int main(void) {

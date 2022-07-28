@@ -11,11 +11,11 @@ int main()
 
   z = 1 - 1.0;
 
-  assert(z == 0.); // SUCCESS
+  __goblint_check(z == 0.); // SUCCESS
 
   if (0.) { x = z;}
 
   if (0 == (0. + 1.)) { x = z;}
 
-  assert(0); // FAIL
+  __goblint_check(0); // FAIL
 }

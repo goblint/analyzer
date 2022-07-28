@@ -46,7 +46,7 @@ int main(void) {
   pthread_create(&id, NULL, t_fun, NULL);
   pthread_create(&id2, NULL, t_fun2, NULL);
   pthread_mutex_lock(&mutex);
-  assert(x==y); //TODO
+  __goblint_check(x==y); //TODO
   pthread_mutex_unlock(&mutex);
   return 0;
 }

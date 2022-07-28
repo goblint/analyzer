@@ -176,7 +176,7 @@ static void* POOL_thread(void* opaque) {
             ZSTD_pthread_mutex_unlock(&ctx->queueMutex);
         }
     }  /* for (;;) */
-    assert(0);  //NOWARN (unreachable)
+    __goblint_check(0);  //NOWARN (unreachable)
 }
 
 POOL_ctx* POOL_create(size_t numThreads, size_t queueSize) {
@@ -273,7 +273,7 @@ static void
 POOL_add_internal(POOL_ctx* ctx, POOL_function function, void *opaque)
 {
     POOL_job const job = {function, opaque};
-    assert(ctx != NULL);
+    __goblint_check(ctx != NULL);
     if (ctx->shutdown) return;
 
     ctx->queueEmpty = 0;
@@ -284,7 +284,7 @@ POOL_add_internal(POOL_ctx* ctx, POOL_function function, void *opaque)
 
 void POOL_add(POOL_ctx* ctx, POOL_function function, void* opaque)
 {
-    assert(ctx != NULL);
+    __goblint_check(ctx != NULL);
     ZSTD_pthread_mutex_lock(&ctx->queueMutex);
     /* Wait until there is space in the queue for the new job */
     while (isQueueFull(ctx) && (!ctx->shutdown)) {
@@ -295,7 +295,7 @@ void POOL_add(POOL_ctx* ctx, POOL_function function, void* opaque)
 }
 
 void foo(void *arg) {
-    assert(1); // reachable
+    __goblint_check(1); // reachable
 }
 
 int g;

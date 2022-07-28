@@ -17,6 +17,6 @@ int main(void){
   pthread_create(&tid, NULL, t, (void *)&l);
   pthread_join(tid, NULL);
 
-  assert(l==42); //UNKNOWN!
+  __goblint_check(l==42); //UNKNOWN!
   return 0;
 }
